@@ -126,12 +126,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             if (stores != null && !trackPreFilters.isEmpty())
                 parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         }
+        Map<Integer, Image> allImages = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> p.getPreFilteredImage(objectClassIdx)));
+        int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            PredictionResults prediction = predict(objectClassIdx, subParentTrack, prevPrediction, null); // actually appends to prevPrediction
+            PredictionResults prediction = predict(objectClassIdx, allImages, sortedFrames, subParentTrack, prevPrediction, null); // actually appends to prevPrediction
             assigner.setPrediction(prediction);
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
@@ -207,11 +209,13 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         Map<SegmentedObject, Double>[] divMapContainer = new Map[1];
         double dMax = parentTrack.stream().map(SegmentedObject::getBounds).mapToDouble(bds -> Math.sqrt(bds.sizeX()*bds.sizeX() + bds.sizeY()*bds.sizeY())).max().orElse(Double.NaN);
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(dMax);
+        Map<Integer, Image> allImages = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> p.getPreFilteredImage(objectClassIdx)));
+        int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            PredictionResults prediction = predict(objectClassIdx, subParentTrack, null, null); // actually appends to prevPrediction
+            PredictionResults prediction = predict(objectClassIdx, allImages, sortedFrames, subParentTrack, null, null);
             assigner.setPrediction(prediction);
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
@@ -1041,8 +1045,28 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     }
 
     public PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
-        List<SegmentedObject> parentTrack = Arrays.asList(parent);
-        return predict(objectClassIdx, parentTrack, null, minimalBounds);
+        List<SegmentedObject> parentTrack = new ArrayList<>();
+        int fw = frameWindow.getIntValue();
+        int sub = frameSubsampling.getIntValue();
+        int extent = fw == 1 ? 1 : 1 + (fw-1) * sub;
+        parentTrack.add(parent);
+        if (parent.getPrevious()!=null) {
+            SegmentedObject p = parent.getPrevious();
+            while(p!=null && parent.getFrame() - p.getFrame() < extent) {
+                parentTrack.add(p);
+                p = p.getPrevious();
+            }
+        }
+        if (next.getSelected()) {
+            SegmentedObject n = parent.getNext();
+            while(n!=null && n.getFrame() - parent.getFrame() < extent) {
+                parentTrack.add(n);
+                n = n.getNext();
+            }
+        }
+        Map<Integer, Image> allImages = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> minimalBounds==null ? p.getPreFilteredImage(objectClassIdx) : p.getPreFilteredImage(objectClassIdx).crop(minimalBounds)));
+        int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
+        return predict(objectClassIdx, allImages, sortedFrames, parentTrack, null, minimalBounds);
     }
 
     @Override
@@ -1190,36 +1214,82 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores = stores;
     }
-
-    protected static Image[][] getInputs(Map<Integer, Image> images, int inputWindow, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
-        int min = images.keySet().stream().mapToInt(i->i).min().getAsInt();
-        int max = images.keySet().stream().mapToInt(i->i).max().getAsInt();
-
-        BiFunction<Integer, Integer, Image> getImage[] = new BiFunction[1];
-        getImage[0] = (cur, i) -> {
-            if (i < 0) {
-                if (prev != null) return prev;
-                else return images[0];
-            } else if (i >= images.length) {
-                if (next!=null) return next;
-                else return images[images.length - 1];
-            }
-            if (i < cur) {
-                if (noPrevParent[i + 1]) return getImage[0].apply(cur, i+1);
-            } else if (i > cur) {
-                if (noPrevParent[i]) return getImage[0].apply(cur, i-1);
-            }
-            return images[i];
-        };
-        IntUnaryOperator getInc = inputWindow>1 ? i -> i<=1 ? i : frameInterval*(i-1)+1 : i -> frameInterval * i;
-        if (addNext) {
-            return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> StreamConcatenation.concat(
-                IntStream.range(0, inputWindow).map(j->inputWindow-j).mapToObj(j->getImage[0].apply(i, i - getInc.applyAsInt(j) )),
-                IntStream.rangeClosed(0, inputWindow).mapToObj(j->getImage[0].apply(i, i + getInc.applyAsInt(j) ))
-            ).toArray(Image[]::new)).toArray(Image[][]::new);
-        } else {
-            return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> IntStream.rangeClosed(0, inputWindow).map(j->inputWindow-j).mapToObj(j->getImage[0].apply(i, i-frameInterval*j)).toArray(Image[]::new)).toArray(Image[][]::new);
+    protected static int search(int[] sortedValues, int fromIdx, double targetValue, double tolerance) {
+        int idx = fromIdx;
+        if (sortedValues[idx] == targetValue) return idx;
+        if (sortedValues[idx] < targetValue) { // forward
+            while(idx<sortedValues.length-1 && sortedValues[idx] < targetValue) ++idx;
+            if (sortedValues[idx]>targetValue) { // need to decide whether choose idx or idx-1
+                if (idx == fromIdx + 1) { // to maximize diversity -> choose idx if within tolerance
+                    if (sortedValues[idx] - targetValue <= tolerance ) return idx;
+                    else return idx - 1;
+                } else { // return closest
+                    if (sortedValues[idx] - targetValue < sortedValues[idx-1] - targetValue) return idx;
+                    else return idx - 1;
+                }
+            } else return idx;
+        } else { // backward
+            while(idx>0 && sortedValues[idx] > targetValue) --idx;
+            if (sortedValues[idx]<targetValue) { // need to decide whether choose idx or idx+1
+                if (idx == fromIdx - 1) { // to maximize diversity -> choose idx if within tolerance
+                    if (targetValue - sortedValues[idx] <= tolerance ) return idx;
+                    else return idx + 1;
+                } else { // return closest
+                    if (targetValue - sortedValues[idx] < targetValue - sortedValues[idx+1]) return idx;
+                    else return idx + 1;
+                }
+            } else return idx;
         }
+    }
+
+    protected static List<Integer> getNeighborhood(int[] sortedFrames, int frame, int inputWindow, boolean addNext, int gap) {
+        int idx = Arrays.binarySearch(sortedFrames, frame);
+        double tol = Math.max(1, gap-1);
+        if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames");
+        List<Integer> res = new ArrayList<>(inputWindow * 2 + 1);
+        // backward
+        if (inputWindow == 1) {
+            res.add(sortedFrames[search(sortedFrames, idx, frame - gap, tol)]);
+        } else {
+            int firstNeighborIdx = search(sortedFrames, idx, frame - 1, tol);
+            int endFrameIdx = search(sortedFrames, firstNeighborIdx, frame - 1 - gap * (inputWindow-1), tol);
+            int endFrame = sortedFrames[endFrameIdx];
+            res.add(endFrame);
+            double newGap = Math.max(1, (double)( frame -1 - endFrame )/(inputWindow-1));
+            int lastIdx = endFrameIdx;
+            //logger.debug("frames: [{},{}] gap {} -> {}", endFrame, sortedFrames[firstNeighborIdx], gap, newGap);
+            for (int i = inputWindow-2; i>0; --i ) {
+                lastIdx = search(sortedFrames, lastIdx, frame - 1 - newGap * i, tol);
+                res.add(sortedFrames[lastIdx]);
+            }
+            res.add(sortedFrames[firstNeighborIdx]);
+        }
+
+        res.add(frame);
+        if (addNext) { // forward
+            if (inputWindow == 1) {
+                res.add(sortedFrames[search(sortedFrames, idx, frame + gap, tol)]);
+            } else {
+                int firstNeighborIdx = search(sortedFrames, idx, frame + 1, tol);
+                int endFrameIdx = search(sortedFrames, firstNeighborIdx, frame + 1 + gap * (inputWindow-1), tol);
+                int endFrame = sortedFrames[endFrameIdx];
+                res.add(sortedFrames[firstNeighborIdx]);
+                double newGap = Math.max(1, (double)( endFrame - (frame + 1) )/(inputWindow-1));
+                int lastIdx = endFrameIdx;
+                for (int i = 1; i<inputWindow-1; ++i ) {
+                    lastIdx = search(sortedFrames, lastIdx, frame + 1 + newGap * i, tol);
+                    res.add(sortedFrames[lastIdx]);
+                }
+                res.add(endFrame);
+            }
+        }
+        return res;
+    }
+    protected static Image[][] getInputs(Map<Integer, Image> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval) {
+        return IntStream.of(frames).mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval)
+                .stream().map(images::get)
+                .toArray(Image[]::new))
+                .toArray(Image[][]::new);
     }
 
     @Override
@@ -1510,16 +1580,16 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             noNextMap = new Image[edm.length];
         }
 
-        void predict(DLengine engine, Map<Integer, Image> images, int frameMinIncl, int frameMaxExcl, int frameInterval) {
-            init(frameMaxExcl - frameMinIncl);
-            double interval = frameMaxExcl - frameMinIncl;
+        void predict(DLengine engine, Map<Integer, Image> images, int[] allFrames, int[] framesToPredict, int frameInterval) {
+            init(framesToPredict.length);
+            double interval = framesToPredict.length;
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
-            for (int i = frameMinIncl; i < frameMaxExcl; i += increment ) {
-                int idxMax = Math.min(i + increment, frameMaxExcl);
-                Image[][] input = getInputs(images, inputWindow, next, i, idxMax, frameInterval);
-                logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, frameMinIncl, frameMaxExcl);
+            for (int i = 0; i < framesToPredict.length; i += increment ) {
+                int idxMax = Math.min(i + increment, framesToPredict.length);
+                Image[][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval);
+                logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, framesToPredict[0], framesToPredict[framesToPredict.length-1]);
                 Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
-                appendPrediction(predictions, i - frameMinIncl);
+                appendPrediction(predictions, i);
             }
         }
 
@@ -1568,7 +1638,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         }
     }
 
-    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, BoundingBox cropBB) {
+    private PredictionResults predict(int objectClassIdx, Map<Integer, Image> images, int[] sortedFrames, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, Offset offset) {
         boolean next = this.next.getSelected();
         long t0 = System.currentTimeMillis();
         DLengine engine = dlEngine.instantiatePlugin();
@@ -1578,17 +1648,9 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         SegmentedObject previousParent = parentTrack.get(0).getPrevious();
         SegmentedObject nextParent = next? parentTrack.get(parentTrack.size()-1).getNext() : null;
         long t2 = System.currentTimeMillis();
-        UnaryOperator<Image> crop = cropBB==null?i->i:i->i.crop(cropBB);
-        Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).map(crop).toArray(Image[]::new);
-        boolean[] noPrevParent = new boolean[parentTrack.size()]; // in case parent track contains gaps
-        noPrevParent[0] = true;
-        for (int i = 1; i < noPrevParent.length; ++i)
-            if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
+
         PredictedChannels pred = new PredictedChannels(this.inputWindow.getIntValue(), this.next.getSelected());
-        pred.predict(engine, images,
-                previousParent != null ? crop.apply(previousParent.getPreFilteredImage(objectClassIdx)) : null,
-                nextParent != null ? crop.apply(nextParent.getPreFilteredImage(objectClassIdx)) : null,
-                noPrevParent, frameSubsampling.getIntValue(), true);
+        pred.predict(engine, images, sortedFrames, parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray(), frameSubsampling.getIntValue());
         long t3 = System.currentTimeMillis();
 
         logger.info("{} predictions made in {}ms", parentTrack.size(), t3 - t2);
@@ -1599,7 +1661,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         logger.info("decrease bitDepth: {}ms", t6 - t5);*/
 
         // offset & calibration
-        Offset off = cropBB==null ? new SimpleOffset(0, 0, 0) : cropBB;
+        Offset off = offset==null ? new SimpleOffset(0, 0, 0) : offset;
         for (int idx = 0; idx < parentTrack.size(); ++idx) {
             pred.edm[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             pred.center[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
