@@ -1166,7 +1166,21 @@ public class Utils {
         return version;
     }
 
-
+    public static String formatDuration(long s) {
+        if (s>=86400000) {
+            return String.format("%dd%02dh%02d:%02d", s / 86400000, (s % 86400000) / 3600000, (s % 3600000) / 60000, (s % 60000) / 1000);
+        } else if (s>=3600000){
+            return String.format("%dh%02d:%02d", s / 3600000, (s % 3600000) / 60000, (s % 60000) / 1000);
+        } else if (s>=60000) {
+            return String.format("%02d:%02d", s / 60000, (s % 60000) / 1000);
+        } else if (s>=10000) {
+            return String.format("%02d.%02ds", s / 1000, (s % 1000)/10);
+        } else if (s>=1000){
+            return String.format("%d.%03ds", s / 1000, s % 1000);
+        } else {
+            return String.format("%03dms", s);
+        }
+    }
     public static String format(Number n, int digits) {
         if (n instanceof Integer || n instanceof Long) {
             if (Math.abs(n.longValue())<=1000) return n.toString();

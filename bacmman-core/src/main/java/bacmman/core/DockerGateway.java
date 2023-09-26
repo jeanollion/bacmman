@@ -4,8 +4,11 @@ import bacmman.utils.SymetricalPair;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public interface DockerGateway {
@@ -31,4 +34,33 @@ public interface DockerGateway {
         String[] split = gpuList.split(",");
         return Arrays.stream(split).filter(s->!s.isEmpty()).mapToInt(Integer::parseInt).toArray();
     }
+    static Comparator<String> tagComparator(){
+        return (t1, t2) -> {
+            int[] v1 = parseVersion(t1);
+            int[] v2 = parseVersion(t2);
+            for (int i = 0; i<Math.min(v1.length, v2.length); ++i) {
+                int c = Integer.compare(v1[i], v2[i]);
+                if (c!=0) return c;
+            }
+            return Integer.compare(v1.length,v2.length); // if one is longer considered as later version
+        };
+    }
+    static Comparator<String> dockerFileComparator(){
+        return (f1, f2) -> tagComparator().compare(formatDockerTag(f1), formatDockerTag(f2));
+    }
+    static int[] parseVersion(String tag) {
+        int i = tag.indexOf(':');
+        if (i>=0) tag = tag.substring(i+1);
+        i = tag.indexOf('-');
+        if (i>=0) tag = tag.substring(i+1);
+        return Arrays.stream(tag.split("\\.")).mapToInt(Integer::parseInt).toArray();
+    }
+    static String formatDockerTag(String tag) {
+        tag = tag.replace(".dockerfile", "");
+        tag = tag.replace("--", ":");
+        Pattern p = Pattern.compile("(?<=[0-9])-(?=[0-9])");
+        Matcher m = p.matcher(tag);
+        return m.replaceAll(".");
+    }
+
 }

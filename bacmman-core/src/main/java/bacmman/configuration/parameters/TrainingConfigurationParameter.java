@@ -30,7 +30,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             String file = tp.getLoadModelWeightRelativePath();
             if (file==null) return true;
             else if (refPath==null) return true;
-            return Paths.get(refPath.toString(), file).toFile().isFile();
+            return Paths.get(refPath.toString(), file).toFile().exists();
         });
         this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
         this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, dataAugmentationParameters, otherDatasetParameters))
@@ -114,6 +114,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public TrainingConfigurationParameter setReferencePath(Path refPath) {
         this.refPath = refPath;
         datasetList.getChildren().forEach(c -> c.path.setRefPath(refPath));
+        trainingParameters.refPath = refPath;
         return this;
     }
 
@@ -225,8 +226,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter workers = new BoundedNumberParameter("Multiprocessing Workers", 0, 8, 1, null).setHint("Number of CPU threads at training. Can increase training speed when mini-batch generation is time-consuming");
         TextParameter weightDir = new TextParameter("Weight Dir", "", false, true).setHint("Relative path to directory where weights will be stored (created if not existing)");
         TextParameter logDir = new TextParameter("Log Dir", "Logs", false, true).setHint("Relative path to directory where training logs will be stored (created if not existing)");
-        TextParameter loadModelName = new TextParameter("Load Model Name", "", false, true).setHint("Model to load weights from (optional)");
-
+        Path refPath;
+        MLModelFileParameter loadModelName = new MLModelFileParameter("Load Model")
+                .setFileChooserOption(FileChooser.FileChooserOption.FILES_AND_DIRECTORIES)
+                .setSelectedFilePath(null)
+                .setGetRefPathFunction(p -> refPath==null ? null : refPath.resolve(weightDir.getValue()))
+                .allowNoSelection(true)
+                .setHint("Saved model weights that will be loaded before training (optional)")
+                .setFileChooserHint("Saved model weight, relative to <em>Weight Dir</em>");
         protected TrainingParameter(String name, Parameter[] additionnalParameter) {
             super(name);
             this.children = new ArrayList<>();
@@ -257,38 +264,34 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public JSONObject getPythonConfiguration() {
             JSONObject res = new JSONObject();
             for (Parameter p : this.children) {
-                if (p instanceof PythonConfiguration) res.put(((PythonConfiguration)p).getPythonConfigurationKey(), ((PythonConfiguration)p).getPythonConfiguration());
+                if (p == loadModelName) {
+                    String lm = getLoadModelWeightFileName();
+                    if (lm !=null ) res.put("load_model_filename", lm);
+                } else if (p instanceof PythonConfiguration) res.put(((PythonConfiguration)p).getPythonConfigurationKey(), ((PythonConfiguration)p).getPythonConfiguration());
                 else if (p instanceof NumberParameter && p.getName().equals("Epoch Number")) res.put("n_epochs", p.toJSONEntry());
                 else res.put(toSnakeCase(p.getName()), p.toJSONEntry());
             }
             return res;
         }
-        public String getModelWeightFile() {
+        public String getModelWeightFileName() {
             String file = modelName.getValue();
             if (!file.contains(".")) return file + ".h5";
             else return file;
         }
-        public String getLoadModelWeightFile() {
-            String file = loadModelName.getValue();
-            if (file.isEmpty()) return null;
-            if (!file.contains(".")) return file + ".h5";
-            else return file;
+        public String getLoadModelWeightFileName() {
+            File f = loadModelName.getModelFile();
+            if (f == null) return null;
+            else return f.getName();
         }
         public String getSavedWeightRelativePath() {
-            if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), getModelWeightFile()).toString();
-            else return getModelWeightFile();
+            if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), getModelWeightFileName()).toString();
+            else return getModelWeightFileName();
         }
         public String getLoadModelWeightRelativePath() {
-            String file = getLoadModelWeightFile();
+            String file = getLoadModelWeightFileName();
             if (file == null) return null;
             if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), file).toString();
             else return file;
-        }
-        public String getLoadSavedWeightRelativePath() {
-            String n = getLoadModelWeightFile();
-            if (n==null) return null;
-            if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), n).toString();
-            else return n;
         }
 
         public String getModelWeightRelativePath() {

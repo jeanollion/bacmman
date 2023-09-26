@@ -43,6 +43,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static bacmman.core.DockerGateway.formatDockerTag;
 import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
@@ -147,6 +148,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         startTrainingButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
             promptSaveConfig();
+            writeConfigFile(false, true, false, false);
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
@@ -276,6 +278,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                 // set back properties
                 if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
                 epochLabel.setText("Epoch:");
+                if (currentProgressBar!=null) {
+                    currentProgressBar.setValue(currentProgressBar.getMinimum());
+                    currentProgressBar.setString("");
+                }
             }
         });
         uploadModelButton.addMouseListener(new MouseAdapter() {
@@ -379,7 +385,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
                     .setWorkingDirectory(currentWorkingDirectory);
         } else {
-            dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> epochLabel.setText("Epoch:"), this);
+            dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> {
+                epochLabel.setText("Epoch:");
+                if (currentProgressBar!=null) {
+                    currentProgressBar.setValue(currentProgressBar.getMinimum());
+                    currentProgressBar.setString("");
+                }
+                }, this);
             dlModelLibrary.display(dia.getParent() instanceof JFrame ? (JFrame) dia.getParent() : null);
             currentProgressBar = trainingProgressBar;
             epochLabel.setText("Upload:");
@@ -415,16 +427,14 @@ public class DockerTrainingWindow implements ProgressLogger {
                 List<String> dockerFiles = Utils.getResourcesForPath(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
                 String dockerfileName = dockerFiles.stream()
                         .filter(n -> n.startsWith(trainer.getDockerImageName()))
-                        .sorted(Comparator.reverseOrder())
+                        .sorted(DockerGateway.dockerFileComparator().reversed())
                         .findFirst().orElse(null);
                 logger.debug("docker file : {} within: {}", dockerfileName, dockerFiles);
                 if (dockerfileName == null) {
                     GUI.log("Dockerfile: " + trainer.getDockerImageName() + " not found.");
                     return null;
                 }
-                //String version = dockerfileName.contains(":") ? dockerfileName.substring(dockerfileName.indexOf(':')) : "";
-                String tag = dockerfileName.replace(".dockerfile", "");
-                if (tag.contains(":") || tag.contains("--")) tag = formatDockerTag(tag);
+                String tag = formatDockerTag(dockerfileName);
                 dockerDir = new File(currentWorkingDirectory, "docker");
                 if (!dockerDir.exists()) dockerDir.mkdir();
                 dockerFilePath = Paths.get(currentWorkingDirectory, "docker", "Dockerfile").toString();
@@ -439,17 +449,15 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (dockerFilePath != null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();
                 if (dockerDir != null && dockerDir.exists()) dockerDir.delete();
                 epochLabel.setText("Epoch:");
+                if (currentProgressBar!=null) {
+                    currentProgressBar.setValue(currentProgressBar.getMinimum());
+                    currentProgressBar.setString("");
+                }
             }
         }
         return imageName;
     }
 
-    public static String formatDockerTag(String tag) {
-        tag = tag.replace("--", ":");
-        Pattern p = Pattern.compile("(?<=[0-9])-(?=[0-9])");
-        Matcher m = p.matcher(tag);
-        return m.replaceAll(".");
-    }
 
     protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway) {
         String image = ensureImage(trainer, dockerGateway);
@@ -616,38 +624,21 @@ public class DockerTrainingWindow implements ProgressLogger {
         String stepTime, epochTime, trainingTime;
         if (!Double.isNaN(stepDuration)) {
             double avgTimeMS = stepDuration / elapsedSteps;
-            if (avgTimeMS > 1000) stepTime = Utils.format(avgTimeMS / 1000, 2) + "s/step";
-            else stepTime = Utils.format(avgTimeMS, 0) + "ms/step";
+            stepTime = Utils.formatDuration((long) avgTimeMS) + "/step";
         } else {
-            stepTime = "     ms/step";
+            stepTime = "     /step";
         }
         if (!Double.isNaN(epochDuration) || !Double.isNaN(stepDuration)) {
             double avgTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / currentEpoch;
-            double elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
-            double elapsedTraining = System.currentTimeMillis() - trainTime;
-            double totalTraining = avgTimeMS * maxEpoch;
-            if (avgTimeMS >= 60000)
-                epochTime = Utils.format(elapsedEpoch / 60000, 2) + " / " + Utils.format(avgTimeMS / 60000, 2) + "min";
-            else if (avgTimeMS >= 1000)
-                epochTime = Utils.format(elapsedEpoch / 1000, 2) + " / " + Utils.format(avgTimeMS / 1000, 2) + "s";
-            else epochTime = Utils.format(elapsedEpoch, 0) + " / " + Utils.format(avgTimeMS, 0) + "ms";
-            if (totalTraining >= 86400000) {
-                if (elapsedTraining >= 86400000) trainingTime = Utils.format(elapsedTraining / 86400000, 2);
-                else if (elapsedTraining >= 3600000) trainingTime = Utils.format(elapsedTraining / 3600000, 2) + "h";
-                else trainingTime = Utils.format(elapsedTraining / 60000, 2) + "min";
-                trainingTime += " / " + Utils.format(totalTraining / 86400000, 2) + "days";
-            } else if (totalTraining >= 3600000) {
-                if (elapsedTraining >= 3600000) trainingTime = Utils.format(elapsedTraining / 3600000, 2);
-                else trainingTime = Utils.format(elapsedTraining / 60000, 2) + "min";
-                trainingTime += " / " + Utils.format(totalTraining / 3600000, 2) + "h";
-            } else if (avgTimeMS >= 60000)
-                trainingTime = Utils.format(elapsedTraining / 60000, 2) + " / " + Utils.format(totalTraining / 60000, 2) + "min";
-            else if (avgTimeMS >= 1000)
-                trainingTime = Utils.format(elapsedTraining / 1000, 2) + " / " + Utils.format(totalTraining / 1000, 2) + "s";
-            else trainingTime = Utils.format(elapsedTraining, 0) + " / " + Utils.format(totalTraining, 0) + "ms";
+            long avgTimeMSL = (long) avgTimeMS;
+            long elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
+            long elapsedTraining = System.currentTimeMillis() - trainTime;
+            long totalTraining = (long) (avgTimeMS * maxEpoch);
+            epochTime = Utils.formatDuration(elapsedEpoch) + " / " + Utils.formatDuration(avgTimeMSL);
+            trainingTime = Utils.formatDuration(elapsedTraining) + " / " + Utils.formatDuration(totalTraining);
         } else {
-            epochTime = "      /      min";
-            trainingTime = "      /      h";
+            epochTime = "      /      ";
+            trainingTime = "      /      ";
         }
         timeLabel.setText(stepTime + " | Epoch: " + epochTime + " | Total: " + trainingTime);
     }
@@ -681,7 +672,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("build progress: {}", message);
     }
 
-    String[] ignoreError = new String[]{"successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
+    String[] ignoreError = new String[]{"Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
 
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
@@ -1032,10 +1023,10 @@ public class DockerTrainingWindow implements ProgressLogger {
         panel5.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         timeLabel = new JLabel();
         timeLabel.setText("                                                                                   ");
-        trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(-1, 20), null, null, 0, false));
         learningRateLabel = new JLabel();
         learningRateLabel.setText("                          ");
-        trainingPanel.add(learningRateLabel, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        trainingPanel.add(learningRateLabel, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(-1, 20), null, null, 0, false));
     }
 
     /**

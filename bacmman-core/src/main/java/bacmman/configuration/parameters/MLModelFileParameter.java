@@ -8,8 +8,10 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static bacmman.configuration.parameters.DLMetadataConfigurable.configureParentsAndSiblings;
@@ -35,6 +37,14 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     public MLModelFileParameter(String name) {
         super(name);
     }
+    public MLModelFileParameter allowNoSelection(boolean allowNoSelection) {
+        modelFile.setAllowNoSelection(allowNoSelection);
+        return this;
+    }
+    public MLModelFileParameter setFileChooserHint(String hint) {
+        modelFile.setHint(hint);
+        return this;
+    }
     public MLModelFileParameter setFileChooserOption(FileChooser.FileChooserOption option) {
         modelFile.setOption(option);
         return this;
@@ -44,8 +54,13 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         modelFile.setPathValidation(validDirectory);
         return this;
     }
-    public void setSelectedFilePath(String path) {
+    public MLModelFileParameter setGetRefPathFunction(Function<Parameter, Path> getRefPath) {
+        this.modelFile.setGetRefPathFunction(getRefPath);
+        return this;
+    }
+    public MLModelFileParameter setSelectedFilePath(String path) {
         modelFile.setSelectedFilePath(path);
+        return this;
     }
     public String getSelectedPath() {
         return modelFile.getFirstSelectedFilePath();
@@ -76,7 +91,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         } else return f;
     }
     public void configureFromMetadata(String modelID, DLModelMetadata metadata) {
-        logger.debug("configuring MLMOdelFileParameer from metadata");
+        logger.debug("configuring MLModelFileParameter from metadata");
         lf = null;
         String oldID = id.getValue();
         id.setValue(modelID);
@@ -159,10 +174,12 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     public void initFromJSONEntry(Object jsonEntry) {
         // replacement from FileChooser
         if (jsonEntry instanceof JSONArray) modelFile.initFromJSONEntry(jsonEntry);
-        else {
+        else if (jsonEntry instanceof JSONObject) {
             JSONObject jsonO = (JSONObject) jsonEntry;
             modelFile.initFromJSONEntry(jsonO.get("file"));
             id.initFromJSONEntry(jsonO.get("id"));
+        } else if (jsonEntry instanceof String) {
+            modelFile.initFromJSONEntry(jsonEntry);
         }
     }
 }

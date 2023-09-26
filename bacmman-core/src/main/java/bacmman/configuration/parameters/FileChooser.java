@@ -24,7 +24,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.swing.JFileChooser;
@@ -46,6 +48,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     boolean relativePath = true, mustExist=true;
     Predicate<String> validPath;
     Path refPath;
+    Supplier<Path> getRefPathFunction;
     public FileChooser(String name) {this(name, FileChooserOption.FILE_OR_DIRECTORY, true);}
     public FileChooser(String name, FileChooserOption option) {
         this(name, option, true);
@@ -54,6 +57,11 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         super(name);
         this.option=option;
         this.allowNoSelection=allowNoSelection;
+        setGetRefPathFunction( p -> {
+            Experiment xp = ParameterUtils.getExperiment(p);
+            if (xp==null) return null;
+            else return xp.getPath();
+        });
     }
     public FileChooser setOption(FileChooserOption option) {
         this.option = option;
@@ -61,6 +69,10 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     public FileChooser setPathValidation(Predicate<String> validPath) {
         this.validPath = validPath;
+        return this;
+    }
+    public FileChooser setAllowNoSelection(boolean allowNoSelection) {
+        this.allowNoSelection = allowNoSelection;
         return this;
     }
     public FileChooser setRelativePath(boolean relativePath) {
@@ -202,7 +214,11 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        selectedFiles = JSONUtils.fromStringArray((JSONArray)jsonEntry);
+        if (jsonEntry instanceof String) {
+            selectedFiles = new String[]{(String)jsonEntry};
+        } else if (jsonEntry instanceof JSONArray) {
+            selectedFiles = JSONUtils.fromStringArray((JSONArray) jsonEntry);
+        } else selectedFiles = new String[0];
         Utils.transformInPlace(selectedFiles, FileChooser::fixWindowsPath);
         // check absolute...
         if (selectedFiles.length>0) {
@@ -240,17 +256,19 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     public Path getRefPath() {
         if (refPath !=null) return refPath;
-        Experiment xp = ParameterUtils.getExperiment(this);
-        //if (xp==null || xp.getPath()==null) logger.warn("Could not get reference path for parameter: {} (from: {}). Experiment found ? {}", this, this.getParameterPath(), xp!=null);
-        if (xp==null) return null;
-        return xp.getPath();
+        else if (getRefPathFunction != null) return getRefPathFunction.get();
+        else return null;
     }
-    protected static String[] toAbsolutePath(Path refPath, String[] files) {
-        if (refPath == null) return null;
+    public FileChooser setGetRefPathFunction(Function<Parameter, Path> getRefPathFunction) {
+        this.getRefPathFunction = () -> getRefPathFunction.apply(this);
+        return this;
+    }
+    protected static String[] toAbsolutePath(Path referencePath, String[] files) {
+        if (referencePath == null) return null;
         if (files ==null) return null;
         if (files.length==0) return new String[0];
         return Arrays.stream(files).map(p -> {
-            String pp = toAbsolutePath(refPath, p);
+            String pp = toAbsolutePath(referencePath, p);
             if (pp==null) return p;
             else return pp;
         }).toArray(String[]::new);

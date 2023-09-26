@@ -9,6 +9,7 @@ import bacmman.utils.Triplet;
 import bacmman.utils.Utils;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.*;
+import com.github.dockerjava.api.exception.ConflictException;
 import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientConfig;
@@ -149,7 +150,11 @@ public class DockerGatewayImpl implements DockerGateway {
     @Override
     public void stopContainer(String containerId) {
         dockerClient.stopContainerCmd(containerId).exec();
-        dockerClient.removeContainerCmd(containerId).withForce(true).exec();
+        try {
+            dockerClient.removeContainerCmd(containerId).withForce(true).exec();
+        } catch (ConflictException e) {
+            if (!e.getMessage().contains("is already in progress")) throw e;
+        }
     }
 
 }
