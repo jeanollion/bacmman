@@ -7,16 +7,19 @@ import com.github.dockerjava.api.model.ResponseItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class BuildImageResultCallback extends ResultCallbackTemplate<com.github.dockerjava.api.command.BuildImageResultCallback, BuildResponseItem> {
     private static final Logger logger = LoggerFactory.getLogger(BuildImageResultCallback.class);
     private Consumer<String> stdout, stderr;
-
-    public BuildImageResultCallback(Consumer<String> stdout, Consumer<String> stderr) {
+    ProgressParser stepProgress;
+    public BuildImageResultCallback(Consumer<String> stdout, Consumer<String> stderr, BiConsumer<Integer, Integer> stepProgress) {
         this.stdout = stdout;
         this.stderr = stderr;
+        this.stepProgress = new ProgressParser(stepProgress);
     }
 
     protected String imageId;
@@ -32,6 +35,7 @@ public class BuildImageResultCallback extends ResultCallbackTemplate<com.github.
         } else {
             if (this.stdout!=null) this.stdout.accept(item.getStream());
         }
+        stepProgress.accept(item);
         //logger.debug("{}", item);
     }
 

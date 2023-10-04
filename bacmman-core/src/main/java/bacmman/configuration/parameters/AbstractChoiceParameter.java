@@ -32,51 +32,56 @@ import java.util.function.Function;
  */
 
 public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, ParameterWithLegacyInitialization<P, V>, Listenable<P> {
-    String selectedItem;
+    V selectedItem;
     boolean allowNoSelection;
-    private int selectedIndex=-2;
     ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond;
     Function<String, V> mapper;
 
-    public AbstractChoiceParameter(String name, String selectedItem, Function<String, V> mapper, boolean allowNoSelection) {
+    public AbstractChoiceParameter(String name, V selectedItem, Function<String, V> mapper, boolean allowNoSelection) {
         super(name);
-        setSelectedItem(selectedItem);
+        this.selectedItem = selectedItem;
         this.allowNoSelection=allowNoSelection;
         this.mapper = mapper;
+    }
+    public P setMapper(Function<String, V> mapper) {
+        this.mapper = mapper;
+        return (P)this;
     }
     public P setAllowNoSelection(boolean allowNoSelection) {
         this.allowNoSelection=allowNoSelection;
         return (P)this;
     }
-    public String getSelectedItem() {return selectedItem;}
     public int getSelectedIndex() {
-        return selectedIndex;
+        if (selectedItem == null) return -1;
+        return Utils.getIndex(getChoiceList(), selectedItem.toString());
     }
-    
+
+    @Override
+    public V getValue() {
+        return this.selectedItem;
+    }
+
+    public String getSelectedItem() {
+        if (this.selectedItem == null) return NO_SELECTION;
+        else return this.selectedItem.toString();
+    }
+
     @Override 
     public void setSelectedItem(String selectedItem) {
-        if (selectedItem==null || selectedItem.length()==0 || selectedItem.equals(getNoSelectionString())) {
-            this.selectedItem = getNoSelectionString();
-            selectedIndex=-1;
+        if (selectedItem==null || selectedItem.isEmpty() || selectedItem.equals(getNoSelectionString())) {
+            this.selectedItem = null;
         } else {
-            this.selectedIndex=Utils.getIndex(getChoiceList(), selectedItem);
-            if (selectedIndex>=0) this.selectedItem=selectedItem;
-            else {
-                if (this.selectedItem==null) this.selectedItem=getNoSelectionString();
-            }
+            this.selectedItem = mapper.apply(selectedItem);
         }
-
         fireListeners();
         setCondValue();
     }
     
     public void setSelectedIndex(int selectedIndex) {
         if (selectedIndex>=0) {
-            this.selectedItem=getChoiceList()[selectedIndex];
-            this.selectedIndex=selectedIndex;
+            this.selectedItem=mapper.apply(getChoiceList()[selectedIndex]);
         } else {
-            this.selectedIndex=-1;
-            selectedItem=getNoSelectionString();
+            selectedItem=null;
         }
         fireListeners();
         setCondValue();
@@ -88,13 +93,13 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     @Override 
     public boolean isValid() {
         if (!super.isValid()) return false;
-        return !(!allowNoSelection && this.selectedIndex<0);
+        return !(!allowNoSelection && this.selectedItem==null);
     }
     @Override
     public boolean sameContent(Parameter other) {
         if (other instanceof AbstractChoiceParameter) {
-            if (this.getSelectedItem()==null) return ((AbstractChoiceParameter)other).getSelectedItem()==null;
-            return this.getSelectedItem().equals(((AbstractChoiceParameter)other).getSelectedItem());
+            if (this.getValue()==null) return ((AbstractChoiceParameter)other).getValue()==null;
+            return this.getValue().equals(((AbstractChoiceParameter)other).getValue());
         }
         else return false;
         
@@ -104,7 +109,17 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         if (other instanceof AbstractChoiceParameter) {
             //bypassListeners=true;
             AbstractChoiceParameter otherC = (AbstractChoiceParameter)other;
-            setSelectedItem(otherC.getSelectedItem());
+            if (otherC.selectedItem == null) {
+                selectedItem = null;
+            } else {
+                try {
+                    selectedItem = (V) otherC.selectedItem;
+                } catch (ClassCastException e) {
+                    setSelectedItem(otherC.getValue().toString());
+                }
+            }
+            fireListeners();
+            setCondValue();
             //bypassListeners=false;
             //logger.debug("choice {} set content from: {} current item: {}, current idx {}, other item: {}, other idx : {}", this.hashCode(), otherC.hashCode(), this.getSelectedItem(), this.getSelectedIndex(), otherC.getSelectedItem(), otherC.getSelectedIndex());
         } //else throw new IllegalArgumentException("wrong parameter type: "+(other==null? "null":other.getClass()) +" instead of ChoiceParameter");
@@ -115,7 +130,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     public boolean isAllowNoSelection() {
         return this.allowNoSelection;
     }
-    public static String NO_SELECTION="no selection";
+    public static String NO_SELECTION="NO SELECTION";
     @Override
     public String getNoSelectionString() {
         return NO_SELECTION;
@@ -126,7 +141,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     public abstract String[] getChoiceList();
 
     protected void setCondValue() {
-        if (cond!=null) cond.setActionValue(selectedItem ==null ? null : mapper.apply(selectedItem));
+        if (cond!=null) cond.setActionValue(selectedItem);
     }
     @Override
     public void setConditionalParameter(ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond) {
@@ -140,22 +155,19 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     public ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> getConditionalParameter() {
         return cond;
     }
-    
-    private AbstractChoiceParameter(String name, String selectedItem) {
-        super(name);
-        this.selectedItem=selectedItem;
-    }
 
     @Override
     public Object toJSONEntry() {
-        return selectedItem;
+        if (selectedItem == null) return "";
+        else return selectedItem.toString();
     }
 
     @Override
     public void initFromJSONEntry(Object json) {
         if (json instanceof String) {
-            setSelectedItem((String)json);
-            if (getSelectedIndex()==-1) {
+            if (((String) json).isEmpty()) setSelectedItem(null);
+            else setSelectedItem((String)json);
+            if (getValue()==null) {
                 if (legacyParameter!=null) legacyParameter.initFromJSONEntry(json);
                 legacyInit();
             }

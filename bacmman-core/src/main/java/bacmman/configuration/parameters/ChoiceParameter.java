@@ -40,10 +40,6 @@ public class ChoiceParameter extends AbstractChoiceParameterFixedChoiceList<Stri
         res.setEmphasized(isEmphasized);
         return res;
     }
-    @Override
-    public String getValue() {
-        return getSelectedItem();
-    }
 
     @Override
     public void setValue(String value) {

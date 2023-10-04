@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -65,15 +66,15 @@ public class DockerGatewayImpl implements DockerGateway {
     }
 
     @Override
-    public String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr) {
+    public String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress) {
         bacmman.docker.BuildImageResultCallback buildCb = dockerClient.buildImageCmd(dockerFile)
                 .withTags(Collections.singleton(tag)).withPull(true)
-                .exec(new bacmman.docker.BuildImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr));
+                .exec(new bacmman.docker.BuildImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr, stepProgress));
         return buildCb.awaitImageId();
     }
 
     @Override
-    public boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr) {
+    public boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress) {
         try {
             if (image.contains("--")) {
                 String[] split = image.split("--");
@@ -82,7 +83,7 @@ public class DockerGatewayImpl implements DockerGateway {
             }
             PullImageCmd cmd = dockerClient.pullImageCmd(image);
             if (version!=null) cmd = cmd.withTag(version);
-            cmd.exec(new PullImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr)).awaitCompletion();
+            cmd.exec(new PullImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr, stepProgress)).awaitCompletion();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

@@ -118,6 +118,20 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return this;
     }
 
+    public TrainingConfigurationParameter setDockerImageRequirements(String imageName, int[] minimalVersion, int[] maximalVersion) {
+        trainingParameters.dockerImage.setImageRequirement(imageName, minimalVersion, maximalVersion);
+        return this;
+    }
+
+    public TrainingConfigurationParameter refreshDockerImages() {
+        trainingParameters.dockerImage.refreshImageList();
+        return this;
+    }
+
+    public DockerImageParameter.DockerImage getSelectedDockerImage() {
+        return trainingParameters.dockerImage.getValue();
+    }
+
     public Parameter[] getChildParameters() {
         return children.toArray(new Parameter[0]);
     }
@@ -219,6 +233,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
 
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {
+        DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
         BoundedNumberParameter epochNumber = new BoundedNumberParameter("Epoch Number", 0, 32, 0, null);
         BoundedNumberParameter stepNumber = new BoundedNumberParameter("Step Number", 0, 100, 1, null);;
         BoundedNumberParameter learningRate = new BoundedNumberParameter("Learning Rate", 8, 2e-4, 10e-8, null);
@@ -237,6 +252,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         protected TrainingParameter(String name, Parameter[] additionnalParameter) {
             super(name);
             this.children = new ArrayList<>();
+            children.add(dockerImage);
             children.add(epochNumber);
             children.add(stepNumber);
             children.add(learningRate);

@@ -23,8 +23,8 @@ package bacmman.configuration.parameters;
  * @author Jean Ollion
  */
 public interface ActionableParameter<V, P extends ActionableParameter<V, P>> extends Parameter<P>, ChoosableParameter<P>, Listenable<P> {
-    public V getValue();
-    public void setValue(V value);
-    public void setConditionalParameter(ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond);
-    public ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> getConditionalParameter();
+    V getValue();
+    void setValue(V value);
+    void setConditionalParameter(ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond);
+    ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> getConditionalParameter();
 }

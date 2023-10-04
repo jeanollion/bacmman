@@ -24,7 +24,7 @@ package bacmman.configuration.parameters;
  */
 public interface ChoosableParameter<P extends Parameter<P>> extends Parameter<P> {
     /**
-     * Set {@param item} as selected
+     * Set {@param item} as selected
      * Should also fire listeners
      * @param item 
      */

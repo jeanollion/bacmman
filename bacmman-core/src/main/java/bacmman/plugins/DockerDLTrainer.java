@@ -32,7 +32,6 @@ public interface DockerDLTrainer extends Plugin {
 
     Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile);
 
-    String getDockerImageName();
     DLModelMetadata getDLModelMetadata();
 
     enum SELECTION_MODE {NEW, EXISTING}

@@ -36,12 +36,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 import static bacmman.utils.Utils.format;
@@ -80,6 +78,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JButton moveModelButton;
     private JLabel timeLabel;
     private JLabel learningRateLabel;
+    private JComboBox dockerImageJCB;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
     static String MD_ID = "docker_training_move_dir";
@@ -278,7 +277,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 // set back properties
                 if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
                 epochLabel.setText("Epoch:");
-                if (currentProgressBar!=null) {
+                if (currentProgressBar != null) {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
                     currentProgressBar.setString("");
                 }
@@ -387,11 +386,11 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else {
             dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> {
                 epochLabel.setText("Epoch:");
-                if (currentProgressBar!=null) {
+                if (currentProgressBar != null) {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
                     currentProgressBar.setString("");
                 }
-                }, this);
+            }, this);
             dlModelLibrary.display(dia.getParent() instanceof JFrame ? (JFrame) dia.getParent() : null);
             currentProgressBar = trainingProgressBar;
             epochLabel.setText("Upload:");
@@ -414,26 +413,13 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway) {
-        List<String> images = dockerGateway.listImages().sorted(Comparator.reverseOrder()).collect(Collectors.toList());
-        String imageName = images.stream()
-                .filter(n -> n.startsWith(trainer.getDockerImageName()))
-                .findFirst().orElse(null);
-        if (imageName == null) { // look for dockerfile and build it
-            logger.debug("docker image: {} not found within: {}", trainer.getDockerImageName(), images);
+        DockerImageParameter.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage();
+        if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;
             File dockerDir = null;
             try {
                 epochLabel.setText("Build:");
-                List<String> dockerFiles = Utils.getResourcesForPath(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
-                String dockerfileName = dockerFiles.stream()
-                        .filter(n -> n.startsWith(trainer.getDockerImageName()))
-                        .sorted(DockerGateway.dockerFileComparator().reversed())
-                        .findFirst().orElse(null);
-                logger.debug("docker file : {} within: {}", dockerfileName, dockerFiles);
-                if (dockerfileName == null) {
-                    GUI.log("Dockerfile: " + trainer.getDockerImageName() + " not found.");
-                    return null;
-                }
+                String dockerfileName = currentImage.getFileName();
                 String tag = formatDockerTag(dockerfileName);
                 dockerDir = new File(currentWorkingDirectory, "docker");
                 if (!dockerDir.exists()) dockerDir.mkdir();
@@ -441,7 +427,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 logger.debug("will build docker image: {} from dockerfile: {} @ {}", tag, dockerfileName, dockerFilePath);
                 Utils.extractResourceFile(trainer.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 setMessage("Building docker image: " + tag);
-                imageName = dockerGateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, this::printError);
+                return dockerGateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, this::printError, this::setStepProgress);
             } catch (IOException e) {
                 logger.error("Error while extracting resources", e);
                 return null;
@@ -449,15 +435,14 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (dockerFilePath != null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();
                 if (dockerDir != null && dockerDir.exists()) dockerDir.delete();
                 epochLabel.setText("Epoch:");
-                if (currentProgressBar!=null) {
+                if (currentProgressBar != null) {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
                     currentProgressBar.setString("");
                 }
-            }
-        }
-        return imageName;
-    }
 
+            }
+        } else return currentImage.getTag();
+    }
 
     protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway) {
         String image = ensureImage(trainer, dockerGateway);
@@ -481,6 +466,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (maxStep > 0 && progressBar.getMaximum() != maxStep) progressBar.setMaximum(maxStep);
         progressBar.setValue(step);
         progressBar.setString(step + "/" + progressBar.getMaximum());
+    }
+
+    protected void setStepProgress(int c, int t) {
+        if (c > 0 && stepProgressBar.isIndeterminate()) stepProgressBar.setIndeterminate(false);
+        stepProgressBar.setString(c + "/" + t);
+        stepProgressBar.setMaximum(t);
+        stepProgressBar.setValue(c);
     }
 
     @Override

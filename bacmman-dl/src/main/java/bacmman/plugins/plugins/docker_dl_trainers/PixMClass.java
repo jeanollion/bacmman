@@ -31,7 +31,7 @@ public class PixMClass implements DockerDLTrainer {
             .setActionParameters(SELECTION_MODE.NEW, extractParentClass, extractPos);
     Parameter[] datasetExtractionParameters = new Parameter[] {extractChannels, extractClasses, selModeCond};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, null, null)
-            .setEpochNumber(500).setStepNumber(100);
+            .setEpochNumber(500).setStepNumber(100).setDockerImageRequirements(getDockerImageName(), null, null);
     @Override
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
@@ -71,7 +71,6 @@ public class PixMClass implements DockerDLTrainer {
         return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, selections, outputFile, 0);
     }
 
-    @Override
     public String getDockerImageName() {
         return "pixmclass";
     }

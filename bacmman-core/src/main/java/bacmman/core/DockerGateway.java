@@ -6,6 +6,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,8 +14,8 @@ import java.util.stream.Stream;
 
 public interface DockerGateway {
     Stream<String> listImages();
-    String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr);
-    boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr);
+    String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
+    boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     Stream<SymetricalPair<String>> listContainers();
     Stream<SymetricalPair<String>> listContainers(String imageId);
     String createContainer(String image, boolean tty, int[] gpuIds, SymetricalPair<String>... mountDirs);
@@ -34,16 +35,17 @@ public interface DockerGateway {
         String[] split = gpuList.split(",");
         return Arrays.stream(split).filter(s->!s.isEmpty()).mapToInt(Integer::parseInt).toArray();
     }
-    static Comparator<String> tagComparator(){
-        return (t1, t2) -> {
-            int[] v1 = parseVersion(t1);
-            int[] v2 = parseVersion(t2);
+    static Comparator<int[]> versionComparator() {
+        return (v1, v2) -> {
             for (int i = 0; i<Math.min(v1.length, v2.length); ++i) {
                 int c = Integer.compare(v1[i], v2[i]);
                 if (c!=0) return c;
             }
             return Integer.compare(v1.length,v2.length); // if one is longer considered as later version
         };
+    }
+    static Comparator<String> tagComparator(){
+        return (t1, t2) -> versionComparator().compare(parseVersion(t1), parseVersion(t2));
     }
     static Comparator<String> dockerFileComparator(){
         return (f1, f2) -> tagComparator().compare(formatDockerTag(f1), formatDockerTag(f2));

@@ -75,9 +75,9 @@ public class ExtendBounds implements PostFilter, Hint {
         int x2 = this.x2.getValue().intValue();
         int y2 = this.y2.getValue().intValue();
         int z2 = this.z2.getValue().intValue();
-        OUT_OF_BOUNDS_CONDITION oobX = OUT_OF_BOUNDS_CONDITION.get(outOfBoundX.getSelectedItem());
-        OUT_OF_BOUNDS_CONDITION oobY = OUT_OF_BOUNDS_CONDITION.get(outOfBoundY.getSelectedItem());
-        OUT_OF_BOUNDS_CONDITION oobZ = OUT_OF_BOUNDS_CONDITION.get(outOfBoundZ.getSelectedItem());
+        OUT_OF_BOUNDS_CONDITION oobX = OUT_OF_BOUNDS_CONDITION.get(outOfBoundX.getValue());
+        OUT_OF_BOUNDS_CONDITION oobY = OUT_OF_BOUNDS_CONDITION.get(outOfBoundY.getValue());
+        OUT_OF_BOUNDS_CONDITION oobZ = OUT_OF_BOUNDS_CONDITION.get(outOfBoundZ.getValue());
         BoundingBox parentBds = new SimpleBoundingBox(parent.getBounds()).resetOffset();
         childPopulation.ensureEditableRegions();
         childPopulation.getRegions().forEach(r->{

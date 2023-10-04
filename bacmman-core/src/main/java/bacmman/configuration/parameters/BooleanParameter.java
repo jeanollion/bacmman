@@ -39,7 +39,7 @@ public class BooleanParameter extends AbstractChoiceParameterFixedChoiceList<Boo
     }
 
     public boolean getSelected() {
-        return this.getSelectedIndex()==0;
+        return this.selectedItem;
     }
     
     public void setSelected(boolean selected){
@@ -69,8 +69,5 @@ public class BooleanParameter extends AbstractChoiceParameterFixedChoiceList<Boo
     public String getNoSelectionString() {
         return null;
     }
-    @Override
-    public Object toJSONEntry() {
-        return selectedItem;
-    }
+
 }

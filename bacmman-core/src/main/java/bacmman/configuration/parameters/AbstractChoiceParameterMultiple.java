@@ -118,7 +118,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
             return Arrays.equals(getSelectedItems(), otherC.getSelectedItems());
         } else if (other instanceof AbstractChoiceParameter) {
             AbstractChoiceParameter otherC = (AbstractChoiceParameter) other;
-            String otherSel = otherC.getSelectedItem();
+            Object otherSel = otherC.getSelectedItem();
             String[] selItems = getSelectedItems();
             if (otherSel==null || otherSel.equals(otherC.getNoSelectionString())) return selItems.length == 0;
             else return selItems.length == 1 && otherSel.equals(selItems[0]);
@@ -137,7 +137,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
         } else if (other instanceof AbstractChoiceParameter) {
             AbstractChoiceParameter otherC = (AbstractChoiceParameter) other;
             String otherSel = otherC.getSelectedItem();
-            if (otherSel==null || otherSel.equals(otherC.getNoSelectionString())) setSelectedItems();
+            if (otherSel==null || otherSel.equals(otherC.getNoSelectionString()) || otherSel.isEmpty()) setSelectedItems();
             else setSelectedItem(otherSel);
         }
     }
