@@ -157,7 +157,7 @@ public class LargeFileGist {
     }
 
     protected void retrieveMD5(JSONArray md5) {
-        List<String> sortedChunkNames = getChunkNames();
+        List<String> sortedChunkNames = new ArrayList<>(this.chunksURL.keySet());
         if (md5.size() == nChunks) {
             checksum_md5 = IntStream.range(0, sortedChunkNames.size()).boxed().collect(Collectors.toMap(sortedChunkNames::get, i -> Base64.getDecoder().decode((String) md5.get(i))));
         }
@@ -170,7 +170,6 @@ public class LargeFileGist {
         ensureChunkRetrieved.accept(chunkName);
         String chunkURL = chunksURL.get(chunkName);
         byte[] md5 = checksum_md5==null ? null:checksum_md5.get(chunkName);
-        if (chunkURL==null) throw new IOException("Chunk not stored");
         String chunkB64 = new JSONQuery(chunkURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetch();
         byte[] chunk = null;
         try {
@@ -206,7 +205,7 @@ public class LargeFileGist {
         File actualOutputFile = outputFile.isDirectory()? new File(outputFile, willUnzip? (fullFileName.endsWith(".zip") ? fullFileName.substring(0, fullFileName.length()-4) : fullFileName) : fullFileName) : outputFile;
         File targetFile = willUnzip ? new File(actualOutputFile.getParentFile(), actualOutputFile.getName()+".zip") : (wasZipped ? new File(outputFile, fullFileName+".zip") : actualOutputFile);
         FileOutputStream fos = new FileOutputStream(targetFile,false);
-        List<String> chunkNames = getChunkNames();
+        List<String> chunkNames = new ArrayList<>(this.chunksURL.keySet());
         Runnable unzipCallback = () -> {
             try {
                 ZipUtils.unzipFile(targetFile, actualOutputFile);
@@ -398,14 +397,10 @@ public class LargeFileGist {
     public static Map<String, byte[]> nameChunks(List<byte[]> chunks) {
         if (chunks==null) return null;
         int total = chunks.size();
-        int numberOfZeros = (int)Math.log(total) + 1;
+        int numberOfZeros = (int)Math.log10(total) + 1;
         Map<String, byte[]> res = new TreeMap<>();
         for (int i = 0; i<chunks.size(); ++i) res.put(chunkName(i, numberOfZeros), chunks.get(i));
         return res;
-    }
-    public List<String> getChunkNames() {
-        int numberOfZeros = (int)Math.log(nChunks) + 1;
-        return IntStream.range(0, nChunks).mapToObj(i -> chunkName(i, numberOfZeros)).collect(Collectors.toList());
     }
 
     public static void mergeChunks(File outputFile, Map<String, byte[]> chunks) {
