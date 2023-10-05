@@ -70,6 +70,7 @@ public class ExtractDatasetUtil {
                 }));
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
                 boolean saveLabels = true;
+                boolean filterParentSelection = Utils.objectsAllHaveSameProperty(features, FeatureExtractor.Feature::getSelectionFilter);
                 for (FeatureExtractor.Feature feature : features) {
                     boolean oneEntryPerInstance = feature.getFeatureExtractor() instanceof FeatureExtractorOneEntryPerInstance;
                     boolean configurable = feature.getFeatureExtractor() instanceof FeatureExtractorConfigurable;
@@ -90,24 +91,25 @@ public class ExtractDatasetUtil {
                             if (oc == feature.getObjectClass()) return resampledPop;
                             else return resampledPops.get(oc);
                         });
-                        if (oneEntryPerInstance) {
-                            Set<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptySet();
-                            int parentSO = sel.getStructureIdx();
-                            parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
-                                put(position, allElements.stream().filter(o -> allParents.contains(o.getParent(parentSO))).collect(Collectors.toList()));
-                            }});
-                        } else {
-                            int parentOC = sel.getStructureIdx();
-                            List<SegmentedObject> allParents = allElements.stream().map(o -> o.getParent(parentOC)).distinct().collect(Collectors.toList());
-
-                            parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
-                                put(position, allParents);
-                            }});
-                            //for (String p : parentSelection.getAllPositions()) logger.debug("parent selection before intersect @{}: {}", p, parentSelection.getElementStrings(p));
-                            SelectionOperations.intersection(sel.getName(), parentSelection, sel);
-                            parentSelection.setMasterDAO(mDAO);
-                            //for (String p : parentSelection.getAllPositions()) logger.debug("parent selection @{}: {}", p, parentSelection.getElementStrings(p));
-                        }
+                        if (filterParentSelection) {
+                            if (oneEntryPerInstance) {
+                                Set<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptySet();
+                                int parentSO = sel.getStructureIdx();
+                                parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
+                                    put(position, allElements.stream().filter(o -> allParents.contains(o.getParent(parentSO))).collect(Collectors.toList()));
+                                }});
+                                parentSelection.setMasterDAO(mDAO);
+                            } else {
+                                int parentOC = sel.getStructureIdx();
+                                List<SegmentedObject> allParents = allElements.stream().map(o -> o.getParent(parentOC)).distinct().collect(Collectors.toList());
+                                parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
+                                    put(position, allParents);
+                                }});
+                                SelectionOperations.intersection(sel.getName(), parentSelection, sel);
+                                parentSelection.setMasterDAO(mDAO);
+                            }
+                            logger.debug("filter parent selection {} / {}", parentSelection.count(), sel.count());
+                        } else parentSelection = sel;
                     }
                     else {
                         curResamplePops = resampledPops;
@@ -352,7 +354,11 @@ public class ExtractDatasetUtil {
         List<FeatureExtractor.Feature> features = new ArrayList<>();
         ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
         List<String> channelNames = IntStream.of(channelIndices).mapToObj(c -> xp.getChannelNames()[c]).collect(Collectors.toList());
-        for (int c : channelIndices) features.add(new FeatureExtractor.Feature( channelIndices.length == 1 ? new RawImage().defaultName() : channelNames.get(c), new RawImage(), c ));
+        for (int c : channelIndices) {
+            int oc = xp.getObjectClassIdx(c);
+            if (oc<0) throw new RuntimeException("Channel: "+c+ " has not associated object class");
+            features.add(new FeatureExtractor.Feature( channelIndices.length == 1 ? new RawImage().defaultName() : channelNames.get(c), new RawImage(), oc));
+        }
         features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
 
         int[] dims = new int[]{0, 0};
@@ -370,6 +376,19 @@ public class ExtractDatasetUtil {
 
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, compression);
+        return resultingTask;
+    }
+
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, int channelImage, Task.ExtractZAxis extractZMode, int extractZPlane, String selection, String filterSelection, String outputFile, int compression) throws IllegalArgumentException {
+        Task resultingTask = new Task(mDAO);
+        int rawOC = mDAO.getExperiment().experimentStructure.getObjectClassIdx(channelImage);
+        if (rawOC<0) throw new RuntimeException("Channel: "+channelImage+ " has not associated object class");
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        features.add(new FeatureExtractor.Feature( new RawImage().setExtractZ(extractZMode, extractZPlane), rawOC ));
+        features.add(new FeatureExtractor.Feature( new Labels(), objectClass, filterSelection ));
+        int[] dims = new int[]{0, 0};
+        int[] eraseContoursOC = new int[0];
+        resultingTask.setExtractDS(outputFile, Collections.singletonList(selection), features, dims, eraseContoursOC, compression);
         return resultingTask;
     }
 

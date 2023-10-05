@@ -187,6 +187,12 @@ public class ExperimentStructure {
         if (xp.getStructureCount()<=objectClassIdx) return -1;
         return xp.getStructure(objectClassIdx).getChannelImage();
     }
+    public int getObjectClassIdx(int channelIdx) {
+        for (Structure s : xp.getStructures().getChildren()) {
+            if (s.getChannelImage() == channelIdx) return s.getIndex();
+        }
+        return -1;
+    }
     public String[] getChannelNames() {
         return xp.getChannelImagesAsString(true);
     }

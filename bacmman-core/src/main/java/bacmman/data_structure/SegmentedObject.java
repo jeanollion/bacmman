@@ -523,6 +523,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         return next;
     }
 
+    public SegmentedObject getAtFrame(int frame) {
+        if (frame>this.getFrame()) return getNextAtFrame(frame);
+        else return getPreviousAtFrame(frame);
+    }
     public SegmentedObject getPreviousAtFrame(int frame) {
         if (frame>this.getFrame()) throw new IllegalArgumentException("Looking for previous object after");
         SegmentedObject p = this;

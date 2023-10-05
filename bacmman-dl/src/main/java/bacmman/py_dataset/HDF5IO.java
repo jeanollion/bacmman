@@ -213,7 +213,10 @@ public class HDF5IO {
             case 1:
                 if (!dsInfo.getTypeInformation().isSigned()) return DTYPE.BYTE;
                 else throw new IllegalArgumentException("Signed 8bit not supported");
-            default: throw new IllegalArgumentException("Data type not supported");
+            default: {
+                logger.error("Data not supported: {}", dsInfo);
+                throw new IllegalArgumentException("Data type not supported: "+dsInfo);
+            }
         }
     }
     public static ImagePlus readDataset(IHDF5Reader reader, String dsName) {

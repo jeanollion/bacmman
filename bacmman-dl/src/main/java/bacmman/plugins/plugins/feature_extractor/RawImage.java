@@ -23,6 +23,17 @@ public class RawImage implements FeatureExtractor, Hint {
         return this.extractZ.getSelectedEnum();
     }
 
+    public RawImage setExtractZ(Task.ExtractZAxis mode, int planeIdx) {
+        this.plane.setValue(planeIdx);
+        this.extractZ.setSelectedEnum(mode);
+        return this;
+    }
+
+    public RawImage setExtractZ(Task.ExtractZAxis mode) {
+        this.extractZ.setSelectedEnum(mode);
+        return this;
+    }
+
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
         Image res = parent.getRawImage(objectClassIdx);

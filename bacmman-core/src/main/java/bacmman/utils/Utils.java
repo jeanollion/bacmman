@@ -180,11 +180,14 @@ public class Utils {
     }
     public static <T, P> boolean objectsAllHaveSameProperty(Collection<T> objects, Function<T, P> propertyFunction) {
         if (objects==null || objects.size()<=1) return true;
+        boolean propSet = false;
         P property = null;
         for (T o: objects) {
             P p=propertyFunction.apply(o);
-            if (property==null) property = p;
-            else if (!property.equals(p)) return false;
+            if (!propSet) {
+                property = p;
+                propSet = true;
+            } else if ( !Objects.equals(property, p)) return false;
         }
         return true;
     }
@@ -192,9 +195,15 @@ public class Utils {
     public static <T> boolean objectsAllHaveSameProperty(Collection<T> objects, BiPredicate<T, T> equals) {
         if (objects==null || objects.size()<=1) return true;
         T ref = null;
+        boolean propSet = false;
         for (T o: objects) {
-            if (ref==null) ref = o;
-            else if (!equals.test(ref, o)) return false;
+            if (!propSet) {
+                ref = o;
+                propSet = true;
+            } else {
+                if ( (ref==null) != (o==null) ) return false;
+                if (!equals.test(ref, o)) return false;
+            }
         }
         return true;
     }

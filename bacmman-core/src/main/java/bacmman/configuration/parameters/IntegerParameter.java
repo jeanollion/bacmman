@@ -2,7 +2,10 @@ package bacmman.configuration.parameters;
 
 public class IntegerParameter extends NumberParameter<IntegerParameter> {
     public IntegerParameter(String name) {
-        super(name, 0, 0);
+        this(name, 0);
+    }
+    public IntegerParameter(String name, int defaultValue) {
+        super(name, 0, defaultValue);
     }
     @Override
     public IntegerParameter duplicate() {

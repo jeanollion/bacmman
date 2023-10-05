@@ -6,6 +6,7 @@ import bacmman.utils.Utils;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DockerImageParameter extends AbstractChoiceParameter<DockerImageParameter.DockerImage, DockerImageParameter> {
     protected List<DockerImage> allImages=new ArrayList<>();
@@ -43,12 +44,14 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         if (gateway==null) installedImages = Collections.EMPTY_SET;
         else installedImages = gateway.listImages().collect(Collectors.toSet());
         allImages.clear();
-        Utils.getResourcesForPath("dockerfiles/")
+        Stream.concat(Utils.getResourcesForPath("dockerfiles/"), installedImages.stream())
             .map(n -> new DockerImage(n, installedImages))
             .filter(imageName == null ? i->true : i -> i.imageName.equals(imageName))
             .filter(minimalVersion == null ? i->true: i->i.compareVersion(minimalVersion)>=0 )
             .filter(maximalVersion == null ? i->true: i->i.compareVersion(maximalVersion)<=0 )
+            .distinct()
             .forEach(allImages::add);
+
         Collections.sort(allImages);
     }
 
@@ -77,14 +80,17 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
             if (i>=0) {
                 imageName = tag.substring(0, i);
                 version = tag.substring(i+1);
-                versionNumber = DockerGateway.parseVersion(tag);
+                try {
+                    versionNumber = DockerGateway.parseVersion(tag);
+                } catch (NumberFormatException e) {
+                    versionNumber = new int[0];
+                }
             } else {
                 imageName = tag;
                 version = "";
                 versionNumber = new int[0];
             }
             this.installed = installed!=null && installed.contains(getTag());
-            logger.debug("DockerImage: {} is installed: {} all installed: {}", getTag(), this.installed, installed);
         }
 
         public boolean isInstalled() {
