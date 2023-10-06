@@ -35,7 +35,6 @@
         <module>bacmman-tango</module>
         <module>bacmman-trackmate</module>
         <module>bacmman-omero</module>
-        <module>bacmman-ilastik</module>
         <module>bacmman-ctb</module>
         <module>bacmman-docker</module>
         <module>bacmman-distnet2d</module>

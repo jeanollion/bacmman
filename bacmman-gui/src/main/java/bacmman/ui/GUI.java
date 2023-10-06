@@ -211,7 +211,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     ConfigurationLibrary configurationLibrary;
     DLModelsLibrary dlModelLibrary;
     enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY}
-    Map<TAB, Integer> tabIndex = new HashMap<>();
+    List<TAB> tabIndex = new ArrayList<>();
     DockerTrainingWindow dockerTraining;
     /**
      * Creates new form GUI
@@ -1110,13 +1110,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     public void ensureTrainTab() {
         if (dockerTraining == null) dockerTraining = new DockerTrainingWindow(Core.getCore().getDockerGateway());
-        if (!tabIndex.containsKey(TAB.TRAINING)) {
+        if (!tabIndex.contains(TAB.TRAINING)) {
             tabs.addTab("Training", dockerTraining.getMainPanel());
             dockerTraining.setParent(INSTANCE);
-            tabIndex.put(TAB.TRAINING, tabs.getTabCount() - 1);
-            tabs.setEnabledAt(tabIndex.get(TAB.TRAINING), Core.getCore().getDockerGateway() != null);
+            tabIndex.add(TAB.TRAINING);
+            tabs.setEnabledAt(tabIndex.indexOf(TAB.TRAINING), Core.getCore().getDockerGateway() != null);
+            Runnable onClose = () -> {
+                tabIndex.remove(TAB.TRAINING);
+                dockerTraining.close();
+                dockerTraining = null;
+            };
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.TRAINING), new ClosableTabComponent(tabs, onClose));
         }
-        tabs.setSelectedIndex(tabIndex.get(TAB.TRAINING));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.TRAINING));
     }
 
     private void addSampleDataset(JMenu targetMenu, String name, String id, String hint) {
@@ -1179,7 +1185,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (configurationTreeGenerator!=null && configurationTreeGenerator.getTree()!=null) this.configurationTreeGenerator.getTree().setEnabled(!running);
         this.moduleList.setEnabled(!running);
         // config test tab
-        tabs.setEnabledAt(tabIndex.get(TAB.CONFIGURATION_TEST), !running);
+        tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION_TEST), !running);
         if (testConfigurationTreeGenerator!=null && testConfigurationTreeGenerator.getTree()!=null) this.testConfigurationTreeGenerator.getTree().setEnabled(!running);
         this.testCopyButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
         this.testCopyToTemplateButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
@@ -1187,7 +1193,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // browsing tab
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);
-        tabs.setEnabledAt(tabIndex.get(TAB.DATA_BROWSING), !running);
+        tabs.setEnabledAt(tabIndex.indexOf(TAB.DATA_BROWSING), !running);
         if (!running) updateDisplayRelatedToXPSet();
     }
 
@@ -1459,7 +1465,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         updateConfigurationTree();
         setTrackTreeStructures();
         loadObjectTrees();
-        tabs.setSelectedIndex(tabIndex.get(TAB.HOME));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.HOME));
         ImageWindowManagerFactory.getImageManager().flush();
         if (xp!=null) setMessage("XP: "+xp+ " closed");
         logger.debug("db {} closed.", xp);
@@ -1481,10 +1487,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setTitle("**BACMMAN**"+v+xp);
         for (Component c: relatedToXPSet) c.setEnabled(enable);
         runActionAllXPMenuItem.setEnabled(!enable); // only available if no xp is set
-        this.tabs.setEnabledAt(tabIndex.get(TAB.CONFIGURATION), enable); // configuration
-        this.tabs.getComponentAt(tabIndex.get(TAB.CONFIGURATION)).setForeground(enable ? Color.black : Color.gray);
-        this.tabs.setEnabledAt(tabIndex.get(TAB.CONFIGURATION_TEST), enable); // test
-        this.tabs.setEnabledAt(tabIndex.get(TAB.DATA_BROWSING), enable); // data browsing
+        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION), enable); // configuration
+        this.tabs.getComponentAt(tabIndex.indexOf(TAB.CONFIGURATION)).setForeground(enable ? Color.black : Color.gray);
+        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION_TEST), enable); // test
+        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.DATA_BROWSING), enable); // data browsing
         // readOnly
         if (enable) {
             boolean rw = !db.isConfigurationReadOnly();
@@ -1602,11 +1608,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         int currentIdx = tabs.getSelectedIndex();
         if (currentIdx!=tabIndex) {
             tabs.setSelectedIndex(tabIndex);
-            if (dlModelLibrary!=null && this.tabIndex.containsKey(TAB.MODEL_LIBRARY)) dlModelLibrary.focusLost();
-            if (configurationLibrary!=null && this.tabIndex.containsKey(TAB.CONFIGURATION_LIBRARY)) configurationLibrary.focusLost();
+            if (dlModelLibrary!=null && this.tabIndex.contains(TAB.MODEL_LIBRARY)) dlModelLibrary.focusLost();
+            if (configurationLibrary!=null && this.tabIndex.contains(TAB.CONFIGURATION_LIBRARY)) configurationLibrary.focusLost();
 
         }
-        if (lastSelTab==this.tabIndex.get(TAB.CONFIGURATION) && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
+        if (lastSelTab==this.tabIndex.indexOf(TAB.CONFIGURATION) && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
         lastSelTab=tabIndex;
         if (tabs.getSelectedComponent()==dataPanel) {
             if (reloadObjectTrees) {
@@ -1665,11 +1671,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             create lib here
             configurationLibrary.display(this);
         }*/
-        if (!tabIndex.containsKey(TAB.CONFIGURATION_LIBRARY)) {
+        if (!tabIndex.contains(TAB.CONFIGURATION_LIBRARY)) {
             tabs.addTab("Configuration Library", configurationLibrary.getMainPanel());
-            tabIndex.put(TAB.CONFIGURATION_LIBRARY, tabs.getTabCount() - 1);
+            tabIndex.add(TAB.CONFIGURATION_LIBRARY);
+            Runnable onClose = () -> {
+                tabIndex.remove(TAB.CONFIGURATION_LIBRARY);
+                configurationLibrary.close();
+            };
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY), new ClosableTabComponent(tabs, onClose));
         }
-        tabs.setSelectedIndex(tabIndex.get(TAB.CONFIGURATION_LIBRARY));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY));
         return configurationLibrary;
     }
 
@@ -1681,11 +1692,17 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         return dlModelLibrary;*/
         if (dlModelLibrary==null) dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
-        if (!tabIndex.containsKey(TAB.MODEL_LIBRARY)) {
+        if (!tabIndex.contains(TAB.MODEL_LIBRARY)) {
             tabs.addTab("Model Library", dlModelLibrary.getMainPanel());
-            tabIndex.put(TAB.MODEL_LIBRARY, tabs.getTabCount() - 1);
+            tabIndex.add(TAB.MODEL_LIBRARY);
+            Runnable onClose = () -> {
+                tabIndex.remove(TAB.MODEL_LIBRARY);
+                dlModelLibrary.close();
+                dlModelLibrary = null;
+            };
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.MODEL_LIBRARY), new ClosableTabComponent(tabs, onClose));
         }
-        tabs.setSelectedIndex(tabIndex.get(TAB.MODEL_LIBRARY));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.MODEL_LIBRARY));
         return dlModelLibrary;
     }
     public static boolean hasInstance() {
@@ -2118,7 +2135,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Home", actionPanel);
-        tabIndex.put(TAB.HOME, tabs.getTabCount()-1);
+        tabIndex.add(TAB.HOME);
         configurationSplitPane.setDividerLocation(500);
 
         configurationSplitPaneRight.setDividerLocation(250);
@@ -2157,7 +2174,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Configuration", configurationPanel);
-        tabIndex.put(TAB.CONFIGURATION, tabs.getTabCount()-1);
+        tabIndex.add(TAB.CONFIGURATION);
         testSplitPane.setDividerLocation(500);
 
         testSplitPaneRight.setDividerLocation(250);
@@ -2398,7 +2415,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Configuration Test", testPanel);
-        tabIndex.put(TAB.CONFIGURATION_TEST, tabs.getTabCount()-1);
+        tabIndex.add(TAB.CONFIGURATION_TEST);
         trackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Segmentation & Tracking Results"));
 
         trackSubPanel.setLayout(new javax.swing.BoxLayout(trackSubPanel, javax.swing.BoxLayout.LINE_AXIS));
@@ -2700,7 +2717,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Data Browsing", dataPanel);
-        tabIndex.put(TAB.DATA_BROWSING, tabs.getTabCount()-1);
+        tabIndex.add(TAB.DATA_BROWSING);
 
         homeSplitPane.setLeftComponent(tabs);
 

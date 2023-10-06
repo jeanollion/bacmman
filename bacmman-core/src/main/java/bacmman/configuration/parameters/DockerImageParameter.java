@@ -51,8 +51,11 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
             .filter(maximalVersion == null ? i->true: i->i.compareVersion(maximalVersion)<=0 )
             .distinct()
             .forEach(allImages::add);
-
         Collections.sort(allImages);
+        if (selectedItem != null) {
+            int idx = allImages.indexOf(selectedItem);
+            if (idx>=0) selectedItem = allImages.get(idx);
+        }
     }
 
     @Override

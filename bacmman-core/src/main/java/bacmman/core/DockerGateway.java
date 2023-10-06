@@ -1,6 +1,7 @@
 package bacmman.core;
 
 import bacmman.utils.SymetricalPair;
+import bacmman.utils.Triplet;
 
 import java.io.File;
 import java.util.Arrays;

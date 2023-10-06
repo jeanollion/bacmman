@@ -151,7 +151,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-                currentContainer = getContainer(trainer, dockerGateway);
+                currentContainer = getContainer(trainer, dockerGateway, false, null);
                 if (currentContainer != null) {
                     try {
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data");
@@ -182,12 +182,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-                currentContainer = getContainer(trainer, dockerGateway);
-                File outputFile = Paths.get(currentWorkingDirectory, "test_data_augmentation.h5").toFile();
+                String[] dataTemp = new String[1];
+                currentContainer = getContainer(trainer, dockerGateway, true, dataTemp);
+                File outputFile = Paths.get(dataTemp[0], "test_data_augmentation.h5").toFile();
                 if (currentContainer != null) {
                     try {
                         if (outputFile.exists()) outputFile.delete();
-                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, true, "python", "train.py", "/data", "--test_data_augmentation");
+                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, "python", "train.py", "/data", "--test_data_augmentation");
                         logger.debug("data aug file found: {}", outputFile.isFile());
                         if (outputFile.exists()) {
                             List<ImagePlus> images = new ArrayList<>();
@@ -206,8 +207,18 @@ public class DockerTrainingWindow implements ProgressLogger {
                     } catch (Exception e) {
                         logger.debug("error reading augmented data", e);
                     } finally {
+                        if (!outputFile.delete()) {
+                            if (Utils.isUnix()) { // file may be in /dev/shm -> ask container to remove it
+                                try {
+                                    logger.debug("ask docker to remove {} -> {}", outputFile.toString(), "/dataTemp/" + outputFile.getName());
+                                    dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, "rm", "/dataTemp/" + outputFile.getName());
+                                } catch (InterruptedException e) {
+
+                                }
+                            }
+                        } else logger.debug("was able to delete temp file: {}", outputFile);
+                        dockerGateway.stopContainer(currentContainer);
                         currentContainer = null;
-                        outputFile.delete();
                     }
                 }
             });
@@ -242,7 +253,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             promptSaveConfig();
             if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-            currentContainer = getContainer(trainer, dockerGateway);
+            currentContainer = getContainer(trainer, dockerGateway, false, null);
             if (currentContainer != null) {
                 try {
                     dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data", "--export_only");
@@ -444,11 +455,30 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else return currentImage.getTag();
     }
 
-    protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway) {
+    protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount) {
         String image = ensureImage(trainer, dockerGateway);
         logger.debug("docker image: {}", image);
         try {
-            return dockerGateway.createContainer(image, true, Core.getCore().dockerGPUs, new SymetricalPair<>(currentWorkingDirectory, "/data"));
+            List<SymetricalPair<String>> mounts = new ArrayList<>();
+            mounts.add(new SymetricalPair<>(currentWorkingDirectory, "/data"));
+            if (mountTempData) {
+                Path dataTemp;
+                if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) { //TODO add docker menu parameter
+                    dataTemp = Paths.get("/dev/shm");
+                } else {
+                    dataTemp = Paths.get(currentWorkingDirectory, "dataTemp");
+                    if (!Files.exists(dataTemp)) {
+                        try {
+                            Files.createDirectories(dataTemp);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+                if (tempMount != null) tempMount[0] = dataTemp.toString();
+                mounts.add(new SymetricalPair<>(dataTemp.toString(), "/dataTemp"));
+            }
+            return dockerGateway.createContainer(image, true, Core.getCore().dockerGPUs, mounts.toArray(new SymetricalPair[0]));
         } catch (RuntimeException e) {
             setMessage("Error trying to start container");
             setMessage(e.getMessage());
@@ -664,7 +694,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("build progress: {}", message);
     }
 
-    String[] ignoreError = new String[]{"Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
+    String[] ignoreError = new String[]{"oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
 
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
