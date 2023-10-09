@@ -19,6 +19,7 @@ import ch.systemsx.cisd.hdf5.IHDF5Reader;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import ij.ImagePlus;
+import org.apache.commons.io.FileUtils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -370,8 +372,14 @@ public class DockerTrainingWindow implements ProgressLogger {
         moveModelButton.addActionListener(ae -> {
             Path source = getSavedModelPath().toPath();
             Path dest = getMoveModelDestinationDir().toPath().resolve(source.getFileName());
+            if (Files.exists(dest)) {
+                if (promptBoolean("Model already exists at destination, overwrite ?", this.parent)) {
+                    Utils.deleteDirectory(dest.toFile());
+                } else return;
+            }
             try {
-                Files.move(source, dest);
+                //Files.move(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                FileUtils.moveDirectory(source.toFile(), dest.toFile());
             } catch (IOException e) {
                 setMessage("Error moving model: " + e.getMessage());
                 logger.error("Error moving model", e);
