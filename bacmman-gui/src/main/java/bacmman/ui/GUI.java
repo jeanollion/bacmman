@@ -2019,7 +2019,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         homeSplitPane.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
-        tabs.setPreferredSize(new java.awt.Dimension(840, 450));
+        tabs.setPreferredSize(new java.awt.Dimension(840, 650));
 
         workingDirectory.setBackground(new Color(getBackground().getRGB()));
         workingDirectory.setText("localhost");
@@ -3252,7 +3252,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(homeSplitPane, javax.swing.GroupLayout.DEFAULT_SIZE, 826, Short.MAX_VALUE)
+            .addComponent(homeSplitPane, javax.swing.GroupLayout.DEFAULT_SIZE, 1026, Short.MAX_VALUE)
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)

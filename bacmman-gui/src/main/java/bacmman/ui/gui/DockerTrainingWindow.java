@@ -250,21 +250,25 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
         });
         saveModelButton.addActionListener(ae -> {
+            currentProgressBar = trainingProgressBar;
             promptSaveConfig();
             if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-            currentContainer = getContainer(trainer, dockerGateway, false, null);
-            if (currentContainer != null) {
-                try {
-                    dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data", "--export_only");
-                    updateTrainingDisplay();
-                } catch (InterruptedException e) {
-                    //logger.debug("interrupted exception", e);
-                } finally {
-                    currentContainer = null;
-                    stopTrainingButton.setEnabled(false);
+            runLater(() -> {
+                currentContainer = getContainer(trainer, dockerGateway, false, null);
+                if (currentContainer != null) {
+                    try {
+                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data", "--export_only");
+                        updateTrainingDisplay();
+                    } catch (InterruptedException e) {
+                        //logger.debug("interrupted exception", e);
+                    } finally {
+                        currentContainer = null;
+                        stopTrainingButton.setEnabled(false);
+                    }
                 }
-            }
+            });
+
         });
         uploadModelButton.addActionListener(ae -> {
             promptSaveConfig();
@@ -683,8 +687,10 @@ public class DockerTrainingWindow implements ProgressLogger {
         Matcher m = buildProgressPattern.matcher(message);
         if (m.find()) {
             int[] prog = parseProgress(message);
-            if (currentProgressBar.getMaximum() != prog[1]) currentProgressBar.setMaximum(prog[1]);
-            setProgress(prog[0]);
+            if (prog != null) {
+                if (currentProgressBar.getMaximum() != prog[1]) currentProgressBar.setMaximum(prog[1]);
+                setProgress(prog[0]);
+            }
         } else {
             if (message.startsWith("Successfully tagged")) {
                 setMessage(message);
