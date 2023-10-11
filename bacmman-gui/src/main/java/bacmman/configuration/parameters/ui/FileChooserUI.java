@@ -23,14 +23,19 @@ import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.awt.event.ActionEvent;
 import java.io.File;
-import javax.swing.JFileChooser;
+import javax.swing.*;
 
 /**
  *
  * @author Jean Ollion
  */
 public class FileChooserUI implements ParameterUI {
+    Logger logger = LoggerFactory.getLogger(FileChooserUI.class);
     FileChooser fcParam;
     String curDir;
     ConfigurationTreeModel model;
@@ -45,7 +50,29 @@ public class FileChooserUI implements ParameterUI {
         this.model=model;
     }
     @Override
-    public Object[] getDisplayComponent() { // ouvre directement la fenêtre pour choisir des dossers
+    public Object[] getDisplayComponent() {
+        if (fcParam.isAllowNoSelection()) { // option to empty field
+            AbstractAction chooseFileAction = new AbstractAction("Choose File...") {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    chooseFile();
+                }
+            };
+            AbstractAction clearAction = new AbstractAction("Clear") {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    fcParam.setSelectedFiles();
+                    model.nodeChanged(fcParam);
+                }
+            };
+            return new Object[]{chooseFileAction, clearAction};
+        } else { // directly open file chooser
+            chooseFile();
+            return new Object[]{};
+        }
+    }
+    
+    protected void chooseFile() {
         final JFileChooser fc = new JFileChooser();
         fc.setFileSelectionMode(fcParam.getOption().getOption());
         //fc.setFileHidingEnabled(false);
@@ -57,17 +84,14 @@ public class FileChooserUI implements ParameterUI {
         }
         fc.setDialogTitle(fcParam.getName());
         int returnval = fc.showOpenDialog(model.getTree());
-        Parameter.logger.debug("file chooser: {}: returned value? {}", fcParam.getName(), returnval == JFileChooser.APPROVE_OPTION);
+        logger.debug("file chooser: {}: returned value? {}", fcParam.getName(), returnval == JFileChooser.APPROVE_OPTION);
         if (returnval == JFileChooser.APPROVE_OPTION) {
+            logger.debug("file chooser: returned files: {} / file: {}", (Object) fc.getSelectedFiles(), fc.getSelectedFile());
             if (fcParam.getOption().getMultipleSelectionEnabled()) fcParam.setSelectedFiles(fc.getSelectedFiles());
             else fcParam.setSelectedFiles(fc.getSelectedFile());
             model.nodeChanged(fcParam);
         }
-        return new Object[]{};
-        
     }
-    
-    
     
     
     

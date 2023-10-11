@@ -243,7 +243,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         TextParameter logDir = new TextParameter("Log Dir", "Logs", false, true).setHint("Relative path to directory where training logs will be stored (created if not existing)");
         Path refPath;
         MLModelFileParameter loadModelName = new MLModelFileParameter("Load Model")
-                .setFileChooserOption(FileChooser.FileChooserOption.FILES_AND_DIRECTORIES)
+                .setFileChooserOption(FileChooser.FileChooserOption.FILE_OR_DIRECTORY)
                 .setSelectedFilePath(null)
                 .setGetRefPathFunction(p -> refPath==null ? null : refPath.resolve(weightDir.getValue()))
                 .allowNoSelection(true)

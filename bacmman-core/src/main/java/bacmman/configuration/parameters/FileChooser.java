@@ -75,6 +75,9 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         this.allowNoSelection = allowNoSelection;
         return this;
     }
+    public boolean isAllowNoSelection() {
+        return allowNoSelection;
+    }
     public FileChooser setRelativePath(boolean relativePath) {
         if (this.relativePath==relativePath) return this;
         if (selectedFiles==null || selectedFiles.length==0) return this;
@@ -124,9 +127,12 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         return this;
     }
     public FileChooser setSelectedFiles(File... filePath) {
-        if (filePath==null || filePath.length==0) setSelectedFilePath(new String[0]);
+        if (filePath==null || filePath.length==0) {
+            logger.debug("{} set selected file: {}", name, filePath);
+            setSelectedFilePath();
+        }
         else {
-            setSelectedFilePath(Arrays.stream(filePath).map(f -> f.toString()).toArray(String[]::new));
+            setSelectedFilePath(Arrays.stream(filePath).map(File::toString).toArray(String[]::new));
         }
         return this;
     }
