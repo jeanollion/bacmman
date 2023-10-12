@@ -65,7 +65,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         return configMapF;
     }
     @Override
-    public boolean highMemory() {return false;}
+    public boolean highMemory() {return true;}
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages)   throws IOException {
         configMapF = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
