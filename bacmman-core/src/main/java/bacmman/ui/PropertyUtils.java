@@ -73,7 +73,7 @@ public class PropertyUtils {
     public final static String TF_GROWTH ="tf_set_allow_growth";
     public final static String TF_DEVICES ="tf_visible_device_list";
     public final static String DOCKER_GPU_LIST ="docker_visible_gpu_list";
-
+    public final static String DOCKER_SHM_MB ="docker_shm_mb";
     public static Properties getProps() { 
         if (props == null) { 
             props = new Properties();  

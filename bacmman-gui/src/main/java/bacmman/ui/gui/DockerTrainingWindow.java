@@ -490,7 +490,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new SymetricalPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            return dockerGateway.createContainer(image, true, Core.getCore().dockerGPUs, mounts.toArray(new SymetricalPair[0]));
+            return dockerGateway.createContainer(image, Core.getCore().dockerShmMb, Core.getCore().dockerGPUs, mounts.toArray(new SymetricalPair[0]));
         } catch (RuntimeException e) {
             setMessage("Error trying to start container");
             setMessage(e.getMessage());
@@ -629,7 +629,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         //logger.debug("train progress: {}", message);
     }
 
-    protected void displayTime(boolean isStep) {
+    protected synchronized void displayTime(boolean isStep) {
         int currentEpoch = currentProgressBar.getValue();
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
@@ -663,12 +663,12 @@ public class DockerTrainingWindow implements ProgressLogger {
             stepTime = "     /step";
         }
         if (!Double.isNaN(epochDuration) || !Double.isNaN(stepDuration)) {
-            double avgTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / currentEpoch;
-            long avgTimeMSL = (long) avgTimeMS;
+            double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - 1);
+            long avgEpochTimeMSL = (long) avgEpochTimeMS;
             long elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
             long elapsedTraining = System.currentTimeMillis() - trainTime;
-            long totalTraining = (long) (avgTimeMS * maxEpoch);
-            epochTime = Utils.formatDuration(elapsedEpoch) + " / " + Utils.formatDuration(avgTimeMSL);
+            long totalTraining = (long) (avgEpochTimeMS * maxEpoch);
+            epochTime = Utils.formatDuration(elapsedEpoch) + " / " + Utils.formatDuration(avgEpochTimeMSL);
             trainingTime = Utils.formatDuration(elapsedTraining) + " / " + Utils.formatDuration(totalTraining);
         } else {
             epochTime = "      /      ";
@@ -708,7 +708,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("build progress: {}", message);
     }
 
-    String[] ignoreError = new String[]{"oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
+    String[] ignoreError = new String[]{"TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
 
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;

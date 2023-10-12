@@ -232,6 +232,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new BoundedNumberParameter("Min Learning Rate", 8, defaultValue, 10e-8, null);
     }
 
+    public static BooleanParameter getUseSharedMemParameter(boolean defaultValue) {
+        return new BooleanParameter("Use Shared Memory", defaultValue).setHint("If true, and multiprocessing is enabled, mini-batch will be passed through shared memory to speed up training. Increase the size of shared memory so that the mini-batch queue can fit (queue max size = workers*1.5)");
+    }
+
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {
         DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
         BoundedNumberParameter epochNumber = new BoundedNumberParameter("Epoch Number", 0, 32, 0, null);

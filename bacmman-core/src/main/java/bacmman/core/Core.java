@@ -68,6 +68,7 @@ public class Core {
     public boolean tfSetAllowGrowth=false;
     public double tfPerProcessGpuMemoryFraction=1;
     public int[] dockerGPUs=new int[0];
+    public int dockerShmMb=2000;
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {

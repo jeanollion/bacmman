@@ -201,6 +201,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     refer to third_party/tensorflow/core/common_runtime/gpu/gpu_id.h\n" +
             "     for more information.");
     private TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
+    private IntegerParameter dockerShmSizeMb = new IntegerParameter("Shared Memory Size", 2000).setHint("Shared Memory Size (MB)");
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
     private NumberParameter subsamplingCTC = new BoundedNumberParameter("Temporal subsampling", 0, 1, 1, null).setHint("1=no sub-sampling, 2= 1 frame out of 2 etc...");
     private EnumChoiceParameter<CTB_IO_MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", CTB_IO_MODE.values(), CTB_IO_MODE.RESULTS);
@@ -511,13 +512,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         // docker
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
-
+        PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_MB);
         ConfigurationTreeGenerator.addToMenu(dockerVisibleGPUList, dockerMenu);
+        ConfigurationTreeGenerator.addToMenu(dockerShmSizeMb, dockerMenu);
         Runnable setDockerProps = () -> {
             Core.getCore().dockerGPUs = DockerGateway.parseGPUList(dockerVisibleGPUList.getValue());
+            Core.getCore().dockerShmMb = dockerShmSizeMb.getIntValue();
         };
         setDockerProps.run();
         dockerVisibleGPUList.addListener(p->setDockerProps.run());
+        dockerShmSizeMb.addListener(p->setDockerProps.run());
 
         // python gateway
         PropertyUtils.setPersistent(pyGatewayPort, "py_gateway_port");

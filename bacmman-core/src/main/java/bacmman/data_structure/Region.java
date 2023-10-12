@@ -620,6 +620,21 @@ public class Region {
         } else ImageMask.loopWithOffset(getMask(), fun);
     }
 
+    /**
+     * loop over the region area and apply @param fun to each coordinate
+     * @param fun function called with coordinates x, y, z
+     * @param off additional offset added to coordinates (x, y, z) before calling fun
+     */
+    public void loop(LoopFunction fun, Offset off) {
+        if (off==null || Offset.offsetNull(off)) {
+            loop(fun);
+        } else {
+            if (voxelsCreated()) {
+                for (Voxel v : voxels) fun.loop(v.x+off.xMin(), v.y+ off.yMin(), v.z+off.zMin());
+            } else ImageMask.loopWithOffset(getMask(), fun, off);
+        }
+    }
+
     public DoubleStream streamValues(Image image, boolean checkInsideImage) {
         if (voxelsCreated()) {
             Stream<Voxel> stream = voxels.stream();

@@ -36,12 +36,13 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     boolean allowNoSelection;
     ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond;
     Function<String, V> mapper;
-
-    public AbstractChoiceParameter(String name, V selectedItem, Function<String, V> mapper, boolean allowNoSelection) {
+    Function<V, String> toString;
+    public AbstractChoiceParameter(String name, V selectedItem, Function<String, V> mapper, Function<V, String> toString, boolean allowNoSelection) {
         super(name);
         this.selectedItem = selectedItem;
         this.allowNoSelection=allowNoSelection;
         this.mapper = mapper;
+        this.toString=toString;
     }
     public P setMapper(Function<String, V> mapper) {
         this.mapper = mapper;
@@ -53,7 +54,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     }
     public int getSelectedIndex() {
         if (selectedItem == null) return -1;
-        return Utils.getIndex(getChoiceList(), selectedItem.toString());
+        return Utils.getIndex(getChoiceList(), toString.apply(selectedItem));
     }
 
     @Override
@@ -63,7 +64,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
 
     public String getSelectedItem() {
         if (this.selectedItem == null) return NO_SELECTION;
-        else return this.selectedItem.toString();
+        else return toString.apply(selectedItem);
     }
 
     @Override 
@@ -88,7 +89,9 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     }
     
     @Override
-    public String toString() {return name + ": "+ selectedItem;}
+    public String toString() {
+        return name + ": "+ (selectedItem == null ? getNoSelectionString() : toString.apply(selectedItem));
+    }
 
     @Override 
     public boolean isValid() {
@@ -159,7 +162,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     @Override
     public Object toJSONEntry() {
         if (selectedItem == null) return "";
-        else return selectedItem.toString();
+        else return toString.apply(selectedItem);
     }
 
     @Override

@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -103,25 +104,33 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @SafeVarargs
     @Override
-    public final String createContainer(String image, boolean tty, int[] gpuIds, SymetricalPair<String>... mountDirs) {
-        HostConfig hostConfig = HostConfig.newHostConfig();
+    public final String createContainer(String image, int shmSizeMb, int[] gpuIds, SymetricalPair<String>... mountDirs) {
+        HostConfig hostConfig = HostConfig.newHostConfig()
+                .withAutoRemove(true);
+                //.withRestartPolicy(RestartPolicy.noRestart())
+                //.withDevices(Collections.EMPTY_LIST)
+                //.withBlkioDeviceReadBps(Collections.emptyList()).withBlkioDeviceWriteBps(Collections.emptyList()).withBlkioDeviceWriteIOps(Collections.emptyList()).withBlkioDeviceReadIOps(Collections.emptyList()).withBlkioWeightDevice(Collections.emptyList());
         if (gpuIds!=null) {
-            DeviceRequest dr = new DeviceRequest().withDriver("nvidia")
-                    .withCapabilities(Collections.singletonList(Collections.singletonList("gpu")));
+            DeviceRequest dr = new DeviceRequest()//.withDriver("nvidia")
+                    .withCapabilities(Collections.singletonList(Collections.singletonList("gpu"))).withOptions(Collections.emptyMap());
             if (gpuIds.length>0) dr = dr.withDeviceIds(Arrays.stream(gpuIds).boxed().map(s->""+s).collect(Collectors.toList()));
-            hostConfig = hostConfig.withDeviceRequests(Collections.singletonList(dr));
+            hostConfig = hostConfig.withDeviceRequests(Collections.singletonList(dr)).withRuntime("nvidia");
         }
+        hostConfig = hostConfig.withShmSize((long)shmSizeMb * 1048576L);
         if (mountDirs!=null && mountDirs.length>0) {
-            List<Mount> mounts = Arrays.stream(mountDirs).map(p -> new Mount().withSource(p.key).withTarget(p.value).withType(MountType.BIND)).collect(Collectors.toList());
-            hostConfig = hostConfig.withMounts(mounts);
+            //List<Mount> mounts = Arrays.stream(mountDirs).map(p -> new Mount().withSource(p.key).withTarget(p.value).withType(MountType.BIND)).collect(Collectors.toList());
+            //hostConfig = hostConfig.withMounts(mounts);
+            Bind[] binds = Arrays.stream(mountDirs).map(p -> new Bind(p.key, new Volume(p.value))).toArray(Bind[]::new);
+            hostConfig = hostConfig.withBinds(binds);
         }
+
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
            .withHostConfig(hostConfig)
-           .withTty(tty);
+           .withTty(true);
         if (Utils.isUnix()) {
             int uid = Utils.getUID();
             logger.debug("Unix UID: {}", uid);
-            if (uid>=0) cmd = cmd.withUser(uid+"");
+            if (uid>=0) cmd = cmd.withUser(uid+":"+uid);
         }
         CreateContainerResponse container = cmd.exec();
         logger.debug("create container response: {}", container);

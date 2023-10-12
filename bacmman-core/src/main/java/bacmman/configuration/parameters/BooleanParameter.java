@@ -30,11 +30,13 @@ public class BooleanParameter extends AbstractChoiceParameterFixedChoiceList<Boo
     }
     
     public BooleanParameter(String name, boolean defaultValue) {
-        super(name, new String[]{"true", "false"}, defaultValue?"true":"false", "true"::equals, false);
+        super(name, new String[]{"true", "false"}, defaultValue?"true":"false", "true"::equals, null, false);
+        toString = s -> getChoiceList()[s ? 0 : 1];
     }
     
     public BooleanParameter(String name, String trueLabel, String falseLabel, boolean defaultValue) {
-        super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, trueLabel::equals, false);
+        super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, trueLabel::equals, null, false);
+        toString = s -> getChoiceList()[s ? 0 : 1];
         //if (listChoice.length!=2) throw new IllegalArgumentException("List choice should be of length 2");
     }
 
