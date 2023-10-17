@@ -1,12 +1,16 @@
 package bacmman.configuration.parameters;
 
-import bacmman.utils.Pair;
-
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 
 public interface ParameterWithLegacyInitialization<P, V> {
     void legacyInit();
-    Parameter getLegacyParameter();
-    P setLegacyParameter(Parameter p, Function<Parameter, V> setValue);
+    Parameter[] getLegacyParameters();
+    P setLegacyParameter(BiConsumer<Parameter[], P> setValue, Parameter... p);
+
+    /**
+     * When parameter cannot be initialized, this value is used as default. Useful when parametrization of a module has changed.
+     * @param value default value
+     * @return this parameter for convenience
+     */
     P setLegacyInitializationValue(V value);
 }

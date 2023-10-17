@@ -19,20 +19,17 @@
 package bacmman.configuration.parameters;
 
 import bacmman.plugins.ops.OpParameter;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
-
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Locale;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 
 /**
  *
  * @author Jean Ollion
  */
 public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl<P> implements Listenable<P>, OpParameter<P>, ParameterWithLegacyInitialization<P, Number> {
-    Number value, legacyInitValue;
+    Number value;
     int decimalPlaces;
     public NumberParameter(String name, int decimalPlaces) {
         super(name);
@@ -124,19 +121,24 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
         df.setMaximumFractionDigits(digits);
         return df.format(n);
     }
-
+    Number legacyInitValue;
+    Parameter[] legacyInitParam;
+    BiConsumer<Parameter[], P> legacyInitFun;
     @Override
     public void legacyInit() {
         if (this.legacyInitValue!=null) this.value = decimalPlaces>=1 ? legacyInitValue.doubleValue() : legacyInitValue.longValue();
+        if (this.legacyInitParam != null && legacyInitFun !=null) legacyInitFun.accept(legacyInitParam, (P)this);
     }
 
     @Override
-    public Parameter getLegacyParameter() {
-        return null;
+    public Parameter[] getLegacyParameters() {
+        return legacyInitParam;
     }
 
     @Override
-    public P setLegacyParameter(Parameter p, Function<Parameter, Number> setValue) {
+    public P setLegacyParameter(BiConsumer<Parameter[], P> setValue, Parameter... p) {
+        this.legacyInitFun = setValue;
+        this.legacyInitParam = p;
         return (P)this;
     }
 

@@ -17,12 +17,8 @@
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
 package bacmman.configuration.parameters;
-
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
-
-import java.util.Arrays;
-import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -170,11 +166,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         if (json instanceof String) {
             if (((String) json).isEmpty()) setSelectedItem(null);
             else setSelectedItem((String)json);
-            if (getValue()==null) {
-                if (legacyParameter!=null) legacyParameter.initFromJSONEntry(json);
-                legacyInit();
-            }
-        } else logger.error("Error init: {} with {}", this, json);//else throw new IllegalArgumentException("JSON Entry is not String");
+        } else throw new IllegalArgumentException("JSON Entry is not String");
     }
 
     // legacy init
@@ -195,15 +187,12 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
      */
     @Override
     public void legacyInit() {
-        if (legacyParameter!=null && setValue!=null) legacyInitItem = setValue.apply(legacyParameter);
-        if (legacyInitItem !=null) {
-            String value = Arrays.stream(getChoiceList()).filter(s -> legacyInitItem.equals(mapper.apply(s))).findAny().orElse(null);
-            if (value!=null) this.setSelectedItem(value);
-        }
+        if (legacyInitItem != null) setSelectedItem(toString.apply(legacyInitItem));
+        if (legacyParameter!=null && setValue!=null) setValue.accept(legacyParameter, (P)this);
     }
     V legacyInitItem;
-    Parameter legacyParameter;
-    Function<Parameter, V> setValue;
+    Parameter[] legacyParameter;
+    BiConsumer<Parameter[], P> setValue;
 
     /**
      * When a parameter A of a module has been replaced by B, this methods allows to initialize B using the former value of A
@@ -211,13 +200,14 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
      * @param setValue
      * @return
      */
-    public P setLegacyParameter(Parameter p, Function<Parameter, V> setValue) {
+    @Override
+    public P setLegacyParameter(BiConsumer<Parameter[], P> setValue, Parameter... p) {
         this.legacyParameter = p;
         this.setValue = setValue;
         return (P)this;
     }
     @Override
-    public Parameter getLegacyParameter() {
+    public Parameter[] getLegacyParameters() {
         return legacyParameter;
     }
 

@@ -301,10 +301,10 @@ public class JSONUtils {
         Set<P> initP = new HashSet<>();
         //logger.debug("init param map: receive map: {}, json: {}", list, json);
         List<ParameterWithLegacyInitialization> listLI = list.stream().filter(p->p instanceof ParameterWithLegacyInitialization).map(p->(ParameterWithLegacyInitialization)p).collect(Collectors.toList());
-        Map<String, ParameterWithLegacyInitialization> legacyParameters = listLI.stream().filter(p -> p.getLegacyParameter()!=null).collect(Collectors.toMap(p->p.getLegacyParameter().getName(), p->p));
+        Map<String, Parameter> legacyParameters = listLI.stream().filter(p -> p.getLegacyParameters()!=null).flatMap(p -> Arrays.stream(p.getLegacyParameters())).collect(Collectors.toMap(Parameter::getName, p->p));
         Consumer<Entry> initLP = e -> {
             if (legacyParameters.containsKey(e.getKey())) {
-                Parameter lp = legacyParameters.get(e.getKey()).getLegacyParameter();
+                Parameter lp = legacyParameters.get(e.getKey());
                 logger.debug("initializing legacy init parameter: {} with: {}", lp, e.getValue());
                 try {
                     lp.initFromJSONEntry(e.getValue());

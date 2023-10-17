@@ -19,6 +19,7 @@
 package bacmman.configuration.parameters;
 
 import java.util.Arrays;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import org.json.simple.JSONObject;
@@ -130,17 +131,19 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
     // legacy init interface
     @Override
     public void legacyInit() {
-        if (this.legacyInitFun!=null) scaleXY.setValue(legacyInitFun.apply(legacyInitParam));
+        if (legacyInitValue != null) scaleXY.setValue(legacyInitValue);
+        if (this.legacyInitFun!=null && legacyInitParam!=null) legacyInitFun.accept(legacyInitParam, this);
     }
-    Parameter legacyInitParam;
-    Function<Parameter, Double> legacyInitFun;
+    Parameter[] legacyInitParam;
+    BiConsumer<Parameter[], ScaleXYZParameter> legacyInitFun;
+    Double legacyInitValue;
     @Override
-    public Parameter getLegacyParameter() {
+    public Parameter[] getLegacyParameters() {
         return legacyInitParam;
     }
 
     @Override
-    public ScaleXYZParameter setLegacyParameter(Parameter p, Function<Parameter, Double> setValue) {
+    public ScaleXYZParameter setLegacyParameter(BiConsumer<Parameter[], ScaleXYZParameter> setValue, Parameter... p) {
         this.legacyInitParam = p;
         this.legacyInitFun = setValue;
         return this;
@@ -148,7 +151,7 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
 
     @Override
     public ScaleXYZParameter setLegacyInitializationValue(Double value) {
-        this.scaleXY.setValue(value);
+        legacyInitValue = value;
         return this;
     }
 }

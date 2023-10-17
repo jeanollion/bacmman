@@ -40,11 +40,12 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     MLModelFileParameter modelFile = new MLModelFileParameter("Tensorflow model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
-    EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z).setLegacyParameter(new BooleanParameter("Z as Channel", false), p -> ((BooleanParameter)p).getSelected()? Z_AXIS.CHANNEL : Z_AXIS.Z).setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");
+    EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z)
+            .setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");
     BoundedNumberParameter channelIdx = new BoundedNumberParameter("Channel Index", 0, 0, 0, null).setHint("Channel Used when Z axis is transposed to channel axis");
     ConditionalParameter<Z_AXIS> zAxisCond = new ConditionalParameter<>(zAxis)
             .setActionParameters(Z_AXIS.CHANNEL, channelIdx)
-            .setLegacyParameter(new BooleanParameter("Z as Channel", false), p -> ((BooleanParameter)p).getSelected() ? Z_AXIS.CHANNEL : Z_AXIS.Z );
+            .setLegacyParameter((p, a) -> a.setActionValue( ((BooleanParameter)p[0]).getSelected()? Z_AXIS.CHANNEL : Z_AXIS.Z), new BooleanParameter("Z as Channel", false));
 
     BooleanParameter halfPrecision = new BooleanParameter("Half Precision", false).setEmphasized(true).setHint("Prediction are performed in float 16 precision to lower memory usage");
     String[] inputNames, outputNames;

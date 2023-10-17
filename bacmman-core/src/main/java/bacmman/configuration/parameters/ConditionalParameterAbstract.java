@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -195,13 +195,14 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
 
     public ActionableParameter<V, ? extends ActionableParameter<V, ?>> getActionableParameter() {return action;}
 
-    protected void setActionValue(V actionValue) {
-        if (actionValue==null) return;
+    public T setActionValue(V actionValue) {
+        if (actionValue==null) return (T)this;
         currentValue = actionValue;
         if (!action.getValue().equals(actionValue)) this.action.setValue(actionValue); // avoid loop
         initChildList();
         fireListeners();
         //logger.debug("setActionValue: {} value: {}, class: {}, children: {}, allActions: {}",this.hashCode(), actionValue, actionValue.getClass().getSimpleName(), getCurrentParameters()==null ? "null" : getCurrentParameters().size(), this.parameters.keySet());
+        return (T)this;
     }
 
     @Override
@@ -217,17 +218,16 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     // legacy init: transfer to actionable parameter
     public void legacyInit() {
         if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization)action).legacyInit();
+        if (legacyInitParam != null && legacyInit !=null) legacyInit.accept(legacyInitParam, (T)this);
     }
-    public Parameter getLegacyParameter() {
-        if (action instanceof ParameterWithLegacyInitialization) return ((ParameterWithLegacyInitialization)action).getLegacyParameter();
-        else return null;
+    public Parameter[] getLegacyParameters() {
+        return legacyInitParam;
     }
-    public T setLegacyParameter(Parameter p, Function<Parameter, V> setValue) {
-        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization<?, V>) action).setLegacyParameter(p, setValue);
-        return (T)this;
-    }
-    public T setLegacyInitializationValue(V value) {
-        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization<?, V>) action).setLegacyInitializationValue(value);
+    Parameter[] legacyInitParam;
+    BiConsumer<Parameter[], T> legacyInit;
+    public T setLegacyParameter(BiConsumer<Parameter[], T> setValue, Parameter... p) {
+        this.legacyInit = setValue;
+        this.legacyInitParam = p;
         return (T)this;
     }
 

@@ -61,9 +61,11 @@ public class SNR extends IntensityMeasurement implements Hint {
         }
     }
     protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class", -2, true, false).setNoSelectionString("Viewfield").setEmphasized(true);
-    protected ScaleXYZParameter dilateExcluded = new ScaleXYZParameter("Dilatation radius for foreground object", 1, 0, false).setHint("Dilated foreground objects will be excluded from background mask").setLegacyParameter(new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null), p->((NumberParameter)p).getDoubleValue());
+    protected ScaleXYZParameter dilateExcluded = new ScaleXYZParameter("Dilatation radius for foreground object", 1, 0, false).setHint("Dilated foreground objects will be excluded from background mask")
+            .setLegacyParameter((p, s)->s.setScaleXY(((NumberParameter)p[0]).getDoubleValue()), new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null));
 
-    protected ScaleXYZParameter erodeBorders = new ScaleXYZParameter("Radius for background mask erosion", 1, 0, false).setHint("Background mask will be eroded in order to avoid border effects (after removing foreground objects)").setLegacyParameter(new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null), p->((NumberParameter)p).getDoubleValue());
+    protected ScaleXYZParameter erodeBorders = new ScaleXYZParameter("Radius for background mask erosion", 1, 0, false).setHint("Background mask will be eroded in order to avoid border effects (after removing foreground objects)")
+            .setLegacyParameter((p, s)->s.setScaleXY(((NumberParameter)p[0]).getDoubleValue()), new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null));
     protected EnumChoiceParameter<FORMULA> formula = new EnumChoiceParameter<>("Formula", FORMULA.values(), FORMULA.AMPLITUDE_NORM_STD, e->e.name).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
     protected EnumChoiceParameter<FOREGROUND_FORMULA> foregroundFormula = new EnumChoiceParameter<>("Foreground", FOREGROUND_FORMULA.values(), FOREGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Foreground estimation method");
     protected EnumChoiceParameter<BACKGROUND_FORMULA> backgroundFormula = new EnumChoiceParameter<>("Background", BACKGROUND_FORMULA.values(), BACKGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Background estimation method");
