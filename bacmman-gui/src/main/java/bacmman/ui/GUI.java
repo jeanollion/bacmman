@@ -161,6 +161,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory");
     private NumberParameter dbStartSize = new BoundedNumberParameter("Database Start Size (Mb)", 0, 2, 1, null);
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
+    private BoundedNumberParameter dbConcurrencyScale = new BoundedNumberParameter("Database Concurrency Scale", 0, 8, 1, ThreadRunner.getMaxCPUs());
 
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
     private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
@@ -358,6 +359,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setDBIncSize.accept(dbIncrementSize);
         dbIncrementSize.addListener(setDBIncSize);
         ConfigurationTreeGenerator.addToMenu(dbIncrementSize, dataBaseMenu);
+        PropertyUtils.setPersistent(dbConcurrencyScale, "db_concurrency_scale");
+        if (!dbConcurrencyScale.isValid()) { // make sure not over thread number
+            if (dbConcurrencyScale.getIntValue()<dbConcurrencyScale.getLowerBound().intValue()) dbConcurrencyScale.setValue(1);
+            else if (dbConcurrencyScale.getIntValue()>dbConcurrencyScale.getUpperBound().intValue()) dbConcurrencyScale.setValue(dbConcurrencyScale.getUpperBound().intValue());
+        }
+        Consumer<BoundedNumberParameter> setDBConcurrencyScale = n -> DBMapUtils.concurrencyScale = n.getIntValue();
+        setDBConcurrencyScale.accept(dbConcurrencyScale);
+        dbConcurrencyScale.addListener(setDBConcurrencyScale);
+        ConfigurationTreeGenerator.addToMenu(dbConcurrencyScale, dataBaseMenu);
 
         // import / export options
         PropertyUtils.setPersistent(importConfigMenuItem, "import_config", true);

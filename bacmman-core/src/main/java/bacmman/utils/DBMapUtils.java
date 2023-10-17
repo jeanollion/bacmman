@@ -25,10 +25,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import bacmman.data_structure.dao.DBMapObjectDAO;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
-import org.mapdb.Serializer;
+import org.mapdb.*;
 import org.mapdb.serializer.SerializerCompressionWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,28 +35,41 @@ import org.slf4j.LoggerFactory;
  * @author Jean Ollion
  */
 public class DBMapUtils {
-    public static int startSize=2, incrementSize=2;
+    public static int startSize=2, incrementSize=2, concurrencyScale = 8;
     public static final Logger logger = LoggerFactory.getLogger(DBMapUtils.class);
-    public static DB createFileDB(String path, boolean readOnly, boolean safeMode) { //   https://mapdb.org/book/performance/
+    public static DB createFileDB(String path, boolean readOnly, boolean safeMode) {
+        return createFileDB(path, readOnly, safeMode, false);
+    }
+    public static DB createFileDB(String path, boolean readOnly, boolean safeMode, boolean checkSumHeaderByPass) { //   https://mapdb.org/book/performance/
         //logger.debug("creating file db: {}, is dir: {}, exists: {}", path, new File(path).isDirectory(),new File(path).exists());
         DBMaker.Maker m = DBMaker.fileDB(path)
-                .allocateStartSize( startSize * 1024*1024)
-                .allocateIncrement(incrementSize * 1024*1024)
+                .allocateStartSize( (long)startSize * 1024*1024)
+                .allocateIncrement((long)incrementSize * 1024*1024)
                 .closeOnJvmShutdown();
+        if (checkSumHeaderByPass) m = m.checksumHeaderBypass();
         if (!Utils.isWindows()) {
             m = m.fileMmapEnableIfSupported() // Only enable mmap on supported platforms
                 .fileMmapPreclearDisable()   // Make mmap file faster
                 .cleanerHackEnable() // Unmap (release resources) file when its closed. //That can cause JVM crash if file is accessed after it was unmapped
-                .concurrencyScale(8); // TODO as option ?
+                .concurrencyScale(concurrencyScale);
         } else {
             m = m.fileChannelEnable();
         }
 
         if (readOnly) m=m.fileLockDisable().readOnly();
         else if (safeMode) m=m.transactionEnable();
-        DB db = m.make();
-        //db.getStore().fileLoad(); //optionally preload file content into disk cache
-        return db;
+        try {
+            DB db = m.make();
+            //db.getStore().fileLoad(); //optionally preload file content into disk cache
+            return db;
+        } catch (DBException.DataCorruption e) { // database was corrupted.
+            if (!checkSumHeaderByPass) {
+                logger.error("Database is corrupted. Will try to open anyway", e);
+                return createFileDB(path, readOnly, safeMode, true);
+            } else throw e;
+        }
+
+
     }
     public static HTreeMap<String, String> createHTreeMap(DB db, String key) {
         try {
