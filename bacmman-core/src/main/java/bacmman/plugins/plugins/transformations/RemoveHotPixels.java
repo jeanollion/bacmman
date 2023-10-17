@@ -18,9 +18,7 @@
  */
 package bacmman.plugins.plugins.transformations;
 
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.Voxel;
@@ -37,6 +35,7 @@ import java.util.Set;
 import bacmman.plugins.TestableOperation;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Median;
+import bacmman.processing.ImageOperations;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.ConfigurableTransformation;
@@ -46,6 +45,7 @@ import bacmman.utils.Pair;
 import bacmman.utils.SlidingOperator;
 import bacmman.utils.ThreadRunner;
 
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -54,7 +54,7 @@ import java.util.stream.IntStream;
  */
 public class RemoveHotPixels implements ConfigurableTransformation, TestableOperation, Hint {
     NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higher than this threshold pixel is considered as dead and will be replaced by the median value");
-    NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 4, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
+    NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 1, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
     HashMapGetCreate<Integer, Set<Voxel>> configMapF;
     public RemoveHotPixels(){}
     public RemoveHotPixels(double threshold, int frameRadius) {
@@ -65,14 +65,14 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         return configMapF;
     }
     @Override
-    public boolean highMemory() {return true;}
+    public boolean highMemory() {return false;}
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages)   throws IOException {
         configMapF = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
         Image median = new ImageFloat("", inputImages.getImage(channelIdx, 0));
         Neighborhood n =  new EllipsoidalNeighborhood(1.5, true); // excludes center pixel // only on same plane
-        double thld= threshold.getValue().doubleValue();
-        int frameRadius = this.frameRadius.getValue().intValue();
+        double thld= threshold.getDoubleValue();
+        int frameRadius = Math.min(this.frameRadius.getValue().intValue(), inputImages.getFrameNumber());
         double fRd= (double)frameRadius;
         final Image[][] testMeanTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
         final Image[][] testMedianTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
@@ -125,13 +125,24 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         List<Image> imList = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         if (frameRadius>=1) SlidingOperator.performSlideLeft(imList, frameRadius, operator);
         else ThreadRunner.parallelExecutionBySegments(i-> operator.compute(new Pair<>(i, imList.get(i))), 0, imList.size(), 100);
-        if (testMode.testSimple()) {
+        if (testMode.testExpert()) {
             // first frames are not computed
             for (int f = 0; f<frameRadius-1; ++f) testMeanTC[f][0] = testMeanTC[frameRadius-1][0];
             for (int f = 0; f<frameRadius-1; ++f) testMedianTC[f][0] = testMedianTC[frameRadius-1][0];
             Core.showImage5D("Sliding median", testMedianTC);
             Core.showImage5D("Sliding mean", testMeanTC);
-            logger.debug("number of dead voxels detected: {}", configMapF.size());
+        }
+        if (testMode.testSimple()) {
+            List<String> nPerFrame = configMapF.entrySet().stream().map(e -> e.getKey()+"->"+e.getValue().size()).collect(Collectors.toList());
+            logger.debug("number of hot pixels detected per frame: {}", nPerFrame);
+            Core.userLog("number of hot pixels detected per frame: " + nPerFrame);
+            Image[] diff = InputImages.getImageForChannel(inputImages, channelIdx, false);
+            for (int i = 0; i<diff.length; ++i) {
+                diff[i] = diff[i].duplicate();
+                Image a = applyTransformation(channelIdx, i, diff[i].duplicate());
+                ImageOperations.addImage(diff[i], a, diff[i], -1);
+            }
+            Core.showImage5D("Modified Pixels", diff, true);
         }
     }
 

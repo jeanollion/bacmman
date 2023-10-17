@@ -130,6 +130,17 @@ public class Core {
     public static void showImage5D(String title, Image[][] imageTC) {
         if (image5D_Displayer!=null) image5D_Displayer.accept(title, imageTC);
     }
+    public static void showImage5D(String title, Image[] imageT, boolean axisIsTime) {
+        Image[][] imageTC;
+        if (axisIsTime) {
+            imageTC = new Image[imageT.length][1];
+            for (int i = 0; i < imageT.length; ++i) imageTC[i][0] = imageT[i];
+        } else {
+            imageTC = new Image[1][imageT.length];
+            for (int i = 0; i < imageT.length; ++i) imageTC[0][i] = imageT[i];
+        }
+        if (image5D_Displayer!=null) image5D_Displayer.accept(title, imageTC);
+    }
     public static void setFreeDisplayerMemory(Runnable freeDisplayerMem) {
         freeDisplayerMemory=freeDisplayerMem;
     }
