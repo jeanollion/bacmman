@@ -215,26 +215,37 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         super.initChildren(getCurrentParameters());
     }
 
-    // legacy init: transfer to actionable parameter
-    public void legacyInit() {
-        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization)action).legacyInit();
-        if (legacyInitParam != null && legacyInit !=null) legacyInit.accept(legacyInitParam, (T)this);
-    }
-    public Parameter[] getLegacyParameters() {
-        return legacyInitParam;
-    }
-    Parameter[] legacyInitParam;
-    BiConsumer<Parameter[], T> legacyInit;
-    public T setLegacyParameter(BiConsumer<Parameter[], T> setValue, Parameter... p) {
-        this.legacyInit = setValue;
-        this.legacyInitParam = p;
-        return (T)this;
-    }
-
     @Override
     public T duplicate() {
         ConditionalParameterAbstract<V, T> res = super.duplicate();
         res.parameterSupplier.putAll(parameterSupplier);
         return (T)res;
+    }
+
+    // legacy init: transfer to actionable parameter
+
+    Parameter[] legacyInitParam;
+    BiConsumer<Parameter[], T> legacyInit;
+    V legacyInitValue;
+    public T setLegacyParameter(BiConsumer<Parameter[], T> setValue, Parameter... p) {
+        this.legacyInit = setValue;
+        this.legacyInitParam = p;
+        return (T)this;
+    }
+    public void legacyInit() {
+        if (legacyInitValue!=null) setActionValue(legacyInitValue);
+        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization)action).legacyInit();
+        if (legacyInitParam != null && legacyInit !=null) legacyInit.accept(legacyInitParam, (T)this);
+    }
+    public Parameter[] getLegacyParameters() {
+        if (legacyInitParam!=null) return legacyInitParam;
+        else if (action instanceof ParameterWithLegacyInitialization) return ((ParameterWithLegacyInitialization)action).getLegacyParameters();
+        else return null;
+    }
+
+    @Override
+    public T setLegacyInitializationValue(V value) {
+        legacyInitValue = value;
+        return (T)this;
     }
 }
