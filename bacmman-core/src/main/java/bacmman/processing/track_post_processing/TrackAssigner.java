@@ -4,6 +4,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackLinkEditor;
 import bacmman.processing.matching.LAPLinker;
 import bacmman.utils.Pair;
+import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
 import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
@@ -81,7 +82,7 @@ public interface TrackAssigner {
             } else if (prevTracks.size()==2 && nextTracks.size()==2) { // quicker method for the most common case: 2 vs 2
                 List<Track> prevL = prevTracks instanceof List ? (List<Track>)prevTracks : new ArrayList<>(prevTracks);
                 List<Track> nextL = nextTracks instanceof List ? (List<Track>)nextTracks : new ArrayList<>(nextTracks);
-                boolean matchOrder = Track.matchOrder(new Pair<>(prevL.get(0).tail().getRegion(), prevL.get(1).tail().getRegion()), new Pair<>(nextL.get(0).head().getRegion(), nextL.get(1).head().getRegion()));
+                boolean matchOrder = Track.matchOrder(new SymetricalPair<>(prevL.get(0).tail().getRegion(), prevL.get(1).tail().getRegion()), new SymetricalPair<>(nextL.get(0).head().getRegion(), nextL.get(1).head().getRegion()));
                 if (matchOrder) {
                     prevL.get(0).addNext(nextL.get(0));
                     prevL.get(1).addNext(nextL.get(1));

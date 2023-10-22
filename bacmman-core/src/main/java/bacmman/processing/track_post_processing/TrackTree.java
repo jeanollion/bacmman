@@ -1,5 +1,6 @@
 package bacmman.processing.track_post_processing;
 
+import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectFactory;
 import bacmman.data_structure.TrackLinkEditor;
@@ -7,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.Function;
 
 public class TrackTree extends TreeMap<SegmentedObject, Track> {
     public final static Logger logger = LoggerFactory.getLogger(TrackTree.class);
@@ -53,9 +55,9 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
     }*/
 
 
-    public Track split(Track toSplit, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        toSplit.setSplitRegions(sm);
-        Track newTrack = Track.splitTrack(toSplit, assigner, factory, editor);
+    public Track split(Track toSplit, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        toSplit.setSplitRegions(splitter);
+        Track newTrack = Track.splitInTwo(toSplit, assigner, factory, editor);
         if (newTrack!=null) {
             if (!toSplit.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
             if (!newTrack.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");

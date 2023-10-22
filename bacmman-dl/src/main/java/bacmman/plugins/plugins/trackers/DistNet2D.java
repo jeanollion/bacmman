@@ -11,6 +11,7 @@ import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
+import bacmman.processing.Medoid;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
@@ -1056,10 +1057,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         });
     }
     public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, Set<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<Region, Double> divMap, TrackLinkEditor editor, SegmentedObjectFactory factory) {
-        SplitAndMerge sm = getSplitAndMerge(prediction);
+        Function<SegmentedObject, List<Region>> splitter = getSplitter(prediction);
         double divThld=divProbaThld.getValuesAsDouble()[1];
         Predicate<SegmentedObject> dividing = divMap==null || divThld==0 ? o -> false : o -> divMap.get(o.getRegion())>divThld;
-        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, dividing, sm, factory, editor);
+        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, dividing, splitter, factory, editor);
     }
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
@@ -1176,40 +1177,24 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         } else return null;
     }
 
-    protected SplitAndMerge getSplitAndMerge(PredictionResults prediction) {
+    protected Function<SegmentedObject, List<Region>> getSplitter(PredictionResults prediction) {
         SegmenterSplitAndMerge seg = getSegmenter(prediction);
         ALTERNATIVE_SPLIT as = altSPlit.getSelectedEnum();
         WatershedObjectSplitter ws = ALTERNATIVE_SPLIT.DISABLED.equals(as)? null : new WatershedObjectSplitter(1, ALTERNATIVE_SPLIT.BRIGHT_OBJECTS.equals(as));
-        SplitAndMerge sm = new SplitAndMerge() {
-            @Override
-            public double computeMergeCost(List<SegmentedObject> toMergeL) {
-                SegmentedObject parent = toMergeL.get(0).getParent();
-                List<Region> regions = toMergeL.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-                return seg.computeMergeCost(prediction.edm.get(parent), parent, toMergeL.get(0).getStructureIdx(), regions);
+        return toSplit -> {
+            List<Region> res = new ArrayList<>();
+            SegmentedObject parent = toSplit.getParent();
+            seg.split(prediction.edm.get(parent), parent, toSplit.getStructureIdx(), toSplit.getRegion(), res);
+            if (res.size() <= 1 && ws!=null) { // split failed -> try to split using input image
+                Image input = parent.getPreFilteredImage(toSplit.getStructureIdx());
+                if (input==null) input = parent.getRawImage(toSplit.getStructureIdx()); // pf was flushed means that no prefilters are set
+                RegionPopulation pop = ws.splitObject(input, parent, toSplit.getStructureIdx(), toSplit.getRegion());
+                res.clear();
+                if (pop != null) res.addAll(pop.getRegions());
             }
-
-            @Override
-            public Triplet<Region, Region, Double> computeSplitCost(SegmentedObject toSplit) {
-                List<Region> res = new ArrayList<>();
-                SegmentedObject parent = toSplit.getParent();
-                Region r = toSplit.getRegion();
-                double cost = seg.split(prediction.edm.get(parent), parent, toSplit.getStructureIdx(), r, res);
-                if (res.size() <= 1 && ws!=null) { // split failed -> try to split using input image
-                    Image input = parent.getPreFilteredImage(toSplit.getStructureIdx());
-                    if (input==null) input = parent.getRawImage(toSplit.getStructureIdx()); // pf was flushed means that no prefilters are set
-                    RegionPopulation pop = ws.splitObject(input, parent, toSplit.getStructureIdx(), r);
-                    res.clear();
-                    if (pop != null) res.addAll(pop.getRegions());
-                    if (res.size() > 1)
-                        cost = seg.computeMergeCost(prediction.edm.get(parent), parent, toSplit.getStructureIdx(), res);
-                }
-                if (res.size() <= 1) return new Triplet<>(null, null, Double.POSITIVE_INFINITY);
-                res.forEach(Region::clearVoxels);
-                // TODO what if more than 2 objects ?
-                return new Triplet<>(res.get(0), res.get(1), cost);
-            }
+            res.forEach(Region::clearVoxels);
+            return res;
         };
-        return sm;
     }
 
     @Override
@@ -1386,7 +1371,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         };
     }
 
-    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, Set<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, Set<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, Function<SegmentedObject, List<Region>> splitter, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (!solveSplitAndMerge.getSelected()) return;
         boolean solveSplit = this.solveSplit.getSelected();
         boolean solveMerge= this.solveMerge.getSelected();
@@ -1394,8 +1379,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
         double dMax = parentTrack.stream().map(SegmentedObject::getBounds).mapToDouble(bds -> Math.sqrt(bds.sizeX()*bds.sizeX() + bds.sizeY()*bds.sizeY())).max().orElse(Double.NaN);
         TrackAssigner assigner = new TrackAssigner.TrackAssignerDistance(dMax);
-        if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), dividing, sm, assigner, factory, editor);
-        if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, sm, assigner, factory, editor);
+        if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), dividing, splitter, assigner, factory, editor);
+        if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, splitter, assigner, factory, editor);
         parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
             if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
             o.getRegion().clearVoxels();

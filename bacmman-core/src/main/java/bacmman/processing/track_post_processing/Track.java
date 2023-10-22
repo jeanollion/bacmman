@@ -1,7 +1,6 @@
 package bacmman.processing.track_post_processing;
 
 import bacmman.data_structure.*;
-import bacmman.processing.matching.LAPLinker;
 import bacmman.utils.Pair;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Triplet;
@@ -20,7 +19,7 @@ public class Track {
     public final static Logger logger = LoggerFactory.getLogger(Track.class);
     final List<Track> previous, next; // no hashset because hash of Tracks can change with merge
     final List<SegmentedObject> objects;
-    Map<SegmentedObject, Triplet<Region,Region,Double>> splitRegions = new HashMap<>();
+    Map<SegmentedObject, List<Region>> splitRegions = new HashMap<>();
     public Track(Collection<SegmentedObject> objects) {
         if (objects instanceof ArrayList) this.objects = (List<SegmentedObject>)(objects);
         else this.objects = new ArrayList<>(objects);
@@ -40,11 +39,11 @@ public class Track {
         this.previous = new ArrayList<>();
         this.next = new ArrayList<>();
     }
-    public Track setSplitRegions(SplitAndMerge sm) {
-        Map<SegmentedObject, Triplet<Region, Region, Double>> existingSR = splitRegions;
+    public Track setSplitRegions(Function<SegmentedObject, List<Region>> splitter) {
+        Map<SegmentedObject, List<Region>> existingSR = splitRegions;
         splitRegions = Utils.parallel(objects.stream(), parallel).collect(Collectors.toMap(Function.identity(), o->{
             if (existingSR.containsKey(o)) return existingSR.get(o);
-            else return sm.computeSplitCost(o);
+            else return splitter.apply(o);
         }));
         return this;
     }
@@ -70,7 +69,7 @@ public class Track {
         }
         return res;
     }
-    public Map<SegmentedObject, Triplet<Region,Region,Double>> getSplitRegions() {
+    public Map<SegmentedObject, List<Region>> getSplitRegions() {
         return splitRegions;
     }
     public List<Track> getPrevious() {
@@ -218,20 +217,20 @@ public class Track {
         return tracks;
     }
 
-    public static Track splitTrack(Track track, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor) {
-        Map<SegmentedObject, Triplet<Region, Region, Double>> regions = track.getSplitRegions();
+    public static Track splitInTwo(Track track, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor) {
+        Map<SegmentedObject, List<Region>> regions = track.getSplitRegions();
         if (regions.size() != track.objects.size()) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
-        Triplet<Region, Region, Double> impossible=regions.values().stream().filter(t -> t.v1==null || t.v2==null || Double.isInfinite(t.v3)).findAny().orElse(null);
+        List<Region> impossible=regions.values().stream().filter(t -> t.size()!=2 || t.get(0)==null || t.get(1)==null).findAny().orElse(null);
         if (impossible!=null) {
-            logger.debug("cannot split track: {} (center: {}, null region ? {} value: {})", track, track.head().getRegion().getGeomCenter(false), impossible.v1==null || impossible.v2 == null, impossible.v3);
+            logger.debug("cannot split track: {} (center: {}, number of regions: {})", track, track.head().getRegion().getGeomCenter(false), impossible.size());
             return null;
         }
         SegmentedObject head1 = track.head();
         SegmentedObject head2 = factory.duplicate(head1, head1.getStructureIdx(), true, false, false);
         factory.addToParent(head1.getParent(),true, head2); // will set a new idx to head2
         logger.debug("splitting track: {} -> {}", track, head2);
-        factory.setRegion(head1, regions.get(head1).v1);
-        factory.setRegion(head2, regions.get(head1).v2);
+        factory.setRegion(head1, regions.get(head1).get(0));
+        factory.setRegion(head2, regions.get(head1).get(1));
         if (!head2.isTrackHead()) {
             logger.error("Split Track error: head: {}, track head: {}, new head: {}, track head: {}", head1, head1.getTrackHead(), head2, head2.getTrackHead());
             throw new IllegalArgumentException("Invalid track to split (track head)");
@@ -239,9 +238,9 @@ public class Track {
         Track track2 = new Track(new ArrayList<SegmentedObject>(){{add(head2);}});
         //logger.debug("setting regions: {} + {}", regions.get(0).v1.getGeomCenter(false), regions.get(0).v2.getGeomCenter(false));
         for (int i = 1; i< track.length(); ++i) { // populate track
-            Pair<Region, Region> r = regions.get(track.objects.get(i)).extractAB();
+            SymetricalPair<Region> r = new SymetricalPair<>(regions.get(track.objects.get(i)).get(0), regions.get(track.objects.get(i)).get(1));
             SegmentedObject prev = track.objects.get(i-1);
-            boolean matchInOrder = matchOrder(new Pair<>(prev.getRegion(), track2.tail().getRegion()), r);
+            boolean matchInOrder = matchOrder(new SymetricalPair<>(prev.getRegion(), track2.tail().getRegion()), r);
             //logger.debug("setting regions: {} + {}", match.key.getGeomCenter(false), match.value.getGeomCenter(false));
             SegmentedObject nextO1 = track.objects.get(i);
             SegmentedObject nextO2 = factory.duplicate(nextO1,nextO1.getStructureIdx(), true, false, false);
@@ -310,7 +309,7 @@ public class Track {
         Utils.parallel(track1.objects.stream(), parallel).forEach(o1 -> {
             SegmentedObject o2 = track2.getObject(o1.getFrame());
             if (o2!=null) {
-                track1.splitRegions.put(o1, new Triplet<>(o1.getRegion(), o2.getRegion(), 0d));
+                track1.splitRegions.put(o1, new ArrayList<Region>(){{add(o1.getRegion()); o2.getRegion();}});
                 factory.setRegion(o1, Region.merge(true, o1.getRegion(), o2.getRegion()));
                 factory.removeFromParent(o2);
             }
@@ -376,7 +375,7 @@ public class Track {
         return track1;
     }
 
-    public static boolean matchOrder(Pair<Region, Region> source, Pair<Region, Region> target) {
+    public static boolean matchOrder(SymetricalPair<Region> source, SymetricalPair<Region> target) {
         Point sourceCenter1 = source.key.getCenterOrGeomCenter();
         Point sourceCenter2 = source.value.getCenterOrGeomCenter();
         Point targetCenter1 = target.key.getCenterOrGeomCenter();
