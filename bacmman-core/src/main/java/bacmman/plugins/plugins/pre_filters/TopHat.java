@@ -20,10 +20,7 @@ package bacmman.plugins.plugins.pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
-import bacmman.image.TypeConverter;
+import bacmman.image.*;
 import bacmman.plugins.Hint;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
@@ -58,7 +55,7 @@ public class TopHat implements PreFilter, Filter, Hint {
     public TopHat() { }
     @Override
     public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        if (convertToFloat.getSelected() && input.getBitDepth()!=32) {
+        if (convertToFloat.getSelected() && !input.floatingPoint()) {
             input = TypeConverter.toFloat(input, null);
             canModifyImage = true;
         }

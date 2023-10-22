@@ -23,7 +23,7 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageByte extends ImageInteger<ImageByte> {
+public class ImageByte extends ImageInteger<ImageByte> implements PrimitiveType.ByteType {
 
     private byte[][] pixels;
 
@@ -159,19 +159,19 @@ public class ImageByte extends ImageInteger<ImageByte> {
     }
 
     @Override
-    public float getPixel(int xy, int z) {
-        return (float) (pixels[z][xy] & 0xff);
+    public double getPixel(int xy, int z) {
+        return pixels[z][xy] & 0xff;
     }
 
     @Override
-    public float getPixel(int x, int y, int z) {
-        return (float) (pixels[z][x + y * sizeX] & 0xff);
+    public double getPixel(int x, int y, int z) {
+        return pixels[z][x + y * sizeX] & 0xff;
     }
 
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float) (pixels[z][x + y * sizeX] & 0xff);
-        return (float) ((pixels[z][x + y * sizeX] & 0xff) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX] & 0xff));
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
+        if (dx==0) return pixels[z][x + y * sizeX] & 0xff;
+        return (pixels[z][x + y * sizeX] & 0xff) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX] & 0xff);
     }
 
     @Override
@@ -230,7 +230,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     }
 
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
+    public double getPixelWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX]& 0xff;
     }
 
@@ -308,10 +308,5 @@ public class ImageByte extends ImageInteger<ImageByte> {
             }
         }
     }
-
-    @Override public int getBitDepth() {return 8;}
-
-
-
 
 }

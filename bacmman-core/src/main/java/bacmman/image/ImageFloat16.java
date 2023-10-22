@@ -23,7 +23,7 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageFloat16 extends ImageFloatingPoint<ImageFloat16>  {
+public class ImageFloat16 extends ImageFloatingPoint<ImageFloat16> implements PrimitiveType.ShortType {
 
     final private short[][] pixels;
 
@@ -155,18 +155,18 @@ public class ImageFloat16 extends ImageFloatingPoint<ImageFloat16>  {
     }
 
     @Override
-    public float getPixel(int x, int y, int z) {
+    public double getPixel(int x, int y, int z) {
         return toHalfFloat(pixels[z][x+y*sizeX]);
     }
 
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
         if (dx==0) return toHalfFloat(pixels[z][x + y * sizeX]);
-        return  (toHalfFloat(pixels[z][x + y * sizeX]) * (1-dx) + dx * toHalfFloat(pixels[z][x + 1 + y * sizeX]));
+        return toHalfFloat(pixels[z][x + y * sizeX]) * (1-dx) + dx * toHalfFloat(pixels[z][x + 1 + y * sizeX]);
     }
 
     @Override
-    public float getPixel(int xy, int z) {
+    public double getPixel(int xy, int z) {
         return toHalfFloat(pixels[z][xy]);
     }
     
@@ -207,7 +207,7 @@ public class ImageFloat16 extends ImageFloatingPoint<ImageFloat16>  {
     }
     
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
+    public double getPixelWithOffset(int x, int y, int z) {
         return toHalfFloat(pixels[z-zMin][x-offsetXY + y * sizeX]);
     }
 
@@ -224,6 +224,9 @@ public class ImageFloat16 extends ImageFloatingPoint<ImageFloat16>  {
     }
 
     @Override
+    public boolean floatingPoint() {return true;}
+
+    @Override
     public ImageFloat16 newImage(String name, ImageProperties properties) {
         return new ImageFloat16(name, properties);
     }
@@ -238,8 +241,6 @@ public class ImageFloat16 extends ImageFloatingPoint<ImageFloat16>  {
             }
         }
     }
-
-    @Override public int getBitDepth() {return 32;} // return 32 so that it is considered as float. TODO improve this
 
     // image mask implementation
     

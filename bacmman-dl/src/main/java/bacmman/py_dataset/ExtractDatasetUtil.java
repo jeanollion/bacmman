@@ -254,12 +254,14 @@ public class ExtractDatasetUtil {
         extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance, compression);
     }
     public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, int compression) {
-        if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
-            int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
-            if (images.stream().anyMatch(i->i.getBitDepth()!=maxBD)) {
-                if (maxBD==32) scaleMode = SCALE_MODE.TO_FLOAT;
+        Image type = Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get());
+        int originalBitDepth = TypeConverter.toCommonImageType(type).byteCount() * 8;
+        boolean originalIsFloat = type.floatingPoint();
+        if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same type
+            if (images.stream().anyMatch(i->!type.getClass().equals(i.getClass()))) { // if there are different types -> need to convert
+                if (type.floatingPoint()) scaleMode = SCALE_MODE.TO_FLOAT;
                 else scaleMode = SCALE_MODE.TO_SHORT;
-                logger.debug("Scale mode changed to : {} (max BD: {})", scaleMode, maxBD);
+                logger.debug("Scale mode changed to : {} (type: {})", scaleMode, type);
             }
         }
 
@@ -268,7 +270,7 @@ public class ExtractDatasetUtil {
         switch (scaleMode) {
             case MAX_MIN_BYTE:
             case MAX_MIN_BYTE_SAFE_FLOAT:
-                if (images.get(0).getBitDepth()>8) { // do not apply conversion in case images are already byte
+                if ( !(images.get(0) instanceof ImageByte) ) { // do not apply conversion in case images are already byte
                     DoubleSummaryStatistics stats = Image.stream(images).summaryStatistics();
                     double off;
                     if (stats.getMax() == stats.getMin() ) {
@@ -287,7 +289,8 @@ public class ExtractDatasetUtil {
                         }
                         metadata.put("scaling_center", -off * scale);
                         metadata.put("scaling_factor", scale);
-                        metadata.put("original_bitDepth", images.get(0).getBitDepth());
+                        metadata.put("original_bitDepth", originalBitDepth);
+                        metadata.put("original_is_float", originalIsFloat);
                         int zero = (int) (0.5 - off * scale);
                         DoubleToIntFunction scaler = SCALE_MODE.MAX_MIN_BYTE_SAFE_FLOAT.equals(scaleMode) ?
                                 d -> {
@@ -303,7 +306,7 @@ public class ExtractDatasetUtil {
                 }
                 break;
             case MAX_MIN_SHORT:
-                if (images.get(0).getBitDepth()>16) { // do not apply conversion in case images are already byte or short
+                if ( !(images.get(0) instanceof ImageByte) && !(images.get(0) instanceof ImageShort)  ) { // do not apply conversion in case images are already byte or short
                     DoubleSummaryStatistics stats = Image.stream(images).summaryStatistics();
                     double off;
                     if (stats.getMax() == stats.getMin()) {
@@ -321,7 +324,8 @@ public class ExtractDatasetUtil {
                         }
                         metadata.put("scaling_center", -off * scale);
                         metadata.put("scaling_factor", scale);
-                        metadata.put("original_bitDepth", images.get(0).getBitDepth());
+                        metadata.put("original_bitDepth", originalBitDepth);
+                        metadata.put("original_is_float", originalIsFloat);
                         DoubleToIntFunction scaler = d -> (int) (0.5 + scale * (d - off));
                         converter = im -> TypeConverter.toShort(im, null, scaler);
                     }

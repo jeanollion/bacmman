@@ -333,18 +333,18 @@ public class Region {
                     for (Voxel v : voxels) {
                         if (image.containsWithOffset(v.x, v.y, v.z)) {
                             v.value=image.getPixelWithOffset(v.x, v.y, v.z);
-                        } else v.value = Float.NaN;
+                        } else v.value = Double.NaN;
                     } 
                 } else {
                     for (Voxel v : voxels) {
                         if (image.contains(v.x, v.y, v.z)) {
                             v.value=image.getPixel(v.x, v.y, v.z);
-                        } else v.value = Float.NaN;
+                        } else v.value = Double.NaN;
                     } 
                 }
                 Voxel minValue = Collections.min(voxels, Comparator.comparingDouble(v -> v.value));
                 for (Voxel v : voxels) {
-                    if (!Float.isNaN(v.value) && f.test(v.value)) {
+                    if (!Double.isNaN(v.value) && f.test(v.value)) {
                         v.value-=minValue.value;
                         center[0] += v.x * v.value;
                         center[1] += v.y * v.value;

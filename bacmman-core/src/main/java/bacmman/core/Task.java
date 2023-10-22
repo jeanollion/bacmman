@@ -766,6 +766,7 @@ public class Task implements ProgressCallback {
                     } finally {
                         db.getExperiment().getPosition(position).flushImages(true, true);
                         db.getExperiment().getDLengineProvider().closeAllEngines();
+                        Core.clearDiskBackedImageManagers();
                         db.clearCache(position);
                         if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
                             db.getSelectionDAO().clearCache();
@@ -782,6 +783,9 @@ public class Task implements ProgressCallback {
                 logger.debug("closing engines...");
                 db.getExperiment().getDLengineProvider().closeAllEngines();
                 logger.debug("engines closed!");
+                logger.debug("clearing disk backed image manager...");
+                Core.clearDiskBackedImageManagers();
+                logger.debug("disk backed image manager cleared!");
             }
         }
         if (!extractMeasurementDir.isEmpty()) logger.debug("extracting meas...");

@@ -29,15 +29,13 @@ import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.input_image.SimpleInputImages;
+import bacmman.image.*;
+import bacmman.image.TypeConverter;
 import bacmman.plugins.TestableOperation;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-import bacmman.image.MutableBoundingBox;
 import bacmman.image.wrappers.IJImageWrapper;
-import bacmman.image.Image;
-import bacmman.image.ImageFloat;
-import bacmman.image.TypeConverter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -179,8 +177,8 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         stab.computeConfigurationData(0, ii);
         Image[] res = IntStream.range(0, images.length).parallel().mapToObj(t -> stab.applyTransformation(0, t, images[t])).toArray(Image[]::new);
         if (allowInterpolation) {
-            int maxBitDepth = Arrays.stream(res).mapToInt(Image::getBitDepth).max().getAsInt();
-            if (maxBitDepth==32) for (int t=0;t<res.length; ++t) res[t] = TypeConverter.toFloatingPoint(res[t], false, false);
+            Image maxType = Arrays.stream(res).max(PrimitiveType.typeComparator()).get();
+            if (maxType.floatingPoint()) for (int t=0;t<res.length; ++t) res[t] = TypeConverter.toFloatingPoint(res[t], false, false);
         }
         if (crop) {
             double dXmin = -stab.translationTXY.stream().mapToDouble(d->d.get(0)).min().getAsDouble();

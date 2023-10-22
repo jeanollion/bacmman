@@ -225,7 +225,6 @@ public class DBMapObjectDAO implements ObjectDAO {
                     long t0 = System.currentTimeMillis();
                     try {
                         Collection<String> allStrings = getValues(dbm);
-                        allStrings.size();
                         long t1 = System.currentTimeMillis();
                         Map<String, SegmentedObject> objectMap = allStrings.parallelStream()
                                 .map(accessor::createFromJSON)

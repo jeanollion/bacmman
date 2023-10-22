@@ -212,7 +212,14 @@ public class GaussianFit {
         FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, config.maxIter * closePeaks.size(), config.lambda, config.termEpsilon/closePeaks.size());
         PeakFitter fitter = new PeakFitter(img, Arrays.asList(estimator.center), solver, fitFunction, estimator);
         fitter.setNumThreads(1);
-        if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
+        Set<L> unfitted = null;
+        if ( !fitter.checkInput() || !fitter.process()) {
+            if (config.fitEllipse && config.correctInvalidEllipses) {
+                unfitted = new HashSet<>(peaks);
+                unfitted.removeAll(fitter.getResult().keySet());
+            }
+            //throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
+        }
         fitFunction.copyParametersToBucket((double[])fitter.getResult().get(estimator.center), fitFunction.getParameterBucket());
         Map<L, double[]> results = IntStream.range(0, peaks.size()).boxed().collect(Collectors.toMap(peaks::get, i->{ // add background parameter to each peak
             double[] params = fitFunction.getParameterBucket()[i];
@@ -220,6 +227,7 @@ public class GaussianFit {
         }));
         if (config.fitEllipse) {
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), config.backgroundPlane);
+            if (config.correctInvalidEllipses && unfitted!=null) unfitted.forEach(p -> invalid.put(p, null));
             if (!invalid.isEmpty()) {
                 if (config.correctInvalidEllipses) {
                     Map<L, double[]> resultsSpots = runPeakCluster(img, closePeaks, config.duplicate().setFitEllipse(false), preInitParameters);
@@ -253,10 +261,18 @@ public class GaussianFit {
         FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, config.maxIter, config.lambda, config.termEpsilon);
         PeakFitter fitter = new PeakFitter(img, peaks, solver, fitFunction, estimator);
         fitter.setNumThreads(parallel? ThreadRunner.getMaxCPUs() : 1);
-        if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting: "+fitter.getErrorMessage());
+        Set<L> unfitted = null;
+        if ( !fitter.checkInput() || !fitter.process()) { // some peaks were not fitted
+            if (config.fitEllipse && config.correctInvalidEllipses) {
+                unfitted = new HashSet<>(peaks);
+                unfitted.removeAll(fitter.getResult().keySet());
+            }
+            //throw new RuntimeException("Error while fitting: "+fitter.getErrorMessage());
+        }
         Map<L, double[]> results = fitter.getResult();
         if (config.fitEllipse) { // if invalid -> fit spots
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), config.backgroundPlane);
+            if (config.correctInvalidEllipses && unfitted!=null) unfitted.forEach(p -> invalid.put(p, null));
             if (!invalid.isEmpty()) {
                 if (config.correctInvalidEllipses) {
                     Map<L, double[]> spots = runPeaks(img, invalid.keySet(), config.duplicate().setFitEllipse(false), preInitParameters, parallel);

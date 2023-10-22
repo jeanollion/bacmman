@@ -501,7 +501,8 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             try {
                 return isSingleFrame(channel);
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                return false; // default value when no raw input images are found. in new version, single frame information is stored in configuration so no need to access to raw images.
+                //throw new RuntimeException(e);
             }
         } else return singleFrameC[channel];
     }

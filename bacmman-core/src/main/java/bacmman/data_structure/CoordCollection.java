@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.ints.*;
 import it.unimi.dsi.fastutil.longs.*;
 
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 public interface CoordCollection {
@@ -272,7 +273,9 @@ public interface CoordCollection {
         public LongStream stream() {
             return coords.intStream().asLongStream();
         }
-
+        public IntStream intStream() {
+            return coords.intStream();
+        }
         @Override
         public boolean isEmpty() {
             return coords.isEmpty();

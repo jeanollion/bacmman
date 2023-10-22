@@ -47,6 +47,7 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -72,6 +73,10 @@ import java.util.jar.JarFile;
 public class Utils {
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
+    public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+        Set<Object> seen = ConcurrentHashMap.newKeySet();
+        return t -> seen.add(keyExtractor.apply(t));
+    }
     public static <T, U> Collector<T, ?, Set<U>> collectToSet(Function<T, U> mapper) {
         return Collector.of(HashSet::new, (l, e)->l.add(mapper.apply(e)), (left, right) -> {
             left.addAll(right);

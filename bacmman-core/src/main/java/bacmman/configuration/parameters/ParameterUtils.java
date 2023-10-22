@@ -245,10 +245,13 @@ public class ParameterUtils {
             return res;
         }
     }
-    public static <T> T getParameterFromSiblings(Class<T> clazz, Parameter parameter, Predicate<T> predicate) {
+    public static <T extends Parameter> T getParameterFromSiblings(Class<T> clazz, Parameter parameter, Predicate<T> predicate) {
+        ContainerParameter<Parameter, ?> parent = (ContainerParameter) parameter.getParent();
+        return getParameter(clazz, parent.getChildren(), predicate);
+    }
+    public static <T extends Parameter> T getParameter(Class<T> clazz, List<Parameter> parameters, Predicate<T> predicate) {
         Predicate<Parameter> test = p -> p==null ? false : clazz.isAssignableFrom(p.getClass()) && (predicate == null || predicate.test((T)p));
-        ContainerParameter parent = (ContainerParameter) parameter.getParent();
-        return (T)parent.getChildren().stream().filter(test).findFirst().orElse(null);
+        return (T)parameters.stream().filter(test).findFirst().orElse(null);
     }
     public static <T> T getFirstParameterFromParents(Class<T> clazz, Parameter parameter, boolean lookInIndirectParents) {
         if (parameter==null) return null;

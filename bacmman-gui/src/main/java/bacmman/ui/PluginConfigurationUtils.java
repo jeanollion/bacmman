@@ -205,7 +205,7 @@ public class PluginConfigurationUtils {
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
                 //((TrackerSegmenter)plugin).segmentAndTrack(structureIdx, parentTrackDup, psc.getTrackPreFilters(true), psc.getPostFilters());
             } else { // track only
-                ManualEdition.ensurePreFilteredImages(parentTrackDup.stream(), structureIdx, xp, accessor.getDAO(parentTrackDup.get(0)));
+                ManualEdition.ensurePreFilteredImages(parentTrackDup.stream(), structureIdx, 0, xp, accessor.getDAO(parentTrackDup.get(0)));
                 if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
                 ((Tracker)plugin).track(structureIdx, parentTrackDup, getEditor(structureIdx));
                 //TrackPostFilterSequence tpf= (psc instanceof ProcessingPipelineWithTracking) ? ((ProcessingPipelineWithTracking)psc).getTrackPostFilters() : null;
@@ -297,6 +297,7 @@ public class PluginConfigurationUtils {
             publishError(t);
         } finally {
             xp.getDLengineProvider().closeAllEngines();
+            Core.clearDiskBackedImageManagers();
         }
         return storeList;
     }
@@ -611,10 +612,11 @@ public class PluginConfigurationUtils {
         Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, false);
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
-            int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
+            Image type = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get();
+            type = TypeConverter.toCommonImageType(Image.copyType(type));
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             Image im = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).findAny().get();
-            Image image = ioi.generateEmptyImage(name, Image.createEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth), new SimpleBoundingBox(0, 0, 0, 0, 0, maxZ-1).getBlankMask((float)im.getScaleXY(), (float)im.getScaleZ()))).setName(name);
+            Image image = ioi.generateEmptyImage(name, Image.createEmptyImage("", type, new SimpleBoundingBox(0, 0, 0, 0, 0, maxZ-1).getBlankMask((float)im.getScaleXY(), (float)im.getScaleZ()))).setName(name);
             stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
                 if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));
                 else Image.pasteImage(TypeConverter.cast(s.images.get(name), image), s.parent.getMask(), image, ioi.getObjectOffset(s.parent));
@@ -635,10 +637,10 @@ public class PluginConfigurationUtils {
         SegmentedObjectUtils.ensureContinuousTrack(parents);
         return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
             HyperStack ioi = (HyperStack) Kymograph.generateKymograph(parents, childOCIdx, true);
-            int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
+            Image type = TypeConverter.toCommonImageType(Image.copyType(stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get()));
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             ioi.setImageSupplier( (idx, oc, raw) -> {
-                Image image = ioi.generateEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth));
+                Image image = ioi.generateEmptyImage("", type);
                 List<TestDataStore> currentStores = parentMapStore.get(parents.get(idx));
                 if (currentStores!=null) currentStores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
                     if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));

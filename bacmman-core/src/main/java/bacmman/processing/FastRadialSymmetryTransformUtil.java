@@ -94,9 +94,9 @@ public class FastRadialSymmetryTransformUtil {
     private static void computeOandMmap(Image Omap, Image Mmap, Image gradX, Image gradY, Image gradZ, Image gradM, double radius, float kappa, double gradientThld, GRADIENT_SIGN gradientSign){
         // go over all pixels and create the O and M maps
         BoundingBox.LoopFunction fun3D = (x, y, z)-> {
-            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-            int zg = Math.round((float)radius*gradZ.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int xg = (int)Math.round(radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = (int)Math.round(radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int zg = (int)Math.round(radius*gradZ.getPixel(x, y, z)/gradM.getPixel(x, y, z));
             // compute the 'positively' and/or 'negatively' affected pixels
             if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
                 int posx = x+xg, posy = y+yg, posz = z+zg;
@@ -115,8 +115,8 @@ public class FastRadialSymmetryTransformUtil {
             }
         };
         BoundingBox.LoopFunction fun2D = (x, y, z)-> {
-            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int xg = (int)Math.round(radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = (int)Math.round(radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
 
             // compute the 'positively' and/or 'negatively' affected pixels
             if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
@@ -142,9 +142,9 @@ public class FastRadialSymmetryTransformUtil {
     private static void computeOandMmapNoSaturation(Image Omap, Image Mmap, Image gradX, Image gradY, Image gradZ, Image gradM, double radius, double gradientThld, GRADIENT_SIGN gradientSign){
         // go over all pixels and create the O and M maps
         BoundingBox.LoopFunction fun3D = (x, y, z)-> {
-            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-            int zg = Math.round((float)radius*gradZ.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int xg = (int)Math.round(radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = (int)Math.round(radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int zg = (int)Math.round(radius*gradZ.getPixel(x, y, z)/gradM.getPixel(x, y, z));
             // compute the 'positively' and/or 'negatively' affected pixels
             if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
                 int posx = x+xg, posy = y+yg, posz = z+zg;
@@ -163,8 +163,8 @@ public class FastRadialSymmetryTransformUtil {
             }
         };
         BoundingBox.LoopFunction fun2D = (x, y, z)-> {
-            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int xg = (int)Math.round(radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = (int)Math.round(radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
 
             // compute the 'positively' and/or 'negatively' affected pixels
             if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){

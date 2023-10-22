@@ -31,6 +31,8 @@ import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.watershed.WatershedTransform;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +48,7 @@ import java.util.function.Predicate;
  * @param <I>
  */
 public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& RegionCluster.InterfaceVoxels<I>
+    final static Logger logger = LoggerFactory.getLogger(SplitAndMerge.class);
     public enum INTERFACE_VALUE { MEDIAN, CENTER }
     protected Consumer<Image> addTestImage;
     protected ClusterCollection.InterfaceFactory<Region, I> factory;
@@ -191,9 +194,10 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     public RegionPopulation splitAndMerge(ImageMask segmentationMask, int minSizePropagation, Function<RegionCluster<I>, Boolean> stopCondition) {
         RegionPopulation popWS = split(segmentationMask, minSizePropagation);
         if (addTestImage!=null) {
-            addTestImage.accept(getWatershedMap().duplicate("Split&Merge:WS_Map"));
+            addTestImage.accept(getWatershedMap().duplicate("Split&Merge:WSMap"));
             addTestImage.accept(popWS.getLabelMap().duplicate("Split&Merge: seg map after split before merge"));
         }
+        if (addTestImage!=null) logger.debug("Split & Merge: number of regions after split: {}", popWS.getRegions().size());
         return merge(popWS, stopCondition);
     }
     public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation) {
@@ -233,14 +237,14 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         return this;
     }
     
-    public BiFunction<? super I, ? super I, Integer> compareByMedianIntensity(boolean highIntensityFisrt) {
+    public BiFunction<? super I, ? super I, Integer> compareByMedianIntensity(boolean highIntensityFirst) {
         return (i1, i2) -> {
             double i11  = medianValues.get(i1.getE1());
             double i12  = medianValues.get(i1.getE2());
             double i21  = medianValues.get(i2.getE1());
             double i22  = medianValues.get(i2.getE2());
             
-            if (highIntensityFisrt) {
+            if (highIntensityFirst) {
                 double min1 = Math.min(i11, i12);
                 double min2 = Math.min(i21, i22);
                 int c = Double.compare(min1, min2);

@@ -64,6 +64,11 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         return this;
     }
 
+    public EDMCellSegmenter setLocalMaxRadius(double radius) {
+        this.lmRadius.setValue(radius);
+        return this;
+    }
+
     @Override
     public void addFusionCriterion(FusionCriterion<Region, I> crit) {
         fusionCriteria.add(crit);

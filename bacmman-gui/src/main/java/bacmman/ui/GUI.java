@@ -252,11 +252,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         addWindowListener(new WindowAdapter() {
             @Override 
             public void windowClosing(WindowEvent evt) {
-                if (db!=null) {
-                    db.unlockPositions();
-                    db.unlockConfiguration();
-                    db.clearCache();
-                }
+                if (db!=null) closeExperiment();
                 if (pyGtw!=null) pyGtw.stopGateway();
                 Core.getCore().getGithubGateway().clear();
                 INSTANCE = null;
@@ -264,6 +260,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (configurationLibrary!=null) configurationLibrary.close();
                 if (dlModelLibrary!=null) dlModelLibrary.close();
                 if (dockerTraining!=null) dockerTraining.close();
+                Core.clearDiskBackedImageManagers();
                 logger.debug("Closed successfully");
             }
         });
@@ -513,7 +510,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Core.getCore().tfPerProcessGpuMemoryFraction = tfPerProcessGpuMemoryFraction.getDoubleValue();
             Core.getCore().tfSetAllowGrowth = tfSetAllowGrowth.getSelected();
             Core.getCore().tfVisibleDeviceList = tfVisibleDeviceList.getValue();
-            if (db!=null) db.getExperiment().getDLengineProvider().closeAllEngines();
+            if (db!=null) {
+                db.getExperiment().getDLengineProvider().closeAllEngines();
+                Core.clearDiskBackedImageManagers();
+            }
         };
         setTFProps.run();
         tfVisibleDeviceList.addListener(p->setTFProps.run());
@@ -1356,7 +1356,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
         } else {
             logger.debug("Config file could be locked");
-           setMessage("Dataset: "+db.getDBName()+" open");
+            setMessage("Dataset: "+db.getDBName()+" open");
+            DiskBackedImageManager.clearDiskBackedImageFiles(DiskBackedImageManagerProvider.getTempDirectory(db.getDir(), false));
         }
         if (safeMode.getSelected()) db.setSafeMode(true);
         updateConfigurationTree();
@@ -3994,6 +3995,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ImageWindowManagerFactory.getImageManager().flush();
         db.getExperiment().flushImages(true, true, excludedPositions);
         db.getExperiment().getDLengineProvider().closeAllEngines();
+        Core.clearDiskBackedImageManagers();
         List<String> positions = new ArrayList<>(Arrays.asList(db.getExperiment().getPositionsAsString()));
         positions.removeAll(Arrays.asList(excludedPositions));
         for (String p : positions) db.getDao(p).clearCache();
@@ -5326,7 +5328,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         String position = db.getExperiment().getPosition(positionIdx).getName();
         int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
         int[] path = db.getExperiment().experimentStructure.getPathToRoot(parentObjectClassIdx);
-        SegmentedObject th = Selection.getObject(Selection.parseIndices(sel), path, db.getDao(position).getRoots());
+        SegmentedObject th = Selection.getObject(Selection.parseIndices(sel), path, Processor.getOrCreateRootTrack(db.getDao(position)));
         if (th == null) {
             setMessage("Could not find track");
             return null;

@@ -23,5 +23,7 @@ package bacmman.plugins;
  * @author Jean Ollion
  */
 public interface ImageProcessingPlugin extends Plugin {
-    
+    interface ImageProcessingPluginTemporalNeighborhood extends ImageProcessingPlugin {
+        default int getMinimalTemporalNeighborhood() {return 0;}
+    }
 }

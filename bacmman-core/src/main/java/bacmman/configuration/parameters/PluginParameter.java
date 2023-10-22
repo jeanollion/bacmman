@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import bacmman.configuration.experiment.Experiment;
-import bacmman.data_structure.DLengineProvider;
+import bacmman.core.DLengineProvider;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.PluginWithLegacyInitialization;
 import org.json.simple.JSONArray;

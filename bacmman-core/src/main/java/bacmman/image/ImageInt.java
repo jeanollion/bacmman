@@ -23,7 +23,7 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageInt extends ImageInteger<ImageInt> {
+public class ImageInt extends ImageInteger<ImageInt> implements PrimitiveType.IntType{
 
     private int[][] pixels;
 
@@ -159,20 +159,20 @@ public class ImageInt extends ImageInteger<ImageInt> {
     }
     
     @Override
-    public float getPixel(int xy, int z) {
-        return (float) (pixels[z][xy]);
+    public double getPixel(int xy, int z) {
+        return pixels[z][xy];
     }
 
     @Override
-    public float getPixel(int x, int y, int z) {
-        return (float) (pixels[z][x + y * sizeX]);
+    public double getPixel(int x, int y, int z) {
+        return pixels[z][x + y * sizeX];
     }
     
     
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float) (pixels[z][x + y * sizeX]);
-        return (float) ((pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]));
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
+        if (dx==0) return pixels[z][x + y * sizeX];
+        return (pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]);
     }
 
     @Override
@@ -231,7 +231,7 @@ public class ImageInt extends ImageInteger<ImageInt> {
     }
 
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
+    public double getPixelWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX];
     }
     
@@ -239,7 +239,7 @@ public class ImageInt extends ImageInteger<ImageInt> {
     public ImageInt duplicate(String name) {
         int[][] newPixels = new int[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
-        return (ImageInt)new ImageInt(name, sizeX, newPixels).setCalibration(this).translate(this);
+        return new ImageInt(name, sizeX, newPixels).setCalibration(this).translate(this);
     }
 
     public boolean insideMask(int x, int y, int z) {
@@ -312,6 +312,5 @@ public class ImageInt extends ImageInteger<ImageInt> {
             }
         }
     }
-    
-    @Override public int getBitDepth() {return 32;}
+
 }

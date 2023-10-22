@@ -170,7 +170,7 @@ public class BacteriaSpineFactory {
         Image edt = EDT.transform(mask, true, 1, 1, false);
         Voxel[] max = new Voxel[1];
         ImageMask.loopWithOffset(mask, (x, y, z)-> {
-            float edtV = edt.getPixelWithOffset(x, y, z);
+            double edtV = edt.getPixelWithOffset(x, y, z);
             if (max[0]==null || edtV>max[0].value) max[0] = new Voxel(x, y, z, edtV);
         });
         return max[0];

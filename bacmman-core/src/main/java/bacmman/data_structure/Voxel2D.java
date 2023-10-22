@@ -32,7 +32,7 @@ public class Voxel2D extends Voxel {
         super(x, y, z);
     }
 
-    public Voxel2D(int x, int y, int z, float value) {
+    public Voxel2D(int x, int y, int z, double value) {
         super(x, y, z, value);
     }
     

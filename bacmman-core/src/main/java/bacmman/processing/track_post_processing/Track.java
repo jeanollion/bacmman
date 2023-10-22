@@ -195,23 +195,13 @@ public class Track {
         for (Track t : tracks.values()) {
             Set<SegmentedObject> nexts = additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(p -> p.value).collect(Collectors.toSet());
             boolean addLink = !nexts.isEmpty();
-            SegmentedObjectEditor.getNext(t.tail()).forEach(nexts::add);
+            SegmentedObjectEditor.getNext(t.tail()).forEach(nexts::add); // add nexts corresponding to normal links
             for (SegmentedObject next : nexts) {
                 Track nextT = tracks.get(next.getTrackHead());
                 if (nextT != null) {
-                    try {
-                        t.addNext(nextT);
-                        nextT.addPrevious(t);
-                    } catch (java.lang.IllegalArgumentException e) { // debugging
-                        logger.debug("next trackhead is equal: {}", t.head().equals(next.getTrackHead()));
-                        Set<SegmentedObject> allObjects = parent.stream().filter(p -> p.getFrame()==next.getFrame()).flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.toSet());
-                        List<SegmentedObject> nextL = allObjects.stream().filter(o -> o.getIdx()==next.getIdx()).collect(Collectors.toList());
-                        logger.error("Track: {}, tail: {}, nObjects: {} thIdx: {}, next: {}, trackhead: {} (id: {}) track: {}, prev: {}, next in {}", t, t.tail(), t.objects.size(), t.head().getId(), next, next.getTrackHead(), next.getTrackHead().getId(), nextT, next.getPrevious(), allObjects.contains(next));
-                        nextL.forEach(next2 -> logger.debug("next with same idx: id={} vs {}, th: {}, prev: {}, loc: {} vs {}", next2.getId(), next.getId(), next2.getTrackHead(), next2.getPrevious(), next2.getRegion().getGeomCenter(false), next.getRegion().getGeomCenter(false)));
-
-                        throw e;
-                    }
-                }
+                    t.addNext(nextT);
+                    nextT.addPrevious(t);
+                } else logger.debug("Next Track not found: {} -> {} ({})", t, next, next.getTrackHead());
             }
             Set<SegmentedObject> prevs = additionalPrevs.getOrDefault(t.head(), Collections.emptyList()).stream().map(p -> p.key).collect(Collectors.toSet());
             SegmentedObjectEditor.getPrevious(t.head()).forEach(prevs::add);
@@ -220,9 +210,9 @@ public class Track {
                 if (prevT != null) {
                     t.addPrevious(prevT);
                     prevT.addNext(t);
-                }
+                } else logger.debug("Prev Track not found: {} -> {} ({})", t, prev, prev.getTrackHead());
             }
-            if (addLink) logger.debug("Track with additional links: {} next: {}, prev: {}", t, nexts, prevs);
+            if (addLink) logger.debug("Track with additional links: {} next: {} (={}), prev: {} (={}), consistency: {}", t, nexts, t.getNext(), prevs, t.getPrevious(), t.checkTrackConsistency());
         }
         logger.debug("{} tracks found", tracks.size());
         return tracks;
@@ -263,42 +253,56 @@ public class Track {
         }
 
         // set previous track
-        Set<Track> allPrevNext = track.getPrevious().stream().flatMap(p -> p.getNext().stream()).collect(Collectors.toSet());
-        allPrevNext.add(track2);
-        logger.debug("before assign prev: all previous: {}, all prev's next: {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(allPrevNext, Track::head));
-        assigner.assignTracks(new ArrayList<>(track.getPrevious()), allPrevNext, trackEditor);
-        logger.debug("after assign prev: {} + {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(track2.getPrevious(), Track::head));
+        List<Track> tracks = new ArrayList<Track>(2){{add(track); add(track2);}};
+        logger.debug("before assign prev: all previous: {}", Utils.toStringList(track.getPrevious(), Track::toString));
+        assigner.assignTracks(new ArrayList<>(track.getPrevious()), tracks, trackEditor);
+        logger.debug("after assign prev: {} + {}", Utils.toStringList(track.getPrevious(), Track::toString), Utils.toStringList(track2.getPrevious(), Track::toString));
         // set next tracks
-        Set<Track> allNextPrev = track.getNext().stream().flatMap(n -> n.getPrevious().stream()).collect(Collectors.toSet());
-        allNextPrev.add(track2);
-        logger.debug("before assign next: all next: {} all next's prev: {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(allNextPrev, Track::head));
-        assigner.assignTracks(allNextPrev, new ArrayList<>(track.getNext()), trackEditor);
-        logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(track2.getNext(), Track::head));
+        logger.debug("before assign next: all next: {}", Utils.toStringList(track.getNext(), Track::toString));
+        assigner.assignTracks(tracks, new ArrayList<>(track.getNext()), trackEditor);
+        logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::toString), Utils.toStringList(track2.getNext(), Track::toString));
         track.splitRegions.clear();
         return track2;
     }
 
+    public boolean checkTrackConsistency() {
+        boolean consistent = true;
+        for (Track prev : getPrevious()) {
+            if (!prev.getNext().contains(this)) {
+                logger.error("Track: {} inconsistent prev {} all prev: {}, prev's next: {}", this, prev, getPrevious(), prev.getNext());
+                consistent = false;
+            }
+        }
+        for (Track next : getNext()) {
+            if (!next.getPrevious().contains(this)) {
+                logger.error("Track: {} inconsistent next {} all next: {}, next's prev: {}", this, next, getNext(), next.getPrevious());
+                consistent = false;
+            }
+        }
+        return consistent;
+    }
+
     public static Track mergeTracks(Track track1, Track track2, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
         if (track1.getFirstFrame()>track2.getLastFrame() || track2.getFirstFrame()>track1.getLastFrame()) {
-            logger.error("cannot merge tracks: incompatible first/last frames {} + {}", track1, track2);
+            logger.debug("cannot merge tracks: incompatible first/last frames {} + {}", track1, track2);
             return null;
         }
 
-        // if track are not overlapping in time and they have previous/next merging is impossible. // TODO : remove links instead ?
+        // if track are not overlapping in time and they have previous/next merging is impossible.
         if (track1.getFirstFrame() < track2.getFirstFrame() && !track2.getPrevious().isEmpty()) {
-            logger.error("cannot merge tracks:  {} + {}, track 2 previous not empty: {}", track1, track2, track2.getPrevious());
+            logger.debug("cannot merge tracks:  {} + {}, track 2 previous not empty: {}", track1, track2, track2.getPrevious());
             return null;
         }
         if (track1.getFirstFrame() > track2.getFirstFrame() && !track1.getPrevious().isEmpty()) {
-            logger.error("cannot merge tracks:  {} + {}, track 1 previous not empty: {}", track1, track2, track1.getPrevious());
+            logger.debug("cannot merge tracks:  {} + {}, track 1 previous not empty: {}", track1, track2, track1.getPrevious());
             return null;
         }
         if (track1.getLastFrame() < track2.getLastFrame() && !track1.getNext().isEmpty()) {
-            logger.error("cannot merge tracks:  {} + {}, track 1 next not empty: {}", track1, track2, track1.getNext());
+            logger.debug("cannot merge tracks:  {} + {}, track 1 next not empty: {}", track1, track2, track1.getNext());
             return null;
         }
         if (track1.getLastFrame() > track2.getLastFrame() && !track2.getNext().isEmpty()) {
-            logger.error("cannot merge tracks:  {} + {}, track 2 next not empty: {}", track1, track2, track2.getNext());
+            logger.debug("cannot merge tracks:  {} + {}, track 2 next not empty: {}", track1, track2, track2.getNext());
             return null;
         }
 
@@ -347,11 +351,18 @@ public class Track {
         //logger.debug("appending tracks: {} (th: {}) + {} (th: {})", track1, track1.head().getTrackHead(), track2, track2.head().getTrackHead());
         removeTrack.accept(track2); // remove before changing trackhead
         track2.getNext().forEach(n -> n.getPrevious().remove(track2)); // disconnect nexts of track2 as it will become track1
-        // disconnect prevs of track2
-        track2.getPrevious().forEach(n -> n.getNext().remove(track2));
-        // disconnect nexts of track1
-        track1.getNext().forEach(n -> n.getPrevious().remove(track1));
-        track1.getNext().clear();
+        // check prevs of track 2:
+        track2.getPrevious().remove(track1);
+        if (!track2.getPrevious().isEmpty()) {
+            logger.error("Error appending {} to {} : track2 has other previous tracks: {}", track1, track2, track2.getPrevious());
+            throw new RuntimeException("Error append Track");
+        } // was track2.getPrevious().forEach(n -> n.getNext().remove(track2));
+        // check nexts of track 1
+        track1.getNext().remove(track2);
+        if (!track1.getNext().isEmpty()) {
+            logger.error("Error appending {} to {} : track1 has other next tracks: {}", track1, track2, track1.getNext());
+            throw new RuntimeException("Error append Track");
+        } // was : track1.getNext().forEach(n -> n.getPrevious().remove(track1));
         // link tracks & add objects
         trackEditor.setTrackLinks(track1.tail(), track2.head(), true, true, false);
         track2.getObjects().forEach(o -> trackEditor.setTrackHead(o, track1.head(), false, false)); // manually set to keep consistency (in case there is only one next track)

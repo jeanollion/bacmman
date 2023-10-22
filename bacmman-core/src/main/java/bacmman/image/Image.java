@@ -34,7 +34,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 
-public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I> implements ImageMask<I> {
+public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I> implements ImageMask<I>, PrimitiveType {
     public final static Logger logger = LoggerFactory.getLogger(Image.class);
 
     public static void pasteImage(Image source, ImageMask sourceMask, Image dest, Offset offset) {
@@ -137,44 +137,12 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     }
     
     public SimpleImageProperties getProperties() {return new SimpleImageProperties(this);}
-    public static <T extends Image<T>> T createEmptyImage(int bitDepth) {
-        switch(bitDepth) {
-            case 8:
-                return (T)new ImageByte("",0,0,0);
-            case 16:
-                return (T)new ImageShort("",0,0,0);
-            case 32:
-                return (T)new ImageFloat("",0,0,0);
-            case 64:
-                return (T)new ImageInt("",0,0,0);
-            default :
-                throw new IllegalArgumentException("Bit Depth no recognized");
-        }
-    }
-    public static <T extends Image<T>> T createImage(String name, int bitDepth, ImageProperties imageProperties) {
-        switch(bitDepth) {
-            case 8:
-                return (T)new ImageByte(name,imageProperties);
-            case 16:
-                return (T)new ImageShort(name,imageProperties);
-            case 32:
-                return (T)new ImageFloat(name,imageProperties);
-            case 64:
-                return (T)new ImageInt(name,imageProperties);
-            default :
-                throw new IllegalArgumentException("Bit Depth no recognized");
-        }
-    }
+
     public static <T extends Image<T>> T createEmptyImage(String name, Image<T> imageType, ImageProperties properties) {
-        if (imageType instanceof ImageByte) return (T)new ImageByte(name, properties);
-        else if (imageType instanceof ImageShort) return (T)new ImageShort(name, properties);
-        else if (imageType instanceof ImageInt) return (T)new ImageInt(name, properties);
-        else if (imageType instanceof ImageFloat) return (T)new ImageFloat(name, properties);
-        else if (imageType instanceof ImageFloat16) return (T)new ImageFloat16(name, properties);
-        else if (imageType instanceof ImageFloat16Scale) return (T)new ImageFloat16Scale(name, properties, ((ImageFloat16Scale)imageType).getScale());
-        else if (imageType instanceof ImageFloat8Scale) return (T)new ImageFloat8Scale(name, properties, ((ImageFloat8Scale)imageType).getScale());
-        else if (imageType instanceof ImageFloatU8Scale) return (T)new ImageFloatU8Scale(name, properties, ((ImageFloatU8Scale)imageType).getScale());
-        else throw new IllegalArgumentException("unsupported image type");
+        return imageType.newImage(name, properties);
+    }
+    public static <T extends Image<T>> T copyType(Image<T> imageType) {
+        return imageType.newImage("", new SimpleImageProperties("", new SimpleBoundingBox(0, -1, 0, -1, 0, -1), imageType.getScaleXY(), imageType.getScaleZ()));
     }
     
     public static Image createImageFrom2DPixelArray(String name, Object pixelArray, int sizeX) {
@@ -279,29 +247,29 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     }
     
     //public abstract float getPixel(float x, float y, float z); // interpolation
-    public abstract float getPixel(int x, int y, int z);
-    public abstract float getPixelWithOffset(int x, int y, int z);
-    public abstract float getPixelLinInterX(int x, int y, int z, float dx);
-    public float getPixelLinInterXY(int x, int y, int z, float dx, float dy) {
+    public abstract double getPixel(int x, int y, int z);
+    public abstract double getPixelWithOffset(int x, int y, int z);
+    public abstract double getPixelLinInterX(int x, int y, int z, float dx);
+    public double getPixelLinInterXY(int x, int y, int z, float dx, float dy) {
         if (dy==0) return getPixelLinInterX(x, y, z, dx);
         return getPixelLinInterX(x, y, z, dx) * (1 - dy) + dy * getPixelLinInterX(x, y+1, z, dx);
     }
-    public float getPixelLinInter(int x, int y, int z, float dx, float dy, float dz) {
+    public double getPixelLinInter(int x, int y, int z, float dx, float dy, float dz) {
         if (this.sizeZ()<=1 || dz==0) return getPixelLinInterXY(x, y, z, dx, dy);
         return getPixelLinInterXY(x, y, z, dx, dy) * (1 - dz) + dz * getPixelLinInterXY(x, y, z+1, dx, dy);
     }
-    public float getPixel(double x, double y, double z) {
+    public double getPixel(double x, double y, double z) {
         //return getPixel((int)x, (int)y, (int)z);
         return getPixelLinInter((int)x, (int)y, (int)z, (float)(x-(int)x), (float)(y-(int)y), (float)(z-(int)z));
     }
-    public float getPixelWithOffset(double x, double y, double z) {
+    public double getPixelWithOffset(double x, double y, double z) {
         //return getPixel((int)x, (int)y, (int)z);
         return getPixelLinInter((int)x-xMin, (int)y-yMin, (int)z-zMin, (float)(x-(int)x), (float)(y-(int)y), (float)(z-(int)z));
     }
     public int[] shape() {
         return sizeZ>1 ? new int[]{sizeX, sizeY, sizeZ}:new int[]{sizeX, sizeY};
     }
-    public abstract float getPixel(int xz, int z);
+    public abstract double getPixel(int xy, int z);
     public abstract void setPixel(int x, int y, int z, double value);
     public abstract void setPixelWithOffset(int x, int y, int z, double value);
     public abstract void addPixel(int x, int y, int z, double value);
@@ -442,9 +410,8 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         return res;
     }
 
-    public abstract int getBitDepth();
     @Override
     public String toString() {
-        return getBitDepth()+";"+super.toString()+";"+this.hashCode();
+        return byteCount()+";"+super.toString()+";"+this.hashCode();
     }
 }

@@ -18,12 +18,10 @@
  */
 package bacmman.processing;
 
-import bacmman.image.Image;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageShort;
+import bacmman.image.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,27 +71,24 @@ public class KalmanFilter { // implements Filter
         int height = image.sizeY();
         int dimension = width*height;
         int stacksize = images.size();
-        int bitDepth = image.getBitDepth();
-        double[] stackslice = new double[dimension];
-        double[] filteredslice = new double[dimension];
+        double[] stackslice;
         double[] noisevar = new double[dimension];
-        double[] average = new double[dimension];
-        double[] predicted = new double[dimension];
-        double[] predictedvar = new double[dimension];
-        double[] observed = new double[dimension];
+        double[] predicted;
+        double[] predictedvar;
+        double[] observed;
         double[] Kalman = new double[dimension];
         double[] corrected = new double[dimension];
         double[] correctedvar = new double[dimension];
 
         for (int i=0; i<dimension; ++i)
                 noisevar[i] = percentvar;
-        predicted = toDouble(image, bitDepth);
+        predicted = toDouble(image);
         predictedvar = noisevar;
         List<Image> res = new ArrayList<>(images.size());
         res.add(image);
         for(int i=1; i<stacksize; ++i) {
-                stackslice = toDouble(images.get(i), bitDepth);
-                observed = toDouble(stackslice, 64);
+                stackslice = toDouble(images.get(i));
+                observed = Arrays.copyOf(stackslice, stackslice.length);
                 for(int k=0;k<Kalman.length;++k)
                         Kalman[k] = predictedvar[k]/(predictedvar[k]+noisevar[k]);
                 for(int k=0;k<corrected.length;++k)
@@ -102,61 +97,19 @@ public class KalmanFilter { // implements Filter
                         correctedvar[k] = predictedvar[k]*(1.0 - Kalman[k]);
                 predictedvar = correctedvar;
                 predicted = corrected;
-                res.add(fromDouble(corrected, bitDepth, width));
+                res.add(fromDouble(corrected, images.get(i), width));
         }
         return res;
     }
 
-    public static Image fromDouble(double[] array, int bitDepth, int sizeX) {
-        switch (bitDepth) {
-                case 8:
-                        byte[] bytes = new byte[array.length];
-                        for(int i=0; i<array.length; i++)
-                                bytes[i] = (byte)array[i];
-                        return new ImageByte("", sizeX, bytes);
-                case 16:
-                        short[] shorts = new short[array.length];
-                        for(int i=0; i<array.length; i++)
-                                shorts[i] = (short)array[i];
-                        return new ImageShort("", sizeX, shorts);
-                case 32:
-                        float[] floats = new float[array.length];
-                        for(int i=0; i<array.length; i++)
-                                floats[i] = (float)array[i];
-                        return new ImageFloat("", sizeX, floats);
-        }
-        return null;
+    public static Image fromDouble(double[] array, Image type, int sizeX) {
+        ImageDouble im = new ImageDouble("", sizeX, array);
+        return TypeConverter.convert(im, Image.copyType(type), false);
     }
 
-    public static double[] toDouble(Object array, int bitDepth) {
-        double[] doubles = null;
-        switch (bitDepth) {
-                case 8:
-                        byte[] bytes = (byte[])array;
-                        doubles = new double[bytes.length];
-                        for(int i=0; i<doubles.length; i++)
-                                doubles[i] = (bytes[i]&0xff);
-                        break;
-                case 16:
-                        short[] shorts = (short[])array;
-                        doubles = new double[shorts.length];
-                        for(int i=0; i<doubles.length; i++)
-                                doubles[i] = (shorts[i]&0xffff);
-                        break;
-                case 32:
-                        float[] floats = (float[])array;
-                        doubles = new double[floats.length];
-                        for(int i=0; i<doubles.length; i++)
-                                doubles[i] = floats[i];
-                        break;
-                case 64:
-                        double[] doubles0 = (double[])array;
-                        doubles = new double[doubles0.length];
-                        for(int i=0; i<doubles.length; i++)
-                                doubles[i] = doubles0[i];
-                        break;
-        }
-        return doubles;
+    public static double[] toDouble(Image image) {
+        ImageDouble im = TypeConverter.toDouble(image, null, false);
+        return im.getPixelArray()[0];
     }
     /*
     @Override

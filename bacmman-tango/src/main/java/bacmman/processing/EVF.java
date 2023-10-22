@@ -140,10 +140,10 @@ public class EVF {
     }
 
     protected static class Vox implements Comparable<Vox>{
-        float distance;
+        double distance;
         double index;
         int xy, z;
-        public Vox(float distance, int xy, int z) {
+        public Vox(double distance, int xy, int z) {
             this.distance=distance;
             this.xy=xy;
             this.z=z;

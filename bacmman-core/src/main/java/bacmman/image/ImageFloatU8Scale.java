@@ -24,7 +24,7 @@ import bacmman.utils.Utils;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
+public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> implements PrimitiveType.ByteType {
 
     final private byte[][] pixels;
     final private double scale;
@@ -119,18 +119,18 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
         }
     }
     @Override
-    public float getPixel(int x, int y, int z) {
-        return (float)( (pixels[z][x+y*sizeX]& 0xff) /scale);
+    public double getPixel(int x, int y, int z) {
+        return (pixels[z][x+y*sizeX]& 0xff)/scale;
     }
 
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float)(pixels[z][x + y * sizeX]/scale);
-        return  (float)((pixels[z][x + y * sizeX]& 0xff) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]& 0xff)/scale);
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
+        if (dx==0) return (pixels[z][x + y * sizeX]& 0xff)/scale;
+        return  (pixels[z][x + y * sizeX]& 0xff) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]& 0xff)/scale;
     }
 
     @Override
-    public float getPixel(int xy, int z) {
+    public double getPixel(int xy, int z) {
         return (float)((pixels[z][xy]& 0xff) / scale);
     }
     
@@ -171,21 +171,24 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
     }
     
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
-        return (float)((pixels[z-zMin][x-offsetXY + y * sizeX]& 0xff) / scale);
+    public double getPixelWithOffset(int x, int y, int z) {
+        return (pixels[z-zMin][x-offsetXY + y * sizeX]& 0xff) / scale;
     }
 
     @Override
     public ImageFloatU8Scale duplicate(String name) {
         byte[][] newPixels = new byte[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
-        return (ImageFloatU8Scale)new ImageFloatU8Scale(name, sizeX, newPixels, scale).setCalibration(this).translate(this);
+        return new ImageFloatU8Scale(name, sizeX, newPixels, scale).setCalibration(this).translate(this);
     }
     
     @Override
     public byte[][] getPixelArray() {
         return pixels;
     }
+
+    @Override
+    public boolean floatingPoint() {return true;}
 
     @Override
     public ImageFloatU8Scale newImage(String name, ImageProperties properties) {
@@ -202,8 +205,6 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
             }
         }
     }
-
-    @Override public int getBitDepth() {return 32;} // return 32 so that it is considered as float. TODO improve this
 
     // image mask implementation
     

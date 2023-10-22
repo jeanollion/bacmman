@@ -10,6 +10,14 @@ import java.util.*;
 
 public class TrackTree extends TreeMap<SegmentedObject, Track> {
     public final static Logger logger = LoggerFactory.getLogger(TrackTree.class);
+
+    public boolean checkTrackConsistency() {
+        boolean consistent = true;
+        for (Track t : values()) {
+            if (!t.checkTrackConsistency()) consistent = false;
+        }
+        return consistent;
+    }
     public int getFisrtFrame() {
         return values().stream().findFirst().get().getFirstFrame();
     }
@@ -49,10 +57,12 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
         toSplit.setSplitRegions(sm);
         Track newTrack = Track.splitTrack(toSplit, assigner, factory, editor);
         if (newTrack!=null) {
+            if (!toSplit.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
+            if (!newTrack.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
             toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
             if (get(toSplit.head())==null) throw new RuntimeException("Track is absent after simplify"+toSplit);
             newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
-            if (newTrack.belongTo(this)) put(newTrack.head(), newTrack);
+            put(newTrack.head(), newTrack);
         }
         return newTrack;
     }

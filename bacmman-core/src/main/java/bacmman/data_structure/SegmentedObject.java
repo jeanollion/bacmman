@@ -523,21 +523,30 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         return next;
     }
 
-    public SegmentedObject getAtFrame(int frame) {
-        if (frame>this.getFrame()) return getNextAtFrame(frame);
-        else return getPreviousAtFrame(frame);
+    public SegmentedObject getAtFrame(int frame, boolean returnClosest) {
+        if (frame>this.getFrame()) return getNextAtFrame(frame, returnClosest);
+        else return getPreviousAtFrame(frame, returnClosest);
     }
-    public SegmentedObject getPreviousAtFrame(int frame) {
+    public SegmentedObject getPreviousAtFrame(int frame, boolean returnClosest) {
         if (frame>this.getFrame()) throw new IllegalArgumentException("Looking for previous object after");
         SegmentedObject p = this;
-        while (p != null && p.getFrame()>frame) p = p.getPrevious();
+        if (returnClosest) {
+            while (p.getPrevious()!= null && p.getFrame()>frame) p = p.getPrevious();
+        } else {
+            while (p != null && p.getFrame()>frame) p = p.getPrevious();
+        }
         return p;
     }
 
-    public SegmentedObject getNextAtFrame(int frame) {
+    public SegmentedObject getNextAtFrame(int frame, boolean returnClosest) {
         if (frame<this.getFrame()) throw new IllegalArgumentException("Looking for next object before");
         SegmentedObject n = this;
-        while (n != null && n.getFrame()<frame) n = n.getNext();
+        if (returnClosest) {
+            while (n.getNext() != null && n.getFrame()<frame) n = n.getNext();
+        } else {
+            while (n != null && n.getFrame()<frame) n = n.getNext();
+        }
+
         return n;
     }
 
@@ -743,8 +752,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         // get cropped image
         if (input==null) input = getParent().getPreFilteredImage(structureIdx);
         RegionPopulation pop = splitter.splitObject(input, getParent(), structureIdx, getRegion());
-        if (pop==null || pop.getRegions().size()==1) {
-            logger.warn("split error: {}", this);
+        if (pop==null || pop.getRegions().size()<=1) {
+            logger.debug("could not split: {} number of segments: {}", this, pop==null?"null" : pop.getRegions().size());
             return null;
         }
         // set landmark

@@ -25,6 +25,15 @@ public class TrackTreePopulation {
     }
     public TrackTreePopulation(Map<SegmentedObject, Track> tracks) {
         trees = getClusters(tracks);
+        checkTrackConsistency();
+    }
+
+    public void checkTrackConsistency() {
+        boolean consistent = true;
+        for (TrackTree t : trees) {
+            if (!t.checkTrackConsistency()) consistent = false;
+        }
+        if (!consistent) throw new RuntimeException("Track Inconsistency");
     }
     public static Set<TrackTree> getClusters(Map<SegmentedObject, Track> tracks) {
         Set<TrackTree> trees = new HashSet<>();
@@ -46,11 +55,11 @@ public class TrackTreePopulation {
         });
         return trees;
     }
-    public void solveMergeEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public void solveMergeEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> merging, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         // solve by merging
         logger.debug("solving merge events by merging on {} trackTrees", trees.size());
-        solveMergeEventsByMerging(trees, forbidFusion, dividing, factory, editor);
-
+        solveMergeEventsByMerging(trees, forbidFusion, merging, factory, editor);
+        checkTrackConsistency();
         // solve by splitting
         Collection<TrackTree> correctedTracks = trees;
         ArrayList<TrackTree> toRemove=  new ArrayList<>();
@@ -60,6 +69,7 @@ public class TrackTreePopulation {
             toRemove.forEach(trees::remove);
             toRemove.clear();
             trees.addAll(correctedTracks);
+            checkTrackConsistency();
         }
 
 
@@ -69,7 +79,7 @@ public class TrackTreePopulation {
         // solve by merging
         logger.debug("solving split events by merging on {} trackTrees", trees.size());
         solveSplitEventsByMerging(trees, forbidFusion, dividing, factory, editor);
-
+        checkTrackConsistency();
         // solve by splitting
         Collection<TrackTree> correctedTracks = trees;
         List<TrackTree> toRemove = new ArrayList<>();
@@ -79,10 +89,11 @@ public class TrackTreePopulation {
             toRemove.forEach(trees::remove);
             toRemove.clear();
             trees.addAll(correctedTracks);
+            checkTrackConsistency();
         }
     }
 
-    public void solveMergeEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public void solveMergeEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> merging, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         trackTrees.stream().filter(tt -> tt.size()>1).forEach(tt -> {
             Consumer<Track> remove = t -> tt.remove(t.head());
             Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
@@ -92,9 +103,10 @@ public class TrackTreePopulation {
             while (t!=null) {
                 if (t.getFirstFrame()>lastFrame) seen.clear();
                 lastFrame = t.getFirstFrame();
-                Track merged = mergeTracks(t, true, forbidFusion, dividing, factory, editor, remove, add); // TODO : multithread here ?
+                Track merged = mergeTracks(t, true, forbidFusion, null, merging, factory, editor, remove, add); // TODO : multithread here ?
                 boolean stayOnSameTrack = false;
                 if (merged!=null) {
+                    if (!merged.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
                     t = merged.simplifyTrack(editor, remove);
                     stayOnSameTrack = t.getPrevious().size()>1;
                 }
@@ -114,9 +126,10 @@ public class TrackTreePopulation {
             while (t!=null) {
                 if (t.getFirstFrame() > lastFrame) seen.clear();
                 lastFrame = t.getFirstFrame();
-                Track merged = mergeTracks(t, false, forbidFusion, dividing, factory, editor, remove, add);
+                Track merged = mergeTracks(t, false, forbidFusion, dividing, null, factory, editor, remove, add);
                 boolean stayOnSameTrack = false;
                 if (merged!=null) {
+                    if (!merged.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
                     t = merged.simplifyTrack(editor, remove);
                     stayOnSameTrack = t.getNext().size()>1;
                 }
@@ -126,11 +139,11 @@ public class TrackTreePopulation {
         });
     }
 
-    private static Track mergeTracks(Track m, boolean previous, BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
+    private static Track mergeTracks(Track m, boolean previous, BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, Predicate<SegmentedObject> merging, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
         List<Track> toMerge = previous? new ArrayList<>(m.getPrevious()) : new ArrayList<>(m.getNext());
         for (int i = 0; i<toMerge.size()-1; ++i) {
             for (int j = i+1; j< toMerge.size(); ++j) {
-                if (!forbidFusion.test(toMerge.get(i), toMerge.get(j) ) && (dividing==null || !dividing.test(toMerge.get(i).head()) || !dividing.test(toMerge.get(j).head()) )) {
+                if (!forbidFusion.test(toMerge.get(i), toMerge.get(j) ) && (dividing==null || !dividing.test(toMerge.get(i).head()) || !dividing.test(toMerge.get(j).head()) ) && (merging==null || !merging.test(toMerge.get(i).tail()) || !merging.test(toMerge.get(j).tail()) )) {
                     logger.debug("trying to merge tracks: {} + {} -> {} prev {} & {}", toMerge.get(i), toMerge.get(j), m, toMerge.get(i).getPrevious(), toMerge.get(j).getPrevious());
                     Track merged = Track.mergeTracks(toMerge.get(i), toMerge.get(j), factory, editor, removeTrack, addTrack);
                     if (merged!=null) return merged;

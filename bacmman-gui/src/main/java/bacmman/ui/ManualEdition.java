@@ -31,6 +31,7 @@ import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentationAndTrackingProcessingPipeline;
 import bacmman.ui.gui.image_interaction.*;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
 
 import java.awt.Color;
@@ -45,6 +46,7 @@ import bacmman.utils.Utils;
 
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.function.BiPredicate;
 
@@ -54,6 +56,7 @@ import org.slf4j.LoggerFactory;
 
 import static bacmman.data_structure.Processor.applyFilterToSegmentedObjects;
 import static bacmman.data_structure.SegmentedObjectEditor.*;
+import static bacmman.ui.PluginConfigurationUtils.displayIntermediateImages;
 
 /**
  *
@@ -396,7 +399,7 @@ public class ManualEdition {
             }
         }
     }
-    
+
     public static void manualSegmentation(MasterDAO db, Image image, boolean relabel, boolean test) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         if (image==null) {
@@ -430,11 +433,11 @@ public class ManualEdition {
             String[] positions = points.keySet().stream().map(SegmentedObject::getPositionName).distinct().toArray(String[]::new);
             if (positions.length>1) throw new IllegalArgumentException("All points should come from same parent");
             if (!canEdit(positions[0], db)) return;
-            ensurePreFilteredImages(points.keySet().stream().map(p->p.getParent(parentStructureIdx)).distinct(), structureIdx, db.getExperiment(), db.getDao(positions[0]));
+            ensurePreFilteredImages(points.keySet().stream().map(p->p.getParent(parentStructureIdx)).distinct(), structureIdx, segInstance.getMinimalTemporalNeighborhood(), db.getExperiment(), db.getDao(positions[0]));
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
             HashMap<SegmentedObject, TrackConfigurer> parentThMapParam = new HashMap<>();
             if (s instanceof TrackConfigurable) {
-                Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(points.keySet().stream().map(p -> p.getParent(parentStructureIdx)).distinct(), ((TrackConfigurable) s).parentTrackMode());
+                Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(points.keySet().stream().map(p -> p.getParent(parentStructureIdx)).distinct(), ((TrackConfigurable) s).parentTrackMode(), 0);
                 trackSegments.forEach((pth, list) -> {
                     logger.debug("track config for: {} (# elements: {})", pth, list.size());
                     parentThMapParam.put(pth, TrackConfigurable.getTrackConfigurer(structureIdx, list, s));
@@ -528,7 +531,7 @@ public class ManualEdition {
             }
         }
     }
-    public static Map<SegmentedObject, List<SegmentedObject>> getTrackSegments(Stream<SegmentedObject> trackElements, ProcessingPipeline.PARENT_TRACK_MODE mode) {
+    public static Map<SegmentedObject, List<SegmentedObject>> getTrackSegments(Stream<SegmentedObject> trackElements, ProcessingPipeline.PARENT_TRACK_MODE mode, final int temporalNeighborhoodExtent) {
         switch (mode) {
             case WHOLE_PARENT_TRACK_ONLY:
             default:
@@ -540,6 +543,10 @@ public class ManualEdition {
                 return pByTh.entrySet().stream().collect(Collectors.toMap(Entry::getKey, e -> {
                     SegmentedObject first = e.getValue().stream().min(Comparator.comparing(SegmentedObject::getFrame)).get();
                     SegmentedObject last = e.getValue().stream().max(Comparator.comparing(SegmentedObject::getFrame)).get();
+                    if (temporalNeighborhoodExtent>0) {
+                        first = first.getPreviousAtFrame(first.getFrame() - temporalNeighborhoodExtent, true);
+                        last = last.getNextAtFrame(last.getFrame() + temporalNeighborhoodExtent, true);
+                    }
                     List<SegmentedObject> res= new ArrayList<>(last.getFrame()-first.getFrame()+1);
                     res.add(first);
                     while(!first.equals(last)) {
@@ -551,20 +558,27 @@ public class ManualEdition {
             }
             case MULTIPLE_INTERVALS: {
                 Map<SegmentedObject, List<SegmentedObject>> res = trackElements.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
-                res.forEach((th, l) -> l.sort(Comparator.comparing(SegmentedObject::getFrame)));
+                if (temporalNeighborhoodExtent>0) {
+                    res = res.entrySet().stream()
+                            .collect(Collectors.toMap(Entry::getKey, e-> e.getValue().stream()
+                                    .flatMap(so -> IntStream.rangeClosed(so.getFrame() - temporalNeighborhoodExtent, so.getFrame() + temporalNeighborhoodExtent).mapToObj(f -> so.getAtFrame(f, true))).distinct().sorted().collect(Collectors.toList())));
+                } else res.forEach((th, l) -> l.sort(Comparator.comparing(SegmentedObject::getFrame)));
                 return res;
             }
         }
     }
-    public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, Experiment xp , ObjectDAO dao) {
+    public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, int temporalNeighborhoodExtent, Experiment xp , ObjectDAO dao) {
         Processor.ensureScalerConfiguration(dao, structureIdx);
         ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
         if (pipeline instanceof SegmentationAndTrackingProcessingPipeline) ((SegmentationAndTrackingProcessingPipeline)pipeline).getTrackPostFilters().removeAllElements(); // we remove track post filter so that they do not inlfuence mode
         ProcessingPipeline.PARENT_TRACK_MODE mode = ProcessingPipeline.parentTrackMode(pipeline);
         TrackPreFilterSequence tpfWithPF = pipeline != null ? pipeline.getTrackPreFilters(true) : new TrackPreFilterSequence("");
-        parents = parents.filter(p -> p.getPreFilteredImage(structureIdx)==null);
-        Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(parents, mode);
-        trackSegments.entrySet().removeIf(e -> e.getValue().stream().noneMatch(p -> p.getPreFilteredImage(structureIdx)==null));
+        Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(parents, mode, temporalNeighborhoodExtent);
+        //logger.debug("ensure prefilters: temporal neigh: {}, segments: {}", temporalNeighborhoodExtent, Utils.toStringMap(trackSegments, SegmentedObject::toString, l->l.size()+""));
+        if (mode.allowIntervals()) {
+            trackSegments.values().forEach(l -> l.removeIf(p -> p.getPreFilteredImage(structureIdx)!=null));
+            trackSegments.values().removeIf(List::isEmpty);
+        } else trackSegments.entrySet().removeIf(e -> e.getValue().stream().noneMatch(p -> p.getPreFilteredImage(structureIdx)==null));
         for (List<SegmentedObject> t : trackSegments.values()) {
             Core.userLog("Computing track pre-filters...");
             logger.debug("tpf for : {} (length: {}, mode: {}), objectclass: {}, #filters: {}", t.get(0).getTrackHead(), t.size(), mode, structureIdx, tpfWithPF.get().size());
@@ -590,6 +604,9 @@ public class ManualEdition {
             return;
         }
         splitter.setSplitVerboseMode(test_);
+        boolean dispImages = splitter instanceof TestableProcessingPlugin && test_;
+        Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestableProcessingPlugin.TestDataStore(so, ImageWindowManagerFactory::showImage, true), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        if (dispImages) ((TestableProcessingPlugin)splitter).setTestDataStore(stores);
         boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
         boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
         SegmentedObjectFactory factory = getFactory(structureIdx);
@@ -599,7 +616,7 @@ public class ManualEdition {
             Set<SegmentedObject> objectsToStore = new HashSet<>();
             TrackLinkEditor editor = getEditor(structureIdx, objectsToStore);
             List<SegmentedObject> newObjects = new ArrayList<>();
-            if (!(splitter instanceof FreeLineSplitter)) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(SegmentedObject::getParent), structureIdx, xp, dao);
+            if (!(splitter instanceof FreeLineSplitter)) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(SegmentedObject::getParent), structureIdx, splitter.getMinimalTemporalNeighborhood(), xp, dao);
             List<SegmentedObject> objectsToSplit = objectsByPosition.get(f);
             // order is important for links not to be lost by link rules
             //if (split && !merge) Collections.sort(objectsToSplit, Comparator.comparingInt(o->-o.getFrame()));
@@ -614,7 +631,6 @@ public class ManualEdition {
                 track.parallelStream().forEach( objectToSplit -> { // create split object
                     if (test_) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                     else {
-
                         SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
                         if (newObject == null) logger.warn("Object could not be split!");
                         else {
@@ -678,6 +694,7 @@ public class ManualEdition {
                     objectsToStore.add(objectToSplit);
                 }
             }
+            if (dispImages) displayIntermediateImages(stores, structureIdx, false);
             if (!relabel) removeDuplicateIdxs(newObjects, factory);
             if (!test && dao!=null) {
                 dao.store(objectsToStore);

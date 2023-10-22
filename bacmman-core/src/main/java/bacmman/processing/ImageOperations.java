@@ -754,29 +754,29 @@ public class ImageOperations {
      */
     public static float[] maxProjection(Image image, Axis axis, BoundingBox limit) {
         float[] res;
-        float value;
+        double value;
         if (limit==null) limit = new SimpleBoundingBox(image).resetOffset();
         switch (axis) {
             case X:
                 res = new float[limit.sizeX()];
                 for (int x = limit.xMin(); x<=limit.xMax(); ++x) {
-                    float max=image.getPixel(x, limit.yMin(), limit.zMin());
+                    double max=image.getPixel(x, limit.yMin(), limit.zMin());
                     for (int z=limit.zMin(); z<=limit.zMax(); ++z) for (int y=limit.yMin(); y<=limit.yMax(); ++y) {value=image.getPixel(x, y, z); if (value>max) max=value;}
-                    res[x-limit.xMin()]=max;
+                    res[x-limit.xMin()]=(float)max;
                 }   break;
             case Y:
                 res = new float[limit.sizeY()];
                 for (int y = limit.yMin(); y<=limit.yMax(); ++y) {
-                    float max=image.getPixel(limit.xMin(), y, limit.zMin());
+                    double max=image.getPixel(limit.xMin(), y, limit.zMin());
                     for (int z=limit.zMin(); z<=limit.zMax(); ++z) for (int x=limit.xMin(); x<=limit.xMax(); ++x) {value=image.getPixel(x, y, z); if (value>max) max=value;}
-                    res[y-limit.yMin()]=max;
+                    res[y-limit.yMin()]=(float)max;
                 }   break;
             default:
                 res = new float[limit.sizeZ()];
                 for (int z = limit.zMin(); z<=limit.zMax(); ++z) {
-                    float max=image.getPixel(limit.xMin(), limit.yMin(), z);
+                    double max=image.getPixel(limit.xMin(), limit.yMin(), z);
                     for (int x=limit.xMin(); x<=limit.xMax(); ++x) for (int y=limit.yMin(); y<=limit.yMax(); ++y) {value=image.getPixel(x, y, z); if (value>max) max=value;}
-                    res[z-limit.zMin()]=max;
+                    res[z-limit.zMin()]=(float)max;
                 }   break;
         }
         return res;
@@ -804,7 +804,7 @@ public class ImageOperations {
         if (zLim.length>0) zMin = zLim[0];
         if (zLim.length>1) zMax = zLim[1];
         for (int xy = 0; xy<input.sizeXY(); ++xy) {
-            float max = input.getPixel(xy, 0);
+            double max = input.getPixel(xy, 0);
             for (int z = zMin+1; z<=zMax; ++z) {
                 if (input.getPixel(xy, z)>max) {
                     max = input.getPixel(xy, z);
@@ -871,7 +871,7 @@ public class ImageOperations {
     
     
     public static Voxel getGlobalExtremum(Image image, BoundingBox area, boolean max) {
-        float extrema = image.getPixel(area.xMin(), area.yMin(), area.zMin());
+        double extrema = image.getPixel(area.xMin(), area.yMin(), area.zMin());
         int xEx=area.xMin(), yEx=area.yMin(), zEx=area.zMin();
         if (max) {
             for (int z= area.zMin();z<=area.zMax();++z) {
@@ -911,8 +911,8 @@ public class ImageOperations {
         }
     }
     
-    public static float getMinOverThreshold(Image image, float threshold) {
-        float min = Float.MAX_VALUE;
+    public static double getMinOverThreshold(Image image, float threshold) {
+        double min = Double.MAX_VALUE;
         BoundingBox limits = image.getBoundingBox().resetOffset();
         for (int z = limits.zMin(); z <= limits.zMax(); z++) {
             for (int y = limits.yMin(); y<=limits.yMax(); ++y) {

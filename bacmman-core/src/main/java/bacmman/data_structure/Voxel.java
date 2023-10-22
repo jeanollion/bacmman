@@ -32,7 +32,7 @@ import net.imglib2.Localizable;
  */
 public class Voxel implements Offset<Voxel>, Localizable {
     public int x, y;
-    public float value;
+    public double value;
     public int z;
 
     public Voxel(int x, int y, int z) {
@@ -46,7 +46,7 @@ public class Voxel implements Offset<Voxel>, Localizable {
         if (xyz.length>2) this.z = xyz[2];
     }
 
-    public Voxel(int x, int y, int z, float value) {
+    public Voxel(int x, int y, int z, double value) {
         this(x, y, z);
         this.value = value;
     }

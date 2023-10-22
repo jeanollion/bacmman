@@ -50,22 +50,7 @@ public class RawImage implements FeatureExtractor, Hint {
             case MIDDLE_PLANE:
                 return image.getZPlane(image.sizeZ()/2);
             case CHANNEL: // simply transpose dimensions x,y,z -> z,y,x
-                int sizeZ = image.sizeY();
-                int sizeY = image.sizeX();
-                int sizeX = image.sizeZ();
-                Image im;
-                switch(image.getBitDepth()) {
-                    case 32:
-                    default:
-                        im = new ImageFloat(image.getName(), sizeX, sizeY, sizeZ);
-                        break;
-                    case 16:
-                        im = new ImageShort(image.getName(), sizeX, sizeY, sizeZ);
-                        break;
-                    case 8:
-                        im = new ImageByte(image.getName(), sizeX, sizeY, sizeZ);
-                        break;
-                }
+                Image im = Image.createEmptyImage(image.getName(), image, image);
                 BoundingBox.loop(image, (x, y, z) -> im.setPixel(z, x, y, image.getPixel(x, y, z)));
                 return im;
         }

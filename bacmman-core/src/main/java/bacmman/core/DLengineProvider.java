@@ -1,16 +1,12 @@
-package bacmman.data_structure;
+package bacmman.core;
 
-import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.plugins.DLengine;
-import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class DLengineProvider {

@@ -20,6 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.Voxel;
 import static bacmman.image.BoundingBox.loop;
@@ -32,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import bacmman.image.ImageProperties;
+import bacmman.image.SimpleImageProperties;
 import bacmman.plugins.TestableOperation;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Median;
@@ -46,7 +49,6 @@ import bacmman.utils.SlidingOperator;
 import bacmman.utils.ThreadRunner;
 
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  *
@@ -55,21 +57,22 @@ import java.util.stream.IntStream;
 public class RemoveHotPixels implements ConfigurableTransformation, TestableOperation, Hint {
     NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higher than this threshold pixel is considered as dead and will be replaced by the median value");
     NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 1, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
-    HashMapGetCreate<Integer, Set<Voxel>> configMapF;
+    HashMapGetCreate<Integer, CoordCollection> configMapF;
     public RemoveHotPixels(){}
     public RemoveHotPixels(double threshold, int frameRadius) {
         this.threshold.setValue(threshold);
         this.frameRadius.setValue(frameRadius);
     }
-    public Map<Integer, Set<Voxel>> getDeadVoxels() {
+    protected Map<Integer, CoordCollection> getHotPixels() {
         return configMapF;
     }
     @Override
     public boolean highMemory() {return false;}
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages)   throws IOException {
-        configMapF = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
-        Image median = new ImageFloat("", inputImages.getImage(channelIdx, 0));
+        ImageProperties bds = new SimpleImageProperties(inputImages.getImage(channelIdx, 0));
+        configMapF = new HashMapGetCreate<>(bds.sizeZ() == 1 ? time -> new CoordCollection.CoordCollection2D(bds.sizeX(), bds.sizeY()) : time -> new CoordCollection.CoordCollection3D(bds.sizeX(), bds.sizeY(), bds.sizeZ()));
+        Image median = new ImageFloat("", bds);
         Neighborhood n =  new EllipsoidalNeighborhood(1.5, true); // excludes center pixel // only on same plane
         double thld= threshold.getDoubleValue();
         int frameRadius = Math.min(this.frameRadius.getValue().intValue(), inputImages.getFrameNumber());
@@ -109,11 +112,11 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
                     testMedianTC[accumulator.key][0] = median.duplicate();
                 }
                 loop(median.getBoundingBox().resetOffset(), (x, y, z)->{
-                    float med = median.getPixel(x, y, z);
+                    double med = median.getPixel(x, y, z);
                     if (accumulator.value.getPixel(x, y, z)-med>= thld) {
-                        Voxel v =new Voxel(x, y, z, med);
                         for (int f = Math.max(0, accumulator.key-frameRadius); f<=accumulator.key; ++f) {
-                            configMapF.getAndCreateIfNecessary(f).add(v);
+                            CoordCollection ccol = configMapF.getAndCreateIfNecessary(f);
+                            ccol.add(ccol.toCoord(x, y, z));
                             //Set<Voxel> set = configMapF.getAndCreateIfNecessarySync(f);
                             //synchronized (set) {set.add(v);}
                         }
@@ -165,13 +168,26 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         });
         return image;
         */
-        Map<Integer, Set<Voxel>> map = this.getDeadVoxels();
+        Map<Integer, CoordCollection> map = this.getHotPixels();
         if (map.containsKey(timePoint)) {
-            Set<Voxel> dv= map.get(timePoint);
-            if (!dv.isEmpty()) {
+            CoordCollection ccol= map.get(timePoint);
+            int[] coords=new int[3];
+            if (!ccol.isEmpty()) {
                 Median m = new Median();
-                m.setUp(image, image.sizeZ()>1 ? new EllipsoidalNeighborhood(1.5, 1, true) : new EllipsoidalNeighborhood(1.5, true)); // excludes center pixel);
-                for (Voxel v : dv) image.setPixel(v.x, v.y, v.z, m.applyFilter(v.x, v.y, v.z)); //
+                if (image.sizeZ()>1) {
+                    m.setUp(image, new EllipsoidalNeighborhood(1.5, 1, true));
+                    ccol.stream().forEach(c -> {
+                        ccol.parse(c, coords);
+                        image.setPixel(coords[0], coords[1], coords[2], m.applyFilter(coords[0], coords[1], coords[2]));
+                    });
+                } else {
+                    m.setUp(image, new EllipsoidalNeighborhood(1.5, true)); // excludes center pixel);
+                    CoordCollection.CoordCollection2D ccol2D = (CoordCollection.CoordCollection2D) ccol;
+                    ccol2D.intStream().forEach(c -> {
+                        ccol2D.parse(c, coords);
+                        image.setPixel(coords[0], coords[1], 0, m.applyFilter(coords[0], coords[1], 0));
+                    });
+                }
             }
         }
         return image;

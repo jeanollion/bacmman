@@ -19,13 +19,9 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
-import bacmman.core.GithubGateway;
-import bacmman.core.OmeroGateway;
-import bacmman.data_structure.DLengineProvider;
+import bacmman.core.*;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Selection;
-import bacmman.image.io.ImageIOCoordinates;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;
@@ -252,6 +248,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     public DLengineProvider getDLengineProvider() { //todo see if flush needed at beginng of processing
         return dLengineProvider;
     }
+
 
     public void setSelectionSupplier(Supplier<Stream<Selection>> selectionSupplier) {
         this.selectionSupplier = selectionSupplier;

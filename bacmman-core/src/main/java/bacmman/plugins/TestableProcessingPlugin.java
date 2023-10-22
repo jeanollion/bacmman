@@ -22,11 +22,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.utils.HashMapGetCreate;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -54,7 +50,10 @@ public interface TestableProcessingPlugin extends ImageProcessingPlugin {
         if (store==null) return null;
         return (s, c) -> store.addMisc(s, c);
     }
-    
+    static boolean isExpertMode(Map<SegmentedObject, TestDataStore> stores) {
+        if (stores==null || stores.isEmpty()) return false;
+        return stores.values().iterator().next().expertMode;
+    }
     class TestDataStore {
         public final SegmentedObject parent;
         public final Map<String, Image> images = new HashMap<>();

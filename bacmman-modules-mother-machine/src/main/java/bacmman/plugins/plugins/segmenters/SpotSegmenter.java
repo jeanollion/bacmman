@@ -291,7 +291,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         for (int zz = 0; zz<primarySPZ.length; ++zz) {
             final int z = zz;
             BoundingBox.loop(primarySPZ[z].getBoundingBox().resetOffset(), (x, y, sp)->{
-                float currentValue = primarySPZ[z].getPixel(x, y, sp);
+                double currentValue = primarySPZ[z].getPixel(x, y, sp);
                 if (parentMask.insideMask(x, y, z) && currentValue>=primaryThld && (secondarySPZ.length==0 || getGaussianValueMaxZ(secondarySPZ[z], x, y)>=secondaryThld)) { // check pixel is over thresholds
                     if ( (z==0 || (z>0 && seedsSPZ[z-1].getPixel(x, y, sp)==0)) && lmZ[z].hasNoValueOver(currentValue, x, y, sp)) { // check if 1) was not already checked at previous plane [make it not parallelizable] && if is local max on this z plane
                         boolean lm = true;

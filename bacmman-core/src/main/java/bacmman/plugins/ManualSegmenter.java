@@ -30,7 +30,8 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public interface ManualSegmenter extends ImageProcessingPlugin {
+public interface ManualSegmenter extends ImageProcessingPlugin.ImageProcessingPluginTemporalNeighborhood {
     void setManualSegmentationVerboseMode(boolean verbose);
     RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ);
+
 }

@@ -23,7 +23,7 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> {
+public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> implements PrimitiveType.ShortType{
 
     final private short[][] pixels;
     private double scale;
@@ -123,19 +123,19 @@ public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> {
         }
     }
     @Override
-    public float getPixel(int x, int y, int z) {
-        return (float)(pixels[z][x+y*sizeX]/scale);
+    public double getPixel(int x, int y, int z) {
+        return pixels[z][x+y*sizeX]/scale;
     }
 
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float)(pixels[z][x + y * sizeX]/scale);
-        return  (float)((pixels[z][x + y * sizeX]/scale) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]/scale));
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
+        if (dx==0) return pixels[z][x + y * sizeX]/scale;
+        return  (pixels[z][x + y * sizeX]/scale) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]/scale);
     }
 
     @Override
-    public float getPixel(int xy, int z) {
-        return (float)(pixels[z][xy] / scale);
+    public double getPixel(int xy, int z) {
+        return pixels[z][xy] / scale;
     }
     
     @Override
@@ -175,21 +175,24 @@ public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> {
     }
     
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
-        return (float)(pixels[z-zMin][x-offsetXY + y * sizeX] / scale);
+    public double getPixelWithOffset(int x, int y, int z) {
+        return pixels[z-zMin][x-offsetXY + y * sizeX] / scale;
     }
 
     @Override
     public ImageFloat16Scale duplicate(String name) {
         short[][] newPixels = new short[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
-        return (ImageFloat16Scale)new ImageFloat16Scale(name, sizeX, newPixels, scale).setCalibration(this).translate(this);
+        return new ImageFloat16Scale(name, sizeX, newPixels, scale).setCalibration(this).translate(this);
     }
     
     @Override
     public short[][] getPixelArray() {
         return pixels;
     }
+
+    @Override
+    public boolean floatingPoint() {return true;}
 
     @Override
     public ImageFloat16Scale newImage(String name, ImageProperties properties) {
@@ -206,8 +209,6 @@ public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> {
             }
         }
     }
-
-    @Override public int getBitDepth() {return 32;} // return 32 so that it is considered as float. TODO improve this
 
     // image mask implementation
     

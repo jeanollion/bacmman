@@ -22,6 +22,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.TransformationPluginParameter;
+import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
@@ -31,10 +32,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
-import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
-import bacmman.image.Image;
-import bacmman.image.Offset;
+import bacmman.image.*;
 import bacmman.image.io.KymographFactory;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
@@ -214,6 +212,7 @@ public class Processor {
             }
             db.getDao(fieldName).clearCache();
             xp.getDLengineProvider().closeAllEngines();
+            Core.clearDiskBackedImageManagers();
         }
 
     }
@@ -329,6 +328,7 @@ public class Processor {
             me=e;
         } finally {
             xp.getDLengineProvider().closeAllEngines();
+            Core.clearDiskBackedImageManagers();
         }
         if (pcb!=null) {
             pcb.log("Storing objects...");
@@ -394,27 +394,21 @@ public class Processor {
         List<SegmentedObject> object = SegmentedObjectUtils.getAllObjectsAsStream(dao, parentClassIdx).collect(Collectors.toList());
         double min, binSize;
         int nBins;
-        int bitDepth = object.get(0).getRawImage(objectClassIdx).getBitDepth();
-        switch (bitDepth) {
-            case 8:
-                min = 0;
-                binSize = 1;
-                nBins = 256;
-                break;
-            case 16:
-                min = 0;
-                binSize = 1;
-                nBins = 65536;
-                break;
-            case 32: // compute min & max
-                double[] minAndMax = HistogramFactory.getMinAndMax(object.stream().map(o -> o.getRawImage(objectClassIdx)));
-                min = minAndMax[0];
-                nBins = 1000;
-                binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], nBins);
-                break;
-            default:
-                throw new RuntimeException("unsupported image type");
-        }
+        Image refImage= object.get(0).getRawImage(objectClassIdx);
+        if (refImage.floatingPoint() || refImage.byteCount()>2) {
+            double[] minAndMax = HistogramFactory.getMinAndMax(object.stream().map(o -> o.getRawImage(objectClassIdx)));
+            min = minAndMax[0];
+            nBins = 1000;
+            binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], nBins);
+        } else if (refImage.byteCount()==1) {
+            min = 0;
+            binSize = 1;
+            nBins = 256;
+        } else if (refImage.byteCount() == 2) {
+            min = 0;
+            binSize = 1;
+            nBins = 65536;
+        } else throw new RuntimeException("Unsupported image type: "+ refImage.getClass());
         Histogram histo = HistogramFactory.getHistogram(object.stream().map(o -> o.getRawImage(objectClassIdx)), binSize, nBins, min);
         return histo.getShortenedHistogram();
     }

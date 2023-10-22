@@ -20,10 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.image.Image;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageShort;
+import bacmman.image.*;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.Hint;
 import bacmman.processing.ImageOperations;
@@ -59,14 +56,14 @@ public class TypeConverter implements MultichannelTransformation, Hint {
         switch(METHOD.valueOf(method.getSelectedItem())) {
             case LIMIT_TO_16:
             default: {
-                if (image.getBitDepth()>16) {
+                if (image.floatingPoint() || image.byteCount()>2) {
                     Image output = new ImageShort(image.getName(), image);
                     ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
                     return output;
                 } else return image;
             }
             case LIMIT_TO_8: {
-                if (image.getBitDepth()>8) {
+                if (image.floatingPoint() || image.byteCount()>1) {
                     Image output = new ImageByte(image.getName(), image);
                     ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
                     return output;

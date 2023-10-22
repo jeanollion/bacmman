@@ -43,12 +43,33 @@ public class TypeConverter {
             float[][] newPixels = output.getPixelArray();
             for (int z = 0; z<image.sizeZ(); ++z) {
                 for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                    newPixels[z][xy]=(float)image.getPixel(xy, z);
+                }
+            }
+        }
+        return output;
+    }
+
+    /**
+     *
+     * @param image input image to be converted
+     * @param output image to cast values to. if null, a new image will be created
+     * @return a new ImageFloat values casted as double
+     */
+    public static ImageDouble toDouble(Image image, ImageDouble output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageDouble(image.getName(), image);
+        if (image instanceof ImageDouble) Image.pasteImage(image, output, null);
+        else {
+            double[][] newPixels = output.getPixelArray();
+            for (int z = 0; z<image.sizeZ(); ++z) {
+                for (int xy = 0; xy<image.sizeXY(); ++xy) {
                     newPixels[z][xy]=image.getPixel(xy, z);
                 }
             }
         }
         return output;
     }
+
     public static ImageFloat16Scale toFloat16(Image image, ImageFloat16Scale output) {
         if (output==null || !output.sameDimensions(image)) output = new ImageFloat16Scale(image.getName(), image, output==null ? ImageFloat16Scale.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
         if (image instanceof ImageFloat16Scale) Image.pasteImage(image, output, null);
@@ -103,6 +124,11 @@ public class TypeConverter {
         else return (ImageByte)image;
     }
 
+    public static ImageDouble toDouble(Image image, ImageDouble output, boolean forceCopy) {
+        if (forceCopy || !(image instanceof ImageDouble)) return toDouble(image, output);
+        else return (ImageDouble)image;
+    }
+
     public static ImageFloat toFloat(Image image, ImageFloat output, boolean forceCopy) {
         if (forceCopy || !(image instanceof ImageFloat)) return toFloat(image, output);
         else return (ImageFloat)image;
@@ -121,22 +147,6 @@ public class TypeConverter {
         else return toFloat(image, null);
     }
 
-    public static Image convert(Image image, int targetBitdepth) {
-        return convert(image, targetBitdepth, null, false);
-    }
-
-    public static Image convert(Image image, int targetBitdepth, Image output, boolean forceCopy) {
-        if (output!=null && output.getBitDepth()!=targetBitdepth) throw new RuntimeException("Incompatible output and bitdepth");
-        switch (targetBitdepth) {
-            case 8: return toByte(image, (ImageByte)output, forceCopy);
-            case 16: return toShort(image, (ImageShort)output, forceCopy);
-            case 32: {
-                if (output instanceof ImageInt) return toInt(image, (ImageInt)output);
-                return toFloat(image, (ImageFloat)output, forceCopy);
-            }
-            default: throw new IllegalArgumentException("invalid bitdepth");
-        }
-    }
     public static ImageInt toInt(Image image, ImageInt output) {
         if (output==null || !output.sameDimensions(image)) output = new ImageInt(image.getName(), image);
         if (image instanceof ImageInt) Image.pasteImage(image, output, null);
@@ -283,8 +293,11 @@ public class TypeConverter {
         else if (image instanceof ImageMask) return toByteMask((ImageMask)image, null, 1);
         else return toFloat((Image)image, null);
     }
-    
-    public static <T extends Image> T cast(Image source, T output) {
+    public static <T extends Image<T>> T convert(Image source, T output, boolean forceCopy) {
+        if (forceCopy && source.getClass().equals(output.getClass())) return ((T)source.duplicate(source.getName()));
+        else return cast(source, output);
+    }
+    public static <T extends Image<T>> T cast(Image source, T output) {
         if (output instanceof ImageByte) {
             if (source instanceof ImageByte) return (T)source;
             return (T)toByte(source, (ImageByte)output);
@@ -306,7 +319,7 @@ public class TypeConverter {
         } else if (output instanceof ImageFloatU8Scale) {
             if (source instanceof ImageFloatU8Scale) return (T)source;
             return (T)toFloatU8(source, (ImageFloatU8Scale)output);
-        } else throw new IllegalArgumentException("Output should be of type byte, short, or float, but is: {}"+ output.getClass().getSimpleName());
+        } else throw new IllegalArgumentException("Unsupported Image Type: {}"+ output.getClass().getSimpleName());
     }
 
     public static void homogenizeBitDepth(Image[][] images) {

@@ -23,7 +23,7 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageShort extends ImageInteger<ImageShort> {
+public class ImageShort extends ImageInteger<ImageShort> implements PrimitiveType.ShortType {
 
     private short[][] pixels;
 
@@ -159,20 +159,20 @@ public class ImageShort extends ImageInteger<ImageShort> {
     }
     
     @Override
-    public float getPixel(int xy, int z) {
-        return (float) (pixels[z][xy] & 0xffff);
+    public double getPixel(int xy, int z) {
+        return pixels[z][xy] & 0xffff;
     }
 
     @Override
-    public float getPixel(int x, int y, int z) {
-        return (float) (pixels[z][x + y * sizeX] & 0xffff);
+    public double getPixel(int x, int y, int z) {
+        return pixels[z][x + y * sizeX] & 0xffff;
     }
     
     
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float) (pixels[z][x + y * sizeX] & 0xffff);
-        return (float) ((pixels[z][x + y * sizeX] & 0xffff) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX] & 0xffff));
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
+        if (dx==0) return pixels[z][x + y * sizeX] & 0xffff;
+        return (pixels[z][x + y * sizeX] & 0xffff) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX] & 0xffff);
     }
 
     @Override
@@ -231,7 +231,7 @@ public class ImageShort extends ImageInteger<ImageShort> {
     }
 
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
+    public double getPixelWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX] & 0xffff;
     }
 
@@ -239,7 +239,7 @@ public class ImageShort extends ImageInteger<ImageShort> {
     public ImageShort duplicate(String name) {
         short[][] newPixels = new short[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
-        return (ImageShort)new ImageShort(name, sizeX, newPixels).setCalibration(this).translate(this);
+        return new ImageShort(name, sizeX, newPixels).setCalibration(this).translate(this);
     }
 
     public boolean insideMask(int x, int y, int z) {
@@ -312,6 +312,6 @@ public class ImageShort extends ImageInteger<ImageShort> {
             }
         }
     }
-    
-    @Override public int getBitDepth() {return 16;}
+
+    @Override public int byteCount() {return 2;}
 }

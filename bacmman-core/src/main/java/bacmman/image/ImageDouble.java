@@ -23,61 +23,47 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageFloat8Scale extends ImageFloatingPoint<ImageFloat8Scale> implements PrimitiveType.ByteType{
+public class ImageDouble extends ImageFloatingPoint<ImageDouble> implements PrimitiveType.DoubleType{
 
-    final private byte[][] pixels;
-    final private double scale;
+    final private double[][] pixels;
 
     /**
      * Builds a new blank image with same properties as {@param properties}
      * @param name name of the new image
      * @param properties properties of the new image
      */
-    public ImageFloat8Scale(String name, ImageProperties properties, double scale) {
+    public ImageDouble(String name, ImageProperties properties) {
         super(name, properties);
-        this.pixels=new byte[sizeZ][sizeXY];
-        this.scale = scale;
+        this.pixels=new double[sizeZ][sizeXY];
     }
-    public ImageFloat8Scale(String name, int sizeX, int sizeY, int sizeZ, float scale) {
+    public ImageDouble(String name, int sizeX, int sizeY, int sizeZ) {
         super(name, sizeX, sizeY, sizeZ);
-        if (sizeZ>0 && sizeX>0 && sizeY>0) this.pixels=new byte[sizeZ][sizeX*sizeY];
+        if (sizeZ>0 && sizeX>0 && sizeY>0) this.pixels=new double[sizeZ][sizeX*sizeY];
         else pixels = null;
-        this.scale = scale;
     }
 
-    public ImageFloat8Scale(String name, int sizeX, byte[][] pixels, double scale) {
+    public ImageDouble(String name, int sizeX, double[][] pixels) {
         super(name, sizeX, sizeX>0?pixels[0].length/sizeX:0, pixels.length);
         this.pixels=pixels;
-        this.scale = scale;
     }
 
-    public ImageFloat8Scale(String name, int sizeX, byte[] pixels, double scale) {
+    public ImageDouble(String name, int sizeX, double[] pixels) {
         super(name, sizeX, sizeX>0?pixels.length/sizeX:0, 1);
-        this.pixels=new byte[][]{pixels};
-        this.scale = scale;
+        this.pixels=new double[][]{pixels};
     }
-    public double getScale() {return scale;}
-    public static double getOptimalScale(double... minAndMax) {
-        double min = minAndMax[0];
-        double max = minAndMax.length>1 ? minAndMax[1] : min;
-        if (Math.abs(max)>=Math.abs(min)) {
-            return Byte.MAX_VALUE / max;
-        } else { // min<0
-            return Byte.MIN_VALUE / min;
-        }
-    }
+    
     @Override
-    public ImageFloat8Scale getZPlane(int idxZ) {
+    public ImageDouble getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageFloat8Scale res = new ImageFloat8Scale(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ], scale);
+            ImageDouble res = new ImageDouble(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
             res.setCalibration(this);
             res.translate(xMin, yMin, zMin+idxZ);
             return res;
         }
     }
     @Override public DoubleStream streamPlane(int z) {
-        return IntStream.range(0, sizeXY).mapToDouble(i->pixels[z][i]/scale);
+        return ArrayUtil.stream(pixels[z]);
     }
     @Override public DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset) {
         if (maskHasAbsoluteOffset) {
@@ -86,7 +72,7 @@ public class ImageFloat8Scale extends ImageFloatingPoint<ImageFloat8Scale> imple
             if (inter.isEmpty()) return DoubleStream.empty();
             if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
-                else return IntStream.range(0,sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]/scale:Double.NaN).filter(v->!Double.isNaN(v));
+                else return IntStream.range(0,sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
             }
             else { // loop within intersection
                 int sX = inter.sizeX();
@@ -95,7 +81,7 @@ public class ImageFloat8Scale extends ImageFloatingPoint<ImageFloat8Scale> imple
                 return IntStream.range(0,inter.getSizeXY()).mapToDouble(i->{
                         int x = i%sX+offX;
                         int y = i/sX+offY;
-                        return mask.insideMaskWithOffset(x, y, z+zMin)?pixels[z][x+y*sizeX-offsetXY]/scale:Double.NaN;}
+                        return mask.insideMaskWithOffset(x, y, z+zMin)?pixels[z][x+y*sizeX-offsetXY]:Double.NaN;}
                 ).filter(v->!Double.isNaN(v));
             }
         }
@@ -105,7 +91,7 @@ public class ImageFloat8Scale extends ImageFloatingPoint<ImageFloat8Scale> imple
             if (inter.isEmpty()) return DoubleStream.empty();
             if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
-                else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]/scale:Double.NaN).filter(v->!Double.isNaN(v));
+                else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
             }
             else {
                 int sX = inter.sizeX();
@@ -114,95 +100,96 @@ public class ImageFloat8Scale extends ImageFloatingPoint<ImageFloat8Scale> imple
                 return IntStream.range(0,inter.getSizeXY()).mapToDouble(i->{
                         int x = i%sX+offX;
                         int y = i/sX+offY;
-                        return mask.insideMaskWithOffset(x, y, z)?pixels[z][x+y*sizeX]/scale:Double.NaN;}
+                        return mask.insideMaskWithOffset(x, y, z)?pixels[z][x+y*sizeX]:Double.NaN;}
                 ).filter(v->!Double.isNaN(v));
             }
         }
     }
     @Override
     public double getPixel(int x, int y, int z) {
-        return pixels[z][x+y*sizeX]/scale;
+        return pixels[z][x+y*sizeX];
     }
-
+    
+    
     @Override
     public double getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return pixels[z][x + y * sizeX]/scale;
-        return  (pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX])/scale;
+        if (dx==0) return (float) (pixels[z][x + y * sizeX]);
+        return (float) ((pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]));
     }
 
     @Override
     public double getPixel(int xy, int z) {
-        return pixels[z][xy] / scale;
+        return pixels[z][xy];
     }
     
     @Override
     public void setPixel(int x, int y, int z, double value) {
-        pixels[z][x+y*sizeX]=(byte)Math.round(value*scale);
+        pixels[z][x+y*sizeX]=(float)value;
     }
 
     @Override
     public void addPixel(int x, int y, int z, double value) {
-        pixels[z][x+y*sizeX]+=(byte) Math.round(value * scale);
+        pixels[z][x+y*sizeX]+=(float)value;
     }
 
     @Override
     public void setPixel(int xy, int z, double value) {
-        pixels[z][xy]=(byte)Math.round(value*scale);
+        pixels[z][xy]=(float)value;
     }
     
     public void setPixel(int x, int y, int z, float value) {
-        pixels[z][x+y*sizeX]=(byte)Math.round(value*scale);
+        pixels[z][x+y*sizeX]=value;
     }
 
     public void setPixelWithOffset(int x, int y, int z, float value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)Math.round(value*scale);
+        pixels[z-zMin][x-offsetXY + y * sizeX] = value;
     }
     
     @Override
     public void setPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)Math.round(value*scale);
+        pixels[z-zMin][x-offsetXY + y * sizeX] = (float)value;
     }
     @Override
     public void addPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] += Math.round(value*scale);
+        pixels[z-zMin][x-offsetXY + y * sizeX] += (float)value;
+    }
+    public void addPixelWithOffset(int x, int y, int z, float value) {
+        pixels[z-zMin][x-offsetXY + y * sizeX] += value;
     }
 
     public void setPixel(int xy, int z, float value) {
-        pixels[z][xy]=(byte)Math.round(value*scale);
+        pixels[z][xy]=value;
     }
     
     @Override
     public double getPixelWithOffset(int x, int y, int z) {
-        return pixels[z-zMin][x-offsetXY + y * sizeX] / scale;
+        return pixels[z-zMin][x-offsetXY + y * sizeX];
     }
 
     @Override
-    public ImageFloat8Scale duplicate(String name) {
-        byte[][] newPixels = new byte[sizeZ][sizeXY];
+    public ImageDouble duplicate(String name) {
+        double[][] newPixels = new double[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
-        return new ImageFloat8Scale(name, sizeX, newPixels, scale).setCalibration(this).translate(this);
+        return (ImageDouble)new ImageDouble(name, sizeX, newPixels).setCalibration(this).translate(this);
     }
     
     @Override
-    public byte[][] getPixelArray() {
+    public double[][] getPixelArray() {
         return pixels;
     }
 
     @Override
-    public boolean floatingPoint() {return true;}
-
-    @Override
-    public ImageFloat8Scale newImage(String name, ImageProperties properties) {
-        return new ImageFloat8Scale(name, properties, scale);
+    public ImageDouble newImage(String name, ImageProperties properties) {
+        return new ImageDouble(name, properties);
     }
     
     @Override
     public void invert() {
         double[] minAndMax = this.getMinAndMax(null);
-        short off = (short) (minAndMax[1] / scale);
+        float off = (float)minAndMax[1];
         for (int z = 0; z < sizeZ; z++) {
             for (int xy = 0; xy<sizeXY; ++xy) {
-                pixels[z][xy] = (byte) (off - pixels[z][xy]);
+                pixels[z][xy] = off - pixels[z][xy];
             }
         }
     }

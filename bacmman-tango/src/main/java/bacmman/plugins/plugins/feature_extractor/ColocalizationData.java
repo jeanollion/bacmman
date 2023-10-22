@@ -46,9 +46,9 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
         for (EVFParameter p : evfList.getActivatedChildren()) {
             images.add(p.computeEVF(parent));
         }
-        int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
+        Image type = TypeConverter.toCommonImageType(Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get()));
         int count = parentMask.count();
-        Image res = Image.createImage(Selection.indicesToString(SegmentedObjectUtils.getIndexTree(parent)), maxBD, new SimpleImageProperties(count, images.size(), 1, 1, 1));
+        Image res = Image.createEmptyImage(Selection.indicesToString(SegmentedObjectUtils.getIndexTree(parent)), type, new SimpleImageProperties(count, images.size(), 1, 1, 1));
         int[] idx = new int[1];
         ImageMask.loop(parentMask, (x, y, z) -> {
             for (int c = 0; c<images.size(); ++c) res.setPixel(idx[0], c, 0, images.get(c).getPixel(x, y, z));

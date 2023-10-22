@@ -56,12 +56,12 @@ public class SaturateHistogram implements Filter, DevPlugin {
             final double add = thld * (1 - factor);
 
             loop(image.getBoundingBox().resetOffset(), (int x, int y, int z) -> {
-                float value = image.getPixel(x, y, z);
+                double value = image.getPixel(x, y, z);
                 if (value>thld) image.setPixel(x, y, z, value * factor + add);
             });
         } else {
             loop(image.getBoundingBox().resetOffset(), (int x, int y, int z) -> {
-                float value = image.getPixel(x, y, z);
+                double value = image.getPixel(x, y, z);
                 if (value>thld) image.setPixel(x, y, z, thld);
             });
         }

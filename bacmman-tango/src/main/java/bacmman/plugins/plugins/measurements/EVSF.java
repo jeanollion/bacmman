@@ -67,8 +67,8 @@ public class EVSF implements Measurement, Hint {
         float[][] channels = new float[channelIms.length][n];
         int[] idx = new int[1];
         mask.loop((x, y, z) -> {
-            evf[idx[0]] = evfIm.getPixelWithOffset(x, y, z);
-            for (int c = 0; c<channelIms.length; ++c) channels[c][idx[0]] = channelIms[c].getPixelWithOffset(x, y, z);
+            evf[idx[0]] = (float)evfIm.getPixelWithOffset(x, y, z);
+            for (int c = 0; c<channelIms.length; ++c) channels[c][idx[0]] = (float)channelIms[c].getPixelWithOffset(x, y, z);
             r[idx[0]] = idx[0];
             ++idx[0];
         });

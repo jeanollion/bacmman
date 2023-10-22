@@ -22,7 +22,7 @@ import bacmman.utils.ArrayUtil;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageFloat extends ImageFloatingPoint<ImageFloat> {
+public class ImageFloat extends ImageFloatingPoint<ImageFloat> implements PrimitiveType.FloatType{
 
     final private float[][] pixels;
 
@@ -105,19 +105,19 @@ public class ImageFloat extends ImageFloatingPoint<ImageFloat> {
         }
     }
     @Override
-    public float getPixel(int x, int y, int z) {
+    public double getPixel(int x, int y, int z) {
         return pixels[z][x+y*sizeX];
     }
     
     
     @Override
-    public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float) (pixels[z][x + y * sizeX]);
-        return (float) ((pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]));
+    public double getPixelLinInterX(int x, int y, int z, float dx) {
+        if (dx==0) return pixels[z][x + y * sizeX];
+        return (pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]);
     }
 
     @Override
-    public float getPixel(int xy, int z) {
+    public double getPixel(int xy, int z) {
         return pixels[z][xy];
     }
     
@@ -161,7 +161,7 @@ public class ImageFloat extends ImageFloatingPoint<ImageFloat> {
     }
     
     @Override
-    public float getPixelWithOffset(int x, int y, int z) {
+    public double getPixelWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX];
     }
 
@@ -192,8 +192,6 @@ public class ImageFloat extends ImageFloatingPoint<ImageFloat> {
             }
         }
     }
-
-    @Override public int getBitDepth() {return 32;}
 
     // image mask implementation
     

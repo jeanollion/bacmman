@@ -18,8 +18,8 @@
  */
 package bacmman.core;
 
-import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.UserAuth;
+import bacmman.data_structure.DiskBackedImageManagerProvider;
+import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.PropertyUtils;
@@ -34,12 +34,9 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static bacmman.plugins.PluginFactory.getClasses;
 
@@ -69,6 +66,7 @@ public class Core {
     public double tfPerProcessGpuMemoryFraction=1;
     public int[] dockerGPUs=new int[0];
     public int dockerShmMb=2000;
+    final List<DiskBackedImageManager> diskBackedImageManagers = new ArrayList<>();
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {
@@ -104,6 +102,17 @@ public class Core {
     }
     public static OpService getOpService() {
         return opService;
+    }
+
+    static DiskBackedImageManagerProvider diskBackedImageManagerProvider = new DiskBackedImageManagerProvider();
+    public static DiskBackedImageManager getDiskBackedManager(String directory) {
+        return diskBackedImageManagerProvider.getManager(directory);
+    }
+    public static DiskBackedImageManager getDiskBackedManager(SegmentedObject segmentedObject) {
+        return diskBackedImageManagerProvider.getManager(segmentedObject);
+    }
+    public static void clearDiskBackedImageManagers() {
+        diskBackedImageManagerProvider.clear();
     }
 
     public static void setUserLogger(ProgressLogger plogger) {

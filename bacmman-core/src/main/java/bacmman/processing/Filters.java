@@ -176,7 +176,7 @@ public class Filters {
         if (output==null) res = (T)Image.createEmptyImage(name, image, image);
         else if (!output.sameDimensions(image) || output==image) res = Image.createEmptyImage(name, output, image);
         else res = (T)output.setName(name);
-        float round=res instanceof ImageFloat ? 0: 0.5f;
+        double round=res instanceof ImageFloat ? 0: 0.5d;
         
         
         //if (Context.getThreadNumber(true)>1) BoundingBox.loopParallele(res.getBoundingBox().resetOffset(), loopFunc); // neiborhood is not thread safe. Todo: use reusable queue with copies of neighborhood
@@ -203,7 +203,7 @@ public class Filters {
         protected Image image;
         protected Neighborhood neighborhood;
         public void setUp(Image image, Neighborhood neighborhood) {this.image=image; this.neighborhood=neighborhood;}
-        public abstract float applyFilter(int x, int y, int z);
+        public abstract double applyFilter(int x, int y, int z);
         public abstract Filter duplicate();
     }
     public static class Mean extends Filter {
@@ -215,12 +215,12 @@ public class Filters {
         @Override public Mean duplicate() {
             return new Mean(mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
             double mean = 0;
             for (int i = 0; i<neighborhood.getValueCount(); ++i) mean+=neighborhood.getPixelValues()[i];
-            return (float)(mean/neighborhood.getValueCount());
+            return mean/neighborhood.getValueCount();
         }
     }
     public static class Sigma extends Filter {
@@ -232,7 +232,7 @@ public class Filters {
         @Override public Sigma duplicate() {
             return new Sigma(mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
             double mean = 0;
@@ -243,7 +243,7 @@ public class Filters {
             }
             mean/=neighborhood.getValueCount();
             values2/=neighborhood.getValueCount();
-            return (float)Math.sqrt(values2 - mean * mean);
+            return Math.sqrt(values2 - mean * mean);
         }
     }
     public static class Variance extends Filter {
@@ -255,7 +255,7 @@ public class Filters {
         @Override public Variance duplicate() {
             return new Variance(mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
             double mean = 0;
@@ -266,14 +266,14 @@ public class Filters {
             }
             mean/=neighborhood.getValueCount();
             values2/=neighborhood.getValueCount();
-            return (float)(values2 - mean * mean);
+            return values2 - mean * mean;
         }
     }
     private static class SigmaMu extends Filter {
         @Override public SigmaMu duplicate() {
             return new SigmaMu();
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             neighborhood.setPixels(x, y, z, image, null);
             if (neighborhood.getValueCount()==0) return 0;
             double mean = 0;
@@ -284,7 +284,7 @@ public class Filters {
             }
             mean/=neighborhood.getValueCount();
             values2/=neighborhood.getValueCount();
-            return (float)(Math.sqrt(values2 - mean * mean) / mean);
+            return Math.sqrt(values2 - mean * mean) / mean;
         }
     }
     public static class Median extends Filter {
@@ -296,12 +296,12 @@ public class Filters {
         @Override public Median duplicate() {
             return new Median(mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
             Arrays.sort(neighborhood.getPixelValues(), 0, neighborhood.getValueCount());
-            if (neighborhood.getValueCount()%2==0) return (float) (neighborhood.getPixelValues()[neighborhood.getValueCount()/2-1]+neighborhood.getPixelValues()[neighborhood.getValueCount()/2])/2f;
-            else return (float)neighborhood.getPixelValues()[neighborhood.getValueCount()/2];
+            if (neighborhood.getValueCount()%2==0) return (neighborhood.getPixelValues()[neighborhood.getValueCount()/2-1]+neighborhood.getPixelValues()[neighborhood.getValueCount()/2])/2d;
+            else return neighborhood.getPixelValues()[neighborhood.getValueCount()/2];
         }
     }
 
@@ -349,8 +349,8 @@ public class Filters {
         @Override public Max duplicate() {
             return new Max();
         }
-        @Override public float applyFilter(int x, int y, int z) {
-            return (float)neighborhood.getMax(x, y, z, image);
+        @Override public double applyFilter(int x, int y, int z) {
+            return neighborhood.getMax(x, y, z, image);
         }
     }
     public static class LocalMax extends Filter {
@@ -362,7 +362,7 @@ public class Filters {
         @Override public LocalMax duplicate() {
             return new LocalMax(mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             if (mask!=null && !mask.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
@@ -370,7 +370,7 @@ public class Filters {
             for (int i = 1; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]>max) return 0;
             return 1;
         }
-        public boolean hasNoValueOver(float value, int x, int y, int z) {
+        public boolean hasNoValueOver(double value, int x, int y, int z) {
             neighborhood.setPixels(x, y, z, image, mask);
             for (int i = 0; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]>value) return false;
             return true;
@@ -386,7 +386,7 @@ public class Filters {
         @Override public LocalMaxThreshold duplicate() {
             return new LocalMaxThreshold(threshold, mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             if (mask!=null && !mask.insideMask(x, y, z)) return 0;
             if (image.getPixel(x, y, z)<threshold) return 0;
             neighborhood.setPixels(x, y, z, image, mask);
@@ -402,7 +402,7 @@ public class Filters {
             this.labels = labels;
         }
         @Override
-        public float applyFilter(int x, int y, int z) {
+        public double applyFilter(int x, int y, int z) {
             if (!labels.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, null);
             neighborhood.setPixelsInt(x, y, z, labels, null);
@@ -428,7 +428,7 @@ public class Filters {
         @Override public LocalMin duplicate() {
             return new LocalMin(mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             if (mask!=null && !mask.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
@@ -447,7 +447,7 @@ public class Filters {
         @Override public LocalMinThreshold duplicate() {
             return new LocalMinThreshold(threshold, mask);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             if (mask!=null && !mask.insideMask(x, y, z)) return 0;
             if (image.getPixel(x, y, z)>threshold) return 0;
             neighborhood.setPixels(x, y, z, image, null);
@@ -458,8 +458,8 @@ public class Filters {
         }
     }
     private static class Min extends Filter {
-        @Override public float applyFilter(int x, int y, int z) {
-            return (float)neighborhood.getMin(x, y, z, image);
+        @Override public double applyFilter(int x, int y, int z) {
+            return neighborhood.getMin(x, y, z, image);
         }
         @Override public Min duplicate() {
             return new Min();
@@ -476,7 +476,7 @@ public class Filters {
         @Override public BinaryMin duplicate() {
             return new BinaryMin(outOfBoundIsNull);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             if (image.getPixel(x, y, z)==0) return 0;
             return neighborhood.hasNullValue(x, y, z, image, outOfBoundIsNull) ? 0 :1;
         }
@@ -492,7 +492,7 @@ public class Filters {
         @Override public BinaryMax duplicate() {
             return new BinaryMax(outOfBoundIsNonNull);
         }
-        @Override public float applyFilter(int x, int y, int z) {
+        @Override public double applyFilter(int x, int y, int z) {
             if (image.getPixel(x, y, z)!=0) return 1;
             return neighborhood.hasNonNullValue(x, y, z, image, outOfBoundIsNonNull) ? 1 : 0;
         }
@@ -513,8 +513,8 @@ public class Filters {
             if (mask!=null && !image.sameDimensions(mask)) throw new IllegalArgumentException("Mask and Image to filter should have same dimentions: mask: "+new SimpleBoundingBox(mask)+" image: "+image.getBoundingBox());
             else if (mask==null) mask=new BlankMask(image);
         }
-        @Override public float applyFilter(int x, int y, int z) {
-            float centralValue = image.getPixel(x, y, z);
+        @Override public double applyFilter(int x, int y, int z) {
+            double centralValue = image.getPixel(x, y, z);
             if (image.getPixel(x, y, z)!=0) return centralValue;
             if (!mask.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, null);
@@ -523,11 +523,11 @@ public class Filters {
             double[] values = neighborhood.getPixelValues();
             while (++idx<count && values[idx]==0) {}
             if (idx==count) return 0;
-            if (idx+1==count) return (float)neighborhood.getPixelValues()[idx];
+            if (idx+1==count) return neighborhood.getPixelValues()[idx];
             int idx2=idx;
             while (++idx2<count && (values[idx2]==0 || values[idx2]==values[idx])) {}
-            if (idx2==count) return (float)neighborhood.getPixelValues()[idx];
-            if (neighborhood.getDistancesToCenter()[idx]<neighborhood.getDistancesToCenter()[idx2]) return (float)values[idx];
+            if (idx2==count) return neighborhood.getPixelValues()[idx];
+            if (neighborhood.getDistancesToCenter()[idx]<neighborhood.getDistancesToCenter()[idx2]) return values[idx];
             return 0;
         }
     }

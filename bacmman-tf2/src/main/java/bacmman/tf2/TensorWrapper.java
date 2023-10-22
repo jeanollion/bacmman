@@ -211,7 +211,7 @@ public class TensorWrapper {
                 for (int y = 0; y < ySize; ++y) {
                     for (int x = 0; x < xSize; ++x) {
                         for (int c = 0; c < cSize; ++c) {
-                            buffer.setFloat(imageC[c].getPixel(x, y, z), offset++);
+                            buffer.setFloat((float)imageC[c].getPixel(x, y, z), offset++);
                         }
                     }
                 }
@@ -276,7 +276,7 @@ public class TensorWrapper {
                 for (int y = 0; y < ySize; ++y) {
                     for (int x = 0; x < xSize; ++x) {
                         for (int c = 0; c < cSize; ++c) {
-                            buffer.setFloat(imageC[c].getPixel(fX.toInt(x), fY.toInt(y), fZ.toInt(z)), offset++);
+                            buffer.setFloat((float)imageC[c].getPixel(fX.toInt(x), fY.toInt(y), fZ.toInt(z)), offset++);
                         }
                     }
                 }
