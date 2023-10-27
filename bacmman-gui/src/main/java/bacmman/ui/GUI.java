@@ -587,6 +587,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 shortcuts.toggleDisplayTable(INSTANCE);
             }
         });
+        actionMap.put(Shortcuts.ACTION.TO_FRONT, new AbstractAction("To Front") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                Core.getCore().toFront();
+            }
+        });
         actionMap.put(Shortcuts.ACTION.LINK, new AbstractAction("Link") {
             @Override
             public void actionPerformed(ActionEvent e) {

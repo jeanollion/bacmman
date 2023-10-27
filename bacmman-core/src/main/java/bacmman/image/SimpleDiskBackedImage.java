@@ -30,11 +30,11 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         return imageType;
     }
     @Override
-    public void freeMemory() {
+    public void freeMemory(boolean storeIfModified) {
         if (image != null) {
             synchronized (this) {
                 if (image !=null) {
-                    if (modified) {
+                    if (modified && storeIfModified) {
                         try {
                             manager.storeSimpleDiskBackedImage(this);
                         } catch (IOException e) {
@@ -56,12 +56,8 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         return writable;
     }
     @Override
-    public boolean hasModifications() {
-        return modified;
-    }
-    @Override
-    public void setModified() {
-        modified = true;
+    public void setModified(boolean modified) {
+        this.modified = modified;
     }
     public I getImage() {
         if (image == null ) {

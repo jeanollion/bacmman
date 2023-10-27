@@ -635,6 +635,40 @@ public class Region {
         }
     }
 
+    public void loopContours(LoopFunction fun) {
+        EllipsoidalNeighborhood neigh = !is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true); // 1 and not 1.5 -> diagonal
+        if (voxels!=null) {
+            for (Voxel v: voxels) if (touchBorderVox(v, neigh)) fun.loop(v.x, v.y, v.z);
+        } else {
+            getMask();
+            ImageMask.loop(mask, (x, y, z)->{
+                if (touchBorder(x, y, z, neigh, mask)) fun.loop(x+mask.xMin(), y+mask.yMin(), z+mask.zMin());
+            });
+        }
+    }
+
+    /**
+     * loop over the region contour and apply @param fun to each coordinate
+     * @param fun function called with coordinates x, y, z
+     * @param off additional offset added to coordinates (x, y, z) before calling fun
+     */
+    public void loopContours(LoopFunction fun, Offset off) {
+        if (off==null || Offset.offsetNull(off)) {
+            loopContours(fun);
+        } else {
+            EllipsoidalNeighborhood neigh = !is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true); // 1 and not 1.5 -> diagonal
+            if (voxelsCreated()) {
+                for (Voxel v: voxels) if (touchBorderVox(v, neigh)) fun.loop(v.x+off.xMin(), v.y+ off.yMin(), v.z+off.zMin());
+            } else {
+                ImageMask.loop(mask, (x, y, z)->{
+                    if (touchBorder(x, y, z, neigh, mask)) fun.loop(x+mask.xMin()+off.xMin(), y+mask.yMin()+ off.yMin(), z+mask.zMin()+off.zMin());
+                });
+            }
+        }
+    }
+
+
+
     public DoubleStream streamValues(Image image, boolean checkInsideImage) {
         if (voxelsCreated()) {
             Stream<Voxel> stream = voxels.stream();
@@ -672,6 +706,21 @@ public class Region {
             ImageMask.loop(mask, (x, y, z)->{ if (touchBorder(x, y, z, neigh, mask)) res.add(new Voxel(x+mask.xMin(), y+mask.yMin(), z+mask.zMin()));});
         }
         return res;
+    }
+
+    public boolean contact(Region other) {
+        if (is2D || other.is2D) {
+            if (!BoundingBox.intersect2D(getBounds(), other.getBounds(), 1)) return false;
+        } else {
+            if (!BoundingBox.intersect(getBounds(), other.getBounds(), 1)) return false;
+        }
+        Set<Voxel> otherContours=other.getContour();
+        for (Voxel v : getContour()) {
+            for (Voxel w : otherContours) {
+                if (Math.abs(v.x - w.x )<=1 && Math.abs(v.y - w.y )<=1 && Math.abs(v.z - w.z )<=1) return true;
+            }
+        }
+        return false;
     }
 
     /**

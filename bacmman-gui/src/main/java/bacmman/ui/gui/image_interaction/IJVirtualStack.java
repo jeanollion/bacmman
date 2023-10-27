@@ -253,7 +253,7 @@ public class IJVirtualStack<I extends Image<I>> extends VirtualStack {
         Image type = TypeConverter.toCommonImageType(Image.copyType(IntStream.range(0, channels).mapToObj(c -> planes0[c]).max(PrimitiveType.typeComparator()).get()));
         Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[2]==0 ? planes0[fcz[1]] : imageOpenerCT.apply(fcz);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, type, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
-        String title = interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? (parentTrack.get(0).isRoot() ? "HyperStack of Position: #"+parentTrack.get(0).getPositionIdx() : "HyperStack of Track: "+parentTrack.get(0).toStringShort()): interactiveImage.getName();
+        String title = interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? (parentTrack.get(0).isRoot() ? "HyperStack of Position: #"+parentTrack.get(0).getPositionIdx() : "HyperStack of Track: "+parentTrack.get(0)): interactiveImage.getName();
         ImagePlus ip;
         if (image5D) {
             s.setVirtual(false);

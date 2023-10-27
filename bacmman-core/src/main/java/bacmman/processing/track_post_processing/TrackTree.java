@@ -8,7 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class TrackTree extends TreeMap<SegmentedObject, Track> {
     public final static Logger logger = LoggerFactory.getLogger(TrackTree.class);
@@ -32,12 +35,20 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
         return values().stream().filter(Track::merge).filter(t -> t.getFirstFrame() >= from.getFirstFrame() && !t.equals(from) && !seen.contains(t)).findFirst().orElse(null);
     }
 
+    public Track getMerge(Set<Track> seen) {
+        return values().stream().filter(Track::merge).filter(t -> !seen.contains(t)).findFirst().orElse(null);
+    }
+
     public Track getFirstSplit() {
         return values().stream().filter(Track::split).findFirst().orElse(null);
     }
 
     public Track getNextSplit(Track from, Set<Track> seen) {
         return values().stream().filter(Track::split).filter(t -> t.getFirstFrame() >= from.getFirstFrame() && !t.equals(from) && !seen.contains(t)).findFirst().orElse(null);
+    }
+
+    public Track getSplit(Set<Track> seen) {
+        return values().stream().filter(Track::split).filter(t -> !seen.contains(t)).findFirst().orElse(null);
     }
 
     /*public Collection<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -55,18 +66,39 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
     }*/
 
 
-    public Track split(Track toSplit, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public boolean split(Track toSplit, boolean mergeEvent, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, Function<Track, TrackTree> getTrackTree, Consumer<TrackTree> removeTrackTree, BiFunction<Integer, Boolean, Stream<Track>> getAllTracksAtFrame, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        Consumer<Track> removeTrackLocal = toRemove -> {
+            if (remove(toRemove.head())==null) { // track to not belong to this tracktree
+                TrackTree tt = getTrackTree.apply(toRemove);
+                if (tt != null) tt.remove(toRemove.head());
+            }
+        };
+        Consumer<Track> addLocal = toAdd -> {
+            if (containsKey(toAdd.head())) return;
+            TrackTree tt = getTrackTree.apply(toAdd);
+            if (tt!=null) {
+                if (!tt.equals(this)) { // if track already belong to another tracktree : add the whole track tree
+                    logger.debug("adding track {} result in merging trackTree", toAdd);
+                    removeTrackTree.accept(tt);
+                    putAll(tt);
+                }
+            } else put(toAdd.head(), toAdd);
+        };
         toSplit.setSplitRegions(splitter);
-        Track newTrack = Track.splitInTwo(toSplit, assigner, factory, editor);
-        if (newTrack!=null) {
-            if (!toSplit.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
-            if (!newTrack.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
-            toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
-            if (get(toSplit.head())==null) throw new RuntimeException("Track is absent after simplify"+toSplit);
-            newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
-            put(newTrack.head(), newTrack);
+        if (splitInTwo) {
+            Track newTrack = Track.splitInTwo(toSplit, assigner, factory, editor);
+            if (newTrack != null) {
+                if (!toSplit.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
+                if (!newTrack.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
+                toSplit = toSplit.simplifyTrack(editor, removeTrackLocal);
+                if (get(toSplit.head()) == null) throw new RuntimeException("Track is absent after simplify" + toSplit);
+                newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
+                put(newTrack.head(), newTrack);
+            }
+            return newTrack!=null;
+        } else {
+            return Track.split(toSplit, mergeEvent, assigner, factory, editor, removeTrackLocal, addLocal, getAllTracksAtFrame);
         }
-        return newTrack;
     }
 
     @Override

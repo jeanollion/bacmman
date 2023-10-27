@@ -56,7 +56,6 @@ public class IJ1 implements PlugIn {
 
     private static Object LOCK = new Object();
     public static void initCore() {
-
         IJImageDisplayer disp = new IJImageDisplayer();
         IJImageWindowManager man = new IJImageWindowManager(null, disp);
         ImageWindowManagerFactory.setImageDisplayer(disp, man);
@@ -68,13 +67,14 @@ public class IJ1 implements PlugIn {
         Core.getCore().getGithubGateway().setPromptGithubCredientials(PromptGithubCredentials::promptCredentials);
     }
 
+
+
     public static void main(String[] args) {
         /*java.awt.EventQueue.invokeLater(() -> {
             new GUI().setVisible(true);
         });*/
 
         installLUTs();
-        ImageJ ij = new ImageJ();
         new IJ1().run(null);
     }
 
@@ -91,6 +91,7 @@ public class IJ1 implements PlugIn {
         if (!GUI.hasInstance()) {
             synchronized(LOCK) {
                 if (!GUI.hasInstance()) {
+                    ImageJ ij = new ImageJ();
                     String lookAndFeel = null;
                     Map<String, LookAndFeelInfo> lafMap = Arrays.asList(UIManager.getInstalledLookAndFeels()).stream().collect(Collectors.toMap(LookAndFeelInfo::getName, Function.identity()));
                     logger.info("LookAndFeels {}", lafMap.keySet());
@@ -136,7 +137,9 @@ public class IJ1 implements PlugIn {
                     org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
                     // TODO find other IJ1&2 plugins & ops...
                     initCore();
+                    Core.getCore().addToFront(ij::toFront);
                     GUI gui = new GUI();
+                    Core.getCore().addToFront(gui::toFront);
                     Core.setUserLogger(gui);
                     Core.getCore().getGithubGateway().setLogger(gui);
                     gui.setVisible(true);

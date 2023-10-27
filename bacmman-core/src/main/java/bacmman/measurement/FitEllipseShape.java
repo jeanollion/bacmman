@@ -2,10 +2,14 @@ package bacmman.measurement;
 
 import bacmman.data_structure.Region;
 import bacmman.utils.SymetricalPair;
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
+import net.imglib2.RealLocalizable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Collection;
 
 public class FitEllipseShape {
     public final static Logger logger = LoggerFactory.getLogger(FitEllipseShape.class);
@@ -13,6 +17,7 @@ public class FitEllipseShape {
     public static class Ellipse {
         public final double majorAxisLength, minorAxisLength, orientation;
         final public Point center;
+        SymetricalPair<Point> poles;
         public Ellipse(Point center, double majorAxisLength, double minorAxisLength, double orientation) {
             this.center = center;
             this.majorAxisLength = majorAxisLength;
@@ -26,8 +31,19 @@ public class FitEllipseShape {
             return new Vector(Math.cos(orientation * Math.PI / 180), Math.sin(orientation * Math.PI / 180)).multiply(majorAxisLength);
         }
         public SymetricalPair<Point> getPoles() {
+            if (poles!=null) return poles;
+            else return computePoles();
+        }
+
+        protected SymetricalPair<Point> computePoles() {
             Vector dir = getDirection().multiply(0.5);
             return new SymetricalPair<>(center.duplicate().translate(dir), center.duplicate().translateRev(dir));
+        }
+        public void ensurePolesBelongToContour(Collection<? extends RealLocalizable> contour) {
+            SymetricalPair<Point> poles = computePoles();
+            Point p1 = Point.asPoint2D(Utils.getClosest(poles.key, contour, Point::distSqXY));
+            Point p2 = Point.asPoint2D(Utils.getClosest(poles.value, contour, Point::distSqXY));
+            this.poles = new SymetricalPair<>(p1, p2);
         }
     }
 

@@ -272,7 +272,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                     if (parents!=null) {
                         for (SegmentedObject o : objectMap.values()) {
                             SegmentedObject p = parents.get(o.getParentId());
-                            if (p==null) logger.warn("getChildren: {}, null parent for object: {}", key, o.toStringShort());
+                            if (p==null) logger.warn("getChildren: {}, null parent for object: {}", key, o);
                             else o.setParent(p);
                         }
                         Map<SegmentedObject, List<SegmentedObject>> byP = SegmentedObjectUtils.splitByParent(objectMap.values());

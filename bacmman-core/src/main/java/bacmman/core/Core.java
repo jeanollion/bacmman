@@ -66,6 +66,7 @@ public class Core {
     public double tfPerProcessGpuMemoryFraction=1;
     public int[] dockerGPUs=new int[0];
     public int dockerShmMb=2000;
+    final List<Runnable> toFront = new ArrayList<>();
     final List<DiskBackedImageManager> diskBackedImageManagers = new ArrayList<>();
     public static Core getCore() {
         if (core==null) {
@@ -100,6 +101,15 @@ public class Core {
     public static ImageJ imagej2() {
         return ij;
     }
+
+    public void toFront() { // placed GUI items to front
+        toFront.forEach(r -> r.run());
+    }
+
+    public void addToFront(Runnable toFront) {
+        this.toFront.add(toFront);
+    }
+
     public static OpService getOpService() {
         return opService;
     }

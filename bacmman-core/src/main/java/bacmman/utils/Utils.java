@@ -101,6 +101,18 @@ public class Utils {
             return left;
         });
     }
+    public static <T> T getClosest(T point, Collection<? extends T> l1, ToDoubleBiFunction<T, T> distance) {
+        double min = Double.POSITIVE_INFINITY;
+        T res = null;
+        for (T a : l1) {
+            double d=distance.applyAsDouble(a, point);
+            if (d<min) {
+                res = a;
+                min = d;
+            }
+        }
+        return res;
+    }
     public static <T> double getDist(Collection<? extends T> l1, Collection<? extends T> l2, ToDoubleBiFunction<T, T> distance) {
         double min = Double.POSITIVE_INFINITY;
         for (T a : l1) {

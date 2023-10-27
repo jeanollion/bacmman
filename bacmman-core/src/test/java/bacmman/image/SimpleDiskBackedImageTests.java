@@ -102,7 +102,7 @@ public class SimpleDiskBackedImageTests {
         // test modification
         dbImage.addPixel(0, 1, 2, 1);
         original = dbImage.getImage().duplicate();
-        dbImage.freeMemory();
+        dbImage.freeMemory(true);
         assertTrue("image not closed", !dbImage.isOpen());
         assertImageEquals("image modification not stored", original, dbImage);
     }

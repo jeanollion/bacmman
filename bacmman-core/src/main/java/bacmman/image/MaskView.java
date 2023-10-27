@@ -5,6 +5,7 @@ public class MaskView extends SimpleImageProperties<MaskView> implements ImageMa
     protected final BoundingBox boundingBox;
     protected final OUT_OF_BOUNDS_POLICY oob;
     public enum OUT_OF_BOUNDS_POLICY {OUT, IN}
+
     public MaskView(ImageMask mask, BoundingBox boundingBox) {
         this(mask, boundingBox, OUT_OF_BOUNDS_POLICY.OUT);
     }
@@ -78,6 +79,6 @@ public class MaskView extends SimpleImageProperties<MaskView> implements ImageMa
 
     @Override
     public MaskView duplicateMask() {
-        return new MaskView(source, boundingBox);
+        return new MaskView(source, boundingBox, oob);
     }
 }

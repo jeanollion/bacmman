@@ -6,6 +6,7 @@ import bacmman.plugins.ObjectSplitter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class SegmentedObjectFactory {
     private final int editableObjectClassIdx;
@@ -39,6 +40,38 @@ public class SegmentedObjectFactory {
     public void relabelChildren(SegmentedObject parent, Collection<SegmentedObject> modifiedObjectsStore) {
         synchronized (parent) {parent.relabelChildren(editableObjectClassIdx, modifiedObjectsStore);}
     }
+
+    public void reassignDuplicateIndices(Collection<SegmentedObject> createdObjects) {
+        // suppose createdObjects are not yet added to parent's children
+        SegmentedObjectUtils.splitByParent(createdObjects).forEach((p, l) -> {
+            List<Integer> allIdxs = p.getChildren(getEditableObjectClassIdx()).map(SegmentedObject::getIdx).sorted().collect(Collectors.toList());
+            l.forEach(newObject -> {
+                int idx = Collections.binarySearch(allIdxs, newObject.getIdx());
+                if (idx>=0) { // idx is already taken -> get the first unused label
+                    if (allIdxs.get(0)>0) { // space before first index
+                        //logger.info("Split: relabel object: {} to 0 (first label)", newObject);
+                        setIdx(newObject, 0);
+                        allIdxs.add(0, newObject.getIdx());
+                    } else {
+                        for (int i = 1; i < allIdxs.size(); ++i) {
+                            if (allIdxs.get(i) > allIdxs.get(i - 1) + 1) {
+                                //logger.info("Split: relabel object: {} to {} (unused label)", newObject, allIdxs.get(i - 1) + 1);
+                                setIdx(newObject, allIdxs.get(i - 1) + 1);
+                                allIdxs.add(i, newObject.getIdx());
+                                break;
+                            } else if (i == allIdxs.size() - 1) {
+                                //logger.info("Split: relabel object: {} to {} (last label)", newObject, allIdxs.get(i) + 1);
+                                setIdx(newObject, allIdxs.get(i) + 1);
+                                allIdxs.add(newObject.getIdx());
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    }
+
     public void setRegion(SegmentedObject object, Region newRegion) {
         if (object.getStructureIdx()!=editableObjectClassIdx) throw new IllegalArgumentException("Object is not editable");
         object.setRegion(newRegion);
@@ -58,10 +91,10 @@ public class SegmentedObjectFactory {
         }
     }
     public void addToParent(SegmentedObject parent, boolean relabelChildren, SegmentedObject... objects) {
-        assert parent.getExperimentStructure().isDirectChildOf(parent.getStructureIdx(), editableObjectClassIdx) : "parent is not direct parent of editableObjectClassIdx";
+        if (!parent.getExperimentStructure().isDirectChildOf(parent.getStructureIdx(), editableObjectClassIdx)) throw new IllegalArgumentException("parent is not direct parent of editableObjectClassIdx");
         synchronized (parent) {
             for (SegmentedObject o : objects) {
-                assert o.getStructureIdx() == editableObjectClassIdx : "Object is not editable";
+                if (o.getStructureIdx() != editableObjectClassIdx) throw new IllegalArgumentException("Object is not editable");
                 o.setParent(parent);
                 parent.getDirectChildren(editableObjectClassIdx).add(o);
             }

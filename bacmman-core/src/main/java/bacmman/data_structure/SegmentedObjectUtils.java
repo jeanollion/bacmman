@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import bacmman.utils.HashMapGetCreate;
@@ -459,21 +460,23 @@ public class SegmentedObjectUtils {
     }
     
     // duplicate objects 
-    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, Map<String, SegmentedObject> dupToSourceMap, boolean children, boolean parents, boolean generateNewId) {
+    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, Map<String, SegmentedObject> dupToSourceMap, boolean includeChildren, boolean parents, boolean generateNewId, int... excludeOCIdx) {
         o.loadAllChildren(false);
         SegmentedObject res=o.duplicate(generateNewId, true, true);
         sourceToDupMap.put(o.getId(), res);
         dupToSourceMap.put(res.getId(), o);
-        if (children) {
+        Predicate<Integer> excludeOC = excludeOCIdx == null || excludeOCIdx.length == 0 ? oc -> false : oc -> Arrays.stream(excludeOCIdx).anyMatch(ooc->ooc==oc);
+        if (includeChildren) {
             for (int cIdx : o.getExperiment().experimentStructure.getAllDirectChildStructures(o.structureIdx)) {
+                if (excludeOC.test(cIdx)) continue;
                 List<SegmentedObject> c = o.childrenSM.get(cIdx);
-                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, true, false, generateNewId)), cIdx);
+                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, true, false, generateNewId, excludeOCIdx)), cIdx);
             }
         }
         if (parents && !o.isRoot() && res.getParent()!=null) { // duplicate all parents until roots
             SegmentedObject current = o;
             SegmentedObject currentDup = res;
-            while (!current.isRoot() && current.getParent()!=null) {
+            while (!current.isRoot() && current.getParent()!=null && !excludeOC.test(current.getStructureIdx())) {
                 SegmentedObject pDup = sourceToDupMap.get(current.getParent().id);
                 if (pDup==null) {
                     pDup = current.getParent().duplicate(generateNewId, true, true);
@@ -490,11 +493,8 @@ public class SegmentedObjectUtils {
         res.setAttribute("DAOType", newDAO.getClass().getSimpleName());
         return res;
     }
-    
-    public static Map<String, SegmentedObject> duplicateRootTrackAndChangeDAO(boolean includeChildren, SegmentedObject... rootTrack) {
-        return createGraphCut(Arrays.asList(rootTrack), includeChildren, false);
-    }
-    public static Map<String, SegmentedObject> createGraphCut(List<SegmentedObject> track, boolean includeChildren, boolean generateNewId) {
+
+    public static Map<String, SegmentedObject> createGraphCut(List<SegmentedObject> track, boolean includeChildren, boolean generateNewId, int... excludeChildrenOCIdx) {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // transform track to root track in order to include indirect children
@@ -503,13 +503,14 @@ public class SegmentedObjectUtils {
         Experiment xp = track.get(0).getExperiment();
         Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap(xp.experimentStructure::getAllDirectChildStructures, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         Consumer<SegmentedObject> openTrackImages = so -> directChildren.get(so.getStructureIdx()).forEach(so::getTrackImage);
+        Predicate<Integer> excludeChildrenOC = excludeChildrenOCIdx == null || excludeChildrenOCIdx.length == 0 ? oc -> false : oc -> Arrays.stream(excludeChildrenOCIdx).anyMatch(o->o==oc);
         for (SegmentedObject o : track) {
             openTrackImages.accept(o);
             SegmentedObject p = o.getParent();
             while(p!=null) {openTrackImages.accept(p); p=p.getParent();}
             if (includeChildren) {
                 for (int sIdx : o.getExperiment().experimentStructure.getAllChildStructures(o.getStructureIdx())) {
-                    o.getChildren(sIdx).forEach(openTrackImages);
+                    if (!excludeChildrenOC.test(sIdx)) o.getChildren(sIdx).forEach(openTrackImages);
                 }
             }
         }
@@ -521,7 +522,7 @@ public class SegmentedObjectUtils {
         mDAO.setExperiment(track.get(0).getExperiment());
         BasicObjectDAO dao = mDAO.getDao(track.get(0).getPositionName());
         
-        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, includeChildren, true, generateNewId));
+        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, includeChildren, true, generateNewId, excludeChildrenOCIdx));
         List<SegmentedObject> rootTrack = dup.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         dao.setRoots(rootTrack);
         

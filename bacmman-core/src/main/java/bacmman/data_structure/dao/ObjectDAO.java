@@ -112,7 +112,7 @@ public interface ObjectDAO {
             for (SegmentedObject o1 : allObjects1) {
                 SegmentedObject o2  = allObjects2Map.get(o1.getId());
                 if (!o1.toJSONEntry().toJSONString().equals(o2.toJSONEntry().toJSONString())) {
-                    pcb.log("positions:"+dao1.getPositionName()+" differs @ object: "+o1.toStringShort());
+                    pcb.log("positions:"+dao1.getPositionName()+" differs @ object: "+o1);
                     return false;
                 }
             }

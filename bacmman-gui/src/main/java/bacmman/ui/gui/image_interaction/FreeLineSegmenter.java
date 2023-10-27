@@ -6,7 +6,6 @@ import bacmman.processing.FillHoles2D;
 import bacmman.processing.Filters;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
-import bacmman.ui.ManualEdition;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
@@ -117,7 +116,7 @@ public class FreeLineSegmenter {
             int[] idxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(objects);
             factory.setIdx(so, idxAndIP[0]);
             modified.add(so);
-            ManualEdition.removeDuplicateIdxs(modified, factory);
+            factory.reassignDuplicateIndices(modified);
             if (idxAndIP[1]>=0) objects.add(idxAndIP[1], so);
             else objects.add(so);
             factory.setChildren(parent, objects);

@@ -58,10 +58,11 @@ public class DiskBackedImageManager {
         freeMemory(memoryFraction, false);
     }
     protected void freeMemory(double memoryFraction, boolean fromDaemon) {
-        long toFree = (long)(Runtime.getRuntime().maxMemory() * memoryFraction) - (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory());
-        if (toFree <= 0) return;
+        long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+        long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
+        if (used <= maxUsed) return;
         List<DiskBackedImage> closedImages = new ArrayList<>();
-        while(toFree>0 && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
+        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
             DiskBackedImage im = null;
             synchronized (queue) {
                 if (!queue.isEmpty()) {
@@ -70,8 +71,8 @@ public class DiskBackedImageManager {
             }
             if (im!=null) {
                 if (im.isOpen()) {
-                    toFree -= im.heapMemory();
-                    im.freeMemory();
+                    used -= im.heapMemory();
+                    im.freeMemory(true);
                 }
                 closedImages.add(im);
             }
@@ -103,24 +104,22 @@ public class DiskBackedImageManager {
     public <I extends Image<I>> void storeSimpleDiskBackedImage(SimpleDiskBackedImage<I> fmi) throws IOException {
         if (!fmi.isOpen()) throw new IOException("Cannot store a SimpleDiskBackedImage whose image is not open");
         File f = files.get(fmi);
+        if (f == null) {
+            f = new File(directory, UUID.randomUUID() + ".bmimage");
+            f.deleteOnExit();
+            synchronized (queue) {
+                files.put(fmi, f);
+            }
+        }
         write(f, fmi.getImage());
     }
     public <I extends Image<I>> SimpleDiskBackedImage<I> createSimpleDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
-        File f=null;
-        try {
-            //f = File.createTempFile(UUID.randomUUID().toString(), ".bmimage");
-            f = new File(directory, UUID.randomUUID() + ".bmimage");
-            write(f, image);
-            f.deleteOnExit();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
         SimpleDiskBackedImage<I> res = new SimpleDiskBackedImage<>(image, this, writable);
+        res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
         synchronized (queue) {
-            files.put(res, f);
             queue.add(res);
         }
-        if (freeMemory) res.freeMemory();
+        if (freeMemory) res.freeMemory(true);
         return res;
     }
     public static void clearDiskBackedImageFiles(String directory) { // only valid when stored in temp directory
@@ -146,8 +145,10 @@ public class DiskBackedImageManager {
             rem = queue.remove(image);
             f = files.remove(image);
         }
-        if (freeMemory) image.freeMemory();
         if (f!=null) f.delete();
+        if (freeMemory) {
+            image.freeMemory(false);
+        }
         return rem;
     }
 
@@ -155,7 +156,9 @@ public class DiskBackedImageManager {
         stopDaemon();
         synchronized (queue) {
             if (freeMemory) {
-                for (DiskBackedImage im : queue) im.freeMemory();
+                for (DiskBackedImage im : queue) {
+                    im.freeMemory(false);
+                }
             }
             for (DiskBackedImage im : queue) {
                 File f = files.remove(im);

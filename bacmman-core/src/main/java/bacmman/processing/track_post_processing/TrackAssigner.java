@@ -19,7 +19,7 @@ import static bacmman.processing.track_post_processing.Track.getTrack;
 
 public interface TrackAssigner {
     public final static Logger logger = LoggerFactory.getLogger(TrackAssigner.class);
-    void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor);
+    void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, Collection<Track> otherPrevTracks, Collection<Track> otherNextTracks, TrackLinkEditor editor);
 
     static void setLinks(Collection<Track> tracks, boolean setNext, TrackLinkEditor editor) {
         if (setNext) {
@@ -69,7 +69,7 @@ public interface TrackAssigner {
             this.dMax = dMax;
         }
         @Override
-        public void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor) {
+        public void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, Collection<Track> otherPrevTracks, Collection<Track> otherNextTracks, TrackLinkEditor editor) {
             if (prevTracks.isEmpty() || nextTracks.isEmpty()) return;
             removeLinks(prevTracks, nextTracks);
             if (!Utils.objectsAllHaveSameProperty(prevTracks, Track::getLastFrame)) throw new IllegalArgumentException("prev tracks do not end at same frame");

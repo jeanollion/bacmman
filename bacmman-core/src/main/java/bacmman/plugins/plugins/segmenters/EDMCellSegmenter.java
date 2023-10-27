@@ -32,6 +32,8 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
     BooleanParameter normalizeInterfaceValue = new BooleanParameter("Normalize Interface", true).setHint("If True, interface value is normalized by the median value of local extrema of EDM in the two segmented regions");
     BoundedNumberParameter lmThreshold = new BoundedNumberParameter("Local Max Threshold", 4, 2, 0.5, null ).setHint("Local Max used for normalization have an EDM value greater than this threshold");
     BoundedNumberParameter lmRadius = new BoundedNumberParameter("Local Max Radius", 4, 3, 1, null ).setHint("Radius use for local max detection");
+    BoundedNumberParameter minSizePropagation = new BoundedNumberParameter("Min Size Watershed", 0, 10, 1, null ).setHint("During watershed: if two regions meet and one has a size lower than this value (in pixels) they are merged");
+
     ConditionalParameter<Boolean> normalizeCond = new ConditionalParameter<>(normalizeInterfaceValue).setActionParameters(true, lmRadius, lmThreshold);
     EnumChoiceParameter<SplitAndMerge.INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Computation Mode", SplitAndMerge.INTERFACE_VALUE.values(), SplitAndMerge.INTERFACE_VALUE.CENTER).setLegacyInitializationValue(SplitAndMerge.INTERFACE_VALUE.MEDIAN);
     BooleanParameter invert = new BooleanParameter("Invert", true).setHint("If false, interface value is EDM/Norm or EDM, otherwise it is Norm/EDM or 1/EDM");
@@ -47,7 +49,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = PredicateMask.and(parent.getMask(), new PredicateMask(edm, minimalEDMValue.getValue().doubleValue(), true, true));
         SplitAndMerge sm = initSplitAndMerge(edm, contourImages==null?null:contourImages.get(parent));
-        RegionPopulation popWS = sm.split(mask, 10);
+        RegionPopulation popWS = sm.split(mask, minSizePropagation.getIntValue());
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
         // filter regions:
@@ -66,6 +68,11 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
 
     public EDMCellSegmenter setLocalMaxRadius(double radius) {
         this.lmRadius.setValue(radius);
+        return this;
+    }
+
+    public EDMCellSegmenter setMinSizePropagation(int minSize) {
+        this.minSizePropagation.setValue(minSize);
         return this;
     }
 
@@ -98,7 +105,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{minimalEDMValue, splitThreshold, minimalSize, minMaxEDMValue, thresholdSeeds, interfaceValue, normalizeCond, invert};
+        return new Parameter[]{minimalEDMValue, splitThreshold, minSizePropagation, minimalSize, minMaxEDMValue, thresholdSeeds, interfaceValue, normalizeCond, invert};
     }
 
     // testable processing plugin
@@ -137,7 +144,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMerge sm) {
         ImageMask mask = new MaskView(object.getMask(), object.isAbsoluteLandMark() ? input.getBoundingBox() : input.getBoundingBox().resetOffset());
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
-        RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
+        RegionPopulation res = sm.splitAndMerge(mask, minSizePropagation.getIntValue(), sm.objectNumberLimitCondition(2));
         res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (object.isAbsoluteLandMark()) res.translate(input, true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain

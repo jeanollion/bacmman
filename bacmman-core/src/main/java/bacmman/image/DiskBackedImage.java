@@ -1,11 +1,10 @@
 package bacmman.image;
 
 public interface DiskBackedImage<I extends Image<I>> {
-    void freeMemory();
+    void freeMemory(boolean storeIfModified);
     boolean isOpen();
     boolean isWritable();
-    boolean hasModifications();
-    void setModified();
+    void setModified(boolean modified);
     I getImageType();
     long heapMemory();
 }

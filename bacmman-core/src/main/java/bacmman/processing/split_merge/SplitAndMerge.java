@@ -201,8 +201,14 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         return merge(popWS, stopCondition);
     }
     public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation) {
-        ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap())) :
-                Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap()));
+        return split(segmentationMask, minSizePropagation, 1.5, 1);
+    }
+    public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation, double seedRadius) {
+        return split(segmentationMask, minSizePropagation, seedRadius, 1);
+    }
+    public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation, double seedRadius, double seedRadiusZ) {
+        ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(seedRadius, seedRadiusZ, getSeedCreationMap())) :
+                Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(seedRadius, seedRadiusZ, getSeedCreationMap()));
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!increasingPropagation);
         if (minSizePropagation>1) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
         RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);

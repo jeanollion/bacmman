@@ -186,6 +186,9 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     public double distSqXY(Point other) {
         return IntStream.range(0, 2).mapToDouble(i->Math.pow(coords[i]-other.coords[i], 2)).sum();
     }
+    public double distSqXY(RealLocalizable other) {
+        return IntStream.range(0, 2).mapToDouble(i->Math.pow(coords[i]-other.getDoublePosition(i), 2)).sum();
+    }
     public double distXY(Point other) {
         return Math.sqrt(distSqXY(other));
     }
@@ -193,7 +196,8 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         if (other instanceof Point) return distSq((Point)other);
         return IntStream.range(0,  coords.length).mapToDouble(i->Math.pow(coords[i]-other.getDoublePosition(i), 2)).sum();
     }
-    public double distSqXY(RealLocalizable other) {
+    
+    public double distXY(RealLocalizable other) {
         return Math.sqrt(distSqXY(other));
     }
     public double dist(Point other) {
@@ -460,6 +464,10 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     }
     public static double distSq(RealLocalizable r1, RealLocalizable r2) {
         return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
+    }
+
+    public static double distSqXY(RealLocalizable r1, RealLocalizable r2) {
+        return IntStream.range(0, 2).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
     }
 
     /**

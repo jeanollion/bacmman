@@ -814,7 +814,11 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     void setRegion(Region o) {
         synchronized(this) {
             regionContainer=null;
-            region =o;
+            if (!o.isAbsoluteLandMark()) {
+                if (!isRoot()) o.translate(getParent().getBounds());
+                o.setIsAbsoluteLandmark(true);
+            }
+            region = o;
             region.label=idx+1;
             flushImages();
             setRegionAttributesToAttributes();
@@ -1188,13 +1192,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     @Override
     public String toString() {
         return "P:"+getPositionIdx()+"/S:"+structureIdx+"/I:"+Selection.indicesToString(SegmentedObjectUtils.getIndexTree(this));//+"/id:"+id;
-        //if (isRoot()) return "F:"+getPositionIdx() + ",T:"+frame;
-        //else return "F:"+getPositionIdx()+ ",T:"+frame+ ",S:"+structureIdx+ ",Idx:"+idx+ ",P:["+getParent().toStringShort()+"]" + (flag==null?"":"{"+flag+"}") ;
     }
     
     public String toStringShort() {
-        if (isRoot()) return "";
-        else return "S:"+structureIdx+ ",Idx:"+idx+ ",P:["+(getParent()==null?"f"+getFrame()+"-null":getParent().toStringShort())+"]" ;
+        return getFrame()+"-"+getIdx();
     }
     
     @Override
