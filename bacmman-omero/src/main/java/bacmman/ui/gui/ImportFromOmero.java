@@ -5,6 +5,7 @@ import bacmman.image.io.OmeroImageMetadata;
 import bacmman.core.OmeroGatewayI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.objects.OmeroTree;
+import bacmman.utils.SymetricalPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -40,13 +41,13 @@ public class ImportFromOmero extends JFrame {
     private JButton disconnectButton;
     private JCheckBox displayAllUsersCheckBox;
     private JCheckBox importMetadataCheckBox;
-    Map<String, char[]> savedPassword;
+    Map<SymetricalPair<String>, char[]> savedPassword;
     OmeroTree tree;
     ProgressCallback bacmmanLogger;
     OmeroGatewayI gateway;
     BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback;
 
-    public ImportFromOmero(OmeroGatewayI gateway, Map<String, char[]> savedPassword, BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback, ProgressCallback bacmmanLogger) {
+    public ImportFromOmero(OmeroGatewayI gateway, Map<SymetricalPair<String>, char[]> savedPassword, BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback, ProgressCallback bacmmanLogger) {
         setContentPane(contentPane);
         setTitle("Omero Browser");
         getRootPane().setDefaultButton(connect);
@@ -55,8 +56,8 @@ public class ImportFromOmero extends JFrame {
         this.savedPassword = savedPassword;
         this.closeCallback = closeCallback;
         username.addActionListener(e -> {
-            if (password.getPassword().length == 0 && savedPassword != null && savedPassword.containsKey(username.getText()))
-                password.setText(String.valueOf(savedPassword.get(username.getText())));
+            if (password.getPassword().length == 0 && savedPassword != null && savedPassword.containsKey(getPWKey()))
+                password.setText(String.valueOf(savedPassword.get(getPWKey())));
             updateConnectButton();
         });
         PropertyUtils.setPersistent(username, "OMERO_USERNAME", "", true);
@@ -148,13 +149,15 @@ public class ImportFromOmero extends JFrame {
             if (tree != null) tree.setDisplayCurrentUserOnly(!displayAllUsersCheckBox.isSelected());
         });
     }
-
+    private SymetricalPair<String> getPWKey() {
+        return new SymetricalPair<>(hostname.getText(), username.getText());
+    }
     private void saveCurrentConnectionParameters() {
         PropertyUtils.set("OMERO_USERNAME", username.getText());
         PropertyUtils.addFirstStringToList("OMERO_USERNAME", username.getText());
         PropertyUtils.set("OMERO_HOSTNAME", hostname.getText());
         PropertyUtils.addFirstStringToList("OMERO_HOSTNAME", hostname.getText());
-        if (savedPassword != null) savedPassword.put(username.getText(), password.getPassword());
+        if (savedPassword != null) savedPassword.put(getPWKey(), password.getPassword());
     }
 
     public void close() {
@@ -163,7 +166,7 @@ public class ImportFromOmero extends JFrame {
 
 
     private void updateConnectButton() {
-        boolean canConnect = this.username.getText().length() > 0 && password.getPassword().length > 0 && hostname.getText().length() > 0;
+        boolean canConnect = !this.username.getText().isEmpty() && password.getPassword().length > 0 && !hostname.getText().isEmpty();
         connect.setEnabled(canConnect);
     }
 

@@ -68,6 +68,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     BoundedNumberParameter centerSmoothRad = new BoundedNumberParameter("Center Smooth", 5, 0, 0, null).setEmphasized(false).setHint("Smooth radius for center dist image. Set 0 to skip this step, or a radius in pixel (typically 2) if predicted center dist image is not smooth a too many centers are detected");
 
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas");
+    BoundedNumberParameter minMaxEDM = new BoundedNumberParameter("Min Max EDM Threshold", 5, 1, 0, null).setEmphasized(false).setHint("Segmented Object with maximal EDM value lower than this threshold are filtered out");
+
     BoundedNumberParameter objectThickness = new BoundedNumberParameter("Object Thickness", 5, 8, 3, null).setEmphasized(true).setHint("Minimal thickness of objects to segment. Increase this parameter to reduce over-segmentation and false positives");
     BoundedNumberParameter mergeCriterion = new BoundedNumberParameter("Merge Criterion", 5, 0.25, 1e-5, 1).setEmphasized(false).setHint("Increase to reduce over-segmentation.  <br />When two objects are in contact, the intensity of their center is compared. If the ratio (max/min) is below this threshold, objects are merged.");
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
@@ -117,7 +119,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     // misc
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling).setEmphasized(true);
-    GroupParameter segmentation = new GroupParameter("Segmentation", centerSmoothRad, edmThreshold, objectThickness, mergeCriterion, minObjectSize, manualCurationMargin).setEmphasized(true);
+    GroupParameter segmentation = new GroupParameter("Segmentation", centerSmoothRad, edmThreshold, minMaxEDM, objectThickness, mergeCriterion, minObjectSize, manualCurationMargin).setEmphasized(true);
     GroupParameter tracking = new GroupParameter("Tracking", growthRateRange, divProbaThld, mergeProbaThld, noLinkProbaThld, linkDistanceTolerance, contactCriterionCond, trackPostProcessingCond).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
@@ -310,7 +312,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     protected static double computeSigma(double thickness) {
         return Math.min(3, Math.max(1, thickness / 4)); // sigma is limited in order to improve performances @ gaussian fit
     }
-    public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double centerSmoothRad, double mergeCriterion, int minSize, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores, int refFrame) {
+    public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double mergeCriterion, int minSize, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores, int refFrame) {
         double sigma = computeSigma(thickness);
         double C = 1/(Math.sqrt(2 * Math.PI) * sigma);
         double seedRad = Math.max(2, thickness/2 - 1);
@@ -350,9 +352,9 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
         });
         if (stores != null) stores.get(parent).addIntermediateImage("Center", centerI.duplicate());
-
+        ImageMask insideCellsLM = minMaxEDMThreshold<=edmThreshold ? insideCellsM : PredicateMask.and(parent.getMask(), new PredicateMask(edmI, minMaxEDMThreshold, true, false));
         // segment center : gaussian fit on center map seeded by local maxima
-        ImageByte localExtremaCenter = Filters.applyFilter(centerI, new ImageByte("center LM", centerI), new LocalMax2(insideCellsM), Filters.getNeighborhood(seedRad, 0, centerI));
+        ImageByte localExtremaCenter = Filters.applyFilter(centerI, new ImageByte("center LM", centerI), new LocalMax2(insideCellsLM), Filters.getNeighborhood(seedRad, 0, centerI));
         List<Point> centerSeeds = ImageLabeller.labelImageList(localExtremaCenter, Filters.getNeighborhood(seedRad+0.5, 0, centerI))
                 .stream()
                 .map(r -> r.getVoxels().iterator().next())
@@ -393,6 +395,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, mergeCriterion));
 
         if (minSize>0) pop.filterAndMergeWithConnected(new RegionPopulation.Size().setMin(minSize+1));
+        if (minMaxEDMThreshold > edmThreshold) pop.filterAndMergeWithConnected(new RegionPopulation.QuantileIntensity(1, minMaxEDMThreshold, true, edmI));
         if (postFilters != null) postFilters.filter(pop, objectClassIdx, parent);
         //if (!Offset.offsetNull(off)) regionMapCenters.values().stream().flatMap(Collection::stream).forEach(cc -> cc.translate(off).setIsAbsoluteLandmark(true)); // to absolute landmark
         pop.getRegions().forEach(r -> { // set centers & save memory // absolute offset
@@ -440,7 +443,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         ThreadRunner.ThreadAction<SegmentedObject> ta = (p,idx) -> {
             Image edmI = prediction.edm.get(p);
             Image gcdmI = prediction.centerDist.get(p);
-            RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), centerSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), minObjectSize.getIntValue(), postFilters, stores, refFrame);
+            RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), minObjectSize.getIntValue(), postFilters, stores, refFrame);
             factory.setChildObjects(p, pop);
             logger.debug("parent: {} segmented!", p);
         };
@@ -1218,7 +1221,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     SegmentedObject parent = toSplit.getParent();
                     Image edm = new ImageView(prediction.edm.get(parent), toSplitR.getBounds());
                     ImageMask mask = toSplitR.getMask();
-                    SplitAndMergeEDM smEDM = new SplitAndMergeEDM(edm, edm, edmThreshold.getDoubleValue(), SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, 1, 0, false);
+                    double localMaxThld = Math.max(minMaxEDM.getDoubleValue(), edmThreshold.getDoubleValue());
+                    SplitAndMergeEDM smEDM = new SplitAndMergeEDM(edm, edm, edmThreshold.getDoubleValue(), SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, 1, 0, false); // localMaxThld
                     smEDM.setMapsProperties(false, false);
                     RegionPopulation pop = smEDM.split(mask, 5, objectThickness.getDoubleValue()/2);
                     pop.translate(toSplitR.getBounds(), false); // reference offset is mask (=edm view) -> go to parent reference

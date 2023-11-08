@@ -209,15 +209,16 @@ public class DockerTrainingWindow implements ProgressLogger {
                     } catch (Exception e) {
                         logger.debug("error reading augmented data", e);
                     } finally {
+
                         if (!outputFile.delete()) {
-                            if (Utils.isUnix()) { // file may be in /dev/shm -> ask container to remove it
+                            /*if (Utils.isUnix()) { // file may be in /dev/shm -> ask container to remove it
                                 try {
                                     logger.debug("ask docker to remove {} -> {}", outputFile.toString(), "/dataTemp/" + outputFile.getName());
                                     dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, "rm", "/dataTemp/" + outputFile.getName());
                                 } catch (InterruptedException e) {
 
                                 }
-                            }
+                            }*/
                         } else logger.debug("was able to delete temp file: {}", outputFile);
                         dockerGateway.stopContainer(currentContainer);
                         currentContainer = null;

@@ -394,10 +394,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             res.put("channel_name", multipleChannel ? channels.toJSONEntry() : channel.toJSONEntry());
             res.put("keyword", keyword.toJSONEntry());
             res.put("concat_proportion", concatProp.toJSONEntry());
-            for (Parameter p : this.otherParameters) {
-                if (p instanceof PythonConfiguration) res.put(((PythonConfiguration)p).getPythonConfigurationKey(), ((PythonConfiguration)p).getPythonConfiguration());
-                else res.put(toSnakeCase(p.getName()), p.toJSONEntry());
-            }
+            PythonConfiguration.putParameters(this.otherParameters, res);
             JSONObject dataAug = new JSONObject();
             res.put("data_augmentation", dataAug);
             if (multipleChannel) {
@@ -405,11 +402,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             } else {
                 dataAug.put(scaler.getPythonConfigurationKey(), scaler.getPythonConfiguration());
             }
-
-            for (Parameter p : this.dataAug.children) {
-                if (p instanceof PythonConfiguration) dataAug.put(((PythonConfiguration)p).getPythonConfigurationKey(), ((PythonConfiguration)p).getPythonConfiguration());
-                else dataAug.put(toSnakeCase(p.getName()), p.toJSONEntry());
-            }
+            PythonConfiguration.putParameters(this.dataAug.children, dataAug);
             return res;
         }
         @Override

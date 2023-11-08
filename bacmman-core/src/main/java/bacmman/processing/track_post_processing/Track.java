@@ -110,20 +110,22 @@ public class Track implements Comparable<Track> {
     public boolean split() {
         return next.size()>1;
     }
-
     public Track simplifyTrack(TrackLinkEditor editor, Consumer<Track> removeTrack) {
+        return simplifyTrack(editor, removeTrack, false);
+    }
+    public Track simplifyTrack(TrackLinkEditor editor, Consumer<Track> removeTrack, boolean verbose) {
         Track res = this;
         if (getPrevious().size()==1) {
             Track prev = getPrevious().iterator().next();
             if (prev.getNext().size()==1) {
-                //logger.debug("SimplifyTrack (p): {} + {}", prev, this);
+                if (verbose) logger.debug("SimplifyTrack (p): {} + {}", prev, this);
                 res = Track.appendTrack(prev, this, editor, removeTrack);
             } //else logger.debug("cannot simplify track: {} : prev: {}, prev next: {}", this, prev, prev.getNext());
         } //else logger.debug("cannot simplify track: {} : prevs: {}", this, this.getPrevious());
         if (getNext().size()==1) {
             Track next = res.getNext().iterator().next();
             if (next.getPrevious().size() == 1) {
-                //logger.debug("SimplifyTrack (n): {} + {}", res, next);
+                if (verbose) logger.debug("SimplifyTrack (n): {} + {}", res, next);
                 res = Track.appendTrack(res, next, editor, removeTrack);
             }
         }
@@ -324,13 +326,13 @@ public class Track implements Comparable<Track> {
                 Collection<Track> otherPrevTracks = split ? getAllTracksAtFrame.apply(frame-1, false).collect(Collectors.toList()) : null;
                 Collection<Track> otherCurrentTracks = start ? null : getAllTracksAtFrame.apply(frame, true).collect(Collectors.toList());
                 assigner.assignTracks(neighborTracks, currentTracks, otherPrevTracks, otherCurrentTracks, trackEditor);
-                //logger.debug("assigned prevs: {} other prevs: {}, other curs: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getPrevious())), otherPrevTracks, otherCurrentTracks);
+                //logger.debug("assigned prevs: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getPrevious())));
             }
             else {
                 Collection<Track> otherNextTracks = split ? getAllTracksAtFrame.apply(frame+1, true).collect(Collectors.toList()) : null;
                 Collection<Track> otherCurrentTracks = start ? null : getAllTracksAtFrame.apply(frame, false).collect(Collectors.toList());
                 assigner.assignTracks(currentTracks, neighborTracks, otherCurrentTracks, otherNextTracks, trackEditor);
-                //logger.debug("assigned nexts: {}, other prevs: {}, other curs: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getNext())), otherCurrentTracks, otherNextTracks);
+                //logger.debug("assigned nexts: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getNext())));
             }
             if (split) {
                 // merge tracks that have been assigned to the same track
@@ -344,35 +346,33 @@ public class Track implements Comparable<Track> {
             }
             // simplify tracks
             Consumer<Track> toRemove2 = t -> {
-                if (t.getFirstFrame() < track.getFirstFrame() || t.getFirstFrame() > track.getLastFrame()) removeTrack.accept(t); // track is not among new tracks
+                removeTrack.accept(t);
                 currentTracks.remove(t);
                 newTracks.remove(t);
             };
             currentTracks.stream().filter(singleNeigh2).collect(Collectors.toList()).forEach(t -> {
                 int minFrame = t.getFirstFrame();
                 int maxFrame = t.getLastFrame();
-                Track t2 = t.simplifyTrack(trackEditor, toRemove2);
+                Track t2 = t.simplifyTrack(trackEditor, toRemove2, false);
                 if (t2.getFirstFrame()<minFrame || t2.getLastFrame()>maxFrame) { // track was simplified and thus removed from current tracks
                     if ( (forward && t2.getLastFrame()==frame) || !(forward && t2.getFirstFrame()==frame)) currentTracks.add(t2);
                     else newTracks.add(t2); // track was linked with another track
-                    //logger.debug("track simplified: new={} from: [{}->{}] ({})", t2, minFrame, maxFrame, t);
                 }
             });
             // also simplify neighborTracks
             neighborTracks.stream().filter(singleNeigh2).collect(Collectors.toList()).forEach(t -> {
                 int minFrame = t.getFirstFrame();
                 int maxFrame = t.getLastFrame();
-                Track t2 = t.simplifyTrack(trackEditor, toRemove2);
+                Track t2 = t.simplifyTrack(trackEditor, toRemove2, false);
                 if (t2.getFirstFrame()<minFrame || t2.getLastFrame()>maxFrame) { // track was simplified and thus removed from current tracks
                     newTracks.add(t2); // track was linked with another track
-                    //logger.debug("neighbor track simplified: new={} from: [{}->{}] ({})", t2, minFrame, maxFrame, t);
                 }
             });
             newTracks.addAll(currentTracks);
             //logger.debug("result of split. neighbors: {} currentTracks: {}", neighborTracks, currentTracks);
             neighborTracks = currentTracks;
         }
-        //logger.debug("Split: {} new tracks {}", track, newTracks);
+        logger.debug("Split: {} new tracks {}", track, newTracks);
         newTracks.forEach(addTrack);
         return true;
     }
