@@ -6,6 +6,7 @@ import bacmman.image.*;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.scalers.IQRScaler;
+import bacmman.plugins.plugins.scalers.PercentileScaler;
 import bacmman.processing.Resize;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.*;
@@ -41,7 +42,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
     PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> grp = new PairParameter<>("Input", interpolation, scaler).setEmphasized(true);
     SimpleListParameter<PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>>> inputInterpAndScaling = new SimpleListParameter<>("Input Interpolation/Scaling", grp).setNewInstanceNameFunction((s, i)->"Input #"+i).setEmphasized(true).setHint("Define here Interpolation mode and scaling mode for each input. All channels of each input will be processed together");
-    SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new IQRScaler(), true).setNewInstanceNameFunction((s, i)->"Scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
+    SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new PercentileScaler(), true).setNewInstanceNameFunction((s, i)->"Scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
     BooleanParameter scaleImageByImage = new BooleanParameter("Scale Image by Image", false).setHint("If true, scaling factors are computed on the histogram of the whole batch, if false scale is computed for each image. If image has several channels (sometimes corresponding to different frames) they will be scaled together");
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. -1 no reverse scaling");
