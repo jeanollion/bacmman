@@ -775,15 +775,18 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void loadConfigFile(boolean refOnly) {
+        Path refPath = Paths.get(currentWorkingDirectory);
         if (javaConfig == null) throw new RuntimeException("Load file first");
         String configS = javaConfig.read();
         logger.debug("loaded config locked: {} file = {} -> {}", javaConfig.locked(), javaConfig.getFile().toString(), javaConfig.readLines());
         if (!configS.isEmpty()) {
             JSONObject config = JSONUtils.parse(configS);
             trainerParameterRef.initFromJSONEntry(config);
+            setWorkingDirectory(refPath, trainerParameterRef);
             if (!refOnly) {
                 Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
                 trainerParameter.initFromJSONEntry(config);
+                setWorkingDirectory(refPath, trainerParameter);
                 this.config.expandAll(3);
                 if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
                     updateExtractDatasetConfiguration();

@@ -307,12 +307,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     @Override
     public Object getPythonConfiguration() {
         JSONObject json = new JSONObject();
-        for (Parameter p : getChildren()) {
-            if (p instanceof PythonConfiguration) {
-                PythonConfiguration pp = (PythonConfiguration) p;
-                json.put(pp.getPythonConfigurationKey(), pp.getPythonConfiguration());
-            } else json.put(PythonConfiguration.toSnakeCase(p.getName()), p.toJSONEntry());
-        }
+        PythonConfiguration.putParameters(getChildren(), json);
         return json;
     }
 

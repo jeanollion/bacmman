@@ -7,7 +7,7 @@ import org.json.simple.JSONArray;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class ElasticDeformParameter extends GroupParameterAbstract<ElasticDeformParameter> implements PythonConfiguration {
+public class ElasticDeformParameter extends ConditionalParameterAbstract<Boolean, ElasticDeformParameter> implements PythonConfiguration {
 
     BoundedNumberParameter probability = new BoundedNumberParameter("Probability", 5, 0.5, 0, 1).setHint("Probability that elastic deform is performed on a given batch (before tiling)");
     BoundedNumberParameter gridSpacing = new BoundedNumberParameter("Grid Spacing", 0, 30, 5, null).setHint("Gap between grid points (in pixels)");
@@ -31,8 +31,12 @@ public class ElasticDeformParameter extends GroupParameterAbstract<ElasticDeform
     ConditionalParameter<BORDER_MODE> borderModeCond = new ConditionalParameter<>(borderMode).setActionParameters(BORDER_MODE.constant, borderConstant);
 
     public ElasticDeformParameter(String name) {
-        super(name);
-        this.children = Arrays.asList(probability, gridModeCond, sigmaModeCond, order, borderModeCond);
+        this(name, false);
+    }
+
+    public ElasticDeformParameter(String name, boolean perform) {
+        super(new BooleanParameter(name, perform));
+        this.setActionParameters(true, probability, gridModeCond, sigmaModeCond, order, borderModeCond);
         initChildList();
     }
 
@@ -43,35 +47,37 @@ public class ElasticDeformParameter extends GroupParameterAbstract<ElasticDeform
 
     @Override
     public ElasticDeformParameter duplicate() {
-        ElasticDeformParameter res = new ElasticDeformParameter(name);
-        ParameterUtils.setContent(res.children, children);
+        ElasticDeformParameter res = new ElasticDeformParameter(name, getActionValue());
+        res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;
     }
     @Override
     public JSONObject getPythonConfiguration() {
-        JSONObject res = new JSONObject();
-        res.put("probability", probability.getDoubleValue());
-        switch (gridMode.getValue()) {
-            case SPACING:
-            default:
-                res.put("grid_spacing", gridSpacing.getIntValue());
-                break;
-            case POINT_NUMBER:
-                res.put("points", pointNumber.getIntValue());
-        }
-        switch (sigmaMode.getValue()) {
-            case RELATIVE:
-            default:
-                res.put("sigma_factor", sigmaFactor.getDoubleValue());
-                break;
-            case ABSOLUTE:
-                res.put("sigma", this.sigma.getDoubleValue());
-        }
-        res.put("order", this.order.getIntValue());
-        res.put("mode", borderMode.getValue().toString());
-        if (borderMode.getValue().equals(BORDER_MODE.constant)) res.put("cval", borderConstant.getDoubleValue());
-        return res;
+        if (getActionValue()) {
+            JSONObject res = new JSONObject();
+            res.put("probability", probability.getDoubleValue());
+            switch (gridMode.getValue()) {
+                case SPACING:
+                default:
+                    res.put("grid_spacing", gridSpacing.getIntValue());
+                    break;
+                case POINT_NUMBER:
+                    res.put("points", pointNumber.getIntValue());
+            }
+            switch (sigmaMode.getValue()) {
+                case RELATIVE:
+                default:
+                    res.put("sigma_factor", sigmaFactor.getDoubleValue());
+                    break;
+                case ABSOLUTE:
+                    res.put("sigma", this.sigma.getDoubleValue());
+            }
+            res.put("order", this.order.getIntValue());
+            res.put("mode", borderMode.getValue().toString());
+            if (borderMode.getValue().equals(BORDER_MODE.constant)) res.put("cval", borderConstant.getDoubleValue());
+            return res;
+        } else return null;
     }
     @Override
     public String getPythonConfigurationKey() {return "elasticdeform_parameters";}
