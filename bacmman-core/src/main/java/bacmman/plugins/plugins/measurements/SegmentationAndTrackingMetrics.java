@@ -513,7 +513,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
    }
 
     public int[] getTrackingErrors(ObjectGraph matchGraph, int frame, String prefix) {
-        if (!matchGraph.groundTruth.containsKey(frame-1) || !matchGraph.groundTruth.containsKey(frame)) return new int[3];
+        if (!matchGraph.groundTruth.containsKey(frame-1) || !matchGraph.groundTruth.containsKey(frame) || !matchGraph.prediction.containsKey(frame-1) || !matchGraph.prediction.containsKey(frame)) return new int[3];
         SimpleTrackGraph<DefaultEdge> gtGraph = SimpleTrackGraph.createUnweightedGraph()
             .populateGraph(matchGraph.groundTruth.get(frame - 1).stream(), false, true)
             .populateGraph(matchGraph.groundTruth.get(frame).stream(), true, false);
