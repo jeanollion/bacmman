@@ -60,9 +60,10 @@ public class DockerGatewayImpl implements DockerGateway {
             return dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> i.getRepoTags()[0]);
         } catch (RuntimeException e ) {
             if (e.getMessage().startsWith("java.nio.file.NoSuchFileException")) {
-                logger.error("Could not connect with Docker. "+(Utils.isWindows()?"Is Docker started ? " : "Is Docker installed ?"));
+                logger.error("Could not connect with Docker. "+(Utils.isWindows()?" Is Docker started ? " : "Is Docker installed ?"));
+                logger.error("Error connecting with Docker", e);
             }
-            throw e;
+            return Stream.empty();
         }
     }
 
