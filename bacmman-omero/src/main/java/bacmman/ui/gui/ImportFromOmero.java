@@ -1,5 +1,6 @@
 package bacmman.ui.gui;
 
+import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.image.io.OmeroImageMetadata;
 import bacmman.core.OmeroGatewayI;
@@ -41,6 +42,7 @@ public class ImportFromOmero extends JFrame {
     private JButton disconnectButton;
     private JCheckBox displayAllUsersCheckBox;
     private JCheckBox importMetadataCheckBox;
+    private JButton storePasswordButton;
     Map<SymetricalPair<String>, char[]> savedPassword;
     OmeroTree tree;
     ProgressCallback bacmmanLogger;
@@ -55,16 +57,18 @@ public class ImportFromOmero extends JFrame {
         this.gateway = gateway;
         this.savedPassword = savedPassword;
         this.closeCallback = closeCallback;
-        username.addActionListener(e -> {
+        ActionListener fillPwd = e -> {
             if (password.getPassword().length == 0 && savedPassword != null && savedPassword.containsKey(getPWKey()))
                 password.setText(String.valueOf(savedPassword.get(getPWKey())));
             updateConnectButton();
-        });
+        };
+        username.addActionListener(fillPwd);
+        hostname.addActionListener(fillPwd);
         PropertyUtils.setPersistent(username, "OMERO_USERNAME", "", true);
         PropertyUtils.setPersistent(hostname, "OMERO_HOSTNAME", "localhost", true);
         PropertyUtils.setPersistent(displayAllUsersCheckBox, "OMERO_SHOW_ALL_USERS", false);
         PropertyUtils.setPersistent(importMetadataCheckBox, "import_image_metadata", false);
-        logger.debug("IMportMetadata:  {} stored: {}", importMetadataCheckBox.isSelected(), PropertyUtils.get("import_image_metadata"));
+        logger.debug("ImportMetadata:  {} stored: {}", importMetadataCheckBox.isSelected(), PropertyUtils.get("import_image_metadata"));
         updateConnectButton();
         updateImportButton();
         DocumentListener dl = new DocumentListener() {
@@ -148,10 +152,19 @@ public class ImportFromOmero extends JFrame {
         displayAllUsersCheckBox.addActionListener(actionEvent -> {
             if (tree != null) tree.setDisplayCurrentUserOnly(!displayAllUsersCheckBox.isSelected());
         });
+        storePasswordButton.addActionListener(al -> {
+            StoreOmeroPassword.storeOmeroPassword(hostname.getText(), username.getText(), savedPassword, su -> {
+                hostname.setText(su.key);
+                username.setText(su.value);
+                if (savedPassword.containsKey(getPWKey())) password.setText(String.valueOf(savedPassword.get(getPWKey())));
+            }, this);
+        });
     }
+
     private SymetricalPair<String> getPWKey() {
         return new SymetricalPair<>(hostname.getText(), username.getText());
     }
+
     private void saveCurrentConnectionParameters() {
         PropertyUtils.set("OMERO_USERNAME", username.getText());
         PropertyUtils.addFirstStringToList("OMERO_USERNAME", username.getText());
@@ -213,10 +226,10 @@ public class ImportFromOmero extends JFrame {
      */
     private void $$$setupUI$$$() {
         contentPane = new JPanel();
-        contentPane.setLayout(new GridLayoutManager(3, 1, new Insets(10, 10, 10, 10), -1, -1));
+        contentPane.setLayout(new GridLayoutManager(4, 1, new Insets(10, 10, 10, 10), -1, -1));
         final JPanel panel1 = new JPanel();
         panel1.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        contentPane.add(panel1, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
+        contentPane.add(panel1, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
         final Spacer spacer1 = new Spacer();
         panel1.add(spacer1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
         final JPanel panel2 = new JPanel();
@@ -230,11 +243,11 @@ public class ImportFromOmero extends JFrame {
         panel2.add(buttonCancel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         browsingPanel = new JPanel();
         browsingPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        contentPane.add(browsingPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(-1, 300), null, null, 0, false));
+        contentPane.add(browsingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(-1, 300), null, null, 0, false));
         browsingJSP = new JScrollPane();
         browsingPanel.add(browsingJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         connectionPanel = new JPanel();
-        connectionPanel.setLayout(new GridLayoutManager(3, 2, new Insets(0, 0, 0, 0), -1, -1));
+        connectionPanel.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(connectionPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         serverPanel = new JPanel();
         serverPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
@@ -257,12 +270,6 @@ public class ImportFromOmero extends JFrame {
         panel4.setBorder(BorderFactory.createTitledBorder(null, "Password", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         password = new JPasswordField();
         panel4.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        disconnectButton = new JButton();
-        disconnectButton.setText("Disconnect");
-        connectionPanel.add(disconnectButton, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        connect = new JButton();
-        connect.setText("Connect");
-        connectionPanel.add(connect, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel5 = new JPanel();
         panel5.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
         connectionPanel.add(panel5, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -272,6 +279,19 @@ public class ImportFromOmero extends JFrame {
         importMetadataCheckBox = new JCheckBox();
         importMetadataCheckBox.setText("Import Metadata");
         panel5.add(importMetadataCheckBox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel6 = new JPanel();
+        panel6.setLayout(new GridLayoutManager(1, 3, new Insets(0, 0, 0, 0), -1, -1));
+        contentPane.add(panel6, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        connect = new JButton();
+        connect.setText("Connect");
+        panel6.add(connect, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        disconnectButton = new JButton();
+        disconnectButton.setText("Disconnect");
+        panel6.add(disconnectButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        storePasswordButton = new JButton();
+        storePasswordButton.setText("Store Password");
+        storePasswordButton.setToolTipText("open a widow to store the encrypted remote omero password. This way only the encryption password can be used in this window to connect to the omero gateway. one encrypted password is bound to a given useranme and a given hostname");
+        panel6.add(storePasswordButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**

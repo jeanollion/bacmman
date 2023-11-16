@@ -146,7 +146,7 @@ public class Shortcuts {
         switch(preset) {
             case AZERTY:
             default:
-                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), TO_FRONT);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), TO_FRONT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, 0), TOGGLE_SAFE_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.CTRL_DOWN_MASK), ACTION.LINK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.SHIFT_DOWN_MASK), ACTION.APPEND_LINK);
@@ -311,7 +311,7 @@ public class Shortcuts {
         Object[] actions = {
             "<b>Display</b>",
             SELECT_ALL_OBJECTS, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
-            TOGGLE_LOCAL_ZOOM,
+            TOGGLE_LOCAL_ZOOM, TO_FRONT,
             "<b>Navigation</b>",
             FAST_SCROLL,
             SCROLL_Z,

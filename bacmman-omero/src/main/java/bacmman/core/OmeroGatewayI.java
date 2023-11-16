@@ -75,7 +75,7 @@ public class OmeroGatewayI implements OmeroGateway {
                     setCredentials(s, u, p);
                     if (validCredentials()) connect();
                     if (!isConnected() && (s!=null || u!=null || p!=null) ) bacmmanLogger.setMessage("Could not connect to Omero Server");
-                });
+                }, bacmmanLogger);
                 // TODO also prompt from Terminal
             }
         }
@@ -109,7 +109,8 @@ public class OmeroGatewayI implements OmeroGateway {
     public OmeroGateway setCredentials(String hostname, String username, String password) {
         this.username=username;
         this.hostname=hostname;
-        this.password=password;
+        String decryptedPass = OmeroGateway.decryptPassword(hostname, username, password.toCharArray());
+        this.password=decryptedPass == null ? password : decryptedPass; // if password correspond to encryption password, then decryptedPass is the remote password otherwise password is the remote password
         return this;
     }
 

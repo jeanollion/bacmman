@@ -1,5 +1,6 @@
 package bacmman.ui.gui;
 
+import bacmman.core.OmeroGateway;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.SymetricalPair;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -22,10 +23,14 @@ public class PromptOmeroConnectionInformation extends JDialog {
     private JPanel serverPanel;
     private JPanel connectionPanel;
     private JButton cancelButton;
+    private JButton storePasswordButton;
     private final Map<SymetricalPair<String>, char[]> savedPassword;
     SetCredentials callback;
+    Frame owner;
 
-    public PromptOmeroConnectionInformation(Map<SymetricalPair<String>, char[]> savedPassword, SetCredentials callback) {
+    public PromptOmeroConnectionInformation(Map<SymetricalPair<String>, char[]> savedPassword, SetCredentials callback, Frame owner) {
+        super(owner, true);
+        this.owner = owner;
         this.savedPassword = savedPassword;
         this.callback = callback;
         setContentPane(contentPane);
@@ -64,6 +69,16 @@ public class PromptOmeroConnectionInformation extends JDialog {
 
         cancelButton.addActionListener(e -> onCancel());
         connect.addActionListener(e -> onOK());
+
+        storePasswordButton.addActionListener(al -> {
+            StoreOmeroPassword.storeOmeroPassword(hostname.getText(), username.getText(), savedPassword, su -> {
+                hostname.setText(su.key);
+                username.setText(su.value);
+                if (savedPassword.containsKey(getPWKey()))
+                    password.setText(String.valueOf(savedPassword.get(getPWKey())));
+            }, owner);
+
+        });
 
         // call onCancel() when cross is clicked
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -127,12 +142,19 @@ public class PromptOmeroConnectionInformation extends JDialog {
         panel2.setBorder(BorderFactory.createTitledBorder(null, "Password", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         password = new JPasswordField();
         panel2.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        connect = new JButton();
-        connect.setText("Connect");
-        connectionPanel.add(connect, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel3 = new JPanel();
+        panel3.setLayout(new GridLayoutManager(3, 1, new Insets(0, 0, 0, 0), -1, -1));
+        connectionPanel.add(panel3, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         cancelButton = new JButton();
         cancelButton.setText("Cancel");
-        connectionPanel.add(cancelButton, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel3.add(cancelButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        connect = new JButton();
+        connect.setText("Connect");
+        panel3.add(connect, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        storePasswordButton = new JButton();
+        storePasswordButton.setText("Store Password");
+        storePasswordButton.setToolTipText("open a widow to store the encrypted remote omero password. This way only the encryption password can be used in this window to connect to the omero gateway. one encrypted password is bound to a given useranme and a given hostname");
+        panel3.add(storePasswordButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
@@ -150,6 +172,7 @@ public class PromptOmeroConnectionInformation extends JDialog {
     private void updateOKButton() {
         boolean canConnect = this.username.getText().length() > 0 && password.getPassword().length > 0 && hostname.getText().length() > 0;
         connect.setEnabled(canConnect);
+
     }
 
     private void onOK() {
@@ -172,8 +195,8 @@ public class PromptOmeroConnectionInformation extends JDialog {
         dispose();
     }
 
-    public static void promptCredentials(Map<SymetricalPair<String>, char[]> savedPasswords, SetCredentials callback) {
-        PromptOmeroConnectionInformation dialog = new PromptOmeroConnectionInformation(savedPasswords, callback);
+    public static void promptCredentials(Map<SymetricalPair<String>, char[]> savedPasswords, SetCredentials callback, Object owner) {
+        PromptOmeroConnectionInformation dialog = new PromptOmeroConnectionInformation(savedPasswords, callback, owner instanceof Frame ? (Frame) owner : null);
         dialog.pack();
         dialog.setVisible(true);
     }
