@@ -24,7 +24,7 @@ public class SpotGaussianFit implements PostFilter, Hint {
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalRadius.getDoubleValue(), fitEllipse.getSelected(), true)
                 .setMaxCenterDisplacement(Math.max(1, typicalRadius.getValue().doubleValue()/2))
-                .setMinDistance(2 * typicalRadius.getValue().doubleValue() +1).setFitCenter(fitCenter.getSelected());
+                .setCoFitDistance(2 * typicalRadius.getValue().doubleValue() +1).setFitCenter(fitCenter.getSelected());
         Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), config, true, false);
         List<Region> regions = new ArrayList<>(childPopulation.getRegions().size());
         parameters.forEach((r, p)-> regions.add(GaussianFit.spotMapper.apply(p, false, childPopulation.getImageProperties()).setLabel(r.getLabel())));

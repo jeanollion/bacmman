@@ -57,7 +57,7 @@ public class TestGaussianFit {
         logger.debug("number of local extrema found: {}", regions.size());
         List<Point> peaks = regions.stream().map(o -> o.getMassCenter(image, false)).collect(Collectors.toList());
         //logger.debug("peaks found: {}", peaks);
-        GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(5, ellipses, true).setBackgroundPlane(true).setMaxCenterDisplacement(1).setFittingBoxRadius(10).setMinDistance(10);
+        GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(5, ellipses, true).setBackgroundPlane(true).setMaxCenterDisplacement(1).setFittingBoxRadius(10).setCoFitDistance(10);
         Map<Point, double[]> fit = GaussianFit.run(image, peaks, config, null, true);
         logger.debug("number of fitted objects: {}", fit.size());
         fit.forEach((c, p ) -> logger.debug("point: {}, parameters: {}", c, p));

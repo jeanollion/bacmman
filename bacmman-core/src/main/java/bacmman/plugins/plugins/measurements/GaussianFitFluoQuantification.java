@@ -61,7 +61,7 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
         } else {
             GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalSigma.getValue().doubleValue(), false, fitBackground.getSelected())
                     .setMaxCenterDisplacement(Math.max(1, typicalSigma.getValue().doubleValue()))
-                    .setMinDistance(4*typicalSigma.getValue().doubleValue()+1).setFitCenter(fitCenter.getSelected());
+                    .setCoFitDistance(4*typicalSigma.getValue().doubleValue()+1).setFitCenter(fitCenter.getSelected());
             Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), config, true , false);
             Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(SegmentedObject::getRegion, o -> o));
             parameters.forEach((r, p) -> {

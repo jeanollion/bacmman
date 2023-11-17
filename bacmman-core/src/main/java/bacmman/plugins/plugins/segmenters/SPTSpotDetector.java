@@ -82,7 +82,7 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
         GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(localMaxRadius.getDoubleValue(), fitEllipse.getSelected(), true)
                 .setMaxCenterDisplacement(Math.max(localMaxRadius.getDoubleValue(), 1))
                 .setFittingBoxRadius(fittingBox.getValue().intValue())
-                .setMinDistance(clusterDist.getValue().intValue())
+                .setCoFitDistance(clusterDist.getValue().intValue())
                 .setBackgroundPlane(fitBackgroundPlane.getSelected()).setMaxIter(maxIterations.getValue().intValue()).setLambda(lambda.getValue().doubleValue()).setTermEpsilon(termEpsilon.getValue().doubleValue());
         Map<Point, double[]> fit = GaussianFit.run(input, centers, config, null, false);
 

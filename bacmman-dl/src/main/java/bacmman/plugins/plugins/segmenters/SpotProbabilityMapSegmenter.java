@@ -100,7 +100,7 @@ public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable
         GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalSigma, false, false)
                 .setMaxCenterDisplacement(Math.max(1, typicalSigma/2))
                 .setFittingBoxRadius((int)(4*typicalSigma+1))
-                .setMinDistance(4*typicalSigma+1);
+                .setCoFitDistance(4*typicalSigma+1);
         Map<Region, double[]> fit =GaussianFit.runOnRegions(proba, population.getRegions(), config, true, true);
         List<Spot> spots = fit.values().stream().map(doubles -> GaussianFit.spotMapper.apply(doubles, false, proba)).collect(Collectors.toList());
         return new RegionPopulation(spots, population.getImageProperties());
@@ -130,7 +130,7 @@ public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable
         GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalSigma, false, false)
                 .setMaxCenterDisplacement(Math.max(1, typicalSigma/2))
                 .setFittingBoxRadius((int)(4*typicalSigma+1))
-                .setMinDistance(4*typicalSigma+1);
+                .setCoFitDistance(4*typicalSigma+1);
         Map<Point, double[]> fit = GaussianFit.run(prediction, seeds, config, null, true);
         fit = GaussianFit.run(smoothed, seeds, config.duplicate().setFitBackground(true).setFitAxis(false).setFitCenter(false), fit, true);
 

@@ -131,7 +131,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
             GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalRad, fitEllipse.getSelected(), true)
                     .setMaxCenterDisplacement(Math.max(1, typicalRad))
                     .setFittingBoxRadius(fittingBox.getValue().intValue())
-                    .setMinDistance(clusterDist.getValue().intValue())
+                    .setCoFitDistance(clusterDist.getValue().intValue())
                     .setBackgroundPlane(fitBackgroundPlane.getSelected())
                     .setLambda(lambda).setMaxIter(maxIter).setTermEpsilon(eps);
             Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, config, null, false);

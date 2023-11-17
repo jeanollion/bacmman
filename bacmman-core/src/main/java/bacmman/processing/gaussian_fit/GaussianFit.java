@@ -67,7 +67,7 @@ public class GaussianFit {
 
         Img img = ImgLib2ImageWrapper.getImage(image);
         // cluster are fit together
-        List<Set<Point>> clusters = getClusters(peaks, config.minDistance );
+        List<Set<Point>> clusters = getClusters(peaks, config.coFitDistance);
 
         List<Point> fitIndependently = clusters.isEmpty() ? peaks : new ArrayList<>(peaks);
         clusters.forEach(fitIndependently::removeAll);
@@ -417,7 +417,7 @@ public class GaussianFit {
         public boolean fitEllipse, fitBackground;
         public double maxCenterDisplacement = 0;
         public int fittingBoxRadius;
-        public double minDistance = 0;
+        public double coFitDistance = 0;
         public boolean backgroundPlane=false;
         public boolean  fitCenter=true;
         public boolean fitAxis=true;
@@ -443,7 +443,7 @@ public class GaussianFit {
         public GaussianFitConfig(double typicalRadius, boolean fitEllipse, boolean fitBackground) {
             this.typicalRadius = typicalRadius;
             this.fittingBoxRadius = (int)Math.ceil(2 * typicalRadius) + 1;
-            this.minDistance = fittingBoxRadius;
+            this.coFitDistance = fittingBoxRadius;
             this.fitEllipse = fitEllipse;
             this.fitBackground = fitBackground;
         }
@@ -452,7 +452,7 @@ public class GaussianFit {
             return new GaussianFitConfig(typicalRadius, fitEllipse, fitBackground)
                     .setMaxCenterDisplacement(maxCenterDisplacement)
                     .setFittingBoxRadius(fittingBoxRadius)
-                    .setMinDistance(minDistance)
+                    .setCoFitDistance(coFitDistance)
                     .setBackgroundPlane(backgroundPlane)
                     .setFitCenter(fitCenter)
                     .setFitAxis(fitAxis)
@@ -475,8 +475,8 @@ public class GaussianFit {
             return this;
         }
 
-        public GaussianFitConfig setMinDistance(double minDistance) {
-            this.minDistance = minDistance;
+        public GaussianFitConfig setCoFitDistance(double coFitDistance) {
+            this.coFitDistance = coFitDistance;
             return this;
         }
 
