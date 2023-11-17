@@ -186,19 +186,22 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
             if (incrementalPostProcessing) {
+                Consumer<Image> detach = im -> {
+                    if (im instanceof DiskBackedImage) imageManager.detach((DiskBackedImage)im, true);
+                };
                 postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, lwFW, lmBW, assigner, editor, factory);
                 for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
                     SegmentedObject p = subParentTrack.get(j);
-                    imageManager.detach((DiskBackedImage)prediction.edm.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.gcdm.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.dxBW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.dyBW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.dxFW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.dyFW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.multipleLinkBW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.multipleLinkFW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.noLinkBW.remove(p), true);
-                    imageManager.detach((DiskBackedImage)prediction.noLinkFW.remove(p), true);
+                    detach.accept(prediction.edm.remove(p));
+                    detach.accept(prediction.gcdm.remove(p));
+                    detach.accept(prediction.dxBW.remove(p));
+                    detach.accept(prediction.dyBW.remove(p));
+                    detach.accept(prediction.dxFW.remove(p));
+                    detach.accept(prediction.dyFW.remove(p));
+                    detach.accept(prediction.multipleLinkBW.remove(p));
+                    detach.accept(prediction.multipleLinkFW.remove(p));
+                    detach.accept(prediction.noLinkBW.remove(p));
+                    detach.accept(prediction.noLinkFW.remove(p));
                 }
             }
             else allAdditionalLinks.addAll(additionalLinks);
