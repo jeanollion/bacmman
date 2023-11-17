@@ -618,7 +618,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 m = epochEndPattern.matcher(message);
                 if (m.find()) {
                     //setMessage(message);
-                }
+                } else setMessage(message); // other message
             }
         }
         String lr = parseLearningRate(message);
