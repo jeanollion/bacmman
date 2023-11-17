@@ -299,6 +299,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         return Math.min(3, Math.max(1, thickness / 4)); // sigma is limited in order to improve performances @ gaussian fit
     }
     public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double mergeCriterion, int minSize, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores, int refFrame) {
+        //logger.debug("segmenting {}", parent);
         double sigma = computeSigma(thickness);
         double C = 1/(Math.sqrt(2 * Math.PI) * sigma);
         double seedRad = Math.max(2, thickness/2 - 1);
@@ -324,7 +325,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     } else rDup = regions;
                     rDup.forEach(r -> disp.displayContours(r, parent.getFrame() - refFrame, 0, 0, null, false));
                     disp.hideLabileObjects();
-                    //disp.updateDisplay();
+                    disp.updateDisplay();
                 }
             });
         }
@@ -338,46 +339,66 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
         });
         if (stores != null) stores.get(parent).addIntermediateImage("Center", centerI.duplicate());
-        ImageMask insideCellsLM = minMaxEDMThreshold<=edmThreshold ? insideCellsM : PredicateMask.and(parent.getMask(), new PredicateMask(edmI, minMaxEDMThreshold, true, false));
-        // segment center : gaussian fit on center map seeded by local maxima
-        ImageByte localExtremaCenter = Filters.applyFilter(centerI, new ImageByte("center LM", centerI), new LocalMax2(insideCellsLM), Filters.getNeighborhood(seedRad, 0, centerI));
-        List<Point> centerSeeds = ImageLabeller.labelImageList(localExtremaCenter, Filters.getNeighborhood(seedRad+0.5, 0, centerI))
-                .stream()
-                .map(r -> r.getVoxels().iterator().next())
-                .map(v -> Point.asPoint((Offset)v))
-                .collect(Collectors.toList());
-        GaussianFit.GaussianFitConfig gfConfig = new GaussianFit.GaussianFitConfig(sigma, false, false)
-                .setFittingBoxRadius((int)Math.ceil(thickness/2))
-                .setMinDistance(sigma*2+1)
-                .setMaxCenterDisplacement(Math.max(1.5, sigma))
-                .setCorrectInvalidEllipses(false);
-        Map<Point, double[]> fit = GaussianFit.run(centerI, centerSeeds, gfConfig, null, false);
-        List<Region> centers = fit.values().stream().map(params -> GaussianFit.spotMapper.apply(params, false, (SimpleImageProperties)centerI.getProperties().resetOffset())).collect(Collectors.toList());
-        // filter too small / large centers / partially outside cells
-        double minR = Math.max(1, sigma - 0.5);
-        double maxR = sigma + 1.5;
-        double minOverlap = 0.8;
-        Region background = new Region(new PredicateMask(edmI, edmThreshold, false, true), 1, true);
-        Region wholeImage = new Region(parent.getMask(), 1, true);
-        Map<Region, Double> centerSize = new HashMapGetCreate.HashMapGetCreateRedirected<>(r -> r.getOverlapArea(wholeImage, parent.getBounds(), null)); // fitted spots are sometimes outside image
-        centers.removeIf(r -> {
-            if (Double.isNaN(getCenterIntensity(r)) || getCenterIntensity(r)<=0) return true;
-            if (r instanceof Ellipse2D) {
-                Ellipse2D e = (Ellipse2D) r;
-                if (e.getMinor()/2<minR) return true;
-                if (e.getMajor()/2>maxR) return true;
-            } else if (r instanceof Spot) {
-                Spot s = (Spot) r;
-                if (s.getRadius()<minR || s.getRadius()>maxR) return true;
-            }
-            double overlapLimit = (1 - minOverlap) * centerSize.get(r);
-            //logger.debug("center: {} size: {} overlap bg: {}/{}", r, centerSize.get(r), r.getOverlapArea(background, edmI, null, overlapLimit), overlapLimit);
-            return overlapLimit==0 || r.getOverlapArea(background, edmI, null, overlapLimit) > overlapLimit; // remove spots that do not overlap enough with foreground
+
+        // Segment centers
+        double lapThld = 1e-3;
+        double maxEccentricity = 0.9;
+        double sizeMinFactor = 0.5;
+        double sizeMaxFactor = 2;
+        double mininOverlapProportion = 0.25;
+        ImageMask LMMask = minMaxEDMThreshold<=edmThreshold ? insideCellsM : PredicateMask.and(parent.getMask(), new PredicateMask(edmI, minMaxEDMThreshold, true, false));
+        Image centerLap = ImageFeatures.getLaplacian(centerI, sigma, true, false);
+        LMMask = PredicateMask.and(LMMask, new PredicateMask(centerLap, lapThld, true, true));
+        if (stores!=null) stores.get(parent).addIntermediateImage("Center Laplacian", centerLap);
+        ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, 0, centerI));
+        WatershedTransform.WatershedConfiguration centerConfig = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(lapThld));
+        RegionPopulation centerPop = WatershedTransform.watershed(centerLap, insideCellsM, localExtremaCenter, centerConfig);
+
+        // Filter out centers by size and eccentricity
+        double theoreticalSize = Math.PI * Math.pow(sigma * 1.9, 2);
+        centerPop.filter(new RegionPopulation.Size().setMin(theoreticalSize * sizeMinFactor).setMax(theoreticalSize * sizeMaxFactor));
+        centerPop.filter(object -> {
+            FitEllipseShape.Ellipse ellipse = FitEllipseShape.fitShape(object);
+            return ellipse.getEccentricity() < maxEccentricity;
         });
-        //reduce over-segmentation: merge touching regions with criterion on center: no center or too low center -> merge
-        Map<Region, Region> centerMapRegion = Utils.toMapWithNullValues(centers.stream(), c->c, c->c.getMostOverlappingRegion(pop.getRegions(), null, null), false);
-        Map<Region, Set<Region>> regionMapCenters = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory<>());
-        centerMapRegion.forEach((c, r) -> regionMapCenters.get(r).add(c));
+        List<Region> centers = centerPop.getRegions();
+        centers.forEach(c -> c.setQuality(BasicMeasurements.getMaxValue(c, centerI)));
+        //double[] centerSize = centers.stream().mapToDouble(Region::size).sorted().toArray();
+        //logger.debug("center size: sigma {}, theoretical {}, quantiles: {}", sigma, theoreticalSize, ArrayUtil.quantiles(centerSize, 0, 0.25, 0.5, 0.75, 100));
+        //double[] excentricity = centers.stream().mapToDouble(r -> FitEllipseShape.fitShape(r).getEccentricity()).sorted().toArray();
+        //logger.debug("excentricity {}", ArrayUtil.quantiles(excentricity, 0, 0.25, 0.5, 0.75, 100));
+        if (stores!=null) {
+            Offset off = parent.getBounds().duplicate().reverseOffset();
+            List<Region> regions = centerPop.getRegions().stream().map(Region::duplicate).collect(Collectors.toList());
+            stores.get(parent).addMisc("Display Segmented Centers", sel -> {
+                OverlayDisplayer disp = Core.getOverlayDisplayer();
+                if (disp != null) {
+                    List<Region> rDup;
+                    if (!sel.isEmpty()) { // remove regions that do not overlap
+                        rDup =  new ArrayList<>(regions);
+                        List<Region> otherRegions = sel.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                        rDup.removeIf(r -> r.getMostOverlappingRegion(otherRegions, null, off) == null);
+                    } else rDup = regions;
+                    rDup.forEach(r -> disp.displayContours(r, parent.getFrame() - refFrame, 0, 0, null, false));
+                    disp.hideLabileObjects();
+                    disp.updateDisplay();
+                }
+            });
+        }
+
+        // use segmented centers to reduce over-segmentation: merge touching regions with criterion on center: no center or too low center -> merge
+        Map<Region, Set<Region>> regionMapCenters = pop.getRegions().stream().collect(Collectors.toMap(r->r, r-> r.getOverlappingRegions(centers, null, null, (rr, c) -> c.size() * mininOverlapProportion)));
+        Set<Region> unallocatedCenters = new HashSet<>(centers); // make sure each center is associated to at least one region
+        regionMapCenters.values().forEach(unallocatedCenters::removeAll);
+        unallocatedCenters.forEach(c -> {
+            Region r = c.getMostOverlappingRegion(pop.getRegions(), null, null);
+            regionMapCenters.get(r).add(c);
+        });
+        // previous center allocation : to max overlapping
+        //Map<Region, Region> centerMapRegion = Utils.toMapWithNullValues(centers.stream(), c->c, c->c.getMostOverlappingRegion(pop.getRegions(), null, null), false);
+        //Map<Region, Set<Region>> regionMapCenters = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory<>());
+        //centerMapRegion.forEach((c, r) -> regionMapCenters.get(r).add(c));
+
         RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, mergeCriterion));
 
         if (minSize>0) pop.filterAndMergeWithConnected(new RegionPopulation.Size().setMin(minSize+1));
@@ -385,34 +406,6 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         if (postFilters != null) postFilters.filter(pop, objectClassIdx, parent);
         //if (!Offset.offsetNull(off)) regionMapCenters.values().stream().flatMap(Collection::stream).forEach(cc -> cc.translate(off).setIsAbsoluteLandmark(true)); // to absolute landmark
         pop.getRegions().forEach(r -> { // set centers & save memory // absolute offset
-            /*Set<Region> thisSeeds = regionMapCenters.get(r);
-            if (thisSeeds!=null && !thisSeeds.isEmpty()) {
-                Region seed = thisSeeds.stream().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).get();
-                if (r.contains(seed.getCenter())) {
-                    r.setCenter(seed.getCenter());
-                } else { // intersection of seed and region with maximal centerI value
-                    double overlap = seed.getOverlapArea(r);
-                    Set<Voxel> inter = seed.getIntersectionVoxelSet(r);
-                    if (inter.isEmpty() || overlap==0) logger.debug("object: {} seed: {} overlap = {}, inter={}", r, seed, overlap, inter.size());
-                    if (!inter.isEmpty()) {
-                        Voxel center = seed.getIntersectionVoxelSet(r).stream().max(Comparator.comparingDouble(v -> centerI.getPixel(v.x, v.y, v.z))).get();
-                        r.setCenter(Point.asPoint((Offset) center));
-                    } else r.setCenter(r.getGeomCenter(false).duplicate());
-                }
-            } else { // point with maximal centerI value (closest to geom center in case of equality)
-                Point geomCenter = r.getGeomCenter(false);
-                Point[] center = new Point[1];
-                double[] maxD = new double[]{Double.NEGATIVE_INFINITY};
-                r.loop((x, y, z) -> {
-                    if (!centerI.contains(x, y, z)) logger.error("OOB: region: {}, abs landmark: {} image: {}, parent: {}", r.getBounds(), r.isAbsoluteLandMark(), centerI, parent.getBounds());
-                    double d = centerI.getPixel(x, y, z);
-                    if (d>maxD[0] || d==maxD[0] && center[0].distSq(geomCenter)>new Point(x, y).distSq(geomCenter) ) {
-                        maxD[0] = d;
-                        center[0] = new Point(x, y);
-                    }
-                });
-                r.setCenter(center[0]);
-            }*/
             r.setCenter(Medoid.computeMedoid(r));
             r.clearVoxels();
             r.clearMask();
@@ -478,8 +471,6 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     }
     static class Interface extends InterfaceRegionImpl<Interface> implements RegionCluster.InterfaceVoxels<Interface> {
         double value = Double.NaN;
-        //Point center = null;
-        //final Point centerR1, centerR2;
         final Set<Voxel> voxels;
         final Image edm;
         final double fusionCriterion;
@@ -512,7 +503,6 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         public void fusionInterface(Interface otherInterface, Comparator<? super Region> elementComparator) {
             voxels.addAll(otherInterface.voxels);
             value = Double.NaN;// updateSortValue will be called afterward
-            //center = null;
         }
 
         @Override
@@ -520,17 +510,19 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             Set<Region> centers1 = regionMapCenter.get(e1);
             Set<Region> centers2 = regionMapCenter.get(e2);
             //logger.debug("check fusion: {} + {} center {} (n={}) + {} (n={})", e1.getBounds(), e2.getBounds(), centers1.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().orElse(-1), centers1.size(), centers2.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().orElse(-1), centers2.size());
-            if (centers1.isEmpty() || centers2.isEmpty()) return true; // either no seed or same seed
+            if (centers1.isEmpty() || centers2.isEmpty()) return true;
             double I1 = centers1.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().getAsDouble();
             double I2 = centers2.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().getAsDouble();
-            double ratio = I1>=I2 ? I2/I1 : I1/I2;
+            double ratio = getRatio(I1, I2);
             if (ratio < fusionCriterion) {
                 //logger.debug("fusion of {} + {} centers: {} + {} intensity: {} + {}", e1.getBounds(), e2.getBounds(), Utils.toStringList(centers1, Region::getCenter), Utils.toStringList(centers2, Region::getCenter), I1, I2);
                 return true;
             }
             // case: one spot in shared
             Region inter = centers1.stream().filter(centers2::contains).max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).orElse(null);
+            //logger.debug("check fusion: {} + {} center {} (n={}) + {} (n={}) inter: {}", e1.getBounds(), e2.getBounds(), I1, centers1.size(), I2, centers2.size(), inter==null ? "null" : inter.getBounds());
             if (inter!=null) { // when center is shared -> merge, except if intersection is not significant compared to two different seeds
+                //logger.debug("Interface: {}+{} shared spot: {} intensity: {}, I1: {}, I2: {}", e1.getBounds(), e2.getBounds(), inter.getCenterOrGeomCenter(), getCenterIntensity(inter), I1, I2);
                 Region c1 = centers1.stream().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).get();
                 if (c1.equals(inter)) return true;
                 Region c2 = centers2.stream().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).get();
@@ -538,6 +530,9 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 double II = getCenterIntensity(inter);
                 return !((II / I1 < fusionCriterion) && (II / I2 < fusionCriterion));
             } else return false;
+        }
+        protected static double getRatio(double I1, double I2) {
+            return I1>=I2 ? I2/I1 : I1/I2;
         }
 
         @Override
@@ -565,6 +560,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         }
     }
     protected static double getCenterIntensity(Region seed) {
+        if (!(seed instanceof Analytical)) return seed.getQuality();
         return (seed instanceof Ellipse2D) ? ((Ellipse2D)seed).getIntensity() : ((Spot)seed).getIntensity();
     }
     @Override
