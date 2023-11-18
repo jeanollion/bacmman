@@ -4269,7 +4269,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             db.getSelectionDAO().store(s);
                             selectedSelections = Collections.singletonList(s.getName());
                         }
-                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, outputFile, getExtractedDSCompressionFactor());
+                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {

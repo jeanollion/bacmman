@@ -444,6 +444,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         ConditionalParameter<TILE_NUMBER_MODE> tileNumberModeCond = new ConditionalParameter<>(tileNumberMode).setActionParameters(TILE_NUMBER_MODE.CONSTANT, nTiles).setActionParameters(TILE_NUMBER_MODE.AUTOMATIC, tileOverlapFraction);
         IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval for random zoom range; a value < 1 zoom out. Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
         IntervalParameter aspectRatioRange = new IntervalParameter("Aspect Ratio Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval that limits aspect ratio when zooming in/out");
+        BoundedNumberParameter zoomProba = new BoundedNumberParameter("Zoom Probability", 5, 0.25, 0, 1).setHint("Probability to perform random zoom. 0 : tiles are never zoom, 1: tiles are always zoomed");
         ArrayNumberParameter jitter = InputShapesParameter.getInputShapeParameter(false, true, new int[]{10, 10}, null)
             .setMaxChildCount(3)
             .setName("Jitter Shape").setHint("Random jitter between different time points for timelapse dataset, in pixels. Allows for instance to improve robustness to lack of microscope stage stability");
@@ -475,6 +476,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 children.add(tileNumberModeCond);
                 children.add(zoomRange);
                 children.add(aspectRatioRange);
+                children.add(zoomProba);
                 children.add(jitter);
                 children.add(performAug);
                 children.add(augRotate);
@@ -507,7 +509,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                     json.put("n_tiles", nTiles.getIntValue());
             }
             json.put("random_channel_jitter_shape", jitter.toJSONEntry());
-            for (Parameter p : new Parameter[]{zoomRange, aspectRatioRange, performAug, augRotate, randomStride, interpolationOrder}) {
+            for (Parameter p : new Parameter[]{zoomRange, aspectRatioRange, zoomProba, performAug, augRotate, randomStride, interpolationOrder}) {
                 json.put(toSnakeCase(p.getName()), p.toJSONEntry());
             }
             return json;

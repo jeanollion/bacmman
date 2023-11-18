@@ -227,14 +227,14 @@ public class ExtractDatasetUtil {
     }
     public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
-
+        logger.debug("resampling..");
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);
             Image out = resample(im, interpolation, dimensions);
             out.setName(getLabel(e));
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
-
+        logger.debug("resampling done");
         int[][] originalDimensions = saveDimensions ? streamSupplier.get().sorted(Comparator.comparing(ExtractDatasetUtil::getLabel)).map(o->{
             if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
             else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};
@@ -250,7 +250,6 @@ public class ExtractDatasetUtil {
             }
         }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
-
         extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance, compression);
     }
     public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, int compression) {
@@ -341,10 +340,16 @@ public class ExtractDatasetUtil {
         if (images.isEmpty()) return;
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
-        if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
+        if (converter!=null) {
+            logger.debug("converting type...");
+            images = images.stream().parallel().map(converter).collect(Collectors.toList());
+            logger.debug("converting done.");
+        }
+        logger.debug("saving h5 file...");
         if (oneEntryPerInstance) {
             for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), compression, saveLabels, new int[][]{originalDimensions[i]}, metadata );
         } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels, originalDimensions, metadata ); // TODO : compression level as option
+        logger.debug("saving done.");
     }
 
     public static Task getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
@@ -371,12 +376,12 @@ public class ExtractDatasetUtil {
         return resultingTask;
     }
 
-    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, int[] outputDimensions, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, int[] outputDimensions, List<String> selections, String selectionFilter, String outputFile, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(3);
         features.add(new FeatureExtractor.Feature( new RawImage(), objectClass ));
-        features.add(new FeatureExtractor.Feature( new Labels(), objectClass ));
-        features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass ));
+        features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
+        features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass, selectionFilter ));
 
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, compression);

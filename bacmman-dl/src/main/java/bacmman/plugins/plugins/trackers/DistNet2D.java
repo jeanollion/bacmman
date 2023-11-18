@@ -859,7 +859,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 .setMinimalEDMValue(this.edmThreshold.getDoubleValue())
                 .setMinSizePropagation(Math.max(4, this.objectThickness.getIntValue()/2))
                 .setInterfaceParameters(SplitAndMerge.INTERFACE_VALUE.MEDIAN, false);
-        // TODO other parameters involved in SplitAndMerge : splitThreshold / invert
         return seg;
     }
 

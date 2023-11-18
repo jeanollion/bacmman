@@ -798,11 +798,14 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected void loadExtractConfig() {
         if (extractConfig != null) {
-            String exConfigS = javaExtractConfig.read();
+            List<String> exConfigS = javaExtractConfig.readLines();
             if (!exConfigS.isEmpty()) {
                 try {
-                    extractConfig.getRoot().initFromJSONEntry(new JSONParser().parse(exConfigS));
+                    extractConfig.getRoot().initFromJSONEntry(new JSONParser().parse(exConfigS.get(0)));
                     extractConfig.expandAll();
+                    if (exConfigS.size() > 1) { // second line is last extracted file name
+                        datasetNameTextField.setText(exConfigS.get(1));
+                    }
                 } catch (Exception e) {
                     logger.error("error init extract config", e);
                 }
@@ -826,6 +829,8 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (extract) {
             if (extractConfig != null && extractConfig.getRoot().isValid()) {
                 javaExtractConfig.write(JSONUtils.toJSONString(extractConfig.getRoot().toJSONEntry()), false);
+                String extractName = datasetNameTextField.getText();
+                if (!extractName.isEmpty()) javaExtractConfig.write(extractName, true);
             }
         }
     }
@@ -952,9 +957,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         mainPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         final JSplitPane splitPane1 = new JSplitPane();
         splitPane1.setContinuousLayout(true);
-        splitPane1.setDividerLocation(386);
+        splitPane1.setDividerLocation(400);
         splitPane1.setLastDividerLocation(400);
-        splitPane1.setResizeWeight(0.0);
+        splitPane1.setResizeWeight(1.0);
         mainPanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         configurationPanel = new JPanel();
         configurationPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
@@ -964,11 +969,11 @@ public class DockerTrainingWindow implements ProgressLogger {
         configurationPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(200, -1), new Dimension(400, -1), null, 0, false));
         actionPanel = new JPanel();
         actionPanel.setLayout(new GridLayoutManager(3, 1, new Insets(0, 0, 0, 0), -1, -1));
-        actionPanel.setMaximumSize(new Dimension(500, 2147483647));
+        actionPanel.setMaximumSize(new Dimension(600, 2147483647));
         splitPane1.setRightComponent(actionPanel);
         directoryPanel = new JPanel();
         directoryPanel.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        actionPanel.add(directoryPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        actionPanel.add(directoryPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
         directoryPanel.setBorder(BorderFactory.createTitledBorder(null, "Working Directory", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         workingDirectoryTextField = new JTextField();
         directoryPanel.add(workingDirectoryTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
@@ -1004,7 +1009,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
         trainingPanel.setLayout(new GridLayoutManager(5, 2, new Insets(0, 0, 0, 0), -1, -1));
-        actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
         trainingPanel.setBorder(BorderFactory.createTitledBorder(null, "Training", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         trainingCommandPanel = new JPanel();
         trainingCommandPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));

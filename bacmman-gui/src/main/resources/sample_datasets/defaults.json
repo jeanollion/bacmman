@@ -5,5 +5,8 @@
   },
   { "name": "Neutrophils", "folder": "Segmentation", "gist_id": "917bd79628670b95ec9b571f824201e3",
     "hint": "Fluorescence imaged neutrophils. <br/>Credit: Ludvikova et al. <em>Near-infrared co-illumination of fluorescent proteins reduces photobleaching and phototoxicity</em> Nature Biotechnology 2023. <br/>3 images, 4.72Mb"
+  },
+  {
+    "name": "Bacteria 2D", "folder": "Cell Tracking", "gist_id": "5104ca0deda85ba7057c1b618ec5cff6", "hint": "100 fr, 10Mb. Subset of evaluation set PhC-C2DH-PA14 used in DiSTNet2D"
   }
 ]

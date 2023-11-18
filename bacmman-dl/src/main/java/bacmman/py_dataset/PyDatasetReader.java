@@ -107,7 +107,7 @@ public class PyDatasetReader {
                     return null;
                 }
                 String[] labels = reader.string().readArray(dsName(position) + "/labels");
-                logger.debug("dataset: {}, labels: #{} -> {}", dsName(position), labels.length, labels);
+                logger.debug("dataset: {}, labels: #{}", dsName(position), labels.length);
                 return Arrays.stream(labels).map(l -> new ObjectCoordinates(l)).toArray(l -> new ObjectCoordinates[l]);
             });
             originalDims = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(position -> {
