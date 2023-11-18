@@ -128,7 +128,7 @@ public class MultipleEnumChoiceParameter<E extends Enum<E>> extends ParameterImp
     }
     @Override
     public void setContentFrom(Parameter other) {
-        bypassListeners=true;
+        //bypassListeners=true;
         if (other instanceof ChoosableParameterMultiple) {
             setSelectedIndices(((ChoosableParameterMultiple)other).getSelectedIndices());
         } else if (other instanceof ChoosableParameter) {
@@ -136,7 +136,7 @@ public class MultipleEnumChoiceParameter<E extends Enum<E>> extends ParameterImp
             E item = getEnum(sel);
             if (item!=null) this.selectedItems = new int[]{getIndex.applyAsInt(item)};
         } else throw new IllegalArgumentException("wrong parameter type");
-        bypassListeners=false;
+        //bypassListeners=false;
     }
     
     @Override

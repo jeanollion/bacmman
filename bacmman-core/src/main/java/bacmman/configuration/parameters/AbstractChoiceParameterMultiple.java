@@ -58,7 +58,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
 
     @Override
     public void setSelectedItem(String selectedItem) {
-        if (selectedItem==null || selectedItem.length()==0 || selectedItem.equals(getNoSelectionString())) {
+        if (selectedItem==null || selectedItem.isEmpty() || selectedItem.equals(getNoSelectionString())) {
             this.selectedItems = new String[0];
         } else {
             this.selectedItems = new String[]{selectedItem};
@@ -164,7 +164,9 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
 
     @Override
     public void initFromJSONEntry(Object json) {
-        if (json instanceof String) {
+        if (json == null) {
+            return;
+        } else if (json instanceof String) {
             setSelectedItem((String)json);
         } else if (json instanceof JSONArray) {
             selectedItems = JSONUtils.fromStringArray(((JSONArray)json));

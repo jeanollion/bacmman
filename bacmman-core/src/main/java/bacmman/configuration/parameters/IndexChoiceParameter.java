@@ -84,11 +84,11 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
     @Override
     public void setContentFrom(Parameter other) {
         if (other instanceof IndexChoiceParameter) {
-            bypassListeners=true;
+            //bypassListeners=true;
             IndexChoiceParameter otherP = (IndexChoiceParameter) other;
             if (otherP.selectedIndices!=null) this.setSelectedIndices(Utils.copyArray(otherP.selectedIndices));
             else this.setSelectedIndex(-1);
-            bypassListeners=false;
+            //bypassListeners=false;
             //logger.debug("ICP: {} recieve from: {} -> {} ({})", name, otherP.getSelectedItems(), this.getSelectedItems(), this.getSelectedIndex());
         } else throw new IllegalArgumentException("wrong parameter type");
     }
@@ -179,6 +179,11 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        selectedIndices = ((JSONArray)jsonEntry).stream().mapToInt(n -> ((Number)n).intValue()).toArray();
+        if (jsonEntry instanceof JSONArray) {
+            setSelectedIndices(((JSONArray)jsonEntry).stream().mapToInt(n -> ((Number)n).intValue()).toArray());
+        } else if (jsonEntry instanceof Number) {
+            int idx = ((Number)jsonEntry).intValue();
+            setSelectedIndex(idx);
+        }
     }
 }

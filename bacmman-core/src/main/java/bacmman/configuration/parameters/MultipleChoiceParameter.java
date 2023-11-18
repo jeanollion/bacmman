@@ -112,7 +112,7 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
     }
     @Override
     public void setContentFrom(Parameter other) {
-        bypassListeners=true;
+        //bypassListeners=true;
         if (other instanceof ChoosableParameterMultiple) {
             setSelectedIndices(((ChoosableParameterMultiple)other).getSelectedIndices());
         } else if (other instanceof ChoosableParameter) {
@@ -120,7 +120,7 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
             int i = Utils.getIndex(listChoice, sel);
             if (i>=0) this.selectedItems=new int[]{i};
         } else throw new IllegalArgumentException("wrong parameter type");
-        bypassListeners=false;
+        //bypassListeners=false;
     }
     
     @Override
