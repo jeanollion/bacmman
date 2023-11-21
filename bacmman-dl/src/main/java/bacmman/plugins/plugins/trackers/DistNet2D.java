@@ -165,16 +165,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.edm.get(p), null), false, false));
                 prediction.gcdm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.gcdm.get(p), null), false, false));
-                if (!incrementalPostProcessing) {
-                    prediction.dxBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxBW.get(p), null), false, false));
-                    prediction.dyBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyBW.get(p), null), false, false));
-                    prediction.dxFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxFW.get(p), null), false, false));
-                    prediction.dyFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyFW.get(p), null), false, false));
-                    prediction.multipleLinkBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkBW.get(p), new ImageFloatU8Scale("multipleLinkBW", prediction.multipleLinkBW.get(p), 255.)), false, false));
-                    prediction.multipleLinkFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkFW.get(p), new ImageFloatU8Scale("multipleLinkFW", prediction.multipleLinkFW.get(p), 255.)), false, false));
-                    prediction.noLinkBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkBW.get(p), new ImageFloatU8Scale("noLinkBW", prediction.noLinkBW.get(p), 255.)), false, false));
-                    prediction.noLinkFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkFW.get(p), new ImageFloatU8Scale("noLinkFW", prediction.noLinkFW.get(p), 255.)), false, false));
-                }
+                prediction.dxBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxBW.get(p), null), false, false));
+                prediction.dyBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyBW.get(p), null), false, false));
+                prediction.dxFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxFW.get(p), null), false, false));
+                prediction.dyFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyFW.get(p), null), false, false));
+                prediction.multipleLinkBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkBW.get(p), new ImageFloatU8Scale("multipleLinkBW", prediction.multipleLinkBW.get(p), 255.)), false, false));
+                prediction.multipleLinkFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkFW.get(p), new ImageFloatU8Scale("multipleLinkFW", prediction.multipleLinkFW.get(p), 255.)), false, false));
+                prediction.noLinkBW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkBW.get(p), new ImageFloatU8Scale("noLinkBW", prediction.noLinkBW.get(p), 255.)), false, false));
+                prediction.noLinkFW.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkFW.get(p), new ImageFloatU8Scale("noLinkFW", prediction.noLinkFW.get(p), 255.)), false, false));
                 if (p.getFrame()>maxF) maxF = p.getFrame();
                 p.getChildren(objectClassIdx).forEach(o -> { // save memory
                     if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
@@ -185,30 +183,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
+            allAdditionalLinks.addAll(additionalLinks);
             if (incrementalPostProcessing) {
-                Consumer<Image> detach = im -> {
-                    if (im instanceof DiskBackedImage) imageManager.detach((DiskBackedImage)im, true);
-                };
-                postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, lwFW, lmBW, assigner, editor, factory);
-                for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
-                    SegmentedObject p = subParentTrack.get(j);
-                    detach.accept(prediction.edm.remove(p));
-                    detach.accept(prediction.gcdm.remove(p));
-                    detach.accept(prediction.dxBW.remove(p));
-                    detach.accept(prediction.dyBW.remove(p));
-                    detach.accept(prediction.dxFW.remove(p));
-                    detach.accept(prediction.dyFW.remove(p));
-                    detach.accept(prediction.multipleLinkBW.remove(p));
-                    detach.accept(prediction.multipleLinkFW.remove(p));
-                    detach.accept(prediction.noLinkBW.remove(p));
-                    detach.accept(prediction.noLinkFW.remove(p));
-                }
+                postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), maxIdx == parentTrack.size(), allAdditionalLinks, prediction, lwFW, lmBW, assigner, editor, factory);
             }
-            else allAdditionalLinks.addAll(additionalLinks);
             prevPrediction = prediction;
         }
         if (!incrementalPostProcessing) {
-            postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, lwFW, lmBW, assigner, editor, factory);
+            postFilterTracking(objectClassIdx, parentTrack, true, allAdditionalLinks, prevPrediction, lwFW, lmBW, assigner, editor, factory);
         }
         fixLinks(objectClassIdx, parentTrack, editor);
         if (stores == null) parentTrack.forEach(factory::relabelChildren);
@@ -255,16 +237,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, TypeConverter.toFloat8(prediction.edm.get(p), null));
                 prediction.gcdm.put(p, TypeConverter.toFloatU8(prediction.gcdm.get(p), null));
-                if (!incrementalPostProcessing) {
-                    prediction.multipleLinkFW.put(p, TypeConverter.toFloatU8(prediction.multipleLinkFW.get(p), new ImageFloatU8Scale("div", prediction.multipleLinkFW.get(p), 255.)));
-                    prediction.dxBW.put(p, TypeConverter.toFloat8(prediction.dxBW.get(p), null));
-                    prediction.dyBW.put(p, TypeConverter.toFloat8(prediction.dyBW.get(p), null));
-                    if (prediction.dxFW !=null) prediction.dxFW.put(p, TypeConverter.toFloat8(prediction.dxFW.get(p), null));
-                    if (prediction.dyFW !=null) prediction.dyFW.put(p, TypeConverter.toFloat8(prediction.dyFW.get(p), null));
-                    if (prediction.multipleLinkBW !=null) prediction.multipleLinkBW.put(p, TypeConverter.toFloatU8(prediction.multipleLinkBW.get(p), new ImageFloatU8Scale("merge", prediction.multipleLinkBW.get(p), 255.)));
-                }
-                prediction.noLinkBW.remove(p);
-                if (prediction.noLinkFW !=null) prediction.noLinkFW.remove(p);
+                prediction.multipleLinkFW.put(p, TypeConverter.toFloatU8(prediction.multipleLinkFW.get(p), new ImageFloatU8Scale("div", prediction.multipleLinkFW.get(p), 255.)));
+                prediction.dxBW.put(p, TypeConverter.toFloat8(prediction.dxBW.get(p), null));
+                prediction.dyBW.put(p, TypeConverter.toFloat8(prediction.dyBW.get(p), null));
+                if (prediction.dxFW !=null) prediction.dxFW.put(p, TypeConverter.toFloat8(prediction.dxFW.get(p), null));
+                if (prediction.dyFW !=null) prediction.dyFW.put(p, TypeConverter.toFloat8(prediction.dyFW.get(p), null));
+                if (prediction.multipleLinkBW !=null) prediction.multipleLinkBW.put(p, TypeConverter.toFloatU8(prediction.multipleLinkBW.get(p), new ImageFloatU8Scale("merge", prediction.multipleLinkBW.get(p), 255.)));
                 if (p.getFrame()>maxF) maxF = p.getFrame();
                 p.getChildren(objectClassIdx).forEach(o -> { // save memory
                     if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
@@ -275,22 +253,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
+            allAdditionalLinks.addAll(additionalLinks);
             if (incrementalPostProcessing) {
-                postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, lmFW, lmBW, assigner, editor, factory);
-                for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
-                    SegmentedObject p = subParentTrack.get(j);
-                    prediction.dxBW.remove(p);
-                    prediction.dyBW.remove(p);
-                    prediction.multipleLinkFW.remove(p);
-                    if (prediction.dxFW !=null) prediction.dxFW.remove(p);
-                    if (prediction.dyFW !=null) prediction.dyFW.remove(p);
-                    if (prediction.multipleLinkBW !=null) prediction.multipleLinkBW.remove(p);
-                }
+                postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx),maxIdx == parentTrack.size(), allAdditionalLinks, prediction, lmFW, lmBW, assigner, editor, factory);
             }
-            else allAdditionalLinks.addAll(additionalLinks);
             prevPrediction = prediction;
         }
-        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, lmFW, lmBW, assigner, editor, factory);
+        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, true, allAdditionalLinks, prevPrediction, lmFW, lmBW, assigner, editor, factory);
         fixLinks(objectClassIdx, parentTrack, editor);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
@@ -845,13 +814,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         });
     }
 
-    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, Set<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<SegmentedObject, LINK_MULTIPLICITY> lmFW, Map<SegmentedObject, LINK_MULTIPLICITY> lmBW, TrackAssigner assigner, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack,  boolean fullParentTrack, Set<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<SegmentedObject, LINK_MULTIPLICITY> lmFW, Map<SegmentedObject, LINK_MULTIPLICITY> lmBW, TrackAssigner assigner, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         Function<SegmentedObject, List<Region>> sm = getPostProcessingSplitter(prediction);
         Predicate<SegmentedObject> dividing = lmFW==null ? o -> false :
                 o -> o.getPrevious() != null && lmFW.get(o.getPrevious()).equals(MULTIPLE);
         Predicate<SegmentedObject> merging = lmBW==null ? o -> false :
                 o -> o.getNext() != null && lmBW.get(o.getNext()).equals(MULTIPLE);
-        trackPostProcessing(parentTrack, objectClassIdx, additionalLinks, dividing, merging, sm, assigner, factory, editor);
+        trackPostProcessing(parentTrack, fullParentTrack, objectClassIdx, additionalLinks, dividing, merging, sm, assigner, factory, editor);
     }
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
@@ -1236,7 +1205,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         };
     }
 
-    protected void trackPostProcessing(List<SegmentedObject> parentTrack, int objectClassIdx, Set<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, Predicate<SegmentedObject> merging, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void trackPostProcessing(List<SegmentedObject> parentTrack, boolean fullParentTrack, int objectClassIdx, Set<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, Predicate<SegmentedObject> merging, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         switch (trackPostProcessing.getSelectedEnum()) {
             case NO_POST_PROCESSING:
@@ -1250,10 +1219,18 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
                 if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), merging, false, splitter, assigner, factory, editor);
                 if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, false, splitter, assigner, factory, editor);
-                if (mergeContact) {
+                if (fullParentTrack && mergeContact) {
                     int startFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
                     int endFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
                     trackPop.mergeContact(startFrame, endFrame, tracksInContact(), factory);
+                }
+                // remove additional links that were consumed
+                if (!fullParentTrack) {
+                    Iterator<SymetricalPair<SegmentedObject>> it = additionalLinks.iterator();
+                    while (it.hasNext()) {
+                        SymetricalPair<SegmentedObject> l = it.next();
+                        if (!trackPop.isComplexLink(l)) it.remove();
+                    }
                 }
                 parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
                     if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));

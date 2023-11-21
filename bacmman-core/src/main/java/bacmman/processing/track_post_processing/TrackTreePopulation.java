@@ -31,10 +31,31 @@ public class TrackTreePopulation {
         checkTrackConsistency();
     }
     public TrackTree getTrackTree(Track t) {
+        return getTrackTree(t.head());
+    }
+
+    public TrackTree getTrackTree(SegmentedObject trackHead) {
         for (TrackTree tt : trees) {
-            if (tt.containsKey(t.head())) return tt;
+            if (tt.containsKey(trackHead)) return tt;
         }
         return null;
+    }
+
+    public SymetricalPair<Track> getLink(SymetricalPair<SegmentedObject> pair) {
+        if (pair.key.getFrame() > pair.value.getFrame()) return getLink(pair.reverse());
+        TrackTree tt = getTrackTree(pair.value);
+        if (tt==null) return null;
+        Track next = tt.get(pair.value);
+        for (Track prev : next.getPrevious()) {
+            if (prev.tail().equals(pair.key)) return new SymetricalPair<>(prev, next);
+        }
+        return null;
+    }
+
+    public boolean isComplexLink(SymetricalPair<SegmentedObject> pair) {
+        SymetricalPair<Track> tracks = getLink(pair);
+        if (tracks==null) return false;
+        return tracks.key.getNext().size()>1 && tracks.value.getPrevious().size()>1;
     }
 
     public Stream<Track> getAllTracksAt(int frame, boolean startAtFrame) {

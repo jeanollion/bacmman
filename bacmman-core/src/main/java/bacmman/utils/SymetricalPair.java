@@ -28,6 +28,10 @@ public class SymetricalPair<E> extends Pair<E, E> {
         super(e1, e2);
     }
 
+    public SymetricalPair<E> reverse() {
+        return new SymetricalPair<>(value, key);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof Pair) {
