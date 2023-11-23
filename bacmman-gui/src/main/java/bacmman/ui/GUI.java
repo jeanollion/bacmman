@@ -206,7 +206,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
     private NumberParameter subsamplingCTC = new BoundedNumberParameter("Temporal subsampling", 0, 1, 1, null).setHint("1=no sub-sampling, 2= 1 frame out of 2 etc...");
     private EnumChoiceParameter<CTB_IO_MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", CTB_IO_MODE.values(), CTB_IO_MODE.RESULTS);
-    private BooleanParameter exportDuplicateCTC = new BooleanParameter("Merge Links", "Duplicate Entries", "Smallest Label", false).setHint("In case of merge link (one cell has several distinct cells, this option allows to write one entry per link or to choose the link to the track of smallest label");
+    private BooleanParameter exportDuplicateCTC = new BooleanParameter("Merge Links", "Duplicate Entries", "Smallest Label", false).setHint("If Merge link is selected, merge links are encoded but adding one entry for each link. In Smallest label mode, only the link associated to the track of smallest label is kept. <br/>Merge link allows to avoid loosing the link information but is not compatible with CTC software, whereas Smallest label mode is compatible with CTC software. ");
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
@@ -430,8 +430,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         // kymograph interval
         PropertyUtils.setPersistent(kymographInterval, "kymograph_interval");
-        Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
-        kymographInterval.addListener(p->Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue());
+        TimeLapseInteractiveImage.INTERVAL_PIX = kymographInterval.getValue().intValue();
+        kymographInterval.addListener(p-> TimeLapseInteractiveImage.INTERVAL_PIX = kymographInterval.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographInterval, kymographMenu);
 
         // local zoom
@@ -465,7 +465,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         commit.setText("Commit Changes");
         commit.addActionListener(evt -> {
             if (db!=null) {
-                db.getOpenObjectDAOs().forEach(dao->dao.commit(ImageWindowManagerFactory.getImageManager().getInteractiveStructure()));
+                db.getOpenObjectDAOs().forEach(ObjectDAO::commit);
             }
         });
         manualCuration.add(commit);
@@ -476,7 +476,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 iwm.stopAllRunningWorkers();
                 int oc= iwm.getInteractiveStructure();
-                db.getOpenObjectDAOs().forEach(dao->dao.rollback(oc));
+                db.getOpenObjectDAOs().forEach(ObjectDAO::rollback);
                 iwm.revertObjectClass(oc, db);
                 trackTreeController.updateTrackTree();
             }
@@ -1434,9 +1434,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (db.getSafeMode()) {
             boolean save = Utils.promptBoolean("Safe mode is ON. Unsaved manual edition may exist. Keep them ?", this);
             if (save) {
-                IntStream.range(0, db.getExperiment().getStructureCount()).forEach(oc -> db.getOpenObjectDAOs().forEach(o -> o.commit(oc)));
+                db.getOpenObjectDAOs().forEach(ObjectDAO::commit);
             } else {
-                IntStream.range(0, db.getExperiment().getStructureCount()).forEach(oc -> db.getOpenObjectDAOs().forEach(o -> o.rollback(oc)));
+                db.getOpenObjectDAOs().forEach(ObjectDAO::rollback);
             }
             safeMode.setSelected(false);
         }

@@ -4,7 +4,7 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.image.*;
-import bacmman.image.io.KymographFactory;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
@@ -33,7 +33,7 @@ import java.util.stream.StreamSupport;
 public class TrackMateToBacmman {
     public static final Logger logger = LoggerFactory.getLogger(TrackMateToBacmman.class);
     public static List<BoundingBox> getDefaultOffset(List<SegmentedObject> parentTrack) {
-        KymographFactory.KymographData data = KymographFactory.generateHyperstackData(parentTrack, true);
+        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true);
         return Arrays.asList(data.trackOffset);
     }
     public static void storeTrackMateObjects(SpotCollection tmSpots, TrackModel tracks, List<SegmentedObject> parentTrack, int objectClassIdx, boolean overwrite, boolean trackOnly, boolean matchWithOverlap, double matchThreshold, ProgressCallback progress) {

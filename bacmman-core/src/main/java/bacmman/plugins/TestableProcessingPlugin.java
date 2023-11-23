@@ -20,6 +20,7 @@ package bacmman.plugins;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
+import bacmman.ui.gui.image_interaction.OverlayDisplayer;
 import bacmman.utils.HashMapGetCreate;
 
 import java.util.*;
@@ -58,12 +59,14 @@ public interface TestableProcessingPlugin extends ImageProcessingPlugin {
         public final SegmentedObject parent;
         public final Map<String, Image> images = new HashMap<>();
         public final Map<String, Integer> nameOrder = new HashMap<>();
-        public final HashMapGetCreate<String, List<Consumer<List<SegmentedObject>>>> miscData = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
+        public final HashMapGetCreate<String, List<Consumer<List<SegmentedObject>>>> miscData = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
         public final Consumer<Image> imageDisp;
+        public final OverlayDisplayer overlayDisplayer;
         public final boolean expertMode;
-        public TestDataStore(SegmentedObject parent, Consumer<Image> imageDisp, boolean expertMode) {
+        public TestDataStore(SegmentedObject parent, Consumer<Image> imageDisp, OverlayDisplayer overlayDisplayer, boolean expertMode) {
             this.parent= parent;
             this.imageDisp=imageDisp;
+            this.overlayDisplayer = overlayDisplayer;
             this.expertMode=expertMode;
         }
 

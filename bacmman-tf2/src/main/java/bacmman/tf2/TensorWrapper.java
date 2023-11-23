@@ -17,6 +17,9 @@ import org.tensorflow.types.TFloat32;
 import org.tensorflow.types.TInt32;
 
 import java.util.Arrays;
+import java.util.function.BiFunction;
+import java.util.function.IntPredicate;
+import java.util.stream.IntStream;
 
 public class TensorWrapper {
     public final static Logger logger = LoggerFactory.getLogger(TensorWrapper.class);
@@ -26,15 +29,25 @@ public class TensorWrapper {
         else return fromImagesNCFloat32(imageNC, fromIncl, toExcl, bufferContainer, flipXYZ);
     }
 
+    public static int[][] getShapes(Image[][] imagesNC) {
+        BiFunction<Image, Integer, int[]> getShape;
+        getShape = (im , nC)-> im.sizeZ()>1 ?new int[]{nC, im.sizeZ(), im.sizeY(), im.sizeX()} :  new int[]{nC, im.sizeY(), im.sizeX()};
+        int[][] shapes = Arrays.stream(imagesNC).map(im -> getShape.apply(im[0], im.length)).toArray(int[][]::new);
+        IntPredicate oneShapeDiffers = idx -> IntStream.range(1, imagesNC[idx].length).anyMatch(i-> !Arrays.equals(getShape.apply(imagesNC[idx][i], imagesNC[idx].length), shapes[idx]));
+        if (IntStream.range(0, imagesNC.length).anyMatch(i->oneShapeDiffers.test(i)))
+            throw new IllegalArgumentException("at least two channels have different shapes");
+        return shapes;
+    }
+
     public static TFloat32 fromImagesNCFloat32(Image[][] imageNC, int fromIncl, int toExcl, DataBuffer[] bufferContainer, boolean... flipXYZ) {
         if (imageNC==null) return null;
-        int[][] shapes = ResizeUtils.getShapes(imageNC, true);
+        int[][] shapes = getShapes(imageNC);
         if (Arrays.stream(shapes).anyMatch(s -> !Arrays.equals(s, shapes[0]))) throw new IllegalArgumentException("at least two images have different dimensions");
         int[] shape = shapes[0]; // dim order here is C (Z) Y X
         // dim order should be : N (Z) Y X C
         int nSize = toExcl - fromIncl;
-        int nStride = (int)ResizeUtils.getSize(shape);
-        int totalSize = nSize * (int)ResizeUtils.getSize(shape);
+        int nStride = (int)ResizeUtils.getVolume(shape);
+        int totalSize = nSize * (int)ResizeUtils.getVolume(shape);
 
         FloatDataBuffer buffer = null;
         if (bufferContainer!=null) buffer = (FloatDataBuffer)bufferContainer[0];
@@ -72,13 +85,13 @@ public class TensorWrapper {
 
     public static TInt32 fromImagesNCInt32(Image[][] imageNC, int fromIncl, int toExcl, DataBuffer[] bufferContainer, boolean... flipXYZ) {
         if (imageNC==null) return null;
-        int[][] shapes = ResizeUtils.getShapes(imageNC, true);
+        int[][] shapes = getShapes(imageNC);
         if (Arrays.stream(shapes).anyMatch(s -> !Arrays.equals(s, shapes[0]))) throw new IllegalArgumentException("at least two images have different dimensiosns");
         int[] shape = shapes[0]; // dim order here is C (Z) Y X
         // dim order should be : N (Z) Y X C
         int nSize = toExcl - fromIncl;
-        int nStride = (int)ResizeUtils.getSize(shape);
-        int totalSize = nSize * (int)ResizeUtils.getSize(shape);
+        int nStride = (int)ResizeUtils.getVolume(shape);
+        int totalSize = nSize * (int)ResizeUtils.getVolume(shape);
 
         IntDataBuffer buffer = null;
         if (bufferContainer!=null) buffer = (IntDataBuffer)bufferContainer[0];

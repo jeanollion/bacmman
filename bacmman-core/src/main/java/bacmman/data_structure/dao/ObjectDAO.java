@@ -90,8 +90,8 @@ public interface ObjectDAO {
     public void deleteAllMeasurements();
 
     ObjectDAO setSafeMode(boolean safeMode);
-    void rollback(int objectClassIdx);
-    void commit(int objectClassIdx);
+    void rollback();
+    void commit();
     
     public static boolean sameContent(ObjectDAO dao1, ObjectDAO dao2, ProgressCallback pcb) {
         List<SegmentedObject> roots1 = dao1.getRoots();

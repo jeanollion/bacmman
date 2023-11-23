@@ -112,10 +112,10 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
             // also scale by min/max
             MinMaxScaler scaler = new MinMaxScaler();
             IntStream.range(0, raw.length).parallel().forEach(i -> raw[i] = scaler.scale(raw[i])); // scale before resample so that image is converted to float
-            rawResampled = ResizeUtils.resample(raw, raw, false, new int[][]{imageDimensions});
+            rawResampled = ResizeUtils.resample(raw, false, new int[][]{imageDimensions}).toArray(Image[]::new);
             // resample region populations + remove touching borders + binarize
             ImageInteger<? extends ImageInteger>[] regionMasks = parentTrack.parallelStream().map(p -> p.getChildRegionPopulation(objectClassIdx).getLabelMap()).toArray(ImageInteger[]::new);
-            ImageInteger<? extends ImageInteger>[] regionMasksResampled = ResizeUtils.resample(regionMasks, regionMasks, true, new int[][]{imageDimensions});
+            ImageInteger<? extends ImageInteger>[] regionMasksResampled = ResizeUtils.resample(regionMasks, true, new int[][]{imageDimensions}).toArray(ImageInteger[]::new);
             populations = Arrays.stream(regionMasksResampled).map(im -> new RegionPopulation(im.resetOffset(), true).eraseTouchingContours(false)).toArray(RegionPopulation[]::new);
             regionCount = Arrays.stream(populations).mapToInt(p->p.getRegions().size()).toArray();
             int length = IntStream.of(regionCount).sum();

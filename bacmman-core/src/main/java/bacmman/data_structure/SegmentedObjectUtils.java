@@ -460,23 +460,23 @@ public class SegmentedObjectUtils {
     }
     
     // duplicate objects 
-    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, Map<String, SegmentedObject> dupToSourceMap, boolean includeChildren, boolean parents, boolean generateNewId, int... excludeOCIdx) {
+    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, Map<String, SegmentedObject> dupToSourceMap, boolean parents, boolean generateNewId, int... includeOCIdx) {
         o.loadAllChildren(false);
         SegmentedObject res=o.duplicate(generateNewId, true, true);
         sourceToDupMap.put(o.getId(), res);
         dupToSourceMap.put(res.getId(), o);
-        Predicate<Integer> excludeOC = excludeOCIdx == null || excludeOCIdx.length == 0 ? oc -> false : oc -> Arrays.stream(excludeOCIdx).anyMatch(ooc->ooc==oc);
+        Predicate<Integer> includeOC = oc -> Arrays.stream(includeOCIdx).anyMatch(ooc->ooc==oc);
+        boolean includeChildren = includeOCIdx.length>0;
         if (includeChildren) {
-            for (int cIdx : o.getExperiment().experimentStructure.getAllDirectChildStructures(o.structureIdx)) {
-                if (excludeOC.test(cIdx)) continue;
+            for (int cIdx : includeOCIdx) {
                 List<SegmentedObject> c = o.childrenSM.get(cIdx);
-                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, true, false, generateNewId, excludeOCIdx)), cIdx);
+                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, false, generateNewId, includeOCIdx)), cIdx);
             }
         }
         if (parents && !o.isRoot() && res.getParent()!=null) { // duplicate all parents until roots
             SegmentedObject current = o;
             SegmentedObject currentDup = res;
-            while (!current.isRoot() && current.getParent()!=null && !excludeOC.test(current.getStructureIdx())) {
+            while (!current.isRoot() && current.getParent()!=null && includeOC.test(current.getStructureIdx())) {
                 SegmentedObject pDup = sourceToDupMap.get(current.getParent().id);
                 if (pDup==null) {
                     pDup = current.getParent().duplicate(generateNewId, true, true);
@@ -494,23 +494,24 @@ public class SegmentedObjectUtils {
         return res;
     }
 
-    public static Map<String, SegmentedObject> createGraphCut(List<SegmentedObject> track, boolean includeChildren, boolean generateNewId, int... excludeChildrenOCIdx) {
+    public static Map<String, SegmentedObject> createGraphCut(List<SegmentedObject> track, boolean generateNewId, int... includeOCIdx) {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // transform track to root track in order to include indirect children
+        boolean includeChildren = includeOCIdx.length>0;
         if (includeChildren) track = track.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
         Experiment xp = track.get(0).getExperiment();
         Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap(xp.experimentStructure::getAllDirectChildStructures, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         Consumer<SegmentedObject> openTrackImages = so -> directChildren.get(so.getStructureIdx()).forEach(so::getTrackImage);
-        Predicate<Integer> excludeChildrenOC = excludeChildrenOCIdx == null || excludeChildrenOCIdx.length == 0 ? oc -> false : oc -> Arrays.stream(excludeChildrenOCIdx).anyMatch(o->o==oc);
+        Predicate<Integer> includeChildrenOC = oc -> Arrays.stream(includeOCIdx).anyMatch(o->o==oc);
         for (SegmentedObject o : track) {
             openTrackImages.accept(o);
             SegmentedObject p = o.getParent();
             while(p!=null) {openTrackImages.accept(p); p=p.getParent();}
             if (includeChildren) {
                 for (int sIdx : o.getExperiment().experimentStructure.getAllChildStructures(o.getStructureIdx())) {
-                    if (!excludeChildrenOC.test(sIdx)) o.getChildren(sIdx).forEach(openTrackImages);
+                    if (includeChildrenOC.test(sIdx)) o.getChildren(sIdx).forEach(openTrackImages);
                 }
             }
         }
@@ -522,7 +523,7 @@ public class SegmentedObjectUtils {
         mDAO.setExperiment(track.get(0).getExperiment());
         BasicObjectDAO dao = mDAO.getDao(track.get(0).getPositionName());
         
-        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, includeChildren, true, generateNewId, excludeChildrenOCIdx));
+        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, true, generateNewId, includeOCIdx));
         List<SegmentedObject> rootTrack = dup.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         dao.setRoots(rootTrack);
         
@@ -540,7 +541,6 @@ public class SegmentedObjectUtils {
             }
             SegmentedObject th = dupMap.get(o.trackHeadId);
             if (th==null) { // trackhead is out-of-range
-                SegmentedObject oTh = revDupMap.get(o.id).getTrackHead();
                 th = dup.get(0).getChildren(o.getStructureIdx()).filter(oo -> oo.trackHeadId.equals(o.trackHeadId)).findAny().orElseThrow(() -> new IllegalArgumentException("No trackhead for object :" + o));
                 th.setTrackHead(null, true, true, null);
             } else {
@@ -549,10 +549,6 @@ public class SegmentedObjectUtils {
             }
             if (th.equals(o)) th.trackImagesC=revDupMap.get(th.id).getTrackHead().trackImagesC.duplicate();
 
-        }
-        // update parent trackHeads
-        for (SegmentedObject o : dupMap.values()) {
-            if (o.parent!=null) o.parentTrackHeadId=o.parent.trackHeadId;
         }
         return dupMap;
     }

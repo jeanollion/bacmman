@@ -142,10 +142,10 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         long t4= System.currentTimeMillis();
         logger.info("#{} dy predictions made in {}ms", dy.length, t4-t3);
         // resample, set offset & calibration
-        Image[] edm_res = ResizeUtils.resample(edm, edm, false, resampledImages.value); // should segmentation be performed before resampling so that edm values correspond to actual distances?
-        Image[] dy_res = ResizeUtils.resample(dy, dy, true, resampledImages.value);
-        Image[] divMap_res = divMap==null ? null : ResizeUtils.resample(divMap, divMap, false, resampledImages.value);
-        Image[] noPrevMap_res = noPrevMap==null ? null : ResizeUtils.resample(noPrevMap, noPrevMap, true, resampledImages.value);
+        Image[] edm_res = ResizeUtils.resample(edm, false, resampledImages.value).toArray(Image[]::new);; // should segmentation be performed before resampling so that edm values correspond to actual distances?
+        Image[] dy_res = ResizeUtils.resample(dy, true, resampledImages.value).toArray(Image[]::new);;
+        Image[] divMap_res = divMap==null ? null : ResizeUtils.resample(divMap, false, resampledImages.value).toArray(Image[]::new);;
+        Image[] noPrevMap_res = noPrevMap==null ? null : ResizeUtils.resample(noPrevMap, true, resampledImages.value).toArray(Image[]::new);;
         double yTargetSize = this.inputShape.getChildAt(0).getValue().doubleValue();
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
             edm_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
@@ -626,11 +626,11 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             scaler.setHistogram(histo);
         }
 
-        int[][] shapes = ResizeUtils.getShapes(in, false);
+        int[][] dimensions = ResizeUtils.getDimensions(in);
         // also scale image
         IntStream.range(0, in.length).parallel().forEach(i -> in[i] = scaler.scale(in[i])); // scale before resample so that image is converted to float
-        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
-        return new Pair<>(inResampled, shapes);
+        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape}).toArray(Image[]::new);;
+        return new Pair<>(inResampled, dimensions);
     }
     static Image[][] getInputs(Image[] images, boolean addPrev, boolean addNext) {
         if (!addPrev && !addNext) {

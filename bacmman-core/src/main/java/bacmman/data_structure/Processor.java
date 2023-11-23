@@ -33,7 +33,7 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.*;
-import bacmman.image.io.KymographFactory;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
@@ -711,7 +711,7 @@ public class Processor {
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(dao.getRoots(), parentStructureIdx);
         if (pcb!=null) pcb.log("Generating Image for structure: "+parentStructureIdx+". #tracks: "+allTracks.size()+", child structures: "+Utils.toStringArray(childStructureIdx));
         ThreadRunner.execute(allTracks.values(), false, (List<SegmentedObject> track, int idx) -> {
-            KymographFactory.KymographData kymo = KymographFactory.generateKymographData(track, false, 0);
+            TimeLapseInteractiveImageFactory.Data kymo = TimeLapseInteractiveImageFactory.generateKymographData(track, false, 0);
             for (int childSIdx : cSI) {
                 //Core.userLog("Generating Image for track:"+track.get(0)+", structureIdx:"+childSIdx+" ...");
                 Image im = kymo.generateImage("", childSIdx, true);

@@ -81,6 +81,7 @@ public class PluginConfigurationUtils {
     }
 
     public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode) {
+        Core.clearDiskBackedImageManagers();
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
         SegmentedObjectAccessor accessor = getAccessor();
         SegmentedObject o = parentSelection.get(0);
@@ -95,12 +96,13 @@ public class PluginConfigurationUtils {
         Function<SegmentedObject, SegmentedObject> getParent = c -> (c.getStructureIdx()>parentStrutureIdx) ? c.getParent(parentStrutureIdx) : c.getChildren(parentStrutureIdx).findFirst().get();
         List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead());
         if (!needToDuplicateWholeParentTrack) wholeParentTrack = parentSelection.stream().map(getParent).distinct().sorted().collect(Collectors.toList());
-        Map<String, SegmentedObject> dupMap = SegmentedObjectUtils.createGraphCut(wholeParentTrack, true, true, structureIdx);  // don't modify object directly.
+        int[] includeOC = segParentStrutureIdx != parentStrutureIdx ? new int[]{segParentStrutureIdx} : new int[0];
+        Map<String, SegmentedObject> dupMap = SegmentedObjectUtils.createGraphCut(wholeParentTrack, true, includeOC);  // don't modify object directly.
         List<SegmentedObject> wholeParentTrackDup = wholeParentTrack.stream().map(p->dupMap.get(p.getId())).collect(Collectors.toList());
         List<SegmentedObject> parentTrackDup = parentSelection.stream().map(getParent).distinct().map(p->dupMap.get(p.getId())).sorted().collect(Collectors.toList());
 
         // generate data store for test images
-        Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, ImageWindowManagerFactory::showImage, expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
         List<Map<SegmentedObject, TestDataStore>> storeList = new ArrayList<>(2);
         storeList.add(stores);
@@ -156,9 +158,10 @@ public class PluginConfigurationUtils {
 
                 if (!tpfBefore.isEmpty()) {
                     // at this point, need to duplicate another time the parent track to get an independent point
-                    Map<String, SegmentedObject> dupMap1 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+                    includeOC = segParentStrutureIdx != parentStrutureIdx ? new int[]{structureIdx, segParentStrutureIdx} : new int[]{structureIdx};
+                    Map<String, SegmentedObject> dupMap1 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, includeOC); // whole parent track ?
                     List<SegmentedObject> parentTrackDup1 = parentTrackDup.stream().map(getParent).distinct().map(p -> dupMap1.get(p.getId())).sorted().collect(Collectors.toList());
-                    Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                    Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                     parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected post-filter", p.getRawImage(structureIdx))); // add input image
                     storeList.add(stores1);
 
@@ -170,9 +173,10 @@ public class PluginConfigurationUtils {
                     parentTrackDup = parentTrackDup1;
                 }
                 // at this point, need to duplicate another time the parent track to get the second point
-                Map<String, SegmentedObject> dupMap2 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+                includeOC = segParentStrutureIdx != parentStrutureIdx ? new int[]{structureIdx, segParentStrutureIdx} : new int[]{structureIdx};
+                Map<String, SegmentedObject> dupMap2 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, includeOC); // whole parent track ?
                 List<SegmentedObject> parentTrackDup2 = parentTrackDup.stream().map(getParent).distinct().map(p->dupMap2.get(p.getId())).sorted().collect(Collectors.toList());
-                Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores2);
                 bacmman.plugins.plugins.track_post_filter.PostFilter tpf = pfTotpfMapper.apply((PostFilter)plugin);
@@ -236,9 +240,10 @@ public class PluginConfigurationUtils {
 
             if (!tpfBefore.isEmpty()) {
                 // at this point, need to duplicate another time the parent track to get an independent point
-                Map<String, SegmentedObject> dupMap1 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+                includeOC = segParentStrutureIdx != parentStrutureIdx ? new int[]{structureIdx, segParentStrutureIdx} : new int[]{structureIdx};
+                Map<String, SegmentedObject> dupMap1 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, includeOC); // whole parent track ?
                 List<SegmentedObject> parentTrackDup1 = parentTrackDup.stream().map(getParent).distinct().map(p -> dupMap1.get(p.getId())).sorted().collect(Collectors.toList());
-                Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected track post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores1);
 
@@ -250,9 +255,10 @@ public class PluginConfigurationUtils {
                 parentTrackDup = parentTrackDup1;
             }
             // at this point, need to duplicate another time the parent track to get the second point
-            Map<String, SegmentedObject> dupMap2 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+            includeOC = segParentStrutureIdx != parentStrutureIdx ? new int[]{structureIdx, segParentStrutureIdx} : new int[]{structureIdx};
+            Map<String, SegmentedObject> dupMap2 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true); // whole parent track ?
             List<SegmentedObject> parentTrackDup2 = parentTrackDup.stream().map(getParent).distinct().map(p->dupMap2.get(p.getId())).sorted().collect(Collectors.toList());
-            Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+            Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
             parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected track post-filter", p.getRawImage(structureIdx))); // add input image
             storeList.add(stores2);
 
@@ -297,7 +303,6 @@ public class PluginConfigurationUtils {
             publishError(t);
         } finally {
             xp.getDLengineProvider().closeAllEngines();
-            Core.clearDiskBackedImageManagers();
         }
         return storeList;
     }
@@ -609,7 +614,7 @@ public class PluginConfigurationUtils {
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s->s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.ensureContinuousTrack(parents);
-        Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, false);
+        TimeLapseInteractiveImage ioi = TimeLapseInteractiveImage.generateInteractiveImageTime(parents, childOCIdx, false);
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
             Image type = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get();
@@ -636,7 +641,7 @@ public class PluginConfigurationUtils {
         List<SegmentedObject> parents = stores.stream().map(s-> s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.ensureContinuousTrack(parents);
         return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
-            HyperStack ioi = (HyperStack) Kymograph.generateKymograph(parents, childOCIdx, true);
+            HyperStack ioi = (HyperStack) TimeLapseInteractiveImage.generateInteractiveImageTime(parents, childOCIdx, true);
             Image type = TypeConverter.toCommonImageType(Image.copyType(stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get()));
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             ioi.setImageSupplier( (idx, oc, raw) -> {

@@ -605,7 +605,7 @@ public class ManualEdition {
         }
         splitter.setSplitVerboseMode(test_);
         boolean dispImages = splitter instanceof TestableProcessingPlugin && test_;
-        Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestableProcessingPlugin.TestDataStore(so, ImageWindowManagerFactory::showImage, true), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestableProcessingPlugin.TestDataStore(so, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), true), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (dispImages) ((TestableProcessingPlugin)splitter).setTestDataStore(stores);
         boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
         boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();

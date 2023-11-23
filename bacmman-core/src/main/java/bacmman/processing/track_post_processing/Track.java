@@ -186,18 +186,35 @@ public class Track implements Comparable<Track> {
     public String toString() {
         return head().getIdx()+"["+getFirstFrame()+"->"+getLastFrame()+"]";
     }
-    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass) {
-        return getTracks(parent, segmentedObjectClass, Collections.emptyList());
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, boolean allowTrackheadsOutsideParentTrack) {
+        return getTracks(parent, segmentedObjectClass, Collections.emptyList(), allowTrackheadsOutsideParentTrack);
     }
-    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<SymetricalPair<SegmentedObject>> additionalLinks) {
+    public static void fillTrackToTrackHead(List<SegmentedObject> track) {
+        if (track.get(0).isTrackHead()) return ;
+        SegmentedObject first = track.get(0);
+        while (!first.isTrackHead()) {
+            first = first.getPrevious();
+            if (first == null) {
+                logger.error("No trackhead in track {}", track);
+                throw new RuntimeException("Missing trackhead");
+            }
+            track.add(first);
+        }
+        Collections.sort(track);
+
+    }
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<SymetricalPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
         for (List<SegmentedObject> t: allTracks.values()) {
             t.sort(SegmentedObject.frameComparator());
             if (!t.get(0).isTrackHead()) {
-                SegmentedObject th = t.get(0).getTrackHead();
-                logger.error("missing th: {}, parent in list: {}, parent contains: {}", th, parent.contains(th.getParent()), th.getParent().getChildren(segmentedObjectClass).anyMatch(o->o==th));
+                if (allowTrackheadsOutsideParentTrack) fillTrackToTrackHead(t);
+                else {
+                    SegmentedObject th = t.get(0).getTrackHead();
+                    logger.error("missing th: {}, parent in list: {}, parent contains: {}", th, parent.contains(th.getParent()), th.getParent().getChildren(segmentedObjectClass).anyMatch(o->o==th));
+                }
             }
         }
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));

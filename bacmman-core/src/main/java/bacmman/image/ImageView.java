@@ -10,7 +10,10 @@ public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
 
     public ImageView(I source, BoundingBox boundingBox) {
         super(source.getName(), new SimpleImageProperties(boundingBox, source.getScaleXY(), source.getScaleZ()));
-        if (!BoundingBox.isIncluded(boundingBox, source)) throw new IllegalArgumentException("boundingBox should be contained in image");
+        if (!BoundingBox.isIncluded(boundingBox, source)) {
+            logger.error("source: {} is not included in bounding box: {}", source, boundingBox);
+            throw new IllegalArgumentException("boundingBox should be contained in image");
+        }
         this.boundingBox=boundingBox.duplicate();
         this.source=source;
     }

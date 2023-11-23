@@ -299,11 +299,11 @@ public class BasicObjectDAO implements ObjectDAO {
     }
 
     @Override
-    public void rollback(int objectClassIdx) {
+    public void rollback() {
         throw new UnsupportedOperationException("Not supported");
     }
     @Override
-    public void commit(int objectClassIdx) {
+    public void commit() {
     }
 
     @Override

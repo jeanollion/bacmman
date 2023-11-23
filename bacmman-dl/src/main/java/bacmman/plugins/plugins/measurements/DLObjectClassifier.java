@@ -34,7 +34,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     protected BoundedNumberParameter classNumber = new BoundedNumberParameter("Class number", 0, -1, 0, null).setHint("Number of predicted classes");
     ConditionalParameter<Boolean> probaCond = new ConditionalParameter<>(proba).setActionParameters(true, classNumber);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
-    DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", true, true)
+    DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", true, true, false)
             .setMaxInputNumber(2).setMinInputNumber(2).setMaxOutputNumber(1).setMinOutputNumber(1).setOutputNumber(1)
             .setMode(DLResizeAndScale.MODE.PAD).setDefaultContraction(16, 16);
     BooleanParameter eraseTouchingContours = new BooleanParameter("Erase Touching Contours", false).setHint("If true, draws a black line to split touching objects");

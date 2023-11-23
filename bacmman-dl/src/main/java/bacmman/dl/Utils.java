@@ -43,7 +43,7 @@ public class Utils {
     public static int[][] getShapes(Image[][] imagesNC, boolean includeChannelNumber) {
         BiFunction<Image, Integer, int[]> getShape;
         if (includeChannelNumber) getShape = (im , nC)-> im.sizeZ()>1 ?new int[]{nC, im.sizeZ(), im.sizeY(), im.sizeX()} :  new int[]{nC, im.sizeY(), im.sizeX()};
-        else getShape = (im , nC)-> im.shape();
+        else getShape = (im , nC)-> im.dimensions();
         int[][] shapes = Arrays.stream(imagesNC).map(im -> getShape.apply(im[0], im.length)).toArray(int[][]::new);
         IntPredicate oneShapeDiffers = idx -> IntStream.range(1, imagesNC[idx].length).anyMatch(i-> !Arrays.equals(getShape.apply(imagesNC[idx][i], imagesNC[idx].length), shapes[idx]));
         if (IntStream.range(0, imagesNC.length).anyMatch(i->oneShapeDiffers.test(i)))
@@ -53,7 +53,7 @@ public class Utils {
     public static int[][] getShapes(Image[] imagesN, boolean includeChannelNumber) {
         Function<Image, int[]> getShape;
         if (includeChannelNumber) getShape = (im )-> im.sizeZ()>1 ?new int[]{1, im.sizeZ(), im.sizeY(), im.sizeX()} :  new int[]{1, im.sizeY(), im.sizeX()};
-        else getShape = Image::shape;
+        else getShape = Image::dimensions;
         return Arrays.stream(imagesN).map(getShape::apply).toArray(int[][]::new);
     }
 

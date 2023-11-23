@@ -21,7 +21,7 @@ package bacmman.ui.gui.image_interaction;
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
-import bacmman.image.io.KymographFactory;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
 import bacmman.utils.Pair;
@@ -40,7 +40,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class HyperStack extends Kymograph {
+public class HyperStack extends TimeLapseInteractiveImage {
     public static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected int idx;
     protected final int maxParentSizeX, maxParentSizeY;
@@ -51,7 +51,7 @@ public class HyperStack extends Kymograph {
     DefaultWorker loadObjectsWorker;
     boolean displayAllObjects = false;
     Object lock = new Object();
-    public HyperStack(KymographFactory.KymographData data, int childStructureIdx, boolean loadObjects) {
+    public HyperStack(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx, boolean loadObjects) {
         super(data, childStructureIdx, false);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
@@ -60,13 +60,13 @@ public class HyperStack extends Kymograph {
         this.bounds2D = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0 ,0);
         frameMapIdx = parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, parents::indexOf));
         idxMapFrame = parents.stream().collect(Collectors.toMap(parents::indexOf, SegmentedObject::getFrame));
-        if (!KymographFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
+        if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
         trackObjects[0].reloadObjects();
         loadObjectsWorker = new DefaultWorker(i -> {
             trackObjects[i + 1].getObjects();
             return "";
         }, super.getParents().size() - 1, null);
-        /*loadObjectsWorker = new DefaultWorker(i -> { // TODO why no improvement ?
+        /*loadObjectsWorker = new DefaultWorker(i -> { // TODO inspect why no speed improvement ?
             Arrays.stream(trackObjects).parallel().forEach(SimpleInteractiveImage::getObjects);
             return "";
         }, 1, null);*/

@@ -24,7 +24,7 @@ import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.PrimitiveType;
 import bacmman.image.TypeConverter;
-import bacmman.image.io.KymographFactory;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
@@ -230,7 +230,7 @@ public class IJVirtualStack<I extends Image<I>> extends VirtualStack {
         HyperStack interactiveImage = null;
         if (interactive) interactiveImage = (HyperStack)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
         if (interactiveImage==null) {
-            KymographFactory.KymographData data = KymographFactory.generateHyperstackData(parentTrack, true);
+            TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true);
             interactiveImage = new HyperStack(data, interactiveOC, false);
         }
         return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx, image5D);

@@ -19,7 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.io.KymographFactory;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.ui.GUI;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
@@ -41,14 +41,14 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class KymographX extends Kymograph {
+public class KymographX extends TimeLapseInteractiveImage {
     public static final Logger logger = LoggerFactory.getLogger(KymographX.class);
     protected final int maxParentSize, maxParentSizeZ;
-    public KymographX(KymographFactory.KymographData data, int childStructureIdx) {
+    public KymographX(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx) {
         super(data, childStructureIdx, true);
         maxParentSize = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
-        if (!KymographFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
+        if (!TimeLapseInteractiveImageFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
     
     @Override

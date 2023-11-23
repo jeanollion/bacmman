@@ -32,6 +32,7 @@ import java.util.function.*;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import org.json.simple.JSONObject;
 import org.mapdb.DB;
 import org.mapdb.DBException;
 import org.mapdb.HTreeMap;
@@ -647,7 +648,12 @@ public class DBMapObjectDAO implements ObjectDAO {
             Utils.parallel(IntStream.rangeClosed(0, toStore.size()/FRAME_INDEX_LIMIT).map(i -> i*FRAME_INDEX_LIMIT), parallel).forEach(i -> {
                 int idxMax = Math.min(toStore.size(), i+FRAME_INDEX_LIMIT);
                 logger.debug("storing: #{}/{} ( [{};{}) ) objects of OC: {} to: {}",idxMax-i, toStore.size(), i, idxMax, key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead());
-                Map<String, String> toStoreMap = Utils.parallel(toStore.subList(i, idxMax).stream(), !parallel).peek(accessor::updateRegionContainer).collect(Collectors.toMap(SegmentedObject::getId, JSONUtils::serialize));
+                Function<SegmentedObject, String> serialize = so -> {
+                    JSONObject res = so.toJSONEntry();
+                    res.put("object", so.getRegionJSONEntry());
+                    return res.toJSONString();
+                };
+                Map<String, String> toStoreMap = Utils.parallel(toStore.subList(i, idxMax).stream(), !parallel).peek(accessor::updateRegionContainer).collect(Collectors.toMap(SegmentedObject::getId, serialize));
                 dbMap.putAll(toStoreMap);
             });
             long t2 = System.currentTimeMillis();
@@ -968,22 +974,15 @@ public class DBMapObjectDAO implements ObjectDAO {
         return this;
     }
     @Override
-    public void rollback(int objectClassIdx) {
+    public void rollback() {
         if (!safeMode) throw new IllegalArgumentException("Cannot Rollback if safe mode is not activated");
-        if (this.dbS.containsKey(objectClassIdx)) {
-            this.dbS.get(objectClassIdx).rollback();
-        }
-        cache.clear();
-        allObjectsRetrievedInCache.clear();
-        trackHeads.clear();
-        frameIndex.clear();
-        dbMaps.clear();
+        for (int objectClassIdx : this.dbS.keySet()) this.dbS.get(objectClassIdx).rollback();
+        clearCache();
     }
     @Override
-    public void commit(int objectClassIdx) {
-        if (this.dbS.containsKey(objectClassIdx)) {
+    public void commit() {
+        for (int objectClassIdx : this.dbS.keySet()) {
             this.dbS.get(objectClassIdx).commit();
-            for (int coc : this.mDAO.getExperiment().experimentStructure.getAllDirectChildStructures(objectClassIdx)) commit(coc); // also commit in case children were modified
         }
     }
 }

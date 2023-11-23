@@ -37,12 +37,7 @@ public class SegmentedObjectAccessor {
     }
 
     // structure access
-    public boolean hasRegionContainer(SegmentedObject o) {
-        return o.hasRegionContainer();
-    }
-    public RegionContainer getRegionContainer(SegmentedObject o) {
-        return o.getRegionContainer();
-    }
+
     public void freeMemory(SegmentedObject o) {
         RegionContainer c = o.getRegionContainer();
         if (c instanceof RegionContainerIjRoi) {
@@ -103,7 +98,16 @@ public class SegmentedObjectAccessor {
     public void updateRegionContainer(SegmentedObject o) {
         o.updateRegionContainer();
     }
-
+    public boolean hasRegionContainer(SegmentedObject o) {
+        return o.hasRegionContainer();
+    }
+    public RegionContainer getRegionContainer(SegmentedObject o) {
+        return o.getRegionContainer();
+    }
+    public boolean regionModified(SegmentedObject o) {
+        if (!o.hasRegionContainer()) return true;
+        return o.hasRegion() && o.getRegion().hasModifications();
+    }
     // track modifiers
 
 

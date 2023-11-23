@@ -20,7 +20,7 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.region_container.roi.Roi3D;
-import bacmman.plugins.Plugin;
+import bacmman.image.Offset;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import ij.*;
@@ -407,10 +407,18 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             else if (image.getNFrames()>1) roi.setTToPosition();
         }
     }
+    private InteractiveImage getCurrentInteractiveImage() {
+        ImageWindowManager im = ImageWindowManagerFactory.getImageManager();
+        if (im == null) return null;
+        return im.getCurrentImageObjectInterface();
+    }
     @Override
     public void displayContours(Region region, int frame, double strokeWidth, int smoothRadius, Color color, boolean dashed) {
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
+        InteractiveImage ii = getCurrentInteractiveImage();
+        if (ii ==null) return;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
         if (smoothRadius<=0) smoothRadius = ImageWindowManagerFactory.getImageManager().ROI_SMOOTH_RADIUS;
         Roi3D roi = region.getRoi();
@@ -419,7 +427,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             roi = region.getRoi();
         }
         roi = roi.duplicate().smooth(smoothRadius);
-        setFrameAndZ(roi, frame, getCurrentImage());
+        if (additionalOffset != null) roi.translate(additionalOffset);
+        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentImage());
         for (Roi r : roi.values()) {
             r.setStrokeWidth(strokeWidth); // also sets scaleStrokeWidth = True
             if (dashed) {
@@ -436,13 +445,17 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     public void displayRegion(Region region, int frame, Color color) {
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
+        InteractiveImage ii = getCurrentInteractiveImage();
+        if (ii ==null) return;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame) : null;
         Roi3D roi = region.getRoi();
         if (roi == null) {
             region.createRoi();
             roi = region.getRoi();
         }
         roi = roi.duplicate();
-        setFrameAndZ(roi, frame, getCurrentImage());
+        if (additionalOffset != null) roi.translate(additionalOffset);
+        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentImage());
         for (Roi r : roi.values()) {
             r.setFillColor(color);
             o.add(r);
@@ -453,7 +466,11 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     public void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
+        InteractiveImage ii = getCurrentInteractiveImage();
+        if (ii ==null) return;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().TRACK_ARROW_STROKE_WIDTH;
+        if (additionalOffset != null) start = start.duplicate().translate(additionalOffset);
         Point end = start.duplicate().translate(direction);
         if (arrowStart && !arrowEnd) {
             Point temp = start;
@@ -476,7 +493,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             roi.put(0, arrow);
             roi.setIs2D(true);
         }
-        setFrameAndZ(roi, frame, getCurrentImage());
+        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentImage());
         for (Roi r : roi.values()) o.add(r);
     }
     @Override

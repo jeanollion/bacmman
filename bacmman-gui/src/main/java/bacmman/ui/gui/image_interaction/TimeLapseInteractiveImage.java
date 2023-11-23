@@ -20,12 +20,10 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
-import bacmman.image.io.KymographFactory;
+import bacmman.image.*;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.ui.GUI;
 import bacmman.core.DefaultWorker;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
 
 import java.util.*;
 
@@ -43,11 +41,14 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public abstract class Kymograph extends InteractiveImage {
-    public static final Logger logger = LoggerFactory.getLogger(Kymograph.class);
-    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
-        if (hyperStack) return new HyperStack(KymographFactory.generateHyperstackData(parentTrack, true), childStructureIdx, true);
-        KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
+public abstract class TimeLapseInteractiveImage extends InteractiveImage {
+    public static final Logger logger = LoggerFactory.getLogger(TimeLapseInteractiveImage.class);
+    public static boolean isKymograph(InteractiveImage i) {
+        return (i instanceof KymographX || i instanceof KymographY);
+    }
+    public static TimeLapseInteractiveImage generateInteractiveImageTime(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
+        if (hyperStack) return new HyperStack(TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true), childStructureIdx, true);
+        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
         switch (data.direction) {
             case X:
             default:
@@ -62,12 +63,18 @@ public abstract class Kymograph extends InteractiveImage {
     public static int INTERVAL_PIX=0;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
 
-    public Kymograph(KymographFactory.KymographData data, int childStructureIdx, boolean setAllChildren) {
+    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx, boolean setAllChildren) {
         super(data.parentTrack, childStructureIdx);
         trackOffset = data.trackOffset;
         if (setAllChildren) SegmentedObjectUtils.setAllChildren(data.parentTrack, childStructureIdx);
         Consumer<SimpleInteractiveImage> peekFun = setAllChildren ? SimpleInteractiveImage::getObjects : (si)->{};
         trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(peekFun).toArray(SimpleInteractiveImage[]::new);
+    }
+
+    public Offset getOffsetForFrame(int frame) {
+        int i = getIdx(frame);
+        if (i<0) return null;
+        else return new SimpleOffset(trackOffset[i]);
     }
     
     @Override public List<SegmentedObject> getParents() {
@@ -93,29 +100,20 @@ public abstract class Kymograph extends InteractiveImage {
     @Override
     public BoundingBox getObjectOffset(SegmentedObject object) {
         if (object==null) return null;
-        
-        //if (object.getFrame()<parent.getFrame()) logger.error("Object not in track : Object: {} parent: {}", object, parent);
-        int idx = object.getFrame()-parents.get(0).getFrame();
-        if (idx<trackObjects.length && idx>0 && parents.get(idx).getFrame()==object.getFrame()) return trackObjects[idx].getObjectOffset(object);
+        int idx = getIdx(object.getFrame());
+        if (idx<0) return null;
+        return trackObjects[idx].getObjectOffset(object);
+    }
+
+    protected int getIdx(int frame) {
+        int idx = frame-parents.get(0).getFrame();
+        if (idx<trackObjects.length && idx>0 && parents.get(idx).getFrame()==frame) return idx;
         else { // case of uncontinuous tracks -> search whole track
-            idx = Collections.binarySearch(parents, object, Comparator.comparingInt(SegmentedObject::getFrame));
-            if (idx<0) return null;
-            BoundingBox res =  trackObjects[idx].getObjectOffset(object);
-            if (res!=null) return res;
-            int idx2 = idx-1;
-            while (idx2>=0 && parents.get(idx2).getFrame()==object.getFrame()) {
-                res =  trackObjects[idx2].getObjectOffset(object);
-                if (res!=null) return res;
-                --idx2;
+            for (int i = 0; i<parents.size(); ++i) {
+                if (parents.get(i).getFrame() == frame) return i;
             }
-            idx2=idx+1;
-            while (idx2<trackObjects.length && parents.get(idx2).getFrame()==object.getFrame()) {
-                res=  trackObjects[idx2].getObjectOffset(object);
-                if (res!=null) return res;
-                ++idx2;
-            }
-        } 
-        return null;
+            return -1;
+        }
     }
     
     public void trimTrack(List<Pair<SegmentedObject, BoundingBox>> track) {

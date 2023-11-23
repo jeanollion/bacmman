@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
 
-import bacmman.image.io.KymographFactory;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -66,7 +66,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     protected int timePoint;
     protected transient SegmentedObject previous, next;
     String nextId, previousId;
-    String parentTrackHeadId, trackHeadId; // TODO remove parentTrackHeadId ? useful for getTrackHeads
+    String trackHeadId;
     protected transient SegmentedObject trackHead;
     protected boolean isTrackHead=true;
     protected Map<String, Object> attributes;
@@ -123,7 +123,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (isRoot()) res = new SegmentedObject(timePoint, (BlankMask)(duplicateRegion?getMask().duplicateMask():getMask()), dao);
         else res= new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?getRegion().duplicate():getRegion(), getParent());
         if (!generateNewID) res.id=id;
-        res.parentTrackHeadId=parentTrackHeadId;
         res.previousId=previousId;
         res.nextId=nextId;
         res.parentId=parentId;
@@ -277,7 +276,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     public void setParent(SegmentedObject parent) {
         this.parent=parent;
         this.parentId=parent.getId();
-        this.parentTrackHeadId=parent.getTrackHeadId();
     }
     /**
      *
@@ -510,7 +508,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return previous object of the track in which this object is contained if existing, else null. In case there are several previous objects it means they belong to different tracks so null is returned
      */
     public SegmentedObject getPrevious() {
-        if (previous==null && previousId!=null) previous = dao.getById(parentTrackHeadId, structureIdx, -1, previousId);
+        if (previous==null && previousId!=null) previous = dao.getById(getParentTrackHeadId(), structureIdx, -1, previousId);
         return previous;
     }
 
@@ -519,7 +517,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return next element of the track in which this object is contained if existing else null.
      */
     public SegmentedObject getNext() {
-        if (next==null && nextId!=null) next = dao.getById(parentTrackHeadId, structureIdx, -1, nextId);
+        if (next==null && nextId!=null) next = dao.getById(getParentTrackHeadId(), structureIdx, -1, nextId);
         return next;
     }
 
@@ -588,7 +586,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                 this.trackHead=this;
                 this.trackHeadId=this.id;
             } else if (trackHeadId!=null ) {
-                trackHead = dao.getById(parentTrackHeadId, structureIdx, -1, trackHeadId);
+                trackHead = dao.getById(getParentTrackHeadId(), structureIdx, -1, trackHeadId);
             } else if (getPrevious()!=null) {
                 if (previous.isTrackHead) this.trackHead=previous;
                 else if (previous.trackHead!=null) this.trackHead=previous.trackHead;
@@ -621,18 +619,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         return trackHeadId;
     }
-    public String getParentTrackHeadIdIfPresent() {
-        return parentTrackHeadId;
-    }
 
     public String getParentTrackHeadId() {
-        if (parentTrackHeadId==null) {
-            if (getParent()!=null) {
-                parentTrackHeadId = parent.getTrackHeadId();
-            }
-        }
-        
-        return parentTrackHeadId;
+        if (getParent()!=null) return parent.getTrackHeadId();
+        return null;
     }
 
     /**
@@ -819,6 +809,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                 o.setIsAbsoluteLandmark(true);
             }
             region = o;
+            region.regionModified = true;
             region.label=idx+1;
             flushImages();
             setRegionAttributesToAttributes();
@@ -875,7 +866,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         updateRegionContainer();
         return regionContainer;
     }
-    void updateRegionContainer(){
+    void updateRegionContainer() {
         if (regionContainer==null) {
             if (region!=null && region.regionModified) setRegionAttributesToAttributes();
             createRegionContainer();
@@ -997,7 +988,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                         if (im!=null) { // set image && set offsets for all track
                             im.setCalibration(getScaleXY(), getScaleZ());
                             List<SegmentedObject> track = SegmentedObjectUtils.getTrack(this);
-                            KymographFactory.KymographData kymo = KymographFactory.generateKymographData(track, false, 0);
+                            TimeLapseInteractiveImageFactory.Data kymo = TimeLapseInteractiveImageFactory.generateKymographData(track, false, 0);
                             IntStream.range(0, track.size()).forEach(i->track.get(i).offsetInTrackImage=kymo.trackOffset[i]);
                             //logger.debug("get track image: track:{}(id: {}/trackImageCId: {}) length: {}, chId: {}", this, this.hashCode(), trackImagesC.hashCode(), track.size(), channelIdx);
                             //logger.debug("offsets: {}", Utils.toStringList(track, o->o+"->"+o.offsetInTrackImage));
@@ -1221,12 +1212,15 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         obj1.put("frame", timePoint);
         if (nextId!=null) obj1.put("nextId", nextId);
         if (previousId!=null) obj1.put("prevId", previousId);
-        if (parentTrackHeadId!=null) obj1.put("parentThId", parentTrackHeadId);
         if (trackHeadId!=null) obj1.put("thId", trackHeadId);
         obj1.put("isTh", isTrackHead);
         if (attributes!=null && !attributes.isEmpty()) obj1.put("attributes", JSONUtils.toJSONObject(attributes));
         if (regionContainer!=null) obj1.put("object", regionContainer.toJSON());
         return obj1;
+    }
+    public JSONObject getRegionJSONEntry() {
+        if (regionContainer!=null) return regionContainer.toJSON();
+        else return null;
     }
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
@@ -1241,8 +1235,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (nId!=null) nextId = (String)nId;
         Object prevId = json.get("prevId");
         if (prevId!=null) previousId = (String)prevId;
-        Object parentThId = json.get("parentThId");
-        if (parentThId!=null) parentTrackHeadId = (String)parentThId;
         Object thId = json.get("thId");
         if (thId!=null) trackHeadId = (String)thId;
         isTrackHead = (Boolean)json.get("isTh");
@@ -1256,6 +1248,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             regionContainer = RegionContainer.createFromJSON(this, objectJ);
         }
     }
-
+    public void initRegionFromJSONEntry(Map jsonEntry) {
+        regionContainer = RegionContainer.createFromJSON(this, jsonEntry);
+    }
 
 }

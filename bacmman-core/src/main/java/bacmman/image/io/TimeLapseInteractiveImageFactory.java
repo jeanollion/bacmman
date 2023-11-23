@@ -8,9 +8,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public class KymographFactory {
-    public final static Logger logger = LoggerFactory.getLogger(KymographFactory.class);
-    public static KymographData generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int interval) {
+public class TimeLapseInteractiveImageFactory {
+    public final static Logger logger = LoggerFactory.getLogger(TimeLapseInteractiveImageFactory.class);
+    public static Data generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int interval) {
         //setAllChildren(parentTrack, childStructureIdx); // if set -> tracking test cannot work ?
         BoundingBox bb = parentTrack.get(0).getBounds();
         int maxParentSizeZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
@@ -23,7 +23,7 @@ public class KymographFactory {
                 else trackOffset[i].translate(new SimpleOffset(currentOffset, 0, 0)); // Y & Z up of parent track
                 currentOffset+=interval+trackOffset[i].sizeX();
             }
-            return new KymographData(DIRECTION.X, -1, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
+            return new Data(DIRECTION.X, -1, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
         } else { // Y direction
             int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
             for (int i = 0; i<parentTrack.size(); ++i) {
@@ -31,12 +31,12 @@ public class KymographFactory {
                 else trackOffset[i].translate(new SimpleOffset(0, currentOffset, 0)); // X & Z up of parent track
                 currentOffset+=interval+trackOffset[i].sizeY();
             }
-            return new KymographData(DIRECTION.Y, maxParentSizeX, -1, maxParentSizeZ, trackOffset, parentTrack);
+            return new Data(DIRECTION.Y, maxParentSizeX, -1, maxParentSizeZ, trackOffset, parentTrack);
         }
 
     }
 
-    public static KymographData generateHyperstackData(List<SegmentedObject> parentTrack, boolean middle) {
+    public static Data generateHyperstackData(List<SegmentedObject> parentTrack, boolean middle) {
         int maxParentSizeZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
         int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
@@ -44,16 +44,16 @@ public class KymographFactory {
         for (int i = 0; i<parentTrack.size(); ++i) {
             if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), (int)((maxParentSizeZ)/2.0-(trackOffset[i].sizeZ())/2.0))); // Y & Z middle of parent track
         }
-        return new KymographData(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
+        return new Data(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
     }
 
     public enum DIRECTION {X, Y, T}
-    public static class KymographData {
+    public static class Data {
         public final DIRECTION direction;
         public final int maxParentSizeX, maxParentSizeY, maxParentSizeZ;
         public final BoundingBox[] trackOffset;
         public final List<SegmentedObject> parentTrack;
-        public KymographData(DIRECTION direction, int maxParentSizeX, int maxParentSizeY, int maxParentSizeZ, BoundingBox[] trackOffset, List<SegmentedObject> parentTrack) {
+        public Data(DIRECTION direction, int maxParentSizeX, int maxParentSizeY, int maxParentSizeZ, BoundingBox[] trackOffset, List<SegmentedObject> parentTrack) {
             this.direction = direction;
             this.maxParentSizeX = maxParentSizeX;
             this.maxParentSizeY = maxParentSizeY;

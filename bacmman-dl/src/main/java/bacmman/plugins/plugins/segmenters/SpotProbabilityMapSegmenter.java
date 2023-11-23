@@ -165,7 +165,7 @@ public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable
         Image[] seg = predictions.length>1 ? ResizeUtils.averageChannelOnOutputs(predictions, -1) :  //average on predictions. get last channel : if softmax -> class is last channel.
                 ResizeUtils.getChannel(predictions[predictions.length-1], -1);
 
-        Image[] seg_res = ResizeUtils.resample(seg, seg, false, input.value);
+        Image[] seg_res = ResizeUtils.resample(seg, false, input.value).toArray(Image[]::new);
 
         for (int idx = 0;idx<inputImages.length; ++idx) {
             seg_res[idx].setCalibration(inputImages[idx]);
@@ -189,16 +189,16 @@ public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
-    static Pair<Image[][][], int[][]> getInput(Image[] in, Image[] bact, int[] targetImageShape) {
-        int[][] shapes = ResizeUtils.getShapes(in, false);
+    static Pair<Image[][][], int[][]> getInput(Image[] in, Image[] bact, int[] targetImageDim) {
+        int[][] dimensions = ResizeUtils.getDimensions(in);
         // also scale by min/max
         MinMaxScaler scaler = new MinMaxScaler();
         IntStream.range(0, in.length).parallel().forEach(i -> in[i] = scaler.scale(in[i]));
-        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
-        Image[] bactResampled = ResizeUtils.resample(bact, bact, true, new int[][]{targetImageShape});
+        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageDim}).toArray(Image[]::new);
+        Image[] bactResampled = ResizeUtils.resample(bact, true, new int[][]{targetImageDim}).toArray(Image[]::new);
         Image[][] input0 = IntStream.range(0, inResampled.length).mapToObj(i -> new Image[]{inResampled[i]}).toArray(Image[][]::new);
         Image[][] input1 = IntStream.range(0, bactResampled.length).mapToObj(i -> new Image[]{bactResampled[i]}).toArray(Image[][]::new);
-        return new Pair<>(new Image[][][]{input0, input1}, shapes);
+        return new Pair<>(new Image[][][]{input0, input1}, dimensions);
     }
 
     Map<SegmentedObject, TestDataStore> stores;

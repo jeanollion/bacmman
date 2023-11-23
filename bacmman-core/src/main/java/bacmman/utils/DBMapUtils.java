@@ -78,6 +78,13 @@ public class DBMapUtils {
             return null;
         }
     }
+    public static HTreeMap<String, Integer> createFrameHTreeMap(DB db, String key) {
+        try {
+            return db.hashMap(key, Serializer.STRING, new SerializerCompressionWrapper<>(Serializer.INTEGER)).createOrOpen();
+        } catch (UnsupportedOperationException e) { // read-only case
+            return null;
+        }
+    }
     public static HTreeMap<Integer, Object> createFrameIndexHTreeMap(DB db, String key) {
         try {
             return db.hashMap(key, Serializer.INTEGER, db.getDefaultSerializer()).createOrOpen();

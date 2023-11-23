@@ -324,7 +324,7 @@ public abstract class ImageWindowManager<I, U, V> {
         imageObjectInterfaceMap.get(image).add(i.getKey().getKey(displayOCIdx));
         if (displayImage) {
             displayImage(image, i);
-            if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
+            if (i instanceof TimeLapseInteractiveImage && ((TimeLapseInteractiveImage)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((TimeLapseInteractiveImage)i).imageCallback.get(image));
         }
     }
     public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive);
@@ -467,7 +467,7 @@ public abstract class ImageWindowManager<I, U, V> {
         if (i==null) {
             //logger.debug("getIOI query: {}, existing: {}", new InteractiveImageKey(parentTrack, type, childStructureIdx), imageObjectInterfaces.keySet());
             long t0 = System.currentTimeMillis();
-            i = Kymograph.generateKymograph(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.HYPERSTACK));
+            i = TimeLapseInteractiveImage.generateInteractiveImageTime(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.HYPERSTACK));
             long t1 = System.currentTimeMillis();
             imageObjectInterfaces.put(i.getKey(), i);
             trackHeadTrackMap.getAndCreateIfNecessary(parentTrack.get(0)).add(parentTrack);
@@ -577,7 +577,7 @@ public abstract class ImageWindowManager<I, U, V> {
                 return null;
             }
             // create imageObjectInterface
-            if (ref instanceof Kymograph) {
+            if (ref instanceof TimeLapseInteractiveImage) {
                 i = this.getImageTrackObjectInterface((ref).parents, structureIdx, type);
                 if (ref instanceof HyperStack) ((HyperStack)i).setIdx(((HyperStack)ref).getIdx());
             }
@@ -953,11 +953,11 @@ public abstract class ImageWindowManager<I, U, V> {
         InteractiveImageKey.TYPE type = i.getKey().imageType;
         boolean hyperStack = i instanceof HyperStack;
         SegmentedObject trackHead = track.get(0).key.getTrackHead();
-        boolean canDisplayTrack = i instanceof Kymograph;
+        boolean canDisplayTrack = i instanceof TimeLapseInteractiveImage;
         //canDisplayTrack = canDisplayTrack && ((TrackMask)i).parent.getTrackHead().equals(trackHead.getParent().getTrackHead()); // same track head
         //canDisplayTrack = canDisplayTrack && i.getParent().getStructureIdx()<=trackHead.getStructureIdx();
         if (canDisplayTrack) {
-            Kymograph tm = (Kymograph)i;
+            TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
             tm.trimTrack(track);
             canDisplayTrack = !track.isEmpty();
         }
@@ -974,7 +974,7 @@ public abstract class ImageWindowManager<I, U, V> {
             Set<V>  disp = null;
             if (labile) disp = displayedLabileTrackRois.getAndCreateIfNecessary(image);
             V roi = doNotStore ? null:map.get(key);
-            boolean genKymo = i instanceof Kymograph && forceDefaultDisplay;
+            boolean genKymo = i instanceof TimeLapseInteractiveImage && forceDefaultDisplay;
             Structure.TRACK_DISPLAY targetTrackDisplay = genKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(i.childStructureIdx);
             if (roi==null || ( roi instanceof TrackRoi && !((TrackRoi)roi).getTrackType().equals(targetTrackDisplay)) ) { // TODO make more generic : interface for TrackRoi
                 roi = generateTrackRoi(i.parents,track, color, i, genKymo);
@@ -992,7 +992,7 @@ public abstract class ImageWindowManager<I, U, V> {
                 }
             }
 
-        } else GUI.logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof Kymograph);
+        } else GUI.logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof TimeLapseInteractiveImage);
     }
     
     public void hideTracks(Image image, InteractiveImage i, Collection<SegmentedObject> trackHeads, boolean labile) {
@@ -1144,7 +1144,7 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.warn("selected image is not a track image");
             return;
         }
-        Kymograph tm = (Kymograph)i;
+        TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
         if (trackHeads==null || trackHeads.isEmpty()) trackHeads = this.getSelectedLabileTrackHeads(trackImage);
         if (trackHeads==null || trackHeads.isEmpty()) {
             List<SegmentedObject> allObjects = Pair.unpairKeys(i.getObjects());
@@ -1213,7 +1213,7 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.warn("selected image is not a track image");
             return false;
         }
-        Kymograph tm = (Kymograph)i;
+        TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
         if (objects==null || objects.isEmpty()) objects = this.getSelectedLabileObjects(trackImage);
         if (objects==null || objects.isEmpty()) objects = Pair.unpairKeys(i.getObjects());
         if (objects==null || objects.isEmpty()) return false;
@@ -1371,8 +1371,10 @@ public abstract class ImageWindowManager<I, U, V> {
                 InteractiveImage ii = getImageObjectInterface(null);
                 if (ii!=null) sel = ii.getObjects().stream().map(o -> o.key).collect(Collectors.toList());
             }
-            SegmentedObject o = sel.isEmpty() ? null : sel.get(0); // only first selected object
-            Predicate<TestDataStore> storeWithinSel = s-> o == null || s.getParent().equals(o.getParent(s.getParent().getStructureIdx()));
+            //SegmentedObject o = sel.isEmpty() ? null : sel.get(0); // only first selected object
+            //Predicate<TestDataStore> storeWithinSel = s-> o == null || s.getParent().equals(o.getParent(s.getParent().getStructureIdx()));
+            List<SegmentedObject> finalSel = sel;
+            Predicate<TestDataStore> storeWithinSel = s-> finalSel.isEmpty() || finalSel.stream().map(o -> o.getParent(s.getParent().getStructureIdx())).anyMatch(p->p.equals(s.getParent()));
             List<String> commands = stores.stream().filter(storeWithinSel).map(TestDataStore::getMiscCommands).flatMap(Set::stream).distinct().sorted().collect(Collectors.toList());
             if (!commands.isEmpty()) {
                 menu.addSeparator();
