@@ -89,22 +89,44 @@ public class TrackTreePopulation {
     public void solveMergeEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> merging, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         // solve by merging
         logger.debug("solving merge events by merging on {} trackTrees", trees.size());
-        solveMergeEventsByMerging(trees, forbidFusion, merging, factory, editor);
+        solveByMerging(trees, forbidFusion, new MergeEvent(merging), factory, editor);
         checkTrackConsistency();
         // solve by splitting
         logger.debug("solving merge events by splitting on {} trackTrees", trees.size());
-        solveBySplitting(trees, true, null, merging, splitInTwo, splitter, assigner, factory, editor);
+        solveBySplitting(trees, new MergeEvent(merging), splitInTwo, splitter, assigner, factory, editor);
+        checkTrackConsistency();
+    }
+
+    public void solveSupernumeraryMergeEvents(BiPredicate<Track, Track> forbidFusion, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        // solve by merging
+        logger.debug("solving Supernumerary merge events by merging on {} trackTrees", trees.size());
+        solveByMerging(trees, forbidFusion, new SupernumeraryMergeEvent(), factory, editor);
+        checkTrackConsistency();
+        // solve by splitting
+        logger.debug("solving Supernumerary merge events by splitting on {} trackTrees", trees.size());
+        solveBySplitting(trees, new SupernumeraryMergeEvent(), splitInTwo, splitter, assigner, factory, editor);
         checkTrackConsistency();
     }
 
     public void solveSplitEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         // solve by merging
         logger.debug("solving split events by merging on {} trackTrees", trees.size());
-        solveSplitEventsByMerging(trees, forbidFusion, dividing, factory, editor);
+        solveByMerging(trees, forbidFusion, new SplitEvent(dividing), factory, editor);
         checkTrackConsistency();
         // solve by splitting
         logger.debug("solving split events by splitting on {} trackTrees", trees.size());
-        solveBySplitting(trees, false, dividing, null, splitInTwo, splitter, assigner, factory, editor);
+        solveBySplitting(trees, new SplitEvent(dividing), splitInTwo, splitter, assigner, factory, editor);
+        checkTrackConsistency();
+    }
+
+    public void solveSupernumerarySplitEvents(BiPredicate<Track, Track> forbidFusion, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        // solve by merging
+        logger.debug("solving Supernumerary split events by merging on {} trackTrees", trees.size());
+        solveByMerging(trees, forbidFusion, new SupernumerarySplitEvent(), factory, editor);
+        checkTrackConsistency();
+        // solve by splitting
+        logger.debug("solving Supernumerary split events by splitting on {} trackTrees", trees.size());
+        solveBySplitting(trees, new SupernumerarySplitEvent(), splitInTwo, splitter, assigner, factory, editor);
         checkTrackConsistency();
     }
 
@@ -145,51 +167,138 @@ public class TrackTreePopulation {
             }
         }
     }
+    static abstract class TrackEvent {
+        Track track;
+        SegmentedObject object;
+        boolean before;
+        public abstract void next(TrackTree trackTree, Set<Track> seen);
+    }
 
-    public void solveMergeEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> merging, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public static class MergeEvent extends TrackEvent {
+        final Predicate<SegmentedObject> merging;
+        public MergeEvent(Predicate<SegmentedObject> merging) {
+            this.merging=merging;
+            before = true;
+        }
+        @Override
+        public void next(TrackTree trackTree, Set<Track> seen) {
+            track = null;
+            while(track==null) {
+                track = trackTree.getMerge(seen);
+                if (track==null) return;
+                if (merging!=null && merging.test(track.head())) {
+                    seen.add(track);
+                    track = null;
+                }
+            }
+            if (track!=null) {
+                object = track.head();
+            }
+        }
+    }
+    public static class SupernumeraryMergeEvent extends TrackEvent { // more than 3 cells merge into a next cell
+        public SupernumeraryMergeEvent() {
+            before = true;
+        }
+        @Override
+        public void next(TrackTree trackTree, Set<Track> seen) {
+            track = null;
+            while(track==null) {
+                track = trackTree.getMerge(seen);
+                if (track==null) return;
+                if (track.getPrevious().size()<=2) {
+                    seen.add(track);
+                    track = null;
+                }
+            }
+            if (track!=null) {
+                object = track.head();
+            }
+        }
+    }
+    public static class SplitEvent extends TrackEvent {
+        final Predicate<SegmentedObject> dividing;
+        public SplitEvent(Predicate<SegmentedObject> dividing) {
+            this.dividing=dividing;
+            before = false;
+        }
+        @Override
+        public void next(TrackTree trackTree, Set<Track> seen) {
+            track = null;
+            while(track==null) {
+                track = trackTree.getSplit(seen);
+                if (track==null) return;
+                if (dividing!=null && dividing.test(track.tail())) {
+                    seen.add(track);
+                    track = null;
+                }
+            }
+            if (track!=null) {
+                object = track.tail();
+            }
+        }
+    }
+
+    public static class SupernumerarySplitEvent extends TrackEvent {
+        public SupernumerarySplitEvent() {
+            before = false;
+        }
+        @Override
+        public void next(TrackTree trackTree, Set<Track> seen) {
+            track = null;
+            while(track==null) {
+                track = trackTree.getSplit(seen);
+                if (track==null) return;
+                if (track.getNext().size()<=2) {
+                    seen.add(track);
+                    track = null;
+                }
+            }
+            if (track!=null) {
+                object = track.tail();
+            }
+        }
+    }
+
+    public void solveByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, TrackEvent trackEvent, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         trackTrees.stream().filter(tt -> tt.size()>1).forEach(tt -> {
             Consumer<Track> remove = t -> tt.remove(t.head());
             Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
-            Track t = tt.getFirstMerge();
-            int lastFrame = -1;
             Set<Track> seen = new HashSet<>();
-            while (t!=null) {
-                if (t.getFirstFrame()>lastFrame) seen.clear();
-                lastFrame = t.getFirstFrame();
-                Track merged = merging!=null && merging.test(t.head()) ? null : mergeTracks(t, true, forbidFusion, factory, editor, remove, add); // TODO : multithread here ?
-                boolean stayOnSameTrack = false;
+            trackEvent.next(tt, seen);
+            while (trackEvent.track!=null) {
+                Track merged = mergeTracks(trackEvent.track, trackEvent.before, forbidFusion, factory, editor, remove, add); // TODO : multithread here ?
                 if (merged!=null) {
                     if (!merged.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
-                    t = merged.simplifyTrack(editor, remove);
-                    stayOnSameTrack = t.getPrevious().size()>1;
-                }
-                seen.add(t);
-                if (!stayOnSameTrack) t = tt.getNextMerge(t, seen);
+                    merged.simplifyTrack(editor, remove);
+                } else seen.add(trackEvent.track); // merge not performed
+                trackEvent.next(tt, seen);
             }
         });
     }
 
-    public void solveSplitEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
-            Consumer<Track> remove = t -> tt.remove(t.head());
-            Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
-            Track t = tt.getFirstSplit();
-            int lastFrame = -1;
-            Set<Track> seen = new HashSet<>();
-            while (t!=null) {
-                if (t.getFirstFrame() > lastFrame) seen.clear();
-                lastFrame = t.getFirstFrame();
-                Track merged = dividing!=null && dividing.test(t.tail()) ? null : mergeTracks(t, false, forbidFusion, factory, editor, remove, add);
-                boolean stayOnSameTrack = false;
-                if (merged!=null) {
-                    if (!merged.checkTrackConsistency()) throw new RuntimeException("Track Inconsistency");
-                    t = merged.simplifyTrack(editor, remove);
-                    stayOnSameTrack = t.getNext().size()>1;
+    public void solveBySplitting(Collection<TrackTree> trackTrees, TrackEvent trackEvent, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        List<TrackTree> toProcess = trackTrees.stream().filter(tt -> tt.size()>1).collect(Collectors.toList());
+        Set<Track> seen = new HashSet<>();
+        while(!toProcess.isEmpty()) {
+            seen.clear();
+            TrackTree tt = toProcess.remove(toProcess.size() -1 );
+            if (tt.size() == 1 || !trees.contains(tt)) continue; // depending on split mode: assignment can modify other tracktrees
+            trackEvent.next(tt, seen);
+            while (trackEvent.track!=null) {
+                List<TrackTree> corr = split(tt, trackEvent.track, trackEvent.before, splitInTwo, splitter, assigner, factory, editor); // if splitInTwo is false: assignment can merge other tracktrees
+                if (corr != null) { // split performed: tracktree potentially modified
+                    toProcess.addAll(corr);
+                    trees.remove(tt);
+                    trees.addAll(corr);
+                    logger.debug("split TrackTree {} -> {}", tt.size(), Utils.toStringList(corr, TreeMap::size));
+                    trackEvent.track = null; // will break out of while loop to check other trackTrees
+                } else { // split not performed : tracktree unchanged: keep looking for event in the same track tree
+                    seen.add(trackEvent.track);
+                    trackEvent.next(tt, seen);
                 }
-                seen.add(t);
-                if (!stayOnSameTrack) t = tt.getNextSplit(t, seen);
             }
-        });
+        }
     }
 
     private static Track mergeTracks(Track m, boolean previous, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
@@ -207,51 +316,9 @@ public class TrackTreePopulation {
         return null;
     }
 
-    public void solveBySplitting(Collection<TrackTree> trackTrees, boolean mergeEvents, Predicate<SegmentedObject> dividing, Predicate<SegmentedObject> merging, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        List<TrackTree> toProcess = trackTrees.stream().filter(tt -> tt.size()>1).collect(Collectors.toList());
-        Predicate<Track> forbidCorrection = mergeEvents ? t -> merging!=null && merging.test(t.head()) : t -> dividing!=null && dividing.test(t.tail());
-        Set<Track> seen = new HashSet<>();
-        while(!toProcess.isEmpty()) {
-            seen.clear();
-            TrackTree tt = toProcess.remove(toProcess.size() -1 );
-            if (tt.size() == 1 || !trees.contains(tt)) continue; // if depending on split mode: assignment can merge other tracktrees
-            Track t = mergeEvents ? tt.getFirstMerge() : tt.getFirstSplit();
-            while (t!=null) {
-                List<TrackTree> corr = forbidCorrection.test(t) ? null : split(tt, t, mergeEvents, splitInTwo, splitter, assigner, factory, editor); // if splitInTwo is false: assignment can merge other tracktrees
-                if (corr == null) { // split not performed : tracktree unchanged: keep looking for event in the same track tree
-                    seen.add(t);
-                    t = mergeEvents ? tt.getMerge(seen) : tt.getSplit(seen);
-                } else { // split performed: tracktree potentially modified
-                    toProcess.addAll(corr);
-                    trees.remove(tt);
-                    trees.addAll(corr);
-                    logger.debug("split TrackTree {} -> {}", tt.size(), Utils.toStringList(corr, TreeMap::size));
-                    t = null;
-                }
-
-            }
-        }
-    }
-
     private List<TrackTree> split(TrackTree tree, Track t, boolean mergeEvent, boolean splitInTwo, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         boolean split = tree.split(t, mergeEvent, splitInTwo, splitter, assigner, this::getTrackTree, trees::remove, this::getAllTracksAt, factory, editor);
         if (!split) return null;
         else return new ArrayList<>(getClusters(tree));
-    }
-
-    private static SymetricalPair<Track> shouldSplit(Track t, BiPredicate<Track, Track> forbidFusion) {
-        List<Track> prev= new ArrayList<>(t.getPrevious());
-        for (int i = 0; i<prev.size()-1; ++i) {
-            for (int j = i+1; j< prev.size(); ++j) {
-                if (forbidFusion.test(prev.get(i), prev.get(j) )) return new SymetricalPair<>(prev.get(i), prev.get(j));
-            }
-        }
-        List<Track> next= new ArrayList<>(t.getNext());
-        for (int i = 0; i<next.size()-1; ++i) {
-            for (int j = i+1; j< next.size(); ++j) {
-                if (forbidFusion.test(next.get(i), next.get(j) )) return new SymetricalPair<>(next.get(i), next.get(j));
-            }
-        }
-        return null;
     }
 }

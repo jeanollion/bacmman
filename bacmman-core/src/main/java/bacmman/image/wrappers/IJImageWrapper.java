@@ -69,6 +69,13 @@ public class IJImageWrapper {
                 throw new IllegalArgumentException("Image should be of thype byte, short or float");
         }
     }
+    protected static boolean isConvertibleToFloat(Image image) {
+        if (image instanceof ImageFloat || image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageDouble || image instanceof ImageInt) return true;
+        if (image instanceof ImageFloatingPoint) return true;
+        if (image instanceof DiskBackedImage) return isConvertibleToFloat(((DiskBackedImage)image).getImageType());
+        return false;
+    }
+
     /**
      * Generate ImageJ's ImagePlus object from {@param image}, if the type is byte, short or float, the pixel array is backed in the ImagePlus object, if not a conversion occurs and there is no more link between pixels arrays in ImagePlus object and Image object.
      * @param image input image
@@ -91,10 +98,10 @@ public class IJImageWrapper {
             for (int z = 0; z < image.sizeZ(); ++z) {
                 st.setPixels(pixels[z], z + 1);
             }
-        } else if (image instanceof ImageInt) {
+        } else if (isConvertibleToFloat(image)) {
             return IJImageWrapper.getImagePlus(TypeConverter.toFloat(image, null));
-        } else if (image instanceof ImageMask) {
-            return IJImageWrapper.getImagePlus(TypeConverter.toByteMask((ImageMask)image, null, 255));
+        } else {
+            throw new IllegalArgumentException("Image Type cannot be converted to IJ type: "+image.getClass());
         }
         ImagePlus ip= new ImagePlus(image.getName(), st);
         Calibration cal = new Calibration();

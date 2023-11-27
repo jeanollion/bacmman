@@ -25,14 +25,15 @@ import static bacmman.image.wrappers.IJImageWrapper.getImagePlus;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.ImagePlusAdapter;
 import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.ClampingNLinearInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
+import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.view.Views;
 
 import java.util.function.Supplier;
 
@@ -49,6 +50,10 @@ public class ImgLib2ImageWrapper {
     
     public static <T extends RealType<T>> Img<T> getImage(Image image) {
         return ImagePlusAdapter.wrapReal(IJImageWrapper.getImagePlus(image));
+    }
+
+    public static <T extends NativeType< T >> Img<T> createImage(final T type, final int[] dimensions) {
+        return new ArrayImgFactory<T>(type).create(dimensions);
     }
 
     public enum INTERPOLATION {

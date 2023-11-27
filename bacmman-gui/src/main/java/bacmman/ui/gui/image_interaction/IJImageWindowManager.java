@@ -863,10 +863,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         for (Pair<SegmentedObject, BoundingBox> p : i.pairWithOffset(SegmentedObjectEditor.getPrevious(track.get(0).key).collect(Collectors.toList()))) {
             appendTrackArrow.accept(p, track.get(0));
         }
-        // append next arrows
-        for (Pair<SegmentedObject, BoundingBox> n : i.pairWithOffset(SegmentedObjectEditor.getNext(track.get(track.size()-1).key).collect(Collectors.toList()))) {
-            appendTrackArrow.accept(track.get(track.size()-1), n);
-        }
         return trackRoi;
     }
     private static Arrow getErrorArrow(double x1, double y1, double x2, double y2, Color c, Color fillColor, double arrowStrokeWidth) {

@@ -45,6 +45,11 @@
             <artifactId>imglib2</artifactId>
             <version>6.1.0</version>
         </dependency>
+        <!--dependency>
+            <groupId>net.imglib2</groupId>
+            <artifactId>imglib2-algorithm</artifactId>
+            <version>0.13.2</version>
+        </dependency-->
         <dependency>
             <groupId>net.imglib2</groupId>
             <artifactId>imglib2-algorithm-gpl</artifactId>

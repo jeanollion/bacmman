@@ -89,6 +89,10 @@ public class Vector extends Point<Vector> implements Comparable<Vector> {
         for (int i = 0; i<coords.length; ++i) sum+=coords[i]*v.coords[i];
         return sum;
     }
+
+    public boolean sameSense(Vector v) {
+        return dotProduct(v)>=0;
+    }
     /**
      * Un-oriented angle
      * @param v

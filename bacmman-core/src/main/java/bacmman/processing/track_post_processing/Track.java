@@ -47,12 +47,7 @@ public class Track implements Comparable<Track> {
         this(new ArrayList<SegmentedObject>(){{add(object);}});
     }
     public Track setSplitRegions(Function<SegmentedObject, List<Region>> splitter) {
-        Map<SegmentedObject, List<Region>> existingSR = splitRegions;
-        splitRegions = Utils.parallel(objects.stream(), parallel).collect(Collectors.toMap(Function.identity(), o->{ // TODO only if split in two
-            return splitter.apply(o);
-            //if (existingSR.containsKey(o)) return existingSR.get(o);
-            //else return splitter.apply(o);
-        }));
+        splitRegions = Utils.parallel(objects.stream(), parallel).collect(Collectors.toMap(Function.identity(), splitter));
         return this;
     }
     public Track eraseSplitRegions() {
