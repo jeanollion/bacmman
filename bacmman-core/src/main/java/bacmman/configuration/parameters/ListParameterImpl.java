@@ -330,7 +330,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public boolean isValid() {
         if (unMutableIndex>=this.getChildCount()) return false;
         if (maxChildCount>0 && maxChildCount<this.getChildCount()) return false;
-        if (!getActivatedChildren().stream().noneMatch((child) -> (!child.isValid()))) return false;
+        if (getActivatedChildren().stream().anyMatch((child) -> (!child.isValid()))) return false;
         return this.additionalValidation.test((L)this);
     }
     

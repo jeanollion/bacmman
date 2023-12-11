@@ -214,7 +214,7 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
 
     // testable processing plugin
     Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores;
-    @Override public void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
+    @Override public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores=  stores;
     }
 }

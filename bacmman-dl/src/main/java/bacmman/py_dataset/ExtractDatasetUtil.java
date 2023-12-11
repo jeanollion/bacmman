@@ -38,7 +38,7 @@ import static bacmman.processing.Resize.resample;
 public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
     private final static Logger logger = LoggerFactory.getLogger(ExtractDatasetUtil.class);
-    public static void runTask(Task t) {
+    public static  void runTask(Task t) {
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();

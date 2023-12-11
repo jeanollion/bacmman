@@ -42,46 +42,46 @@ import bacmman.utils.Utils;
  *
  * @author Jean Ollion
  */
-public interface MasterDAO {
-    public static final Logger logger = LoggerFactory.getLogger(MasterDAO.class);
+public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
+    Logger logger = LoggerFactory.getLogger(MasterDAO.class);
     SegmentedObjectAccessor getAccess();
-    public void eraseAll();
-    public void clearCache();
-    public void clearCache(String position);
-    public ObjectDAO getDao(String fieldName);
-    public boolean isConfigurationReadOnly();
-    public boolean setConfigurationReadOnly(boolean readOnly);
-    public void unlockConfiguration();
+    void eraseAll();
+    void clearCache();
+    void clearCache(String position);
+    ObjectDAO<ID> getDao(String fieldName);
+    boolean isConfigurationReadOnly();
+    boolean setConfigurationReadOnly(boolean readOnly);
+    void unlockConfiguration();
 
-    public List<ObjectDAO> getOpenObjectDAOs();
+    List<T> getOpenObjectDAOs();
     /**
      * tries to lock all positions contained in {@param positionNames}. if the array is empty or null, all positions are locked
      * @param positionNames
      * @return true if all positions could be locked
      */
-    public boolean lockPositions(String... positionNames);
-    public void unlockPositions(String... positionNames);
-    public String getDBName();
-    public Path getDir();
-    public void deleteAllObjects();
-    public void deleteExperiment();
-    public static void deleteObjectsAndSelectionAndXP(MasterDAO dao) {
+    boolean lockPositions(String... positionNames);
+    void unlockPositions(String... positionNames);
+    String getDBName();
+    Path getDatasetDir();
+    void deleteAllObjects();
+    void deleteExperiment();
+    static void deleteObjectsAndSelectionAndXP(MasterDAO dao) {
         if (dao==null) return;
         dao.deleteAllObjects();
         if (dao.getSelectionDAO()!=null) dao.getSelectionDAO().deleteAllObjects();
         dao.deleteExperiment();
     }
     // experiments
-    public Experiment getExperiment();
-    public void updateExperiment();
-    public void setExperiment(Experiment xp);
-    public boolean experimentChangedFromFile();
+    Experiment getExperiment();
+    void storeExperiment();
+    void setExperiment(Experiment xp);
+    boolean experimentChangedFromFile();
     // selections
-    public SelectionDAO getSelectionDAO();
+    SelectionDAO getSelectionDAO();
     void setSafeMode(boolean safeMode);
     boolean getSafeMode();
     // static methods
-    public static ObjectDAO getDao(MasterDAO db, int positionIdx) {
+    static  ObjectDAO getDao(MasterDAO db, int positionIdx) {
         Position pos = db.getExperiment().getPosition(positionIdx);
         if (pos == null ) return null;
         String p = pos.getName();
@@ -143,7 +143,8 @@ public interface MasterDAO {
             return true;
         };
     }
-    static void configureExperiment(MasterDAO mDAO, Experiment xp) {
+    static void configureExperiment(MasterDAO<?, ?> mDAO, Experiment xp) {
+        if (xp.getPath()==null||!xp.getPath().equals(mDAO.getDatasetDir())) xp.setPath(mDAO.getDatasetDir());
         xp.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream()); // selections
         xp.getPositionParameter().addNewInstanceConfiguration( p -> p.setDeletePositionCallBack(getDeletePositionCallback(mDAO, xp)) );
     }

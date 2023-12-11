@@ -39,7 +39,7 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
-import static bacmman.utils.Utils.parallel;
+import static bacmman.plugins.plugins.track_post_filter.PostFilter.getPredicate;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
@@ -131,7 +131,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
                 if (value>threshold.getValue().doubleValue()) objectsToRemove.addAll(track);
             }
         }
-        BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
+        BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = getPredicate(mergePolicy.getSelectedEnum());
         if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true); // only delete
     }
 

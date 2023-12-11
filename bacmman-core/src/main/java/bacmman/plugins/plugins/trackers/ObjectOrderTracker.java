@@ -77,6 +77,7 @@ public class ObjectOrderTracker implements Tracker, Hint {
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
+    @Override
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         List<SegmentedObject> previousChildren = parentTrack.get(0).getChildren(structureIdx).sorted(getComparator(IndexingOrder.valueOf(order.getSelectedItem()))).collect(Collectors.toList());

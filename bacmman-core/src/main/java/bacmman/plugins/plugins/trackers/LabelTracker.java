@@ -3,7 +3,6 @@ package bacmman.plugins.plugins.trackers;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackLinkEditor;
-import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ProcessingPipeline;
@@ -12,7 +11,6 @@ import bacmman.utils.geom.Point;
 
 import java.util.*;
 import java.util.function.Function;
-import java.util.function.ToIntBiFunction;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;

@@ -35,8 +35,10 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
                 selectedItem==null ? null : toString.apply(selectedItem), s->Arrays.stream(enumChoiceList).filter(e->toString.apply(e).equals(s)).findAny().get(), toString, false);
         this.enumChoiceList=enumChoiceList;
     }
-    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem) {
+    @SafeVarargs
+    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, E... excludeItems) {
         super(name, Arrays.stream(enumChoiceList)
+                .filter(e -> excludeItems == null || excludeItems.length == 0 || Arrays.stream(excludeItems).noneMatch(e::equals))
                 .map(Enum::toString)
                 .toArray(String[]::new),
                 selectedItem==null ? null : selectedItem.toString(), s->Arrays.stream(enumChoiceList).filter(e->e.toString().equals(s)).findAny().get(), Enum::toString, false);

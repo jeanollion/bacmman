@@ -67,7 +67,7 @@ public class RemoveSaturatedMicrochannels implements TrackPostFilter, Hint {
             if (isSaturated(e.getValue())) objectsToRemove.addAll(e.getValue());
         }
         //logger.debug("remove track trackLength: #objects to remove: {}", objectsToRemove.size());
-        if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor, true);
+        if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, SegmentedObjectEditor.ALWAYS_MERGE(), factory, editor, true);
     }
     private boolean isSaturated(List<SegmentedObject> track) {
         int saturatedObjectCount = 0;

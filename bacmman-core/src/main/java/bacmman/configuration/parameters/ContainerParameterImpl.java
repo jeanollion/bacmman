@@ -113,7 +113,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     
     @Override
     public boolean isValid() {
-        if (!getChildren().stream().noneMatch((child) -> (!child.isValid()))) return false;
+        if (getChildren().stream().anyMatch((child) -> (!child.isValid()))) return false;
         return additionalValidation.test((P)this);
     }
     

@@ -69,7 +69,7 @@ public class Daemon {
         ui.setMessage("Stop Running");
     }
     public void terminateNow() {
-        if (w!=null) w.cancel(true);
+        if (w!=null) w.cancelSilently();
     }
     public void watchDirectory(String dir) {
         File wD = new File(dir);

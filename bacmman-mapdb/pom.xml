@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.github.jeanollion.bacmman</groupId>
+        <artifactId>bacmman</artifactId>
+        <version>3.7.0</version>
+    </parent>
+
+    <artifactId>bacmman-mapdb</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-core</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency>
+        <!-- eclipse collection >7 is needed by mapdb. version compatible with JRE must be specified below -->
+        <!--dependency>
+            <groupId>org.eclipse.collections</groupId>
+            <artifactId>eclipse-collections-api</artifactId>
+            <version>12.0.0.M2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.collections</groupId>
+            <artifactId>eclipse-collections</artifactId>
+            <version>12.0.0.M2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.collections</groupId>
+            <artifactId>eclipse-collections-forkjoin</artifactId>
+            <version>12.0.0.M2</version>
+        </dependency-->
+        <dependency>
+            <groupId>org.mapdb</groupId>
+            <artifactId>mapdb</artifactId>
+            <version>3.0.10</version>
+        </dependency>
+    </dependencies>
+</project>

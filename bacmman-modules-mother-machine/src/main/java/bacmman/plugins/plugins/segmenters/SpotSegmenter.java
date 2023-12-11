@@ -22,7 +22,6 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
 import bacmman.plugins.*;
-import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.processing.*;
 import bacmman.processing.neighborhood.ConicalNeighborhood;

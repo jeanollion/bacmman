@@ -27,7 +27,6 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.ui.GUI;
 
 import static bacmman.ui.gui.configuration.ConfigurationTreeGenerator.addToMenu;
-import static bacmman.ui.gui.configuration.ConfigurationTreeGenerator.logger;
 
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
@@ -41,15 +40,18 @@ import bacmman.ui.gui.configuration.TrackTreeCellRenderer;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
 import bacmman.utils.EnumerationUtils;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  *
  * @author Jean Ollion
  */
 public class TrackTreeGenerator {
+    static final Logger logger = LoggerFactory.getLogger(TrackTreeGenerator.class);
     MasterDAO db;
     protected StructureObjectTreeModel treeModel;
     JTree tree;
@@ -229,7 +231,7 @@ public class TrackTreeGenerator {
             toDelete.addAll(SegmentedObjectUtils.getTrack(trackHead));
             removeTrackFromTree(trackHead);
         }
-        ManualEdition.deleteObjects(db, toDelete, SegmentedObjectEditor.ALWAYS_MERGE, true, true);
+        ManualEdition.deleteObjects(db, toDelete, SegmentedObjectEditor.ALWAYS_MERGE(), true, true);
     }
     private void removeTrackFromTree(SegmentedObject trackHead) {
         TreePath  p = getTreePath(trackHead);

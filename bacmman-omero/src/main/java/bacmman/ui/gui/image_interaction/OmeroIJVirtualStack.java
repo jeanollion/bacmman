@@ -92,7 +92,7 @@ public class OmeroIJVirtualStack extends VirtualStack {
         }
     }
     public void detachFromServer() {
-        lazyOpener.cancel(true);
+        lazyOpener.cancelSilently();
         rawData = null;
     }
     protected void setDisplayRange(int nextChannel, Image nextImage, ImageProcessor nextIP) {
@@ -144,7 +144,7 @@ public class OmeroIJVirtualStack extends VirtualStack {
                     @Override
                     public void windowClosed(WindowEvent windowEvent) {
                         logger.debug("canceling lazy opener");
-                        stack.lazyOpener.cancel(true);
+                        stack.lazyOpener.cancelSilently();
                     }
                     @Override public void windowIconified(WindowEvent windowEvent) {}
                     @Override public void windowDeiconified(WindowEvent windowEvent) { }

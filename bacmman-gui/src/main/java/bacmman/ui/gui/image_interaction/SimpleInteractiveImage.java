@@ -125,7 +125,11 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
-        if (objects == null) reloadObjects();
+        if (objects==null) {
+            synchronized (lock) {
+                if (objects == null) reloadObjects();
+            }
+        }
         getOffsets();
         //logger.debug("get clicked object @ frame = {}, @ point {};{};{}, is2D: {}, object 2D: {}", this.parent.getFrame(), x, y, z, is2D(), objects.isEmpty() || objects.get(0).is2D());
         for (int i = 0; i < offsets.length; ++i) {
@@ -158,7 +162,11 @@ public class SimpleInteractiveImage extends InteractiveImage {
         if (object == null) {
             return null;
         }
-        if (objects==null) reloadObjects();
+        if (objects==null) {
+            synchronized (lock) {
+                if (objects == null) reloadObjects();
+            }
+        }
         int i = this.childStructureIdx==object.getStructureIdx()? objects.indexOf(object) : -1;
         if (i >= 0) {
             return offsets[i];
@@ -182,14 +190,22 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public void drawObjects(ImageInteger image) {
-        if (objects == null) reloadObjects();
+        if (objects==null) {
+            synchronized (lock) {
+                if (objects == null) reloadObjects();
+            }
+        }
         for (int i = 0; i < getOffsets().length; ++i) {
             objects.get(i).getRegion().drawWithoutObjectOffset(image, objects.get(i).getRegion().getLabel(), offsets[i]);
         }
     }
 
     public int getMaxLabel() {
-        if (objects == null) reloadObjects();
+        if (objects==null) {
+            synchronized (lock) {
+                if (objects == null) reloadObjects();
+            }
+        }
         int maxLabel = 0;
         for (SegmentedObject o : objects) {
             if (o.getRegion().getLabel() > maxLabel) {

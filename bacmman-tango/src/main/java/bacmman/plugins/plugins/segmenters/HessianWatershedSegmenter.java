@@ -35,7 +35,6 @@ import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.processing.watershed.WatershedTransform;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

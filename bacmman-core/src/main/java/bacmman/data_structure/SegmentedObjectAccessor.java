@@ -21,9 +21,9 @@ public class SegmentedObjectAccessor {
 
     // constructor
 
-    public SegmentedObject createFromJSON(String s) {
+    public SegmentedObject createFromJSON(String s, ObjectDAO dao) {
         JSONObject jo = JSONUtils.parse(s);
-        return new SegmentedObject(jo);
+        return new SegmentedObject(jo, dao);
     }
 
     public SegmentedObject duplicate(SegmentedObject o) {
@@ -50,11 +50,11 @@ public class SegmentedObjectAccessor {
         }
     }
 
-    public String trackHeadId(SegmentedObject o) {
+    public Object trackHeadId(SegmentedObject o) {
         return o.trackHeadId;
     }
 
-    public ObjectDAO getDAO(SegmentedObject o) {
+    public ObjectDAO<?> getDAO(SegmentedObject o) {
         return o.getDAO();
     }
 
@@ -76,6 +76,10 @@ public class SegmentedObjectAccessor {
 
     public void relabelChildren(SegmentedObject o, int objectClassIdx, Collection<SegmentedObject> modifiedObjectsStore) {
         o.relabelChildren(objectClassIdx, modifiedObjectsStore);
+    }
+
+    public boolean hasChildren(SegmentedObject o, int objectClassIdx) {
+        return o.hasChildren(objectClassIdx);
     }
     public void setTrackHead(SegmentedObject o, SegmentedObject trackHead, boolean resetPrevious, boolean propagate) {
         o.setTrackHead(trackHead, resetPrevious, propagate, null);
@@ -101,6 +105,7 @@ public class SegmentedObjectAccessor {
     public boolean hasRegionContainer(SegmentedObject o) {
         return o.hasRegionContainer();
     }
+
     public RegionContainer getRegionContainer(SegmentedObject o) {
         return o.getRegionContainer();
     }

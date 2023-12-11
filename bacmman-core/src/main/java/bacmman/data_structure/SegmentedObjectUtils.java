@@ -19,9 +19,9 @@
 package bacmman.data_structure;
 
 import bacmman.configuration.experiment.Experiment;
-import bacmman.data_structure.dao.BasicObjectDAO;
+import bacmman.data_structure.dao.MemoryObjectDAO;
 import bacmman.data_structure.dao.ObjectDAO;
-import bacmman.data_structure.dao.BasicMasterDAO;
+import bacmman.data_structure.dao.MemoryMasterDAO;
 import bacmman.image.Offset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,8 +33,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -52,6 +52,7 @@ import java.util.stream.Stream;
  */
 public class SegmentedObjectUtils {
     final static Logger logger = LoggerFactory.getLogger(SegmentedObjectUtils.class);
+
     public static void ensureContinuousTrack(List<SegmentedObject> track) {
         if (!Utils.objectsAllHaveSameProperty(track, SegmentedObject::getTrackHead)) {
             List<SegmentedObject> th = track.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
@@ -80,7 +81,7 @@ public class SegmentedObjectUtils {
         if (nextParent==null) return res;
         nextParent.getChildren(o.getStructureIdx())
                 .filter(n->o.equals(n.getPrevious()))
-                .forEachOrdered(n->res.add(n));
+                .forEachOrdered(res::add);
         return res;
     }
     
@@ -137,10 +138,11 @@ public class SegmentedObjectUtils {
     public static String getIndices(SegmentedObject o) {
         return Selection.indicesToString(getIndexTree(o));
     }
+    @SuppressWarnings("unchecked")
     public static void setAllChildren(List<SegmentedObject> parentTrack, int structureIdx) {
         if (parentTrack.isEmpty() || structureIdx == -1) return;
         ObjectDAO dao = (parentTrack.get(0)).getDAO();
-        if (dao instanceof BasicObjectDAO) return;
+        if (dao instanceof MemoryObjectDAO) return;
         SegmentedObject.logger.trace("set all children: parent: {}, structure: {}", parentTrack.get(0).getTrackHead(), structureIdx);
         if (dao.getExperiment().experimentStructure.isDirectChildOf(parentTrack.get(0).getStructureIdx(), structureIdx)) {
             List<SegmentedObject> parentWithNoChildren = new ArrayList<>(parentTrack.size());
@@ -196,7 +198,7 @@ public class SegmentedObjectUtils {
                 .map(p->p.getChildren(structureIdx)
                 .filter(s->s!=null))
                 .toArray(s->new Stream[s]));
-        Map<SegmentedObject, List<SegmentedObject>> res = allChildrenStream.collect(Collectors.groupingBy(o->o.getTrackHead()));
+        Map<SegmentedObject, List<SegmentedObject>> res = allChildrenStream.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
         res.forEach((th, l) -> l.sort(Comparator.comparing(SegmentedObject::getFrame)));
 
         if (allowSearchInPreviousFrames) { // also add objects of track ?
@@ -222,27 +224,6 @@ public class SegmentedObjectUtils {
 
         return res;
     }
-    public static Map<SegmentedObject, List<SegmentedObject>> getAllTracksSplitDiv(List<SegmentedObject> parentTrack, int structureIdx) {
-        Map<SegmentedObject, List<SegmentedObject>> res = getAllTracks(parentTrack, structureIdx);
-        TreeMap<SegmentedObject, List<SegmentedObject>>  tm = new TreeMap(res);
-        for (SegmentedObject o : tm.descendingKeySet()) {
-            if (o.getPrevious()==null || o.getPrevious().getNext()==null) continue;
-            SegmentedObject th = o.getPrevious().getNext();
-            if (!res.containsKey(th)) {
-                List<SegmentedObject> track = res.get(o.getPrevious().getTrackHead());
-                if (track==null) {
-                    SegmentedObject.logger.error("getAllTrackSPlitDiv: no track for: {}", o.getPrevious().getTrackHead());
-                    continue;
-                }
-                int i = track.indexOf(th);
-                if (i>=0) {
-                    res.put(th, track.subList(i, track.size()));
-                    res.put(o.getPrevious().getTrackHead(), track.subList(0, i));
-                }
-            }
-        }
-        return res;
-    }
     
     public static Set<String> getPositions(Collection<SegmentedObject> l) {
         Set<String> res = new HashSet<>();
@@ -253,9 +234,9 @@ public class SegmentedObjectUtils {
     public static List<SegmentedObject> getTrack(SegmentedObject trackHead) {
         if (trackHead==null) return Collections.EMPTY_LIST;
         trackHead = trackHead.getTrackHead();
-        ArrayList<SegmentedObject> track = new ArrayList<>();
+        List<SegmentedObject> track = new ArrayList<>();
         SegmentedObject o = trackHead;
-        while(o!=null && o.getTrackHead()==trackHead) {
+        while(o!=null && o.getTrackHead().equals(trackHead)) {
             track.add(o);
             o = o.getNext();
         }
@@ -301,80 +282,101 @@ public class SegmentedObjectUtils {
         return res;
     }
     
-    public static List<String> getIdList(Collection<SegmentedObject> objects) {
-        List<String> ids = new ArrayList<>(objects.size());
+    public static List getIdList(Collection<SegmentedObject> objects) {
+        List ids = new ArrayList<>(objects.size());
         for (SegmentedObject o : objects) ids.add(o.id);
         return ids;
     }
 
-    public static <T extends SegmentedObject> Map<T, List<T>> splitByParent(Collection<T> list) {
+    public static  Map<SegmentedObject, List<SegmentedObject>> splitByParentT(Collection<? extends SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(o -> (T)o.getParent()));
+        return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(SegmentedObject::getParent));
+    }
+
+    public static  Map<SegmentedObject, List<SegmentedObject>> splitByParent(Collection<? extends SegmentedObject> list) {
+        if (list.isEmpty()) return Collections.EMPTY_MAP;
+        return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(SegmentedObject::getParent));
     }
     
-    public static Map<SegmentedObject, List<SegmentedObject>> splitByParentTrackHead(Collection<SegmentedObject> list) {
+    public static  Map<SegmentedObject, List<SegmentedObject>> splitByParentTrackHeadT(Collection<? extends SegmentedObject> list) {
+        if (list.isEmpty()) return Collections.EMPTY_MAP;
+        return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(o -> o.getParent().getTrackHead()));
+    }
+
+    public static Map<SegmentedObject, List<SegmentedObject>> splitByParentTrackHead(Collection<? extends SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
         return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(o -> o.getParent().getTrackHead()));
     }
     
-    
-    
-    public static Map<SegmentedObject, List<SegmentedObject>> splitByTrackHead(Collection<SegmentedObject> list) {
+    public static Map<SegmentedObject, List<SegmentedObject>> splitByTrackHead(Collection<? extends SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> o.getTrackHead()));
+        return list.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
     }
     
-    public static Map<Integer, List<SegmentedObject>> splitByStructureIdx(Collection<SegmentedObject> list) {
+    public static Map<Integer, List<SegmentedObject>> splitByStructureIdx(Collection<SegmentedObject> list, boolean distinct) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> o.getStructureIdx()));
+        if (Utils.objectsAllHaveSameProperty(list, SegmentedObject::getStructureIdx)) { // special case : single OC
+            Map<Integer, List<SegmentedObject>> res = new HashMap<>(1);
+            if (distinct && !(list instanceof Set)) list = list.stream().distinct().collect(Collectors.toList());
+            List<SegmentedObject> l = (list instanceof List) ? ((List<SegmentedObject>)list) : new ArrayList<>(list);
+            res.put(l.get(0).getStructureIdx(), l);
+            return res;
+        }
+        Stream<SegmentedObject> stream = list.stream();
+        if (distinct) stream = stream.distinct();
+        return splitByStructureIdx(stream);
     }
-    public static Map<Integer, List<SegmentedObject>> splitByStructureIdx(Stream<SegmentedObject> list) {
-        return list.collect(Collectors.groupingBy(o -> o.getStructureIdx()));
+    public static Map<Integer, List<SegmentedObject>> splitByStructureIdx(Stream<? extends SegmentedObject> list) {
+        return list.collect(Collectors.groupingBy(SegmentedObject::getStructureIdx));
     }
     
-    public static Map<Integer, List<SegmentedObject>> splitByIdx(Collection<SegmentedObject> list) {
+    public static Map<Integer, List<SegmentedObject>> splitByIdx(Collection<? extends SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> o.getIdx()));
+        return list.stream().collect(Collectors.groupingBy(SegmentedObject::getIdx));
     }
-    public static <T extends SegmentedObject> Map<Integer, T> splitByFrame(Collection<T> list) {
-        Map<Integer, T> res= new HashMap<>(list.size());
-        for (T o : list) res.put(o.getFrame(), o);
+    public static Map<Integer, SegmentedObject> splitByFrame(Collection<SegmentedObject> list) {
+        Map<Integer, SegmentedObject> res= new HashMap<>(list.size());
+        for (SegmentedObject o : list) res.put(o.getFrame(), o);
         return res;
     }
-    public static Map<Integer, List<SegmentedObject>> splitByFrame(Stream<SegmentedObject> objects) {
-        return objects.collect(Collectors.groupingBy(o -> o.getFrame()));
+    public static Map<Integer, List<SegmentedObject>> splitByFrame(Stream<? extends SegmentedObject> objects) {
+        return objects.collect(Collectors.groupingBy(SegmentedObject::getFrame));
     }
     
-    public static <T extends SegmentedObject>  Map<String, List<T>> splitByPosition(Collection<T> list) {
+    public static   Map<String, List<SegmentedObject>> splitByPosition(Collection<SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> o.getPositionName()));
+        return list.stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName));
     }
+    /*public static Map<String, List<SegmentedObject>> splitByPosition(Collection<SegmentedObject> list) {
+        if (list.isEmpty()) return Collections.EMPTY_MAP;
+        return list.stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName));
+    }*/
         
-    public static SegmentedObject keepOnlyObjectsFromSameParent(Collection<SegmentedObject> list, SegmentedObject... parent) {
+    public static SegmentedObject keepOnlyObjectsFromSameParent(Collection<? extends SegmentedObject> list, SegmentedObject... parent) {
         if (list.isEmpty()) return null;
         SegmentedObject p = parent.length>=1 ? parent[0] : list.iterator().next().getParent();
         list.removeIf(o -> o.getParent()!=p);
         return p;
     }
-    public static int keepOnlyObjectsFromSameStructureIdx(Collection<SegmentedObject> list, int... structureIdx) {
+    public static int keepOnlyObjectsFromSameStructureIdx(Collection<? extends SegmentedObject> list, int... structureIdx) {
         if (list.isEmpty()) return -2;
         int sIdx = structureIdx.length>=1 ? structureIdx[0] : list.iterator().next().getStructureIdx();
         list.removeIf(o -> o.getStructureIdx()!=sIdx);
         return sIdx;
     }
-    public static String keepOnlyObjectsFromSamePosition(Collection<SegmentedObject> list, String... fieldName) {
+    public static String keepOnlyObjectsFromSamePosition(Collection<? extends SegmentedObject> list, String... fieldName) {
         if (list.isEmpty()) return null;
         String fName = fieldName.length>=1 ? fieldName[0] : list.iterator().next().getPositionName();
         list.removeIf(o -> !o.getPositionName().equals(fName));
         return fName;
     }
     
-    public static <T extends SegmentedObject> Set<T> getParents(Collection<T> objects) {
+    public static  Set<SegmentedObject> getParents(Collection<SegmentedObject> objects) {
         if (objects==null || objects.isEmpty()) return Collections.EMPTY_SET;
-        return objects.stream().map(o->(T)o.getParent()).collect(Collectors.toSet());
+        return objects.stream().map(SegmentedObject::getParent).collect(Collectors.toSet());
     }
     
-    public static Set<SegmentedObject> getParents(Collection<SegmentedObject> objects, int parentStructureIdx, boolean strictParent) {
+    public static Set<SegmentedObject> getParents(Collection<? extends SegmentedObject> objects, int parentStructureIdx, boolean strictParent) {
         if (objects==null || objects.isEmpty()) return Collections.EMPTY_SET;
         Set<SegmentedObject> res = new HashSet<>();
         for (SegmentedObject o : objects) {
@@ -385,7 +387,7 @@ public class SegmentedObjectUtils {
         return res;
     }
     
-    public static Set<SegmentedObject> getParentTrackHeads(Collection<SegmentedObject> objects, int parentStructureIdx, boolean strictParent) {
+    public static Set<SegmentedObject> getParentTrackHeads(Collection<? extends SegmentedObject> objects, int parentStructureIdx, boolean strictParent) {
         if (objects==null || objects.isEmpty()) return Collections.EMPTY_SET;
         Set<SegmentedObject> res = new HashSet<>();
         for (SegmentedObject o : objects) {
@@ -397,7 +399,7 @@ public class SegmentedObjectUtils {
         return res;
     }
     
-    public static Set<SegmentedObject> getParentTrackHeads(Collection<SegmentedObject> objects) {
+    public static Set<SegmentedObject> getParentTrackHeads(Collection<? extends SegmentedObject> objects) {
         if (objects==null || objects.isEmpty()) return Collections.EMPTY_SET;
         Set<SegmentedObject> res = new HashSet<>();
         for (SegmentedObject o : objects) res.add(o.getParent().getTrackHead());
@@ -432,15 +434,16 @@ public class SegmentedObjectUtils {
         return frameComparator;
     }
 
-    public static Map<Integer, List<SegmentedObject>> getChildrenByFrame(List<SegmentedObject> parents, int structureIdx) {
+    public static Map<Integer, List<SegmentedObject>> getChildrenByFrame(List<? extends SegmentedObject> parents, int structureIdx) {
         try {
-            return parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, (SegmentedObject p) -> p.getChildren(structureIdx).collect(Collectors.toList())));
+            return parents.stream()
+                    .collect(Collectors.toMap(SegmentedObject::getFrame, p -> p.getChildren(structureIdx).collect(Collectors.toList())));
         } catch (NullPointerException e) {
             return Collections.EMPTY_MAP;
         }
     }
     
-    public static void setRelatives(Map<String, SegmentedObject> allObjects, boolean parent, boolean trackAttributes) {
+    public static <ID> void setRelatives(Map<ID, SegmentedObject> allObjects, boolean parent, boolean trackAttributes) {
         for (SegmentedObject o : allObjects.values()) {
             if (parent && o.parentId!=null) {
                 SegmentedObject p = allObjects.get(o.parentId);
@@ -460,17 +463,17 @@ public class SegmentedObjectUtils {
     }
     
     // duplicate objects 
-    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, Map<String, SegmentedObject> dupToSourceMap, boolean parents, boolean generateNewId, int... includeOCIdx) {
+    private static <ID1, ID2> SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO<ID2> newDAO, Map<ID1, SegmentedObject> sourceToDupMap, Map<ID2, SegmentedObject> dupToSourceMap, boolean parents, int... includeOCIdx) {
         o.loadAllChildren(false);
-        SegmentedObject res=o.duplicate(generateNewId, true, true);
-        sourceToDupMap.put(o.getId(), res);
-        dupToSourceMap.put(res.getId(), o);
+        SegmentedObject res=o.duplicate(newDAO, null, true, true, true);
+        sourceToDupMap.put((ID1)o.getId(), res);
+        dupToSourceMap.put((ID2)res.getId(), o);
         Predicate<Integer> includeOC = oc -> Arrays.stream(includeOCIdx).anyMatch(ooc->ooc==oc);
         boolean includeChildren = includeOCIdx.length>0;
         if (includeChildren) {
             for (int cIdx : includeOCIdx) {
                 List<SegmentedObject> c = o.childrenSM.get(cIdx);
-                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, false, generateNewId, includeOCIdx)), cIdx);
+                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, false, includeOCIdx)), cIdx);
             }
         }
         if (parents && !o.isRoot() && res.getParent()!=null) { // duplicate all parents until roots
@@ -479,9 +482,9 @@ public class SegmentedObjectUtils {
             while (!current.isRoot() && current.getParent()!=null && includeOC.test(current.getStructureIdx())) {
                 SegmentedObject pDup = sourceToDupMap.get(current.getParent().id);
                 if (pDup==null) {
-                    pDup = current.getParent().duplicate(generateNewId, true, true);
-                    sourceToDupMap.put(current.getParent().getId(), pDup);
-                    dupToSourceMap.put(pDup.getId(), current.getParent());
+                    pDup = current.getParent().duplicate(newDAO, null, true, true, true);
+                    sourceToDupMap.put((ID1)current.getParent().getId(), pDup);
+                    dupToSourceMap.put((ID2)pDup.getId(), current.getParent());
                     pDup.dao=newDAO;
                 }
                 pDup.addChild(currentDup, currentDup.structureIdx); // also set parent
@@ -494,7 +497,7 @@ public class SegmentedObjectUtils {
         return res;
     }
 
-    public static Map<String, SegmentedObject> createGraphCut(List<SegmentedObject> track, boolean generateNewId, int... includeOCIdx) {
+    public static <ID> Map<Object, SegmentedObject> createGraphCut(List<SegmentedObject> track, Function<Integer, ID> idGenerator, int... includeOCIdx) {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // transform track to root track in order to include indirect children
@@ -517,13 +520,13 @@ public class SegmentedObjectUtils {
         }
 
         // create basic dao for duplicated objects
-        Map<String, SegmentedObject> dupMap = new HashMap<>(); // maps original ID to new object
-        Map<String, SegmentedObject> revDupMap = new HashMap<>(); // maps new ID to old object
-        BasicMasterDAO mDAO = new BasicMasterDAO(new SegmentedObjectAccessor());
+        Map<Object, SegmentedObject> dupMap = new HashMap<>(); // maps original ID to new object
+        Map<ID, SegmentedObject> revDupMap = new HashMap<>(); // maps new ID to old object
+        MemoryMasterDAO<ID, MemoryObjectDAO<ID>> mDAO = new MemoryMasterDAO<>(new SegmentedObjectAccessor(), idGenerator);
         mDAO.setExperiment(track.get(0).getExperiment());
-        BasicObjectDAO dao = mDAO.getDao(track.get(0).getPositionName());
+        ObjectDAO<ID> dao = mDAO.getDao(track.get(0).getPositionName());
         
-        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, true, generateNewId, includeOCIdx));
+        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, true, includeOCIdx));
         List<SegmentedObject> rootTrack = dup.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         dao.setRoots(rootTrack);
         
@@ -535,8 +538,8 @@ public class SegmentedObjectUtils {
         // update trackHeads && trackImages
 
         for (SegmentedObject o : dupMap.values()) {
-            if (o.isTrackHead) {
-                o.trackImagesC=revDupMap.get(o.id).trackImagesC.duplicate();
+            if (o.isTrackHead()) {
+                o.trackImagesC=revDupMap.get((ID)o.id).trackImagesC.duplicate();
                 continue;
             }
             SegmentedObject th = dupMap.get(o.trackHeadId);
@@ -544,7 +547,7 @@ public class SegmentedObjectUtils {
                 th = dup.get(0).getChildren(o.getStructureIdx()).filter(oo -> oo.trackHeadId.equals(o.trackHeadId)).findAny().orElseThrow(() -> new IllegalArgumentException("No trackhead for object :" + o));
                 th.setTrackHead(null, true, true, null);
             } else {
-                if (!th.isTrackHead) logger.error("current th is not th: o={}, th={}, original th: {} -> is th: {}", o, th, revDupMap.get(o.id).getTrackHead(), revDupMap.get(o.id).getTrackHead().isTrackHead);
+                if (!th.isTrackHead()) logger.error("current th is not th: o={}, th={}, original th: {} -> is th: {}", o, th, revDupMap.get(o.id).getTrackHead(), revDupMap.get(o.id).getTrackHead().isTrackHead());
                 o.setTrackHead(th, false, false, null);
             }
             if (th.equals(o)) th.trackImagesC=revDupMap.get(th.id).getTrackHead().trackImagesC.duplicate();
@@ -560,7 +563,7 @@ public class SegmentedObjectUtils {
      */
     public static boolean newTrackAtNextTimePoint(SegmentedObject object) {
         if (object.getParent()==null || object.getParent().getNext()==null) return false;
-        return object.getParent().getNext().getChildren(object.getStructureIdx()).anyMatch(o -> o.getPrevious()==object && o.isTrackHead());
+        return object.getParent().getNext().getChildren(object.getStructureIdx()).anyMatch(o -> o.getPrevious().equals(object) && o.isTrackHead());
     }
 
     /**
@@ -568,16 +571,17 @@ public class SegmentedObjectUtils {
      * @param object
      * @return return all the objects of same object class as {@param object} contained in the {@param object} 's parent
      */
-    public static  Stream<SegmentedObject> getSiblings(SegmentedObject object) {
+    public static Stream<SegmentedObject> getSiblings(SegmentedObject object) {
         if (object.isRoot()) return Stream.of(object);
         Stream<SegmentedObject> res= object.getParent().getChildren(object.getStructureIdx());
         if (res==null) return Stream.empty();
         return res;
     }
 
-    public static  Stream<SegmentedObject> getAllTrackHeadsInPosition(SegmentedObject object) {
+    public static Stream<SegmentedObject> getAllTrackHeadsInPosition(SegmentedObject object) {
         if (object.isRoot()) return Stream.of(object.getTrackHead());
-        return getAllChildrenAsStream(object.getDAO().getRoots().stream(), object.getStructureIdx()).filter(SegmentedObject::isTrackHead);
+        return getAllChildrenAsStream(object.getDAO().getRoots().stream(), object.getStructureIdx())
+                .filter(SegmentedObject::isTrackHead);
     }
 
     /**

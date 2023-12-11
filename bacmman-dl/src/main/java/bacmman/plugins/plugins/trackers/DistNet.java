@@ -378,7 +378,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                             double cost2  = computeMergeCost.applyAsDouble(new ArrayList<SegmentedObject>(){{add(divL.get(1)); add(divL.get(2));}});
                             // criterion: displacement that matches most
                             double crit01=Double.POSITIVE_INFINITY, crit12=Double.POSITIVE_INFINITY;
-                            double[] predDY = divL.stream().mapToDouble(o -> displacementMap.get(o)).toArray();
+                            double[] predDY = divL.stream().mapToDouble(displacementMap::get).toArray();
                             /*double[] DY = divL.stream().mapToDouble(o->getY.applyAsDouble(o) - getY.applyAsDouble(div.getKey())).toArray();
                             double[] size = divL.stream().mapToDouble(o -> o.getRegion().size()).toArray();
                             double split = (Math.abs(DY[0]-predDY[0]) * size[0] + Math.abs(DY[1]-predDY[1]) * size[1] + Math.abs(DY[2]-predDY[2]) * size[2]) / (size[0]+size[1]+size[2]);

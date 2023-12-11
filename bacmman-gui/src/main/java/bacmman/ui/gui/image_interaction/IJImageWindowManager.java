@@ -233,7 +233,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         if (listener != null) listener.fireTracksSelected(trackHeads, true);
                     } else {
                         ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
-                        Set<List<SegmentedObject>> tracks = selectedObjects.stream().map(p -> p.key.getTrackHead()).distinct().map(SegmentedObjectUtils::getTrack).filter(t -> !t.isEmpty()).collect(Collectors.toSet());
+                        Set<List<SegmentedObject>> tracks = selectedObjects.stream()
+                                .map(p -> p.key.getTrackHead())
+                                .distinct().map(SegmentedObjectUtils::getTrack)
+                                .filter(t -> !t.isEmpty())
+                                .collect(Collectors.toSet());
                         if (!addToSelection) hideAllRois(image, true, false);
                         displayTracks(image, i, tracks, true);
                     }

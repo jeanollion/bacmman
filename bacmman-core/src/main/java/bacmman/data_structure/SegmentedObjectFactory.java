@@ -1,7 +1,9 @@
 package bacmman.data_structure;
 
+import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.image.Image;
 import bacmman.plugins.ObjectSplitter;
+import bacmman.utils.Utils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -11,17 +13,37 @@ import java.util.stream.Collectors;
 public class SegmentedObjectFactory {
     private final int editableObjectClassIdx;
     SegmentedObjectFactory(int editableObjectClassIdx) {
-        if (editableObjectClassIdx<0) throw new IllegalArgumentException("Editable object class idx cannot be negative");
+        if (editableObjectClassIdx<-1) throw new IllegalArgumentException("Invalid Editable object class idx");
         this.editableObjectClassIdx=editableObjectClassIdx;
     }
     public int getEditableObjectClassIdx() {
         return editableObjectClassIdx;
     }
-    public SegmentedObject duplicate(SegmentedObject o, int targetObjectClass, boolean generateNewId, boolean duplicateRegion, boolean duplicateImages) {
+    public SegmentedObject duplicate(SegmentedObject o, int targetObjectClass, boolean generateNewId, boolean duplicateRegion, boolean duplicateImages, boolean removeParentAndTrackAttributes) {
         SegmentedObject res = o.duplicate(generateNewId, duplicateRegion, duplicateImages);
         res.structureIdx = targetObjectClass;
+        if (removeParentAndTrackAttributes) {
+            res.parent = null;
+            res.next = null;
+            res.previous = null;
+            res.trackHead = null;
+        }
         return res;
     }
+
+    public <ID> SegmentedObject duplicate(SegmentedObject o, ObjectDAO<ID> targetDAO, int targetObjectClass, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes, boolean removeParentAndTrackAttributes) {
+        SegmentedObject res = o.duplicate(targetDAO, null, duplicateRegion, duplicateImages, duplicateAttributes);
+        res.structureIdx = targetObjectClass;
+        if (removeParentAndTrackAttributes) {
+            res.parent = null;
+            res.next = null;
+            res.previous = null;
+            res.trackHead = null;
+        }
+        return res;
+    }
+
+
     public List<SegmentedObject> setChildObjects(SegmentedObject parent, RegionPopulation regions) {
         return parent.setChildrenObjects(regions, editableObjectClassIdx, true);
     }
@@ -42,9 +64,11 @@ public class SegmentedObjectFactory {
     }
 
     public void reassignDuplicateIndices(Collection<SegmentedObject> createdObjects) {
-        // suppose createdObjects are not yet added to parent's children
+        if (createdObjects.isEmpty()) return;
+        Utils.objectsAllHaveSameProperty(createdObjects, SegmentedObject::getStructureIdx);
+        if (createdObjects.iterator().next().getStructureIdx() != getEditableObjectClassIdx()) throw new IllegalArgumentException("Objects are not from editable object class idx");
         SegmentedObjectUtils.splitByParent(createdObjects).forEach((p, l) -> {
-            List<Integer> allIdxs = p.getChildren(getEditableObjectClassIdx()).map(SegmentedObject::getIdx).sorted().collect(Collectors.toList());
+            List<Integer> allIdxs = p.getChildren(getEditableObjectClassIdx()).filter(o -> !l.contains(o)).map(SegmentedObject::getIdx).sorted().collect(Collectors.toList());
             l.forEach(newObject -> {
                 int idx = Collections.binarySearch(allIdxs, newObject.getIdx());
                 if (idx>=0) { // idx is already taken -> get the first unused label

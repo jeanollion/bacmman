@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.github.jeanollion.bacmman</groupId>
         <artifactId>bacmman</artifactId>
-        <version>3.6.0</version>
+        <version>3.7.0</version>
     </parent>
 
     <artifactId>bacmman-ctb</artifactId>
@@ -14,23 +14,18 @@
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-core</artifactId>
-            <version>3.6.0</version>
+            <version>${bacmman.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-dl</artifactId>
-            <version>3.6.0</version>
+            <version>${bacmman.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-tf2</artifactId>
-            <version>3.6.0</version>
+            <version>${bacmman.version}</version>
         </dependency>
     </dependencies>
-    <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
 
 </project>

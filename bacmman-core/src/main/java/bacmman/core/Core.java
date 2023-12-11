@@ -19,6 +19,7 @@
 package bacmman.core;
 
 import bacmman.data_structure.DiskBackedImageManagerProvider;
+import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.plugins.PluginFactory;
@@ -82,6 +83,7 @@ public class Core {
         initIJ2();
         PluginFactory.findPlugins("bacmman.plugins.plugins", false);
         PluginFactory.importIJ1Plugins();
+        MasterDAOFactory.findModules("bacmman.data_structure.dao");
         createOmeroGateway();
         createDockerGateway();
         githubGateway = new GithubGateway();

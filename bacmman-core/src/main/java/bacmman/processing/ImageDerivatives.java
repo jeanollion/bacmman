@@ -34,7 +34,7 @@ public class ImageDerivatives {
         }
         return res;
     }
-    public static ImageFloat[] getGradient(Image image, double derScale, double smoothScale) {
+    /*public static ImageFloat[] getGradient(Image image, double derScale, double smoothScale) {
         if (smoothScale == derScale) return getGradient(image, derScale);
         Img input = ImgLib2ImageWrapper.getImage(image);
         ImageFloat[] res = new ImageFloat[input.numDimensions()];
@@ -50,5 +50,5 @@ public class ImageDerivatives {
             res[d] = (ImageFloat)ImgLib2ImageWrapper.wrap(der);
         }
         return res;
-    }
+    }*/
 }

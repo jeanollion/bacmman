@@ -63,7 +63,7 @@ import javax.swing.tree.*;
  * @author Jean Ollion
  */
 public class ConfigurationTreeGenerator {
-    public static final Logger logger = LoggerFactory.getLogger(ConfigurationTreeGenerator.class);
+    static final Logger logger = LoggerFactory.getLogger(ConfigurationTreeGenerator.class);
     protected Experiment experiment;
     protected ContainerParameter rootParameter;
     protected ConfigurationTreeModel treeModel;
@@ -270,7 +270,6 @@ public class ConfigurationTreeGenerator {
             }
         };
         ToolTipManager.sharedInstance().registerComponent(tree); // add tool tips to the tree
-
         treeModel.setJTree(tree);
         tree.setShowsRootHandles(showRootHandle);
         tree.setRootVisible(!(rootParameter instanceof Experiment) && rootVisible);
@@ -278,6 +277,7 @@ public class ConfigurationTreeGenerator {
         DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> { // compare tree
             Predicate<Parameter> isPositionListPredicate = pp->pp instanceof ListParameter && pp.getName().equals("Pre-Processing for all Positions");
             boolean isPosition = rootParameter instanceof Experiment && (ParameterUtils.testInParents(isPositionListPredicate, p, true));
+
             BiPredicate<Parameter, Parameter> pipelineDiffers = (pp, template) -> {
                 if (pp instanceof Position) return !((Position)p).getPreProcessingChain().getTransformations().sameContent(template);
                 else if (pp instanceof PreProcessingChain) return !((PreProcessingChain)p).getTransformations().sameContent(template);
@@ -292,7 +292,6 @@ public class ConfigurationTreeGenerator {
                     return !p.sameContent(compare);
                 }
             };
-
             if (compareTree==null) {
                 if (isPosition) { // compare position to local template
                     Parameter template = ((Experiment)rootParameter).getPreProcessingTemplate().getTransformations();
@@ -390,7 +389,6 @@ public class ConfigurationTreeGenerator {
                     return source.getChildClass().equals(dest.getChildClass());
                 }
         ));
-
         if (rootParameter instanceof ParameterChangeCallback) {
             Consumer<Parameter> cb  = p -> {treeModel.nodeChanged(p);treeModel.nodeStructureChanged(p);};
             ((ParameterChangeCallback)rootParameter).addParameterChangeCallback(cb);
@@ -422,11 +420,11 @@ public class ConfigurationTreeGenerator {
             else if (o instanceof Component) addToMenu("", (Component)o, menu);
         }
     }
-    public static void addToMenu(Parameter p, JMenu menu) {
-        addToMenu(p, menu, true);
+    public static Object[] addToMenu(Parameter p, JMenu menu) {
+        return addToMenu(p, menu, true);
     }
-    public static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu) {
-        addToMenu(p, menu, checkSubMenu, null, null);
+    public static Object[] addToMenu(Parameter p, JMenu menu, boolean checkSubMenu) {
+        return addToMenu(p, menu, checkSubMenu, null, null);
     }
     public static Object[] addToMenu(Parameter p, JMenu menu, boolean checkSubMenu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItems) {
         if (checkSubMenu && (p instanceof ChoosableParameter || p instanceof ConditionalParameterAbstract || p instanceof ListParameter)) {
@@ -477,7 +475,7 @@ public class ConfigurationTreeGenerator {
         return subMenu;
     }
 
-    protected static void addToMenuChoice(ChoosableParameter choice, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
+    public static ChoiceParameterUI addToMenuChoice(ChoosableParameter choice, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
         ChoiceParameterUI[] choiceUI = new ChoiceParameterUI[1];
         choiceUI[0] = new ChoiceParameterUI(choice, null, null, showMenu);
         menu.addMenuListener(new MenuListener() {
@@ -502,8 +500,9 @@ public class ConfigurationTreeGenerator {
         });
         String hint = choice.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
+        return choiceUI[0];
     }
-    public static void addToMenuCond(ConditionalParameterAbstract cond, JMenu menu, String actionMenuTitle, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
+    public static ChoiceParameterUI addToMenuCond(ConditionalParameterAbstract cond, JMenu menu, String actionMenuTitle, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
         ChoiceParameterUI choiceUI = new ChoiceParameterUI(cond.getActionableParameter(), actionMenuTitle==null?"MODE":actionMenuTitle, null, showMenu);
         menu.addMenuListener(new MenuListener() {
             @Override
@@ -533,11 +532,12 @@ public class ConfigurationTreeGenerator {
         });
         String hint = cond.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
+        return choiceUI;
     }
-    public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Object... otherMenuItem) {
-        addToMenuList(list, menu, null, null, null, otherMenuItem);
+    public static ListParameterUI addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Object... otherMenuItem) {
+        return addToMenuList(list, menu, null, null, null, otherMenuItem);
     }
-    public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object[][] childOtherMenuItem, Object[] otherMenuItem) {
+    public static ListParameterUI addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object[][] childOtherMenuItem, Object[] otherMenuItem) {
         ListParameterUI listUI = new SimpleListParameterUI(list, null, showMenu);
         menu.addMenuListener(new MenuListener() {
             @Override
@@ -575,7 +575,7 @@ public class ConfigurationTreeGenerator {
         });
         String hint = list.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
-
+        return listUI;
     }
 
     private static JPanel addToMenu(String label, Component c, JMenu menu) {

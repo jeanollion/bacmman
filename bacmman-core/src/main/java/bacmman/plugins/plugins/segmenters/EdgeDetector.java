@@ -22,7 +22,6 @@ import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Voxel;
 import bacmman.plugins.*;
 import bacmman.plugins.SimpleThresholder;
 import bacmman.processing.Filters;

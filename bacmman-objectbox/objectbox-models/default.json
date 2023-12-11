@@ -1,0 +1,144 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:100",
+      "lastPropertyId": "4:104",
+      "name": "MeasurementBox",
+      "properties": [
+        {
+          "id": "1:101",
+          "name": "id",
+          "type": 6,
+          "flags": 129
+        },
+        {
+          "id": "2:102",
+          "name": "objectClassIdx",
+          "indexId": "1:901",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "3:103",
+          "name": "positionName",
+          "indexId": "2:902",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "4:104",
+          "name": "jsonMap",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:10",
+      "lastPropertyId": "9:19",
+      "name": "SegmentedObjectBox",
+      "properties": [
+        {
+          "id": "1:11",
+          "name": "id",
+          "type": 6,
+          "flags": 129
+        },
+        {
+          "id": "2:12",
+          "name": "frame",
+          "indexId": "3:903",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "3:13",
+          "name": "idx",
+          "type": 5
+        },
+        {
+          "id": "4:14",
+          "name": "parentId",
+          "indexId": "4:904",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "5:15",
+          "name": "trackHeadId",
+          "indexId": "5:905",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "6:16",
+          "name": "previousId",
+          "type": 6
+        },
+        {
+          "id": "7:17",
+          "name": "nextId",
+          "type": 6
+        },
+        {
+          "id": "8:18",
+          "name": "jsonRegion",
+          "type": 9
+        },
+        {
+          "id": "9:19",
+          "name": "jsonAttributes",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:1000",
+      "lastPropertyId": "4:1004",
+      "name": "SelectionBox",
+      "properties": [
+        {
+          "id": "1:1001",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1002",
+          "name": "name",
+          "indexId": "6:906",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "3:1003",
+          "name": "objectClassIdx",
+          "indexId": "7:907",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "4:1004",
+          "name": "jsonContent",
+          "type": 9
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "3:1000",
+  "lastIndexId": "7:907",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}

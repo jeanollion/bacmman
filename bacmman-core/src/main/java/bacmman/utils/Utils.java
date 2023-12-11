@@ -875,6 +875,10 @@ public class Utils {
         if (path.length()==0) return null;
         return path;
     }
+    public static Path getRelativePath(String dir, String baseDir) {
+        return Paths.get(baseDir).relativize(Paths.get(dir));
+    }
+
     public static Pair<String, String> splitNameAndRelpath(String relPath) {
         relPath = removeLeadingSeparator(relPath);
         Path p = Paths.get(relPath);

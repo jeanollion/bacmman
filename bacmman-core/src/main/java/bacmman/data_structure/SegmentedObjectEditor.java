@@ -14,9 +14,9 @@ import java.util.stream.Stream;
 public class SegmentedObjectEditor {
     public static final Logger logger = LoggerFactory.getLogger(SegmentedObjectEditor.class);
 
-    public static final BiPredicate<SegmentedObject, SegmentedObject> NERVE_MERGE = (s1, s2)->false;
-    public static final BiPredicate<SegmentedObject, SegmentedObject> ALWAYS_MERGE = (s1, s2)->true;
-    public static final BiPredicate<SegmentedObject, SegmentedObject> MERGE_TRACKS_BACT_SIZE_COND = (prev, next)-> next.getRegion().size()>prev.getRegion().size()  * 0.8;
+    public static  BiPredicate<SegmentedObject, SegmentedObject> NERVE_MERGE() {return (s1, s2)->false;}
+    public static  BiPredicate<SegmentedObject, SegmentedObject> ALWAYS_MERGE() {return (s1, s2)->true;}
+    public static  BiPredicate<SegmentedObject, SegmentedObject> MERGE_TRACKS_BACT_SIZE_COND() {return (prev, next)-> next.getRegion().size()>prev.getRegion().size()  * 0.8; };
 
     public static  Stream<SegmentedObject> getNext(SegmentedObject o) { // TODO FLAW : if track accepts gaps next can be later.. look also in next parents ?
         if (o.getNext()!=null) return Stream.of(o.getNext());
@@ -75,7 +75,7 @@ public class SegmentedObjectEditor {
             //logger.debug("unlinking: {} from {} ...", prev, next);
             List<SegmentedObject> allNext = getNext(prev).collect(Collectors.toList());
             if (allNext.size()==1 && mergeTracks.test(prev, allNext.get(0))) { // set trackHead
-                unlinkObjects(prev, allNext.get(0), NERVE_MERGE, editor);
+                unlinkObjects(prev, allNext.get(0), NERVE_MERGE(), editor);
                 linkObjects(prev, allNext.get(0), true, editor);
                 //logger.debug("unlinking.. double link link: {} to {}", prev, allNext.get(0));
             }
@@ -96,7 +96,7 @@ public class SegmentedObjectEditor {
             //logger.debug("link: {} to {} other prev: {}, other next: {}", prev, next, otherPrevs, otherNexts);
             if (mergeLink && (!splitLink || !allowSplit)) { // mergeLink : cannot happen at the same time as a splitLink
                 if (splitLink) { // mergeLink & splitLink cannot happen at the same time -> disconnect other nexts
-                    for (SegmentedObject n : otherPrevs) unlinkObjects(prev, n, ALWAYS_MERGE, editor);
+                    for (SegmentedObject n : otherPrevs) unlinkObjects(prev, n, ALWAYS_MERGE(), editor);
                 }
                 if (next.getPrevious()!=null && next.equals(next.getPrevious().getNext())) { // convert double link to single link
                     SegmentedObject existingPrev = next.getPrevious();
@@ -118,7 +118,7 @@ public class SegmentedObjectEditor {
             }
             if (splitLink && (!mergeLink || !allowMerge)) { // split link
                 if (mergeLink) { // mergeLink & splitLink cannot happen at the same time -> disconnect other prevs
-                    for (SegmentedObject p : otherPrevs) unlinkObjects(p, next, ALWAYS_MERGE, editor);
+                    for (SegmentedObject p : otherPrevs) unlinkObjects(p, next, ALWAYS_MERGE(), editor);
                 }
                 if (prev.getNext()!=null && prev.equals(prev.getNext().getPrevious())) { // convert double link to single link
                     SegmentedObject existingNext = prev.getNext();
@@ -148,9 +148,9 @@ public class SegmentedObjectEditor {
                 }
                 if (allowDoubleLink) {
                     if (prev.getNext() != null && prev.getNext() != next)
-                        unlinkObjects(prev, prev.getNext(), ALWAYS_MERGE, editor);
+                        unlinkObjects(prev, prev.getNext(), ALWAYS_MERGE(), editor);
                     if (next.getPrevious() != null && next.getPrevious() != prev)
-                        unlinkObjects(next.getPrevious(), next, ALWAYS_MERGE, editor);
+                        unlinkObjects(next.getPrevious(), next, ALWAYS_MERGE(), editor);
                     //if (next!=prev.getNext() || prev!=next.getPrevious() || next.getTrackHead()!=prev.getTrackHead()) {
                     editor.setTrackLinks(prev, next, true, true, true);
                     if (editor.manualEditing()) prev.setAttribute(SegmentedObject.EDITED_LINK_NEXT, true);
@@ -186,9 +186,9 @@ public class SegmentedObjectEditor {
         Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
         for (Map.Entry<String, List<SegmentedObject>> e : objectsByPosition.entrySet()) {
             ObjectDAO dao = db != null ? db.getDao(e.getKey()) : null;
-            Map<Integer, List<SegmentedObject>> objectsByStructureIdx = SegmentedObjectUtils.splitByStructureIdx((List)e.getValue());
+            Map<Integer, List<SegmentedObject>> objectsByStructureIdx = SegmentedObjectUtils.splitByStructureIdx(e.getValue(), true);
             for (int structureIdx : objectsByStructureIdx.keySet()) {
-                List<SegmentedObject> toDelete = new ArrayList(objectsByStructureIdx.get(structureIdx));
+                List<SegmentedObject> toDelete = new ArrayList<>(objectsByStructureIdx.get(structureIdx));
                 for (SegmentedObject o : toDelete) {
                     unlinkObject(o, mergeTracks, editor);
                     factory.removeFromParent(o);
@@ -237,9 +237,9 @@ public class SegmentedObjectEditor {
                     boolean incompleteDivPrev = prevsNext!=null && prevsNext.size()==1;
                     //logger.debug("merge: {} prevs: {},  nexts: {}", objectsToMerge, prevs, nexts);
                     //logger.debug("merge. incomplete prev: {} incomplete next: {}", incompleteDivPrev, incompleteDivNext);
-                    for (SegmentedObject o : objectsToMerge) unlinkObject(o, ALWAYS_MERGE, editor);
+                    for (SegmentedObject o : objectsToMerge) unlinkObject(o, ALWAYS_MERGE(), editor);
                     SegmentedObject res = objectsToMerge.remove(0);
-                    for (SegmentedObject m : objectsToMerge) res.merge(m, true, false);
+                    for (SegmentedObject m : objectsToMerge) res.merge(m, true, false, false); // only links
                     mergeOperations.put(res, objectsToMerge);
                     toRemove.addAll(objectsToMerge);
                     if (prevs != null) {
@@ -270,11 +270,16 @@ public class SegmentedObjectEditor {
                     if (relabel) parent.relabelChildren(res.structureIdx, editor.getModifiedObjects());
                 }
             });
-            mergeOperations.entrySet().parallelStream().forEach(en -> en.getValue().forEach(m -> en.getKey().merge(m, false, true)));
+            mergeOperations.entrySet().parallelStream().forEach(en -> en.getValue().forEach(m -> en.getKey().merge(m, false, true, true))); // children & regions
             mergeOperations.keySet().forEach(SegmentedObject::resetMeasurements);
             if (childOCIdx.length>0) {
                 List<SegmentedObject> modifiedChildren = new ArrayList<>();
-                for (int cOCIdx : childOCIdx) mergeOperations.values().stream().flatMap(mList->mList.stream().filter(m->m.hasChildren(cOCIdx)).flatMap(m -> m.getChildren(cOCIdx))).forEach(modifiedChildren::add);
+                for (int cOCIdx : childOCIdx) {
+                    mergeOperations.keySet().stream().filter(m->m.hasChildren(cOCIdx)).forEach(m -> {
+                        m.relabelChildren(cOCIdx, modifiedChildren);
+                        m.getChildren(cOCIdx).forEach(modifiedChildren::add);
+                    });
+                }
                 dao.store(modifiedChildren);
             }
             dao.delete(toRemove, true, true, false); // relabel already performed before

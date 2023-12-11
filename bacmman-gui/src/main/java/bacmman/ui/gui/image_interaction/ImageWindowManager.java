@@ -41,7 +41,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.CancellationException;
 import java.util.function.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
@@ -198,12 +197,10 @@ public abstract class ImageWindowManager<I, U, V> {
         return runningWorkers;
     }
     public void stopAllRunningWorkers() {
-        try {
-            for (DefaultWorker w : runningWorkers.values().stream().flatMap(Collection::stream).collect(Collectors.toList())) {
-                w.cancel(true);
-            }
-            runningWorkers.clear();
-        } catch (CancellationException e) {}
+        for (DefaultWorker w : runningWorkers.values().stream().flatMap(Collection::stream).collect(Collectors.toList())) {
+            w.cancelSilently();
+        }
+        runningWorkers.clear();
     }
     public void flush() {
         if (!runningWorkers.isEmpty()) logger.debug("flush: will stop {} running workers", runningWorkers.size());
@@ -345,16 +342,16 @@ public abstract class ImageWindowManager<I, U, V> {
         registerHyperStack(image, i);
         addMouseListener(image);
         addWindowClosedListener(displayedImage, e-> {
-            List<DefaultWorker> l = runningWorkers.get(image);
-            if (!l.isEmpty()) {
-                logger.debug("interrupting {} object lazy loading for image: {}", l.size(), image.getName());
-                l.forEach(w -> {
-                    try {
-                        w.cancel(true);
-                    } catch (CancellationException ex) {}
-                });
+            if (runningWorkers.containsKey(image)) {
+                List<DefaultWorker> l;
+                synchronized (runningWorkers) {
+                    l = runningWorkers.remove(image);
+                }
+                if (l != null && !l.isEmpty()) {
+                    logger.debug("interrupting {} object lazy loading for image: {}", l.size(), image.getName());
+                    l.forEach(DefaultWorker::cancelSilently);
+                }
             }
-            runningWorkers.remove(image);
             displayedInteractiveImages.remove(image);
             displayer.removeImage(image, displayedImage);
             imageObjectInterfaceMap.remove(image);
@@ -377,7 +374,7 @@ public abstract class ImageWindowManager<I, U, V> {
             List<DefaultWorker> l = runningWorkers.get(image);
             if (!l.isEmpty()) {
                 logger.debug("interrupting generation of closed image: {}", image.getName());
-                l.forEach(w -> w.cancel(true));
+                l.forEach(DefaultWorker::cancelSilently);
             }
             runningWorkers.remove(image);
             displayedInteractiveImages.remove(image);
@@ -488,18 +485,22 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     protected void reloadObjects_(SegmentedObject parent, int childStructureIdx, boolean track) {
         if (track) parent=parent.getTrackHead();
-        if (!trackHeadTrackMap.containsKey(parent)) {
-            final SegmentedObject p = parent;
-            reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx));
-        } else {
-            for (List<SegmentedObject> l : trackHeadTrackMap.get(parent)) {
-                for (InteractiveImageKey.TYPE it : InteractiveImageKey.TYPE.values()) reloadObjects__(new InteractiveImageKey(l, it, childStructureIdx));
+        List<Integer> ocIdxs = IntStream.of(parent.getExperimentStructure().getAllChildStructures(childStructureIdx)).boxed().collect(Collectors.toList());
+        ocIdxs.add(childStructureIdx);
+        final SegmentedObject p = parent;
+        ocIdxs.forEach(ocIdx -> {
+            if (!trackHeadTrackMap.containsKey(p)) {
+                reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, InteractiveImageKey.TYPE.SINGLE_FRAME, ocIdx));
+            } else {
+                for (List<SegmentedObject> l : trackHeadTrackMap.get(p)) {
+                    for (InteractiveImageKey.TYPE it : InteractiveImageKey.TYPE.values()) reloadObjects__(new InteractiveImageKey(l, it, ocIdx));
+                }
             }
-        }
+        } );
     }
     public void resetObjects(String position, int childStructureIdx) {
         imageObjectInterfaces.values().stream()
-                .filter(i->i.getChildStructureIdx()==childStructureIdx)
+                .filter(i->i.getChildStructureIdx()==childStructureIdx || i.getParent().getExperimentStructure().isChildOf(childStructureIdx, i.getChildStructureIdx()))
                 .filter(i->position==null || i.getParent().getPositionName().equals(position))
                 .forEach(InteractiveImage::resetObjects);
         resetObjectsAndTracksRoi();
@@ -528,7 +529,7 @@ public abstract class ImageWindowManager<I, U, V> {
         if (keys.isEmpty()) return null;
         else return keys.iterator().next();
     }
-    public InteractiveImage getImageObjectInterface(Image image) {
+    public  InteractiveImage getImageObjectInterface(Image image) {
         if (image==null) {
             image = getDisplayer().getCurrentImage2();
             if (image==null) {
@@ -1098,16 +1099,32 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     
     public void removeObjects(Collection<SegmentedObject> objects, boolean removeTrack) {
+        if (objects.isEmpty()) return;
         for (Image image : this.displayedLabileObjectRois.keySet()) {
             InteractiveImage i = this.getImageObjectInterface(image);
             if (i!=null) hideObjects(image, i.pairWithOffset(objects), true);
         }
         for (SegmentedObject object : objects) {
-            Pair k = new Pair(object, null);
+            Pair<SegmentedObject, BoundingBox> k = new Pair<>(object, null);
             Utils.removeFromMap(objectRoiMap, k);
             Utils.removeFromMap(labileObjectRoiMap, k);
         }
         if (removeTrack) removeTracks(SegmentedObjectUtils.getTrackHeads(objects));
+
+        // also children
+        ExperimentStructure xp = objects.iterator().next().getExperimentStructure();
+        SegmentedObjectUtils.splitByStructureIdx(objects, true).forEach((ocIdx, list) -> {
+            if (xp.getAllChildStructures(ocIdx).length > 0) {
+                labileObjectRoiMap.keySet().removeIf(p -> {
+                    SegmentedObject parent = p.key.getParent(ocIdx);
+                    return parent == null || list.contains(parent);
+                });
+                objectRoiMap.keySet().removeIf(p -> {
+                    SegmentedObject parent = p.key.getParent(ocIdx);
+                    return parent == null || list.contains(parent);
+                });
+            }
+        });
     }
     
     public void removeTracks(Collection<SegmentedObject> trackHeads) {
@@ -1378,6 +1395,7 @@ public abstract class ImageWindowManager<I, U, V> {
             List<String> commands = stores.stream().filter(storeWithinSel).map(TestDataStore::getMiscCommands).flatMap(Set::stream).distinct().sorted().collect(Collectors.toList());
             if (!commands.isEmpty()) {
                 menu.addSeparator();
+                menu.add(new JMenuItem("<html><b>Test Commands/Values</b></html>"));
                 List<SegmentedObject> sel2 = new ArrayList<>(sel);
                 commands.forEach(s-> {
                     JMenuItem item = new JMenuItem(s);

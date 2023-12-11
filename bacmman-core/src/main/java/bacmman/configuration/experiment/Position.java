@@ -146,7 +146,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
 
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {
-            logger.warn("current inputImages has: {} frames while there are {} input images", inputImages.getFrameNumber(), getFrameNumber(false));
+            logger.warn("current inputImages has: {} frames while there are {} input images", inputImages.getFrameNumber(), getFrameNumber(false));
         }
         if (inputImages ==null) { // || inputImages.getFrameNumber()!=getTimePointNumber(false) // should be flushed when modified from gui
             synchronized(this) {
@@ -204,9 +204,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         return mask;
     }
     
-    public ArrayList<SegmentedObject> createRootObjects(ObjectDAO dao) throws IOException {
+    public  List<SegmentedObject> createRootObjects(ObjectDAO dao) throws IOException {
         int frameNumber = getFrameNumber(false);
-        ArrayList<SegmentedObject> res = new ArrayList<>(frameNumber);
+        List<SegmentedObject> res = new ArrayList<>(frameNumber);
         BlankMask mask = getMask();
         if (mask==null) {
             logger.info("Could not initiate root objects, perform preProcessing first");

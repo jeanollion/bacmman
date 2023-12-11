@@ -200,7 +200,7 @@ public class ExtractRawDataset extends JDialog {
     }
 
     private void onOK() {
-        resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
+        resultingTask = new Task(mDAO.getDBName(), mDAO.getDatasetDir().toFile().getAbsolutePath());
         int[] channels = channelSelector.getSelectedIndices();
         SimpleBoundingBox bounds = new SimpleBoundingBox(xMin.getValue().intValue(), xMin.getValue().intValue() + xSize.getValue().intValue() - 1, yMin.getValue().intValue(), yMin.getValue().intValue() + ySize.getValue().intValue() - 1, zMin.getValue().intValue(), zMin.getValue().intValue() + zSize.getValue().intValue() - 1);
         Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), frameChoiceChannelImage.getSelectedIndex())));

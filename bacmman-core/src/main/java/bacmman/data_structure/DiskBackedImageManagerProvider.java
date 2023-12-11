@@ -1,6 +1,5 @@
 package bacmman.data_structure;
 
-import bacmman.configuration.experiment.Experiment;
 import bacmman.core.DiskBackedImageManager;
 import bacmman.utils.HashMapGetCreate;
 import org.slf4j.Logger;
@@ -20,7 +19,7 @@ public class DiskBackedImageManagerProvider {
     }
 
     public synchronized DiskBackedImageManager getManager(SegmentedObject segmentedObject) {
-        String tmp = getTempDirectory(segmentedObject.getDAO().getMasterDAO().getDir(), true);
+        String tmp = getTempDirectory(segmentedObject.getDAO().getMasterDAO().getDatasetDir(), true);
         return managers.get(tmp);
     }
 

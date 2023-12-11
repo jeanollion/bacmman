@@ -7,14 +7,11 @@ import bacmman.image.Image;
 import bacmman.ui.gui.TrackMateRunner;
 import bacmman.ui.gui.image_interaction.*;
 import fiji.plugin.trackmate.Model;
-import fiji.plugin.trackmate.Spot;
 import fiji.plugin.trackmate.SpotCollection;
 import fiji.plugin.trackmate.TrackModel;
 import fiji.plugin.trackmate.io.TmXmlReader;
-import fiji.plugin.trackmate.io.TmXmlWriter;
 import ij.ImageJ;
 import ij.ImagePlus;
-import ij.measure.Calibration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +41,7 @@ public class TrackMateIO {
         TrackModel tracks =model.getTrackModel();
         logger.debug("all spots: {}", allSpots.getNSpots(true));
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
-        MasterDAO mDAO = MasterDAOFactory.createDAO("dataset1", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO("dataset1", dir);
         mDAO.lockPositions();
         ObjectDAO dao = mDAO.getDao("150609_21");
         List<SegmentedObject> roots = dao.getRoots();
@@ -65,7 +62,7 @@ public class TrackMateIO {
         TrackModel tracks =model.getTrackModel();
         logger.debug("all spots: {}", allSpots.getNSpots(true));
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
-        MasterDAO mDAO = MasterDAOFactory.createDAO("TestTrackMate", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO("TestTrackMate", dir);
         mDAO.lockPositions();
         // TODO  get or create root...
         logger.debug("n frames : {}",  mDAO.getDao("FakeTracks").getRoots().size() );
@@ -76,7 +73,7 @@ public class TrackMateIO {
 
     private static void bactToTM() {
         String dir = "/data/Images/BACMMAN/dataset1";
-        MasterDAO mDAO = MasterDAOFactory.createDAO("dataset1", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO("dataset1", dir);
         mDAO.lockPositions();
         ObjectDAO dao = mDAO.getDao("dataset1_0-50");
 
@@ -90,7 +87,7 @@ public class TrackMateIO {
 
     private static void fakeTracksToTM() {
         String dir = "/data/Images/TestTrackMate/";
-        MasterDAO mDAO = MasterDAOFactory.createDAO("TestTrackMate", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO("TestTrackMate", dir);
         mDAO.lockPositions();
         // TODO  get or create root...
         logger.debug("n frames : {}",  mDAO.getDao("FakeTracks").getRoots().size() );

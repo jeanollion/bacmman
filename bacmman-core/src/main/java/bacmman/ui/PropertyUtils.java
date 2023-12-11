@@ -67,7 +67,7 @@ public class PropertyUtils {
     public final static String LAST_EXTRACT_MEASUREMENTS_DIR = "last_extract_measurement_dir";
     public final static String LOCAL_DATA_PATH = "local_data_path";
     public final static String HOSTNAME = "hostname";
-    public final static String DATABASE_TYPE = MasterDAOFactory.DAOType.DBMap.toString();
+    public final static String DATABASE_TYPE = "database_type";
 
     public final static String TF_GPU_MEM ="tf_per_process_gpu_memory_fraction";
     public final static String TF_GROWTH ="tf_set_allow_growth";

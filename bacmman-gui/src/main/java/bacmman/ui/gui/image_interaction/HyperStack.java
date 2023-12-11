@@ -20,6 +20,7 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.Resize;
@@ -28,6 +29,8 @@ import bacmman.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +68,7 @@ public class HyperStack extends TimeLapseInteractiveImage {
         loadObjectsWorker = new DefaultWorker(i -> {
             trackObjects[i + 1].getObjects();
             return "";
-        }, super.getParents().size() - 1, null);
+        }, super.getParents().size() - 1, null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
         /*loadObjectsWorker = new DefaultWorker(i -> { // TODO inspect why no speed improvement ?
             Arrays.stream(trackObjects).parallel().forEach(SimpleInteractiveImage::getObjects);
             return "";
@@ -204,4 +207,16 @@ public class HyperStack extends TimeLapseInteractiveImage {
     public int getSizeZ(int objectClassIdx) {
         return imageSupplier.get(idx, objectClassIdx, true).sizeZ();
     }
+
+
+    private static SegmentedObjectAccessor getAccessor() {
+        try {
+            Constructor<SegmentedObjectAccessor> constructor = SegmentedObjectAccessor.class.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            return constructor.newInstance();
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
+    }
+
 }

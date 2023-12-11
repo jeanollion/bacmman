@@ -21,18 +21,11 @@ package bacmman.utils;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.*;
-import bacmman.data_structure.dao.DBMapObjectDAO;
-import bacmman.data_structure.dao.ImageDAO;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 
 import java.io.File;
-import java.io.InputStream;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -140,13 +133,13 @@ public class ImportExportJSON {
         }
         // todo check all imported
     }*/
-    public static void importObjects(FileIO.ZipReader reader, ObjectDAO dao) {
+    public static <ID> void importObjects(FileIO.ZipReader reader, ObjectDAO<ID> dao) {
         logger.debug("reading objects..");
         List<SegmentedObject> allObjects = reader.readObjects(dao.getPositionName()+"/objects.txt", o->parse(SegmentedObject.class, o));
         logger.debug("{} objets read", allObjects.size());
         List<Measurements> allMeas = reader.readObjects(dao.getPositionName()+"/measurements.txt", o->new Measurements(parse(o), dao.getPositionName()));
         logger.debug("{} measurements read", allObjects.size());
-        Map<String, SegmentedObject> objectsById = new HashMap<>(allObjects.size());
+        Map<ID, SegmentedObject> objectsById = new HashMap<>(allObjects.size());
         
         List<SegmentedObject> roots = new ArrayList<>();
         Iterator<SegmentedObject> it = allObjects.iterator();
@@ -158,8 +151,8 @@ public class ImportExportJSON {
             }
         }
         
-        for (SegmentedObject o : allObjects) objectsById.put(o.getId(), o);
-        for (SegmentedObject o : roots) objectsById.put(o.getId(), o);
+        for (SegmentedObject o : allObjects) objectsById.put((ID)o.getId(), o);
+        for (SegmentedObject o : roots) objectsById.put((ID)o.getId(), o);
         SegmentedObjectUtils.setRelatives(objectsById, true, false); // avoiding calls to dao getById when storing measurements: set parents
         SegmentedObjectAccessor accessor = dao.getMasterDAO().getAccess();
         for (Measurements m : allMeas) {
@@ -172,7 +165,6 @@ public class ImportExportJSON {
         dao.store(allObjects);
         logger.debug("storing measurements");
         dao.upsertMeasurements(allObjects);
-        if (dao instanceof DBMapObjectDAO) ((DBMapObjectDAO)dao).compactDBs(true);
     }
     
     public static <T extends JSONSerializable> List<T> readObjects(String path, Class<T> clazz) {

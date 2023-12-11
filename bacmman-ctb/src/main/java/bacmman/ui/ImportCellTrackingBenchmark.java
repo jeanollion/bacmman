@@ -66,14 +66,14 @@ public class ImportCellTrackingBenchmark {
                     importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, trainingSet, pcb);
             }
             else if (pcb!=null) pcb.incrementProgress();
-            mDAO.updateExperiment();
+            mDAO.storeExperiment();
         }
         if (!posSep.equals("") || fSep.equals("t") || !importMethod.equals(Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION) || !"".equals(chanKW)) {
             mDAO.getExperiment().setImportImagePositionSeparator(posSep);
             mDAO.getExperiment().setImportImageFrameSeparator(fSep);
             mDAO.getExperiment().setImportImageMethod(importMethod);
             mDAO.getExperiment().getChannelImages().getChildAt(0).setImportImageChannelKeyword(chanKW);
-            mDAO.updateExperiment();
+            mDAO.storeExperiment();
         }
     }
     public static void importObjects(ObjectDAO dao, File dir, int objectClassIdx, boolean trainingSet, ProgressCallback pcb) throws IOException {

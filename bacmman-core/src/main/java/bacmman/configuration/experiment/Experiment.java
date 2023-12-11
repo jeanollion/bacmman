@@ -75,9 +75,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
                 Map<Integer, List<String>> currentmkByStructure= m.getMeasurementKeys().stream().collect(Collectors.groupingBy(MeasurementKey::getStoreStructureIdx, Collectors.mapping(MeasurementKey::getKey, Collectors.toList())));
                 if (currentmkByStructure.values().stream().anyMatch((l) -> ((new HashSet<>(l).size()!=l.size())))) return false; // first check if duplicated keys for the measurement
                 SimpleListParameter<PluginParameter<Measurement>> ml= (SimpleListParameter) ppm.getParent();
-                if (ml==null) return true; // incase the child was removed from parent
-                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp -> pp!=ppm).map(PluginParameter::instantiatePlugin).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toSet())));
-                return !currentmkByStructure.entrySet().stream().anyMatch( e -> {
+                if (ml==null) return true; // in case the child was removed from parent
+                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp -> pp!=ppm).map(PluginParameter::instantiatePlugin).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(MeasurementKey::getStoreStructureIdx, Collectors.mapping(MeasurementKey::getKey, Collectors.toSet())));
+                return currentmkByStructure.entrySet().stream().noneMatch(e -> {
                     Set<String> otherKeys = allmkByStructure.get(e.getKey());
                     if (otherKeys==null) return false;
                     return !Sets.intersection(otherKeys, new HashSet<>(e.getValue())).isEmpty();
@@ -87,8 +87,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowModifications(false).setAllowDeactivable(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
     PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operations can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
     
-    protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY, false).setHint("Directory where preprocessed images will be stored");
-    protected FileChooser outputPath = new FileChooser("Output Path", FileChooserOption.DIRECTORIES_ONLY, false).setHint("Directory where segmentation & lineage results will be stored");
+    protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("Output").setHint("Directory where preprocessed images will be stored");
+    protected FileChooser outputPath = new FileChooser("Output Path", FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("Output").setHint("Directory where segmentation & lineage results will be stored");
     ChoiceParameter importMethod = new ChoiceParameter("Import Method", IMPORT_METHOD.getChoices(), null, false);
     TextParameter positionSeparator = new TextParameter("Position Separator", "xy", true).setHint("character sequence located just before the position index.  It should be shared by all image files of the dataset, and unique in the file name. <br>Write the single char ^ in order to use the char sequence located before the channel keyword as position name (it should thus be the same for all files)");
     TextParameter frameSeparator = new TextParameter("Frame Separator", "t", true).setHint("character sequence located just before the frame number. It should be shared by all image files of the dataset, and unique in the file name");
@@ -122,13 +122,6 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         if (path==null && getOutputDirectory()!=null) path = Paths.get(getOutputDirectory()).getParent();
         res.put("imagePath", imagePath.toJSONEntry());
         res.put("outputPath", outputPath.toJSONEntry());
-
-        /*if (path!=null) {
-            String iPath = getOutputImageDirectory();
-            if (iPath != null) res.put("imagePath", path.relativize(Paths.get(iPath)).toString());
-            String oPath = getOutputDirectory();
-            if (oPath != null) res.put("outputPath", path.relativize(Paths.get(oPath)).toString());
-        }*/
         res.put("channelImages", channelImages.toJSONEntry());
         res.put("channelImagesDuplicated", channelImagesDuplicated.toJSONEntry());
         res.put("structures", structures.toJSONEntry());
@@ -145,13 +138,6 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     public void initFromJSONEntry(Object jsonEntry) {
         if (jsonEntry==null) throw new IllegalArgumentException("Cannot init xp with null content!");
         JSONObject jsonO = (JSONObject)jsonEntry;
-        /*if (jsonO.get("imagePath") instanceof JSONArray) {
-            imagePath.initFromJSONEntry(jsonO.get("imagePath"));
-        } else if (jsonO.containsKey("imagePath"))  imagePath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("imagePath").toString())).normalize().toFile().getAbsolutePath());
-        if (jsonO.get("outputPath") instanceof JSONArray) {
-            outputPath.initFromJSONEntry(jsonO.get("outputPath"));
-        } else  if (jsonO.containsKey("outputPath")) outputPath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("outputPath").toString())).normalize().toFile().getAbsolutePath());
-        */
         if (jsonO.get("imagePath") instanceof JSONArray) imagePath.initFromJSONEntry(jsonO.get("imagePath"));
         if (jsonO.get("outputPath") instanceof JSONArray) outputPath.initFromJSONEntry(jsonO.get("outputPath"));
         channelImages.initFromJSONEntry(jsonO.get("channelImages"));
@@ -173,6 +159,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     Path path;
     public Experiment setPath(Path path) {
         this.path=path;
+        this.outputPath.setRefPath(path);
+        this.imagePath.setRefPath(path);
         return this;
     }
 
@@ -335,7 +323,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
 
     public String getOutputDirectory() {
-        return outputPath.getFirstSelectedFilePath();
+        String output = outputPath.getFirstSelectedFilePath();
+        if (output == null) {
+            if (path!=null) {
+                setOutputDirectory("Output");
+                output = outputPath.getFirstSelectedFilePath();
+            }
+        }
+        return output;
     }
     
     public void setOutputDirectory(String outputPath) {
@@ -517,9 +512,16 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         SimpleListParameter<Position> positions_bck = this.positions;
         this.positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
         initChildList();
-        Experiment res = super.duplicate();
+        Experiment res = duplicate();
         this.positions = positions_bck;
         initChildList();
+        return res;
+    }
+    @Override
+    public Experiment duplicate() {
+        Experiment res = super.duplicate();
+        if (path!=null) res.setPath(path);
+        if (selectionSupplier!=null) res.setSelectionSupplier(selectionSupplier);
         return res;
     }
     public String toString() {

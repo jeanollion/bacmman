@@ -20,6 +20,8 @@ package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.parameters.Deactivatable;
 import bacmman.configuration.parameters.Parameter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.font.TextAttribute;
@@ -35,6 +37,7 @@ import javax.swing.tree.DefaultTreeCellRenderer;
  * @author jean ollion
  */
 public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
+    static final Logger logger = LoggerFactory.getLogger(TransparentTreeCellRenderer.class);
     final BooleanSupplier isExpertMode;
     final Predicate<Parameter> isDifferent;
     public TransparentTreeCellRenderer(BooleanSupplier isExpertMode, Predicate<Parameter> isDifferent) {

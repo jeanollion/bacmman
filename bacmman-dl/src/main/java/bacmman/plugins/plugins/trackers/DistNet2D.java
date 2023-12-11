@@ -933,7 +933,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return seg;
     }
 
-    public PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
+    protected PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
         List<SegmentedObject> parentTrack = new ArrayList<>();
         int fw = inputWindow.getIntValue();
         int sub = frameSubsampling.getIntValue();

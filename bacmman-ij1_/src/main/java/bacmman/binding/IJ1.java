@@ -19,6 +19,7 @@
 package bacmman.binding;
 
 import bacmman.core.Core;
+import bacmman.data_structure.MasterDAOFactory;
 import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.gui.image_interaction.IJImageDisplayer;
 import bacmman.ui.gui.image_interaction.IJImageWindowManager;
@@ -133,6 +134,10 @@ public class IJ1 implements PlugIn {
                     // TODO find other IJ1&2 plugins & ops...
                     initCore();
                     if (ij == null) ij = IJ.getInstance();
+                    if (MasterDAOFactory.getAllTypes().isEmpty()) {
+                        IJ.log("No Database system installed. Install bacmman-mapdb update site");
+                        throw new RuntimeException("No Database system installed. Install bacmman-mapdb update site");
+                    }
                     Core.getCore().addToFront(ij::toFront);
                     GUI gui = new GUI();
                     Core.getCore().addToFront(gui::toFront);

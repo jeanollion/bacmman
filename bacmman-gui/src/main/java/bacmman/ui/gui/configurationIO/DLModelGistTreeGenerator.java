@@ -246,7 +246,7 @@ public class DLModelGistTreeGenerator {
                 Object node = treeExpansionEvent.getPath().getLastPathComponent();
                 if (node instanceof FolderNode && thumbnailLazyLoader.containsKey(node)) {
                     DefaultWorker w = thumbnailLazyLoader.remove((FolderNode)node);
-                    if (w!=null) w.cancel(false);
+                    if (w!=null) w.cancelSilently();
                 }
             }
         });
@@ -424,7 +424,7 @@ public class DLModelGistTreeGenerator {
         gists = null;
         currentThumbnail = null;
         icons.clear();
-        thumbnailLazyLoader.values().forEach(l -> {if (l!=null) l.cancel(true);});
+        thumbnailLazyLoader.values().forEach(l -> {if (l!=null) l.cancelSilently();});
         thumbnailLazyLoader.clear();
     }
 

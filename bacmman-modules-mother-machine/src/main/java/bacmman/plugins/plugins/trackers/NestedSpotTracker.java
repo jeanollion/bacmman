@@ -546,7 +546,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         bucket.clear();
         SegmentedObject nextP = prev.getParent().getNext();
         if (nextP==null) return;
-        nextP.getChildren(prev.getStructureIdx()).filter(o->prev.equals(o.getPrevious())).forEachOrdered(o->bucket.add(o));
+        nextP.getChildren(prev.getStructureIdx()).filter(o->prev.equals(o.getPrevious())).forEachOrdered(bucket::add);
     }
     
     @Override

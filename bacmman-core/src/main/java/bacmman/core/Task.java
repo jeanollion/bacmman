@@ -341,7 +341,7 @@ public class Task implements ProgressCallback {
         setUI(Core.getProgressLogger());
         this.db=db;
         this.dbName=db.getDBName();
-        this.dir=db.getDir().toFile().getAbsolutePath();
+        this.dir=db.getDatasetDir().toFile().getAbsolutePath();
         keepDB = true;
     }
     public Task(String dbName) {
@@ -490,7 +490,7 @@ public class Task implements ProgressCallback {
     private void initDB() {
         if (db==null) {
             if (dir==null) throw new RuntimeException("XP not found");
-            if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.createDAO(dbName, dir, MasterDAOFactory.DAOType.DBMap);
+            if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.getDAO(dbName, dir);
         }
     }
     public Task setPositions(String... positions) {
@@ -576,7 +576,7 @@ public class Task implements ProgressCallback {
         }
         // check files
         for (Pair<String, int[]> e : extractMeasurementDir) {
-            String exDir = e.key==null? db.getDir().toFile().getAbsolutePath() : e.key;
+            String exDir = e.key==null? db.getDatasetDir().toFile().getAbsolutePath() : e.key;
             File f= new File(exDir);
             if (!f.exists()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " not found")));
             else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
@@ -789,7 +789,7 @@ public class Task implements ProgressCallback {
             }
         }
         if (!extractMeasurementDir.isEmpty()) logger.debug("extracting meas...");
-        for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
+        for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDatasetDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
         //if (exportData) exportData();
 
         // extract dataset
@@ -840,7 +840,7 @@ public class Task implements ProgressCallback {
 
     private void process(String position, boolean deleteAllPosition, Selection selection, double preProcessingMemoryThreshold) {
         publish("Position: "+position);
-        if (deleteAllPosition) db.getDao(position).deleteAllObjects();
+        if (deleteAllPosition) db.getDao(position).erase();
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
             logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
@@ -874,7 +874,7 @@ public class Task implements ProgressCallback {
                 } catch (MultipleException e) {
                     errors.addExceptions(e.getExceptions());
                 } catch (Throwable e) {
-                    errors.addExceptions(new Pair("Error while processing: db: "+db.getDBName()+" pos: "+position+" structure: "+s, e));
+                    errors.addExceptions(new Pair<>("Error while processing: db: "+db.getDBName()+" pos: "+position+" structure: "+s, e));
                 }
                 incrementProgress();
                 if (generateTrackImages && !db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) {

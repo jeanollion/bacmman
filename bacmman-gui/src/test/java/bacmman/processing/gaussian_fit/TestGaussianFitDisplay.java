@@ -2,20 +2,17 @@ package bacmman.processing.gaussian_fit;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
-import bacmman.core.Core;
 import bacmman.data_structure.*;
-import bacmman.data_structure.dao.BasicMasterDAO;
+import bacmman.data_structure.dao.MemoryMasterDAO;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.data_structure.dao.UUID;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
-import bacmman.image.ImageFloat;
 import bacmman.ui.gui.image_interaction.*;
-import bacmman.utils.geom.Point;
 import ij.ImageJ;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,7 +46,7 @@ public class TestGaussianFitDisplay {
     private static void displayObjects(Image im, List<Region> result) {
         result.forEach(r -> r.setIsAbsoluteLandmark(true));
         SegmentedObjectAccessor accessor = getAccessor();
-        MasterDAO dao = new BasicMasterDAO(accessor);
+        MasterDAO<?,?> dao = new MemoryMasterDAO<>(accessor, UUID.generator());
         dao.setExperiment(new Experiment("xp", new Structure()));
         dao.getExperiment().createPosition("pos1");
         SegmentedObject parent = accessor.createRoot(0, new BlankMask(im), dao.getDao("pos1"));

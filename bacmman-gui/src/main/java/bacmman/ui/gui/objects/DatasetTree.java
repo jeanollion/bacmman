@@ -338,6 +338,10 @@ public class DatasetTree {
         }
     }
 
+    public static String getRelPathFromNameAndDir(String dbName, String dbDir, String baseDir) {
+        return Utils.getRelativePath(dbDir, baseDir).getParent().resolve(dbName).toString();
+    }
+
     public class DatasetTreeNode extends DefaultMutableTreeNode {
         final File file;
         final String name;

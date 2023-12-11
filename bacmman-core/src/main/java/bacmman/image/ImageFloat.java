@@ -85,12 +85,13 @@ public class ImageFloat extends ImageFloatingPoint<ImageFloat> implements Primit
             }
         }
         else { // masks is relative to image
-            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
+            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z-mask.zMin()<0 || z-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
             SimpleBoundingBox inter = BoundingBox.getIntersection2D(new SimpleBoundingBox(this).resetOffset(), mask);
             if (inter.isEmpty()) return DoubleStream.empty();
             if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
+                int mZmin = mask.zMin();
                 if (mask instanceof BlankMask) return this.streamPlane(z);
-                else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
+                else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z+mZmin)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
             }
             else {
                 int sX = inter.sizeX();

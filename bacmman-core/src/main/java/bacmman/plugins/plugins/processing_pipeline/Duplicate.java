@@ -28,7 +28,6 @@ import bacmman.plugins.*;
 import bacmman.utils.StreamConcatenation;
 import bacmman.utils.Utils;
 
-import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -126,7 +125,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     }
 
     public static Map<SegmentedObject, SegmentedObject> duplicate(Stream<SegmentedObject> sourceStream, int targetObjectClassIdx, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        Map<SegmentedObject, SegmentedObject> sourceMapDup = sourceStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s, targetObjectClassIdx,true, true, false)));
+        Map<SegmentedObject, SegmentedObject> sourceMapDup = sourceStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s, targetObjectClassIdx,true, true, false, false)));
 
         // set trackHead, next & prev ids + structureIdx
         if (editor!=null) {

@@ -69,7 +69,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
 
     String name;
     int objectClassIdx;
-    Map<String, List<String>> elements; // stored as list for simplicity
+    Map<String, List<String>> elements; // position maps bar-code stored as list for simplicity
     String color="Green";
     // volatile state
     boolean displayingTracks=false;
@@ -187,7 +187,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         else return false;
     }
     public Set<String> getElementStrings(String position) {
-        if (elements.containsKey(position)) return new HashSet(this.elements.get(position));
+        if (elements.containsKey(position)) return new HashSet<>(this.elements.get(position));
         else return Collections.EMPTY_SET;
     }
     public boolean hasElementsAt(String position) {
@@ -402,7 +402,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     }
     public synchronized Selection addElements(Collection<SegmentedObject> elementsToAdd) {
         if (elementsToAdd==null || elementsToAdd.isEmpty()) return this;
-        Map<Integer, List<SegmentedObject>> objectBySIdx = SegmentedObjectUtils.splitByStructureIdx(elementsToAdd);
+        Map<Integer, List<SegmentedObject>> objectBySIdx = SegmentedObjectUtils.splitByStructureIdx(elementsToAdd, true);
         if (this.getStructureIdx()==-2) {
             if (objectBySIdx.size()>1) throw new IllegalArgumentException("Cannot add objects from several structures");
             this.objectClassIdx=objectBySIdx.keySet().iterator().next();
@@ -459,7 +459,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
             Map<String, List<String>> parentToChildrenMap = elements.stream().collect(Collectors.groupingBy(Selection::getParent));
             int parentSIdx = objectClassIdx==-1 ? -1 : this.mDAO.getExperiment().getStructure(objectClassIdx).getParentStructure();
             List<SegmentedObject> posParents = parentsByPosition.get(position);
-            Map<Integer, List<SegmentedObject>> parentsBySIdx = SegmentedObjectUtils.splitByStructureIdx(posParents);
+            Map<Integer, List<SegmentedObject>> parentsBySIdx = SegmentedObjectUtils.splitByStructureIdx(posParents, true);
             if (!parentsBySIdx.containsKey(parentSIdx)) continue;
             Set<String> curParents = new HashSet<>(Utils.transform(parentsBySIdx.get(parentSIdx), Selection::indicesString));
             curParents.retainAll(parentToChildrenMap.keySet()); // intersection
@@ -590,7 +590,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     }
 
     @Override
-    public Object toJSONEntry() {
+    public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
         res.put("objects", JSONUtils.toJSONObject(elements));
         res.put("name", name);

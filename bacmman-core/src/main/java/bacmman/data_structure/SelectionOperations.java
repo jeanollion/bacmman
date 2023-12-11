@@ -271,10 +271,10 @@ public class SelectionOperations {
 
     public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
         List<SegmentedObject> parents = getParents(sel, position, parentStructureIdx, db);
-        return parents.stream().map(p->p.getTrackHead()).distinct().collect(Collectors.toList());
+        return parents.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
     }
 
-    public static Selection createSelection(String name, List<String> position, int objectClass, MasterDAO dao) {
+    public static Selection createSelection(String name, List<String> position, int objectClass, MasterDAO<?, ?> dao) {
         Selection s = dao.getSelectionDAO().getOrCreate(name, true);
         s.setObjectClassIdx(objectClass);
         Set<SegmentedObject> objectsToAdd = position.stream().flatMap(p -> dao.getDao(p).getRoots().stream().flatMap(r -> r.getChildren(objectClass))).collect(Collectors.toSet());

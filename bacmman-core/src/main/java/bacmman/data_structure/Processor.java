@@ -144,7 +144,7 @@ public class Processor {
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
-        if (deleteObjects) dao.deleteAllObjects();
+        if (deleteObjects) dao.erase();
     }
     
     public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb) throws IOException {
@@ -221,7 +221,7 @@ public class Processor {
         boolean canDeleteAll = IntStream.range(0, xp.getStructureCount()).mapToObj(xp::getStructure).allMatch(s -> s.getProcessingPipelineParameter().isOnePluginSet());
         boolean allOC = structures.length==0 || structures.length==xp.getStructureCount();
         if (allOC && canDeleteAll) {
-            dao.deleteAllObjects();
+            dao.erase();
         } else {
             for (int s : structures) {
                 if (xp.getStructure(s).getProcessingPipelineParameter().isOnePluginSet()) {
@@ -256,7 +256,7 @@ public class Processor {
             System.gc();
         }
     }
-    
+    @SuppressWarnings("unchecked")
     public static void executeProcessingScheme(List<SegmentedObject> parentTrack, final int structureIdx, final boolean trackOnly, final boolean deleteChildren, final Selection selection, ProgressCallback pcb) {
         if (parentTrack.isEmpty()) return;
         final ObjectDAO dao = parentTrack.get(0).getDAO();
@@ -442,7 +442,6 @@ public class Processor {
     public enum MEASUREMENT_MODE {ERASE_ALL, OVERWRITE, ONLY_NEW}
     
     public static void performMeasurements(MasterDAO db, MEASUREMENT_MODE mode, Selection selection, ProgressCallback pcb) {
-        Experiment xp = db.getExperiment();
         List<String> positions = selection==null ? Arrays.asList(db.getExperiment().getPositionsAsString()) :
                 selection.getAllPositions().stream().filter(p->!selection.getElementStrings(p).isEmpty()).collect(Collectors.toList());
         for (String position : positions) {
@@ -458,7 +457,7 @@ public class Processor {
         List<SegmentedObject> roots = dao.getRoots();
         logger.debug("{} number of roots: {}", dao.getPositionName(), roots.size());
         final Map<Integer, List<Measurement>> measurements = dao.getExperiment().getMeasurementsByCallStructureIdx();
-        if (roots.isEmpty()) throw new RuntimeException("no root");
+        if (roots.isEmpty()) return;
         Map<SegmentedObject, List<SegmentedObject>> rootTrack = new HashMap<>(1); rootTrack.put(roots.get(0), roots);
         boolean containsObjects=false;
         BiPredicate<SegmentedObject, Measurement> measurementMissing = (SegmentedObject callObject, Measurement m) -> {
@@ -504,7 +503,7 @@ public class Processor {
                     .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
                     .forEach(m-> nonParallelTrackMeasurements.add(new Pair<>(m, pt))));
             int subTaskNumber = 0;
-            if (pcb!=null && nonParallelTrackMeasurements.size()>0) {
+            if (pcb!=null && !nonParallelTrackMeasurements.isEmpty()) {
                 subTaskNumber+=nonParallelTrackMeasurements.size();
             }
             // count parallel measurement on tracks -
@@ -603,7 +602,7 @@ public class Processor {
         for (List<Measurement> lm : measurements.values()) {
             for (int sOut : getOutputStructures(lm)) {
                 for (SegmentedObject root : roots) {
-                    root.getChildren(sOut).filter(o->o.getMeasurements().modified()).forEachOrdered(o->allModifiedObjects.add(o));
+                    root.getChildren(sOut).filter(o->o.getMeasurements().modified()).forEachOrdered(allModifiedObjects::add);
                 }
             }
         }

@@ -19,7 +19,6 @@
 package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Position;
-import bacmman.core.Core;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
@@ -400,7 +399,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                 generator.db.getExperiment().getPosition(pos).eraseData();
                                 generator.db.getExperiment().getPosition(pos).removeFromParent();
                             }
-                            generator.db.updateExperiment();
+                            generator.db.storeExperiment();
                             GUI.getInstance().populateActionPositionList();
                             GUI.getInstance().populateTestPositionJCB();
                             GUI.getInstance().updateConfigurationTree();

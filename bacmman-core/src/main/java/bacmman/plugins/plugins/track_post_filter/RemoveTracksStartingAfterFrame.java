@@ -31,6 +31,7 @@ import java.util.Map.Entry;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 import static bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY_TT;
+import static bacmman.plugins.plugins.track_post_filter.PostFilter.getPredicate;
 
 import java.util.function.BiPredicate;
 
@@ -68,7 +69,7 @@ public class RemoveTracksStartingAfterFrame implements TrackPostFilter, Hint {
             if (e.getKey().getFrame()>start) objectsToRemove.addAll(e.getValue());
         }
         //logger.debug("remove track trackLength: #objects to remove: {}", objectsToRemove.size());
-        BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
+        BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = getPredicate(mergePolicy.getSelectedEnum());
         if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true);
     }
 

@@ -27,17 +27,19 @@ import java.util.List;
  * @author Jean Ollion
  */
 public interface SelectionDAO {
-    public void clearCache();
+    void clearCache();
     
-    public Selection getOrCreate(String name, boolean clearIfExisting);
+    Selection getOrCreate(String name, boolean clearIfExisting);
     
-    public List<Selection> getSelections();
+    List<Selection> getSelections();
         
-    public void store(Selection s);
+    void store(Selection s);
     
-    public void delete(String id);
+    void delete(String id);
     
-    public void delete(Selection o);
+    void delete(Selection o);
     
     public void deleteAllObjects();
+    void erase();
+    boolean isReadOnly();
 }

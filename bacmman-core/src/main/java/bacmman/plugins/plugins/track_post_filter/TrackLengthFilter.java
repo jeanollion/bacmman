@@ -33,6 +33,8 @@ import bacmman.plugins.TrackPostFilter;
 
 import java.util.function.BiPredicate;
 
+import static bacmman.plugins.plugins.track_post_filter.PostFilter.getPredicate;
+
 /**
  *
  * @author Jean Ollion
@@ -75,7 +77,7 @@ public class TrackLengthFilter implements TrackPostFilter, Hint {
             if (e.getValue().size()<min || (max>0 && e.getValue().size()>max)) objectsToRemove.addAll(e.getValue());
         }
         //logger.debug("remove track trackLength: #objects to remove: {}", objectsToRemove.size());
-        BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
+        BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = getPredicate(mergePolicy.getSelectedEnum());
             
         if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true);
     }

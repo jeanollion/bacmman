@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 public class Measurements implements Comparable<Measurements>, JSONSerializable{
     private final static Logger logger = LoggerFactory.getLogger(Measurements.class);
-    protected String id;
+    protected Object id;
     protected String positionName;
     protected int frame, structureIdx;
     protected double calibratedTimePoint;
@@ -52,7 +52,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         this.positionName=o.getPositionName();
         this.frame=o.getFrame();
         this.structureIdx=o.getStructureIdx();
-        this.isTrackHead=o.isTrackHead;
+        this.isTrackHead=o.isTrackHead();
         this.values=new ConcurrentHashMap<>();
         updateObjectProperties(o);
     }
@@ -63,7 +63,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         JSONObject json = (JSONObject)jsonEntry;
-        id = (String)json.get("id");
+        id = json.get("id");
         structureIdx = ((Number)json.get("sIdx")).intValue();
         frame = ((Number)json.get("frame")).intValue();
         calibratedTimePoint = ((Number)json.get("timePointCal")).doubleValue();
@@ -93,7 +93,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
     
     public boolean modified() {return modifications;}
     
-    public String getId() {
+    public Object getId() {
         return id;
     }
 
@@ -135,8 +135,8 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
             this.indices=newIndices;
             modifications=true; // TODO partial update
         }
-        if (this.isTrackHead!=o.isTrackHead) {
-            this.isTrackHead=o.isTrackHead;
+        if (this.isTrackHead!=o.isTrackHead()) {
+            this.isTrackHead=o.isTrackHead();
             modifications=true; // TODO partial update
         }
     }
@@ -170,7 +170,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
     public static String asString(Object o, Function<Number, String> numberFormater) {
         if (o instanceof Number) return numberFormater.apply((Number)o);
         else if (o instanceof Boolean) return o.toString();
-        else if (o instanceof List) return Utils.toStringList((List<Double>)o,"","","-", oo->numberFormater.apply(oo)).toString();
+        else if (o instanceof List) return Utils.toStringList((List<Number>)o,"","","-", oo->numberFormater.apply(oo)).toString();
         else if (o instanceof double[]) return Utils.toStringArray((double[])o, "", "", "-", numberFormater).toString();
         else if (o instanceof String) {
             if ("null".equals(o) || NA_STRING.equals(o)) return NA_STRING;

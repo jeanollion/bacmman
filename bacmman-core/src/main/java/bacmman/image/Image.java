@@ -29,6 +29,7 @@ import bacmman.utils.Utils;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -281,7 +282,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     public abstract I newImage(String name, ImageProperties properties);
     public DoubleStream stream() {
         if (sizeZ==1) return streamPlane(0);
-        return StreamConcatenation.concat((DoubleStream[])IntStream.range(0, sizeZ).mapToObj(z->streamPlane(z)).toArray(s->new DoubleStream[s]));
+        return StreamConcatenation.concat(IntStream.range(0, sizeZ).mapToObj(this::streamPlane).toArray(DoubleStream[]::new));
     }
     public abstract DoubleStream streamPlane(int z);
     public DoubleStream stream(ImageMask mask, boolean maskHasAbsoluteOffset) {
@@ -294,7 +295,13 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         }
         if (minZ>=maxZ) return DoubleStream.empty();
         if (minZ==maxZ-1) return streamPlane(minZ-(maskHasAbsoluteOffset?zMin:0), mask, maskHasAbsoluteOffset);
-        return StreamConcatenation.concat(IntStream.range(minZ-(maskHasAbsoluteOffset?zMin:0), maxZ-(maskHasAbsoluteOffset?zMin:0)).mapToObj(z->streamPlane(z, mask, maskHasAbsoluteOffset)).filter(s->s!=DoubleStream.empty()).toArray(DoubleStream[]::new));
+        Function<Integer, ImageMask> getMask;
+        if (maskHasAbsoluteOffset || mask instanceof ImageMask2D || (minZ==0 && maxZ == sizeZ && sizeZ == mask.sizeZ())) getMask = z -> mask;
+        else {
+            int minZF = minZ;
+            getMask = z -> new ImageMask2D(mask, z - minZF);
+        }
+        return StreamConcatenation.concat(IntStream.range(minZ-(maskHasAbsoluteOffset?zMin:0), maxZ-(maskHasAbsoluteOffset?zMin:0)).mapToObj(z->streamPlane(z, getMask.apply(z), maskHasAbsoluteOffset)).filter(s->s!=DoubleStream.empty()).toArray(DoubleStream[]::new));
     }
     public abstract DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset);
     

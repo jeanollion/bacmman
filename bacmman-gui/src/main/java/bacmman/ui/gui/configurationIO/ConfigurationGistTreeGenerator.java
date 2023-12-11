@@ -242,7 +242,7 @@ public class ConfigurationGistTreeGenerator {
                 Object node = treeExpansionEvent.getPath().getLastPathComponent();
                 if (node instanceof FolderNode && thumbnailLazyLoader.containsKey(node)) {
                     DefaultWorker w = thumbnailLazyLoader.remove(node);
-                    if (w!=null) w.cancel(false);
+                    if (w!=null) w.cancelSilently();
                 }
             }
         });
@@ -285,7 +285,7 @@ public class ConfigurationGistTreeGenerator {
         treeModel.nodeStructureChanged(folder);
         if (thumbnailLazyLoader.containsKey(folder)) {
             DefaultWorker w = thumbnailLazyLoader.get(folder);
-            w.cancel(false);
+            w.cancelSilently();
             thumbnailLazyLoader.remove(folder);
         }
         thumbnailLazyLoader.get(folder);
@@ -333,7 +333,7 @@ public class ConfigurationGistTreeGenerator {
             Enumeration<TreePath> expState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{getRoot()}));
             GistTreeNode sel = keepSel? getSelectedGistNode() : null;
             root.removeAllChildren();
-            thumbnailLazyLoader.values().forEach(w -> w.cancel(false));
+            thumbnailLazyLoader.values().forEach(DefaultWorker::cancelSilently);
             thumbnailLazyLoader.clear();
             // folder nodes
             gists.stream().map(gc -> gc.folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
@@ -465,7 +465,7 @@ public class ConfigurationGistTreeGenerator {
         }
         icons.clear();
         iconsByOC.clear();
-        thumbnailLazyLoader.values().forEach(l -> {if (l!=null) l.cancel(true);});
+        thumbnailLazyLoader.values().forEach(l -> {if (l!=null) l.cancelSilently();});
         thumbnailLazyLoader.clear();
         gists.clear();
         currentThumbnail = null;

@@ -35,6 +35,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     private static final Logger logger = LoggerFactory.getLogger(DefaultWorker.class);
     protected final WorkerTask task;
     protected Runnable endOfWork;
+    protected Runnable cancel;
     protected int[] taskIdx;
     protected ProgressLogger progressor;
     protected ProgressCallback pcb;
@@ -85,7 +86,6 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     }
     @Override
     protected Integer doInBackground() throws Exception {
-
         int count = 0;
         if (progressor !=null) {
             logger.debug("Set running true");
@@ -137,10 +137,16 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             } //else System.out.println("No GUI. End of JOBS");
         }
     }
+    public DefaultWorker setCancel(Runnable cancel) {
+        this.cancel=cancel;
+        return this;
+    }
+
     public void cancelSilently() {
+        if (cancel!=null) cancel.run();
         try {
             cancel(true);
-        } catch (Exception ignored) {}
+        } catch (CancellationException ignored) {}
     }
     public DefaultWorker setEndOfWork(Runnable endOfWork) {
         this.endOfWork=endOfWork;

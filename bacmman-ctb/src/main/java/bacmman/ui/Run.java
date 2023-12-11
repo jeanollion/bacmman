@@ -40,7 +40,7 @@ public class Run {
         Core.setUserLogger(ui);
 
         // init experiment
-        MasterDAO db = MasterDAOFactory.createDAO(parent.getName(), dsFolder.getAbsolutePath(), MasterDAOFactory.DAOType.DBMap);
+        MasterDAO db = MasterDAOFactory.getDAO(parent.getName(), dsFolder.getAbsolutePath());
         db.setConfigurationReadOnly(false);
         Experiment xp = new Experiment(parent.getName());
         xp.initFromJSONEntry(JSONUtils.parse(jsonConfig));
@@ -49,7 +49,7 @@ public class Run {
 
         // import images, run and export
         Processor.importFiles(db.getExperiment(), true, false, ProgressCallback.get(ui), imageFolder.getAbsolutePath());
-        db.updateExperiment();
+        db.storeExperiment();
         Task t = new Task(db)
                 .setActions(false, true, true, false);
         t.setUI(ui);

@@ -176,7 +176,7 @@ public class TrackMatePanel {
     }
 
     public void openTrackMateFile() {
-        File file = Utils.chooseFile("Choose TrackMate XML file", db.getDir().toFile().toString(), FileChooser.FileChooserOption.FILE_ONLY, GUI.getInstance(), ".xml");
+        File file = Utils.chooseFile("Choose TrackMate XML file", db.getDatasetDir().toFile().toString(), FileChooser.FileChooserOption.FILE_ONLY, GUI.getInstance(), ".xml");
         if (file != null) {
             closeTrackMate(false);
             if (db != null && getParentTrackHead() != null) { // use reflection to avoid dependency to trackmate-module

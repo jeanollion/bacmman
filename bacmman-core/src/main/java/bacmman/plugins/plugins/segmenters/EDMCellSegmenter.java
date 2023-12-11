@@ -110,7 +110,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
 
     // testable processing plugin
     Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores;
-    @Override public void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
+    @Override public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores=  stores;
     }
 

@@ -187,7 +187,7 @@ public class ExtractDataset extends JDialog {
     }
 
     private void onOK() {
-        resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
+        resultingTask = new Task(mDAO.getDBName(), mDAO.getDatasetDir().toFile().getAbsolutePath());
         List<String> sels = this.selectionList.getSelectedValuesList()
                 .stream()
                 .map(Selection::getName)

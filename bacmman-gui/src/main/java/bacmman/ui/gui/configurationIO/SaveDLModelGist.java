@@ -311,7 +311,7 @@ public class SaveDLModelGist {
                 if (cancel) {
                     if (uploader != null) { // if process finishes before answer -> uploader is set to null
                         String id = uploader.key;
-                        uploader.value.cancel(true);
+                        uploader.value.cancelSilently();
                         url.setText(currentURL); // callback may have modified url
                         if (id != null) {
                             boolean deleted = JSONQuery.delete(BASE_URL + "/gists/" + id, auth);

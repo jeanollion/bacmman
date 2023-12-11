@@ -77,13 +77,17 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                     + "<li><em>Delete whole track</em>: deletes every object of the track from the deleted object as well as the connected tracks in subsequent frames</li>"
                     + "<li><em>Prune Track</em>: deletes the track from the deleted objects as well as the connected tracks in subsequent frames</li></ol>");
 
-    public enum MERGE_POLICY {
-        NERVER_MERGE(SegmentedObjectEditor.NERVE_MERGE),
-        ALWAYS_MERGE(SegmentedObjectEditor.ALWAYS_MERGE),
-        MERGE_TRACKS_BACT_SIZE_COND(SegmentedObjectEditor.MERGE_TRACKS_BACT_SIZE_COND);
-        public final BiPredicate<SegmentedObject, SegmentedObject> mergePredicate;
-        MERGE_POLICY(BiPredicate<SegmentedObject, SegmentedObject> mergePredicate) {
-            this.mergePredicate=mergePredicate; 
+    public enum MERGE_POLICY { NERVER_MERGE, ALWAYS_MERGE, MERGE_TRACKS_BACT_SIZE_COND }
+
+    public static  BiPredicate<SegmentedObject, SegmentedObject> getPredicate(MERGE_POLICY policy) {
+        switch (policy) {
+            case ALWAYS_MERGE:
+            default:
+                return SegmentedObjectEditor.ALWAYS_MERGE();
+            case NERVER_MERGE:
+                return SegmentedObjectEditor.NERVE_MERGE();
+            case MERGE_TRACKS_BACT_SIZE_COND:
+                return SegmentedObjectEditor.MERGE_TRACKS_BACT_SIZE_COND();
         }
     }
     public final static String MERGE_POLICY_TT = "When an object p is linked to two objects n and m at the next frame, if the object m is removed by this post-filter p is then linked to one single object n at the next frame. This parameter controls whether the tracks of the objects p and n should be merged.<br/><ul><li>NEVER_MERGE: never merge tracks</li><li>ALWAYS_MERGE: always merge tracks</li><li>MERGE_TRACKS_SIZE_COND: merge tracks only if size(n) > 0.8 x size(p). <br />For bacteria, if a cell p divides into two cells m and n and the daughter m is removed, this option allows deciding whether division really occurred and n is the daughter of p or if the detected division was a false positive event and p and n are the same cell</li></ul>";
@@ -135,7 +139,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
         }
         if (!objectsToRemove.isEmpty()) { 
             //logger.debug("delete method: {}, objects to delete: {}", this.deleteMethod.getSelectedItem(), objectsToRemove.size());
-            BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
+            BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = getPredicate(mergePolicy.getSelectedEnum());
             switch (DELETE_METHOD.getMethod(deleteMethod.getSelectedItem())) {
                 case SINGLE_OBJECTS:
                     SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true); // only delete

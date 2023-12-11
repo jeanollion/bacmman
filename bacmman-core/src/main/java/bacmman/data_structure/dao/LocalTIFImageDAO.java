@@ -30,7 +30,6 @@ import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.function.IntPredicate;
 
@@ -46,12 +45,12 @@ import org.slf4j.LoggerFactory;
 public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     private final static Logger logger = LoggerFactory.getLogger(LocalTIFImageDAO.class);
     final String directory;
-    final String microscopyFieldName;
+    final String position;
     final IntPredicate isSingleFrameChannel;
     static final int idxZeros = 5;
     
-    public LocalTIFImageDAO(String microscopyFieldName, String localDirectory, IntPredicate isSingleFrameChannel) {
-        this.microscopyFieldName = microscopyFieldName;
+    public LocalTIFImageDAO(String position, String localDirectory, IntPredicate isSingleFrameChannel) {
+        this.position = position;
         this.directory=localDirectory;
         this.isSingleFrameChannel =isSingleFrameChannel;
     }
@@ -85,7 +84,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
-            logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, microscopyFieldName, bounds);
+            logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, position, bounds);
             return ImageReaderFile.openImage(path, new ImageIOCoordinates(bounds));
         } else {
             throw new FileNotFoundException(path);
@@ -137,10 +136,10 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     }
 
     protected String getPreProcessedImagePath(int channelImageIdx, int timePoint) {
-        return Paths.get(directory, microscopyFieldName, "pre_processed", "t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif").toString();
+        return Paths.get(directory, position, "pre_processed", "t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif").toString();
     }
     private String getTrackImageFolder(int parentStructureIdx) {
-        return Paths.get(directory, microscopyFieldName, "track_images_"+parentStructureIdx).toString();
+        return Paths.get(directory, position, "track_images_"+parentStructureIdx).toString();
     }
     private String getTrackImagePath(SegmentedObject o, int channelImageIdx) {
         return Paths.get(getTrackImageFolder(o.getStructureIdx()), Selection.indicesString(o)+"_"+channelImageIdx+".tif").toString();

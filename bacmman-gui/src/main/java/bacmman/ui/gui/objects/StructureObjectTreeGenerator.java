@@ -95,7 +95,7 @@ public class StructureObjectTreeGenerator {
     
     public Experiment getExperiment() {return db.getExperiment();}
     
-    public ObjectDAO getObjectDAO(String fieldName) {return db.getDao(fieldName);}
+    public ObjectDAO<?> getObjectDAO(String fieldName) {return db.getDao(fieldName);}
     
     public JTree getTree() {
         if (tree==null) generateTree();

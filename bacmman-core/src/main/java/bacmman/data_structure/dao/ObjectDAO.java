@@ -36,64 +36,78 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public interface ObjectDAO {
-    public MasterDAO getMasterDAO();
-    public void applyOnAllOpenedObjects(Consumer<SegmentedObject> function);
-    public Experiment getExperiment();
-    public String getPositionName();
-    public void clearCache();
-    public boolean isReadOnly();
-    SegmentedObject getById(String parentTrackHeadId, int structureIdx, int frame, String id);
-    public List<SegmentedObject> getChildren(SegmentedObject parent, int structureIdx); // needs indices: structureIdx & parent
+public interface ObjectDAO<ID> {
+    default boolean getIdUsesParentTrackHead() {return false;}
+    MasterDAO<ID, ? extends ObjectDAO<ID>> getMasterDAO();
+    void applyOnAllOpenedObjects(Consumer<SegmentedObject> function);
+    ID generateID(int objectClassIdx, int frame);
+    Experiment getExperiment();
+    String getPositionName();
+    void clearCache();
+    default void closeThreadResources() {}
+    boolean isReadOnly();
+    boolean isEmpty();
+    void unlock();
+    void compactDBs(boolean onlyOpened);
+
+    /**
+     * get a single SegmentedObject from DAO
+     * @param objectClassIdx
+     * @param id
+     * @param frame  optional: frame of the object to retrieve. DAO may not use it. set -1 if unknown
+     * @param parentTrackHeadId optional: ID of the parent's trackhead. set null if unknown. DAO use it only if getIdUsesParentTrackHead returns true.
+     * @return
+     */
+    SegmentedObject getById(int objectClassIdx, ID id, int frame, ID parentTrackHeadId);
+    List<SegmentedObject> getChildren(SegmentedObject parent, int objectClassIdx); // needs indices: objectClassIdx & parent
     /**
      * Sets children for each parent in parent Track
      * @param parentTrack object with same trackHead id
-     * @param structureIdx direct child of parent
+     * @param objectClassIdx direct child of parent
      */
-    public void setAllChildren(Collection<SegmentedObject> parentTrack, int structureIdx);
+    void setAllChildren(Collection<SegmentedObject> parentTrack, int objectClassIdx);
     /**
-     * Deletes the children of {@param parent} of structure {@param structureIdx}
+     * Deletes the children of {@param parent} of structure {@param objectClassIdx}
      * @param parent
-     * @param structureIdx 
+     * @param objectClassIdx
      */
-    public void deleteChildren(final SegmentedObject parent, int structureIdx);
-    public void deleteChildren(Collection<SegmentedObject> parents, int structureIdx);
+    void deleteChildren(final SegmentedObject parent, int objectClassIdx);
+    void deleteChildren(Collection<SegmentedObject> parents, int objectClassIdx);
     /**
      * Deletes all objects from the given structure index  plus all objects from direct or indirect children structures
      * @param structures 
      */
-    public void deleteObjectsByStructureIdx(int... structures);
-    public void deleteAllObjects();
+    void deleteObjectsByStructureIdx(int... structures);
+    void deleteAllObjects();
     /**
      * 
      * @param o object to delete
      * @param deleteChildren if true, deletes all direct or indirect chilren
      */
-    public void delete(SegmentedObject o, boolean deleteChildren, boolean deleteFromParent, boolean relabelParent);
-    public void delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelParent);
-    //revoir les fonctions deletes avec la gestions des enfant directs et indirects.. la fonction delete doit elle appeller deleteChildren?
-    public void store(SegmentedObject object);
-    public void store(final Collection<SegmentedObject> objects);
+    void delete(SegmentedObject o, boolean deleteChildren, boolean deleteFromParent, boolean relabelParent);
+    void delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelParent);
+    void store(SegmentedObject object);
+    void store(final Collection<SegmentedObject> objects);
     
-    public List<SegmentedObject> getRoots();
-    public void setRoots(List<SegmentedObject> roots);
-    public SegmentedObject getRoot(int timePoint);
+    List<SegmentedObject> getRoots();
+    void setRoots(List<SegmentedObject> roots);
+    SegmentedObject getRoot(int timePoint);
     
-    public List<SegmentedObject> getTrack(SegmentedObject trackHead);
-    public List<SegmentedObject> getTrackHeads(SegmentedObject parentTrack, int structureIdx);
+    List<SegmentedObject> getTrack(SegmentedObject trackHead);
+    List<SegmentedObject> getTrackHeads(SegmentedObject parentTrackHead, int objectClassIdx);
     
-    public void upsertMeasurements(Collection<SegmentedObject> objects);
-    public void upsertMeasurement(SegmentedObject o);
-    public void retrieveMeasurements(int... structureIdx);
-    public Measurements getMeasurements(SegmentedObject o);
-    public List<Measurements> getMeasurements(int structureIdx, String... measurements);
-    public void deleteAllMeasurements();
-
+    void upsertMeasurements(Collection<SegmentedObject> objects);
+    void upsertMeasurement(SegmentedObject o);
+    void retrieveMeasurements(int... objectClassIdx);
+    Measurements getMeasurements(SegmentedObject o);
+    List<Measurements> getMeasurements(int objectClassIdx, String... measurements);
+    void deleteAllMeasurements();
+    void erase();
     ObjectDAO setSafeMode(boolean safeMode);
     void rollback();
     void commit();
     
-    public static boolean sameContent(ObjectDAO dao1, ObjectDAO dao2, ProgressCallback pcb) {
+    static <ID> boolean sameContent(ObjectDAO<ID> dao1, ObjectDAO<ID> dao2, ProgressCallback pcb) {
         List<SegmentedObject> roots1 = dao1.getRoots();
         List<SegmentedObject> roots2 = dao2.getRoots();
         if (!roots1.equals(roots2)) {
@@ -108,9 +122,9 @@ public interface ObjectDAO {
                 return false;
             }
             // deep equals
-            Map<String, SegmentedObject> allObjects2Map = allObjects2.stream().collect(Collectors.toMap(SegmentedObject::getId, Function.identity()));
+            Map<ID, SegmentedObject> allObjects2Map = allObjects2.stream().collect(Collectors.toMap(o->(ID)o.getId(), Function.identity()));
             for (SegmentedObject o1 : allObjects1) {
-                SegmentedObject o2  = allObjects2Map.get(o1.getId());
+                SegmentedObject o2  = allObjects2Map.get((ID)o1.getId());
                 if (!o1.toJSONEntry().toJSONString().equals(o2.toJSONEntry().toJSONString())) {
                     pcb.log("positions:"+dao1.getPositionName()+" differs @ object: "+o1);
                     return false;

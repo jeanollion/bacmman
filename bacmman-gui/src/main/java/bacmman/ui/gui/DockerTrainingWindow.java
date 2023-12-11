@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -332,7 +331,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         String defWD;
         if (GUI.hasInstance()) {
-            if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDir().toString();
+            if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
         workingDirectoryTextField.addActionListener(ae -> {

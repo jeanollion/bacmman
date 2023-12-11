@@ -97,7 +97,7 @@ public abstract class InteractiveImage {
         List<Pair<SegmentedObject, BoundingBox>> res = new ArrayList<>(objects.size());
         for (SegmentedObject o : objects) {
             BoundingBox b = this.getObjectOffset(o);
-            if (b!=null) res.add(new Pair(o, b));
+            if (b!=null) res.add(new Pair<>(o, b));
         }
         return res;
     }

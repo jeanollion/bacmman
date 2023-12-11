@@ -161,7 +161,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     }
     /**
      * 1) Segmentation of microchannels depending on the chosen {@link MicrochannelSegmenter segmenter}
-     * 2) {@link #track(int, List, TrackLinkEditor)}  tracking of microchannels}
+     * 2) {@link Tracker#track(int, List, TrackLinkEditor)}  tracking of microchannels}
      * 3) {@link #fillGaps(int, List, boolean, SegmentedObjectFactory, TrackLinkEditor)}  gap-filling procedure}
      * 4) Track-Wise Normalization of microchannels width and relative y position 
      * @param structureIdx microchannel structure index

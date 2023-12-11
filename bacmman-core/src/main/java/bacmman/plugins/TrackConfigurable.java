@@ -19,7 +19,6 @@
 package bacmman.plugins;
 
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.utils.Pair;
 import bacmman.image.BlankMask;
 import bacmman.image.Histogram;
