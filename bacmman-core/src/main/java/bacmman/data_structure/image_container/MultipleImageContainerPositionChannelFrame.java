@@ -184,6 +184,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         this(inputDir, extension, positionKey, timeKeyword, channelKeywords, null, frameNumber, -1, -1, positionName);
     }
 
+    // omero constructor
     public MultipleImageContainerPositionChannelFrame(List<List<String>> fileIDsCT, int frameNumber, Map<String, Boolean> invertTZ_CT, int[] sizeZC, double scaleXY, double scaleZ, String positionName) {
         super(scaleXY, scaleZ);
         this.fileCT = fileIDsCT;
@@ -407,12 +408,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             MultipleImageContainer res = new MultipleImageContainerPositionChannelFrame(fileCT, frameNumber, new HashMap<>(invertTZ_CT), ArrayUtil.duplicate(sizeZC), scaleXY, scaleZ, positionName);
             res.setOmeroGateway(omeroGateway);
             return res;
-        } else {
-            try {
-                return new MultipleImageContainerPositionChannelFrame(inputDir, extension, positionKey, timeKeyword, ArrayUtil.duplicate(channelKeywords), ArrayUtil.duplicate(sizeZC), frameNumber, scaleXY, scaleZ, positionName);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        } else { // avoid throwing exception when images are not present
+            MultipleImageContainerPositionChannelFrame res = new MultipleImageContainerPositionChannelFrame();
+            res.setPath(path);
+            res.initFromJSONEntry(toJSONEntry());
+            return res;
         }
     }
     private List<List<String>> getFileMap() throws IOException {
