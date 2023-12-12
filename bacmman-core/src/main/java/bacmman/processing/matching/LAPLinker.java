@@ -110,6 +110,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     }
 
     public boolean processFTF(double distanceThreshold) {
+        if (this.graphObjectMapper.isEmpty()) return true;
         long t0 = System.currentTimeMillis();
         //logger.debug("FTF distance: {} objects {}", distanceThreshold, Utils.toStringMap(this.collection.keySet().stream().collect(Collectors.toMap(f->f, f -> collection.getNSpots(f, false))), i->i+"", i->i+"" ) );
         // Prepare settings object
@@ -135,6 +136,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     }
 
     public boolean processFTF(double distanceThreshold, int frame1, int frame2) {
+        if (this.graphObjectMapper.isEmpty()) return true;
         long t0 = System.currentTimeMillis();
         //logger.debug("FTF distance: {} objects {}", distanceThreshold, Utils.toStringMap(this.collection.keySet().stream().collect(Collectors.toMap(f->f, f -> collection.getNSpots(f, false))), i->i+"", i->i+"" ) );
         // Prepare settings object
@@ -160,6 +162,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     }
 
     public boolean processSegments(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) { // maxFrameGap changed -> now 1= 1 frame gap 4/09/19
+        if (this.graphObjectMapper.isEmpty()) return true;
         long t0 = System.currentTimeMillis();
         Set<S> unlinkedSpots;
         if (graph == null) {
@@ -227,11 +230,12 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     }
 
     public void logGraphStatus(String step, long processingTime) {
-        if (processingTime>0) logger.debug("number of edges after {}: {}, nb of vertices: {}, processing time: {}", step, graph.edgeSet().size(), graph.vertexSet().size(),processingTime);
-        else logger.debug("number of edges after {}: {}, nb of vertices: {}", step, graph.edgeSet().size(), graph.vertexSet().size());
+        if (processingTime>0) logger.debug("number of edges after {}: {}, nb of vertices: {}, processing time: {}", step, graph==null? 0 : graph.edgeSet().size(), graph==null? 0 : graph.vertexSet().size(),processingTime);
+        else logger.debug("number of edges after {}: {}, nb of vertices: {}", step, graph==null? 0 : graph.edgeSet().size(), graph==null? 0 : graph.vertexSet().size());
     }
 
     private void transferLinks(S from, S to) {
+        if (graph==null) return;
         List<DefaultWeightedEdge> edgeList = new ArrayList<>(graph.edgesOf(from));
         for (DefaultWeightedEdge e : edgeList) {
             S target = graph.getEdgeTarget(e);
@@ -247,6 +251,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     }
 
     public Set<DefaultWeightedEdge> getEdges() {
+        if (graph == null) return Collections.EMPTY_SET;
         return graph.edgeSet();
     }
     public DefaultWeightedEdge getEdge(S s, S t) {

@@ -57,7 +57,8 @@ public class MapDBSelectionDAO implements SelectionDAO {
         makeDB();
     }
     private synchronized void makeDB() {
-        if (readOnly) return;
+        String selectionFile = getSelectionFile();
+        if (readOnly && !new File(selectionFile).exists()) return;
         //logger.debug("making db @ {} (parent exists: {}), read only: {}", getSelectionFile(), new File(getSelectionFile()).getParentFile().exists(), readOnly);
         db = MapDBUtils.createFileDB(getSelectionFile(), readOnly, false);
         dbMap = MapDBUtils.createHTreeMap(db, "selections");
@@ -97,22 +98,25 @@ public class MapDBSelectionDAO implements SelectionDAO {
         }
         // local files
         File dirFile = dir.toFile();
-        for (File f : dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"))) {
-            List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s), s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
-            for (Selection s : sels) {
-                s.setMasterDAO(mDAO);
-                if (idCache.containsKey(s.getName())) {
-                    logger.info("Selection: {} found in file: {} will be overwritten in local database", s.getName(), f.getAbsolutePath());
-                    // copy metadata
-                    Selection source = idCache.get(s.getName());
-                    s.setHighlightingTracks(source.isHighlightingTracks());
-                    s.setColor(source.getColor());
-                    s.setIsDisplayingObjects(source.isDisplayingObjects());
-                    s.setIsDisplayingTracks(source.isHighlightingTracks());
+        File[] files = dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"));
+        if (files != null) {
+            for (File f : files) {
+                List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s), s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
+                for (Selection s : sels) {
+                    s.setMasterDAO(mDAO);
+                    if (idCache.containsKey(s.getName())) {
+                        logger.info("Selection: {} found in file: {} will be overwritten in local database", s.getName(), f.getAbsolutePath());
+                        // copy metadata
+                        Selection source = idCache.get(s.getName());
+                        s.setHighlightingTracks(source.isHighlightingTracks());
+                        s.setColor(source.getColor());
+                        s.setIsDisplayingObjects(source.isDisplayingObjects());
+                        s.setIsDisplayingTracks(source.isHighlightingTracks());
+                    }
+                    idCache.put(s.getName(), s);
+                    store(s);
+                    if (!readOnly) f.delete();
                 }
-                idCache.put(s.getName(), s);
-                store(s);
-                if (!readOnly) f.delete();
             }
         }
     }

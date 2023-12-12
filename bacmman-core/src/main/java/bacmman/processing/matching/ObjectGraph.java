@@ -198,7 +198,8 @@ public class ObjectGraph<S extends GraphObject<S>> {
      * @param edges
      * @param spots can be null
      */
-    public void removeFromGraph(Collection<DefaultWeightedEdge> edges, Collection<S> spots, boolean removeUnlinkedVextices) {
+    public void removeFromGraph(Collection<DefaultWeightedEdge> edges, Collection<S> spots, boolean removeUnlinkedVertices) {
+        if (graph==null) return;
         if (spots==null) {
             spots = new HashSet<>();
             for (DefaultWeightedEdge e : edges) {
@@ -209,7 +210,7 @@ public class ObjectGraph<S extends GraphObject<S>> {
         //logger.debug("edges to remove :{}", Utils.toStringList(edges, e->graph.getEdgeSource(e)+"->"+graph.getEdgeTarget(e)));
         graph.removeAllEdges(edges);
         //logger.debug("spots to remove candidates :{}", spots);
-        if (removeUnlinkedVextices) {
+        if (removeUnlinkedVertices) {
             for (S s : spots) { // also remove vertex that are not linked anymore
                 if (graph.edgesOf(s).isEmpty()) removeObject(graphObjectMapper.getRegion(s), s.getFrame());
             }

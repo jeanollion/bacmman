@@ -211,8 +211,12 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
     }
     private synchronized void close(boolean commit) {
         if (store == null ) return;
-        if (!store.isClosed()) store.close();
+        if (!store.isClosed()) {
+            if (box!=null) box.closeThreadResources();
+            store.close();
+        }
         store = null;
+        box = null;
     }
 
     @Override

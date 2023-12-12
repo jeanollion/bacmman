@@ -53,7 +53,7 @@ public class MasterDAOFactory {
     private final static TreeMap<String, Class<PersistentMasterDAO>> NAME_MAP_CLASS = new TreeMap<>();
     private final static Map<Class<PersistentMasterDAO>, String> CLASS_MAP_NAME = new HashMap<>();
 
-    private static String currentType = "DBMap";
+    private static String currentType = "MapDB";
 
     public static Collection<String> getAllTypes() {return NAME_MAP_CLASS.keySet(); }
     public static String getCurrentType() {
@@ -244,7 +244,7 @@ public class MasterDAOFactory {
             pcb.incrementProgress();
         }
         for (Selection s : db.getSelectionDAO().getSelections()) {
-            logger.debug("storing selection: {}, size: {}", s.getName(), s.getAllElementStrings().size());
+            //logger.debug("storing selection: {}, size: {}", s.getName(), s.getAllElementStrings().size());
             targetDB.getSelectionDAO().store(s);
         }
         targetDB.unlockPositions();
@@ -254,7 +254,6 @@ public class MasterDAOFactory {
         for (String position : db.getExperiment().getPositionsAsString()) {
             db.getDao(position).erase();
         }
-        logger.debug("erasing selections");
         db.getSelectionDAO().erase();
         pcb.incrementProgress();
         db.unlockPositions();
