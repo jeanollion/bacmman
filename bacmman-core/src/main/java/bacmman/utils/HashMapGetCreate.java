@@ -45,13 +45,13 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         this.factory=factory;
     }
     /**
-     * Enshure keys are present in the map
+     * Ensure keys are present in the map
      * @param keys
-     * @param parallele wheter values should be computed in parallele
-     * @return the same map for convinience
+     * @param parallel whether values should be computed in parallel
+     * @return the same map for convenience
      */
-    public synchronized HashMapGetCreate<K, V> enshure(Set<K> keys, boolean parallele) {
-        putAll(Utils.parallel(Sets.difference(keys, this.keySet()).stream(), parallele).collect(Collectors.toMap(Function.identity(), k->factory.apply(k))));
+    public synchronized HashMapGetCreate<K, V> ensure(Set<K> keys, boolean parallel) {
+        putAll(Utils.parallel(Sets.difference(keys, this.keySet()).stream(), parallel).collect(Collectors.toMap(Function.identity(), k->factory.apply(k))));
         return this;
     }
     public V getAndCreateIfNecessary(Object key) {

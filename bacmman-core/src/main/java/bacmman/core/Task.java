@@ -915,7 +915,7 @@ public class Task implements ProgressCallback {
         publish("extracting measurements from object class: "+Utils.toStringArray(structures));
 
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structures);
-        logger.debug("keys: {}", Utils.toStringList(keys.entrySet()));
+        logger.debug("keys: {}", Utils.toStringList(keys.entrySet(), e -> e.getKey()+"="+ Arrays.toString(e.getValue())));
         logger.debug("extract read only positions: {}", getPositions().stream().filter(p -> db.getDao(p).isReadOnly()).toArray());
         Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         if (extractByPosition) {
