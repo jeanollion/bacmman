@@ -329,17 +329,15 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             for (int i = 0; i < openHyperStack.length; i++) {
                 openHyperStack[i] = new JMenuItem(structureNames[i]);
                 openHyperStack[i].setAction(new AbstractAction(structureNames[i]) {
-                                            @Override
-                                            public void actionPerformed(ActionEvent ae) {
-                                                logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
-                                                //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
-                                                //trackNode.loadAllTrackObjects(path);
-                                                int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                                                IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO made this method generic
-                                                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                                                GUI.getInstance().setTrackStructureIdx(structureIdx);
-                                            }
-                                        }
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        logger.debug("opening hyperStack raw image for object class: {} of idx: {}, position: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()), trackHead.getPositionName());
+                        int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
+                        IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO made this method generic
+                        GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                        GUI.getInstance().setTrackStructureIdx(structureIdx);
+                    }
+                }
                 );
                 hyperStackSubMenu.add(openHyperStack[i]);
             }

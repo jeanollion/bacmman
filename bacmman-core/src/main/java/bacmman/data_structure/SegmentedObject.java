@@ -107,7 +107,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @param mask
      */
     SegmentedObject(int frame, BlankMask mask, ObjectDAO dao) {
-        this.id= dao.generateID(-1, frame);
+        this.id=dao.generateID(-1, frame);
         this.timePoint=frame;
         if (mask!=null) this.region =new Region(mask, 1, true);
         this.structureIdx = -1;
@@ -255,19 +255,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return index (0-based) among parent's children
      */
     public int getIdx() {return idx;}
-
-    @Override
-    public int hashCode() {
-        return id.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof SegmentedObject) {
-            return id.equals(((SegmentedObject)obj).id);
-        }
-        return false;
-    }
 
     Experiment getExperiment() {
         if (dao==null) {

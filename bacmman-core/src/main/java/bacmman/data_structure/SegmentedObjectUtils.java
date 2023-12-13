@@ -433,7 +433,14 @@ public class SegmentedObjectUtils {
     public static Comparator<SegmentedObject> frameComparator() {
         return frameComparator;
     }
-
+    static Comparator frameComparator2 = (o1, o2) -> {
+        int f1 = (o1 instanceof SegmentedObject) ? ((SegmentedObject)o1).timePoint : ((Number)o1).intValue();
+        int f2 = (o2 instanceof SegmentedObject) ? ((SegmentedObject)o2).timePoint : ((Number)o2).intValue();
+        return Integer.compare(f1, f2);
+    };
+    public static Comparator frameComparator2() {
+        return frameComparator2;
+    }
     public static Map<Integer, List<SegmentedObject>> getChildrenByFrame(List<? extends SegmentedObject> parents, int structureIdx) {
         try {
             return parents.stream()

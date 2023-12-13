@@ -79,6 +79,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     @Override public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
         TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
+        logger.debug("segmenter with track configuration: {}", apply!=null);
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {

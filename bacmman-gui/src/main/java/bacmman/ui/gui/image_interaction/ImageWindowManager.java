@@ -311,7 +311,7 @@ public abstract class ImageWindowManager<I, U, V> {
     
     public void addImage(Image image, InteractiveImage i, int displayOCIdx, boolean displayImage) {
         if (image==null) return;
-        GUI.logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i.getKey(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
+        logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i.getKey(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
         /*if (!imageObjectInterfaces.containsValue(i)) {
             //throw new RuntimeException("image object interface should be created through the manager");
             imageObjectInterfaces.put(i.getKey(), i);
@@ -387,7 +387,7 @@ public abstract class ImageWindowManager<I, U, V> {
         long t3 = System.currentTimeMillis();
         closeLastActiveImages(displayedImageNumber);
         long t4 = System.currentTimeMillis();
-        GUI.logger.debug("display image: show: {} ms, add list: {}, update ROI: {}, close last active image: {}", t1-t0, t2-t1, t3-t2, t4-t3);
+        logger.debug("display image: show: {} ms, add list: {}, update ROI: {}, close last active image: {}", t1-t0, t2-t1, t3-t2, t4-t3);
     }
     public String getPositionOfInputImage(I image) {
         String pos = Utils.getOneKey(displayedRawInputFrames, image);
@@ -407,7 +407,7 @@ public abstract class ImageWindowManager<I, U, V> {
         closeLastInputImages(displayedImageNumber);
     }
     public void closeLastActiveImages(int numberOfKeptImages) {
-        GUI.logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
+        logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
         if (numberOfKeptImages<=0) return;
         if (displayedInteractiveImages.size()>numberOfKeptImages) {
             Iterator<Image> it = displayedInteractiveImages.iterator();
@@ -479,7 +479,7 @@ public abstract class ImageWindowManager<I, U, V> {
     protected void reloadObjects__(InteractiveImageKey key) {
         InteractiveImage i = imageObjectInterfaces.get(key);
         if (i!=null) {
-            GUI.logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.interactiveObjectClass);
+            logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.interactiveObjectClass);
             i.reloadObjects();
         }
     }
@@ -680,7 +680,7 @@ public abstract class ImageWindowManager<I, U, V> {
         InteractiveImage i = getImageObjectInterface(image);
         if (i!=null) {
             return i.getClickedObject(x, y, z);
-        } else GUI.logger.warn("image: {} is not registered for click");
+        } else logger.warn("image: {} is not registered for click");
         return null;
     }
 
@@ -688,13 +688,13 @@ public abstract class ImageWindowManager<I, U, V> {
         if (image==null) {
             image = getDisplayer().getCurrentImage2();
             if (image==null) {
-                GUI.logger.debug("no active image");
+                logger.debug("no active image");
                 return;
             }
         }
         InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
         if (i==null) {
-            GUI.logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
+            logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
             return;
         }
         if (i instanceof HyperStack) {
@@ -719,7 +719,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
         if (i==null) {
-            GUI.logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveStructureIdx);
+            logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveStructureIdx);
             return;
         }
         if (i instanceof HyperStack) {
@@ -993,7 +993,7 @@ public abstract class ImageWindowManager<I, U, V> {
                 }
             }
 
-        } else GUI.logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof TimeLapseInteractiveImage);
+        } else logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof TimeLapseInteractiveImage);
     }
     
     public void hideTracks(Image image, InteractiveImage i, Collection<SegmentedObject> trackHeads, boolean labile) {
@@ -1149,69 +1149,32 @@ public abstract class ImageWindowManager<I, U, V> {
         trackColor.clear();
     }
     
-    public void goToNextTrackError(Image trackImage, List<SegmentedObject> trackHeads, boolean next) {
+    public boolean goToNextTrackError(Image trackImage, List<SegmentedObject> trackHeads, boolean next, boolean forceMove) {
         //ImageObjectInterface i = imageObjectInterfaces.get(new ImageObjectInterfaceKey(rois.get(0).getParent().getTrackHead(), rois.get(0).getStructureIdx(), true));
         if (trackImage==null) {
             I selectedImage = displayer.getCurrentImage();
             trackImage = displayer.getImage(selectedImage);
-            if (trackImage==null) return;
+            if (trackImage==null) return false;
         }
         InteractiveImage i = this.getImageObjectInterface(trackImage);
         if (i==null || i instanceof SimpleInteractiveImage) {
-            GUI.logger.warn("selected image is not a track image");
-            return;
+            logger.warn("selected image is not a track image");
+            return false;
         }
-        TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
-        if (trackHeads==null || trackHeads.isEmpty()) trackHeads = this.getSelectedLabileTrackHeads(trackImage);
-        if (trackHeads==null || trackHeads.isEmpty()) {
-            List<SegmentedObject> allObjects = Pair.unpairKeys(i.getObjects());
-            trackHeads = new ArrayList<>(SegmentedObjectUtils.getTrackHeads(allObjects));
-        }
-        if (trackHeads==null || trackHeads.isEmpty()) return;
-        Collections.sort(trackHeads);
-        BoundingBox currentDisplayRange = this.displayer.getDisplayRange(trackImage);
-        int minTimePoint = tm.getClosestFrame(currentDisplayRange.xMin(), currentDisplayRange.yMin());
-        int maxTimePoint = tm.getClosestFrame(currentDisplayRange.xMax(), currentDisplayRange.yMax());
-        if (next) {
-            if (maxTimePoint == i.getParents().get(i.getParents().size()-1).getFrame()) return;
-            if (maxTimePoint>minTimePoint+2) maxTimePoint-=2;
-            else maxTimePoint--;
+        List<SegmentedObject> errors;
+        if (trackHeads!=null && !trackHeads.isEmpty()) {
+            errors = trackHeads.stream().flatMap(th -> SegmentedObjectUtils.getTrack(th).stream()).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
         } else {
-            if (minTimePoint == i.getParents().get(0).getFrame()) return;
-            if (maxTimePoint>minTimePoint+2) minTimePoint+=2;
-            else minTimePoint++;
-        }
-        //logger.debug("Current Display range: {}, maxTimePoint: {}, number of selected rois: {}", currentDisplayRange, maxTimePoint, rois.size());
-
-        SegmentedObject nextError = next ? getNextError(maxTimePoint, trackHeads) : getPreviousError(minTimePoint, trackHeads);
-        if (nextError==null) GUI.logger.info("No errors detected {} timepoint: {}", next? "after": "before", maxTimePoint);
-        else {
-            if (i instanceof HyperStack) {
-                ((HyperStack)i).setFrame(nextError.getFrame());
+            trackHeads = this.getSelectedLabileTrackHeads(trackImage);
+            if (trackHeads==null || trackHeads.isEmpty()) {
+                errors = i.getObjects().stream().map(p -> p.key).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
             } else {
-                BoundingBox off = tm.getObjectOffset(nextError);
-                if (off == null) trackHeads = new ArrayList<>(trackHeads);
-                while (off == null) {
-                    trackHeads.remove(nextError);
-                    nextError = getNextObject(nextError.getFrame(), trackHeads, next);
-                    if (nextError == null) return;
-                    off = tm.getObjectOffset(nextError);
-                }
-                int midX = (off.xMin() + off.xMax()) / 2;
-                if (midX + currentDisplayRange.sizeX() / 2 >= trackImage.sizeX())
-                    midX = trackImage.sizeX() - currentDisplayRange.sizeX() / 2;
-                if (midX - currentDisplayRange.sizeX() / 2 < 0) midX = currentDisplayRange.sizeX() / 2;
-
-                int midY = (off.yMin() + off.yMax()) / 2;
-                if (midY + currentDisplayRange.sizeY() / 2 >= trackImage.sizeY())
-                    midY = trackImage.sizeY() - currentDisplayRange.sizeY() / 2;
-                if (midY - currentDisplayRange.sizeY() / 2 < 0) midY = currentDisplayRange.sizeY() / 2;
-
-                SimpleBoundingBox nextDisplayRange = new SimpleBoundingBox(midX - currentDisplayRange.sizeX() / 2, midX + currentDisplayRange.sizeX() / 2, midY - currentDisplayRange.sizeY() / 2, midY + currentDisplayRange.sizeY() / 2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
-                GUI.logger.info("Error detected @ timepoint: {}, xMid: {}, update display range: {}", nextError.getFrame(), midX, nextDisplayRange);
-                displayer.setDisplayRange(nextDisplayRange, trackImage);
+                errors = trackHeads.stream().flatMap(th -> SegmentedObjectUtils.getTrack(th).stream()).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
             }
         }
+        if (errors.isEmpty()) return false;
+        Collections.sort(errors);
+        return goToNextObject(trackImage, errors, next, forceMove);
     }
     /**
      * Center this image on the objects at next (or previous, if {@param next} is false) undiplayed frames
@@ -1220,14 +1183,14 @@ public abstract class ImageWindowManager<I, U, V> {
      * @param next 
      * @return true if display has changed
      */
-    public boolean goToNextObject(Image trackImage, List<SegmentedObject> objects, boolean next) {
+    public boolean goToNextObject(Image trackImage, List<SegmentedObject> objects, boolean next, boolean forceMove) {
         if (trackImage==null) {
             I selectedImage = displayer.getCurrentImage();
             trackImage = displayer.getImage(selectedImage);
         }
         InteractiveImage i = this.getImageObjectInterface(trackImage);
         if (i instanceof SimpleInteractiveImage) {
-            GUI.logger.warn("selected image is not a track image");
+            logger.warn("selected image is not a track image");
             return false;
         }
         TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
@@ -1254,8 +1217,13 @@ public abstract class ImageWindowManager<I, U, V> {
                 else minTimePoint++;
             }
         }
-        GUI.logger.debug("Current Display range: maxTimePoint: {}, minTimePoint: {}, number of objects: {}", maxTimePoint, minTimePoint, objects.size());
+        logger.debug("Current Display range: maxTimePoint: {}, minTimePoint: {}, number of objects: {}", maxTimePoint, minTimePoint, objects.size());
         Collections.sort(objects, SegmentedObjectUtils.frameComparator()); // sort by frame
+        if (!forceMove) { // check if objects are already displayed and do not move
+            int minTP = minTimePoint;
+            int maxTP = maxTimePoint;
+            if (objects.stream().mapToInt(SegmentedObject::getFrame).anyMatch(f -> f>=minTP || f<=maxTP)) return true;
+        }
         SegmentedObject nextObject = getNextObject(next? maxTimePoint+1: minTimePoint-1, objects, next);
         if (nextObject==null) {
             logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
@@ -1291,7 +1259,7 @@ public abstract class ImageWindowManager<I, U, V> {
 
                 MutableBoundingBox nextDisplayRange = new MutableBoundingBox(midX - currentDisplayRange.sizeX() / 2, midX + currentDisplayRange.sizeX() / 2, midY - currentDisplayRange.sizeY() / 2, midY + currentDisplayRange.sizeY() / 2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
                 if (!nextDisplayRange.equals(currentDisplayRange)) {
-                    GUI.logger.info("Object detected @ timepoint: {}, xMid: {}, update display range: {} (current was: {}", nextObject.getFrame(), midX, nextDisplayRange, currentDisplayRange);
+                    logger.info("Object detected @ timepoint: {}, xMid: {}, update display range: {} (current was: {}", nextObject.getFrame(), midX, nextDisplayRange, currentDisplayRange);
                     displayer.setDisplayRange(nextDisplayRange, trackImage);
                     return true;
                 }
@@ -1302,8 +1270,7 @@ public abstract class ImageWindowManager<I, U, V> {
     
     private static SegmentedObject getNextObject(int timePointLimit, List<SegmentedObject> objects, boolean next) {
         if (objects.isEmpty()) return null;
-
-        int idx = Collections.binarySearch(objects, getAccessor().createRoot(timePointLimit, null, null), SegmentedObjectUtils.frameComparator());
+        int idx = Collections.binarySearch(objects, timePointLimit, SegmentedObjectUtils.frameComparator2());
         if (idx>=0) return objects.get(idx);
         int insertionPoint = -idx-1;
         if (next) {
@@ -1313,61 +1280,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         return null;
     }
-    
-    private static SegmentedObject getNextError(int maxTimePoint, List<SegmentedObject> tracksHeads) {
-        if (tracksHeads.isEmpty()) return null;
-        SegmentedObject[] trackArray = tracksHeads.toArray(new SegmentedObject[tracksHeads.size()]);
-        boolean change = true;
-        boolean remainTrack = true;
-        int currentTimePoint = maxTimePoint;
-        while(remainTrack) {
-            change = false;
-            remainTrack= false;
-            for (int trackIdx = 0; trackIdx<trackArray.length; ++trackIdx) {
-                if (trackArray[trackIdx]!=null) {
-                    remainTrack=true;
-                    if (trackArray[trackIdx].getFrame()<currentTimePoint) {
-                        trackArray[trackIdx]=trackArray[trackIdx].getNext(); 
-                        change=true;
-                    }
-                    if (trackArray[trackIdx]!=null && trackArray[trackIdx].getFrame()==currentTimePoint && trackArray[trackIdx].hasTrackLinkError(true, true)) return trackArray[trackIdx];
-                }
-            }
-            if (!change) ++currentTimePoint;
-        }
-        
-        return null;
-    }
-    private static SegmentedObject getPreviousError(int minTimePoint, List<SegmentedObject> trackHeads) {
-        if (trackHeads.isEmpty()) return null;
-        SegmentedObject[] trackArray = trackHeads.toArray(new SegmentedObject[trackHeads.size()]);
-        // get all rois to maximal value < errorTimePoint
-        for (int trackIdx = 0; trackIdx<trackArray.length; ++trackIdx) {
-            if (trackArray[trackIdx].getFrame()>=minTimePoint) trackArray[trackIdx] = null;
-            else while (trackArray[trackIdx].getNext()!=null && trackArray[trackIdx].getFrame()<minTimePoint-1) trackArray[trackIdx] = trackArray[trackIdx].getNext();
-        }
-        
-        boolean change = true;
-        boolean remainTrack = true;
-        int currentTimePoint = minTimePoint-1;
-        while(remainTrack) {
-            change = false;
-            remainTrack= false;
-            for (int trackIdx = 0; trackIdx<trackArray.length; ++trackIdx) {
-                if (trackArray[trackIdx]!=null) {
-                    remainTrack=true;
-                    if (trackArray[trackIdx].getFrame()>currentTimePoint) {
-                        trackArray[trackIdx]=trackArray[trackIdx].getPrevious();
-                        change=true;
-                    }
-                    if (trackArray[trackIdx]!=null && trackArray[trackIdx].getFrame()==currentTimePoint && trackArray[trackIdx].hasTrackLinkError(true, true)) return trackArray[trackIdx];
-                }
-            }
-            if (!change) --currentTimePoint;
-        }
-        
-        return null;
-    }
+
     // menu section
     
     protected Map<Image, Collection<TestDataStore>> testData = new HashMap<>();

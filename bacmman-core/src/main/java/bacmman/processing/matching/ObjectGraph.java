@@ -102,7 +102,7 @@ public class ObjectGraph<S extends GraphObject<S>> {
         int maxF = objectsF.keySet().stream().max(Comparator.comparingInt(i -> i)).get();
         for (SegmentedObject o : objects) editor.resetTrackLinks(o, o.getFrame()>minF, o.getFrame()<maxF, propagateTrackHead);
         if (graph==null) {
-            logger.error("Graph not initialized!");
+            //logger.error("Graph not initialized!");
             return Collections.emptySet();
         }
         Set<SymetricalPair<SegmentedObject>> additionalLinks = new HashSet<>(); // links that cannot be encoded in segmentedObjects

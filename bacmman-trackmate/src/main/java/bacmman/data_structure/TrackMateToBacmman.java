@@ -198,7 +198,7 @@ public class TrackMateToBacmman {
             //int maxF = spotMapSO.values().stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
             //for (SegmentedObject o : spotMapSO.values()) editor.resetTrackLinks(o, o.getFrame()>minF, o.getFrame()<maxF, true); // TODO this will cause update of all objects
             if (graph==null) {
-                logger.error("Graph not initialized!");
+                //logger.error("Graph not initialized!");
                 return;
             }
             TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(Comparator.comparingDouble(graph::getEdgeWeight));

@@ -330,26 +330,24 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             for (int i = 0; i < openHyperStack.length; i++) {
                 openHyperStack[i] = new JMenuItem(allObjectClasses.get(i));
                 openHyperStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
-                                                @Override
-                                                public void actionPerformed(ActionEvent ae) {
-                                                    int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
-                                                    logger.debug("opening HYPERSTACK raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
-                                                    List<SegmentedObject> rootTrack = null;
-                                                    try {
-                                                        rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-                                                        logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
-                                                    } catch (Exception e) {
-                                                    }
-                                                    if (rootTrack != null) {
-                                                        // TODO make this method generic for other display modes than IJ
-                                                        IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO interface for multichannel display
-
-                                                        GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                                                        GUI.getInstance().setTrackStructureIdx(structureIdx);
-                                                    }
-                                                }
-                                            }
-                );
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
+                        logger.debug("opening HYPERSTACK raw image for structure: {} of idx: {} position: {}", ae.getActionCommand(), structureIdx, position);
+                        List<SegmentedObject> rootTrack = null;
+                        try {
+                            rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+                            logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
+                        } catch (Exception e) {
+                        }
+                        if (rootTrack != null) {
+                            // TODO make this method generic for other display modes than IJ
+                            IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO interface for multichannel display
+                            GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                            GUI.getInstance().setTrackStructureIdx(structureIdx);
+                        }
+                    }
+                });
                 hyperStackSubMenu.add(openHyperStack[i]);
             }
             createSelectionSubMenu = new JMenu("Create Selection");
