@@ -145,10 +145,10 @@ public class MeasurementExtractor {
                 TreeMap<Integer, List<Measurements>> parentMeasurements = new TreeMap<Integer, List<Measurements>>();
                 for (Entry<Integer, String[]> e : allMeasurementsSort.entrySet()) parentMeasurements.put(e.getKey(), dao.getMeasurements(e.getKey(), e.getValue()));
                 List<Measurements> currentMeasurements = dao.getMeasurements(currentStructureIdx, currentMeasurementNames);
+                dao.clearCache();
                 Collections.sort(currentMeasurements);
                 final Predicate<Indices> curOCPredicate;
                 if (selection!=null) {
-
                     Set<Indices> selElements = selection.getElementStrings(positions).stream().map(Selection::parseIndices).map(Indices::new).collect(Collectors.toSet());
                     if (selection.getStructureIdx() == currentStructureIdx) {
                         curOCPredicate = selElements::contains;

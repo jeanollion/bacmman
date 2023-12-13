@@ -8,9 +8,9 @@ import bacmman.utils.Utils;
 import io.objectbox.Box;
 import io.objectbox.BoxStore;
 import io.objectbox.BoxStoreBuilder;
+import io.objectbox.exception.DbException;
 import io.objectbox.query.Query;
 import it.unimi.dsi.fastutil.ints.IntArrays;
-import it.unimi.dsi.fastutil.ints.IntComparator;
 import it.unimi.dsi.fastutil.ints.IntComparators;
 import it.unimi.dsi.fastutil.longs.LongArrays;
 import org.slf4j.Logger;
@@ -69,7 +69,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             }
         }
         String name = (object ? "objects_" : "measurements_")+ocIdx;
-        if (readOnly) {
+        if (readOnly) { // cannot create file in read only mode
             Path dbDir = dir.resolve(name);
             try {
                 if (!Files.exists(dbDir) || !Files.list(dbDir).findAny().isPresent()) return null;
@@ -81,7 +81,13 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                 .maxSizeInKByte(1024 * 1024 * 100) // 100Gb
                 .baseDirectory(dir.toFile()).name(name);
         if (readOnly) objectBuilder.readOnly();
-        return objectBuilder.build();
+        try {
+            BoxStore b = objectBuilder.build();
+            return b;
+        } catch (DbException e) {
+            logger.error("Too many db may be open");
+            throw e;
+        }
     }
 
     protected Box<SegmentedObjectBox> makeObjectBox(int objectClassIdx) {
@@ -134,8 +140,18 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         cache.clear();
         measurementCache.clear();
         closeThreadResources();
-        for (BoxStore objectStore : objectStores.values()) if (objectStore!=null) objectStore.close();
-        for (BoxStore measurementStore : measurementStores.values()) if (measurementStore!=null) measurementStore.close();
+        for (BoxStore objectStore : objectStores.values()) {
+            if (objectStore!=null && !objectStore.isClosed()) {
+                objectStore.cleanStaleReadTransactions();
+                objectStore.close();
+            }
+        }
+        for (BoxStore measurementStore : measurementStores.values()) {
+            if (measurementStore!=null && !measurementStore.isClosed()) {
+                measurementStore.cleanStaleReadTransactions();
+                measurementStore.close();
+            }
+        }
         objectStores.clear();
         objectBoxes.clear();
         measurementBoxes.clear();
@@ -143,8 +159,16 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     }
     @Override
     public void closeThreadResources() {
-        for (BoxStore objectStore : objectStores.values()) if (objectStore!=null) objectStore.closeThreadResources();
-        for (BoxStore measurementStore : measurementStores.values()) if (measurementStore!=null) measurementStore.closeThreadResources();
+        for (BoxStore objectStore : objectStores.values()) {
+            if (objectStore!=null) {
+                objectStore.closeThreadResources();
+            }
+        }
+        for (BoxStore measurementStore : measurementStores.values()) {
+            if (measurementStore!=null) {
+                measurementStore.closeThreadResources();
+            }
+        }
     }
 
     @Override
