@@ -762,11 +762,11 @@ public class RegionPopulation {
         }
     }
     
-    public static interface Filter extends SimpleFilter {
-        public void init(RegionPopulation population);
+    public interface Filter extends SimpleFilter {
+        void init(RegionPopulation population);
     }
-    public static interface SimpleFilter {
-        public boolean keepObject(Region object);
+    public interface SimpleFilter {
+        boolean keepObject(Region object);
     }
 
     public static class Feature implements Filter {
