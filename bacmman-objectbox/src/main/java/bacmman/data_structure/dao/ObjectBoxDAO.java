@@ -38,7 +38,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     protected final Map<Integer, BoxStore> objectStores = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> makeStore(ocIdx, true));
     protected final Map<Integer, BoxStore> measurementStores = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> makeStore(ocIdx, false));
     protected final Map<Integer, Box<SegmentedObjectBox>> objectBoxes = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeObjectBox);
-    protected final Map<Integer, Box<MeasurementBox>> measurementBoxes = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> measurementStores.get(ocIdx).boxFor(MeasurementBox.class));
+    protected final Map<Integer, Box<MeasurementBox>> measurementBoxes = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeMeasurementBox);
 
     protected final Map<Integer, Map<Long, SegmentedObjectBox>> cache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new HashMap<>());
     protected final Map<Integer, Map<Long, MeasurementBox>> measurementCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new HashMap<>());
@@ -87,6 +87,11 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     protected Box<SegmentedObjectBox> makeObjectBox(int objectClassIdx) {
         if (readOnly && objectStores.get(objectClassIdx) == null) return null;
         return objectStores.get(objectClassIdx).boxFor(SegmentedObjectBox.class);
+    }
+
+    protected Box<MeasurementBox> makeMeasurementBox(int objectClassIdx) {
+        if (readOnly && measurementStores.get(objectClassIdx) == null) return null;
+        return measurementStores.get(objectClassIdx).boxFor(MeasurementBox.class);
     }
 
     @Override
@@ -139,7 +144,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public void closeThreadResources() {
         for (BoxStore objectStore : objectStores.values()) if (objectStore!=null) objectStore.closeThreadResources();
-        for (BoxStore measurementStore : measurementStores.values()) measurementStore.closeThreadResources();
+        for (BoxStore measurementStore : measurementStores.values()) if (measurementStore!=null) measurementStore.closeThreadResources();
     }
 
     @Override
@@ -236,7 +241,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         cache.clear();
         measurementCache.clear();
         for (Box<SegmentedObjectBox> box : objectBoxes.values()) if (box!=null) box.removeAll();
-        for (Box<MeasurementBox> box : measurementBoxes.values()) box.removeAll();
+        for (Box<MeasurementBox> box : measurementBoxes.values()) if (box!=null) box.removeAll();
         // reset counter
         idGenerator.values().forEach(LongIDGenerator::reset);
     }
@@ -458,7 +463,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             measurementBoxes.get(ocIdx).put(toStoreBox);
             long t3 = System.currentTimeMillis();
             toStore.forEach(o -> o.getMeasurements().modifications=false);
-            logger.debug("upsert Meas: update {}, serialize: {}, store: {}", t1-t0, t2-t1, t3-t2);
+            logger.debug("upsert {} Measurements: update {}, serialize: {}, store: {}", toStoreBox.size(), t1-t0, t2-t1, t3-t2);
         });
     }
 
@@ -486,15 +491,17 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     @Override
     public Measurements getMeasurements(SegmentedObject o) {
-        Map<Long, MeasurementBox> mcahce = measurementCache.get(o.getStructureIdx());
-        MeasurementBox mb = mcahce.get(o.getId());
+        Map<Long, MeasurementBox> mcache = measurementCache.get(o.getStructureIdx());
+        MeasurementBox mb = mcache.get(o.getId());
         if (mb == null) {
-            synchronized (mcahce) {
-                mb = mcahce.get(o.getId());
+            Box<MeasurementBox> box = measurementBoxes.get(o.getStructureIdx());
+            synchronized (mcache) {
+                mb = mcache.get(o.getId());
                 if (mb == null) {
-                    mb = measurementBoxes.get(o.getStructureIdx()).get((Long) o.getId());
+                    if (box==null) return null;
+                    mb = box.get((Long) o.getId());
                     if (mb == null) return null;
-                    else measurementCache.get(o.getStructureIdx()).put((Long) o.getId(), mb);
+                    else mcache.put((Long) o.getId(), mb);
                 }
             }
         }
@@ -639,10 +646,12 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     protected Stream<MeasurementBox> getMeasurementB(int objectClassIdx, long[] ids) {
         Map<Long, MeasurementBox> cache = this.measurementCache.get(objectClassIdx);
         Box<MeasurementBox> box = measurementBoxes.get(objectClassIdx);
-        synchronized (cache) {
-            long[] toRetrieve = LongStream.of(ids).filter(id -> !cache.containsKey(id)).toArray();
-            List<MeasurementBox> retrieved = box.get(toRetrieve);
-            for (MeasurementBox b : retrieved) cache.put(b.getId(), b);
+        if (box != null) {
+            synchronized (cache) {
+                long[] toRetrieve = LongStream.of(ids).filter(id -> !cache.containsKey(id)).toArray();
+                List<MeasurementBox> retrieved = box.get(toRetrieve);
+                for (MeasurementBox b : retrieved) cache.put(b.getId(), b);
+            }
         }
         return LongStream.of(ids).mapToObj(cache::get).filter(Objects::nonNull);
     }

@@ -25,6 +25,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     final HashMapGetCreate.HashMapGetCreateRedirectedSync<Integer, SegmentedObjectFactory> factory = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(DuplicateObjectDAO::getFactory);
     final Set<Integer> excludeFromDuplicate;
     final Function<Integer, ID> idGenerator;
+    boolean duplicateMeasurements, duplicateAttributes;
     public DuplicateObjectDAO(MasterDAO<ID, DuplicateObjectDAO<sourceID, ID>> masterDAO, ObjectDAO<sourceID> source, Function<Integer, ID> idGenerator, Collection<Integer> excludeOCs) {
         this.masterDAO =masterDAO;
         this.source=source;
@@ -33,6 +34,16 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
             if (excludeFromDuplicate.contains(-1)) throw new IllegalArgumentException("Cannot exclude root object class");
         } else excludeFromDuplicate = Collections.EMPTY_SET;
         this.idGenerator=idGenerator;
+    }
+
+    public DuplicateObjectDAO<sourceID, ID> setDuplicateMeasurements(boolean duplicateMeasurements) {
+        this.duplicateMeasurements = duplicateMeasurements;
+        return this;
+    }
+
+    public DuplicateObjectDAO<sourceID, ID> setDuplicateAttributes(boolean duplicateAttributes) {
+        this.duplicateAttributes = duplicateAttributes;
+        return this;
     }
 
     @Override
@@ -203,7 +214,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     }
     protected List<SegmentedObject> duplicate(Stream<SegmentedObject> source) {
         List<SegmentedObject> resList = source.map(s -> {
-            SegmentedObject res = factory.get(s.getStructureIdx()).duplicate(s, this, s.getStructureIdx(), true, true, true, false);
+            SegmentedObject res = factory.get(s.getStructureIdx()).duplicate(s, this, s.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements, false);
             sourceIdMapDupObject.put((sourceID)s.getId(), res);
             newIdMapSourceObject.put((ID)res.getId(), s);
             return res;
@@ -227,7 +238,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         return resList;
     }
     protected SegmentedObject duplicate(SegmentedObject source) {
-        SegmentedObject res = factory.get(source.getStructureIdx()).duplicate(source, this, source.getStructureIdx(), true, true, true, false);
+        SegmentedObject res = factory.get(source.getStructureIdx()).duplicate(source, this, source.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements, false);
         sourceIdMapDupObject.put((sourceID)source.getId(), res);
         newIdMapSourceObject.put((ID)res.getId(), source);
         if (source.getParent()!=null) {

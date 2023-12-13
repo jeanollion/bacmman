@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.StreamConcatenation;
 import bacmman.utils.Utils;
+import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,17 @@ import java.util.stream.Stream;
  */
 public class SegmentedObjectUtils {
     final static Logger logger = LoggerFactory.getLogger(SegmentedObjectUtils.class);
-
+    public static void deepCopyAttributes(Map<String, Object> source, Map<String, Object> dest) {
+        for (Map.Entry<String, Object> e : source.entrySet()) {
+            if (e.getValue() instanceof double[]) dest.put(e.getKey(), Arrays.copyOf((double[])e.getValue(), ((double[])e.getValue()).length));
+            else if (e.getValue() instanceof float[]) dest.put(e.getKey(), Arrays.copyOf((float[])e.getValue(), ((float[])e.getValue()).length));
+            else if (e.getValue() instanceof long[]) dest.put(e.getKey(), Arrays.copyOf((long[])e.getValue(), ((long[])e.getValue()).length));
+            else if (e.getValue() instanceof int[]) dest.put(e.getKey(), Arrays.copyOf((int[])e.getValue(), ((int[])e.getValue()).length));
+            else if (e.getValue() instanceof Point) dest.put(e.getKey(), ((Point)e.getValue()).duplicate());
+            else if (e.getValue() instanceof List) dest.put(e.getKey(), new ArrayList((List)e.getValue())); // list of numbers
+            else dest.put(e.getKey(), e.getValue());
+        }
+    }
     public static void ensureContinuousTrack(List<SegmentedObject> track) {
         if (!Utils.objectsAllHaveSameProperty(track, SegmentedObject::getTrackHead)) {
             List<SegmentedObject> th = track.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
@@ -472,7 +483,7 @@ public class SegmentedObjectUtils {
     // duplicate objects 
     private static <ID1, ID2> SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO<ID2> newDAO, Map<ID1, SegmentedObject> sourceToDupMap, Map<ID2, SegmentedObject> dupToSourceMap, boolean parents, int... includeOCIdx) {
         o.loadAllChildren(false);
-        SegmentedObject res=o.duplicate(newDAO, null, true, true, true);
+        SegmentedObject res=o.duplicate(newDAO, null, true, true, true, true);
         sourceToDupMap.put((ID1)o.getId(), res);
         dupToSourceMap.put((ID2)res.getId(), o);
         Predicate<Integer> includeOC = oc -> Arrays.stream(includeOCIdx).anyMatch(ooc->ooc==oc);
@@ -489,7 +500,7 @@ public class SegmentedObjectUtils {
             while (!current.isRoot() && current.getParent()!=null && includeOC.test(current.getStructureIdx())) {
                 SegmentedObject pDup = sourceToDupMap.get(current.getParent().id);
                 if (pDup==null) {
-                    pDup = current.getParent().duplicate(newDAO, null, true, true, true);
+                    pDup = current.getParent().duplicate(newDAO, null, true, true, true, true);
                     sourceToDupMap.put((ID1)current.getParent().getId(), pDup);
                     dupToSourceMap.put((ID2)pDup.getId(), current.getParent());
                     pDup.dao=newDAO;

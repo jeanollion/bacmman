@@ -608,13 +608,12 @@ public class Processor {
         }
         logger.debug("measurements on field: {}: computation time: {}, #modified objects: {}", dao.getPositionName(), t1-t0, allModifiedObjects.size());
         if (pcb!=null) pcb.log("Measurements performed, saving "+allModifiedObjects.size()+" objects...");
-        long t2 = System.currentTimeMillis();
         dao.upsertMeasurements(allModifiedObjects);
-        long t3 = System.currentTimeMillis();
-        logger.debug("upsert time: {}", t3-t2);
         if (pcb!=null) pcb.incrementProgress();
         if (!globE.isEmpty()) throw globE;
-        if (containsObjects && allModifiedObjects.isEmpty()) throw new RuntimeException("No Measurement preformed");
+        if (containsObjects && allModifiedObjects.isEmpty()) {
+            //throw new RuntimeException("No Measurement preformed");
+        }
     }
 
     public static List<SegmentedObject> applyFilterToSegmentedObjects(SegmentedObject parent, List<SegmentedObject> children, BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> filter, boolean requiresRelativeLandmark, SegmentedObjectFactory factory, Set<SegmentedObject> modifiedObjects) {

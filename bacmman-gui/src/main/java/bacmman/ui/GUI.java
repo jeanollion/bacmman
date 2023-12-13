@@ -1263,7 +1263,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             this.console.getStyledDocument().insertString(console.getStyledDocument().getLength(), Utils.getFormattedTime()+": "+message+"\n", null);
             JScrollBar vertical = consoleJSP.getVerticalScrollBar(); // scroll down
             if (vertical!=null) vertical.setValue( vertical.getMaximum() );
-        } catch (BadLocationException ex) {            
+        } catch (BadLocationException|NullPointerException ex) {
         }
     }
     public static void log(String message) {

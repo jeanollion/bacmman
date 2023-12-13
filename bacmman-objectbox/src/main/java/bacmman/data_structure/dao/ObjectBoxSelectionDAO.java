@@ -171,7 +171,7 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
             return;
         }
         getBox().put(sb);
-        logger.debug("stored selection: {} id = {}", s.getName(), sb.getId());
+        //logger.debug("stored selection: {} id = {}", s.getName(), sb.getId());
     }
 
     @Override

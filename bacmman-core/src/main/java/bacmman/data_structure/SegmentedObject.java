@@ -143,19 +143,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         if (attributes!=null && !attributes.isEmpty()) { // deep copy of attributes
             res.attributes=new HashMap<>(attributes.size());
-            for (Entry<String, Object> e : attributes.entrySet()) {
-                if (e.getValue() instanceof double[]) res.attributes.put(e.getKey(), Arrays.copyOf((double[])e.getValue(), ((double[])e.getValue()).length));
-                else if (e.getValue() instanceof float[]) res.attributes.put(e.getKey(), Arrays.copyOf((float[])e.getValue(), ((float[])e.getValue()).length));
-                else if (e.getValue() instanceof long[]) res.attributes.put(e.getKey(), Arrays.copyOf((long[])e.getValue(), ((long[])e.getValue()).length));
-                else if (e.getValue() instanceof int[]) res.attributes.put(e.getKey(), Arrays.copyOf((int[])e.getValue(), ((int[])e.getValue()).length));
-                else if (e.getValue() instanceof Point) res.attributes.put(e.getKey(), ((Point)e.getValue()).duplicate());
-                else res.attributes.put(e.getKey(), e.getValue());
-            }
+            SegmentedObjectUtils.deepCopyAttributes(attributes, res.attributes);
         }        
         return res;
     }
 
-    <ID2> SegmentedObject duplicate(ObjectDAO<ID2> dao, SegmentedObject parent, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes) {
+    <ID2> SegmentedObject duplicate(ObjectDAO<ID2> dao, SegmentedObject parent, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes, boolean duplicateMeasurements) {
         SegmentedObject res;
         if (isRoot()) {
             if (dao == null) throw new IllegalArgumentException("DAO must be provided for root objects");
@@ -183,20 +176,15 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (attributes!=null && !attributes.isEmpty()) { // deep copy of attributes
             if (duplicateAttributes) {
                 res.attributes = new HashMap<>(attributes.size());
-                for (Entry<String, Object> e : attributes.entrySet()) {
-                    if (e.getValue() instanceof double[])
-                        res.attributes.put(e.getKey(), Arrays.copyOf((double[]) e.getValue(), ((double[]) e.getValue()).length));
-                    else if (e.getValue() instanceof float[])
-                        res.attributes.put(e.getKey(), Arrays.copyOf((float[]) e.getValue(), ((float[]) e.getValue()).length));
-                    else if (e.getValue() instanceof long[])
-                        res.attributes.put(e.getKey(), Arrays.copyOf((long[]) e.getValue(), ((long[]) e.getValue()).length));
-                    else if (e.getValue() instanceof int[])
-                        res.attributes.put(e.getKey(), Arrays.copyOf((int[]) e.getValue(), ((int[]) e.getValue()).length));
-                    else if (e.getValue() instanceof Point)
-                        res.attributes.put(e.getKey(), ((Point) e.getValue()).duplicate());
-                    else res.attributes.put(e.getKey(), e.getValue());
-                }
+                SegmentedObjectUtils.deepCopyAttributes(attributes, res.attributes);
             } else res.attributes = attributes;
+        }
+        if (duplicateMeasurements) {
+            getMeasurements(true);
+            if (measurements!=null) {
+                res.measurements = new Measurements(res);
+                SegmentedObjectUtils.deepCopyAttributes(measurements.values, res.measurements.values);
+            }
         }
         return res;
     }
@@ -1203,22 +1191,25 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     void setMeasurements(Measurements m) {
         this.measurements=m;
     }
-    public Measurements getMeasurements() {
+    protected Measurements getMeasurements(boolean onlyIfExists) {
         if (measurements==null) {
             if (dao!=null) {
                 synchronized(dao) {
                     if (measurements==null) {
                         measurements = dao.getMeasurements(this);
-                        if (measurements==null) measurements = new Measurements(this);
+                        if (measurements==null && !onlyIfExists) measurements = new Measurements(this);
                     }
                 }
-            } else {
+            } else if (!onlyIfExists) {
                 synchronized (this) {
                     if (measurements == null) measurements = new Measurements(this);
                 }
             }
         }
         return measurements;
+    }
+    public Measurements getMeasurements() {
+        return getMeasurements(false);
     }
 
     public void resetMeasurements() {

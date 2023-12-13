@@ -76,6 +76,8 @@ public class SegmentedObjectBox {
         if (attributes!=null) jsonAttributes = attributes.toJSONString();
         return this;
     }
+    // TODO : test compressed array for region (benchmark storing time / retrieve) / idem for measurements
+
 
     public long getId() {
         return id;

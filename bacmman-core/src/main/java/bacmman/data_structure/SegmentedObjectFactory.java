@@ -31,8 +31,8 @@ public class SegmentedObjectFactory {
         return res;
     }
 
-    public <ID> SegmentedObject duplicate(SegmentedObject o, ObjectDAO<ID> targetDAO, int targetObjectClass, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes, boolean removeParentAndTrackAttributes) {
-        SegmentedObject res = o.duplicate(targetDAO, null, duplicateRegion, duplicateImages, duplicateAttributes);
+    public <ID> SegmentedObject duplicate(SegmentedObject o, ObjectDAO<ID> targetDAO, int targetObjectClass, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes, boolean duplicateMeasurements, boolean removeParentAndTrackAttributes) {
+        SegmentedObject res = o.duplicate(targetDAO, null, duplicateRegion, duplicateImages, duplicateAttributes, duplicateMeasurements);
         res.structureIdx = targetObjectClass;
         if (removeParentAndTrackAttributes) {
             res.parent = null;

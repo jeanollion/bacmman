@@ -179,7 +179,7 @@ public class MasterDAOFactory {
         int[] ocIdxs= destination.getMasterDAO().getExperiment().experimentStructure.getStructuresInHierarchicalOrderAsArray();
         Map<Object, Object> oldMapNewID = new HashMap<>();
         List<SegmentedObject> root = source.getRoots();
-        Map<SegmentedObject, SegmentedObject> sourceMapDupRoot = root.stream().collect(Collectors.toMap(r->r, r -> r.duplicate(destination, null, false, false, false)));
+        Map<SegmentedObject, SegmentedObject> sourceMapDupRoot = root.stream().collect(Collectors.toMap(r->r, r -> r.duplicate(destination, null, false, false, false, true)));
         sourceMapDupRoot.forEach((s, dup) -> oldMapNewID.put(s.getId(), dup.getId()));
         sourceMapDupRoot.forEach((s, dup) -> dup.setLinks(oldMapNewID, s));
         destination.store(sourceMapDupRoot.values());
@@ -190,7 +190,7 @@ public class MasterDAOFactory {
             List<SegmentedObject> objects = SegmentedObjectUtils.getAllChildrenAsStream(root.stream(), ocIdx).collect(Collectors.toList());
             fixTrackHeads(objects); // fix issues that could have happened in early versions of the first database structure
             logger.debug("position: {} coping {} object: from ocIdx={} (first frame {})", destination.getPositionName(), objects.size(), ocIdx, root.isEmpty() ? 0 : root.get(0).getChildren(ocIdx).count());
-            Map<SegmentedObject, SegmentedObject> sourceMapDup = objects.stream().collect(Collectors.toMap(o->o, o -> o.duplicate(destination, getDup.apply(o.getParent()), false, false, false)));
+            Map<SegmentedObject, SegmentedObject> sourceMapDup = objects.stream().collect(Collectors.toMap(o->o, o -> o.duplicate(destination, getDup.apply(o.getParent()), false, false, false, true)));
             oldMapNewID.clear();
             sourceMapDup.forEach((s, dup) -> oldMapNewID.put(s.getId(), dup.getId()));
             sourceMapDup.forEach((s, dup) -> dup.setLinks(oldMapNewID, s));
