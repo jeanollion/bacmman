@@ -2,12 +2,14 @@ package bacmman.data_structure;
 
 import bacmman.data_structure.dao.ObjectBoxDAO;
 import bacmman.data_structure.dao.ObjectDAO;
+import bacmman.utils.CompressionUtils;
 import bacmman.utils.JSONUtils;
 import io.objectbox.annotation.*;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Map;
 
 @Entity
@@ -34,14 +36,14 @@ public class SegmentedObjectBox {
     @Uid(17)
     long nextId;
     @Uid(18)
-    String jsonRegion;
+    byte[] jsonRegion;
     @Uid(19)
     String jsonAttributes;
     @Transient
     SegmentedObject object;
 
     public SegmentedObjectBox() {}
-    public SegmentedObjectBox(long id, int frame, int idx, long parentId, long trackHeadId, long previousId, long nextId, String jsonRegion, String jsonAttributes) {
+    public SegmentedObjectBox(long id, int frame, int idx, long parentId, long trackHeadId, long previousId, long nextId, byte[] jsonRegion, String jsonAttributes) {
         this.id = id;
         this.frame = frame;
         this.idx = idx;
@@ -71,7 +73,14 @@ public class SegmentedObjectBox {
         this.previousId = object.previousId==null? 0L : (Long)object.previousId;
         this.nextId= object.nextId==null? 0L : (Long)object.nextId;
         boolean modified = object.updateRegionContainer();
-        if (modified || jsonRegion == null) jsonRegion = object.getRegionJSONEntry().toJSONString();
+        if (modified || jsonRegion == null) {
+            try {
+                jsonRegion = CompressionUtils.compress(object.getRegionJSONEntry().toJSONString(), true);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        //jsonRegion = object.getRegionJSONEntry().toJSONString();
         JSONObject attributes = object.getAttributesJSONEntry();
         if (attributes!=null) jsonAttributes = attributes.toJSONString();
         return this;
@@ -119,7 +128,13 @@ public class SegmentedObjectBox {
                     object.id = id;
                     object.parentId = parentId==0 ? null : parentId;
                     //logger.debug("create SO from SOB: frame {} oc{} idx {} region {}", frame, objectClassIdx, idx, jsonRegion);
-                    object.initRegionFromJSONEntry(JSONUtils.parse(jsonRegion));
+                    try {
+                        String jsonRegionS = CompressionUtils.decompressToString(jsonRegion, true);
+                        object.initRegionFromJSONEntry(JSONUtils.parse(jsonRegionS));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    //object.initRegionFromJSONEntry(JSONUtils.parse(jsonRegion));
                     if (jsonAttributes != null) object.attributes = (Map<String, Object>)JSONUtils.parse(jsonAttributes);
                     object.trackHeadId = trackHeadId == 0 ? id : trackHeadId;
                     object.previousId = previousId==0 ? null : previousId;

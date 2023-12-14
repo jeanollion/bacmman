@@ -31,7 +31,7 @@
         {
           "id": "4:104",
           "name": "jsonMap",
-          "type": 9
+          "type": 23
         }
       ],
       "relations": []
@@ -86,7 +86,7 @@
         {
           "id": "8:18",
           "name": "jsonRegion",
-          "type": 9
+          "type": 23
         },
         {
           "id": "9:19",

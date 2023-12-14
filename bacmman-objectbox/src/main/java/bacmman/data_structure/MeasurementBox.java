@@ -1,8 +1,11 @@
 package bacmman.data_structure;
 
 import bacmman.data_structure.dao.ObjectBoxDAO;
+import bacmman.utils.CompressionUtils;
 import bacmman.utils.JSONUtils;
 import io.objectbox.annotation.*;
+
+import java.io.IOException;
 
 @Entity
 @Uid(100)
@@ -17,12 +20,12 @@ public class MeasurementBox {
     @Uid(103)
     String positionName;
     @Uid(104)
-    String jsonMap;
+    byte[] jsonMap;
     @Transient
     Measurements measurement;
     public MeasurementBox() {}
 
-    public MeasurementBox(long id, int objectClassIdx, String positionName, String jsonMap) {
+    public MeasurementBox(long id, int objectClassIdx, String positionName, byte[] jsonMap) {
         this.id = id;
         this.objectClassIdx = objectClassIdx;
         this.positionName = positionName;
@@ -35,7 +38,11 @@ public class MeasurementBox {
         this.id = (Long)m.getId();
         this.positionName = m.positionName;
         this.objectClassIdx = m.structureIdx;
-        this.jsonMap = m.toJSONEntry().toJSONString();
+        try {
+            this.jsonMap = CompressionUtils.compress(m.toJSONEntry().toJSONString(), true);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         return this;
     }
 
@@ -58,7 +65,14 @@ public class MeasurementBox {
         if (measurement == null) {
             synchronized (this) {
                 if (measurement == null) {
-                    measurement = new Measurements(JSONUtils.parse(jsonMap), positionName);
+                    String jsonMapS = null;
+                    try {
+                        jsonMapS = CompressionUtils.decompressToString(jsonMap, true);
+                        measurement = new Measurements(JSONUtils.parse(jsonMapS), positionName);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
                 }
             }
         }

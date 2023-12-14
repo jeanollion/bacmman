@@ -60,12 +60,12 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     final String positionName;
     final HashMapGetCreate<Pair<String, Integer>, Map<String, SegmentedObject>> cache = new HashMapGetCreate<>(new HashMapGetCreate.MapFactory<>()); // parent trackHead id -> id cache
     final HashMapGetCreate<Pair<String, Integer>, Boolean> allObjectsRetrievedInCache = new HashMapGetCreate<>(p -> false);
-    final Map<Pair<String, Integer>, HTreeMap<String, String>> dbMaps = new HashMap<>();
+    final Map<Pair<String, Integer>, HTreeMap<String, String>> dbMaps = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeDBMap);
     final Map<Pair<String, Integer>, Map<Integer, Set<String>>> frameIndex = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getFrameIndex);
     final Map<Pair<String, Integer>, List<SegmentedObject>> trackHeads = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getTrackHeads);
     final Path dir;
-    final Map<Integer, DB> dbS = new HashMap<>();
-    final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMap<>();
+    final Map<Integer, DB> dbS = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeDB);
+    final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeMeasurementDB);
     public final boolean readOnly;
     protected boolean safeMode;
     private java.nio.channels.FileLock lock;
@@ -93,7 +93,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     @Override
     public boolean isEmpty() {
         if (!Files.exists(dir) || !Files.exists(Paths.get(getDBFile(-1)))) return true;
-        if (getDB(-1) == null) return true;
+        if (dbS.get(-1) == null) return true;
         return getRoots().isEmpty();
     }
 
@@ -188,44 +188,22 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         return dir.resolve("objects_"+structureIdx+".db").toString();
     }
     
-    protected DB getDB(int structureIdx) {
-        DB res = this.dbS.get(structureIdx);
-        if (res==null) {
-            if (readOnly && !Files.exists(Paths.get(getDBFile(structureIdx)))) return null;
-            synchronized(dbS) {
-                if (!dbS.containsKey(structureIdx)) {
-                    //logger.debug("creating db: {} (From DAO: {}), readOnly: {}", getDBFile(structureIdx), this.hashCode(), readOnly);
-                    try {
-                        res = MapDBUtils.createFileDB(getDBFile(structureIdx), readOnly, safeMode);
-                        dbS.put(structureIdx, res);
-                    } catch (org.mapdb.DBException ex) {
-                        logger.error("Could not create DB readOnly: "+readOnly + " dir "+dir.toFile()+", created: "+dir.toFile().exists(), ex);
-                        if (mDAO.getLogger()!=null) mDAO.getLogger().setMessage("Could not create DB in write mode for position: "+positionName+ " object class: "+structureIdx);
-                        return null;
-                    }
-                } else {
-                    res = dbS.get(structureIdx);
-                }
-            }
+    protected DB makeDB(int structureIdx) {
+        if (readOnly && !Files.exists(Paths.get(getDBFile(structureIdx)))) return null;
+        try {
+            return MapDBUtils.createFileDB(getDBFile(structureIdx), readOnly, safeMode);
+        } catch (org.mapdb.DBException ex) {
+            logger.error("Could not create DB readOnly: "+readOnly + " dir "+dir.toFile()+", created: "+dir.toFile().exists(), ex);
+            if (mDAO.getLogger()!=null) mDAO.getLogger().setMessage("Could not create DB in write mode for position: "+positionName+ " object class: "+structureIdx);
+            throw ex;
         }
-        return res;
     }
 
-    protected HTreeMap<String, String> getDBMap(Pair<String, Integer> key) {
-        HTreeMap<String, String> res = this.dbMaps.get(key);
-        if (res==null) {
-            synchronized(dbMaps) {
-                if (dbMaps.containsKey(key)) res=dbMaps.get(key);
-                else {
-                    DB db = getDB(key.value);
-                    if (db!=null) {
-                        res = MapDBUtils.createHTreeMap(db, key.key!=null? key.key : "root");
-                        if (res!=null || readOnly) dbMaps.put(key, res); // readonly case && not already created -> null
-                    }
-                }
-            }
-        }
-        return res;
+    protected HTreeMap<String, String> makeDBMap(Pair<String, Integer> key) {
+        DB db = dbS.get(key.value);
+        if (db!=null) {
+            return MapDBUtils.createHTreeMap(db, key.key!=null? key.key : "root");
+        } else return null;
     }
 
 
@@ -235,7 +213,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         else {
             synchronized(this) {
                 if (cache.containsKey(key) && allObjectsRetrievedInCache.getOrDefault(key, false)) return cache.get(key);
-                HTreeMap<String, String> dbm = getDBMap(key);
+                HTreeMap<String, String> dbm = dbMaps.get(key);
                 if (cache.containsKey(key) && !cache.get(key).isEmpty()) {
                     long t0 = System.currentTimeMillis();
                     Map<String, SegmentedObject> objectMap = cache.get(key);
@@ -339,7 +317,9 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             if (cache.containsKey(id)) return cache.get(id);
             else {
                 SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
-                String json = getDBMap(key).get(id);
+                HTreeMap<String, String> dbm = dbMaps.get(key);
+                if (dbm ==null ) return null;
+                String json = dbm.get(id);
                 if (json==null) return null;
                 SegmentedObject o = accessor.createFromJSON(json, this);
                 if (o==null) return null;
@@ -360,7 +340,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             Map<String, SegmentedObject> map = getAllChildren(new Pair<>(null, structureIdx));
             if (map.containsKey(id)) return map;
         } else {
-            for (String parentTHId : MapDBUtils.getNames(getDB(structureIdx))) {
+            for (String parentTHId : MapDBUtils.getNames(dbS.get(structureIdx))) {
                 Map<String, SegmentedObject> map = getAllChildren(new Pair<>(parentTHId, structureIdx)); //"root".equals(parentTHId) ?  null :
                 if (map.containsKey(id)) return map;
             }
@@ -397,7 +377,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         } else { // retrieve only children
             Set<String> idxs = frameIndex.get(key).get(parent.getFrame());
             long t0 = System.currentTimeMillis();
-            HTreeMap<String, String> dbm = getDBMap(key);
+            HTreeMap<String, String> dbm = dbMaps.get(key);
             if (dbm == null) return Collections.emptyList();
             Map<String, SegmentedObject> objectMap = cache.getAndCreateIfNecessary(key);
             SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
@@ -441,8 +421,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
 
         for (SegmentedObject pth : byTh.keySet()) res.addAll(deleteChildren(byTh.get(pth), structureIdx, (String)pth.getId(), false));
         if (commit) {
-            getDB(structureIdx).commit();
-            getMeasurementDB(structureIdx).key.commit();
+            dbS.get(structureIdx).commit();
+            measurementdbS.get(structureIdx).key.commit();
         }
         return res;
     }
@@ -522,6 +502,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     private synchronized void closeAllObjectFiles(boolean commit) {
         for (DB db : dbS.values()) {
+            if (db==null) continue;
             if (!readOnly && commit&&!db.isClosed()) db.commit();
             //logger.debug("closing object file : {} ({})", db, Utils.toStringList(Utils.getKeys(dbS, db), i->this.getDBFile(i)));
             db.close();
@@ -547,8 +528,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             }
         } else {
             for (int s = -1; s<mDAO.getExperiment().getStructureCount(); ++s) {
-                getDB(s).commit();
-                getDB(s).getStore().compact();
+                dbS.get(s).commit();
+                dbS.get(s).getStore().compact();
             }
         }
     }
@@ -561,8 +542,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             }
         } else {
             for (int s = -1; s<mDAO.getExperiment().getStructureCount(); ++s) {
-                getMeasurementDB(-1).key.commit();
-                getMeasurementDB(-1).key.getStore().compact();
+                measurementdbS.get(-1).key.commit();
+                measurementdbS.get(-1).key.getStore().compact();
             }
         }
     }
@@ -589,10 +570,10 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
                     allModifiedStructureIdx.addAll(deleteChildren(toRemove, sChild, false)); // will call this method recursively
                 }
             }
-            HTreeMap<String, String> dbMap = getDBMap(key);
+            HTreeMap<String, String> dbMap = dbMaps.get(key);
             toRemove.forEach((o) -> dbMap.remove(o.getId())); //.stream().sorted(Comparator.comparingInt(o->-o.getFrame())).
             // also remove measurements
-            Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(key.value);
+            Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(key.value);
             if (mDB!=null) toRemove.forEach((o) -> mDB.value.remove(o.getId()));
             if (cache.containsKey(key)) {
                 Map<String, SegmentedObject> cacheMap = cache.get(key);
@@ -623,8 +604,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         }
         if (commit) {
             for (int i : allModifiedStructureIdx) {
-                getDB(i).commit();
-                getMeasurementDB(i).key.commit();
+                dbS.get(i).commit();
+                measurementdbS.get(i).key.commit();
             }
         }
         return allModifiedStructureIdx;
@@ -639,7 +620,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         getMasterDAO().getAccess().updateRegionContainer(object);
         // get parent/pTh/next/prev ids ? 
         cache.getAndCreateIfNecessary(key).put((String)object.getId(), object);
-        getDBMap(key).put((String)object.getId(), JSONUtils.serialize(object));
+        dbMaps.get(key).put((String)object.getId(), JSONUtils.serialize(object));
         if (hasFrameIndex(key)) {
             frameIndex.get(key).get(object.getFrame()).add((String)object.getId());
             storeFrameIndex(key, frameIndex.get(key), false, object.getFrame());
@@ -648,7 +629,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             trackHeads.get(key).add(object);
             Collections.sort(trackHeads.get(key));
         }
-        getDB(object.getStructureIdx()).commit();
+        dbS.get(object.getStructureIdx()).commit();
     }
     protected void store(Collection<SegmentedObject> objects, boolean commit) {
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
@@ -664,7 +645,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             List<SegmentedObject> toStore = splitByPTH.get(key);
             //logger.debug("storing: {} objects under key: {}", toStore.size(), key.toString());
             Map<String, SegmentedObject> cacheMap = cache.getAndCreateIfNecessary(key);
-            HTreeMap<String, String> dbMap = getDBMap(key);
+            HTreeMap<String, String> dbMap = dbMaps.get(key);
             long t0 = System.currentTimeMillis();
             boolean parallel=false;
             Utils.parallel(IntStream.rangeClosed(0, toStore.size()/FRAME_INDEX_LIMIT).map(i -> i*FRAME_INDEX_LIMIT), parallel).forEach(i -> {
@@ -709,7 +690,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             logger.debug("Committing...");
             splitByPTH.keySet().stream().mapToInt(p -> p.value).distinct().forEach(ocIdx -> {
                 long t0 = System.currentTimeMillis();
-                getDB(ocIdx).commit();
+                dbS.get(ocIdx).commit();
                 long t1 = System.currentTimeMillis();
                 logger.debug("Committed DB of OC {} in {}ms", ocIdx, t1-t0);
             });
@@ -783,8 +764,9 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     // key: parentTrackHead + object class id / value: id + frame
     protected Set<Pair<String, Integer>> getTrackHeadIds(Pair<String, Integer> key) {
         long t0 = System.currentTimeMillis();
+        HTreeMap<String, String> dbm = dbMaps.get(key);
+        if (dbm==null) return Collections.EMPTY_SET;
         Set<Pair<String, Integer>> res = new HashSet<>();
-        HTreeMap<String, String> dbm = getDBMap(key);
         dbm.forEach( (k, v) -> {
             int idx = v.indexOf("isTh")+6;
             boolean isTh = Boolean.parseBoolean(v.substring(idx,  v.indexOf(jsonSeparator, idx)));
@@ -804,28 +786,18 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     private String getMeasurementDBFile(int structureIdx) {
         return dir.resolve("measurements_"+structureIdx+".db").toString();
     }
-    protected Pair<DB, HTreeMap<String, String>> getMeasurementDB(int structureIdx) {
-        Pair<DB, HTreeMap<String, String>> res = this.measurementdbS.get(structureIdx);
-        if (res==null) {
-            synchronized(measurementdbS) {
-                if (!measurementdbS.containsKey(structureIdx)) {
-                    try {
-                        //logger.debug("opening measurement DB for structure: {}: file {} readONly: {}",structureIdx, getMeasurementDBFile(structureIdx), readOnly);
-                        DB db = MapDBUtils.createFileDB(getMeasurementDBFile(structureIdx), readOnly, false);
-                        //logger.debug("opening measurement DB for structure: {}: file {} readONly: {}: {}",structureIdx, getMeasurementDBFile(structureIdx), readOnly, db);
-                        HTreeMap<String, String> dbMap = MapDBUtils.createHTreeMap(db, "measurements");
-                        res = new Pair(db, dbMap);
-                        measurementdbS.put(structureIdx, res);
-                    }  catch (org.mapdb.DBException ex) {
-                        logger.error("Couldnot create DB: readOnly:"+readOnly, ex);
-                        return null;
-                    }
-                } else {
-                    res = measurementdbS.get(structureIdx);
-                }
-            }
+    protected Pair<DB, HTreeMap<String, String>> makeMeasurementDB(int structureIdx) {
+        if (readOnly && !Files.exists(Paths.get(getMeasurementDBFile(structureIdx)))) return null;
+        try {
+            //logger.debug("opening measurement DB for structure: {}: file {} readONly: {}",structureIdx, getMeasurementDBFile(structureIdx), readOnly);
+            DB db = MapDBUtils.createFileDB(getMeasurementDBFile(structureIdx), readOnly, false);
+            //logger.debug("opening measurement DB for structure: {}: file {} readONly: {}: {}",structureIdx, getMeasurementDBFile(structureIdx), readOnly, db);
+            HTreeMap<String, String> dbMap = MapDBUtils.createHTreeMap(db, "measurements");
+            return new Pair(db, dbMap);
+        }  catch (org.mapdb.DBException ex) {
+            logger.error("Couldnot create DB: readOnly:"+readOnly, ex);
+            return null;
         }
-        return res;
     }
     
     @Override
@@ -833,7 +805,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         if (readOnly) return;
         Map<Integer, List<SegmentedObject>> bySIdx = SegmentedObjectUtils.splitByStructureIdx(objects, true);
         for (int i : bySIdx.keySet()) {
-            Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(i);
+            Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(i);
             List<SegmentedObject> toStore = bySIdx.get(i);
             long t0 = System.currentTimeMillis();
             toStore.parallelStream().forEach(o -> o.getMeasurements().updateObjectProperties(o));
@@ -854,7 +826,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     public void upsertMeasurement(SegmentedObject o) {
         if (readOnly) return;
         o.getMeasurements().updateObjectProperties(o);
-        Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(o.getStructureIdx());
+        Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(o.getStructureIdx());
         mDB.value.put((String)o.getId(), JSONUtils.serialize(o.getMeasurements()));
         mDB.key.commit();
         o.getMeasurements().modifications=false;
@@ -862,12 +834,13 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
 
     @Override
     public List<Measurements> getMeasurements(int structureIdx, String... measurements) {
-        Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(structureIdx);
+        Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(structureIdx);
+        if (mDB==null) return Collections.emptyList();
         return MapDBUtils.getValues(mDB.value).stream().map((s) -> new Measurements(JSONUtils.parse(s), this.positionName)).collect(Collectors.toList());
     }
     @Override
     public Measurements getMeasurements(SegmentedObject o) {
-        Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(o.getStructureIdx());
+        Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(o.getStructureIdx());
         if (mDB==null) return null;
         try {
             String mS = mDB.value.get(o.getId());
@@ -884,7 +857,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     public void retrieveMeasurements(int... structureIdx) {
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
         for (int sIdx : structureIdx) {
-            Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(sIdx);
+            Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(sIdx);
+            if (mDB==null) continue;
             SegmentedObjectUtils.getAllObjectsAsStream(this, sIdx)
                 .parallel()
                 .filter(o->!o.hasMeasurements()) // only objects without measurements
@@ -911,6 +885,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     private synchronized void closeAllMeasurementFiles(boolean commit) {
         for (Pair<DB, HTreeMap<String, String>> p : this.measurementdbS.values()) {
+            if (p==null) continue;
             if (!readOnly&&commit&&!p.key.isClosed()) p.key.commit();
             //logger.debug("closing measurement DB: {} ({})",p.key, Utils.toStringList(Utils.getKeys(measurementdbS, p), i->getMeasurementDBFile(i)));
             p.key.close();
@@ -927,9 +902,9 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     //// frame index
     protected Map<Integer, Set<String>> createFrameIndex(Pair<String, Integer> key) {
         long t0 = System.currentTimeMillis();
-        Map<Integer, Set<String>> res = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory());
-        HTreeMap<String, String> dbm = getDBMap(key);
+        HTreeMap<String, String> dbm = dbMaps.get(key);
         if (dbm!=null) { // null if readonly & db not created
+            Map<Integer, Set<String>> res = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory());
             dbm.forEach((k, v) -> {
                 int idx = v.indexOf("frame") + 7;
                 int frame = Integer.parseInt(v.substring(idx, v.indexOf(jsonSeparator, idx)));
@@ -937,8 +912,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             });
             long t1 = System.currentTimeMillis();
             //logger.debug("creating frame index for: {} in {}ms", key, t1-t0);
-        }
-        return res;
+            return res;
+        } else return Collections.emptyMap();
     }
     protected Map<Integer, Set<String>> getFrameIndex(Pair<String, Integer> key) {
         if (hasFrameIndex(key)) {
@@ -972,15 +947,15 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         if (frames!=null && frames.length>0) toStore = Arrays.stream(frames).boxed().collect(Collectors.toMap(i -> i, i -> indices.get(i).toArray()));
         else toStore= indices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toArray()));
         dbmap.putAll(toStore);
-        if (commit) getDB(key.value).commit();
+        if (commit) dbS.get(key.value).commit();
     }
     protected boolean hasFrameIndex(Pair<String, Integer> key) {
         //if (dbMapsFrameIndex.containsKey(key) && dbMapsFrameIndex.get(key)!=null) return true;
-        return MapDBUtils.contains(getDB(key.value), "frameIndex_"+key.key);
+        return MapDBUtils.contains(dbS.get(key.value), "frameIndex_"+key.key);
     }
 
     protected HTreeMap<Integer, Object> getFrameIndexDBMap(Pair<String, Integer> key) {
-        DB db = getDB(key.value);
+        DB db = dbS.get(key.value);
         if (db!=null) {
             return MapDBUtils.createFrameIndexHTreeMap(db, key.key!=null? "frameIndex_"+key.key : "frameIndex_root");
             //if (res!=null || readOnly) dbMapsFrameIndex.put(key, res); // readonly case && not already created -> null

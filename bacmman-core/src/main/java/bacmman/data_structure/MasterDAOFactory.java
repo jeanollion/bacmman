@@ -176,7 +176,7 @@ public class MasterDAOFactory {
     }
 
     public static <ID1, ID2>void storeAllObjects(ObjectDAO<ID1> source, ObjectDAO<ID2> destination) {
-        int[] ocIdxs= destination.getMasterDAO().getExperiment().experimentStructure.getStructuresInHierarchicalOrderAsArray();
+        int[] ocIdxs = destination.getMasterDAO().getExperiment().experimentStructure.getStructuresInHierarchicalOrderAsArray();
         Map<Object, Object> oldMapNewID = new HashMap<>();
         List<SegmentedObject> root = source.getRoots();
         Map<SegmentedObject, SegmentedObject> sourceMapDupRoot = root.stream().collect(Collectors.toMap(r->r, r -> r.duplicate(destination, null, false, false, false, true)));
@@ -187,10 +187,18 @@ public class MasterDAOFactory {
         ocIdxMapSourceMapDup.put(-1, sourceMapDupRoot);
         UnaryOperator<SegmentedObject> getDup = o -> ocIdxMapSourceMapDup.get(o.getStructureIdx()).get(o);
         for (int ocIdx : ocIdxs) {
+            long t00 = System.currentTimeMillis();
             List<SegmentedObject> objects = SegmentedObjectUtils.getAllChildrenAsStream(root.stream(), ocIdx).collect(Collectors.toList());
+            long t01 = System.currentTimeMillis();
+            source.retrieveMeasurements(ocIdx);
+            long t02 = System.currentTimeMillis();
             fixTrackHeads(objects); // fix issues that could have happened in early versions of the first database structure
-            logger.debug("position: {} coping {} object: from ocIdx={} (first frame {})", destination.getPositionName(), objects.size(), ocIdx, root.isEmpty() ? 0 : root.get(0).getChildren(ocIdx).count());
-            Map<SegmentedObject, SegmentedObject> sourceMapDup = objects.stream().collect(Collectors.toMap(o->o, o -> o.duplicate(destination, getDup.apply(o.getParent()), false, false, false, true)));
+            logger.debug("position: {} duplicating {} object: from ocIdx={} (first frame {}) retrieve time: objects: {}ms measurements: {}ms", destination.getPositionName(), objects.size(), ocIdx, root.isEmpty() ? 0 : root.get(0).getChildren(ocIdx).count(), t01-t00, t02-t01);
+
+            long t1 = System.currentTimeMillis();
+            Map<SegmentedObject, SegmentedObject> sourceMapDup = objects.parallelStream().collect(Collectors.toMap(o->o, o -> o.duplicate(destination, getDup.apply(o.getParent()), false, false, false, true)));
+            long t2 = System.currentTimeMillis();
+            logger.debug("{} objects duplicated in {}", objects.size(), t2-t1);
             oldMapNewID.clear();
             sourceMapDup.forEach((s, dup) -> oldMapNewID.put(s.getId(), dup.getId()));
             sourceMapDup.forEach((s, dup) -> dup.setLinks(oldMapNewID, s));

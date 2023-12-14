@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -40,7 +41,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     protected final Map<Integer, Box<SegmentedObjectBox>> objectBoxes = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeObjectBox);
     protected final Map<Integer, Box<MeasurementBox>> measurementBoxes = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeMeasurementBox);
 
-    protected final Map<Integer, Map<Long, SegmentedObjectBox>> cache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new HashMap<>());
+    protected final Map<Integer, Map<Long, SegmentedObjectBox>> cache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new ConcurrentHashMap<>());
     protected final Map<Integer, Map<Long, MeasurementBox>> measurementCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new HashMap<>());
     protected final Map<Integer, Map<Long, SegmentedObjectBox>> toRestoreAtRollback = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new HashMap<>());
     protected final Map<Integer, Set<Long>> toRemoveAtRollback = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(ocIdx -> new HashSet<>());
@@ -283,22 +284,22 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             deleteTransaction(ids, ocIdx, deleteChildren, deleteFromParent);
             if (ocIdx>=0 && relabelSiblings) {
                 long[] parentIds = list.stream().mapToLong(o -> (Long)o.getParentId()).distinct().toArray();
-                List<List<SegmentedObjectBox>> siblingList = new ArrayList<>();
+                List<Stream<SegmentedObjectBox>> siblingList = new ArrayList<>();
                 objectStores.get(ocIdx).runInReadTx(() -> {
                     for (long pId : parentIds) {
                         siblingList.add(getB(ocIdx, getChildrenQuery(ocIdx, pId), null));
                     }
                 });
                 List<SegmentedObjectBox> modifiedObjects = new ArrayList<>();
-                for (List<SegmentedObjectBox> siblings : siblingList) {
-                    int i = 0;
-                    for (SegmentedObjectBox c : siblings) {
-                        if (c.getIdx()!=i) {
-                            c.setIdx(i);
+                for (Stream<SegmentedObjectBox> siblings : siblingList) {
+                    int[] i = new int[1];
+                    siblings.forEach(c -> {
+                        if (c.getIdx()!=i[0]) {
+                            c.setIdx(i[0]);
                             modifiedObjects.add(c);
                         }
-                        ++i;
-                    }
+                        ++i[0];
+                    });
                 }
                 put(ocIdx, modifiedObjects); // TODO when objectbox allows it, only update idx
             }
@@ -369,11 +370,14 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             List<SegmentedObjectBox> toStore;
             Map<Long, SegmentedObjectBox> cache = this.cache.get(ocIdx);
             synchronized (cache) {
-                toStore = toStoreSO.stream().map(o -> {
+                List<SegmentedObject> toStoreMeasSync=Collections.synchronizedList(toStoreMeas);
+                toStore = toStoreSO.parallelStream().map(o -> {
                     SegmentedObjectBox sob = cache.get(o.getId());
-                    if (sob == null) sob = new SegmentedObjectBox(o);
-                    else sob.updateSegmentedObject(o);
-                    if (o.hasMeasurementModifications()) toStoreMeas.add(o);
+                    if (sob == null) {
+                        sob = new SegmentedObjectBox(o);
+                        cache.put(sob.getId(), sob);
+                    } else sob.updateSegmentedObject(o);
+                    if (o.hasMeasurementModifications()) toStoreMeasSync.add(o);
                     return sob;
                 }).collect(Collectors.toList());
             }
@@ -391,12 +395,11 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                         } // was created after previous commit so needs to be removed
                     }
                 });
-
             }
             // store
             put(ocIdx, toStore);
             long t2 = System.currentTimeMillis();
-            logger.debug("Stored {} objects of class {} in {}ms retrieve: {}ms store: {}ms", toStoreSO.size(), ocIdx, t2-t0, t1-t0, t2-t1);
+            logger.debug("Stored {} objects of class {} in {}ms create objects: {}ms store: {}ms", toStoreSO.size(), ocIdx, t2-t0, t1-t0, t2-t1);
             upsertMeasurements(toStoreMeas);
         }
 
@@ -508,8 +511,9 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public void retrieveMeasurements(int... structureIdx) {
         for (int ocIdx : structureIdx) {
-            long[] ids = objectBoxes.get(ocIdx).query().build().findIds(); // TODO batch
-            getMeasurementB(ocIdx, ids);
+            for (long[] ids : getAllIds(objectBoxes.get(ocIdx))) {
+                getMeasurementB(ocIdx, ids);
+            }
         }
     }
 
@@ -599,20 +603,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         List<long[]> ids = getAllIds(box);
         return ids.size() == 1 ? LongStream.of(ids.get(0)) : StreamConcatenation.concat(ids.stream().map(LongStream::of).toArray(LongStream[]::new));
     }
-    protected Stream<SegmentedObjectBox> getB(int objectClassIdx, long[] ids) {
-        Map<Long, SegmentedObjectBox> cache = this.cache.get(objectClassIdx);
-        Box<SegmentedObjectBox> box = objectBoxes.get(objectClassIdx);
-        if (readOnly && box==null) return Stream.empty();
-        synchronized (cache) {
-            long[] toRetrieve = LongStream.of(ids).filter(id -> !cache.containsKey(id)).toArray();
-            List<SegmentedObjectBox> retrieved = box.get(toRetrieve);
-            for (SegmentedObjectBox b : retrieved) cache.put(b.getId(), b);
-        }
-        return LongStream.of(ids).mapToObj(cache::get);
-    }
-    protected Stream<SegmentedObject> get(int objectClassIdx, long[] ids) {
-        return getB(objectClassIdx, ids).map(o->o.getSegmentedObject(objectClassIdx, this));
-    }
+
     protected SegmentedObject getFirst(int objectClassIdx, Query<SegmentedObjectBox> query) {
         Map<Long, SegmentedObjectBox> cache = this.cache.get(objectClassIdx);
         Box<SegmentedObjectBox> box = objectBoxes.get(objectClassIdx);
@@ -633,36 +624,34 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         return res.getSegmentedObject(objectClassIdx, this);
     }
 
-    protected List<SegmentedObjectBox> getB(int objectClassIdx, Query<SegmentedObjectBox> query, Predicate<SegmentedObjectBox> filter) {
+    protected Stream<SegmentedObjectBox> getB(int objectClassIdx, long[] ids) {
         Map<Long, SegmentedObjectBox> cache = this.cache.get(objectClassIdx);
         Box<SegmentedObjectBox> box = objectBoxes.get(objectClassIdx);
-        if (readOnly && box==null) return Collections.emptyList();
-        List<SegmentedObjectBox> res = new ArrayList<>();
-        List<SegmentedObjectBox> retrieved;
-        synchronized (cache) { // TODO one sync or several ?
-            retrieved =  objectStores.get(objectClassIdx).callInReadTx(() -> {
-                long[] ids = query.findIds();
-                query.close();
-                long[] toRetrieve = LongStream.of(ids).filter(id -> {
-                    SegmentedObjectBox sob = cache.get(id);
-                    if (sob!=null) {
-                        if (filter==null || filter.test(sob)) res.add(sob);
-                        return false;
-                    }
-                    else return true;
-                }).toArray();
-                return box.get(toRetrieve);
-            });
-            retrieved.forEach(o -> cache.put(o.getId(), o));
+        if (readOnly && box==null) return Stream.empty();
+        synchronized (cache) {
+            long[] toRetrieve = LongStream.of(ids).filter(id -> !cache.containsKey(id)).toArray();
+            List<SegmentedObjectBox> retrieved = box.get(toRetrieve);
+            for (SegmentedObjectBox b : retrieved) cache.put(b.getId(), b);
         }
-        Stream<SegmentedObjectBox> retrievedS = retrieved.stream();
-        if (filter != null) retrievedS = retrievedS.filter(filter);
-        retrievedS.forEach(res::add);
+        return LongStream.of(ids).mapToObj(cache::get);
+    }
+
+    protected Stream<SegmentedObjectBox> getB(int objectClassIdx, Query<SegmentedObjectBox> query, Predicate<SegmentedObjectBox> filter) {
+        Box<SegmentedObjectBox> box = objectBoxes.get(objectClassIdx);
+        if (readOnly && box==null) return Stream.empty();
+        long[] ids = query.findIds();
+        query.close();
+        Stream<SegmentedObjectBox> res = getB(objectClassIdx, ids);
+        if (filter != null) res = res.filter(filter);
         return res;
+    }
+    protected Stream<SegmentedObject> get(int objectClassIdx, long[] ids) {
+        return getB(objectClassIdx, ids).parallel().map(o->o.getSegmentedObject(objectClassIdx, this));
     }
 
     protected Stream<SegmentedObject> get(int objectClassIdx, Query<SegmentedObjectBox> query, Predicate<SegmentedObjectBox> filter, boolean sorted) {
-        Stream<SegmentedObject> resSO = getB(objectClassIdx, query, filter).stream().map(s -> s.getSegmentedObject(objectClassIdx, this));
+        Stream<SegmentedObjectBox> retrieved = getB(objectClassIdx, query, filter);
+        Stream<SegmentedObject> resSO = retrieved.parallel().map(s -> s.getSegmentedObject(objectClassIdx, this));
         if (sorted) resSO = resSO.sorted();
         return resSO;
     }
