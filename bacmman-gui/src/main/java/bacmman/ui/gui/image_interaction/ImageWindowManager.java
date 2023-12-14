@@ -922,8 +922,8 @@ public abstract class ImageWindowManager<I, U, V> {
             displayTrack(image, i, i.pairWithOffset(track), hyperStack? getColor(track.get(0)) : getColor() , labile, false, false);
         }
         if (hyperStack) {
-            int minFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.stream().filter(SegmentedObject::isTrackHead).findFirst().orElse(track.size()>1 ? track.get(1).getTrackHead() : track.get(0)).getFrame()).min().orElse(-1);
-            int maxFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.get(track.size() - 1).getFrame()).max().orElse(-1);
+            int minFrame = tracks.stream().flatMapToInt(track -> track.stream().mapToInt(SegmentedObject::getFrame)).min().orElse(-1);
+            int maxFrame = tracks.stream().flatMapToInt(track -> track.stream().mapToInt(SegmentedObject::getFrame)).max().orElse(-1);
             if (minFrame > -1) {
                 int curFrame = ((HyperStack)i).idxMapFrame.get(displayer.getFrame(image));
                 if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);

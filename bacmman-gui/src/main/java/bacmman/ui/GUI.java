@@ -163,7 +163,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
     private BoundedNumberParameter dbConcurrencyScale = new BoundedNumberParameter("Database Concurrency Scale", 0, 8, 1, ThreadRunner.getMaxCPUs());
 
-    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAllTypes().toArray(new String[0]), "MapDB", false).setHint("Database structure to store objects and measurements");
+    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAllTypes().toArray(new String[0]), "MapDB", false).setHint("Database structure to store objects and measurements. <br/>Note that with MapDB, it is not safe to manually edit parent objects that already have children objects");
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
     private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
     private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +

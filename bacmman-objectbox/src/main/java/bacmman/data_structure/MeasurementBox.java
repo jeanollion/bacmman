@@ -43,6 +43,7 @@ public class MeasurementBox {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        //this.jsonMap = m.toJSONEntry().toJSONString();
         return this;
     }
 
@@ -72,7 +73,7 @@ public class MeasurementBox {
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
-
+                    //measurement = new Measurements(JSONUtils.parse(jsonMap), positionName);
                 }
             }
         }

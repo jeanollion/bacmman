@@ -79,7 +79,12 @@ public class SegmentedObjectEditor {
                 linkObjects(prev, allNext.get(0), true, editor);
                 //logger.debug("unlinking.. double link link: {} to {}", prev, allNext.get(0));
             }
-
+            List<SegmentedObject> allPrev = getPrevious(next).collect(Collectors.toList());
+            if (allPrev.size()==1 && mergeTracks.test(allPrev.get(0), next)) { // set trackHead
+                unlinkObjects(allPrev.get(0), next, NERVE_MERGE(), editor);
+                linkObjects(allPrev.get(0), next, true, editor);
+                //logger.debug("unlinking.. double link link: {} to {}", prev, allNext.get(0));
+            }
         }
     }
     public static void linkObjects(SegmentedObject prev, SegmentedObject next, boolean allowDoubleLink, TrackLinkEditor editor) {
