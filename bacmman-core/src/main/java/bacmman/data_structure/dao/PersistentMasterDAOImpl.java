@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S extends SelectionDAO> implements PersistentMasterDAO<ID, T> {
     static final Logger logger = LoggerFactory.getLogger(PersistentMasterDAOImpl.class);
@@ -285,11 +284,6 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     @Override
-    public void clearCache() {
-        logger.debug("clearing cache...");
-        clearCache(true, true , true);
-    }
-    @Override
     public void unlockConfiguration() {
         unlockAndCloseXP();
         if (selectionDAO!=null) {
@@ -303,8 +297,9 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         T dao = DAOs.get(position);
         if (dao!=null) dao.clearCache();
     }
-    public synchronized void clearCache(boolean xpDAO, boolean objectDAO, boolean selectionDAO) {
-        if (objectDAO) {
+    @Override public synchronized void clearCache(boolean configuration, boolean selectionDAO, boolean objectDAOs) {
+        logger.debug("clearing cache...");
+        if (objectDAOs) {
             for (T dao : DAOs.values()) clearCache(dao.getPositionName());
         }
 
@@ -312,7 +307,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             getSelectionDAO().clearCache();
             this.selectionDAO=null;
         }
-        if (xpDAO) {
+        if (configuration) {
             //this.unlockXP();
             this.xp=null;
         }
@@ -356,7 +351,8 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             logger.debug("could not read config file: ", ex);
             return null;
         }
-        if (xpString==null || xpString.length()==0) return null;
+        logger.debug("read xp : {}", xpString);
+        if (xpString==null || xpString.isEmpty()) return null;
         Experiment xp = new Experiment(dbName).setPath(datasetDir);
         xp.initFromJSONEntry(JSONUtils.parse(xpString));
         return xp;
@@ -405,14 +401,14 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         logger.debug("Updating configuration file..");
         if (xp!=null && cfg!=null) {
             try {
+                logger.debug("updating xp: {}", xp.toJSONEntry().toJSONString());
                 FileIO.write(cfg, xp.toJSONEntry().toJSONString(), false);
                 if (this.experimentChangedFromFile()) {
                     Core.userLog("Could not save configuration");
                     logger.debug("update not done!");
                     //logger.debug("on file: {}", getXPFromFile().toJSONEntry());
                     //logger.debug("current: {}", xp.toJSONEntry());
-                }
-                else logger.debug("Update done!");
+                } else logger.debug("Update done!");
             } catch (IOException ex) {
                 Core.userLog("Could not update configuration: error");
                 logger.error("Could not update configuration", ex);

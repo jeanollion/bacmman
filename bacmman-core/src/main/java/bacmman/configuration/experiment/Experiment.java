@@ -170,7 +170,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     
     public Experiment(String name) {
         super(name);
-        structures.addListener(source -> source.getChildren().stream().forEachOrdered((s) -> s.setMaxStructureIdx()));
+        structures.addListener(source -> source.getChildren().forEach(Structure::setMaxStructureIdx));
         initChildList();
     }
     @Override 
@@ -334,7 +334,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
     
     public void setOutputDirectory(String outputPath) {
+        logger.debug("setting output path: {}", outputPath);
         this.outputPath.setSelectedFilePath(outputPath);
+        logger.debug("output path set");
         if (outputPath!=null) {
             Path p = Paths.get(this.outputPath.getFirstSelectedFilePath());
             if (!Files.exists(p)) {
@@ -344,7 +346,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
                     throw new RuntimeException(e);
                 }
             }
-            if (path==null) path = p.getParent();
+            if (path==null && Paths.get(outputPath).isAbsolute()) path = p.getParent();
         }
     }
     

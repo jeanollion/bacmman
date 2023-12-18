@@ -1413,14 +1413,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         FileChooser outputPath = (FileChooser)db.getExperiment().getChildren().stream().filter(p->p.getName().equals("Output Path")).findAny().get();
         outputPath.addListener((FileChooser source) -> {
             Experiment xp = ParameterUtils.getExperiment(source);
-            FileChooser op = (FileChooser)xp.getChildren().stream().filter(p->p.getName().equals("Output Path")).findAny().get();
-            FileChooser ip = (FileChooser)xp.getChildren().stream().filter(p->p.getName().equals("Output Image Path")).findAny().get();
+            FileChooser op = ParameterUtils.getParameterFromChildren(FileChooser.class, xp, p->p.getName().equals("Output Path"));
+            FileChooser ip = ParameterUtils.getParameterFromChildren(FileChooser.class, xp, p->p.getName().equals("Output Image Path"));
             if (op.getFirstSelectedFilePath()==null) return;
             if (ip.getFirstSelectedFilePath()==null) ip.setSelectedFilePath(op.getFirstSelectedFilePath());
             logger.debug("new output directory set : {}", op.getFirstSelectedFilePath());
             reloadObjectTrees=true;
             if (db==null) return;
-            else db.clearCache();
+            else db.clearCache(false, false, true);
         });
 
         if (db!=null) {
@@ -1500,7 +1500,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (db!=null) {
             db.unlockPositions();
             db.unlockConfiguration();
-            db.clearCache();
+            db.clearCache(true, true, true);
         }
         db=null;
         if (configurationLibrary!=null) configurationLibrary.setDB(null);
@@ -2855,7 +2855,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         newXPMenuItem.setText("New");
         newXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                newXPMenuItemActionPerformed(evt);
+                createEmptyDataset();
             }
         });
         experimentMenu.add(newXPMenuItem);
@@ -3647,7 +3647,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
     }//GEN-LAST:event_setSelectedExperimentMenuItemActionPerformed
 
-    private boolean newXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPMenuItemActionPerformed
+    private boolean createEmptyDataset() {//GEN-FIRST:event_newXPMenuItemActionPerformed
         Triplet<String, String, File> relPath = promptNewDatasetPath();
         if (relPath==null) return false;
         else {
@@ -3661,10 +3661,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
             Experiment xp2 = new Experiment(relPath.v1);
             xp2.setPath(db2.getDatasetDir());
-            xp2.setOutputDirectory("Output");
             db2.setExperiment(xp2);
             db2.unlockConfiguration();
-            db2.clearCache();
+            db2.clearCache(true, true, true);
             populateDatasetTree();
             openDataset(relPath.v2, null, false);
             if (this.db!=null) setSelectedExperiment(relPath.v2);
@@ -3708,9 +3707,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             xp2.setOutputImageDirectory(xp2.getOutputDirectory());
             db2.setExperiment(xp2);
             db2.storeExperiment();
-            db2.clearCache();
+            db2.clearCache(true, true, true);
             db2.unlockConfiguration();
-            db1.clearCache();
+            db1.clearCache(true, true, true);
             populateDatasetTree();
             openDataset(relPath.v2, null, false);
             if (this.db!=null) setSelectedExperiment(relPath.v2);
@@ -3912,7 +3911,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDatasetDir().toFile().getAbsolutePath(), sIdx);
                 t.setExtractByPosition(extractByPosition.getSelected());
             }
-            t.getDB().clearCache(); 
+            t.getDB().clearCache(true, true, true);
         } else return null;
         t.setActions(preProcess, segmentAndTrack, segmentAndTrack || trackOnly, runMeasurements).setGenerateTrackImages(generateTrackImages);
         t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
@@ -3934,7 +3933,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return;
         }
         Task.executeTask(t, getUserInterface(), getPreProcessingMemoryThreshold(), () -> {
-            db.clearCache();
+            db.clearCache(true, true, true);
             updateConfigurationTree();
         });
     }//GEN-LAST:event_runSelectedActionsMenuItemActionPerformed
@@ -4655,7 +4654,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         Experiment xp = FileIO.readFisrtFromFile(config, s->JSONUtils.parse(Experiment.class, s));
         if (xp==null) return;
-        if (!newXPMenuItemActionPerformed(evt)) return;
+        if (!createEmptyDataset()) return;
 
         db.getExperiment().initFromJSONEntry(xp.toJSONEntry());
         db.getExperiment().setPath(db.getDatasetDir());
@@ -4991,7 +4990,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action newDataset = new AbstractAction("New Dataset") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    newXPMenuItemActionPerformed(e);
+                    createEmptyDataset();
                 }
             };
             menu.add(newDataset);
@@ -5128,8 +5127,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void newDatasetFromGithubMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newDatasetFromGithubMenuItemActionPerformed
         JSONObject xp = NewDatasetFromGithub.promptExperiment(Core.getCore().getGithubGateway(), this);
         if (xp==null) return;
-        if (!newXPMenuItemActionPerformed(evt)) return;
-
+        if (!createEmptyDataset()) return;
         String outputPath = db.getExperiment().getOutputDirectory();
         String outputImagePath = db.getExperiment().getOutputImageDirectory();
         db.getExperiment().initFromJSONEntry(xp);

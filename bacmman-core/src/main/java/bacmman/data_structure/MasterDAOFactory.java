@@ -234,7 +234,7 @@ public class MasterDAOFactory {
         if (isType(db, targetType)) return db;
         db.unlockConfiguration();
         db.setConfigurationReadOnly(true);
-        db.clearCache();
+        db.clearCache(true, true, true);
         db.unlockPositions();
         MasterDAO targetDB = initDAO(targetType, db.getDBName(), db.getDatasetDir().toString(), new SegmentedObjectAccessor());
         boolean lockedConfig = targetDB.setConfigurationReadOnly(false);

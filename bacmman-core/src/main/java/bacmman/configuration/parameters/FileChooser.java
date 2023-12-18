@@ -101,7 +101,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     public String[] getSelectedFilePath() {
         if (relativePath) return toAbsolutePath(getRefPath(), selectedFiles);
-        return selectedFiles;
+        return Arrays.copyOf(selectedFiles, selectedFiles.length);
     }
     
     public String getFirstSelectedFilePath() {
@@ -114,6 +114,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     
     public FileChooser setSelectedFilePath(String... filePath) {
+        String[] currentPath = getSelectedFilePath();
         if (filePath==null) selectedFiles = new String[0];
         else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).toArray(String[]::new);
         Path refPath = getRefPath();
@@ -124,7 +125,8 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
                 else if (!abs && !this.relativePath) selectedFiles[i] = toAbsolutePath(refPath, selectedFiles[i]);
             }
         }
-        fireListeners();
+        String[] newPath = getSelectedFilePath();
+        if (!Arrays.equals(newPath, currentPath)) fireListeners();
         return this;
     }
     public FileChooser setSelectedFiles(File... filePath) {

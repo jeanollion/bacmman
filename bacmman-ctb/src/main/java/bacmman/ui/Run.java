@@ -66,7 +66,7 @@ public class Run {
         } else {
             db.unlockPositions();
             db.unlockConfiguration();
-            db.clearCache();
+            db.clearCache(true, true, true);
         }
         java.lang.System.exit(0);
     }
