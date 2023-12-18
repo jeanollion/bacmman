@@ -21,7 +21,7 @@ package bacmman.ui.gui.image_interaction;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
-import bacmman.image.ImageInteger;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -34,26 +34,24 @@ import bacmman.utils.Pair;
  * @author Jean Ollion
  */
 public abstract class InteractiveImage {
-    final protected List<SegmentedObject> parents;
+    final protected SegmentedObject parent;
     final protected int parentStructureIdx;
     final protected int childStructureIdx;
     private Boolean is2D=null;
     protected boolean guiMode = true;
     boolean displayPreFilteredImages= false;
-    protected ImageSupplier imageSupplier;
+
     protected String name="";
     boolean isSingleChannel;
-    public InteractiveImage(List<SegmentedObject> parents, int childStructureIdx) {
-        if (parents.isEmpty()) throw new IllegalArgumentException("Empty parent list");
-        parentStructureIdx = parents.get(0).getStructureIdx();
-        //if (parents.size()>1) for (StructureObject p : parents) if (p.getStructureIdx()!=parentStructureIdx) throw new IllegalArgumentException("Parents must be of same structure");
-        //if (parentStructureIdx>childStructureIdx) throw new IllegalArgumentException("Structure: "+childStructureIdx +" cannot be child of structure: "+parents.get(0).getStructureIdx());
-        this.parents = parents;
+    protected ImageSupplier imageSupplier;
+    public InteractiveImage(SegmentedObject parent, int childStructureIdx) {
+        this.parent = parent;
+        parentStructureIdx = parent.getStructureIdx();
         this.childStructureIdx = childStructureIdx;
-        imageSupplier = (idx, ocIdx, raw) -> {
-            if (raw) return parents.get(idx).getRawImage(ocIdx);
-            Image pf = parents.get(idx).getPreFilteredImage(ocIdx);
-            if (pf==null) return parents.get(idx).getRawImage(ocIdx);
+        this.imageSupplier = (o, ocIdx, raw) -> {
+            if (raw) return o.getRawImage(ocIdx);
+            Image pf = o.getPreFilteredImage(ocIdx);
+            if (pf==null) return o.getRawImage(ocIdx);
             else return pf;
         };
     }
@@ -78,17 +76,15 @@ public abstract class InteractiveImage {
         }
         return is2D;
     }
-    public SegmentedObject getParent() {return parents.get(0);}
-    public List<SegmentedObject> getParents() {return parents;}
+    public SegmentedObject getParent() {return parent;}
+    public abstract List<SegmentedObject> getParents();
     public abstract InteractiveImageKey getKey();
     public abstract void reloadObjects();
     public abstract void resetObjects();
     public abstract Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z); // TODO this method is not used ...
     public abstract void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list);
     public abstract BoundingBox getObjectOffset(SegmentedObject object);
-    public abstract ImageInteger generateLabelImage();
-    public abstract void drawObjects(ImageInteger image);
-    public abstract Image generateImage(int structureIdx, boolean executeInBackground);
+    public abstract Image generateImage(int structureIdx);
     public int getChildStructureIdx() {return childStructureIdx;}
     public abstract List<Pair<SegmentedObject, BoundingBox>> getObjects();
     public abstract Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects();
@@ -127,6 +123,6 @@ public abstract class InteractiveImage {
     }*/
     @FunctionalInterface
     public interface ImageSupplier {
-        Image get(int parentIdx, int objectClassIdx, boolean raw);
+        Image get(SegmentedObject parent, int objectClassIdx, boolean raw);
     }
 }

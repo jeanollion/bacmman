@@ -325,21 +325,21 @@ public abstract class ImageWindowManager<I, U, V> {
         }
     }
     public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive);
-    public void registerHyperStack(Image image, HyperStack i) {
+    public void registerTimeLapseInteractiveImage(Image image, TimeLapseInteractiveImage i) {
         imageObjectInterfaces.put(i.getKey(), i);
         imageObjectInterfaceMap.get(image).add(i.getKey());
         if (i.loadObjectsWorker!=null && !i.loadObjectsWorker.isDone()) {
             runningWorkers.get(image).add(i.loadObjectsWorker);
             i.loadObjectsWorker.appendEndOfWork(()->runningWorkers.get(image).remove(i.loadObjectsWorker));
         }
-        registerInteractiveHyperStackFrameCallback(image, i, true);
+        if (i instanceof HyperStack) registerInteractiveHyperStackFrameCallback(image, (HyperStack)i, true);
     }
     public void addHyperStack(Image image, I displayedImage, HyperStack i) {
         logger.debug("adding frame stack: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
         //T dispImage = getImage(image);
         displayedInteractiveImages.add(image);
         displayer.putImage(image, displayedImage);
-        registerHyperStack(image, i);
+        registerTimeLapseInteractiveImage(image, i);
         addMouseListener(image);
         addWindowClosedListener(displayedImage, e-> {
             if (runningWorkers.containsKey(image)) {
@@ -579,20 +579,19 @@ public abstract class ImageWindowManager<I, U, V> {
             }
             // create imageObjectInterface
             if (ref instanceof TimeLapseInteractiveImage) {
-                i = this.getImageTrackObjectInterface((ref).parents, structureIdx, type);
+                i = this.getImageTrackObjectInterface((ref).getParents(), structureIdx, type);
                 if (ref instanceof HyperStack) ((HyperStack)i).setIdx(((HyperStack)ref).getIdx());
-            }
-            else i = this.getImageObjectInterface(ref.parents.get(0), structureIdx, true);
-            if (ref.getName().length()>0) {
+            } else i = this.getImageObjectInterface(ref.getParent(), structureIdx, true);
+            if (!ref.getName().isEmpty()) {
                 imageObjectInterfaces.remove(i.getKey());
                 i.setName(ref.getName());
             }
             logger.debug("created IOI: {} from ref: {}", i.getKey(), ref);
-            if (i instanceof HyperStack) registerHyperStack(image, (HyperStack) i);
+            if (i instanceof HyperStack) registerTimeLapseInteractiveImage(image, (HyperStack) i);
         } else if (i instanceof HyperStack) {
             if (!imageObjectInterfaceMap.get(image).contains(i.getKey())) {
                 logger.debug("registered existing IOI: {} to image: {}", i.getKey(), image.hashCode());
-                registerHyperStack(image, (HyperStack) i);
+                registerTimeLapseInteractiveImage(image, (HyperStack) i);
             }
         }
         return i;
@@ -966,7 +965,7 @@ public abstract class ImageWindowManager<I, U, V> {
         boolean doNotStore = hyperStack && track.size()==1; // partial tracks: do not store
         if (canDisplayTrack) {
             if (i.getKey().interactiveObjectClass != trackHead.getStructureIdx()) { // change current object class
-                i = getImageTrackObjectInterface(i.parents, trackHead.getStructureIdx(), type);
+                i = getImageTrackObjectInterface(i.getParents(), trackHead.getStructureIdx(), type);
                 map.clear();
             }
             if (i.getParent()==null) logger.error("Track mask parent null!!!");
@@ -978,7 +977,7 @@ public abstract class ImageWindowManager<I, U, V> {
             boolean genKymo = i instanceof TimeLapseInteractiveImage && forceDefaultDisplay;
             Structure.TRACK_DISPLAY targetTrackDisplay = genKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(i.childStructureIdx);
             if (roi==null || ( roi instanceof TrackRoi && !((TrackRoi)roi).getTrackType().equals(targetTrackDisplay)) ) { // TODO make more generic : interface for TrackRoi
-                roi = generateTrackRoi(i.parents,track, color, i, genKymo);
+                roi = generateTrackRoi(i.getParents(),track, color, i, genKymo);
                 map.put(key, roi);
             } else setTrackColor(roi, color);
             if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi ,i);

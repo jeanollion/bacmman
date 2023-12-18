@@ -38,12 +38,12 @@ import bacmman.utils.Pair;
  *
  * @author Jean Ollion
  */
-public class KymographY extends TimeLapseInteractiveImage {
-    protected final int maxParentSize, maxParentSizeZ;
+public class KymographY extends Kymograph {
+
+    protected final int maxParentSize;
     public KymographY(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx) {
         super(data, childStructureIdx, true);
         maxParentSize = data.maxParentSizeX;
-        maxParentSizeZ = data.maxParentSizeZ;
         if (!TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
 
@@ -79,23 +79,11 @@ public class KymographY extends TimeLapseInteractiveImage {
         return trackObjects[i].parent.getFrame();
     }
 
-    @Override
-    public ImageInteger generateLabelImage() {
-        int maxLabel = 0; 
-        for (SimpleInteractiveImage o : trackObjects) {
-            int label = o.getMaxLabel();
-            if (label>maxLabel) maxLabel = label;
-        }
-        String structureName;
-        if (GUI.hasInstance() && GUI.getDBConnection()!=null && GUI.getDBConnection().getExperiment()!=null) structureName = GUI.getDBConnection().getExperiment().getStructure(childStructureIdx).getName(); 
-        else structureName= childStructureIdx+"";
-        final ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Track: Parent:"+parents+" Segmented Image of: "+structureName, maxLabel, new SimpleImageProperties( this.maxParentSize, trackOffset[trackOffset.length-1].yMax()+1, this.maxParentSizeZ, parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
-        drawObjects(displayImage);
-        return displayImage;
-    }
     @Override 
     public Image generateEmptyImage(String name, Image type) {
-        return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSize, trackOffset[trackOffset.length-1].yMax()+1, Math.max(type.sizeZ(), this.maxParentSizeZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+        SimpleImageProperties props = new SimpleImageProperties( this.maxParentSize, trackOffset[frameNumber-1].yMax()+1, Math.max(type.sizeZ(), this.maxParentSizeZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ());
+        logger.debug("creating Y kymograph: {}", props);
+        return Image.createEmptyImage(name, type, props);
     }
     
     

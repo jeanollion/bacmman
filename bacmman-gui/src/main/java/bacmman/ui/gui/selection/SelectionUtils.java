@@ -172,7 +172,7 @@ public class SelectionUtils {
         InteractiveImageKey.TYPE t = ImageWindowManager.getDefaultInteractiveType();
         if (t==null) t = inferType(parentList.get(0).getBounds());
         InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), t);
-        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(displayStructureIdx, true), i ,displayStructureIdx, true);
+        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(displayStructureIdx), i ,displayStructureIdx, true);
     }
         
     public static void setMouseAdapter(final JList list) {

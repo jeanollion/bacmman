@@ -143,6 +143,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private ChoiceParameter hyperstackMode = new ChoiceParameter("Default Hyperstack Mode", new String[]{"HYPERSTACK", "IMAGE5D"}, "HYPERSTACK", false).setHint("If IMAGE5D is chosen, hyperstack will be open using the image 5D plugin, allowing to display color image. Note that with this mode the whole image needs to be loaded in memory");
     private BooleanParameter displayTrackEdges = new BooleanParameter("Hyperstack: display track edges", true);
     private BooleanParameter displayCorrections = new BooleanParameter("Display manual corrections", true);
+    private NumberParameter kymographFrameNumber = new NumberParameter<>("Kymograph Frame Number", 0, 200).setHint("Limit the number of frames displayed in a kymograph. Use next / previous navigation commands to move within the kymograph");
 
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
@@ -461,6 +462,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         TimeLapseInteractiveImage.INTERVAL_PIX = kymographInterval.getValue().intValue();
         kymographInterval.addListener(p-> TimeLapseInteractiveImage.INTERVAL_PIX = kymographInterval.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographInterval, kymographMenu);
+
+        PropertyUtils.setPersistent(kymographFrameNumber, "kymograph_frame_number");
+        TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue();
+        kymographInterval.addListener(p-> TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue());
+        ConfigurationTreeGenerator.addToMenu(kymographFrameNumber, kymographMenu);
 
         // local zoom
         PropertyUtils.setPersistent(localZoomFactor, "local_zoom_factor");
@@ -3381,7 +3387,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {
                 if (InteractiveImageKey.TYPE.HYPERSTACK.equals(i.getKey().imageType)) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure, IJVirtualStack.OpenAsImage5D);
-                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
+                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure), ii, currentImageStructure, true);
             } else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
@@ -3524,7 +3530,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 Object disp = im==null?null:iwm.getDisplayer().getImage(im);
                 if (disp==null) {
                     if ( type.equals(InteractiveImageKey.TYPE.HYPERSTACK)) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, objectClassIdx, IJVirtualStack.OpenAsImage5D);
-                    else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
+                    else iwm.addImage(nextI.generateImage(structureDisplay), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {

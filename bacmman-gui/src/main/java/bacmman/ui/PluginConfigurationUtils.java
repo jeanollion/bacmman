@@ -640,9 +640,9 @@ public class PluginConfigurationUtils {
             HyperStack ioi = (HyperStack) TimeLapseInteractiveImage.generateInteractiveImageTime(parents, childOCIdx, true);
             Image type = TypeConverter.toCommonImageType(Image.copyType(stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get()));
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
-            ioi.setImageSupplier( (idx, oc, raw) -> {
+            ioi.setImageSupplier( (object, oc, raw) -> {
                 Image image = ioi.generateEmptyImage("", type);
-                List<TestDataStore> currentStores = parentMapStore.get(parents.get(idx));
+                List<TestDataStore> currentStores = parentMapStore.get(object);
                 if (currentStores!=null) currentStores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
                     if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));
                     else Image.pasteImage(TypeConverter.cast(s.images.get(name), image), s.parent.getMask(), image, ioi.getObjectOffset(s.parent));

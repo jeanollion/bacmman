@@ -307,18 +307,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 openKymograph[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
-                            if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
-                            List<SegmentedObject> rootTrack=null;
-                            try {
-                                rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-                            } catch (Exception e) { }
-                            if (rootTrack!=null) {
-                                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
-                                if (i != null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
-                                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                                GUI.getInstance().setTrackStructureIdx(structureIdx);
-                            }
+                            openKymograph(ae.getActionCommand());
                         }
                     }
                 );
@@ -332,20 +321,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 openHyperStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
-                        int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
-                        logger.debug("opening HYPERSTACK raw image for structure: {} of idx: {} position: {}", ae.getActionCommand(), structureIdx, position);
-                        List<SegmentedObject> rootTrack = null;
-                        try {
-                            rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-                            logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
-                        } catch (Exception e) {
-                        }
-                        if (rootTrack != null) {
-                            // TODO make this method generic for other display modes than IJ
-                            IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO interface for multichannel display
-                            GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                            GUI.getInstance().setTrackStructureIdx(structureIdx);
-                        }
+                        openHyperStack(ae.getActionCommand());
                     }
                 });
                 hyperStackSubMenu.add(openHyperStack[i]);
@@ -413,6 +389,35 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 return new Object[]{createSelectionSubMenu, delete};
             } else return actions;
         }
-        
+        public void openHyperStack(String objectClassName) {
+            int structureIdx = generator.getExperiment().getStructureIdx(objectClassName);
+            logger.debug("opening HYPERSTACK raw image for structure: {} of idx: {} position: {}", objectClassName, structureIdx, position);
+            List<SegmentedObject> rootTrack = null;
+            try {
+                rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+                logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
+            } catch (Exception e) {
+            }
+            if (rootTrack != null) {
+                // TODO make this method generic for other display modes than IJ
+                IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO interface for multichannel display
+                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                GUI.getInstance().setTrackStructureIdx(structureIdx);
+            }
+        }
+        public void openKymograph(String objectClassName) {
+            int structureIdx = generator.getExperiment().getStructureIdx(objectClassName);
+            if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", objectClassName, structureIdx);
+            List<SegmentedObject> rootTrack=null;
+            try {
+                rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+            } catch (Exception e) { }
+            if (rootTrack!=null) {
+                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
+                if (i != null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx), i, structureIdx, true);
+                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                GUI.getInstance().setTrackStructureIdx(structureIdx);
+            }
+        }
     }
 }

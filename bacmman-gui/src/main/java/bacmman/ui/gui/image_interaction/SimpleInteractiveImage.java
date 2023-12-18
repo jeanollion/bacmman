@@ -23,7 +23,6 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
-import bacmman.image.ImageInteger;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,11 +45,14 @@ public class SimpleInteractiveImage extends InteractiveImage {
     BoundingBox[] offsets;
     List<SegmentedObject> objects;
     final SegmentedObject parent;
+    final List<SegmentedObject> parents;
     BoundingBox additionalOffset;
+
     Object lock = new Object();
     public SimpleInteractiveImage(SegmentedObject parent, int childStructureIdx) {
-        super(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx);
+        super(parent, childStructureIdx);
         this.parent= parent;
+        this.parents = Collections.singletonList(parent);
         this.additionalOffset = new MutableBoundingBox(0, 0, 0);
     }
 
@@ -59,20 +61,25 @@ public class SimpleInteractiveImage extends InteractiveImage {
     }
 
     public SimpleInteractiveImage(SegmentedObject parent, int childStructureIdx, BoundingBox additionalOffset) {
-        super(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx);
+        super(parent, childStructureIdx);
         this.parent= parent;
+        this.parents = Collections.singletonList(parent);
         this.additionalOffset = additionalOffset;
+    }
+
+    @Override public List<SegmentedObject> getParents() {
+        return parents;
     }
 
     @Override
     public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx, name);
+        return new InteractiveImageKey(Collections.singletonList(parent), InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx, name);
     }
 
     public BoundingBox[] getOffsets() {
-        if (offsets==null || objects==null || offsets.length!=objects.size()) {
+        if (offsets==null || objects ==null || offsets.length!= objects.size()) {
             synchronized (lock) {
-                if (offsets==null || objects==null || offsets.length!=objects.size()) reloadObjects();
+                if (offsets==null || objects ==null || offsets.length!= objects.size()) reloadObjects();
             }
         }
         return offsets;
@@ -86,11 +93,11 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override public void reloadObjects() {
         if (childStructureIdx == parentStructureIdx) {
-            objects = this.parents;
+            objects = Collections.singletonList(parent);
             offsets = new BoundingBox[1];
             offsets[0] = parent.getRelativeBoundingBox(parent).translate(additionalOffset);
         } else  {
-            Stream<SegmentedObject> str = parents.get(0).getChildren(childStructureIdx);
+            Stream<SegmentedObject> str = parent.getChildren(childStructureIdx);
             if (str==null) {
                 objects = new ArrayList<>();
                 offsets= new BoundingBox[0];
@@ -108,7 +115,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
                 if (objects ==null) reloadObjects();
             }
         }
-        if (objects==null) return Collections.emptyList();
+        if (objects ==null) return Collections.emptyList();
         return getAllObjects().collect(Collectors.toList());
     }
 
@@ -119,13 +126,13 @@ public class SimpleInteractiveImage extends InteractiveImage {
                 if (objects == null) reloadObjects();
             }
         }
-        if (objects==null) return Stream.empty();
+        if (objects ==null) return Stream.empty();
         return IntStream.range(0, offsets.length).mapToObj(i->new Pair<>(objects.get(i), offsets[i]));
     }
 
     @Override
     public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
-        if (objects==null) {
+        if (objects ==null) {
             synchronized (lock) {
                 if (objects == null) reloadObjects();
             }
@@ -162,7 +169,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
         if (object == null) {
             return null;
         }
-        if (objects==null) {
+        if (objects ==null) {
             synchronized (lock) {
                 if (objects == null) reloadObjects();
             }
@@ -176,32 +183,13 @@ public class SimpleInteractiveImage extends InteractiveImage {
     }
 
     @Override
-    public ImageInteger generateLabelImage() {
-        ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Segmented Image of structure: " + childStructureIdx, getMaxLabel(), parent.getMaskProperties());
-        drawObjects(displayImage);
-        return displayImage;
+    public Image generateImage(int structureIdx) {
+        return imageSupplier.get(parent, structureIdx, displayPreFilteredImages);
     }
 
-    @Override
-    public Image generateImage(int structureIdx, boolean executeInBackground) {
-        return imageSupplier.get(0, structureIdx, displayPreFilteredImages);
-    }
-
-
-    @Override
-    public void drawObjects(ImageInteger image) {
-        if (objects==null) {
-            synchronized (lock) {
-                if (objects == null) reloadObjects();
-            }
-        }
-        for (int i = 0; i < getOffsets().length; ++i) {
-            objects.get(i).getRegion().drawWithoutObjectOffset(image, objects.get(i).getRegion().getLabel(), offsets[i]);
-        }
-    }
 
     public int getMaxLabel() {
-        if (objects==null) {
+        if (objects ==null) {
             synchronized (lock) {
                 if (objects == null) reloadObjects();
             }

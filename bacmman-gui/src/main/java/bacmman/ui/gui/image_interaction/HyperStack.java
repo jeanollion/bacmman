@@ -20,17 +20,13 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.Resize;
-import bacmman.ui.GUI;
 import bacmman.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -51,11 +47,11 @@ public class HyperStack extends TimeLapseInteractiveImage {
     protected BoundingBox bounds, bounds2D;
     public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
     protected IntConsumer changeIdxCallback;
-    DefaultWorker loadObjectsWorker;
+
     boolean displayAllObjects = false;
     Object lock = new Object();
     public HyperStack(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx, boolean loadObjects) {
-        super(data, childStructureIdx, false);
+        super(data, childStructureIdx);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
@@ -69,10 +65,6 @@ public class HyperStack extends TimeLapseInteractiveImage {
             trackObjects[i + 1].getObjects();
             return "";
         }, super.getParents().size() - 1, null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
-        /*loadObjectsWorker = new DefaultWorker(i -> { // TODO inspect why no speed improvement ?
-            Arrays.stream(trackObjects).parallel().forEach(SimpleInteractiveImage::getObjects);
-            return "";
-        }, 1, null);*/
         if (loadObjects) {
             loadObjectsWorker.execute();
             loadObjectsWorker.setStartTime();
@@ -165,30 +157,16 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
 
 
-    @Override public Image generateImage(final int structureIdx, boolean background) {
+    @Override public Image generateImage(final int structureIdx) {
         throw new UnsupportedOperationException("do not generate frame stack this way");
     }
 
-    @Override
-    public ImageInteger generateLabelImage() {
-        int maxLabel = 0; 
-        for (SimpleInteractiveImage o : trackObjects) {
-            int label = o.getMaxLabel();
-            if (label>maxLabel) maxLabel = label;
-        }
-        String structureName;
-        if (GUI.hasInstance() && GUI.getDBConnection()!=null && GUI.getDBConnection().getExperiment()!=null) structureName = GUI.getDBConnection().getExperiment().getStructure(childStructureIdx).getName(); 
-        else structureName= childStructureIdx+"";
-        final ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Track: Parent:"+parents+" Segmented Image of: "+structureName, maxLabel, new SimpleImageProperties( this.maxParentSizeX, maxParentSizeY, this.maxParentSizeZ, parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
-        drawObjects(displayImage);
-        return displayImage;
-    }
     @Override 
     public Image generateEmptyImage(String name, Image type) {
         return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSizeX, maxParentSizeY, Math.max(type.sizeZ(), this.maxParentSizeZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
     }
     public Image getImage(int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
-        Image image = imageSupplier.get(idx, objectClassIdx, raw);
+        Image image = imageSupplier.get(parents.get(idx), objectClassIdx, raw);
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else { // TODO larger crop instead of PAD
             Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1).translate(trackOffset[idx]));
@@ -196,7 +174,7 @@ public class HyperStack extends TimeLapseInteractiveImage {
         }
     }
     public Image getPlane(int z, int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
-        Image image = imageSupplier.get(idx, objectClassIdx, raw);
+        Image image = imageSupplier.get(parents.get(idx), objectClassIdx, raw);
         image = image.getZPlane(z);
         if (bounds2D.sameDimensions(image)) return image; // no need for padding
         else { // TODO larger crop instead of PAD
@@ -205,18 +183,9 @@ public class HyperStack extends TimeLapseInteractiveImage {
         }
     }
     public int getSizeZ(int objectClassIdx) {
-        return imageSupplier.get(idx, objectClassIdx, true).sizeZ();
+        return imageSupplier.get(parents.get(idx), objectClassIdx, true).sizeZ();
     }
 
 
-    private static SegmentedObjectAccessor getAccessor() {
-        try {
-            Constructor<SegmentedObjectAccessor> constructor = SegmentedObjectAccessor.class.getDeclaredConstructor();
-            constructor.setAccessible(true);
-            return constructor.newInstance();
-        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException("Could not create track link editor", e);
-        }
-    }
 
 }

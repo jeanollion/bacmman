@@ -20,7 +20,6 @@ package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
-import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
@@ -317,7 +316,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             //trackNode.loadAllTrackObjects(path);
                             int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
-                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
+                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx), i, structureIdx, true);
                             GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                             GUI.getInstance().setTrackStructureIdx(structureIdx);
                         }
