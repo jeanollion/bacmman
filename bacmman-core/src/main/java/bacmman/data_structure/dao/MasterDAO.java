@@ -46,7 +46,7 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
     Logger logger = LoggerFactory.getLogger(MasterDAO.class);
     SegmentedObjectAccessor getAccess();
     void eraseAll();
-    void clearCache();
+    void clearCache(boolean configuration, boolean selections, boolean objects);
     void clearCache(String position);
     ObjectDAO<ID> getDao(String fieldName);
     boolean isConfigurationReadOnly();

@@ -99,7 +99,6 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         this.channelImage.setSelectedIndex(channelImage);
         this.parentStructure.addListener((ParentObjectClassParameter source) -> {
             Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, source, false);
-            logger.debug("parent modified for structure {}", s.getName());
             s.setMaxStructureIdx();
             int parentIdx = s.parentStructure.getSelectedIndex();
             s.setParentStructure(parentIdx);
@@ -107,7 +106,6 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         });
         segmentationParent.addListener((ParentObjectClassParameter source) -> {
             Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, source, false);
-            logger.debug("segmentation parent modified for structure {}", s.getName());
             s.setMaxStructureIdx();
             s.setSegmentationParentStructure(s.segmentationParent.getSelectedIndex());
             if (parameterChangeCallBack!=null) parameterChangeCallBack.forEach(cb -> cb.accept(s.segmentationParent));

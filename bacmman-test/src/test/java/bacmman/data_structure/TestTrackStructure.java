@@ -156,7 +156,7 @@ public class TestTrackStructure {
         assertEquals("head of bacteria track (unique instanciation)", bHeadsRetrive.get(0), bTrack0.get(0));
         for (int i = 0; i<mcTrack.size(); ++i) assertEquals("bacteries track element: "+i+ " unique instanciation", dao.getById(bTM[i][0].getStructureIdx(), bTM[i][0].getId(), bTM[i][0].getFrame(), bTM[i][0].getParentTrackHeadId()), bTrack0.get(i));
 
-        masterDAO.clearCache();
+        masterDAO.clearCache(true, true, true);
         
     }
 

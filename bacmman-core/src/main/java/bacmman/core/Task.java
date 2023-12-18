@@ -657,7 +657,7 @@ public class Task implements ProgressCallback {
         logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
         if (!keepDB) {
             db.unlockConfiguration();
-            db.clearCache();
+            db.clearCache(true, true, true);
             db=null;
         }
         return errors.isEmpty();
@@ -830,7 +830,7 @@ public class Task implements ProgressCallback {
 
     public void flush(boolean errors) {
         if (db!=null) {
-            db.clearCache();
+            db.clearCache(true, true, true);
             db=null;
         }
         if (errors) {

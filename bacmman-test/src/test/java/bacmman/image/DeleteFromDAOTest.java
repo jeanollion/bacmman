@@ -363,7 +363,7 @@ public class DeleteFromDAOTest {
                 return (int)allObjects.stream().filter(o->!o.getMeasurements().getKeys().isEmpty()).count();
             }
         } else {
-            db.clearCache();
+            db.clearCache(true, true, true);
             logger.debug("cache cleared");
             if (SegmentedObject.class.equals(clazz)) {
                 ArrayList<SegmentedObject> allObjects = new ArrayList<>();

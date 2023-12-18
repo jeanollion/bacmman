@@ -128,7 +128,7 @@ public class ConfigurationTest {
         int idx = xp.getStructureCount();
         xp.getStructures().insert(xp.getStructures().createChildInstance("structureTest"));
         db.setExperiment(xp);
-        db.clearCache();
+        db.clearCache(true, true, true);
         xp = db.getExperiment();
         assertEquals("structure nb", idx+1, xp.getStructureCount());
         assertEquals("structure name", "structureTest", xp.getStructure(idx).getName());
@@ -172,7 +172,7 @@ public class ConfigurationTest {
         
 
         db.setExperiment(xp);
-        db.clearCache();
+        db.clearCache(true, true, true);
         xp = db.getExperiment();
 
         assertEquals("structure nb", idx, xp.getStructureCount());
