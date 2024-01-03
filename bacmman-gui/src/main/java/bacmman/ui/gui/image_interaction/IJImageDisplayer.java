@@ -20,15 +20,14 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.region_container.roi.Roi3D;
-import bacmman.image.Offset;
+import bacmman.image.*;
+import bacmman.image.Image;
+import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import ij.*;
 import bacmman.image.wrappers.IJImageWrapper;
-import bacmman.image.Image;
 import ij.gui.*;
-import bacmman.image.BoundingBox;
-import bacmman.image.SimpleBoundingBox;
 import ij.plugin.frame.SyncWindows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,8 +36,8 @@ import java.awt.*;
 import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
+import java.util.function.ToIntBiFunction;
 
 /**
  *
@@ -48,6 +47,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     static Logger logger = LoggerFactory.getLogger(IJImageDisplayer.class);
     protected HashMap<Image, ImagePlus> displayedImages=new HashMap<>();
     protected HashMap<ImagePlus, Image> displayedImagesInv=new HashMap<>();
+
+    @Override
+    public void updateTitle(Image image) {
+        ImagePlus ip = displayedImages.get(image);
+        if (ip!=null) ip.setTitle(image.getName());
+    }
     @Override
     public void putImage(Image image, ImagePlus displayedImage) {
         displayedImages.put(image, displayedImage);
@@ -60,32 +65,77 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (image!=null) displayedImages.remove(image);
         if (displayedImage!=null) displayedImagesInv.remove(displayedImage);
     }
-    @Override public ImagePlus showImage(Image image, double... displayRange) {
-        /*if (IJ.getInstance()==null) {
-            ij.ImageJ.main(new String[0]);
-            //new ImageJ();
-        }*/
+    @Override public ImagePlus displayImage(Image image, double... displayRange) {
         if (imageExistsButHasBeenClosed(image)) {
             displayedImagesInv.remove(displayedImages.get(image));
             displayedImages.remove(image);
         }
         ImagePlus ip = getImage(image);
-        if (displayRange.length==0) displayRange = ImageDisplayer.getDisplayRange(image, null);
-        else if (displayRange.length==1) {
-            double[] dispRange = ImageDisplayer.getDisplayRange(image, null);
-            dispRange[0]=displayRange[0];
-            displayRange=dispRange;
-        } else if (displayRange.length>=2) {
-            if (displayRange[1]<=displayRange[0]) {
+        if (!(image instanceof LazyImage5D && displayRange.length==0)) {
+            if (displayRange.length == 0) displayRange = ImageDisplayer.getDisplayRange(image, null);
+            else if (displayRange.length == 1) {
                 double[] dispRange = ImageDisplayer.getDisplayRange(image, null);
-                displayRange[1] = dispRange[1];
+                dispRange[0] = displayRange[0];
+                displayRange = dispRange;
+            } else if (displayRange.length >= 2) {
+                if (displayRange[1] <= displayRange[0]) {
+                    double[] dispRange = ImageDisplayer.getDisplayRange(image, null);
+                    displayRange[1] = dispRange[1];
+                }
             }
+            ip.setDisplayRange(displayRange[0], displayRange[1]);
         }
-        ip.setDisplayRange(displayRange[0], displayRange[1]);
         //logger.debug("show image:w={}, h={}, disp: {}", ip.getWidth(), ip.getHeight(), displayRange);
-        if (!ip.isVisible()) ip.show();
-        addMouseWheelListener(image, null);
-        ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
+        if (!ip.isVisible()) {
+            ip.show();
+            InteractiveImage im = ImageWindowManagerFactory.getImageManager().getInteractiveImage(image);
+            TimeLapseInteractiveImageFactory.DIRECTION dir;
+            ToIntBiFunction<Integer, Boolean> nextPos;
+            if (im instanceof KymographX) {
+                KymographX k = (KymographX)im;
+                dir = TimeLapseInteractiveImageFactory.DIRECTION.X;
+                nextPos = (nextSlice, next) -> {
+                    if (next) {
+                        if (nextSlice == k.data.nSlices - 1) {
+                            int lastParentIdx = k.getStartParentIdx(nextSlice - 1) + k.data.nFramePerSlice - 1;
+                            int frame = k.getParents().get(lastParentIdx).getFrame();
+                            return k.getOffsetForFrame(frame, nextSlice).xMin();
+                        } else return 0;
+                    } else {
+                        int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
+                        int frame = k.getParents().get(lastParentIdx).getFrame();
+                        return k.getOffsetForFrame(frame, nextSlice).xMin() + k.getParents().get(lastParentIdx).getBounds().sizeX();
+                    }
+                };
+            }
+            else if (im instanceof KymographY) {
+                KymographY k = (KymographY)im;
+                dir = TimeLapseInteractiveImageFactory.DIRECTION.Y;
+                nextPos = (nextSlice, next) -> {
+                    if (next) {
+                        if (nextSlice == k.data.nSlices - 1) {
+                            int lastParentIdx = k.getStartParentIdx(nextSlice - 1) + k.data.nFramePerSlice - 1;
+                            int frame = k.getParents().get(lastParentIdx).getFrame();
+                            return k.getOffsetForFrame(frame, nextSlice).yMin();
+                        } else return 0;
+                    } else {
+                        int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
+                        int frame = k.getParents().get(lastParentIdx).getFrame();
+                        return k.getOffsetForFrame(frame, nextSlice).yMin() + k.getParents().get(lastParentIdx).getBounds().sizeY();
+                    }
+                };
+            }
+            else if (im instanceof HyperStack) {
+                dir = TimeLapseInteractiveImageFactory.DIRECTION.T;
+                nextPos = null;
+            }
+            else {
+                dir = null;
+                nextPos = null;
+            }
+            addMouseWheelListener(ip, dir, nextPos);
+            ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
+        }
         return ip;
     }
     
@@ -120,45 +170,28 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     private boolean imageExistsButHasBeenClosed(Image image) {
         return displayedImages.get(image)!=null && displayedImages.get(image).getCanvas()==null;
     }
-    private static void waitUntill(long max, Supplier<Boolean> test) {
-        long start = System.currentTimeMillis();
-        while (!test.get()) {
-            try {Thread.sleep(50);} 
-            catch(InterruptedException e) {}
-            if (System.currentTimeMillis()-start > max) break;
-        }
-        bacmman.ui.GUI.logger.debug("wait: {} test: {}", System.currentTimeMillis()-start, test.get());
-    }
     
-    @Override public void addMouseWheelListener(final Image image, Predicate<BoundingBox> callBack) {
-        final ImagePlus imp = getImage(image);
+    protected void addMouseWheelListener(final ImagePlus imp, TimeLapseInteractiveImageFactory.DIRECTION direction, ToIntBiFunction<Integer, Boolean> getKymographPositionAtNeighborSlice) {
         if (imp==null) return;
         final ImageWindow iw = imp.getWindow();
         final ImageCanvas ic = imp.getCanvas();
-        final boolean[] zoomHasBeenFixed = new boolean[1];
         if (iw==null || ic ==null) return;
+        logger.debug("adding mouse wheel listener to : {}", imp.getTitle());
+        final boolean[] zoomHasBeenFixed = new boolean[1];
         MouseWheelListener mwl = e ->  { // code modified from IJ source to better suit needs for LARGE track mask images + call back to display images
             synchronized (iw) {
-                if (e==null) { 
-                    if (callBack!=null) { // can be called when scroll moved manually
-                        Rectangle max = GUI.getMaxWindowBounds();
-                        boolean update = callBack.test(new SimpleBoundingBox(ic.getSrcRect().x, ic.getSrcRect().x+Math.min(max.width-1, ic.getSrcRect().width-1), ic.getSrcRect().y, ic.getSrcRect().y+Math.min(max.height-1, ic.getSrcRect().height-1), 0, 0));
-                        if (update ) imp.updateAndRepaintWindow();
-                    }
-                    return;
-                }
-                
                 if (!zoomHasBeenFixed[0] && ic.getMagnification()<0.4) { // case zoom is very low -> set to 100%
                     ic.zoom100Percent();
                     zoomHasBeenFixed[0] = true;
                 }
+                if (e==null) return;
                 int rotation = e.getWheelRotation();
                 int amount = e.getScrollAmount();
                 boolean ctrl = e.isControlDown();
                 boolean alt = e.isAltDown();
-                boolean altGr = e.isAltGraphDown();
+                boolean shift = e.isShiftDown();
                 boolean space = IJ.spaceBarDown();
-                boolean acceleratedScrolling = e.isShiftDown(); // accelerated scrolling
+                boolean acceleratedScrolling = shift && alt; // accelerated scrolling
                 if (amount<1) amount=1;
                 if (rotation==0) return;
                 int width = imp.getWidth();
@@ -166,21 +199,22 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 Rectangle srcRect = ic.getSrcRect();
                 int xstart = srcRect.x;
                 int ystart = srcRect.y;
+
                 boolean needScrollZ = imp.getNSlices()>1;
                 boolean needScrollTime = imp.getNFrames()>1;
                 boolean needScrollChannel = imp.getNChannels()>1;
                 boolean needScrollImage = srcRect.height<height || srcRect.width<width;
-                boolean scrollZ = needScrollZ && (!needScrollImage || space);
-                boolean scrollTime = needScrollTime && !scrollZ && (!needScrollImage || alt);
-                boolean scrollChannels = needScrollChannel && !scrollZ && !scrollTime && (!needScrollImage || altGr);
+                boolean scrollZ = needScrollZ && ((!needScrollImage && !alt && !shift) || space);
+                boolean scrollTime = needScrollTime && !scrollZ && ((!needScrollImage && !space && !shift) || (alt && !shift));
+                boolean scrollChannels = needScrollChannel && !scrollZ && !scrollTime && ((!needScrollImage && !space && !alt) || (shift && !alt));
                 //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
                 if (ctrl && ic!=null) { // zoom
-                        java.awt.Point loc = ic.getCursorLoc();
-                        int x = ic.screenX(loc.x);
-                        int y = ic.screenY(loc.y);
-                        if (rotation<0) ic.zoomIn(x, y);
-                        else ic.zoomOut(x, y);
-                        return;
+                    java.awt.Point loc = ic.getCursorLoc();
+                    int x = ic.screenX(loc.x);
+                    int y = ic.screenY(loc.y);
+                    if (rotation<0) ic.zoomIn(x, y);
+                    else ic.zoomOut(x, y);
+                    return;
                 }
                 if (scrollZ) {
                     StackWindow sw = (StackWindow)iw;
@@ -206,36 +240,90 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                     imp.setC(slice);
                     imp.updateStatusbarValue();
                     SyncWindows.setC(sw, slice);
-                } else { // move image
-                    if ((double)srcRect.height/height>(double)srcRect.width/width || (srcRect.height/height<srcRect.width/width && space)) { // scroll in the most needed direction
-                            srcRect.x += rotation*amount* (acceleratedScrolling ? Math.max(width/60, srcRect.width/12) : srcRect.width/12);
-                            if (srcRect.x<0) srcRect.x = 0;
-                            if (srcRect.x+srcRect.width>width) srcRect.x = width-srcRect.width;
-                    } else { // most needed direction is Y
-                            srcRect.y += rotation*amount*(acceleratedScrolling ?  Math.max(height/60, srcRect.height/12) : srcRect.height/12);
-                            if (srcRect.y<0) srcRect.y = 0;
-                            if (srcRect.y+srcRect.height>height) srcRect.y = height-srcRect.height;
+                } else { // move within image
+                    int scrollX = rotation*amount* (acceleratedScrolling ? Math.max(width/60, srcRect.width/12) : srcRect.width/12);;
+                    int scrollY = rotation*amount*(acceleratedScrolling ?  Math.max(height/60, srcRect.height/12) : srcRect.height/12);
+                    if (TimeLapseInteractiveImageFactory.DIRECTION.X.equals(direction)) { // move or change slice if end of image
+                        if (scrollX>0 && srcRect.x + srcRect.width == width) {
+                            StackWindow sw = (StackWindow)iw;
+                            int slice = imp.getFrame() + 1;
+                            if (slice<=imp.getNFrames()) {
+                                srcRect.x = getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true);
+                                imp.setT(slice);
+                                imp.updateStatusbarValue();
+                                SyncWindows.setT(sw, slice);
+                            }
+                        } else if (scrollX<0 && srcRect.x == 0) {
+                            StackWindow sw = (StackWindow)iw;
+                            int slice = imp.getFrame() - 1;
+                            if (slice>0) {
+                                srcRect.x = Math.max(0, getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false) - srcRect.width); //width - srcRect.width;
+                                imp.setT(slice);
+                                imp.updateStatusbarValue();
+                                SyncWindows.setT(sw, slice);
+                            }
+                        } else {
+                            srcRect.x = Math.min(width - srcRect.width, Math.max(0, srcRect.x + scrollX));
+                            imp.updateAndRepaintWindow();
+                        }
+                    } else if (TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(direction)) { // move or change slice if end of image
+                        if (scrollY>0 && srcRect.y + srcRect.height == height) {
+                            StackWindow sw = (StackWindow)iw;
+                            int slice = imp.getFrame() + 1;
+                            if (slice<=imp.getNFrames()) {
+                                srcRect.y = Math.max(0, getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true));
+                                imp.setT(slice);
+                                imp.updateStatusbarValue();
+                                SyncWindows.setT(sw, slice);
+                            }
+                        } else if (scrollY<0 && srcRect.y == 0) {
+                            StackWindow sw = (StackWindow)iw;
+                            int slice = imp.getFrame() - 1;
+                            if (slice>0) {
+                                srcRect.y = getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false) - srcRect.height;
+                                imp.setT(slice);
+                                imp.updateStatusbarValue();
+                                SyncWindows.setT(sw, slice);
+                            }
+                        } else {
+                            srcRect.y = Math.min(height - srcRect.height, Math.max(0, srcRect.y + scrollY));
+                            imp.updateAndRepaintWindow();
+                        }
+                    } else {
+                        if ((double) srcRect.height / height > (double) srcRect.width / width || (srcRect.height / height < srcRect.width / width && space)) { // scroll in the most needed direction
+                            srcRect.x += scrollX;
+                            if (srcRect.x < 0) srcRect.x = 0;
+                            if (srcRect.x + srcRect.width > width) srcRect.x = width - srcRect.width;
+                        } else { // most needed direction is Y
+                            srcRect.y += scrollY;
+                            if (srcRect.y < 0) srcRect.y = 0;
+                            if (srcRect.y + srcRect.height > height) srcRect.y = height - srcRect.height;
+                        }
                     }
                 }
                 if (srcRect.x!=xstart || srcRect.y!=ystart) {
                     boolean update = false;
-                    if (callBack !=null )  {
-                        Rectangle max = GUI.getMaxWindowBounds();
-                        update = callBack.test(new SimpleBoundingBox(ic.getSrcRect().x, ic.getSrcRect().x+Math.min(max.width-1, ic.getSrcRect().width-1), ic.getSrcRect().y, ic.getSrcRect().y+Math.min(max.height-1, ic.getSrcRect().height-1), 0, 0));
-                    }
                     if (update) imp.updateAndRepaintWindow();//ic.repaint();
                     else  ic.repaint();
                 }
             }    
 	    };
-        
-        if (callBack!=null) { // initial call back
-            boolean update = callBack.test(new SimpleBoundingBox(ic.getSrcRect().x, ic.getSrcRect().x+ic.getSrcRect().width-1, ic.getSrcRect().y, ic.getSrcRect().y+ic.getSrcRect().height-1, 0, 0));
-            if (update ) imp.updateAndRepaintWindow();
-        }
-        
+        // replace mouse wheel listener
         for (MouseWheelListener mwl2: iw.getMouseWheelListeners()) iw.removeMouseWheelListener(mwl2);
         iw.addMouseWheelListener(mwl);
+    }
+    @Override
+    public int getChannel(Image im) {
+        ImagePlus image = getImage(im);
+        if (image==null) return -1;
+        if (image.isDisplayedHyperStack()) return image.getChannel()-1;
+        else if (image.getNChannels() == image.getStackSize()) return image.getCurrentSlice()-1;
+        return 0;
+    }
+    @Override
+    public void setChannel(int channel, Image im) {
+        ImagePlus image = getImage(im);
+        if (image!=null) image.setC(channel+1);
     }
 
     @Override
@@ -257,7 +345,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (image==null) return null;
         ImagePlus ip = displayedImages.get(image);
         if (ip==null) {
-            ip= IJImageWrapper.getImagePlus(image);
+            if (image instanceof LazyImage5D) {
+                IJVirtualStack s = new IJVirtualStack(image);
+                if (IJVirtualStack.OpenAsImage5D) s.generateImage5D();
+                else s.generateImagePlus();
+                ip = s.imp;
+            } else {
+                ip = IJImageWrapper.getImagePlus(image);
+            }
             displayedImages.put(image, ip);
             displayedImagesInv.put(ip, image);
         }
@@ -274,35 +369,6 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         }
         return im;*/
     }
-    
-    
-    @Override public ImagePlus showImage5D(String title, Image[][] imageTC) {
-        if (IJ.getInstance()==null) new ImageJ();
-        /*Image5D res = new Image5D(title, getImagePlus(imageTC), imageTC[0].length, imageTC[0][0].getSizeZ(), imageTC.length);
-        for (int i = 0; i < imageTC[0].length; i++) {
-            float[] dispRange = imageTC[0][i].getMinAndMax(null);
-            res.setChannelMinMax(i + 1, dispRange[0], dispRange[1]);
-            res.setDefaultChannelNames();
-        }*/
-        /*for (int i = 0; i < images.length; i++) { // set colors of channels
-            Color c = tango.gui.util.Colors.colors.get(tango.gui.util.Colors.colorNames[i + 1]);
-            ColorModel cm = ChannelDisplayProperties.createModelFromColor(c);
-            res.setChannelColorModel(i + 1, cm);
-        }*/
-        //res.setDisplayMode(ChannelControl.OVERLAY);
-        //res.show();
-        ImagePlus ip = IJImageWrapper.getImagePlus(imageTC, -1);
-        ip.setTitle(title);
-        double[] displayRange = ImageDisplayer.getDisplayRange(imageTC[0][0], null);
-        ip.setDisplayRange(displayRange[0], displayRange[1]);
-        ip.show();
-        ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
-        bacmman.ui.GUI.logger.debug("image: {}, isDisplayedAsHyperStack: {}, is HP: {}, dim: {}", title, ip.isDisplayedHyperStack(), ip.isHyperStack(), ip.getDimensions());
-        displayedImages.put(imageTC[0][0], ip);
-        displayedImagesInv.put(ip, imageTC[0][0]);
-        return ip;
-    }
-    
     @Override public void updateImageDisplay(Image image, double... displayRange) {
         if (this.displayedImages.containsKey(image)) {
             if (displayRange.length == 0) {
@@ -325,7 +391,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (this.displayedImages.containsKey(image)) {
             ImagePlus ip = displayedImages.get(image);
             synchronized(ip) {
-                ip.draw(); // draw is sufficient, no need to call upadate that doest a snapshot...
+                ip.draw(); // draw is sufficient, no need to call upadate that does a snapshot...
             }
         }
     }
@@ -366,29 +432,18 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         } 
     }
     @Override
-    public ImagePlus getCurrentImage() {
+    public ImagePlus getCurrentDisplayedImage() {
         //logger.trace("get current image: {}", WindowManager.getCurrentImage());
         return WindowManager.getCurrentImage();
     }
     @Override
-    public Image getCurrentImage2() {
-       ImagePlus curr = getCurrentImage();
+    public Image getCurrentImage() {
+       ImagePlus curr = getCurrentDisplayedImage();
        return this.getImage(curr);
     }
-    
-    public int[] getFCZCount(ImagePlus image) {
-        return new int[]{image.getNFrames(), image.getNChannels(), image.getNSlices()};
-    }
-    
-    @Override
-    public Image[][] getCurrentImageCT() {
-        ImagePlus ip = this.getCurrentImage();
-        if (ip==null) return null;
-        int[] FCZCount = getFCZCount(ip);
-        return ImageDisplayer.reslice(IJImageWrapper.wrap(ip), FCZCount, IJImageWrapper.getStackIndexFunction(FCZCount));
-    }
+
     private Overlay getCurrentImageOverlay() {
-        ImagePlus im = getCurrentImage();
+        ImagePlus im = getCurrentDisplayedImage();
         if (im == null) return null;
         Overlay o = im.getOverlay();
         if (o==null) {
@@ -414,11 +469,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     }
     @Override
     public void displayContours(Region region, int frame, double strokeWidth, int smoothRadius, Color color, boolean dashed) {
+        Image im = getCurrentImage();
+        if (im == null) return;
+        int slice = getFrame(im);
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame) : null;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
         if (smoothRadius<=0) smoothRadius = ImageWindowManagerFactory.getImageManager().ROI_SMOOTH_RADIUS;
         Roi3D roi = region.getRoi();
@@ -428,7 +486,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         }
         roi = roi.duplicate().smooth(smoothRadius);
         if (additionalOffset != null) roi.translate(additionalOffset);
-        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentImage());
+        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentDisplayedImage());
         for (Roi r : roi.values()) {
             r.setStrokeWidth(strokeWidth); // also sets scaleStrokeWidth = True
             if (dashed) {
@@ -443,11 +501,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
 
     @Override
     public void displayRegion(Region region, int frame, Color color) {
+        Image im = getCurrentImage();
+        if (im == null) return;
+        int slice = getFrame(im);
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame) : null;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
         Roi3D roi = region.getRoi();
         if (roi == null) {
             region.createRoi();
@@ -455,7 +516,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         }
         roi = roi.duplicate();
         if (additionalOffset != null) roi.translate(additionalOffset);
-        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentImage());
+        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentDisplayedImage());
         for (Roi r : roi.values()) {
             r.setFillColor(color);
             o.add(r);
@@ -464,11 +525,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
 
     @Override
     public void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
+        Image im = getCurrentImage();
+        if (im == null) return;
+        int slice = getFrame(im);
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame) : null;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().TRACK_ARROW_STROKE_WIDTH;
         if (additionalOffset != null) start = start.duplicate().translate(additionalOffset);
         Point end = start.duplicate().translate(direction);
@@ -493,12 +557,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             roi.put(0, arrow);
             roi.setIs2D(true);
         }
-        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentImage());
+        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentDisplayedImage());
         for (Roi r : roi.values()) o.add(r);
     }
     @Override
     public void updateDisplay() {
-        ImagePlus ip = getCurrentImage();
+        ImagePlus ip = getCurrentDisplayedImage();
         if (ip!=null) {
             ip.draw();
             logger.debug("updating display for image: {}", ip.getTitle());
@@ -507,10 +571,10 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
 
     @Override
     public void hideLabileObjects() {
-        Image im = getCurrentImage2();
+        Image im = getCurrentImage();
         if (im!=null) {
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-            iwm.hideLabileObjects(im);
+            iwm.hideLabileObjects(im, true);
         }
 
     }

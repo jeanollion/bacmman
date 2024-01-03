@@ -54,6 +54,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     boolean sameDimensions(BoundingBox other);
     @Override BoundingBox<T> duplicate();
     @Override BoundingBox<T> translate(Offset other);
+    @Override BoundingBox<T> translate(int dX, int dY, int dZ);
     Point getCenter();
 
     boolean isValid();

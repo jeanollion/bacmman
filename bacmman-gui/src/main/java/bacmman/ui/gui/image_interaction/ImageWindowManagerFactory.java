@@ -31,15 +31,13 @@ public class ImageWindowManagerFactory {
         currentImageManager=windowsManager;
     }
     public static ImageWindowManager getImageManager() {
-        if (currentImageManager==null) currentImageManager = new IJImageWindowManager(null, getDisplayer());
+        if (currentImageManager==null) currentImageManager = new IJImageWindowManager(getDisplayer());
         return currentImageManager;
     }
     public static Object showImage(Image image) {
-        return getDisplayer().showImage(image);
+        return getDisplayer().displayImage(image);
     }
-    public static Object showImage5D(String title, Image[][] imageTC) {
-        return getDisplayer().showImage5D(title, imageTC);
-    }
+
     private static ImageDisplayer getDisplayer() {
         if (imageDisplayer==null) imageDisplayer = new IJImageDisplayer();
         return imageDisplayer;

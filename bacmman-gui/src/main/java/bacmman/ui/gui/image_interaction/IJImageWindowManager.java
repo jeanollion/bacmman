@@ -22,7 +22,7 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.*;
 import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.Roi3D;
-import bacmman.data_structure.region_container.roi.TrackRoi;
+import bacmman.data_structure.region_container.roi.IJTrackRoi;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.ui.GUI;
@@ -32,7 +32,6 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.*;
-import ij.process.ColorProcessor;
 import ij.process.FloatPolygon;
 
 import java.awt.Color;
@@ -40,7 +39,6 @@ import java.awt.Component;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.event.*;
-import java.awt.image.DirectColorModel;
 import java.awt.image.IndexColorModel;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -50,7 +48,6 @@ import javax.swing.SwingUtilities;
 
 import bacmman.plugins.ObjectSplitter;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
@@ -65,11 +62,11 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, TrackRoi> {
+public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, IJTrackRoi> {
     
            
-    public IJImageWindowManager(ImageObjectListener listener, ImageDisplayer<ImagePlus> displayer) {
-        super(listener, displayer);
+    public IJImageWindowManager(ImageDisplayer<ImagePlus> displayer) {
+        super(displayer);
         //new ImageJ();
     }
     /*@Override
@@ -85,7 +82,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     @Override
     public void toggleSetObjectCreationTool() {
         if (IJ.getToolName()=="point"||IJ.getToolName()=="multipoint") {
-            ImagePlus imp = this.getDisplayer().getCurrentImage();
+            ImagePlus imp = this.getDisplayer().getCurrentDisplayedImage();
             if (imp !=null) imp.deleteRoi();
             IJ.setTool(lastTool);
         }
@@ -142,31 +139,22 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 //logger.debug("ctrl: {}, tool : {}, freeHandSplit: {}, freehand draw: {}, freehand draw+merge {}, freehand erase: {}, addToSelection: {}", ctrl, IJ.getToolName(), freeHandSplit, freeHandDraw, freeHandDrawMerge, freeHandErase, addToSelection);
                 boolean displayTrack = displayTrackMode;
                 //logger.debug("button ctrl: {}, shift: {}, alt: {}, meta: {}, altGraph: {}, alt: {}", e.isControlDown(), e.isShiftDown(), e.isAltDown(), e.isMetaDown(), e.isAltGraphDown(), displayTrackMode);
-                InteractiveImage i = getImageObjectInterface(image);
-                boolean hyperstack = i instanceof HyperStack;
-
-                int completionStructureIdx=-1;
-                if (strechObjects) { // select parents
-                    completionStructureIdx = i.getChildStructureIdx();
-                    if (i.getChildStructureIdx()!=i.parentStructureIdx) i = IJImageWindowManager.super.getImageObjectInterface(image, i.parentStructureIdx);
-                    //logger.debug("Strech: children: {}, current IOI: {}", completionStructureIdx, i.getChildStructureIdx());
-                }
+                InteractiveImage i = getInteractiveImage(image);
                 if (i==null) {
                     logger.trace("no image interface found");
                     return;
                 }
+                displayAllObjects.put(image, false);
+                displayAllTracks.put(image, false);
+                IJVirtualStack stack = getVirtualStack(image);
+                if (stack != null) stack.resetSetFrameCallback();
                 if (!addToSelection) {
-                    if (listener!=null) {
-                        //listener.fireObjectDeselected(Pair.unpair(getLabileObjects(image)));
-                        //listener.fireTracksDeselected(getLabileTrackHeads(image));
-                        listener.fireDeselectAllObjects(i.childStructureIdx);
-                        listener.fireDeselectAllTracks(i.childStructureIdx);
-                    }
                     hideAllRois(image, true, false);
                 }
-                List<Pair<SegmentedObject, BoundingBox>> selectedObjects = new ArrayList<>();
+                List<ObjectDisplay> selectedObjects = new ArrayList<>();
                 Roi r = ip.getRoi();
                 boolean fromSelection = false;
+                int sliceIdx = ip.getT() - 1;
 
                 // get all objects with intersection with ROI
                 if (r!=null) {
@@ -178,87 +166,61 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         Rectangle rect = removeAfterwards && (r.getType()!=Roi.OVAL) ? r.getPolygon().getBounds() : r.getBounds();
                         if (rect.height==0 || rect.width==0) removeAfterwards=false;
                         MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getZ()-1, ip.getZ()-1);
-                        //logger.debug("selection: {}", selection);
-                        if (selection.sizeX()==0 && selection.sizeY()==0) selection=null;
-                        i.addClickedObjects(selection, selectedObjects);
-                        //logger.debug("selection: {} #objects before remove afterwards: {}, bounds: {}, offsets: {}", selection, selectedObjects.size(), selectedObjects.stream().map(o->o.key.getBounds()).collect(Collectors.toList()), selectedObjects.stream().map(o->o.value).collect(Collectors.toList()));
+                        //logger.debug("slice idx: {} selection: {}", sliceIdx, selection);
+                        i.addObjectsWithinBounds(selection, getInteractiveObjectClass(), sliceIdx, selectedObjects);
+                        //logger.debug("selection: {} #objects before remove afterwards: {}, bounds: {}, offsets: {}", selection, selectedObjects.size(), selectedObjects.stream().map(o->o.object.getBounds()).collect(Collectors.toList()), selectedObjects.stream().map(o->o.offset).collect(Collectors.toList()));
                         boolean is2D = i.is2D();
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
-                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, is2D ? -1 : ip.getZ()-1));
+                            selectedObjects.removeIf(p -> !intersect(p.object, p.offset, fPoly, is2D ? -1 : ip.getZ()-1));
                         }
+                        if (i instanceof Kymograph) ((Kymograph)i).addObjectsFromOverlappingSlices(selectedObjects);
                         if (!freeHandSplit || !strechObjects || !freeHandDraw || !freeHandDrawMerge || !freeHandErase) ip.deleteRoi();
                     }
                 }
-                // simple click : get clicked object // TODO not used anymore ?
+                // simple click : get clicked object
                 if (!fromSelection && !strechObjects) {
                     int offscreenX = canvas.offScreenX(e.getX());
                     int offscreenY = canvas.offScreenY(e.getY());
-                    Pair<SegmentedObject, BoundingBox> o = i.getClickedObject(offscreenX, offscreenY, ip.getZ()-1);
-                    //logger.debug("click {}, {}, object: {} (total: {}, parent: {}), ctlr:{}", x, y, o, i.getObjects().size(), ctrl);
+                    ObjectDisplay o = i.getObjectAtPosition(offscreenX, offscreenY, ip.getZ()-1, getInteractiveObjectClass(), sliceIdx);
+                    //logger.debug("click {}, {}, object: {}, ctlr:{}", offscreenX, offscreenY, o, ctrl);
                     if (o!=null) {
                         selectedObjects.add(o);
-                        //logger.debug("selected object: "+o.key);
+                        if (i instanceof Kymograph) ((Kymograph)i).addObjectsFromOverlappingSlices(selectedObjects);
+                        //logger.debug("single click object: {} all: {}", o.object+"@"+o.getSliceIdx(), Utils.toStringList(selectedObjects, ob -> ob.object+"@"+ob.getSliceIdx()));
                     } else return;
                     if (r!=null && r.getType()==Roi.TRACED_ROI) {
                         //logger.debug("Will delete Roi: type: {}, class: {}", r.getTypeAsString(), r.getClass().getSimpleName());
                         if (!freeHandSplit) ip.deleteRoi();
                     }
                 }
-                if (!displayTrack && !strechObjects) {
-                    //logger.debug("objects to display: {}", selectedObjects);
+                if (!displayTrack && !strechObjects) { // display objects
                     displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor, true, true);
-                    if (listener!=null) {
-                        //List<Pair<StructureObject, BoundingBox>> labiles = getSelectedLabileObjects(image);
-                        //fire deselected objects
-                        listener.fireObjectSelected(Pair.unpairKeys(selectedObjects), true);
-                    }
-                    if (hyperstack) {
-                        ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
-                        ((HyperStack)i).setDisplayAllObjects(false);
-                    }
                 } else if (!strechObjects) { // display tracks
-                    if (!hyperstack) {
-                        List<SegmentedObject> trackHeads = new ArrayList<>();
-                        for (Pair<SegmentedObject, BoundingBox> p : selectedObjects)
-                            trackHeads.add(p.key.getTrackHead());
-                        Utils.removeDuplicates(trackHeads, false);
-                        for (SegmentedObject th : trackHeads) {
-                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th);
-                            List<Pair<SegmentedObject, BoundingBox>> disp = i.pairWithOffset(track);
-                            Color c = hyperstack ? getColor(track.get(0)) : ImageWindowManager.getColor();
-                            displayTrack(image, i, disp, c, true, true, false);
-                            displayObjects(image, disp, c, true, false);
-                        }
-                        if (listener != null) listener.fireTracksSelected(trackHeads, true);
-                    } else {
-                        ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
-                        Set<List<SegmentedObject>> tracks = selectedObjects.stream()
-                                .map(p -> p.key.getTrackHead())
-                                .distinct().map(SegmentedObjectUtils::getTrack)
-                                .filter(t -> !t.isEmpty())
-                                .collect(Collectors.toSet());
-                        if (!addToSelection) hideAllRois(image, true, false);
-                        displayTracks(image, i, tracks, true);
-                    }
+                    Set<List<SegmentedObject>> tracks = selectedObjects.stream()
+                            .map(p -> p.object.getTrackHead())
+                            .distinct().map(SegmentedObjectUtils::getTrack)
+                            .filter(t -> !t.isEmpty())
+                            .collect(Collectors.toSet());
+                    displayTracks(image, i, tracks, null, true, true);
                 }
-                if (freeHandSplit && r!=null && !selectedObjects.isEmpty()) {
+                if (freeHandSplit && r!=null && !selectedObjects.isEmpty()) { // SPLIT
                     // if there are several objects per parent keep only to
-                    List<SegmentedObject> objects = Pair.unpairKeys(selectedObjects);
+                    List<SegmentedObject> objects = ObjectDisplay.getObjectList(selectedObjects);
                     //Map<SegmentedObject, List<SegmentedObject>> byParent = SegmentedObjectUtils.splitByParent(objects);
                     //objects.removeIf(o -> byParent.get(o.getParent()).size()>1);
                     // get line & split
                     FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                     ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
                     ManualEdition.splitObjects(GUI.getDBConnection(), objects, GUI.hasInstance()?GUI.getInstance().getManualEditionRelabel():true,false, splitter, true);
-                } else if ((freeHandDraw||freeHandDrawMerge||freeHandErase) && r!=null) {
+                } else if ((freeHandDraw||freeHandDrawMerge||freeHandErase) && r!=null) { // DRAW / ERASE
                     //if (selectedObjects.size()>1) return;
-                    int parentStructure = i.getParent().getExperimentStructure().getParentObjectClassIdx(i.getChildStructureIdx());
-                    List<Pair<SegmentedObject, BoundingBox>> selectedParentObjects = new ArrayList<>();
+                    int parentObjectClass = i.getParent().getExperimentStructure().getParentObjectClassIdx(getInteractiveObjectClass());
+                    List<ObjectDisplay> selectedParentObjects = new ArrayList<>();
                     Rectangle rect = r.getBounds();
                     MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getZ()-1, ip.getZ());
-                    InteractiveImage ioi = getImageObjectInterface(image, parentStructure);
-                    ioi.addClickedObjects(selection, selectedParentObjects);
+                    InteractiveImage ioi = getInteractiveImage(image);
+                    ioi.addObjectsWithinBounds(selection, parentObjectClass, sliceIdx, selectedParentObjects);
                     if (selectedParentObjects.size()>1) {
                         logger.debug("selection is over several parents: {}", selectedParentObjects.size());
                         return;
@@ -266,26 +228,26 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         logger.debug("no parent touched");
                         return;
                     }
-                    SegmentedObject parent = selectedParentObjects.get(0).key;
-                    Offset parentOffset = selectedParentObjects.get(0).value;
+                    SegmentedObject parent = selectedParentObjects.get(0).object;
+                    Offset parentOffset = selectedParentObjects.get(0).offset;
                     Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
                     Collection<SegmentedObject> seg;
                     if (brush) {
                         Roi3D roi = new Roi3D(1);
-                        RegionPopulation pop = parent.getChildRegionPopulation(i.getChildStructureIdx());
+                        RegionPopulation pop = parent.getChildRegionPopulation(getInteractiveObjectClass());
                         boolean is2D = pop.getRegions().isEmpty() ? parent.is2D() : pop.getRegions().get(0).is2D();
                         roi.setIs2D(is2D);
                         roi.put(ip.getZ()-1, r);
                         Region region = new Region(roi,1, roi.getBounds(), parent.getScaleXY(), parent.getScaleZ());
                         Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
                         region.translate(revOff);
-                        if (!freeHandErase) seg = FreeLineSegmenter.createSegmentedObject(region, parent, i.getChildStructureIdx(), GUI.getInstance().getManualEditionRelabel(), store);
+                        if (!freeHandErase) seg = FreeLineSegmenter.createSegmentedObject(region, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
                         else {
                             region.translate(parent.getBounds());
                             region.setIsAbsoluteLandmark(true);
                             seg = null;
                             List<SegmentedObject> modified = new ArrayList<>();
-                            Collection<SegmentedObject> toErase = parent.getChildren(i.getChildStructureIdx())
+                            Collection<SegmentedObject> toErase = parent.getChildren(getInteractiveObjectClass())
                                     .filter(o -> o.getRegion().intersect(region))
                                     .peek(o -> o.getRegion().remove(region))
                                     .peek(modified::add)
@@ -294,26 +256,25 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                             GUI.getDBConnection().getDao(parent.getPositionName()).delete(toErase, true, true, GUI.getInstance().getManualEditionRelabel());
                             modified.removeAll(toErase);
                             store.accept(modified);
-                            reloadObjects_(i.getParent(), i.getChildStructureIdx(), true);
-                            hideLabileObjects(image);
-                            displayObjects(image, i.pairWithOffset(modified), Color.orange , true, false);
+                            resetObjects(i.getParent().getPositionName(), getInteractiveObjectClass());
+                            hideLabileObjects(image, false);
+                            displayObjects(image, i.toObjectDisplay(modified, sliceIdx), Color.orange , true, false);
                         }
                     } else {
                         FloatPolygon p = r.getInterpolatedPolygon(-1, true);
-                        seg = FreeLineSegmenter.segment(parent, parentOffset, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx(), GUI.getInstance().getManualEditionRelabel(), store);
+                        seg = FreeLineSegmenter.segment(parent, parentOffset, ObjectDisplay.getObjectList(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
                     }
                     if (!freeHandErase && !seg.isEmpty()) {
-                        reloadObjects_(i.getParent(), i.getChildStructureIdx(), true);
-                        hideLabileObjects(image);
+                        resetObjects(i.getParent().getPositionName(), getInteractiveObjectClass());
+                        hideLabileObjects(image, false);
                         if (freeHandDrawMerge && !selectedObjects.isEmpty()) {
-                            seg.addAll(Pair.unpairKeys(selectedObjects));
+                            seg.addAll(ObjectDisplay.getObjectList(selectedObjects));
                             ManualEdition.mergeObjects(GUI.getDBConnection(), seg, !GUI.hasInstance() || GUI.getInstance().getManualEditionRelabel(), true);
                         } else {
-                            displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
+                            displayObjects(image, i.toObjectDisplay(seg, sliceIdx), Color.orange , true, false);
                             displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor , true, false);
                         }
                     } else if (!freeHandErase) logger.debug("no object could be segmented");
-
                 }
                 /*if (strechObjects && r!=null && !selectedObjects.isEmpty()) {
                     Structure s = selectedObjects.get(0).key.getExperiment().getStructure(completionStructureIdx);
@@ -357,39 +318,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             });
         }
     }
-    @Override public void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive) {
-        ImagePlus ip = displayer.getImage(image);
-        if (ip!=null && ip.getImageStack() instanceof IJVirtualStack) {
-            //logger.debug("registering frame callback on image: {} for kymograph : {}", image.hashCode(), k==null ? "null" : k.hashCode());
-            if (k==null) {
-                ((IJVirtualStack)ip.getImageStack()).resetSetFrameCallback();
-            } else {
-                ((IJVirtualStack) ip.getImageStack()).appendSetFrameCallback(k::setIdx);
-                if (interactive) ((IJVirtualStack) ip.getImageStack()).appendSetFrameCallback(i -> GUI.updateRoiDisplayForSelections(image, k));
-                ((IJVirtualStack) ip.getImageStack()).updateFrameCallback();
-                ip.getWindow().addWindowListener(new WindowAdapter() {
-                    @Override
-                    public void windowClosing(WindowEvent windowEvent) {
-                        ((IJVirtualStack)ip.getImageStack()).resetSetFrameCallback();
-                    }
-                    @Override
-                    public void windowGainedFocus(WindowEvent e) {
-                        int currentFrame = ip.getT()-1;
-                        if (k.getIdx()!=currentFrame) {
-                            ((IJVirtualStack) ip.getImageStack()).updateFrameCallback();
-                        }
-                    }
-                    @Override
-                    public void windowActivated(WindowEvent e) {
-                        int currentFrame = ip.getT()-1;
-                        if (k.getIdx()!=currentFrame) {
-                            ((IJVirtualStack) ip.getImageStack()).updateFrameCallback();
-                        }
-                    }
-                });
-            }
-        }
-    }
+
     @Override public void closeNonInteractiveWindows() {
         super.closeNonInteractiveWindows();
         String[] names = WindowManager.getImageTitles();
@@ -398,7 +327,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             ImagePlus ip = WindowManager.getImage(s);
             Image im = this.displayer.getImage(ip);
             if (im ==null) ip.close();
-            if (!imageObjectInterfaceMap.keySet().contains(im)) ip.close();
+            if (interactiveImageMapImages.values().stream().flatMap(Collection::stream).noneMatch(i->i.equals(im))) ip.close();
         }
     }
     
@@ -408,7 +337,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (displayer.isDisplayed(ip)) {
             IJ.selectWindow(ip.getTitle());
         } else { // not visible -> show image
-            displayer.showImage(image);
+            displayer.displayImage(image);
             addMouseListener(image);
             displayer.updateImageRoiDisplay(image);
         }
@@ -430,9 +359,116 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             return res;
         } else return Collections.emptyMap();
     }
-    
+
+    protected IJVirtualStack getVirtualStack(Image image) {
+        ImagePlus ip = displayer.getImage(image);
+        if (ip == null) return null;
+        if (ip.getImageStack() instanceof IJVirtualStack) return (IJVirtualStack) ip.getImageStack();
+        else return null;
+    }
+
+    @Override
+    public void displayAllObjects(Image image) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage();
+            if (image==null) {
+                logger.debug("no active image");
+                return;
+            }
+        }
+        InteractiveImage i = getInteractiveImage(image);
+        if (i==null) {
+            logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveObjectClassIdx);
+            return;
+        }
+        displayAllObjects(image, displayer.getFrame(image));
+        IJVirtualStack stack = getVirtualStack(image);
+        if (stack!=null) {
+            Image image_ = image;
+            stack.resetSetFrameCallback(); // do not display contours & track at the same time
+            stack.appendSetFrameCallback(slice -> displayAllObjects(image_, slice), true);
+        }
+    }
+
+    public void displayAllObjects(Image image, int slice) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage();
+            if (image==null) {
+                logger.debug("no active image");
+                return;
+            }
+        }
+        InteractiveImage i = getInteractiveImage(image);
+        if (i==null) {
+            logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveObjectClassIdx);
+            return;
+        }
+        displayObjects(image, i.getObjectDisplay(interactiveObjectClassIdx, slice).collect(Collectors.toList()), defaultRoiColor, true, false);
+    }
+
+    @Override
+    public void displayAllTracks(Image image) {
+        trackColor.clear(); //randomize track colors:
+        if (image==null) {
+            image = getDisplayer().getCurrentImage();
+            if (image==null) return;
+        }
+        InteractiveImage i =  getInteractiveImage(image);
+        if (i==null) {
+            logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveObjectClassIdx);
+            return;
+        }
+        displayAllTracks(image, displayer.getFrame(image));
+        IJVirtualStack stack = getVirtualStack(image);
+        if (stack!=null) {
+            Image image_ = image;
+            stack.resetSetFrameCallback(); // do not display contours & track at the same time
+            stack.appendSetFrameCallback(slice -> displayAllTracks(image_, slice), true);
+        }
+    }
+    protected void displayAllTracks(Image image, int slice) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage();
+            if (image==null) return;
+        }
+        InteractiveImage i =  getInteractiveImage(image);
+        if (i==null) {
+            logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveObjectClassIdx);
+            return;
+        }
+        if (i instanceof HyperStack) {
+            HyperStack k = ((HyperStack)i);
+            List<List<SegmentedObject>> selTracks = k.getObjectDisplay(interactiveObjectClassIdx, slice).map(o -> new ArrayList<SegmentedObject>(1){{add(o.object);}}).collect(Collectors.toList());
+            hideAllRois(image, true, false);
+            Collections.shuffle(selTracks); // shuffle to randomize colors
+            if (!selTracks.isEmpty()) displayTracks(image, k, selTracks, null, true, false);
+        } else {
+            Collection<List<SegmentedObject>> allTracks = i.getObjectDisplay(interactiveObjectClassIdx, slice).map(o->o.object).collect(Collectors.groupingBy(SegmentedObject::getTrackHead)).values();
+            hideAllRois(image, true, false);
+            displayTracks(image, i, allTracks, null, true, false);
+        }
+    }
+    @Override
+    public void updateImageRoiDisplay(Image image) {
+        updateOverlay(image);
+        displayer.updateImageRoiDisplay(image);
+    }
+    void updateOverlay(Image image) {
+        ImagePlus ip = displayer.getImage(image);
+        if (ip == null) return;
+        ip.setOverlay(new Overlay());
+        for (Roi3D roi : displayedObjectRois.get(image)) addObjectToOverlay(ip, roi);
+        for (Roi3D roi : displayedLabileObjectRois.get(image)) addObjectToOverlay(ip, roi);
+        for (IJTrackRoi roi : displayedTrackRois.get(image)) addTrackToOverlay(ip, roi);
+        for (IJTrackRoi roi : displayedLabileTrackRois.get(image)) addTrackToOverlay(ip, roi);
+    }
+
     @Override
     public void displayObject(ImagePlus image, Roi3D roi) {
+        // do nothing: added at update display
+    }
+
+    void addObjectToOverlay(ImagePlus image, Roi3D roi) {
         if (image.getNFrames()>1 && image.getFrame()-1!=roi.getFrame()) return;
         Overlay o = image.getOverlay();
         if (o==null) {
@@ -467,23 +503,19 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     }
 
     @Override
-    public Roi3D generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color, int frameIdx) {
-        if (object.key.getBounds().sizeZ()<=0 || object.key.getBounds().sizeX()<=0 || object.key.getBounds().sizeY()<=0) GUI.logger.error("wrong object dim: o:{} {}", object.key, object.key.getBounds());
+    public Roi3D generateObjectRoi(ObjectDisplay object, Color color, int frameIdx) {
+        if (object.object.getBounds().sizeZ()<=0 || object.object.getBounds().sizeX()<=0 || object.object.getBounds().sizeY()<=0) GUI.logger.error("wrong object dim: o:{} {}", object.object, object.object.getBounds());
         Roi3D r;
         SegmentedObjectAccessor accessor = getAccessor();
-        // TODO why following condition is false when multiple selection ?
-        //if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI
-        if (object.key.getRegion().getRoi()!=null) {
-            //logger.debug("object: {} has IJROICONTAINER", object.key);
-            r = object.key.getRegion().getRoi().duplicate().smooth(ROI_SMOOTH_RADIUS)
-            //r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
-                    .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
-        } else if (object.key.getRegion() instanceof Spot) {
-            double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
-            double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();
-            double z = object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin();
-            double rad = ((Spot)object.key.getRegion()).getRadius();
-            if (object.key.is2D()) {
+        if (object.object.getRegion().getRoi()!=null) {
+            r = object.object.getRegion().getRoi().duplicate().smooth(ROI_SMOOTH_RADIUS)
+                    .translate(new SimpleOffset(object.offset).translate(new SimpleOffset(object.object.getBounds()).reverseOffset()));
+        } else if (object.object.getRegion() instanceof Spot) {
+            double x = object.object.getRegion().getCenter().getDoublePosition(0) + object.offset.xMin() - object.object.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
+            double y = object.object.getRegion().getCenter().getDoublePosition(1) + object.offset.yMin() - object.object.getBounds().yMin();
+            double z = object.object.getRegion().getCenter().getWithDimCheck(2) + object.offset.zMin() - object.object.getBounds().zMin();
+            double rad = ((Spot)object.object.getRegion()).getRadius();
+            if (object.object.is2D()) {
                 Roi roi = new EllipseRoi(x + 0.5, y - rad + 0.5, x + 0.5, y + rad + 0.5, 1);
                 roi.setPosition(0, 1, frameIdx+1);
                 r = new Roi3D(1).setIs2D(true);
@@ -491,7 +523,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             } else {
                 //logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
                 r = new Roi3D((int)Math.ceil(rad * 2)+1).setIs2D(false);
-                double scaleR = ((Spot)object.key.getRegion()).getzAspectRatio();
+                double scaleR = ((Spot)object.object.getRegion()).getzAspectRatio();
                 double radZ = rad * scaleR;
                 for (int zz = (int)Math.max(Math.ceil(z-radZ), 0); zz<=(int)Math.ceil(z+radZ); ++zz) {
                     double curRad = Math.sqrt(rad*rad - Math.pow((z-zz)/scaleR, 2)) ; // in order to take into anisotropy into account.
@@ -502,13 +534,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 }
             }
             BoundingBox bds = r.getBounds();
-            r.setLocDelta(bds.xMin() - object.value.xMin(), bds.yMin() - object.value.yMin());
-        } else if (object.key.getRegion() instanceof Ellipse2D) {
-            double dx = object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
-            double dy = object.value.yMin() - object.key.getBounds().yMin();
-            double z = object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin();
+            r.setLocDelta(bds.xMin() - object.offset.xMin(), bds.yMin() - object.offset.yMin());
+        } else if (object.object.getRegion() instanceof Ellipse2D) {
+            double dx = object.offset.xMin() - object.object.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
+            double dy = object.offset.yMin() - object.object.getBounds().yMin();
+            double z = object.object.getRegion().getCenter().getWithDimCheck(2) + object.offset.zMin() - object.object.getBounds().zMin();
             int sliceZ = (int)(Math.ceil(z));
-            Ellipse2D o = (Ellipse2D)object.key.getRegion();
+            Ellipse2D o = (Ellipse2D)object.object.getRegion();
             List<Point> foci = o.getMajorAxisEnds();
             foci.stream().forEach(p -> p.translate(new Vector((float)dx, (float)dy)));
             Roi roi = new EllipseRoi(foci.get(0).get(0)+ 0.5, foci.get(0).get(1)+ 0.5, foci.get(1).get(0)+ 0.5, foci.get(1).get(1)+ 0.5, o.getAspectRatio());
@@ -517,24 +549,24 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             r = new Roi3D(1).setIs2D(o.is2D());
             r.put(sliceZ, roi);
             BoundingBox bds = r.getBounds();
-            r.setLocDelta(bds.xMin() - object.value.xMin(), bds.yMin() - object.value.yMin());
-            //logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.key, object.key.getRegion().getCenter(), foci, object.key.getBounds(), object.key.getRegion().is2D(), object.key.getParent().getBounds(), object.value);
+            r.setLocDelta(bds.xMin() - object.offset.xMin(), bds.yMin() - object.offset.yMin());
+            //logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.object, object.object.getRegion().getCenter(), foci, object.object.getBounds(), object.object.getRegion().is2D(), object.object.getParent().getBounds(), object.offset);
         } else {
-            //logger.debug("object: {} has container: {}, container type: {}, container ROI not null ? {}, has ROI: {}", object.key, accessor.hasRegionContainer(object.key), accessor.hasRegionContainer(object.key)? accessor.getRegionContainer(object.key).getClass() : "null", ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null, object.key.getRegion().getRoi()!=null);
-            r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D()).smooth(ROI_SMOOTH_RADIUS);
+            //logger.debug("object: {} has container: {}, container type: {}, container ROI not null ? {}, has ROI: {}", object.object, accessor.hasRegionContainer(object.object), accessor.hasRegionContainer(object.object)? accessor.getRegionContainer(object.object).getClass() : "null", ((RegionContainerIjRoi)accessor.getRegionContainer(object.object)).getRoi()!=null, object.object.getRegion().getRoi()!=null);
+            r =  RegionContainerIjRoi.createRoi(object.object.getMask(), object.offset, !object.object.is2D()).smooth(ROI_SMOOTH_RADIUS);
         }
 
-        if (displayCorrections && object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
-            Point p = new Point((float)object.key.getBounds().xMean(), (float)object.key.getBounds().yMean());
-            object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
-            p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
+        if (displayCorrections && object.object.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
+            Point p = new Point((float)object.object.getBounds().xMean(), (float)object.object.getBounds().yMean());
+            object.object.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
+            p.translate(object.offset).translateRev(object.object.getBounds()); // go to kymograph offset
             Arrow arrow = new Arrow(p.get(0), p.get(1), p.get(0), p.get(1));
             arrow.enableSubPixelResolution();
             arrow.setStrokeColor(trackCorrectionColor);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
             new HashSet<>(r.keySet()).stream().filter(z->z>=0).forEach((z) -> {
-                Arrow arrowS = r.size()>1 ? (Arrow)arrow.clone() : arrow;
+                Arrow arrowS = r.sizeZ()>1 ? (Arrow)arrow.clone() : arrow;
                 arrowS.setPosition(0, z, frameIdx+1);
                 r.put(-z-1, arrowS);
             });
@@ -569,7 +601,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     }
     // track-related methods
     @Override
-    public void displayTrack(ImagePlus image, TrackRoi roi, InteractiveImage i) {
+    public void displayTrack(ImagePlus image, IJTrackRoi roi) {
+        // do nothing -> track is added at update display call
+    }
+    void addTrackToOverlay(ImagePlus image, IJTrackRoi roi) {
         Overlay o = image.getOverlay();
         if (o==null) {
             o=new Overlay();
@@ -582,7 +617,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         for (Roi r : roi) o.add(r);
         if (roi.is2D() && image.getNSlices()>1) {
             for (int z = 1; z<image.getNSlices(); ++z) {
-                TrackRoi dup = roi.duplicateForZ(z);
+                IJTrackRoi dup = roi.duplicateForZ(z);
                 if (!image.isDisplayedHyperStack()) {
                     if (image.getNSlices() > 1) dup.setZToPosition();
                     else if (image.getNFrames() > 1) dup.setTToPosition();
@@ -593,88 +628,76 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     }
 
     @Override
-    public void hideTrack(ImagePlus image, TrackRoi roi, InteractiveImage i) {
-        Overlay o = image.getOverlay();
-        if (o!=null) {
-            for (Roi r : roi) o.remove(r);
-            if (!(i instanceof HyperStack) & image.getNSlices()>1) {
-                for (TrackRoi tr : roi.getSliceDuplicates().values()) {
-                    for (Roi r : tr) o.remove(r);
-                }
-            }
-        }
+    public void hideTrack(ImagePlus image, IJTrackRoi roi) {
+        // do nothing -> track is removed at update display call
     }
 
     @Override
-    public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i, boolean forceDefaultDisplay) {
-        if (!(i instanceof HyperStack)) {
-            if (!forceDefaultDisplay && !parents.isEmpty() && parents.get(0).getExperimentStructure().getTrackDisplay(i.childStructureIdx).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(parents, track, color, i);
-            else return createKymographTrackRoi(track, color, i, TRACK_ARROW_STROKE_WIDTH);
+    public IJTrackRoi generateTrackRoi(List<ObjectDisplay> track, InteractiveImage i, Color color, boolean forceDefaultDisplay) {
+        if (i instanceof Kymograph) {
+            if (!forceDefaultDisplay && !track.isEmpty() && track.get(0).object.getExperimentStructure().getTrackDisplay(track.get(0).object.getStructureIdx()).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(track, color, i);
+            else {
+                IJTrackRoi arrows = createKymographTrackRoi(track, color, i, TRACK_ARROW_STROKE_WIDTH);
+                IJTrackRoi contours = createContourTrackRoi(track, color, i);
+                return arrows.mergeWith(contours);
+            }
         }
-        else return createContourTrackRoi(parents, track, color, i);
+        else return createContourTrackRoi(track, color, i);
     }
     
     @Override
-    protected void setTrackColor(TrackRoi roi, Color color) {
+    protected void setTrackColor(IJTrackRoi roi, Color color) {
         for (Roi r : roi) if (r.getStrokeColor()!=ImageWindowManager.trackCorrectionColor && r.getStrokeColor()!=ImageWindowManager.trackErrorColor) {
             setRoiColor(r, color);
         }
-        for (TrackRoi dup : roi.getSliceDuplicates().values()) setTrackColor(dup, color);
+        for (IJTrackRoi dup : roi.getSliceDuplicates().values()) setTrackColor(dup, color);
     }
 
-    protected TrackRoi createContourTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
-        TrackRoi trackRoi= new TrackRoi();
-        trackRoi.setIs2D(track.get(0).key.is2D());
-        IntFunction<Integer> getFrame = f -> {
-           if (i instanceof HyperStack) return ((HyperStack)i).frameMapIdx.get(f);
-           else return 0; // kymograph mode
-        };
-
-        Function<Pair<SegmentedObject, BoundingBox>, Roi3D> getRoi = p -> {
-            Integer frame =  getFrame.apply(p.key.getFrame());
-            if (frame==null) return null;
-            if (displayTrackEdges && ((p.key.getParent().getPrevious()!=null && p.key.getPrevious()==null) || (p.key.getParent().getNext()!=null && p.key.getNext()==null))) {
-                Roi3D r = createRoiImage(p.key.getMask(), p.value, p.key.is2D(), color, trackRoiContourEdgeOpacity);
-                setRoiAttributes(r, color, frame);
+    protected IJTrackRoi createContourTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i) {
+        IJTrackRoi trackRoi= new IJTrackRoi();
+        trackRoi.setIs2D(track.get(0).object.is2D());
+        Function<ObjectDisplay, Roi3D> getRoi = p -> {
+            if (displayTrackEdges && ((p.object.getParent().getPrevious()!=null && p.object.getPrevious()==null) || (p.object.getParent().getNext()!=null && p.object.getNext()==null))) {
+                Roi3D r = createRoiImage(p.object.getMask(), p.offset, p.object.is2D(), color, trackRoiContourEdgeOpacity);
+                setRoiAttributes(r, color, p.getSliceIdx());
                 return r;
             } else {
                 Roi3D r = labileObjectRoiMap.get(p);
                 if (r == null) r = objectRoiMap.get(p);
                 if (r == null) {
-                    r = generateObjectRoi(p, color, frame);
-                    objectRoiMap.put(p, r);
+                    r = generateObjectRoi(p, color, p.getSliceIdx());
+                    objectRoiMap.put(p, r.duplicate());
                 } else {
-                    setRoiAttributes(r, color, frame);
+                    r = r.duplicate();
+                    setRoiAttributes(r, color, p.getSliceIdx());
                 }
                 return r;
             }
-
         };
 
         track.stream().map(getRoi).filter(Objects::nonNull).flatMap(r -> r.values().stream()).forEach(trackRoi::add);
         // add flag when track links have been edited
         if (displayCorrections) {
             Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
-            Consumer<Pair<SegmentedObject, BoundingBox>> addEditedArrow = object -> {
-                if (edited.test(object.key)) { // also display when segmentation is edited
-                    Integer frameIdx = getFrame.apply(object.key.getFrame());
-                    Point p = new Point((float) object.key.getBounds().xMean(), (float) object.key.getBounds().yMean());
-                    object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
-                    p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
+            Consumer<ObjectDisplay> addEditedArrow = object -> {
+                if (edited.test(object.object)) { // also display when segmentation is edited
+                    Point p = new Point((float) object.object.getBounds().xMean(), (float) object.object.getBounds().yMean());
+                    object.object.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
+                    p.translate(object.offset).translateRev(object.object.getBounds()); // go to kymograph offset
                     Arrow arrow = new Arrow(p.get(0), p.get(1), p.get(0), p.get(1));
                     arrow.enableSubPixelResolution();
                     arrow.setStrokeColor(trackCorrectionColor);
                     arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
                     arrow.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
-                    int zMin = object.value.zMin();
-                    int zMax = object.value.zMax();
+                    int zMin = object.offset.zMin();
+                    int zMax = object.offset.zMax();
                     if (zMin == zMax) {
-                        arrow.setPosition(0, zMin + 1, frameIdx + 1);
+                        arrow.setPosition(0, zMin + 1, object.getSliceIdx() + 1);
                         trackRoi.add(arrow);
                     } else {
                         for (int z = zMin; z <= zMax; ++z) {
                             Arrow a = (Arrow) arrow.clone();
-                            a.setPosition(0, z + 1, frameIdx + 1);
+                            a.setPosition(0, z + 1, object.getSliceIdx() + 1);
                             trackRoi.add(a);
                         }
                     }
@@ -683,67 +706,66 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             track.stream().forEach(addEditedArrow::accept);
         }
         // add arrow to indicate splitting
-        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitArrow = (o1, o2, c) -> {
-            Integer frame = getFrame.apply(o1.key.getFrame());
-            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter().duplicate();
-            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter().duplicate();
-            p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to hyperstack offset
-            p2.translate(o2.value).translateRev(o2.key.getBounds());
+        Utils.TriConsumer<ObjectDisplay, ObjectDisplay, Color> addSplitArrow = (o1, o2, c) -> {
+            Point p1 = o1.object.getRegion().getCenter() == null ? o1.object.getBounds().getCenter() : o1.object.getRegion().getCenter().duplicate();
+            Point p2 = o2.object.getRegion().getCenter() == null ? o2.object.getBounds().getCenter() : o2.object.getRegion().getCenter().duplicate();
+            p1.translate(o1.offset).translateRev(o1.object.getBounds()); // go back to hyperstack offset
+            p2.translate(o2.offset).translateRev(o2.object.getBounds());
             Arrow arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
             arrow.enableSubPixelResolution();
             arrow.setDoubleHeaded(true);
             arrow.setStrokeColor(c);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
-            int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
-            int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
+            int zMin = Math.max(o1.offset.zMin(), o2.offset.zMin());
+            int zMax = Math.min(o1.offset.zMax(), o2.offset.zMax());
             if (zMin==zMax) {
-                arrow.setPosition(0, zMin+1, frame+1);
+                arrow.setPosition(0, zMin+1, o1.getSliceIdx() + 1 );
                 trackRoi.add(arrow);
             } else {
                 for (int z = zMin; z <= zMax; ++z) {
                     Arrow a = (Arrow) arrow.clone();
-                    a.setPosition(0, z+1, frame+1);
+                    a.setPosition(0, z+1, o1.getSliceIdx() + 1 );
                     trackRoi.add(a);
                 }
             }
         };
-        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addArrow = (source, target, c) -> {
-            Integer frame = getFrame.apply(source.key.getFrame());
-            Point p1 = source.key.getRegion().getCenter() == null ? source.key.getBounds().getCenter() : source.key.getRegion().getCenter().duplicate();
-            Point p2 = target.key.getRegion().getCenter() == null ? target.key.getBounds().getCenter() : target.key.getRegion().getCenter().duplicate();
-            p1.translate(source.value).translateRev(source.key.getBounds()); // go back to hyperstack offset
-            p2.translate(target.value).translateRev(target.key.getBounds());
+        Utils.TriConsumer<ObjectDisplay, ObjectDisplay, Color> addArrow = (source, target, c) -> {
+            Point p1 = source.object.getRegion().getCenter() == null ? source.object.getBounds().getCenter() : source.object.getRegion().getCenter().duplicate();
+            Point p2 = target.object.getRegion().getCenter() == null ? target.object.getBounds().getCenter() : target.object.getRegion().getCenter().duplicate();
+            p1.translate(source.offset).translateRev(source.object.getBounds()); // go back to hyperstack offset
+            p2.translate(target.offset).translateRev(target.object.getBounds());
             Arrow arrow1 = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
             arrow1.enableSubPixelResolution();
             arrow1.setDoubleHeaded(false);
             arrow1.setStrokeColor(c);
             arrow1.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow1.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
-            int zMin = Math.max(source.value.zMin(), target.value.zMin());
-            int zMax = Math.min(source.value.zMax(), target.value.zMax());
+            int zMin = Math.max(source.offset.zMin(), target.offset.zMin());
+            int zMax = Math.min(source.offset.zMax(), target.offset.zMax());
             if (zMin==zMax) {
-                arrow1.setPosition(0, zMin+1, frame+1);
+                arrow1.setPosition(0, zMin+1, source.getSliceIdx() + 1 );
                 trackRoi.add(arrow1);
             } else {
                 for (int z = zMin; z <= zMax; ++z) {
                     Arrow a1 = (Arrow) arrow1.clone();
-                    a1.setPosition(0, z+1, frame+1);
+                    a1.setPosition(0, z+1, source.getSliceIdx() + 1 );
                     trackRoi.add(a1);
                 }
             }
         };
         if (track.size()==1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
-            SegmentedObject o = track.get(0).key;
+            SegmentedObject o = track.get(0).object;
+            int slice = track.get(0).getSliceIdx();
             if (o.getPreviousId()!=null) {
                 if (o.getPrevious()==null) logger.debug("object: {} center: {}, previous null, previous id: {}", o,o.getRegion().getGeomCenter(false), o.getPreviousId());
             }
             if (o.getPreviousId()!=null && o.getPrevious()!=null && o.getPrevious().getTrackHead()!=o.getTrackHead()) {
                 List<SegmentedObject> div = SegmentedObjectEditor.getNext(o.getPrevious()).collect(Collectors.toList());
                 if (div.size()>1) { // only show
-                    List<Pair<SegmentedObject, BoundingBox>> divP = i.pairWithOffset(div);
-                    for (Pair<SegmentedObject, BoundingBox> other : divP) {
-                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addSplitArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
+                    List<ObjectDisplay> divP = i.toObjectDisplay(div, slice);
+                    for (ObjectDisplay other : divP) {
+                        if (!other.object.equals(o) && other.object.getIdx()>o.getIdx()) addSplitArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
                     }
                 }
             }
@@ -752,28 +774,29 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             }
             if (o.getNextId()!=null && o.getNext()!=null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
                 List<SegmentedObject> merge = SegmentedObjectEditor.getPrevious(o.getNext()).collect(Collectors.toList());
-                Pair<SegmentedObject, BoundingBox> target = new Pair<>(o.getNext(), i.getObjectOffset(o.getNext()));
+                ObjectDisplay target = new ObjectDisplay(o.getNext(), i.getObjectOffset(o.getNext(), slice), slice);
                 if (merge.size()>1) { // only show
-                    List<Pair<SegmentedObject, BoundingBox>> mergeP = i.pairWithOffset(merge);
-                    for (Pair<SegmentedObject, BoundingBox> other : mergeP) {
+                    List<ObjectDisplay> mergeP = i.toObjectDisplay(merge, slice);
+                    for (ObjectDisplay other : mergeP) {
                         addArrow.accept(other, target, getColor(o.getNext().getTrackHead()));
                     }
                 }
             }
         } else {
-            if (track.get(track.size() - 1).key.getNextId() == null) {
-                List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).key).collect(Collectors.toList());
+            if (track.get(track.size() - 1).object.getNextId() == null) {
+                List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).object).collect(Collectors.toList());
+                int slice = track.get(track.size() - 1).getSliceIdx();
                 if (next.size() > 1) { // show division by displaying arrows between objects
-                    List<Pair<SegmentedObject, BoundingBox>> nextP = i.pairWithOffset(next);
+                    List<ObjectDisplay> nextP = i.toObjectDisplay(next, slice);
                     for (int idx = 0; idx < next.size() - 1; ++idx)
                         addSplitArrow.accept(nextP.get(idx), nextP.get(idx + 1), color);
                 }
             }
-            if (track.get(0).key.getPreviousId() == null) {
-                List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key).collect(Collectors.toList());
-                Pair<SegmentedObject, BoundingBox> target = track.get(0);
+            if (track.get(0).object.getPreviousId() == null) {
+                List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList());
+                ObjectDisplay target = track.get(0);
                 if (prev.size() > 1) { // show merging by displaying arrows between objects
-                    List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
+                    List<ObjectDisplay> prevP = i.toObjectDisplay(prev, target.getSliceIdx());
                     prevP.forEach(p -> addArrow.accept(p, target, color));
                 }
             }
@@ -781,37 +804,35 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         return trackRoi.setTrackType(Structure.TRACK_DISPLAY.CONTOUR);
     }
 
-    protected static TrackRoi createKymographTrackRoi(List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i, double arrowStrokeWidth) {
+    protected static IJTrackRoi createKymographTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i, double arrowStrokeWidth) {
         Predicate<SegmentedObject> editedprev = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false);
         Predicate<SegmentedObject> editedNext = o -> o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
-        TrackRoi trackRoi= new TrackRoi();
-        trackRoi.setIs2D(track.get(0).key.is2D());
+        IJTrackRoi trackRoi= new IJTrackRoi();
+        trackRoi.setIs2D(track.get(0).object.is2D());
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
-        int zMin = track.stream().mapToInt(o-> o.value.zMin()).min().orElse(0);
-        int zMax = track.stream().mapToInt(o-> o.value.zMax()).max().orElse(0);
-        BiConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>> appendTrackArrow = (o1, o2) -> {
+        BiConsumer<ObjectDisplay, ObjectDisplay> appendTrackArrow = (o1, o2) -> {
             Arrow arrow;
             if (track.size()==1 && o2==null) {
                 double size = arrowStrokeWidth*arrowSize;
-                Point p = new Point((float)o1.key.getBounds().xMean(), (float)o1.key.getBounds().yMean());
-                o1.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(-1, -1));
-                p.translate(o1.value).translateRev(o1.key.getBounds()); // go to kymograph offset
+                Point p = new Point((float)o1.object.getBounds().xMean(), (float)o1.object.getBounds().yMean());
+                o1.object.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(-1, -1));
+                p.translate(o1.offset).translateRev(o1.object.getBounds()); // go to kymograph offset
                 arrow = new Arrow(p.get(0)-size, p.get(1)-size, p.get(0), p.get(1));
                 arrow.enableSubPixelResolution();
             } else {
-                Point p1 = new Point((float)o1.value.xMean(), (float)o1.value.yMean());
-                Point p2 = new Point((float)o2.value.xMean(), (float)o2.value.yMean());
+                Point p1 = new Point((float)o1.offset.xMean(), (float)o1.offset.yMean());
+                Point p2 = new Point((float)o2.offset.xMean(), (float)o2.offset.yMean());
                 double minDist = TRACK_LINK_MIN_SIZE;
                 if (p1.dist(p2)>minDist) {  // get coordinates outside regions so that track links do not hide regions
                     Vector dir = Vector.vector2D(p1, p2);
                     double dirFactor = 1d;
                     dir.multiply(dirFactor/dir.norm()); // increment
-                    p1.translateRev(o1.value).translate(o1.key.getBounds()); // go to each region offset for the out-of-region test
-                    p2.translateRev(o2.value).translate(o2.key.getBounds());
-                    o1.key.getRegion().translateToFirstPointOutsideRegionInDir(p1, dir);
-                    o2.key.getRegion().translateToFirstPointOutsideRegionInDir(p2, dir.multiply(-1));
-                    p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to kymograph offset
-                    p2.translate(o2.value).translateRev(o2.key.getBounds());
+                    p1.translateRev(o1.offset).translate(o1.object.getBounds()); // go to each region offset for the out-of-region test
+                    p2.translateRev(o2.offset).translate(o2.object.getBounds());
+                    o1.object.getRegion().translateToFirstPointOutsideRegionInDir(p1, dir);
+                    o2.object.getRegion().translateToFirstPointOutsideRegionInDir(p2, dir.multiply(-1));
+                    p1.translate(o1.offset).translateRev(o1.object.getBounds()); // go back to kymograph offset
+                    p2.translate(o2.offset).translateRev(o2.object.getBounds());
                     // ensure there is a minimal distance
                     double d = p1.dist(p2);
                     if (d<minDist) {
@@ -826,50 +847,72 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             }
             arrow.setStrokeWidth(arrowStrokeWidth);
             arrow.setHeadSize(arrowStrokeWidth*arrowSize);
-
-            // 2D only errors -> TODO 3D also
+            arrow.setStrokeColor(color);
             if (displayCorrections) {
-                boolean error = (o2 != null && o2.key.hasTrackLinkError(true, false)) || (o1.key.hasTrackLinkError(false, true));
-                boolean correction = editedNext.test(o1.key) || (o2 != null && editedprev.test(o2.key));
-                arrow.setStrokeColor(color);
+                boolean error = (o2 != null && o2.object.hasTrackLinkError(true, false)) || (o1.object.hasTrackLinkError(false, true));
+                boolean correction = editedNext.test(o1.object) || (o2 != null && editedprev.test(o2.object));
                 if (error || correction) {
                     Color c = error ? ImageWindowManager.trackErrorColor : ImageWindowManager.trackCorrectionColor;
-                    trackRoi.add(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, color, arrowStrokeWidth));
-                }
-            }
-            if (!trackRoi.is2D()) { // in 3D -> display on all slices between slice min & slice max
-
-                if (zMin==zMax) {
-                    arrow.setPosition(0, zMin+1, 0);
-                    trackRoi.add(arrow);
-                    //logger.debug("add arrow: {}", arrow);
-                } else {
-                    for (int z = zMin; z <= zMax; ++z) {
-                        Arrow dup = (Arrow)arrow.clone();
-                        dup.setPosition(0, z+1, 0);
-                        trackRoi.add(dup);
-                        //logger.debug("add arrow (z): {}", arrow);
+                    trackRoi.add(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, color, arrowStrokeWidth, o1.getSliceIdx()+1));
+                    if (o2!=null && o2.getSliceIdx() != o1.getSliceIdx()) {
+                        trackRoi.add(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, color, arrowStrokeWidth, o2.getSliceIdx()+1));
                     }
                 }
-            } else {
+            }
+            int zMin = Math.max(o1.offset.zMin(), o2==null ? -1 : o2.offset.zMin());
+            int zMax = Math.min(o1.offset.zMax(), o2==null ? Integer.MAX_VALUE : o2.offset.zMax());
+            if (zMin==zMax) {
+                arrow.setPosition(0, zMin+1, o1.sliceIdx+1);
                 trackRoi.add(arrow);
+            } else {
+                for (int z = zMin; z <= zMax; ++z) {
+                    Arrow a1 = (Arrow) arrow.clone();
+                    a1.setPosition(0, z+1, o1.sliceIdx+1);
+                    trackRoi.add(a1);
+                }
+            }
+            if (o2!=null && o2.sliceIdx != o1.sliceIdx) {
+                if (zMin==zMax) {
+                    arrow = (Arrow)arrow.clone();
+                    arrow.setPosition(0, zMin+1, o2.sliceIdx+1);
+                    trackRoi.add(arrow);
+                } else {
+                    for (int z = zMin; z <= zMax; ++z) {
+                        Arrow a1 = (Arrow) arrow.clone();
+                        a1.setPosition(0, z+1, o2.sliceIdx+1);
+                        trackRoi.add(a1);
+                    }
+                }
             }
         };
         if (track.size()==1) appendTrackArrow.accept(track.get(0), null);
         else {
             IntStream.range(1, track.size()).forEach(idx -> {
-                Pair<SegmentedObject, BoundingBox> o1 = track.get(idx - 1);
-                Pair<SegmentedObject, BoundingBox> o2 = track.get(idx);
-                appendTrackArrow.accept(o1, o2);
+                ObjectDisplay o1 = track.get(idx - 1);
+                ObjectDisplay o2 = track.get(idx);
+                if (o1.getSliceIdx()!=o2.getSliceIdx()) {
+                    ObjectDisplay o21 = new ObjectDisplay(o2.object, i.getObjectOffset(o2.object, o1.getSliceIdx()), o1.getSliceIdx());
+                    ObjectDisplay o12 = new ObjectDisplay(o1.object, i.getObjectOffset(o1.object, o2.getSliceIdx()), o2.getSliceIdx());
+                    appendTrackArrow.accept(o1, o21);
+                    appendTrackArrow.accept(o12, o2);
+                } else appendTrackArrow.accept(o1, o2);
             });
         }
         // append previous arrows
-        for (Pair<SegmentedObject, BoundingBox> p : i.pairWithOffset(SegmentedObjectEditor.getPrevious(track.get(0).key).collect(Collectors.toList()))) {
+        for (ObjectDisplay p : i.toObjectDisplay(SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList()), track.get(0).getSliceIdx())) {
             appendTrackArrow.accept(p, track.get(0));
         }
+        // append next arrows only if not displayed at current slice
+        ObjectDisplay last = track.get(track.size()-1);
+        if (last.object.getNext() != null && last.object.getNext().getTrackHead().equals(last.object.getTrackHead())) {
+            for (ObjectDisplay n : i.toObjectDisplay(Collections.singletonList(last.object.getNext()), last.getSliceIdx())) {
+                appendTrackArrow.accept(last, n);
+            }
+        }
+
         return trackRoi;
     }
-    private static Arrow getErrorArrow(double x1, double y1, double x2, double y2, Color c, Color fillColor, double arrowStrokeWidth) {
+    private static Arrow getErrorArrow(double x1, double y1, double x2, double y2, Color c, Color fillColor, double arrowStrokeWidth, int slice) {
         double arrowSize = arrowStrokeWidth*2;
         double norm = Math.sqrt(Math.pow(x1-x2, 2)+Math.pow(y1-y2, 2));
         double[] vNorm = new double[]{(x2-x1)/norm, (y2-y1)/norm};
@@ -883,6 +926,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         res.setFillColor(fillColor);
         res.setStrokeWidth(arrowStrokeWidth);
         res.setHeadSize(Math.max(arrowStrokeWidth*1.5, 1.1));
+        res.setPosition(0, 0, slice+1);
         return res;
         
         // OTHER ARROW

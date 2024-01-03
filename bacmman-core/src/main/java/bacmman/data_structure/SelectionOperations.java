@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.MeasurementFilterParameter;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.EdgeContact;
+import bacmman.ui.gui.image_interaction.ObjectDisplay;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -231,9 +232,9 @@ public class SelectionOperations {
         return p.get(idx);
     }
 
-    public static Collection<Pair<SegmentedObject, BoundingBox>> filterPairs(Stream<Pair<SegmentedObject, BoundingBox>> objects, Collection<String> indices) {
+    public static Collection<ObjectDisplay> filterPairs(Stream<ObjectDisplay> objects, Collection<String> indices) {
         //Utils.removeDuplicates(objects, o->Selection.indicesString(o.key)); // remove duplicate labels. should not occur
-        Map<String, Pair<SegmentedObject, BoundingBox>> map = objects.collect(Collectors.toMap(o->Selection.indicesString(o.key), o->o));
+        Map<String, ObjectDisplay> map = objects.collect(Collectors.toMap(o->Selection.indicesString(o.object), o->o));
         map.keySet().retainAll(indices);
         return map.values();
     }

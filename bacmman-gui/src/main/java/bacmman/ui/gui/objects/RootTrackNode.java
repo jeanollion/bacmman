@@ -24,11 +24,8 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.ui.GUI;
-import bacmman.ui.gui.image_interaction.IJVirtualStack;
-import bacmman.ui.gui.image_interaction.InteractiveImage;
-import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.ui.gui.image_interaction.*;
 import bacmman.core.DefaultWorker;
-import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -241,6 +238,29 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         return structureIdx == that.structureIdx && root == that.root && position.equals(that.position);
     }
 
+    public void openHyperStack(int defaultChannelIdx) {
+        List<SegmentedObject> rootTrack = null;
+        try {
+            rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+            logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
+        } catch (Exception e) {
+        }
+        if (rootTrack != null) {
+            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, HyperStack.class, true);
+            ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
+        }
+    }
+    public void openKymograph(int defaultChannelIdx) {
+        List<SegmentedObject> rootTrack=null;
+        try {
+            rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+        } catch (Exception e) { }
+        if (rootTrack!=null) {
+            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, Kymograph.class, true);
+            ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
+        }
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(structureIdx, position, root);
@@ -251,6 +271,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         JMenu kymographSubMenu, hyperStackSubMenu, createSelectionSubMenu;
         Object[] actions;
         JMenuItem[] openKymograph, openHyperStack, createSelection;
+
         public RootTrackNodeUI() {
             this.actions = new JMenuItem[6];
             
@@ -261,7 +282,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 public void actionPerformed(ActionEvent ae) {
                     generator.db.getExperiment().flushImages(true, true, position);
                     try {
-                        IJVirtualStack.openVirtual(generator.getExperiment(), position, false, IJVirtualStack.OpenAsImage5D);
+                        ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, false);
                     } catch(Throwable t) {
                         generator.pcb.log("Could not open input images for position: "+position+". If their location moved, used the re-link command");
                         logger.debug("Error while opening file position", t);
@@ -276,7 +297,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                     public void actionPerformed(ActionEvent ae) {
                         generator.db.getExperiment().flushImages(true, true, position);
                         try {
-                            IJVirtualStack.openVirtual(generator.getExperiment(), position, true, IJVirtualStack.OpenAsImage5D);
+                            ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, true);
                         } catch(Throwable t) {
                             generator.pcb.log("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
                             logger.debug("error while trying to open pre-processed images: ", t);
@@ -307,7 +328,11 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 openKymograph[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            openKymograph(ae.getActionCommand());
+                            int objectClassIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
+                            int channelIdx = generator.getExperiment().getChannelImageIdx(objectClassIdx);
+                            GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
+                            GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                            openKymograph(channelIdx);
                         }
                     }
                 );
@@ -321,7 +346,11 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 openHyperStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
-                        openHyperStack(ae.getActionCommand());
+                        int objectClassIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
+                        int channelIdx = generator.getExperiment().getChannelImageIdx(objectClassIdx);
+                        GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
+                        GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                        openHyperStack(channelIdx);
                     }
                 });
                 hyperStackSubMenu.add(openHyperStack[i]);
@@ -389,35 +418,6 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 return new Object[]{createSelectionSubMenu, delete};
             } else return actions;
         }
-        public void openHyperStack(String objectClassName) {
-            int structureIdx = generator.getExperiment().getStructureIdx(objectClassName);
-            logger.debug("opening HYPERSTACK raw image for structure: {} of idx: {} position: {}", objectClassName, structureIdx, position);
-            List<SegmentedObject> rootTrack = null;
-            try {
-                rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-                logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
-            } catch (Exception e) {
-            }
-            if (rootTrack != null) {
-                // TODO make this method generic for other display modes than IJ
-                IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO interface for multichannel display
-                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                GUI.getInstance().setTrackStructureIdx(structureIdx);
-            }
-        }
-        public void openKymograph(String objectClassName) {
-            int structureIdx = generator.getExperiment().getStructureIdx(objectClassName);
-            if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", objectClassName, structureIdx);
-            List<SegmentedObject> rootTrack=null;
-            try {
-                rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-            } catch (Exception e) { }
-            if (rootTrack!=null) {
-                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
-                if (i != null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx), i, structureIdx, true);
-                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                GUI.getInstance().setTrackStructureIdx(structureIdx);
-            }
-        }
+
     }
 }

@@ -182,6 +182,9 @@ public class ExperimentStructure {
     public boolean singleFrame(String positionName, int objectClassIdx) {
         return xp.getPosition(positionName).singleFrame(objectClassIdx);
     }
+    public int sizeZ(String positionName, int channelIdx) {
+        return xp.getPosition(positionName).getSizeZ(channelIdx);
+    }
     public int getChannelIdx(int objectClassIdx) {
         if (objectClassIdx<0) return -1;
         if (xp.getStructureCount()<=objectClassIdx) return -1;
@@ -192,6 +195,13 @@ public class ExperimentStructure {
             if (s.getChannelImage() == channelIdx) return s.getIndex();
         }
         return -1;
+    }
+    public int getObjectClassNumber() {
+        return xp.getStructureCount();
+    }
+
+    public int getChannelNumber() {
+        return xp.getChannelImageCount(true);
     }
     public String[] getChannelNames() {
         return xp.getChannelImagesAsString(true);

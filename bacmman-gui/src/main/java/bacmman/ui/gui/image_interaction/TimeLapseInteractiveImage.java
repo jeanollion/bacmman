@@ -20,23 +20,22 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
-import bacmman.ui.GUI;
 import bacmman.core.DefaultWorker;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
-import bacmman.utils.Pair;
+import bacmman.utils.ArrayUtil;
+import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.function.Consumer;
-import java.util.function.IntUnaryOperator;
-import java.util.function.Predicate;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -45,120 +44,88 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public abstract class TimeLapseInteractiveImage extends InteractiveImage {
-    public static final Logger logger = LoggerFactory.getLogger(TimeLapseInteractiveImage.class);
+    private static final Logger logger = LoggerFactory.getLogger(TimeLapseInteractiveImage.class);
     public static boolean isKymograph(InteractiveImage i) {
-        return (i instanceof KymographX || i instanceof KymographY);
-    }
-    public static TimeLapseInteractiveImage generateInteractiveImageTime(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
-        if (hyperStack) return new HyperStack(TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true), childStructureIdx, true);
-        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, FRAME_NUMBER);
-        switch (data.direction) {
-            case X:
-            default:
-                return new KymographX(data, childStructureIdx);
-            case Y:
-                return new KymographY(data, childStructureIdx);
-        }
+        return (i instanceof Kymograph);
     }
 
-    protected List<SegmentedObject> parents;
-    protected BoundingBox[] trackOffset;
-    protected SimpleInteractiveImage[] trackObjects;
+    protected Map<Integer, BoundingBox[]> trackOffset = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeTrackOffset);
+    protected Map<Integer, SimpleInteractiveImage[]> trackObjects = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeTrackObjects);
     protected final TimeLapseInteractiveImageFactory.Data data;
-    private static final int updateImageFrequency=50;
-    public static int INTERVAL_PIX=0;
+    public final Map<Integer, Integer> frameMapParentIdx, parentIdxMapFrame;
     public static int FRAME_NUMBER=0;
-    Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
-    DefaultWorker loadObjectsWorker;
-    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx) {
-        super(data.parentTrack.get(0), childStructureIdx);
+    public static int FRAME_OVERLAP=0;
+    List<DefaultWorker> worker = new ArrayList<>();
+
+    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data) {
+        super(data.parentTrack.get(0));
         this.data = data;
-        updateData(0);
+        frameMapParentIdx = data.parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, data.parentTrack::indexOf));
+        parentIdxMapFrame = data.parentTrack.stream().collect(Collectors.toMap(data.parentTrack::indexOf, SegmentedObject::getFrame));
+    }
+    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier) {
+        super(data.parentTrack.get(0), channelNumber, imageSupplier);
+        this.data = data;
+        frameMapParentIdx = data.parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, data.parentTrack::indexOf));
+        parentIdxMapFrame = data.parentTrack.stream().collect(Collectors.toMap(data.parentTrack::indexOf, SegmentedObject::getFrame));
     }
 
-    protected void updateData(int fromFrame) {
-        if (data.frameNumber >= data.parentTrack.size()) {
-            this.parents = data.parentTrack;
-            this.trackOffset = data.trackOffset;
-        } else {
-            this.parents = data.parentTrack.subList(fromFrame, fromFrame+data.frameNumber);
-            trackOffset = new BoundingBox[data.frameNumber];
-            System.arraycopy(data.trackOffset, fromFrame, trackOffset, 0, data.frameNumber);
-        }
-        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).toArray(SimpleInteractiveImage[]::new);
+    protected abstract BoundingBox[] makeTrackOffset(int sliceIdx);
+    protected abstract SimpleInteractiveImage[] makeTrackObjects(int sliceIdx);
+
+    @Override
+    protected void stopAllRunningWorkers() {
+        worker.stream().filter(w -> !w.isCancelled() && !w.isDone()).forEach(DefaultWorker::cancelSilently);
+        worker.clear();
     }
 
-    public Offset getOffsetForFrame(int frame) {
-        int i = getIdx(frame);
+    public Offset getOffsetForFrame(int frame, int slice) {
+        int i = getOffsetIdx(frame, slice);
         if (i<0) return null;
-        else return new SimpleOffset(trackOffset[i]);
+        else return new SimpleOffset(trackOffset.get(slice)[i]);
     }
     
     @Override public List<SegmentedObject> getParents() {
-        return this.parents;
-    }
-    
-    @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(data.parentTrack, InteractiveImageKey.TYPE.KYMOGRAPH, childStructureIdx, name);
-    }
-    
-    @Override
-    public void reloadObjects() {
-        for (SimpleInteractiveImage m : trackObjects) m.reloadObjects();
+        return this.data.parentTrack;
     }
 
     @Override
-    public void resetObjects() {
-        for (SimpleInteractiveImage m : trackObjects) m.resetObjects();
-    }
-
-    public abstract int getClosestFrame(int x, int y);
-    
-    @Override
-    public BoundingBox getObjectOffset(SegmentedObject object) {
-        if (object==null) return null;
-        int idx = getIdx(object.getFrame());
-        if (idx<0) return null;
-        return trackObjects[idx].getObjectOffset(object);
-    }
-
-    protected int getIdx(int frame) {
-        int idx = frame-parents.get(0).getFrame();
-        if (idx<trackObjects.length && idx>0 && parents.get(idx).getFrame()==frame) return idx;
-        else { // case of uncontinuous tracks -> search whole track
-            for (int i = 0; i<parents.size(); ++i) {
-                if (parents.get(i).getFrame() == frame) return i;
-            }
-            return -1;
-        }
-    }
-    
-    public void trimTrack(List<Pair<SegmentedObject, BoundingBox>> track) {
-        int tpMin = parents.get(0).getFrame();
-        int tpMax = parents.get(parents.size()-1).getFrame();
-        track.removeIf(o -> o.key.getFrame()<tpMin || o.key.getFrame()>tpMax);
-    }
-    public abstract Image generateEmptyImage(String name, Image type);
-    @Override public <T extends InteractiveImage> T setDisplayPreFilteredImages(boolean displayPreFilteredImages) {
-        super.setDisplayPreFilteredImages(displayPreFilteredImages);
-        for (SimpleInteractiveImage m : trackObjects) m.setDisplayPreFilteredImages(displayPreFilteredImages);
-        return (T)this;
-    }
-    
-    public boolean containsTrack(SegmentedObject trackHead) {
-        if (childStructureIdx==parentStructureIdx) return trackHead.getStructureIdx()==this.childStructureIdx && trackHead.getTrackHeadId().equals(this.parents.get(0).getId());
-        else return trackHead.getStructureIdx()==this.childStructureIdx && trackHead.getParentTrackHeadId().equals(this.parents.get(0).getId());
+    public void reloadObjects(int... objectClassIdx) {
+        stopAllRunningWorkers();
+        trackObjects.values().forEach(to -> {
+            for (SimpleInteractiveImage m : to) m.reloadObjects(objectClassIdx);
+        });
     }
 
     @Override
-    public List<Pair<SegmentedObject, BoundingBox>> getObjects() {
-        ArrayList<Pair<SegmentedObject, BoundingBox>> res = new ArrayList<>();
-        for (SimpleInteractiveImage m : trackObjects) res.addAll(m.getObjects());
-        return res;
+    public void resetObjects(int... objectClassIdx) {
+        stopAllRunningWorkers();
+        trackObjects.values().forEach(to -> {
+            for (SimpleInteractiveImage m : to) m.resetObjects(objectClassIdx);
+        });
+
     }
-    @Override
-    public Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
-        return Arrays.stream(trackObjects).flatMap(SimpleInteractiveImage::getAllObjects);
+
+    protected int getOffsetIdx(int frame, int slice) {
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        int idx = frame-trackObjects[0].parent.getFrame();
+        if (idx<trackObjects.length && idx>0 && trackObjects[idx].parent.getFrame()==frame) return idx;
+        else return ArrayUtil.binarySearchKey(trackObjects, frame, ii->ii.parent.getFrame()); // case of discontinuous tracks -> search whole track
+    }
+    
+    public void trimTrack(List<ObjectDisplay> track) {
+        int tpMin = data.parentTrack.get(0).getFrame();
+        int tpMax = data.parentTrack.get(data.parentTrack.size()-1).getFrame();
+        track.removeIf(o -> o.object.getFrame()<tpMin || o.object.getFrame()>tpMax);
+    }
+
+    public static Class<? extends InteractiveImage> getBestDisplayType(BoundingBox parentBounds) {
+        double imRatioThld = 3;
+        double maxSize = 128;
+        double sX = parentBounds.sizeX();
+        double sY = parentBounds.sizeY();
+        boolean hyperstack = (sX > maxSize && sY > maxSize) || (sX > sY && sX / sY < imRatioThld) || (sX <= sY && sY / sX < imRatioThld);
+        return hyperstack ? HyperStack.class : Kymograph.class;
     }
 
     protected static SegmentedObjectAccessor getAccessor() {

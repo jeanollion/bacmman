@@ -186,7 +186,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     }
     public static <T extends Image<T>> T mergeZPlanes(List<T> planes) {
         if (planes==null || planes.isEmpty()) return null;
-        int maxZ  = planes.stream().mapToInt(SimpleBoundingBox::sizeZ).max().getAsInt();
+        int maxZ  = planes.stream().mapToInt(SimpleImageProperties::sizeZ).max().getAsInt();
         if (maxZ>1) planes = planes.stream().map(Image::splitZPlanes).flatMap(List::stream).collect(Collectors.toList());
         String title = "merged planes";
         Image<T> plane0 = planes.get(0);
@@ -246,6 +246,10 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     public boolean sameDimensions(BoundingBox other) {
         return sizeX==other.sizeX() && sizeY==other.sizeY() && sizeZ==other.sizeZ();
     }
+
+    public boolean sameDimensions2D(BoundingBox other) {
+        return sizeX==other.sizeX() && sizeY==other.sizeY();
+    }
     
     //public abstract float getPixel(float x, float y, float z); // interpolation
     public abstract double getPixel(int x, int y, int z);
@@ -291,7 +295,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         int maxZ = maskHasAbsoluteOffset ? Math.min(zMin+sizeZ, mask.zMin()+mask.sizeZ()) : Math.min(sizeZ, mask.sizeZ()+mask.zMin());
         if (mask instanceof ImageMask2D) {
             minZ = maskHasAbsoluteOffset ? zMin : 0;
-            maxZ = maskHasAbsoluteOffset ? zMax : zMax - zMin;
+            maxZ = maskHasAbsoluteOffset ? zMax() : zMax() - zMin;
         }
         if (minZ>=maxZ) return DoubleStream.empty();
         if (minZ==maxZ-1) return streamPlane(minZ-(maskHasAbsoluteOffset?zMin:0), mask, maskHasAbsoluteOffset);

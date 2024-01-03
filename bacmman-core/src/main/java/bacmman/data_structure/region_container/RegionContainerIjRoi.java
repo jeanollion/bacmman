@@ -65,7 +65,7 @@ public class RegionContainerIjRoi extends RegionContainer {
 
     private void encodeRoi() {
         if (roi==null) createRoi(segmentedObject.getRegion());
-        roiZ = new ArrayList<>(roi.size());
+        roiZ = new ArrayList<>(roi.sizeZ());
         roi.entrySet().stream().filter(e->e.getKey()>=0).sorted(Comparator.comparingInt(Map.Entry::getKey))
                 .forEach(e->roiZ.add(RoiEncoder.saveAsByteArray(e.getValue())));
     }

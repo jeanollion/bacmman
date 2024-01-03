@@ -129,7 +129,7 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
      * @param dZ translation in the X-Axis in pixels
      * @return the same instance of bounding box, after the translation operation
      */
-    public T translate(int dX, int dY, int dZ) {
+    @Override public T translate(int dX, int dY, int dZ) {
         xMin+=dX; xMax+=dX; yMin+=dY; yMax+=dY; zMin+=dZ; zMax+=dZ;
         return (T)this;
     }

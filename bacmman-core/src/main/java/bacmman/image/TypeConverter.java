@@ -21,7 +21,9 @@ package bacmman.image;
 import bacmman.processing.ImageOperations;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.DoubleToIntFunction;
+import java.util.stream.Stream;
 
 
 /**
@@ -320,6 +322,13 @@ public class TypeConverter {
             if (source instanceof ImageFloatU8Scale) return (T)source;
             return (T)toFloatU8(source, (ImageFloatU8Scale)output);
         } else throw new IllegalArgumentException("Unsupported Image Type: {}"+ output.getClass().getSimpleName());
+    }
+
+    public static Image getDisplayType(Stream<Image> images) {
+        int byteCount = images.mapToInt(Image::byteCount).max().getAsInt();
+        if (byteCount == 1) return new ImageByte("", 0, 0, 0);
+        else if (byteCount == 2) return new ImageShort("", 0, 0, 0);
+        else return new ImageFloat("", 0, 0, 0);
     }
 
     public static void homogenizeBitDepth(Image[][] images) {

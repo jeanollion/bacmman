@@ -93,17 +93,17 @@ public class TileUtils {
             return res;
         };
         Map<Image, BoundingBox> tileView = Arrays.stream(tiles).collect(Collectors.toMap(Function.identity(),  tile -> tile.getBoundingBox().extend(getExtend.apply(tile)).trim(target)));
-        Map<Integer, List<Image>> tilesPerX = Arrays.stream(tiles).collect(Collectors.groupingBy(SimpleBoundingBox::xMin));
+        Map<Integer, List<Image>> tilesPerX = Arrays.stream(tiles).collect(Collectors.groupingBy(Image::xMin));
         int[] x = tilesPerX.keySet().stream().sorted().mapToInt(i->i).toArray();
         Image[][][] tilesXYZ = new Image[x.length][][];
         for (int xi = 0; xi<x.length; ++xi) {
             List<Image> imagesX = tilesPerX.get(x[xi]);
-            Map<Integer, List<Image>> tilesPerY = imagesX.stream().collect(Collectors.groupingBy(SimpleBoundingBox::yMin));
+            Map<Integer, List<Image>> tilesPerY = imagesX.stream().collect(Collectors.groupingBy(Image::yMin));
             int[] y = tilesPerY.keySet().stream().sorted().mapToInt(i->i).toArray();
             tilesXYZ[xi] = new Image[y.length][];
             for (int yi = 0; yi<y.length; ++yi) {
                 List<Image> imagesY = tilesPerY.get(y[yi]);
-                tilesXYZ[xi][yi] = imagesY.stream().sorted(Comparator.comparingInt(SimpleBoundingBox::zMin)).toArray(Image[]::new);
+                tilesXYZ[xi][yi] = imagesY.stream().sorted(Comparator.comparingInt(Image::zMin)).toArray(Image[]::new);
             }
         }
         List<Overlap> overlaps = new ArrayList<>();
@@ -174,7 +174,7 @@ public class TileUtils {
             if (this.tiles.length==1) { // simple paste
                 Image.pasteImageView(tiles[0], target, area.duplicate().translate(target.getOffset().reverseOffset()), area.duplicate().translate(tiles[0].getBoundingBox().reverseOffset()) );
             } else { // average
-                Point[] centers = Arrays.stream(tiles).map(SimpleBoundingBox::getCenter).toArray(Point[]::new);
+                Point[] centers = Arrays.stream(tiles).map(Image::getCenter).toArray(Point[]::new);
                 //double scale = area.sizeX() * area.sizeY() * area.sizeZ();
                 BoundingBox.loop(area, (x ,y, z)-> {
                     double res = 0;

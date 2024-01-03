@@ -8,6 +8,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.UUID;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
+import bacmman.image.SimpleOffset;
 import bacmman.ui.gui.image_interaction.*;
 import ij.ImageJ;
 
@@ -52,9 +53,9 @@ public class TestGaussianFitDisplay {
         SegmentedObject parent = accessor.createRoot(0, new BlankMask(im), dao.getDao("pos1"));
         List<SegmentedObject> children = result.stream().map(r -> new SegmentedObject(0, 0, r.getLabel()-1, r, parent)).collect(Collectors.toList());
         accessor.setChildren(parent, children, 0);
-        InteractiveImage i = new SimpleInteractiveImage(parent, 0);
+        InteractiveImage i = new SimpleInteractiveImage(parent, new SimpleOffset(0, 0, 0), im.sizeZ(), 0);
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        iwm.addImage(im, i, 0, true);
+        iwm.addImage(im, i, true);
     }
 
     private static SegmentedObjectAccessor getAccessor() {

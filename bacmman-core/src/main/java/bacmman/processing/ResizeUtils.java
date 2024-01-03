@@ -79,7 +79,7 @@ public class ResizeUtils {
     }
 
     public static int getSizeZ(Image[][] imageNC, int c) {
-        int[] sizeZ = Arrays.stream(imageNC).map(imageC -> imageC[c]).mapToInt(SimpleBoundingBox::sizeZ).distinct().toArray();
+        int[] sizeZ = Arrays.stream(imageNC).map(imageC -> imageC[c]).mapToInt(Image::sizeZ).distinct().toArray();
         assert sizeZ.length==1 : "different sizeZ within channel: "+c;
         return sizeZ[0];
     }

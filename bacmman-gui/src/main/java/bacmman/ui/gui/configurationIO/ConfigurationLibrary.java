@@ -426,7 +426,7 @@ public class ConfigurationLibrary {
             }
         });
         setThumbnailButton.addActionListener(e -> {
-            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentDisplayedImage();
             if (image != null) { // if null -> remove thumbnail ?
                 if (image instanceof ImagePlus) {
                     ImagePlus ip = (ImagePlus) image;
@@ -445,7 +445,7 @@ public class ConfigurationLibrary {
                     Action append = new AbstractAction("Append Thumbnail") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+                            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentDisplayedImage();
                             if (image != null) { // if null -> remove thumbnail ?
                                 if (image instanceof ImagePlus) {
                                     ImagePlus ip = (ImagePlus) image;

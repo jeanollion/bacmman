@@ -22,6 +22,7 @@ import bacmman.data_structure.DiskBackedImageManagerProvider;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
+import bacmman.image.LazyImage5DStack;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.OverlayDisplayer;
@@ -57,7 +58,7 @@ public class Core {
     private static ProgressLogger progressLogger;
     private static Consumer<Image> imageDisplayer;
     private static OverlayDisplayer overlayDisplayer;
-    private static BiConsumer<String, Image[][]> image5D_Displayer;
+    private static Consumer<Image> image5D_Displayer;
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
     private static GithubGateway githubGateway;
@@ -145,11 +146,14 @@ public class Core {
         if (imageDisplayer!=null) imageDisplayer.accept(image);
     }
     public static OverlayDisplayer getOverlayDisplayer() {return overlayDisplayer;}
-    public static void setImage5dDisplayer(BiConsumer<String, Image[][]> image5D_Disp) {
+    public static void setImage5dDisplayer(Consumer<Image> image5D_Disp) {
         image5D_Displayer=image5D_Disp;
     }
     public static void showImage5D(String title, Image[][] imageTC) {
-        if (image5D_Displayer!=null) image5D_Displayer.accept(title, imageTC);
+        if (image5D_Displayer!=null) image5D_Displayer.accept(new LazyImage5DStack(title, imageTC));
+    }
+    public static void showImage5D(Image image) {
+        if (image5D_Displayer!=null) image5D_Displayer.accept(image);
     }
     public static void showImage5D(String title, Image[] imageT, boolean axisIsTime) {
         Image[][] imageTC;
@@ -160,7 +164,7 @@ public class Core {
             imageTC = new Image[1][imageT.length];
             for (int i = 0; i < imageT.length; ++i) imageTC[0][i] = imageT[i];
         }
-        if (image5D_Displayer!=null) image5D_Displayer.accept(title, imageTC);
+        if (image5D_Displayer!=null) image5D_Displayer.accept(new LazyImage5DStack(title, imageTC));
     }
     public static void setFreeDisplayerMemory(Runnable freeDisplayerMem) {
         freeDisplayerMemory=freeDisplayerMem;

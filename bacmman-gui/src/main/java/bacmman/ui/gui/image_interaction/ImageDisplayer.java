@@ -29,7 +29,6 @@ import bacmman.image.ImageMask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  *
@@ -37,30 +36,29 @@ import java.util.function.Predicate;
  * @param <T>
  */
 public interface ImageDisplayer<T> {
-    public static double zoomMagnitude=1;
+    static double zoomMagnitude=1;
+    void updateTitle(Image image);
     void putImage(Image image, T displayedImage);
     void removeImage(Image image, T displayedImage);
-    public boolean isDisplayed(T image);
-    public T showImage(Image image, double... displayRange);
-    public void close(Image image);
-    public void close(T image);
-    public T getImage(Image image);
-    public Image getImage(T image);
-    public void updateImageDisplay(Image image, double... displayRange);
-    public void updateImageRoiDisplay(Image image);
-    public T showImage5D(String title, Image[][] imageTC);
-    public BoundingBox getDisplayRange(Image image);
-    public void setDisplayRange(BoundingBox bounds, Image image);
-    public T getCurrentImage();
-    public Image getCurrentImage2();
-    public Image[][] getCurrentImageCT();
-    public void flush();
-    public void addMouseWheelListener(Image image, Predicate<BoundingBox> movementCallBack);
+    boolean isDisplayed(T image);
+    T displayImage(Image image, double... displayRange);
+    void close(Image image);
+    void close(T image);
+    T getImage(Image image);
+    Image getImage(T image);
+    void updateImageDisplay(Image image, double... displayRange);
+    void updateImageRoiDisplay(Image image);
+    BoundingBox getDisplayRange(Image image);
+
+    void setDisplayRange(BoundingBox bounds, Image image);
+    T getCurrentDisplayedImage();
+    Image getCurrentImage();
+    void flush();
     int getFrame(Image image);
     void setFrame(int frame, Image image);
-    //public int[] getFCZCount(T image);
-    //public boolean isVisible(Image image);
-    //public Image[][] reslice(Image image, int[] FCZCount);
+
+    int getChannel(Image image);
+    void setChannel(int channel, Image image);
     
     static Image[][] reslice(Image image, int[] FCZCount, Function<int[], Integer> getStackIndex) {
         if (image.sizeZ()!=FCZCount[0]*FCZCount[1]*FCZCount[2]) {

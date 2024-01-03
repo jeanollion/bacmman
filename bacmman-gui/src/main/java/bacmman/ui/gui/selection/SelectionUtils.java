@@ -24,10 +24,9 @@ import bacmman.configuration.parameters.MeasurementFilterParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.ObjectDAO;
+import bacmman.image.Image;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 import bacmman.ui.GUI;
-
-import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
@@ -35,7 +34,6 @@ import bacmman.ui.gui.image_interaction.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.image.BoundingBox;
-import bacmman.image.Image;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
@@ -43,6 +41,7 @@ import java.awt.event.MouseEvent;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.*;
@@ -83,7 +82,7 @@ public class SelectionUtils {
         return Utils.transform(sel, Selection::getName).contains(name);
     }
     
-    public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, List<Selection> selections) {
+    public static Collection<SegmentedObject> getSegmentedObjects(InteractiveImage i, int slice, List<Selection> selections) {
         if (i==null) ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface();
         if (i==null) return Collections.EMPTY_LIST;
         String fieldName = i.getParent().getPositionName();
@@ -91,77 +90,85 @@ public class SelectionUtils {
         selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
         List<String> allStrings=  new ArrayList<>();
         for (Selection s : selections) allStrings.addAll(s.getElementStrings(fieldName));
-        return Pair.unpairKeys(getSegmentedObjects(i, allStrings));
+        return getSegmentedObjects(i, selections.get(0).getStructureIdx(), slice, allStrings);
     }
 
-    public static Collection<Pair<SegmentedObject, BoundingBox>> getSegmentedObjects(InteractiveImage i, Collection<String> indices) {
+    public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, int objectClassIdx, int slice, Collection<String> indices) {
         if (i instanceof HyperStack) {
             // need to get objects from all frames of selection
             HyperStack h = (HyperStack)i;
             Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
-            Stream<Pair<SegmentedObject, BoundingBox>> objects = frames.flatMap(frame -> h.getObjects(frame).stream());
-            return SelectionOperations.filterPairs(objects, indices);
-        } else return SelectionOperations.filterPairs(i.getObjects().stream(), indices);
+            Stream<SegmentedObject> objects = frames.flatMap(frame -> h.getObjects(frame, slice));
+            return new ArrayList<>(SelectionOperations.filter(objects, indices));
+        } else return new ArrayList<>(SelectionOperations.filter(i.getObjects(objectClassIdx, slice), indices));
     }
 
-    public static InteractiveImage fixIOI(InteractiveImage i, int structureIdx) {
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        if (i!=null && i.getChildStructureIdx()!=structureIdx) {
-            Image im = iwm.getImage(i);
-            i = iwm.getImageObjectInterface(im, structureIdx);
-        }
-        if (i==null) i = iwm.getImageObjectInterface(null, structureIdx);
-        return i;
+    protected static Collection<ObjectDisplay> getObjects(Selection s, InteractiveImage i, int slice) {
+        return SelectionOperations.filterPairs(i.getObjectDisplay(s.getStructureIdx(), slice), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
     }
-    public static void displayObjects(Selection s, InteractiveImage i) {
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        i = fixIOI(i, s.getStructureIdx());
+
+    public static void displayObjects(Selection s, Image image, InteractiveImage i, int slice) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
         if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects().stream(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
-            //Set<StructureObject> objects = s.getElements(StructureObjectUtils.getPositions(i.getParents()));
-            //logger.debug("disp objects: #positions: {}, #objects: {}", StructureObjectUtils.getPositions(i.getParents()).size(), objects.size() );
-            if (objects!=null) {
-                //iwm.displayObjects(null, i.pairWithOffset(objects), s.getColor(true), false, false);
-                iwm.displayObjects(null, objects, s.getColor(true), false, false);
-            }
-        }
+            Collection<ObjectDisplay> objects = slice>=0 ? getObjects(s, i, slice) : null;
+            Consumer<Image> consumer= im -> {
+                Collection<ObjectDisplay> objects_ = slice >= 0 ? objects : getObjects(s, i, iwm.getDisplayer().getFrame(im));
+                if (objects_ != null) iwm.displayObjects(im, objects_, s.getColor(true), false, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().forEach( ii -> displayObjects(s, image, ii, slice));
     }
     
-    public static void hideObjects(Selection s, InteractiveImage i) {
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        i = fixIOI(i, s.getStructureIdx());
+    public static void hideObjects(Selection s, Image image, InteractiveImage i, int slice) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
         if (i!=null) {
-            //Set<StructureObject> objects = s.getElements(StructureObjectUtils.getPositions(i.getParents()));
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects().stream(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
-            if (objects!=null) {
-                iwm.hideObjects(null, objects, false);
-                //iwm.hideObjects(null, i.pairWithOffset(objects), false);
-            }
-        }
+            Collection<ObjectDisplay> objects = slice>=0 ? getObjects(s, i, slice) : null;
+            Consumer<Image> consumer=im -> {
+                Collection<ObjectDisplay> objects_ = slice >=0 ? objects : getObjects(s, i, iwm.getDisplayer().getFrame(im));
+                if (objects_!=null) iwm.hideObjects(im, objects_, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().forEach( ii -> hideObjects(s, image, ii, slice));
     }
-    public static void displayTracks(Selection s, InteractiveImage i) {
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        InteractiveImage ii = fixIOI(i, s.getStructureIdx());
-        if (ii!=null) {
-            Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(ii.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
-            ii.getObjects().stream().map(o -> o.key).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains).forEach( trackHead -> {
-                List<SegmentedObject> track = SegmentedObjectUtils.getTrack(trackHead);
-                iwm.displayTrack(null, ii, ii.pairWithOffset(track), s.getColor(true), false);
-            });
-        }
+
+    protected static Stream<List<SegmentedObject>> getTracks(Selection s, InteractiveImage i, int slice) {
+        return getTrackHeads(s, i, slice).map(SegmentedObjectUtils::getTrack);
     }
-    public static void hideTracks(Selection s, InteractiveImage i) {
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        InteractiveImage ii = fixIOI(i, s.getStructureIdx());
-        if (ii!=null) {
-            Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(ii.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
-            List<SegmentedObject> tracks = ii.getObjects().stream().map(o -> o.key).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains).collect(Collectors.toList());
-            if (tracks.isEmpty()) return;
-            iwm.hideTracks(null, i, tracks, false);
-        }
+
+    protected static Stream<SegmentedObject> getTrackHeads(Selection s, InteractiveImage i, int slice) {
+        Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(i.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+        return i.getObjects(s.getStructureIdx(), slice).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains);
+    }
+
+    public static void displayTracks(Selection s, Image image, InteractiveImage i, int slice) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            List<List<SegmentedObject>> tracks = slice>=0 ? getTracks(s, i, slice).collect(Collectors.toList()) : null;
+            Consumer<Image> consumer=im -> {
+                List<List<SegmentedObject>> tracks_ = slice >=0 ? tracks : getTracks(s, i, iwm.getDisplayer().getFrame(im)).collect(Collectors.toList());
+                iwm.displayTracks(im, i, tracks_, s.getColor(true), false, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().forEach( ii -> displayTracks(s, image, ii, slice));
+    }
+
+    public static void hideTracks(Selection s, Image image, InteractiveImage i, int slice) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            List<SegmentedObject> tracks = slice>=0 ? getTrackHeads(s, i, slice).collect(Collectors.toList()) : null;
+            Consumer<Image> consumer=im -> {
+                List<SegmentedObject> tracks_ = slice >=0 ? tracks : getTrackHeads(s, i, iwm.getDisplayer().getFrame(im)).collect(Collectors.toList());
+                if (tracks_!=null) iwm.hideTracks(null, i, tracks_, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().forEach( ii -> hideTracks(s, image, ii, slice));
     }
     
-    public static void displaySelection(Selection s, int parentStructureIdx, int displayStructureIdx) {
+    public static void displaySelection(Selection s, int parentStructureIdx, int displayChannelIdx) {
         // get all parent & create pseudo-track
         HashSet<SegmentedObject> parents = new HashSet<>();
         if (parentStructureIdx>=-1) for (SegmentedObject o : s.getAllElements()) parents.add(o.getParent(parentStructureIdx));
@@ -169,27 +176,27 @@ public class SelectionUtils {
         List<SegmentedObject> parentList = new ArrayList<>(parents);
         if (parentList.isEmpty()) return;
         Collections.sort(parentList);
-        InteractiveImageKey.TYPE t = ImageWindowManager.getDefaultInteractiveType();
-        if (t==null) t = inferType(parentList.get(0).getBounds());
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), t);
-        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(displayStructureIdx), i ,displayStructureIdx, true);
+        Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
+        if (iiType==null) iiType = TimeLapseInteractiveImage.getBestDisplayType(parentList.get(0).getBounds());
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, iiType, true);
+        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, displayChannelIdx), i, true);
     }
         
     public static void setMouseAdapter(final JList list) {
         list.addMouseListener( new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    int row = list.locationToIndex(e.getPoint());
-                    if (!list.isSelectedIndex(row)) list.setSelectedIndex(row);
-                    //logger.debug("right button on row: {}, ctrl {} ctrl", row, ctrl);
-                    if (list.isSelectedIndex(row)) {
-                        JPopupMenu[] menu = new JPopupMenu[1];
-                        Runnable showMenu = () -> menu[0].show(list, e.getX(), e.getY());
-                        menu[0] = generateMenu(list, showMenu);
-                        showMenu.run();
-                    }
+            if (SwingUtilities.isRightMouseButton(e)) {
+                int row = list.locationToIndex(e.getPoint());
+                if (!list.isSelectedIndex(row)) list.setSelectedIndex(row);
+                //logger.debug("right button on row: {}, ctrl {} ctrl", row, ctrl);
+                if (list.isSelectedIndex(row)) {
+                    JPopupMenu[] menu = new JPopupMenu[1];
+                    Runnable showMenu = () -> menu[0].show(list, e.getX(), e.getY());
+                    menu[0] = generateMenu(list, showMenu);
+                    showMenu.run();
                 }
-                GUI.setNavigationButtonNames(list.getSelectedIndex()>=0);
+            }
+            GUI.setNavigationButtonNames(list.getSelectedIndex()>=0);
             }
         });
     }
@@ -216,7 +223,8 @@ public class SelectionUtils {
         if (selectedValues.size()==1) {
             final JCheckBoxMenuItem showImage = new JCheckBoxMenuItem("Display Selection as an Image");
             showImage.addActionListener((ActionEvent e) -> {
-                SelectionUtils.displaySelection(selectedValues.get(0), -2, ImageWindowManagerFactory.getImageManager().getInteractiveStructure());
+                int channel = db.getExperiment().experimentStructure.getChannelIdx(ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass());
+                SelectionUtils.displaySelection(selectedValues.get(0), -2, channel);
             });
             menu.add(showImage);
         }
@@ -228,7 +236,7 @@ public class SelectionUtils {
                 s.setIsDisplayingObjects(displayObjects.isSelected());
                 //dao.store(s); // optimize if necessary -> update
             }
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().updateSelectionListUI();
         });
         menu.add(displayObjects);
@@ -241,7 +249,7 @@ public class SelectionUtils {
                 s.setIsDisplayingTracks(displayTracks.isSelected());
                 //dao.store(s); // optimize if necessary -> update
             }
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().updateSelectionListUI();
         });
         menu.add(displayTracks);
@@ -297,12 +305,12 @@ public class SelectionUtils {
                     s1.setColor(colorName);
                     dao.store(s1); // optimize if necessary -> update
                     if (s1.isDisplayingObjects()) {
-                        hideObjects(s1, null);
-                        displayObjects(s1, null);
+                        hideObjects(s1, null, null, -1);
+                        displayObjects(s1, null, null, -1);
                     }
                     if (s1.isDisplayingTracks()) {
-                        hideTracks(s1, null);
-                        displayTracks(s1, null);
+                        hideTracks(s1, null, null, -1);
+                        displayTracks(s1, null, null, -1);
                     }
                 }
                 list.updateUI();
@@ -322,7 +330,7 @@ public class SelectionUtils {
                     s.getMasterDAO().getSelectionDAO().store(s);
                 }
                 GUI.getInstance().populateSelections();
-                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.updateRoiDisplayForSelections();
                 GUI.getInstance().resetSelectionHighlight();
                 list.updateUI();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -353,7 +361,7 @@ public class SelectionUtils {
                     });
                     // update display
                     ImageWindowManagerFactory.getImageManager().resetObjects(null, ocIdx);
-                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.updateRoiDisplayForSelections();
                     GUI.updateTrackTree();
                 }
                 if (readOnly) Utils.displayTemporaryMessage("Changes will not be stored as database could not be locked", 5000);
@@ -367,7 +375,7 @@ public class SelectionUtils {
             if (selectedValues.isEmpty()) return;
             addCurrentObjectsToSelections(selectedValues, dao);
             list.updateUI();
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
@@ -381,7 +389,7 @@ public class SelectionUtils {
                 dao.store(s);
             }
             list.updateUI();
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
@@ -390,7 +398,7 @@ public class SelectionUtils {
         remove.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
             removeCurrentObjectsFromSelections(selectedValues, dao);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             list.updateUI();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -401,7 +409,7 @@ public class SelectionUtils {
         removeFromParent.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
             removeAllCurrentImageObjectsFromSelections(selectedValues, dao, false, false);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             list.updateUI();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -412,7 +420,7 @@ public class SelectionUtils {
         removeAfter.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
             removeAllCurrentImageObjectsFromSelections(selectedValues, dao, true, true);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             list.updateUI();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -422,7 +430,7 @@ public class SelectionUtils {
         removeBefore.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
             removeAllCurrentImageObjectsFromSelections(selectedValues, dao, true, false);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             list.updateUI();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -456,7 +464,7 @@ public class SelectionUtils {
                 unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
                 GUI.getInstance().populateSelections();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.updateRoiDisplayForSelections();
                 GUI.getInstance().resetSelectionHighlight();
             }
         });
@@ -471,7 +479,7 @@ public class SelectionUtils {
                 interSel.getMasterDAO().getSelectionDAO().store(interSel);
                 GUI.getInstance().populateSelections();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.updateRoiDisplayForSelections();
                 GUI.getInstance().resetSelectionHighlight();
             }
         });
@@ -488,7 +496,7 @@ public class SelectionUtils {
             diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
                 SelectionOperations.removeAll(s, sel);
                 s.getMasterDAO().getSelectionDAO().store(s);
-                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.updateRoiDisplayForSelections();
                 GUI.getInstance().populateSelections();
                 GUI.getInstance().resetSelectionHighlight();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -511,7 +519,7 @@ public class SelectionUtils {
             trim.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
                 SelectionOperations.trimBy(s, sel);
                 s.getMasterDAO().getSelectionDAO().store(s);
-                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.updateRoiDisplayForSelections();
                 GUI.getInstance().populateSelections();
                 GUI.getInstance().resetSelectionHighlight();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -538,7 +546,7 @@ public class SelectionUtils {
                         s.getMasterDAO().getSelectionDAO().store(s);
                     }
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.updateRoiDisplayForSelections();
                     GUI.getInstance().populateSelections();
                     GUI.getInstance().resetSelectionHighlight();
                 });
@@ -564,7 +572,7 @@ public class SelectionUtils {
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
@@ -578,7 +586,7 @@ public class SelectionUtils {
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
@@ -592,7 +600,7 @@ public class SelectionUtils {
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
@@ -606,7 +614,7 @@ public class SelectionUtils {
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
@@ -620,7 +628,7 @@ public class SelectionUtils {
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
@@ -642,7 +650,7 @@ public class SelectionUtils {
                     s.getMasterDAO().getSelectionDAO().store(s);
                 }
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.updateRoiDisplayForSelections();
                 GUI.getInstance().populateSelections();
                 GUI.getInstance().resetSelectionHighlight();
             });
@@ -674,7 +682,7 @@ public class SelectionUtils {
                     s.addElements(res);
                     sDAO.store(s);
                     GUI.getInstance().populateSelections();
-                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.updateRoiDisplayForSelections();
                     GUI.getInstance().resetSelectionHighlight();
                     list.updateUI();
                     if (readOnly)
@@ -691,7 +699,7 @@ public class SelectionUtils {
             for (Selection s : selectedValues ) dao.delete(s);
             for (Selection s : selectedValues) model.removeElement(s);
             list.updateUI();
-            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.updateRoiDisplayForSelections();
             GUI.getInstance().resetSelectionHighlight();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
@@ -730,7 +738,7 @@ public class SelectionUtils {
 
         List<SegmentedObject> parents = ioi.getParents();
         if (limitFrame) {
-            List<SegmentedObject> sel = iwm.getSelectedLabileObjectsOrTracks(iwm.getDisplayer().getCurrentImage2());
+            List<SegmentedObject> sel = iwm.getSelectedLabileObjectsOrTracks(iwm.getDisplayer().getCurrentImage());
             if (sel.isEmpty()) return;
             if (afterSelected) {
                 int frame = sel.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();

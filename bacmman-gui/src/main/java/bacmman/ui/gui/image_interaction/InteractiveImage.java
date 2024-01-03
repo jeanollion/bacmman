@@ -22,38 +22,48 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import bacmman.utils.Pair;
+import bacmman.image.ImageProperties;
+import bacmman.image.LazyImage5D;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public abstract class InteractiveImage {
+    public static final Logger logger = LoggerFactory.getLogger(InteractiveImage.class);
     final protected SegmentedObject parent;
     final protected int parentStructureIdx;
-    final protected int childStructureIdx;
     private Boolean is2D=null;
     protected boolean guiMode = true;
-    boolean displayPreFilteredImages= false;
 
     protected String name="";
-    boolean isSingleChannel;
-    protected ImageSupplier imageSupplier;
-    public InteractiveImage(SegmentedObject parent, int childStructureIdx) {
+
+    protected abstract void stopAllRunningWorkers();
+    protected final BiFunction<SegmentedObject, Integer, Image> imageSupplier;
+    protected final int channelNumber;
+    public InteractiveImage(SegmentedObject parent) {
         this.parent = parent;
         parentStructureIdx = parent.getStructureIdx();
-        this.childStructureIdx = childStructureIdx;
-        this.imageSupplier = (o, ocIdx, raw) -> {
-            if (raw) return o.getRawImage(ocIdx);
-            Image pf = o.getPreFilteredImage(ocIdx);
-            if (pf==null) return o.getRawImage(ocIdx);
-            else return pf;
+        this.channelNumber = parent.getExperimentStructure().getChannelNumber();
+        this.imageSupplier = (o, channelIdx) -> {
+            int objectClassIdx = o.getExperimentStructure().getObjectClassIdx(channelIdx);
+            return o.getRawImage(objectClassIdx);
         };
+    }
+    public InteractiveImage(SegmentedObject parent, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier) {
+        this.parent = parent;
+        parentStructureIdx = parent.getStructureIdx();
+        this.channelNumber = channelNumber;
+        this.imageSupplier = imageSupplier;
     }
     public void setName(String name) {
         this.name = name;
@@ -61,46 +71,38 @@ public abstract class InteractiveImage {
     public String getName() {
         return name;
     }
-    public void setImageSupplier(ImageSupplier imageSupplier) {
-        this.imageSupplier = imageSupplier;
-    }
-    public void setIsSingleChannel(boolean singleChannel) {
-        this.isSingleChannel = singleChannel;
-    }
-    public boolean isSingleChannel() {return isSingleChannel;}
+
     public boolean is2D() {
         if (is2D==null) {
-            this.getObjects();
-            if (!getObjects().isEmpty()) is2D = getObjects().get(0).key.is2D();
-            else is2D=false;
+           return false;
         }
         return is2D;
     }
     public SegmentedObject getParent() {return parent;}
     public abstract List<SegmentedObject> getParents();
-    public abstract InteractiveImageKey getKey();
-    public abstract void reloadObjects();
-    public abstract void resetObjects();
-    public abstract Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z); // TODO this method is not used ...
-    public abstract void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list);
-    public abstract BoundingBox getObjectOffset(SegmentedObject object);
-    public abstract Image generateImage(int structureIdx);
-    public int getChildStructureIdx() {return childStructureIdx;}
-    public abstract List<Pair<SegmentedObject, BoundingBox>> getObjects();
-    public abstract Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects();
+    public abstract void reloadObjects(int... objectClassIdx);
+    public abstract void resetObjects(int... objectClassIdx);
+    public abstract ObjectDisplay getObjectAtPosition(int x, int y, int z, int objectClassIdx, int slice); // TODO this method is not used ...
+    public abstract void addObjectsWithinBounds(BoundingBox selection, int objectClassIdx, int slice, List<ObjectDisplay> list);
+    public abstract BoundingBox getObjectOffset(SegmentedObject object, int slice);
+    public abstract LazyImage5D generateImage();
+    public abstract ImageProperties getImageProperties();
 
-    public List<Pair<SegmentedObject, BoundingBox>> pairWithOffset(Collection<SegmentedObject> objects) {
-        List<Pair<SegmentedObject, BoundingBox>> res = new ArrayList<>(objects.size());
-        for (SegmentedObject o : objects) {
-            BoundingBox b = this.getObjectOffset(o);
-            if (b!=null) res.add(new Pair<>(o, b));
-        }
-        return res;
+    public abstract Stream<ObjectDisplay> getObjectDisplay(int objectClassIdx, int slice);
+    public abstract Stream<ObjectDisplay> getAllObjectDisplay(int objectClassIdx);
+    public abstract Stream<SegmentedObject> getObjects(int objectClassIdx, int slice);
+    public abstract Stream<SegmentedObject> getAllObjects(int objectClassIdx);
+    public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects, int slice) {
+        return objects.stream().map(o -> toObjectDisplay(o, slice)).filter(Objects::nonNull).collect(Collectors.toList());
     }
-    public <T extends InteractiveImage> T setDisplayPreFilteredImages(boolean displayPreFilteredImages) {
-        this.displayPreFilteredImages = displayPreFilteredImages;
-        return (T)this;
+
+    public ObjectDisplay toObjectDisplay(SegmentedObject object, int slice) {
+        BoundingBox b = this.getObjectOffset(object, slice);
+        return b==null ? null : new ObjectDisplay(object, b, slice);
     }
+
+    public abstract List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects);
+
     /**
      * 
      * @param guiMode if set to true, display of images and retrieve of objects is done in another thread
@@ -108,21 +110,5 @@ public abstract class InteractiveImage {
     public void setGUIMode(boolean guiMode) {
         this.guiMode=guiMode;
     }
-    /*@Override
-    public boolean equals(Object o) {
-        if (o instanceof InteractiveImage) return ((InteractiveImage)o).parents.equals(parents) && ((InteractiveImage)o).childStructureIdx==childStructureIdx;
-        else return false;
-    }
 
-    @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 73 * hash + (this.parents != null ? this.parents.hashCode() : 0);
-        hash = 73 * hash + this.childStructureIdx;
-        return hash;
-    }*/
-    @FunctionalInterface
-    public interface ImageSupplier {
-        Image get(SegmentedObject parent, int objectClassIdx, boolean raw);
-    }
 }

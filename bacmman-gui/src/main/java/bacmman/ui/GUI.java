@@ -30,6 +30,7 @@ import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
+import bacmman.image.LazyImage5D;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
@@ -88,7 +89,6 @@ import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
 
 import static bacmman.plugins.Hint.formatHint;
-import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -101,7 +101,7 @@ import bacmman.ui.logger.ProgressLogger;
  *
  * @author Jean Ollion
  */
-public class GUI extends javax.swing.JFrame implements ImageObjectListener, ProgressLogger {
+public class GUI extends javax.swing.JFrame implements ProgressLogger {
     public static final Logger logger = LoggerFactory.getLogger(GUI.class);
     // check if mapDB is present
     public static final String DBprefix = "boa_";
@@ -144,6 +144,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private BooleanParameter displayTrackEdges = new BooleanParameter("Hyperstack: display track edges", true);
     private BooleanParameter displayCorrections = new BooleanParameter("Display manual corrections", true);
     private NumberParameter kymographFrameNumber = new NumberParameter<>("Kymograph Frame Number", 0, 200).setHint("Limit the number of frames displayed in a kymograph. Use next / previous navigation commands to move within the kymograph");
+    private NumberParameter kymographFrameOverlap = new NumberParameter<>("Kymograph Frame Overlap", 0, 20).setHint("Number of remaining frames from previous view when moving within Kymograph. Use next / previous navigation commands to move within the kymograph");
 
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
@@ -417,10 +418,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         Consumer<ChoiceParameter> setDefInteractiveType = c -> {
             if (c.getSelectedItem().equals("AUTOMATIC")) {
                 ImageWindowManager.setDefaultInteractiveType(null);
-            } else if (c.getSelectedItem().equals("KYMOGRAPH")) {
-                ImageWindowManager.setDefaultInteractiveType(InteractiveImageKey.TYPE.KYMOGRAPH);
-            } else if (c.getSelectedItem().equals("HYPERSTACK")) {
-                ImageWindowManager.setDefaultInteractiveType(InteractiveImageKey.TYPE.HYPERSTACK);
+            } else {
+                ImageWindowManager.setDefaultInteractiveType(c.getSelectedItem());
             }
         };
         setDefInteractiveType.accept(interactiveImageType);
@@ -459,14 +458,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         // kymograph interval
         PropertyUtils.setPersistent(kymographInterval, "kymograph_interval");
-        TimeLapseInteractiveImage.INTERVAL_PIX = kymographInterval.getValue().intValue();
-        kymographInterval.addListener(p-> TimeLapseInteractiveImage.INTERVAL_PIX = kymographInterval.getValue().intValue());
+        Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
+        kymographInterval.addListener(p-> Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographInterval, kymographMenu);
 
         PropertyUtils.setPersistent(kymographFrameNumber, "kymograph_frame_number");
         TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue();
-        kymographInterval.addListener(p-> TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue());
+        kymographFrameNumber.addListener(p-> TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographFrameNumber, kymographMenu);
+        PropertyUtils.setPersistent(kymographFrameOverlap, "kymograph_frame_overlap");
+        TimeLapseInteractiveImage.FRAME_OVERLAP = kymographFrameOverlap.getValue().intValue();
+        kymographFrameOverlap.addListener(p-> TimeLapseInteractiveImage.FRAME_OVERLAP = kymographFrameOverlap.getValue().intValue());
+        ConfigurationTreeGenerator.addToMenu(kymographFrameOverlap, kymographMenu);
 
         // local zoom
         PropertyUtils.setPersistent(localZoomFactor, "local_zoom_factor");
@@ -509,9 +512,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (db!=null) {
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 iwm.stopAllRunningWorkers();
-                int oc= iwm.getInteractiveStructure();
+                int oc= iwm.getInteractiveObjectClass();
                 db.getOpenObjectDAOs().forEach(ObjectDAO::rollback);
-                iwm.revertObjectClass(oc, db);
+                iwm.flush();
                 trackTreeController.updateTrackTree();
             }
         });
@@ -1302,11 +1305,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (iwm==null) return;
         Image image=null;
         if (i==null) {
-            Object im = iwm.getDisplayer().getCurrentImage();
+            Object im = iwm.getDisplayer().getCurrentDisplayedImage();
             if (im!=null) {
                 image = iwm.getDisplayer().getImage(im);
                 if (image==null) return;
-                else i = iwm.getImageObjectInterface(image);
+                else i = iwm.getInteractiveImage(image);
             }
         }
         if (image==null) {
@@ -1319,36 +1322,29 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         TrackTreeGenerator gen = INSTANCE.trackTreeController.getLastTreeGenerator();
         if (gen!=null) {
             List<List<SegmentedObject>> tracks = gen.getSelectedTracks();
-            iwm.displayTracks(image, i, tracks, true);
+            iwm.displayTracks(image, i, tracks, null, true, false);
         }
     }
     public static void updateTrackTree() {
         if (INSTANCE==null) return;
         if (INSTANCE.trackTreeController!=null) INSTANCE.trackTreeController.updateTrackTree();
     }
+    public static void updateRoiDisplayForSelections() {
+        updateRoiDisplayForSelections(null, null);
+    }
     public static void updateRoiDisplayForSelections(Image image, InteractiveImage i) {
         if (INSTANCE==null) return;
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        ImageWindowManager<?,?,?> iwm = ImageWindowManagerFactory.getImageManager();
         if (iwm==null) return;
-        if (i==null) {
-            if (image==null) {
-                Object im = iwm.getDisplayer().getCurrentImage();
-                if (im!=null) image = iwm.getDisplayer().getImage(im);
-                if (image==null) return;
-            }
-            i = iwm.getImageObjectInterface(image);
+        int slice = image == null ? -1 : iwm.getDisplayer().getFrame(image);
+        if (image != null) iwm.hideAllRois(image, false, true);
+        else {
+            if (i == null) iwm.getAllInteractiveImages().forEach(ii -> iwm.getImages(ii).forEach(im -> iwm.hideAllRois(im, false, true)));
+            else iwm.getImages(i).forEach(im -> iwm.hideAllRois(im, false, true));
         }
-        if (image==null) {
-            return; // todo -> actions on all images?
-        }
-        if (i ==null) {
-            return;
-        }
-        InteractiveImage ioi = i;
-        ImageWindowManagerFactory.getImageManager().hideAllRois(image, false, true);
         EnumerationUtils.toStream(INSTANCE.selectionModel.elements()).forEach(s -> {
-            if (s.isDisplayingTracks()) SelectionUtils.displayTracks(s, ioi);
-            if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, ioi);
+            if (s.isDisplayingTracks()) SelectionUtils.displayTracks(s, image, i, slice);
+            if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, image, i, slice);
         });
     }
 
@@ -1766,43 +1762,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public static boolean hasInstance() {
         return INSTANCE!=null;
     }
-    
-    // ImageObjectListener implementation
-    @Override public void fireObjectSelected(List<SegmentedObject> selectedObjects, boolean addToSelection) {
-        /*objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(false);
-        objectTreeGenerator.selectObjects(selectedObjects, addToSelection);    
-        objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(true);*/
-    }
-    
-    @Override public void fireObjectDeselected(List<SegmentedObject> deselectedObject) {
-        /*objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(false);
-        objectTreeGenerator.unSelectObjects(deselectedObject);
-        objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(true);*/
-    }
-    
-    @Override public void fireTracksSelected(List<SegmentedObject> selectedTrackHeads, boolean addToSelection) {
-        trackTreeController.setUpdateRoiDisplayWhenSelectionChange(false);
-        trackTreeController.selectTracks(selectedTrackHeads, addToSelection);
-        trackTreeController.setUpdateRoiDisplayWhenSelectionChange(true);
-    }
-    
-    @Override public void fireTracksDeselected(List<SegmentedObject> deselectedTrackHeads) {
-        trackTreeController.setUpdateRoiDisplayWhenSelectionChange(false);
-        trackTreeController.deselectTracks(deselectedTrackHeads);
-        trackTreeController.setUpdateRoiDisplayWhenSelectionChange(true);
-    }
-    
-    public void fireDeselectAllTracks(int structureIdx) {
-        trackTreeController.setUpdateRoiDisplayWhenSelectionChange(false);
-        trackTreeController.deselectAllTracks(structureIdx);
-        trackTreeController.setUpdateRoiDisplayWhenSelectionChange(true);
-    }
 
-    public void fireDeselectAllObjects(int structureIdx) {
-        /*objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(false);
-        objectTreeGenerator.unselectAllObjects();
-        objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(true);*/
-    }
     private void setObjectClassJCB(JComboBox jcb, boolean addViewField) {
         List<String> structureNames= Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
         Object selectedO = jcb.getSelectedItem();
@@ -3224,8 +3184,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         extractDSCompressionMenu.setText("Extracted Dataset");
         optionMenu.add(extractDSCompressionMenu);
 
-        kymographMenu.setText("Kymograph");
-        miscMenu.add(kymographMenu);
+        kymographMenu.setText("Kymograph Options");
+        interactiveImageMenu.add(kymographMenu);
 
         pyGatewayMenu.setText("Python Gateway");
         miscMenu.add(pyGatewayMenu);
@@ -3316,15 +3276,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     public void navigateToNextImage(boolean next) {
         if (trackTreeController==null) this.loadObjectTrees();
-        Object activeImage = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        Object activeImage = iwm.getDisplayer().getCurrentDisplayedImage();
         if (activeImage == null) {
             Utils.displayTemporaryMessage("No active image open", 2000);
             return;
         }
-        ImageWindowManager.RegisteredImageType imageType = ImageWindowManagerFactory.getImageManager().getRegisterType(activeImage);
+        ImageWindowManager.RegisteredImageType imageType = iwm.getRegisterType(activeImage);
         logger.debug("active image type: {}", imageType);
         if (ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType) || ImageWindowManager.RegisteredImageType.RAW_INPUT.equals(imageType)) { // input image ?
-            String position = ImageWindowManagerFactory.getImageManager().getPositionOfInputImage(activeImage);
+            String position = iwm.getPositionOfInputImage(activeImage);
             if (position == null) return;
             else {
                 int pIdx = db.getExperiment().getPositionIdx(position);
@@ -3340,20 +3301,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 String nextPosition = db.getExperiment().getPosition(nIdx).getName();
                 boolean pp = ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType);
                 db.getExperiment().flushImages(true, true, nextPosition);
-                IJVirtualStack.openVirtual(db.getExperiment(), nextPosition, pp, IJVirtualStack.OpenAsImage5D);
+                iwm.displayInputImage(db.getExperiment(), nextPosition, pp);
             }
         } else  { // interactive: if IOI found
-            final InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
+            final InteractiveImage i = iwm.getInteractiveImage(null);
             if (i==null) return;
             // get next parent
             SegmentedObject nextParent = null;
             List<SegmentedObject> siblings = getAllTrackHeadsInPosition(i.getParent()).collect(Collectors.toList());
             int idx = siblings.indexOf(i.getParent());
             // current image structure: 
-            InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2());
-            int currentImageStructure = key ==null ? i.getChildStructureIdx() : key.interactiveObjectClass;
             idx += (next ? 1 : -1) ;
-            logger.debug("current inter object class: {}, current image child: {}, interactive image type: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure, i.getKey().imageType);
+            logger.debug("current inter object class: {}, current interactive image type: {}",interactiveStructure.getSelectedIndex()-1, i.getClass());
             if (siblings.size()==idx || idx<0) { // next position
                 List<String> positions = Arrays.asList(db.getExperiment().getPositionsAsString());
                 Function<String, Pair<String, SegmentedObject>> getNextPositionAndParent = curPosition -> {
@@ -3383,38 +3342,27 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 return;
             }
             List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent);
-            InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
-            Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
+            InteractiveImage nextII = iwm.getImageTrackObjectInterface(parentTrack, i.getClass(), true);
+            Image im = iwm.getOneImage(nextII);
             if (im==null) {
-                if (InteractiveImageKey.TYPE.HYPERSTACK.equals(i.getKey().imageType)) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure, IJVirtualStack.OpenAsImage5D);
-                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure), ii, currentImageStructure, true);
+                LazyImage5D nextIm = nextII.generateImage();
+                int c = iwm.getDisplayer().getChannel(im);
+                if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
+                iwm.addImage(nextIm, nextII, true);
             } else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
     private int navigateCount = 0;
-    public void navigateToNextObjects(boolean next, String position, boolean nextPosition, int structureDisplay, boolean setInteractiveStructure) {
+    public void navigateToNextObjects(boolean next, String position, boolean nextPosition, int displayObjectClassIdx, boolean setInteractiveStructure) {
         if (trackTreeController==null) this.loadObjectTrees();
+        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         Selection sel = getNavigatingSelection();
-        int objectClassIdx = sel==null? ImageWindowManagerFactory.getImageManager().getInteractiveStructure() : sel.getStructureIdx();
+        int objectClassIdx = sel==null? iwm.getInteractiveObjectClass() : sel.getStructureIdx();
         if (sel != null && objectClassIdx==-2) sel = null;
-
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
-        if (structureDisplay<0) {
-            if (i != null) {
-                Image im = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2();
-                if (im != null) {
-                    InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
-                    if (key != null) {
-                        structureDisplay = key.interactiveObjectClass;
-                        logger.debug("current disp object class: {}", structureDisplay);
-                    }
-                }
-            }
-            if (structureDisplay<0) {
-                logger.debug("set structure display to {} IOI null ? {}", objectClassIdx, i==null);
-                structureDisplay=objectClassIdx;
-            }
-        }
+        Image currentImage = iwm.getDisplayer().getCurrentImage();
+        if (currentImage == null) return;
+        int currentSlice = iwm.getDisplayer().getFrame(currentImage);
+        InteractiveImage i = iwm.getInteractiveImage(currentImage);
         if (i==null && sel!=null && setInteractiveStructure) { // set interactive structure & navigate to next object in newly open image
             setInteractiveStructureIdx(objectClassIdx);
             interactiveStructureActionPerformed(null);
@@ -3423,14 +3371,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (i==null || nextPosition) { // no image
             navigateCount=2;
         } else { // try to move within current image
-            i = SelectionUtils.fixIOI(i, objectClassIdx);
             boolean move;
             if (sel != null) {
-                List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.getSegmentedObjects(i, sel.getElementStrings(position)));
-                logger.debug("#objects from selection on current image: {} (display sIdx: {}, IOI: {}, sel: {})", objects.size(), structureDisplay, i.getChildStructureIdx(), objectClassIdx);
-                move = !objects.isEmpty() && ImageWindowManagerFactory.getImageManager().goToNextObject(null, objects, next, true);
+                List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(i, objectClassIdx, currentSlice, sel.getElementStrings(position));
+                logger.debug("#objects from selection on current image: {} (display sIdx: {}, sel: {})", objects.size(), displayObjectClassIdx, objectClassIdx);
+                move = !objects.isEmpty() && iwm.goToNextObject(null, objects, next, true);
             } else {
-                move = ImageWindowManagerFactory.getImageManager().goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next, true);
+                move = iwm.goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next, true);
             }
             if (move) navigateCount=0;
             else {
@@ -3496,7 +3443,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             }
             Collections.sort(parents);
-            logger.debug("parent track heads: {} (sel object Idx: {}, parent object class: {}, displaySIdx: {})", parents.size(), objectClassIdx, parentSIdx, structureDisplay);
+            logger.debug("parent track heads: {} (sel object Idx: {}, parent object class: {}, displaySIdx: {})", parents.size(), objectClassIdx, parentSIdx, displayObjectClassIdx);
             int nextParentIdx = 0;
             if (i!=null && !positionChanged) { // look for next parent within parents of current position
                 int idx = Collections.binarySearch(parents, i.getParent());
@@ -3513,36 +3460,43 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if ((nextParentIdx<0 || nextParentIdx>=parents.size())) {
                 // here check that there is a next position in selection ?
                 logger.warn("no next parent found in objects parents: {} -> will change position", parents);
-                navigateToNextObjects(next, position, true, structureDisplay, setInteractiveStructure);
+                navigateToNextObjects(next, position, true, displayObjectClassIdx, setInteractiveStructure);
             } else {
                 SegmentedObject nextParent = parents.get(nextParentIdx);
                 logger.debug("next parent: {} among: {}", nextParent, parents);
                 List<SegmentedObject> track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
-                ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-                InteractiveImageKey.TYPE deftype = ImageWindowManager.getDefaultInteractiveType();
-                if (deftype==null) {
-                    if (track!=null && !track.isEmpty()) deftype = inferType(track.get(0).getBounds());
-                    else deftype = InteractiveImageKey.TYPE.HYPERSTACK;
+                Class<? extends InteractiveImage> iiType;
+                if (i!=null) iiType = i.getClass();
+                else {
+                    iiType = ImageWindowManager.getDefaultInteractiveType();
+                    if (iiType==null && track!=null && !track.isEmpty()) iiType = TimeLapseInteractiveImage.getBestDisplayType(track.get(0).getBounds());
                 }
-                InteractiveImageKey.TYPE type = i!=null ? i.getKey().imageType : deftype;
-                InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, objectClassIdx, type);
-                Image im = iwm.getImage(nextI);
-                Object disp = im==null?null:iwm.getDisplayer().getImage(im);
-                if (disp==null) {
-                    if ( type.equals(InteractiveImageKey.TYPE.HYPERSTACK)) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, objectClassIdx, IJVirtualStack.OpenAsImage5D);
-                    else iwm.addImage(nextI.generateImage(structureDisplay), nextI, structureDisplay, true);
+                InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, iiType, true);
+                Image im = iwm.getOneImage(nextI);
+                if (im==null) {
+                    LazyImage5D nextIm = nextI.generateImage();
+                    int c = -1;
+                    if (displayObjectClassIdx>=0) c = db.getExperiment().experimentStructure.getChannelIdx(displayObjectClassIdx);
+                    else {
+                        if (i != null) {
+                            Image prevIm = iwm.getOneImage(i); // TODO or active image ?
+                            if (prevIm!=null) iwm.getDisplayer().getChannel(prevIm);
+                        }
+                    }
+                    if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
+                    iwm.addImage(nextIm, nextI, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {
-                    List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.getSegmentedObjects(nextI, sel.getElementStrings(position)));
-                    logger.debug("#objects from selection on next image: {}/{} (display sIdx: {}, IOI: {}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjects().size(), structureDisplay, nextI.getChildStructureIdx(), objectClassIdx, im != null ? im.getName() : "null", nextParent);
+                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), currentSlice, sel.getElementStrings(position));
+                    logger.debug("#objects from selection on next image: {}/{} (display oc={}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjectDisplay(sel.getStructureIdx(), currentSlice).count(), displayObjectClassIdx, objectClassIdx, im != null ? im.getName() : "null", nextParent);
                     if (!objects.isEmpty()) {
                         // wait so that new image is displayed -> magnification issue -> window is not well computed
-                        ImageWindowManagerFactory.getImageManager().goToNextObject(im, objects, next, false);
+                        iwm.goToNextObject(im, objects, next, false);
                     }
                 } else {
                     logger.debug("nav without selection on next image");
-                    ImageWindowManagerFactory.getImageManager().goToNextTrackError(im, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next, false);
+                    iwm.goToNextTrackError(im, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next, false);
                 }
             }
         }
@@ -4696,7 +4650,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 public void actionPerformed(ActionEvent e) {
                     db.getExperiment().flushImages(true, true, position);
                     try {
-                        IJVirtualStack.openVirtual(db.getExperiment(), position, false, IJVirtualStack.OpenAsImage5D);
+                        ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, false);
                     } catch(Throwable t) {
 
                         setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command. If image are on Omero server: connect to server");
@@ -4711,7 +4665,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 public void actionPerformed(ActionEvent e) {
                     db.getExperiment().flushImages(true, true, position);
                     try {
-                        IJVirtualStack.openVirtual(db.getExperiment(), position, true, IJVirtualStack.OpenAsImage5D);
+                        ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, true);
                     } catch(Throwable t) {
                         setMessage("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
                         logger.debug("error while trying to open pre-processed images", t);
@@ -4921,7 +4875,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void selectAllObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectAllObjectsButtonActionPerformed
         getImageManager().displayAllObjects(null);
-        //GUI.updateRoiDisplayForSelections(null, null);
+        //GUI.updateRoiDisplayForSelections();
     }//GEN-LAST:event_selectAllObjectsButtonActionPerformed
 
     private void previousTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_previousTrackErrorButtonActionPerformed
@@ -4959,7 +4913,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void selectAllTracksButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectAllTracksButtonActionPerformed
         ImageWindowManagerFactory.getImageManager().displayAllTracks(null);
-        //GUI.updateRoiDisplayForSelections(null, null);
+        //GUI.updateRoiDisplayForSelections();
     }//GEN-LAST:event_selectAllTracksButtonActionPerformed
 
     private void datasetListMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_datasetListMouseClicked
@@ -5146,7 +5100,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (selList.isEmpty()) return;
         SelectionUtils.addCurrentObjectsToSelections(selList, db.getSelectionDAO());
         selectionList.updateUI();
-        GUI.updateRoiDisplayForSelections(null, null);
+        GUI.updateRoiDisplayForSelections();
         resetSelectionHighlight();
         if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }
@@ -5156,7 +5110,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         List<Selection> selList = this.getAddObjectsSelection(selNumber);
         SelectionUtils.removeCurrentObjectsFromSelections(selList, db.getSelectionDAO());
         selectionList.updateUI();
-        GUI.updateRoiDisplayForSelections(null, null);
+        GUI.updateRoiDisplayForSelections();
         resetSelectionHighlight();
         if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }
@@ -5166,7 +5120,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         List<Selection> selList = this.getAddObjectsSelection(selNumber);
         SelectionUtils.removeAllCurrentImageObjectsFromSelections(selList, db.getSelectionDAO(), false, false);
         selectionList.updateUI();
-        GUI.updateRoiDisplayForSelections(null, null);
+        GUI.updateRoiDisplayForSelections();
         resetSelectionHighlight();
         if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }
@@ -5174,7 +5128,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (!this.checkConnection()) return;
         List<Selection> selList = this.getAddObjectsSelection(selNumber);
         for (Selection s : selList) s.setIsDisplayingObjects(!s.isDisplayingObjects());
-        GUI.updateRoiDisplayForSelections(null, null);
+        GUI.updateRoiDisplayForSelections();
         if (GUI.getInstance()!=null) GUI.getInstance().updateSelectionListUI();
     }
     private void populateDatasetTree() {

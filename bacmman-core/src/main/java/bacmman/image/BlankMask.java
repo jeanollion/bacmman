@@ -49,7 +49,7 @@ public class BlankMask extends SimpleImageProperties<BlankMask> implements Image
     }
     
     @Override public int count() {
-        return getSizeXYZ();
+        return volume();
     }
     
     @Override

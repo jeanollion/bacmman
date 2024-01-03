@@ -28,7 +28,6 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.dao.DuplicateMasterDAO;
 import bacmman.data_structure.dao.DuplicateObjectDAO;
 import bacmman.data_structure.dao.UUID;
-import bacmman.data_structure.image_container.MemoryImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.*;
 import bacmman.plugins.*;
@@ -37,7 +36,6 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.ui.gui.image_interaction.*;
 
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
-import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
 import bacmman.utils.*;
@@ -47,6 +45,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
@@ -423,31 +422,17 @@ public class PluginConfigurationUtils {
         int parentStructureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getParentObjectClassIdx(structureIdx);
         int segParentStrutureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         SegmentedObjectAccessor accessor = getAccessor();
-        List<Image> dispImages;
-        Function<Image, InteractiveImage> getIOI;
         // default depend on image ratio:
-        InteractiveImageKey.TYPE t = ImageWindowManager.getDefaultInteractiveType();
-        if (t==null) t = inferType(stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds());
-        if (InteractiveImageKey.TYPE.KYMOGRAPH.equals(t)) {
-            Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx);
-            dispImages = res.value;
-            getIOI = i -> res.key;
-            getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), res.value.size()+1));
-            res.value.forEach((image) -> {
-                iwm.addImage(image, res.key, -1, true);
-                iwm.addTestData(image, stores.values());
-            });
-        } else {
-            Map<String, HyperStack> map = buildIntermediateImagesHyperStack(stores.values(), parentStructureIdx, structureIdx);
-            getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), map.size()+1));
-            Map<Image, HyperStack> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> {
-                Image hook = IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx, false);
-                iwm.addTestData(hook, stores.values());
-                return hook;
-            }, Map.Entry::getValue));
-            getIOI = hookMapIOI::get;
-            dispImages = new ArrayList<>(hookMapIOI.keySet());
-        }
+        Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
+        if (iiType==null) iiType = TimeLapseInteractiveImage.getBestDisplayType(stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds());
+        List<InteractiveImage> iiList = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx, iiType.equals(Kymograph.class));
+        getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), iiList.size()+1));
+        Map<InteractiveImage, Image> dispImages = iiList.stream().collect(Collectors.toMap(ii -> ii, ii -> {
+            Image image = ii.generateImage();
+            iwm.addImage(image, ii, true);
+            iwm.addTestData(image, stores.values());
+            return image;
+        }));
 
         if (!preFilterStep && parentStructureIdx!=segParentStrutureIdx) { // add a selection to display the segmentation parent on the intermediate image
             List<SegmentedObject> parentTrack = stores.values().stream().map(s->((s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());
@@ -458,10 +443,10 @@ public class PluginConfigurationUtils {
             sel.addElements(segObjects);
             sel.setIsDisplayingObjects(true);
             bacmman.ui.GUI.getInstance().addSelection(sel);
-            dispImages.forEach((image) -> bacmman.ui.GUI.updateRoiDisplayForSelections(image, getIOI.apply(image)));
+            dispImages.forEach((ii, image) -> bacmman.ui.GUI.updateRoiDisplayForSelections(image, ii));
         }
         getImageManager().setInteractiveStructure(structureIdx);
-        dispImages.forEach((image) -> {
+        dispImages.forEach((ii, image) -> {
             iwm.displayAllObjects(image);
             iwm.displayAllTracks(image);
         });
@@ -497,7 +482,7 @@ public class PluginConfigurationUtils {
                                 throw new RuntimeException(e);
                             }
                             ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate)); // duplicate all images so that further transformations are not shown
-                            getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
+                            getImageManager().getDisplayer().displayImage(new LazyImage5DStack("before: "+tpp.getPluginName(), imagesTC));
                         }
                         Transformation transfo = tpp.instantiatePlugin();
                         logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
@@ -531,7 +516,7 @@ public class PluginConfigurationUtils {
                                 throw new RuntimeException(e);
                             }
                             if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate));
-                            getImageManager().getDisplayer().showImage5D("after: "+tpp.getPluginName(), imagesTC);
+                            getImageManager().getDisplayer().displayImage(new LazyImage5DStack("after: "+tpp.getPluginName(), imagesTC));
                         }
                     }
                 }
@@ -540,120 +525,44 @@ public class PluginConfigurationUtils {
         });
         return item;
     }
-    public static JMenuItem getTransformationTestOnCurrentImage(String name, Position position, int transfoIdx, boolean expertMode) {
-        JMenuItem item = new JMenuItem(name);
-        item.setAction(new AbstractAction(item.getActionCommand()) {
-            @Override
-            public void actionPerformed(ActionEvent ae) {
-                TestableOperation.TEST_MODE testMode = expertMode ? TestableOperation.TEST_MODE.TEST_EXPERT : TestableOperation.TEST_MODE.TEST_SIMPLE;
-                Image[][] imCT = getImageManager().getDisplayer().getCurrentImageCT();
-                if (imCT==null) {
-                    logger.warn("No active image");
-                    return;
-                }
-                logger.debug("current image has: {} frames, {} channels, {} slices", imCT[0].length, imCT.length, imCT[0][0].sizeZ());
-                MemoryImageContainer cont = new MemoryImageContainer(imCT);
-                logger.debug("container: {} frames, {} channels", cont.getFrameNumber(), cont.getChannelNumber());
-                InputImagesImpl images = cont.getInputImages(position.getName());
-                logger.debug("images: {} frames, {} channels", images.getFrameNumber(), images.getChannelNumber());
-                
-                PreProcessingChain ppc = position.getPreProcessingChain();
-                List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
-                TransformationPluginParameter<Transformation> tpp = transList.get(transfoIdx);
-                Transformation transfo = tpp.instantiatePlugin();
 
-                int input = tpp.getInputChannel();
-                if (images.getChannelNumber()<=input) {
-                    if (images.getChannelNumber()==1) input=0;
-                    else {
-                        logger.debug("transformation need to be applied on channel: {}, be only {} channels in current image", input, images.getChannelNumber());
-                        return;
-                    }
-                }
-                int[] output = tpp.getOutputChannels();
-                if (output!=null && output[ArrayUtil.max(output)]>=images.getChannelNumber()) {
-                    List<Integer> outputL = Utils.toList(output);
-                    outputL.removeIf(idx -> idx>=images.getChannelNumber());
-                    output = Utils.toArray(outputL, false);
-                } else if (output == null ) {
-                    if (transfo instanceof MultichannelTransformation && ((MultichannelTransformation)transfo).getOutputChannelSelectionMode()==MultichannelTransformation.OUTPUT_SELECTION_MODE.ALL) output = ArrayUtil.generateIntegerArray(images.getChannelNumber());
-                    else output = new int[]{input};
-                }
-
-                logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}, isConfigured?: {}", transfo, transfo.getClass(), position.getName(), input, output);
-                if (transfo instanceof TestableOperation) ((TestableOperation)transfo).setTestMode(testMode);
-                if (transfo instanceof ConfigurableTransformation) {
-                    try {
-                        ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                      
-                //tpp.setConfigurationData(transfo.getConfigurationData());
-                images.addTransformation(input, output, transfo);
-
-                Image[][] imagesTC = new Image[0][];
-                try {
-                    imagesTC = images.getImagesTC(0, images.getFrameNumber(), ArrayUtil.generateIntegerArray(images.getChannelNumber()));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                //ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
-                getImageManager().getDisplayer().showImage5D("after: "+tpp.getPluginName(), imagesTC);
-            }
-        });
-        return item;
-    }
-    public static Pair<InteractiveImage, List<Image>> buildIntermediateImages(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
+    public static List<InteractiveImage> buildIntermediateImages(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx, boolean kymograph) {
         if (stores.isEmpty()) return null;
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s->s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.ensureContinuousTrack(parents);
-        TimeLapseInteractiveImage ioi = TimeLapseInteractiveImage.generateInteractiveImageTime(parents, childOCIdx, false);
-        List<Image> images = new ArrayList<>();
-        allImageNames.forEach(name -> {
-            Image type = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get();
-            type = TypeConverter.toCommonImageType(Image.copyType(type));
-            int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
-            Image im = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).findAny().get();
-            Image image = ioi.generateEmptyImage(name, Image.createEmptyImage("", type, new SimpleBoundingBox(0, 0, 0, 0, 0, maxZ-1).getBlankMask((float)im.getScaleXY(), (float)im.getScaleZ()))).setName(name);
-            stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
-                if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));
-                else Image.pasteImage(TypeConverter.cast(s.images.get(name), image), s.parent.getMask(), image, ioi.getObjectOffset(s.parent));
-            });
-            images.add(image);
-        });
+        Map<String, BiFunction<SegmentedObject, Integer, Image>> imageSuppliers = allImageNames.stream().collect(Collectors.toMap(s->s, name -> {
+            Image type = stores.stream().filter(s -> s.images.containsKey(name)).map(s -> s.images.get(name)).max(PrimitiveType.typeComparator()).get();
+            Image type_ = TypeConverter.toCommonImageType(Image.copyType(type));
+            int maxZ = stores.stream().filter(s -> s.images.containsKey(name)).mapToInt(s -> s.images.get(name).sizeZ()).max().getAsInt();
+            return (p, channel) -> {
+                List<TestDataStore> currentStores = stores.stream().filter(s -> s.images.containsKey(name)).filter(s -> s.parent.getParent(parentOCIdx).equals(p)).collect(Collectors.toList());
+                if (currentStores.size() == 1 && currentStores.get(0).parent.getStructureIdx() == parentOCIdx) {
+                    Image res = TypeConverter.cast(currentStores.get(0).images.get(name), type_);
+                    if (res.sizeZ() < maxZ) throw new RuntimeException("Should resize in Z");
+                    return res;
+                } else {
+                    ImageProperties props = p.getMaskProperties();
+                    Image res = Image.createEmptyImage(name, type_, new SimpleImageProperties(props.sizeX(), props.sizeY(), maxZ, props.getScaleXY(), props.getScaleZ()).translate(props));
+                    if (!currentStores.isEmpty()) {
+                        for (TestDataStore s : currentStores) {
+                            Image.pasteImage(TypeConverter.cast(s.images.get(name), type_), s.parent.getMask(), res, null);
+                        }
+                    }
+                    return res;
+                }
+            };
+        }));
+        List<InteractiveImage> res = imageSuppliers.entrySet().stream().map(e -> {
+            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, 1, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, 1, e.getValue(), childOCIdx);
+            ii.setName(e.getKey());
+            return ii;
+        }).collect(Collectors.toList());
         // get order for each image (all images are not contained in all stores) & store
         Function<String, Double> getOrder = name -> stores.stream().filter(s -> s.nameOrder.containsKey(name)).mapToDouble(s->s.nameOrder.get(name)).max().orElse(Double.POSITIVE_INFINITY);
         Map<String, Double> orderMap = allImageNames.stream().collect(Collectors.toMap(n->n, getOrder::apply));
-        Collections.sort(images, Comparator.comparingDouble(i -> orderMap.get(i.getName())));
-        return new Pair<>(ioi, images);
-    }
-    public static Map<String, HyperStack> buildIntermediateImagesHyperStack(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
-        if (stores.isEmpty()) return null;
-        Map<SegmentedObject, List<TestDataStore>> parentMapStore = stores.stream().collect(Collectors.groupingBy(s->s.parent.getParent(parentOCIdx))); // in case segmentation parent differs from parent object class
-        Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
-        List<SegmentedObject> parents = stores.stream().map(s-> s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
-        SegmentedObjectUtils.ensureContinuousTrack(parents);
-        return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
-            HyperStack ioi = (HyperStack) TimeLapseInteractiveImage.generateInteractiveImageTime(parents, childOCIdx, true);
-            Image type = TypeConverter.toCommonImageType(Image.copyType(stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).max(PrimitiveType.typeComparator()).get()));
-            int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
-            ioi.setImageSupplier( (object, oc, raw) -> {
-                Image image = ioi.generateEmptyImage("", type);
-                List<TestDataStore> currentStores = parentMapStore.get(object);
-                if (currentStores!=null) currentStores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
-                    if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));
-                    else Image.pasteImage(TypeConverter.cast(s.images.get(name), image), s.parent.getMask(), image, ioi.getObjectOffset(s.parent));
-                });
-                return image;
-            });
-            ioi.setIsSingleChannel(true);
-            ioi.setMaxZ(maxZ);
-            ioi.setName(name);
-            return ioi;
-        }));
+        Collections.sort(res, Comparator.comparingDouble(i -> orderMap.get(i.getName())));
+        return res;
     }
 
     private static SegmentedObjectAccessor getAccessor() {

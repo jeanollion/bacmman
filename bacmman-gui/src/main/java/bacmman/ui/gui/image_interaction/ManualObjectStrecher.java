@@ -48,17 +48,17 @@ import java.util.stream.Stream;
  */
 public class ManualObjectStrecher {
     public static final Logger logger = LoggerFactory.getLogger(ManualObjectStrecher.class);
-    public static void strechObjects(List<Pair<SegmentedObject, BoundingBox>> parents, int structureIdx, int[] xPoints, int[] yPoints, double thresholdQuantile, boolean brightObject) {
+    public static void strechObjects(List<ObjectDisplay> parents, int structureIdx, int[] xPoints, int[] yPoints, double thresholdQuantile, boolean brightObject) {
         logger.debug("will strech {} objects, of structure: {}, x: {}, y: {}", parents.size(), structureIdx, xPoints, yPoints);
         List<Pair<SegmentedObject, Region>> objectsToUpdate = new ArrayList<>(parents.size());
-        for (Pair<SegmentedObject, BoundingBox> p : parents) {
-            Stream<SegmentedObject> children = p.key.getChildren(structureIdx);
+        for (ObjectDisplay p : parents) {
+            Stream<SegmentedObject> children = p.object.getChildren(structureIdx);
             if (children==null) continue;
             // get uppermost children :
             SegmentedObject child = children.min(Comparator.comparingInt(s -> s.getBounds().yMin())).orElse(null);
             if (child ==null) continue;
             Region childObject = child.getRegion().duplicate();
-            Offset offset = new SimpleOffset(p.key.getBounds()).reverseOffset().translate(p.value);
+            Offset offset = new SimpleOffset(p.object.getBounds()).reverseOffset().translate(p.offset);
             childObject.translate(offset); // translate object in ROI referencial
             Set<Voxel> contour = childObject.getContour();
             if (contour.isEmpty()) continue;
@@ -69,7 +69,7 @@ public class ManualObjectStrecher {
                 if (v.x>right.x) right=v;
                 else if (v.x==right.x && v.y<right.y) right = v;
             }
-            ImageByte strechMap = new ImageByte("strech map", new SimpleImageProperties(p.value, 1, 1));
+            ImageByte strechMap = new ImageByte("strech map", new SimpleImageProperties(p.offset, 1, 1));
             logger.debug("strechMap Bounds: {}", strechMap.getBoundingBox());
             Voxel leftUp=null, rightUp = null;
             for (int i = 0; i<xPoints.length; ++i) { // draw upper part && look
@@ -106,12 +106,12 @@ public class ManualObjectStrecher {
             
             // Adjust filled object according to contours of existing object
             double meanIntensityContour=0;
-            Image intensityMap = p.key.getRawImage(structureIdx);
+            Image intensityMap = p.object.getRawImage(structureIdx);
             intensityMap.translate(offset);
             for (Voxel v : contour) meanIntensityContour += intensityMap.getPixelWithOffset(v.x, v.y, v.z);
             meanIntensityContour/=contour.size();
             
-            ImageInteger outsideChildrenMask = p.key.getChildRegionPopulation(structureIdx).getLabelMap();
+            ImageInteger outsideChildrenMask = p.object.getChildRegionPopulation(structureIdx).getLabelMap();
             ImageOperations.not(outsideChildrenMask, outsideChildrenMask);
             double meanIntensityOutsideObject = ImageOperations.getMeanAndSigma(intensityMap, outsideChildrenMask, null, true)[0];
             double thld = meanIntensityContour * thresholdQuantile + meanIntensityOutsideObject *(1-thresholdQuantile);
@@ -123,7 +123,7 @@ public class ManualObjectStrecher {
             ImageOperations.and(thlded, strechMap, thlded);
             //ImageWindowManagerFactory.showImage(thlded.duplicate("and with thld"));
             //check that after thesholding, object reaches line -> if not , do not apply thresholding
-            int yMin = RegionFactory.getObjectsImage(strechMap, false)[0].getBounds().yMin()+p.value.yMin();
+            int yMin = RegionFactory.getObjectsImage(strechMap, false)[0].getBounds().yMin()+p.offset.yMin();
             logger.debug("y Min: {}, line y to reach: {}", yMin, Math.max(leftUp.y, rightUp.y)+1);
             if (yMin<=Math.max(leftUp.y, rightUp.y)+1) {
                 strechMap = thlded;

@@ -3,7 +3,7 @@ package bacmman.data_structure;
 import bacmman.core.Core;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
-import bacmman.image.Image;
+import bacmman.image.LazyImage5D;
 import bacmman.ui.gui.TrackMateRunner;
 import bacmman.ui.gui.image_interaction.*;
 import fiji.plugin.trackmate.Model;
@@ -97,8 +97,8 @@ public class TrackMateIO {
         logger.debug("all spots: {}", model.getSpots().getNSpots(true));
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
         initCore();
-
-        Image im = IJVirtualStack.openVirtual(roots, 0, false, 0, false);
+        HyperStack h = HyperStack.generateHyperstack(roots, 0);
+        LazyImage5D im = h.generateImage();
         ImageDisplayer<ImagePlus> disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
         ImagePlus imp = disp.getImage(im);
         imp.close();
@@ -108,12 +108,12 @@ public class TrackMateIO {
     public static void initCore() {
         new ImageJ();
         IJImageDisplayer disp = new IJImageDisplayer();
-        IJImageWindowManager man = new IJImageWindowManager(null, disp);
+        IJImageWindowManager man = new IJImageWindowManager(disp);
         ImageWindowManagerFactory.setImageDisplayer(disp, man);
         Core.getCore();
         Core.setFreeDisplayerMemory(man::flush);
-        Core.setImageDisplayer(disp::showImage);
+        Core.setImageDisplayer(disp::displayImage);
         Core.setOverlayDisplayer(disp);
-        Core.setImage5dDisplayer(disp::showImage5D);
+        Core.setImage5dDisplayer(disp::displayImage);
     }
 }

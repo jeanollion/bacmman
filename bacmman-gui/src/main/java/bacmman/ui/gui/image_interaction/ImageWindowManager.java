@@ -18,14 +18,14 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.*;
-import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.region_container.roi.TrackRoi;
 import bacmman.image.*;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.ui.GUI;
-import bacmman.core.DefaultWorker;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -37,10 +37,10 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.function.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
@@ -50,7 +50,6 @@ import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
 import bacmman.utils.*;
 import bacmman.utils.HashMapGetCreate.SetFactory;
 
-import static bacmman.utils.Pair.unpairValues;
 import static bacmman.utils.Palette.setTransparency;
 
 import bacmman.utils.geom.Point;
@@ -60,6 +59,7 @@ import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -68,8 +68,9 @@ import java.util.stream.LongStream;
  * @param <U> object ROI class
  * @param <V> track ROI class
  */
-public abstract class ImageWindowManager<I, U, V> {
+public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     public static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
+
     public enum RegisteredImageType {KYMOGRAPH, RAW_INPUT, PRE_PROCESSED}
     public static boolean displayTrackMode, displayTrackEdges, displayCorrections;
     public final static Color[] palette = new Color[]{new Color(166, 206, 227, 150), new Color(31,120,180, 150), new Color(178,223,138, 150), new Color(51,160,44, 150), new Color(251,154,153, 150), new Color(253,191,111, 150), new Color(255,127,0, 150), new Color(255,255,153, 150), new Color(177,89,40, 150)};
@@ -90,38 +91,42 @@ public abstract class ImageWindowManager<I, U, V> {
     double TRACK_ARROW_STROKE_WIDTH = 3;
     double ROI_STROKE_WIDTH = 0.5;
     public static double TRACK_LINK_MIN_SIZE = 23;
-    protected final HashMap<InteractiveImageKey, InteractiveImage> imageObjectInterfaces;
-    protected final HashMap<Image, Set<InteractiveImageKey>> imageObjectInterfaceMap;
-    protected final HashMapGetCreate<SegmentedObject, List<List<SegmentedObject>>> trackHeadTrackMap;
-    protected final LinkedHashMap<String, I> displayedRawInputFrames = new LinkedHashMap<>();
-    protected final LinkedHashMap<String, I> displayedPrePocessedFrames = new LinkedHashMap<>();
+    protected final Map<InteractiveImage, Set<Image>> interactiveImageMapImages = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
+    protected final Map<Image, InteractiveImage> imageMapInteractiveImage = new HashMap<>();
+
+    protected final Map<SegmentedObject, List<List<SegmentedObject>>> trackHeadTrackMap = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
+    protected final LinkedHashMap<String, I> displayedRawInputImages = new LinkedHashMap<>();
+    protected final LinkedHashMap<String, I> displayedPrePocessedImages = new LinkedHashMap<>();
     protected final LinkedList<Image> displayedInteractiveImages = new LinkedList<>();
-    final ImageObjectListener listener;
     final ImageDisplayer<I> displayer;
-    int interactiveStructureIdx;
+    int interactiveObjectClassIdx;
     int displayedImageNumber = 20;
     ZoomPane localZoom;
     // displayed objects 
-    protected final Map<Pair<SegmentedObject, BoundingBox>, U> objectRoiMap = new HashMap<>();
-    protected final Map<Pair<SegmentedObject, SegmentedObject>, V> parentTrackHeadKymographTrackRoiMap=new HashMap<>();
-    protected final Map<Pair<SegmentedObject, SegmentedObject>, V> parentTrackHeadTrackRoiMap=new HashMap<>();
-    protected final Map<Pair<SegmentedObject, BoundingBox>, U> labileObjectRoiMap = new HashMap<>();
-    protected final Map<Pair<SegmentedObject, SegmentedObject>, V> labileParentTrackHeadTrackRoiMap=new HashMap<>();
-    protected final Map<Pair<SegmentedObject, SegmentedObject>, V> labileParentTrackHeadKymographTrackRoiMap=new HashMap<>();
-    protected final HashMapGetCreate<Image, Set<U>> displayedLabileObjectRois = new HashMapGetCreate<>(new SetFactory<>());
-    protected final HashMapGetCreate<Image, Set<V>> displayedLabileTrackRois = new HashMapGetCreate<>(new SetFactory<>());
+    protected final Map<ObjectDisplay, U> objectRoiMap = new HashMap<>();
+    protected final Map<ObjectDisplay, U> labileObjectRoiMap = new HashMap<>();
+    protected final Map<List<ObjectDisplay>, V> kymographTrackRoiMap =new HashMap<>();
+    protected final Map<List<ObjectDisplay>, V> hyperstackTrackRoiMap =new HashMap<>();
+    protected final Map<List<ObjectDisplay>, V> hyperstackLabileTrackRoiMap =new HashMap<>();
+    protected final Map<List<ObjectDisplay>, V> kymographLabileTrackRoiMap =new HashMap<>();
+    protected final Map<Image, Set<U>> displayedLabileObjectRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
+    protected final Map<Image, Set<U>> displayedObjectRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
+    protected final Map<Image, Set<V>> displayedLabileTrackRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
+    protected final Map<Image, Set<V>> displayedTrackRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
+    protected final Map<Image, Boolean> displayAllObjects = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(im -> false);
+    protected final Map<Image, Boolean> displayAllTracks = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(im -> false);
 
-    protected final Map<Image, List<DefaultWorker>> runningWorkers = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.ListFactory<>());
-    protected static InteractiveImageKey.TYPE defaultInteractiveType = InteractiveImageKey.TYPE.HYPERSTACK;
-    public ImageWindowManager(ImageObjectListener listener, ImageDisplayer<I> displayer) {
-        this.listener=null;
+    public ImageWindowManager(ImageDisplayer<I> displayer) {
         this.displayer=displayer;
-        imageObjectInterfaceMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
-        imageObjectInterfaces = new HashMap<>();
-        trackHeadTrackMap = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
     }
-    public static void setDefaultInteractiveType(InteractiveImageKey.TYPE type) {defaultInteractiveType = type;}
-    public static InteractiveImageKey.TYPE getDefaultInteractiveType() {return defaultInteractiveType;}
+    static Class<? extends InteractiveImage> defaultInteractiveType;
+    public static void setDefaultInteractiveType(String type) {
+        if (type == null) defaultInteractiveType = null;
+        else if ("hyperstack".equals(type.toLowerCase())) defaultInteractiveType = HyperStack.class;
+        else if ("kymograph".equals(type.toLowerCase())) defaultInteractiveType = Kymograph.class;
+        else throw new IllegalArgumentException("Invalid interactive type: "+type);
+    }
+    public static Class<? extends InteractiveImage> getDefaultInteractiveType() {return defaultInteractiveType;}
     public void setDisplayImageLimit(int limit) {
         this.displayedImageNumber=limit;
     }
@@ -142,8 +147,8 @@ public abstract class ImageWindowManager<I, U, V> {
             if (displayedInteractiveImages.contains(image)) return RegisteredImageType.KYMOGRAPH;
             else return null;
         }
-        if (this.displayedRawInputFrames.values().contains(image)) return RegisteredImageType.RAW_INPUT;
-        if (this.displayedPrePocessedFrames.values().contains(image)) return RegisteredImageType.PRE_PROCESSED;
+        if (this.displayedRawInputImages.containsValue(image)) return RegisteredImageType.RAW_INPUT;
+        if (this.displayedPrePocessedImages.containsValue(image)) return RegisteredImageType.PRE_PROCESSED;
         try {
             I im = (I) image;
             if (displayedInteractiveImages.contains(getDisplayer().getImage(im))) return RegisteredImageType.KYMOGRAPH;
@@ -151,6 +156,273 @@ public abstract class ImageWindowManager<I, U, V> {
         
         return null;
     }
+
+
+    public void stopAllRunningWorkers() {
+        for (InteractiveImage im : interactiveImageMapImages.keySet()) {
+            im.stopAllRunningWorkers();
+        }
+    }
+    public void flush() {
+        stopAllRunningWorkers();
+        if (!objectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", objectRoiMap.size());
+        objectRoiMap.clear();
+        hyperstackTrackRoiMap.clear();
+        kymographTrackRoiMap.clear();
+        if (!labileObjectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", labileObjectRoiMap.size());
+        labileObjectRoiMap.clear();
+        hyperstackLabileTrackRoiMap.clear();
+        kymographLabileTrackRoiMap.clear();
+        displayedLabileObjectRois.clear();
+        displayedObjectRois.clear();
+        displayedLabileTrackRois.clear();
+        displayedTrackRois.clear();
+        displayer.flush();
+        interactiveImageMapImages.clear();
+        imageMapInteractiveImage.clear();
+        displayAllTracks.clear();
+        displayAllObjects.clear();
+        trackHeadTrackMap.clear();
+        displayedRawInputImages.clear();
+        displayedPrePocessedImages.clear();
+        displayedInteractiveImages.clear();
+        testData.clear();
+        trackColor.clear();
+    }
+
+    public void closeNonInteractiveWindows() {
+        closeLastInputImages(0);
+    }
+    public ImageDisplayer<I> getDisplayer() {return displayer;}
+    
+    //protected abstract I getImage(Image image);
+    
+    public void setInteractiveStructure(int structureIdx) {
+        this.interactiveObjectClassIdx =structureIdx;
+    }
+    
+    public int getInteractiveObjectClass() {
+        return interactiveObjectClassIdx;
+    }
+    
+    public void setActive(Image image) {
+        boolean b = displayedInteractiveImages.remove(image);
+        if (b) displayedInteractiveImages.add(image);
+    }
+
+    public void displayInputImage(Experiment xp, String position, boolean preProcessed) {
+        Position f = xp.getPosition(position);
+        int channels = xp.getChannelImageCount(preProcessed);
+        int frames = f.getFrameNumber(false);
+        String title = (preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex();
+        IntUnaryOperator getSizeZC = preProcessed ? c -> {
+            try {
+                return f.getImageDAO().getPreProcessedImageProperties(c).sizeZ();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } : c -> f.getInputImages().getSourceSizeZ(c);
+        int[] sizeZC = IntStream.range(0, channels).map(getSizeZC).toArray();
+        int maxZIdx = ArrayUtil.max(sizeZC);
+        int maxZ = sizeZC[maxZIdx];
+        if (maxZ != 1) {
+            for (int z = 0; z<sizeZC.length; ++z) {
+                if (sizeZC[z]!=1 && sizeZC[z]!=maxZ) throw new RuntimeException("At least two channels have slice (z) number that differ and are not equal to 1");
+            }
+        }
+
+        Function<int[], Image> imageOpenerFCZ  = preProcessed ? (fcz) -> {
+            if (sizeZC[fcz[1]] == 1) fcz[2] = 0;
+            try {
+                return f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } : (fcz) -> {
+            if (sizeZC[fcz[1]] == 1) fcz[2] = 0;
+            try {
+                return f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        LazyImage5D source = new LazyImage5DPlane(title, LazyImage5DPlane.homogenizeType(channels, imageOpenerFCZ), new int[]{frames, channels, maxZ});
+        source.setChannelNames(xp.getChannelImagesAsString(true));
+        source.setChannelColors(xp.getChannelColor(true).toArray(String[]::new));
+        I image = getDisplayer().displayImage(source);
+        addWindowClosedListener(image, e-> {
+            if (!preProcessed) displayedRawInputImages.remove(position);
+            else displayedPrePocessedImages.remove(position);
+            displayer.removeImage(null, image);
+            return null;
+        });
+        if (!preProcessed) displayedRawInputImages.put(position, image);
+        else displayedPrePocessedImages.put(position,  image);
+        closeLastInputImages(displayedImageNumber);
+    }
+
+    public String getPositionOfInputImage(I image) {
+        String pos = Utils.getOneKey(displayedRawInputImages, image);
+        if (pos!=null) return pos;
+        return Utils.getOneKey(displayedPrePocessedImages, image);
+    }
+
+    public void closeLastInputImages(int numberOfKeptImages) {
+        //logger.debug("close input images: raw: {} pp: {} limit: {}", displayedRawInputFrames.size(), displayedPrePocessedFrames.size(), numberOfKeptImages);
+        if (numberOfKeptImages<=0) return;
+        if (displayedRawInputImages.size()>numberOfKeptImages) {
+            Iterator<String> it = displayedRawInputImages.keySet().iterator();
+            while(displayedRawInputImages.size()>numberOfKeptImages && it.hasNext()) {
+                String i = it.next();
+                I im = displayedRawInputImages.get(i);
+                it.remove();
+                displayer.close(im);
+            }
+        }
+        if (displayedPrePocessedImages.size()>numberOfKeptImages) {
+            Iterator<String> it = displayedPrePocessedImages.keySet().iterator();
+            while(displayedPrePocessedImages.size()>numberOfKeptImages && it.hasNext()) {
+                String i = it.next();
+                I im = displayedPrePocessedImages.get(i);
+                it.remove();
+                displayer.close(im);
+            }
+        }
+    }
+
+    public void addImage(Image image, InteractiveImage i, boolean displayImage) {
+        if (image==null) return;
+        logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i, imageMapInteractiveImage.containsKey(i));
+        interactiveImageMapImages.get(i).add(image);
+        imageMapInteractiveImage.put(image, i);
+        i.setGUIMode(GUI.hasInstance());
+        if (displayImage) displayImage(image, i);
+    }
+
+    protected void displayImage(Image image, InteractiveImage i) {
+        long t0 = System.currentTimeMillis();
+        displayer.displayImage(image);
+        long t1 = System.currentTimeMillis();
+        displayedInteractiveImages.add(image);
+        addMouseListener(image);
+        addWindowClosedListener(image, e-> {
+            interactiveImageMapImages.get(i).remove(image);
+            if (interactiveImageMapImages.get(i).isEmpty()) {
+                i.stopAllRunningWorkers();
+                interactiveImageMapImages.remove(i);
+            }
+            imageMapInteractiveImage.remove(image);
+            displayedInteractiveImages.remove(image);
+            displayAllTracks.remove(image);
+            displayAllObjects.remove(image);
+            displayer.removeImage(image, null);
+            displayedLabileObjectRois.remove(image);
+            displayedObjectRois.remove(image);
+            displayedLabileTrackRois.remove(image);
+            displayedTrackRois.remove(image);
+            return null;
+        });
+        long t2 = System.currentTimeMillis();
+        GUI.updateRoiDisplayForSelections(image, i);
+        long t3 = System.currentTimeMillis();
+        closeLastActiveImages(displayedImageNumber);
+        long t4 = System.currentTimeMillis();
+        logger.debug("display image: show: {} ms, add list: {}, update ROI: {}, close last active image: {}", t1-t0, t2-t1, t3-t2, t4-t3);
+    }
+
+    public void closeLastActiveImages(int numberOfKeptImages) {
+        logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
+        if (numberOfKeptImages<=0) return;
+        if (displayedInteractiveImages.size()>numberOfKeptImages) {
+            Iterator<Image> it = displayedInteractiveImages.iterator();
+            while(displayedInteractiveImages.size()>numberOfKeptImages && it.hasNext()) {
+                Image next = it.next();
+                it.remove();
+                displayer.close(next);
+            }
+        }
+    }
+    public <II extends InteractiveImage> II getImageTrackObjectInterface(List<SegmentedObject> parentTrack, Class<II> interactiveImageClass, boolean createIfNotExisting) {
+        if (parentTrack.isEmpty()) {
+            logger.warn("cannot get interactive image with parent track of length == 0" );
+            return null;
+        }
+        II res = interactiveImageMapImages.keySet().stream().filter(ii -> interactiveImageClass.isAssignableFrom(ii.getClass()) && ii.getParents().equals(parentTrack)).map(ii -> (II)ii).findAny().orElse(null);
+        if (res == null && createIfNotExisting) {
+            if (interactiveImageClass.equals(HyperStack.class)) res = (II) HyperStack.generateHyperstack(parentTrack, interactiveObjectClassIdx);
+            else if (interactiveImageClass.equals(Kymograph.class)) res = (II) Kymograph.generateKymograph(parentTrack, interactiveObjectClassIdx);
+        }
+        return res;
+    }
+
+    public <I extends Image<I>> Stream<Image<I>> getImages(InteractiveImage i ) {
+        if (i==null) return Stream.empty();
+        return interactiveImageMapImages.get(i).stream().map(im -> (Image<I>)im);
+    }
+
+    public Image getOneImage(InteractiveImage i ) {
+        if (i==null) return null;
+        return interactiveImageMapImages.get(i).isEmpty() ? null : interactiveImageMapImages.get(i).iterator().next();
+    }
+    public Stream<InteractiveImage> getAllInteractiveImages() {
+        return interactiveImageMapImages.keySet().stream();
+    }
+    public Stream<InteractiveImage> getAllInteractiveImages(List<SegmentedObject> parentTrack) {
+        if (parentTrack.isEmpty()) {
+            logger.warn("cannot get interactive image with parent track of length == 0" );
+            return null;
+        }
+        return interactiveImageMapImages.keySet().stream().filter(ii -> ii.getParents().equals(parentTrack));
+    }
+
+    public void resetObjects(String position, int... childStructureIdx) {
+        interactiveImageMapImages.keySet().stream()
+            .filter(i->position==null || i.getParent().getPositionName().equals(position))
+            .forEach(i -> i.resetObjects(childStructureIdx));
+        resetObjectsAndTracksRoi();
+    }
+
+    public InteractiveImage getCurrentImageObjectInterface() {
+        return getInteractiveImage(null);
+    }
+
+    public  InteractiveImage getInteractiveImage(Image image) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage();
+            if (image==null) {
+                return null;
+            }
+        }
+        return imageMapInteractiveImage.get(image);
+    }
+
+    public abstract void addMouseListener(Image image);
+    public abstract void addWindowListener(I image, WindowListener wl);
+    public void addWindowClosedListener(Image image, Function<WindowEvent, Void> closeFunction) {
+        I im = displayer.getImage(image);
+        if (im!=null) addWindowClosedListener(im, closeFunction);
+    }
+    public void addWindowClosedListener(I image, Function<WindowEvent, Void> closeFunction) {
+        addWindowListener(image, new WindowListener() {
+            @Override
+            public void windowOpened(WindowEvent e) { }
+            @Override
+            public void windowClosing(WindowEvent e) {}
+            @Override
+            public void windowClosed(WindowEvent e) {
+                closeFunction.apply(e);
+            }
+            @Override
+            public void windowIconified(WindowEvent e) { }
+            @Override
+            public void windowDeiconified(WindowEvent e) { }
+            @Override
+            public void windowActivated(WindowEvent e) { }
+            @Override
+            public void windowDeactivated(WindowEvent e) { }
+        });
+    }
+
     void addLocalZoom(Component parent) {
         MouseAdapter ma = new MouseAdapter() {
             private void update(MouseEvent e) {
@@ -193,448 +465,8 @@ public abstract class ImageWindowManager<I, U, V> {
         }
     }
     public abstract void toggleSetObjectCreationTool();
-    public Map<Image, List<DefaultWorker>> getRunningWorkers() {
-        return runningWorkers;
-    }
-    public void stopAllRunningWorkers() {
-        for (DefaultWorker w : runningWorkers.values().stream().flatMap(Collection::stream).collect(Collectors.toList())) {
-            w.cancelSilently();
-        }
-        runningWorkers.clear();
-    }
-    public void flush() {
-        if (!runningWorkers.isEmpty()) logger.debug("flush: will stop {} running workers", runningWorkers.size());
-        stopAllRunningWorkers();
-        if (!objectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", objectRoiMap.size());
-        objectRoiMap.clear();
-        parentTrackHeadTrackRoiMap.clear();
-        parentTrackHeadKymographTrackRoiMap.clear();
-        if (!labileObjectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", labileObjectRoiMap.size());
-        labileObjectRoiMap.clear();
-        labileParentTrackHeadTrackRoiMap.clear();
-        labileParentTrackHeadKymographTrackRoiMap.clear();
-        displayedLabileObjectRois.clear();
-        displayedLabileTrackRois.clear();
-        displayer.flush();
-        imageObjectInterfaces.clear();
-        if (!imageObjectInterfaceMap.isEmpty()) logger.debug("flush: will remove {} images", imageObjectInterfaceMap.size());
-        imageObjectInterfaceMap.clear();
-        trackHeadTrackMap.clear();
-        displayedRawInputFrames.clear();
-        displayedPrePocessedFrames.clear();
-        displayedInteractiveImages.clear();
-        testData.clear();
-        trackColor.clear();
-    }
-    public void revertObjectClass(int objectClassIdx, MasterDAO db) {
-        // TODO: bug with hyperstacks
-        /*Consumer<InteractiveImageKey> flushIOI = k -> {
-            imageObjectInterfaces.remove(k);
-            Utils.getKeys(imageObjectInterfaceMap, k).forEach(displayer::close);
-        };
-        // reset hyperstack callback
-        imageObjectInterfaceMap.entrySet().stream()
-                .filter(e -> e.getValue().imageType.equals(InteractiveImageKey.TYPE.HYPERSTACK))
-                .forEach(e -> registerInteractiveHyperStackFrameCallback(e.getKey(), null, true));
-        // reset image object interface
-        new ArrayList<>(imageObjectInterfaces.keySet()).forEach(k -> {
-            InteractiveImage i = imageObjectInterfaces.get(k);
-            ExperimentStructure xp = i.getParent().getExperimentStructure();
-            if (db==null || !(i instanceof Kymograph) || objectClassIdx == i.getParent().getStructureIdx() || xp.isChildOf(objectClassIdx, i.getParent().getStructureIdx())) { // close image and remove IOI
-                flushIOI.accept(k);
-            } else {
-                SegmentedObject trackHead = i.parents.get(0).getTrackHead();
-                trackHead = db.getDao(trackHead.getPositionName()).getById(trackHead.getParentTrackHeadId(), trackHead.getStructureIdx(), trackHead.getFrame(), trackHead.getId()); // replace object
-                List<SegmentedObject> track = db.getDao(trackHead.getPositionName()).getTrack(trackHead);
-                if (track.size() == i.parents.size()) {
-                    Kymograph newI = Kymograph.generateKymograph(track, i.childStructureIdx, i instanceof HyperStack);
-                    i.setGUIMode(GUI.hasInstance());
-                    if (newI instanceof HyperStack) {
-                        Utils.getKeys(imageObjectInterfaceMap, k).forEach(im -> {
-                            registerHyperStack(im, (HyperStack)newI);
-                            GUI.updateRoiDisplayForSelections(im, newI);
-                        });
-                    } else imageObjectInterfaces.put(k, newI);
-                } else flushIOI.accept(k);
-            }
-        });
-        //imageObjectInterfaces.clear();
-        imageObjectInterfaceMap.forEach((i,k) -> {
-            if (k.interactiveObjectClass == objectClassIdx) hideAllRois(displayer.getImage(i));
-        });
-        trackHeadTrackMap.clear();
-        objectRoiMap.clear();
-        labileObjectRoiMap.clear();
-        parentTrackHeadKymographTrackRoiMap.clear();
-        parentTrackHeadTrackRoiMap.clear();
-        labileParentTrackHeadTrackRoiMap.clear();
-        labileParentTrackHeadKymographTrackRoiMap.clear();
-        trackColor.clear();
-        displayedLabileObjectRois.clear();
-        displayedLabileTrackRois.clear();*/
-        flush();
-    }
-    public void closeNonInteractiveWindows() {
-        closeLastInputImages(0);
-    }
-    public ImageDisplayer<I> getDisplayer() {return displayer;}
-    
-    //protected abstract I getImage(Image image);
-    
-    public void setInteractiveStructure(int structureIdx) {
-        this.interactiveStructureIdx=structureIdx;
-    }
-    
-    public int getInteractiveStructure() {
-        return interactiveStructureIdx;
-    }
-    
-    public Image getImage(InteractiveImage i) {
-        if (i==null) {
-            logger.error("cannot get image if IOI null");
-            return null;
-        }
-        List<Image> list = Utils.getKeys2(imageObjectInterfaceMap, i.getKey());
-        if (list.isEmpty()) return null;
-        else return list.get(0);
-    }
-    public Image getImage(InteractiveImage i, int displayStructureIdx) {
-        List<Image> list = Utils.getKeys2(imageObjectInterfaceMap, i.getKey().getKey(displayStructureIdx));
-        if (list.isEmpty()) return null;
-        else return list.get(0);
-    }
-    
-    public void setActive(Image image) {
-        boolean b =  displayedInteractiveImages.remove(image);
-        if (b) displayedInteractiveImages.add(image);
-    }
-    
-    public void addImage(Image image, InteractiveImage i, int displayOCIdx, boolean displayImage) {
-        if (image==null) return;
-        logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i.getKey(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
-        /*if (!imageObjectInterfaces.containsValue(i)) {
-            //throw new RuntimeException("image object interface should be created through the manager");
-            imageObjectInterfaces.put(i.getKey(), i);
-        }*/
-        imageObjectInterfaces.put(i.getKey(), i);
-        //T dispImage = getImage(image);
-        imageObjectInterfaceMap.get(image).add(i.getKey().getKey(displayOCIdx));
-        if (displayImage) {
-            displayImage(image, i);
-            if (i instanceof TimeLapseInteractiveImage && ((TimeLapseInteractiveImage)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((TimeLapseInteractiveImage)i).imageCallback.get(image));
-        }
-    }
-    public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive);
-    public void registerTimeLapseInteractiveImage(Image image, TimeLapseInteractiveImage i) {
-        imageObjectInterfaces.put(i.getKey(), i);
-        imageObjectInterfaceMap.get(image).add(i.getKey());
-        if (i.loadObjectsWorker!=null && !i.loadObjectsWorker.isDone()) {
-            runningWorkers.get(image).add(i.loadObjectsWorker);
-            i.loadObjectsWorker.appendEndOfWork(()->runningWorkers.get(image).remove(i.loadObjectsWorker));
-        }
-        if (i instanceof HyperStack) registerInteractiveHyperStackFrameCallback(image, (HyperStack)i, true);
-    }
-    public void addHyperStack(Image image, I displayedImage, HyperStack i) {
-        logger.debug("adding frame stack: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
-        //T dispImage = getImage(image);
-        displayedInteractiveImages.add(image);
-        displayer.putImage(image, displayedImage);
-        registerTimeLapseInteractiveImage(image, i);
-        addMouseListener(image);
-        addWindowClosedListener(displayedImage, e-> {
-            if (runningWorkers.containsKey(image)) {
-                List<DefaultWorker> l;
-                synchronized (runningWorkers) {
-                    l = runningWorkers.remove(image);
-                }
-                if (l != null && !l.isEmpty()) {
-                    logger.debug("interrupting {} object lazy loading for image: {}", l.size(), image.getName());
-                    l.forEach(DefaultWorker::cancelSilently);
-                }
-            }
-            displayedInteractiveImages.remove(image);
-            displayer.removeImage(image, displayedImage);
-            imageObjectInterfaceMap.remove(image);
-            displayedLabileObjectRois.remove(image);
-            displayedLabileTrackRois.remove(image);
-            return null;
-        });
-        i.setGUIMode(GUI.hasInstance());
-        GUI.updateRoiDisplayForSelections(image, i);
-        closeLastActiveImages(displayedImageNumber);
-    }
 
-    public void displayImage(Image image, InteractiveImage i) {
-        long t0 = System.currentTimeMillis();
-        displayer.showImage(image);
-        long t1 = System.currentTimeMillis();
-        displayedInteractiveImages.add(image);
-        addMouseListener(image);
-        addWindowClosedListener(image, e-> {
-            List<DefaultWorker> l = runningWorkers.get(image);
-            if (!l.isEmpty()) {
-                logger.debug("interrupting generation of closed image: {}", image.getName());
-                l.forEach(DefaultWorker::cancelSilently);
-            }
-            runningWorkers.remove(image);
-            displayedInteractiveImages.remove(image);
-            displayer.removeImage(image, null);
-            return null;
-        });
 
-        long t2 = System.currentTimeMillis();
-        GUI.updateRoiDisplayForSelections(image, i);
-        long t3 = System.currentTimeMillis();
-        closeLastActiveImages(displayedImageNumber);
-        long t4 = System.currentTimeMillis();
-        logger.debug("display image: show: {} ms, add list: {}, update ROI: {}, close last active image: {}", t1-t0, t2-t1, t3-t2, t4-t3);
-    }
-    public String getPositionOfInputImage(I image) {
-        String pos = Utils.getOneKey(displayedRawInputFrames, image);
-        if (pos!=null) return pos;
-        return Utils.getOneKey(displayedPrePocessedFrames, image);
-    }
-    public void addInputImage(String position, I image, boolean raw) {
-        if (image==null) return;
-        addWindowClosedListener(image, e-> {
-            if (raw) displayedRawInputFrames.remove(position);
-            else displayedPrePocessedFrames.remove(position);
-            displayer.removeImage(null, image);
-            return null;
-        });
-        if (raw) displayedRawInputFrames.put(position, image);
-        else displayedPrePocessedFrames.put(position,  image);
-        closeLastInputImages(displayedImageNumber);
-    }
-    public void closeLastActiveImages(int numberOfKeptImages) {
-        logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
-        if (numberOfKeptImages<=0) return;
-        if (displayedInteractiveImages.size()>numberOfKeptImages) {
-            Iterator<Image> it = displayedInteractiveImages.iterator();
-            while(displayedInteractiveImages.size()>numberOfKeptImages && it.hasNext()) {
-                Image next = it.next();
-                it.remove();
-                displayer.close(next);
-            }
-        }
-    }
-    public void closeLastInputImages(int numberOfKeptImages) {
-        //logger.debug("close input images: raw: {} pp: {} limit: {}", displayedRawInputFrames.size(), displayedPrePocessedFrames.size(), numberOfKeptImages);
-        if (numberOfKeptImages<=0) return;
-        if (displayedRawInputFrames.size()>numberOfKeptImages) {
-            Iterator<String> it = displayedRawInputFrames.keySet().iterator();
-            while(displayedRawInputFrames.size()>numberOfKeptImages && it.hasNext()) {
-                String i = it.next();
-                I im = displayedRawInputFrames.get(i);
-                it.remove();
-                displayer.close(im);
-            }
-        }
-        if (displayedPrePocessedFrames.size()>numberOfKeptImages) {
-            Iterator<String> it = displayedPrePocessedFrames.keySet().iterator();
-            while(displayedPrePocessedFrames.size()>numberOfKeptImages && it.hasNext()) {
-                String i = it.next();
-                I im = displayedPrePocessedFrames.get(i);
-                it.remove();
-                displayer.close(im);
-            }
-        }
-    }
-    
-    public void resetImageObjectInterface(SegmentedObject parent, int childStructureIdx) {
-        for (InteractiveImageKey.TYPE it : InteractiveImageKey.TYPE.values()) imageObjectInterfaces.remove(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, it, childStructureIdx));
-    }
-    
-    public InteractiveImage getImageObjectInterface(SegmentedObject parent, int childStructureIdx, boolean createIfNotExisting) {
-        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx));
-        if (i==null && createIfNotExisting) {
-            i= new SimpleInteractiveImage(parent, childStructureIdx);
-            imageObjectInterfaces.put(i.getKey(), i);
-        } 
-        return i;
-    }
-    public InteractiveImage getImageTrackObjectInterface(List<SegmentedObject> parentTrack, int childStructureIdx, InteractiveImageKey.TYPE type) {
-        
-        if (parentTrack.isEmpty()) {
-            logger.warn("cannot create kymograph with parent track of length == 0" );
-            return null;
-        }
-        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(parentTrack, type, childStructureIdx));
-        logger.debug("getIOI: type: {}, hash: {} ({}), exists: {}, trackHeadTrackMap: {}", type, parentTrack.hashCode(), new InteractiveImageKey(parentTrack, type, childStructureIdx).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
-        if (i==null) {
-            //logger.debug("getIOI query: {}, existing: {}", new InteractiveImageKey(parentTrack, type, childStructureIdx), imageObjectInterfaces.keySet());
-            long t0 = System.currentTimeMillis();
-            i = TimeLapseInteractiveImage.generateInteractiveImageTime(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.HYPERSTACK));
-            long t1 = System.currentTimeMillis();
-            imageObjectInterfaces.put(i.getKey(), i);
-            trackHeadTrackMap.getAndCreateIfNecessary(parentTrack.get(0)).add(parentTrack);
-            i.setGUIMode(GUI.hasInstance());
-
-            long t2 = System.currentTimeMillis();
-            logger.debug("create IOI: {} key: {}, creation time: {} ms + {} ms", i.hashCode(), i.getKey().hashCode(), t1-t0, t2-t1);
-        } 
-        return i;
-    }
-
-    protected void reloadObjects__(InteractiveImageKey key) {
-        InteractiveImage i = imageObjectInterfaces.get(key);
-        if (i!=null) {
-            logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.interactiveObjectClass);
-            i.reloadObjects();
-        }
-    }
-    protected void reloadObjects_(SegmentedObject parent, int childStructureIdx, boolean track) {
-        if (track) parent=parent.getTrackHead();
-        List<Integer> ocIdxs = IntStream.of(parent.getExperimentStructure().getAllChildStructures(childStructureIdx)).boxed().collect(Collectors.toList());
-        ocIdxs.add(childStructureIdx);
-        final SegmentedObject p = parent;
-        ocIdxs.forEach(ocIdx -> {
-            if (!trackHeadTrackMap.containsKey(p)) {
-                reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, InteractiveImageKey.TYPE.SINGLE_FRAME, ocIdx));
-            } else {
-                for (List<SegmentedObject> l : trackHeadTrackMap.get(p)) {
-                    for (InteractiveImageKey.TYPE it : InteractiveImageKey.TYPE.values()) reloadObjects__(new InteractiveImageKey(l, it, ocIdx));
-                }
-            }
-        } );
-    }
-    public void resetObjects(String position, int childStructureIdx) {
-        imageObjectInterfaces.values().stream()
-                .filter(i->i.getChildStructureIdx()==childStructureIdx || i.getParent().getExperimentStructure().isChildOf(childStructureIdx, i.getChildStructureIdx()))
-                .filter(i->position==null || i.getParent().getPositionName().equals(position))
-                .forEach(InteractiveImage::resetObjects);
-        resetObjectsAndTracksRoi();
-    }
-    public void reloadObjects(SegmentedObject parent, int childStructureIdx, boolean wholeTrack) {
-        reloadObjects_(parent, childStructureIdx, true); // reload track images
-        if (wholeTrack) { // reload each image of the track
-            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(parent.getTrackHead());
-            for (SegmentedObject o : track) reloadObjects_(o, childStructureIdx, false);
-        } else reloadObjects_(parent, childStructureIdx, false);
-        if (parent.getParent()!=null) reloadObjects(parent.getParent(), childStructureIdx, wholeTrack);
-        this.resetObjectsAndTracksRoi();
-    } 
-    
-    public InteractiveImage getCurrentImageObjectInterface() {
-        return getImageObjectInterface(null);
-    }
-    public InteractiveImageKey getImageObjectInterfaceKey(Image image) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) {
-                return null;
-            }
-        }
-        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
-        if (keys.isEmpty()) return null;
-        else return keys.iterator().next();
-    }
-    public  InteractiveImage getImageObjectInterface(Image image) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) {
-                return null;
-            }
-        }
-        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
-        if (keys.isEmpty()) return null;
-        InteractiveImageKey key = keys.iterator().next();
-        return getImageObjectInterface(image, interactiveStructureIdx, key.imageType);
-    }
-
-    public InteractiveImage getImageObjectInterface(Image image, InteractiveImageKey.TYPE type) {
-        return getImageObjectInterface(image, interactiveStructureIdx, type); // use the interactive structure. Creates the ImageObjectInterface if necessary
-    }
-
-    public InteractiveImage getImageObjectInterface(Image image, int objectClassIdx) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) {
-                return null;
-            }
-        }
-        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
-        if (keys.isEmpty()) return null;
-        InteractiveImageKey key = keys.iterator().next();
-        return getImageObjectInterface(image, objectClassIdx, key.imageType);
-    }
-
-    public InteractiveImage getImageObjectInterface(Image image, int structureIdx, InteractiveImageKey.TYPE type) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) {
-                return null;
-            }
-        }
-        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
-        if (keys.isEmpty()) return null;
-        InteractiveImageKey key = keys.iterator().next();
-        InteractiveImage i = this.imageObjectInterfaces.get(key.getKey(structureIdx));
-        
-        if (i==null) {
-            InteractiveImage ref = InteractiveImageKey.getOneElementIgnoreStructure(key, imageObjectInterfaces);
-            if (ref==null) {
-                logger.error("IOI not found: ref: {} ({}), all IOI: {}", key, key.getKey(-1), imageObjectInterfaces.keySet());
-                return null;
-            }
-            // create imageObjectInterface
-            if (ref instanceof TimeLapseInteractiveImage) {
-                i = this.getImageTrackObjectInterface((ref).getParents(), structureIdx, type);
-                if (ref instanceof HyperStack) ((HyperStack)i).setIdx(((HyperStack)ref).getIdx());
-            } else i = this.getImageObjectInterface(ref.getParent(), structureIdx, true);
-            if (!ref.getName().isEmpty()) {
-                imageObjectInterfaces.remove(i.getKey());
-                i.setName(ref.getName());
-            }
-            logger.debug("created IOI: {} from ref: {}", i.getKey(), ref);
-            if (i instanceof HyperStack) registerTimeLapseInteractiveImage(image, (HyperStack) i);
-        } else if (i instanceof HyperStack) {
-            if (!imageObjectInterfaceMap.get(image).contains(i.getKey())) {
-                logger.debug("registered existing IOI: {} to image: {}", i.getKey(), image.hashCode());
-                registerTimeLapseInteractiveImage(image, (HyperStack) i);
-            }
-        }
-        return i;
-    }
-    
-    public void removeImage(Image image) {
-        imageObjectInterfaceMap.remove(image);
-        //removeClickListener(image);
-    }
-    public void removeImageObjectInterface(InteractiveImageKey key) {
-        // ignore structure
-        Iterator<Entry<InteractiveImageKey, InteractiveImage>> it = imageObjectInterfaces.entrySet().iterator();
-        while(it.hasNext()) if (it.next().getKey().equalsIgnoreStructure(key)) it.remove();
-        Iterator<Entry<Image, Set<InteractiveImageKey>>> it2 = imageObjectInterfaceMap.entrySet().iterator();
-        while(it2.hasNext()) if (it2.next().getValue().stream().anyMatch(k->k.equalsIgnoreStructure(key))) it2.remove();
-    }
-    
-    public abstract void addMouseListener(Image image);
-    public abstract void addWindowListener(I image, WindowListener wl);
-    public void addWindowClosedListener(Image image, Function<WindowEvent, Void> closeFunction) {
-        I im = displayer.getImage(image);
-        if (im!=null) addWindowClosedListener(im, closeFunction);
-    }
-    public void addWindowClosedListener(I image, Function<WindowEvent, Void> closeFunction) {
-        addWindowListener(image, new WindowListener() {
-            @Override
-            public void windowOpened(WindowEvent e) { }
-            @Override
-            public void windowClosing(WindowEvent e) {}
-            @Override
-            public void windowClosed(WindowEvent e) {
-                closeFunction.apply(e);
-            }
-            @Override
-            public void windowIconified(WindowEvent e) { }
-            @Override
-            public void windowDeiconified(WindowEvent e) { }
-            @Override
-            public void windowActivated(WindowEvent e) { }
-            @Override
-            public void windowDeactivated(WindowEvent e) { }
-        });
-    }
     /**
      * 
      * @param image
@@ -646,26 +478,25 @@ public abstract class ImageWindowManager<I, U, V> {
      * @param image
      * @return mapping of containing objects (parents) to relative (to the parent) coordinated of selected point 
      */
-    public Map<SegmentedObject, List<Point>> getParentSelectedPointsMap(Image image, int parentStructureIdx) {
+    public Map<SegmentedObject, List<Point>> getParentSelectedPointsMap(Image image, int parentObjectClassIdx) {
         I dispImage;
         if (image==null) {
-            dispImage = displayer.getCurrentImage();
+            dispImage = displayer.getCurrentDisplayedImage();
             if (dispImage==null) return null;
             image = displayer.getImage(dispImage);
         } else dispImage = displayer.getImage(image);
         if (dispImage==null) return null;
-        InteractiveImage i = this.getImageObjectInterface(image, parentStructureIdx);
+        InteractiveImage i = this.getInteractiveImage(image);
         if (i==null) return null;
 
         Map<Integer, List<Point>> rawCoordinatesByFrame = getSelectedPointsOnImage(dispImage);
         HashMapGetCreate<SegmentedObject, List<Point>> map = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
         rawCoordinatesByFrame.forEach((f, rawCoordinates) ->  {
-            if (i instanceof HyperStack) ((HyperStack)i).setIdx(f);
             rawCoordinates.forEach(c -> {
-                Pair<SegmentedObject, BoundingBox> parent = i.getClickedObject(c.getIntPosition(0), c.getIntPosition(1), c.getIntPosition(2));
+                ObjectDisplay parent = i.getObjectAtPosition(c.getIntPosition(0), c.getIntPosition(1), c.getIntPosition(2), parentObjectClassIdx, f);
                 if (parent!=null) {
-                    c.translateRev(parent.value);
-                    List<Point> children = map.getAndCreateIfNecessary(parent.key);
+                    c.translateRev(parent.offset);
+                    List<Point> children = map.getAndCreateIfNecessary(parent.object);
                     children.add(c);
                 }
             });
@@ -673,164 +504,71 @@ public abstract class ImageWindowManager<I, U, V> {
         return map;
         
     }
-    //public abstract void removeClickListener(Image image);
-    
-    public Pair<SegmentedObject, BoundingBox> getClickedObject(Image image, int x, int y, int z) {
-        InteractiveImage i = getImageObjectInterface(image);
-        if (i!=null) {
-            return i.getClickedObject(x, y, z);
-        } else logger.warn("image: {} is not registered for click");
-        return null;
-    }
-
-    public void displayAllObjects(Image image) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) {
-                logger.debug("no active image");
-                return;
-            }
-        }
-        InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
-        if (i==null) {
-            logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
-            return;
-        }
-        if (i instanceof HyperStack) {
-            HyperStack k = ((HyperStack)i);
-            k.setDisplayAllObjects(true);
-            Image im = image;
-            IntConsumer cb = idx -> {
-                hideAllRois(im, true, false);
-                displayObjects(im, k.getObjects(), defaultRoiColor, true, false);
-            };
-            k.setChangeIdxCallback(cb);
-            cb.accept(k.getIdx());
-        } else displayObjects(image, i.getObjects(), defaultRoiColor, true, false);
-        if (listener!=null) listener.fireObjectSelected(Pair.unpairKeys(i.getObjects()), true);
-    }
-    
-    public void displayAllTracks(Image image) {
-        trackColor.clear(); //randomize track colors:
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) return;
-        }
-        InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
-        if (i==null) {
-            logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveStructureIdx);
-            return;
-        }
-        if (i instanceof HyperStack) {
-            HyperStack k = ((HyperStack)i);
-            Image im = image;
-            IntConsumer callback = idx -> {
-                // a sub-track @ current frame is considered
-                List<List<SegmentedObject>> selTracks = k.getObjects().stream().map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
-                hideAllRois(im, true, false);
-                Collections.shuffle(selTracks); // shuffle to randomize colors
-                if (!selTracks.isEmpty()) displayTracks(im, k, selTracks, true);
-            };
-            k.setChangeIdxCallback(callback);
-            callback.accept(k.getIdx());
-        } else {
-            Collection<SegmentedObject> objects = Pair.unpairKeys(i.getObjects());
-            boolean contourMode = i.getParent().getExperimentStructure().getTrackDisplay(i.childStructureIdx).equals(Structure.TRACK_DISPLAY.CONTOUR);
-            Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects);
-            if (contourMode) hideAllRois(image, true, false);
-            displayTracks(image, i, allTracks.values(), true);
-        }
-    }
-    
+    public abstract void displayAllObjects(Image image);
+    public abstract void displayAllTracks(Image image);
     public abstract void displayObject(I image, U roi);
     public abstract void hideObject(I image, U roi);
-    protected abstract U generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color, int frameIdx);
+    protected abstract U generateObjectRoi(ObjectDisplay object, Color color, int frameIdx);
     protected abstract void setRoiAttributes(U roi, Color color, int frameIdx);
     public void setRoiModifier(RoiModifier<U> modifier) {this.roiModifier=modifier;}
     RoiModifier<U> roiModifier;
-    public static interface RoiModifier<U> {
-        public void modifyRoi(Pair<SegmentedObject, BoundingBox> currentObject, U currentRoi, Collection<Pair<SegmentedObject, BoundingBox>> objectsToDisplay);
+    public interface RoiModifier<U> {
+        void modifyRoi(ObjectDisplay currentObject, U currentRoi, Collection<ObjectDisplay> objectsToDisplay);
     }
-    public void displayObjects(Image image, Collection<Pair<SegmentedObject, BoundingBox>> objectsToDisplay, Color color, boolean labileObjects, boolean hideIfAlreadyDisplayed) {
+    
+    public abstract void updateImageRoiDisplay(Image image);
+    
+    public void displayObjects(Image image, Collection<ObjectDisplay> objectsToDisplay, Color color, boolean labileObjects, boolean hideIfAlreadyDisplayed) {
         if (objectsToDisplay.isEmpty() || (objectsToDisplay.iterator().next()==null)) return;
         if (color==null) color = ImageWindowManager.defaultRoiColor;
         I dispImage;
         if (image==null) {
-            dispImage = displayer.getCurrentImage();
+            dispImage = displayer.getCurrentDisplayedImage();
             if (dispImage==null) return;
             image = displayer.getImage(dispImage);
         }
         else dispImage = displayer.getImage(image);
         if (dispImage==null || image==null) return;
-        Set<U> labiles = labileObjects ? this.displayedLabileObjectRois.getAndCreateIfNecessary(image) : null;
-        Map<Pair<SegmentedObject, BoundingBox>, U> map = labileObjects ? this.labileObjectRoiMap : objectRoiMap;
+        Set<U> displayed = labileObjects ? displayedLabileObjectRois.get(image) : displayedObjectRois.get(image);
+        Map<ObjectDisplay, U> map = labileObjects ? labileObjectRoiMap : objectRoiMap;
         long t0 = System.currentTimeMillis();
-        ToIntFunction<SegmentedObject> getFrame = o -> 1; // for Kymographs
-        InteractiveImage i =  getImageObjectInterface(image, objectsToDisplay.iterator().next().key.getStructureIdx());
-        if (i!=null) {
-            if (i instanceof HyperStack) {
-                Map<Integer, Integer> frameMapIdx = IntStream.range(0, i.getParents().size()).boxed().collect(Collectors.toMap(idx->i.getParents().get(idx).getFrame(), idx->idx));
-                getFrame = o -> {
-                    Integer frameIdx = frameMapIdx.get(o.getFrame());
-                    if (frameIdx!=null) return frameIdx;
-                    return -1;
-                };
-            }
-        }
-        for (Pair<SegmentedObject, BoundingBox> p : objectsToDisplay) {
-            if (p==null || p.key==null) continue;
-            int frame = getFrame.applyAsInt(p.key);
-            if (frame<0) continue;
+        for (ObjectDisplay od : objectsToDisplay) {
+            if (od==null) continue;
             //logger.debug("getting mask of object: {}", o);
-            U roi=map.get(p);
+            U roi=map.get(od);
             if (roi==null) {
-                roi = generateObjectRoi(p, color, frame);
-                map.put(p, roi);
-                //if (!labileObjects) logger.debug("add non labile object: {}, found by keyonly? {}", p.key, map.containsKey(new Pair(p.key, null)));
+                roi = generateObjectRoi(od, color, od.sliceIdx);
+                map.put(od, roi);
             }
-            if (roiModifier!=null) roiModifier.modifyRoi(p, roi, objectsToDisplay);
-            if (labileObjects) {
-                if (labiles.contains(roi)) {
-                    if (hideIfAlreadyDisplayed) {
-                        hideObject(dispImage, roi);
-                        labiles.remove(roi);
-                        //logger.debug("display -> inverse state: hide: {}", p.key);
-                        /*Object attr = new HashMap<String, Object>(0);
-                        try {
-                            Field attributes = SegmentedObject.class.getDeclaredField("attributes");
-                            attributes.setAccessible(true);
-                            attr = attributes.get(p.key);
-                        } catch (Exception e) {}
-                        logger.debug("isTH: {}, values: {}, attributes: {}", p.key.isTrackHead(), p.key.getMeasurements().getKeys(), attr);
-                        */
-                    }
-                } else {
-                    setRoiAttributes(roi, color, frame);
-                    displayObject(dispImage, roi);
-                    labiles.add(roi);
+            if (roiModifier!=null) roiModifier.modifyRoi(od, roi, objectsToDisplay);
+            if (displayed.contains(roi)) {
+                if (hideIfAlreadyDisplayed) {
+                    hideObject(dispImage, roi);
+                    displayed.remove(roi);
                 }
             } else {
-                setRoiAttributes(roi, color, frame);
+                setRoiAttributes(roi, color, od.sliceIdx);
                 displayObject(dispImage, roi);
+                displayed.add(roi);
             }
         }
         long t1 = System.currentTimeMillis();
-        displayer.updateImageRoiDisplay(image);
+        updateImageRoiDisplay(image);
         long t2 = System.currentTimeMillis();
         //logger.debug("display {} objects: create roi & add to overlay: {}, update display: {}", objectsToDisplay.size(), t1-t0, t2-t1);
     }
     
-    public void hideObjects(Image image, Collection<Pair<SegmentedObject, BoundingBox>> objects, boolean labileObjects) {
+    public void hideObjects(Image image, Collection<ObjectDisplay> objects, boolean labileObjects) {
         I dispImage;
         if (image==null) {
-            image = getDisplayer().getCurrentImage2();
+            image = getDisplayer().getCurrentImage();
             if (image==null) return;
         } 
         dispImage = getDisplayer().getImage(image);
         if (dispImage==null) return;
-        Set<U> selectedObjects = labileObjects ? this.displayedLabileObjectRois.get(image) : null;
-        Map<Pair<SegmentedObject, BoundingBox>, U> map = labileObjects ? labileObjectRoiMap : objectRoiMap;
-        for (Pair<SegmentedObject, ?> p : objects) {
+        Set<U> selectedObjects = labileObjects ? this.displayedLabileObjectRois.get(image) : displayedObjectRois.get(image);
+        Map<ObjectDisplay, U> map = labileObjects ? labileObjectRoiMap : objectRoiMap;
+        for (ObjectDisplay p : objects) {
             //logger.debug("hiding: {}", p.key);
             U roi=map.get(p);
             if (roi!=null) {
@@ -839,28 +577,12 @@ public abstract class ImageWindowManager<I, U, V> {
             }
             //logger.debug("hide object: {} found? {}", p.key, roi!=null);
         }
-        displayer.updateImageRoiDisplay(image);
+        updateImageRoiDisplay(image);
     }
 
-    public void displayLabileObjects(Image image) {
+    public void hideLabileObjects(Image image, boolean updateDisplay) {
         if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) return;
-        }
-        Set<U> rois = this.displayedLabileObjectRois.get(image);
-        if (rois!=null) {
-            I dispImage = displayer.getImage(image);
-            if (dispImage==null) return;
-            for (U roi: rois) displayObject(dispImage, roi);
-            displayer.updateImageRoiDisplay(image);
-        }
-        //if (listener!=null) listener.fireObjectSelected(Pair.unpair(getLabileObjects(image)), true);
-    }
-
-    
-    public void hideLabileObjects(Image image) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
+            image = getDisplayer().getCurrentImage();
             if (image==null) return;
         }
         Set<U> rois = this.displayedLabileObjectRois.remove(image);
@@ -868,26 +590,28 @@ public abstract class ImageWindowManager<I, U, V> {
             I dispImage = displayer.getImage(image);
             if (dispImage==null) return;
             for (U roi: rois) hideObject(dispImage, roi);
-            displayer.updateImageRoiDisplay(image);
+            if (updateDisplay) updateImageRoiDisplay(image);
             //if (listener!=null) listener.fireObjectDeselected(Pair.unpair(getLabileObjects(image)));
         }
     }
     
     public List<SegmentedObject> getSelectedLabileObjects(Image image) {
         if (image==null) {
-            image = getDisplayer().getCurrentImage2();
+            image = getDisplayer().getCurrentImage();
             if (image==null) return Collections.emptyList();
         }
-        InteractiveImage i = getImageObjectInterface(image);
+        InteractiveImage i = getInteractiveImage(image);
         if (i==null) return Collections.emptyList();
-        if (i instanceof HyperStack && ((HyperStack)i).isDisplayAllObjects()) {
-            logger.debug("getSelected Labile object: hyperstack in display all objects mode");
-            return ((HyperStack)i).getAllObjects().map(o->o.key).collect(Collectors.toList());
+        for (int oc = 0; oc<i.getParent().getExperimentStructure().getObjectClassNumber(); ++oc) {
+            if (displayAllObjects.get(image)) {
+                logger.debug("getSelected Labile object: display all objects mode");
+                return i.getAllObjects(oc).collect(Collectors.toList());
+            }
         }
         Set<U> rois = displayedLabileObjectRois.get(image);
         if (rois!=null) {
-            List<Pair<SegmentedObject, BoundingBox>> pairs = Utils.getKeys(labileObjectRoiMap, rois);
-            List<SegmentedObject> res = Pair.unpairKeys(pairs);
+            List<ObjectDisplay> ods = Utils.getKeys(labileObjectRoiMap, rois);
+            List<SegmentedObject> res = ods.stream().map(o->o.object).collect(Collectors.toList());
             Utils.removeDuplicates(res, false);
             return res;
         } else return Collections.emptyList();
@@ -901,272 +625,254 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     /// track-related methods
     
-    protected abstract void displayTrack(I image, V roi, InteractiveImage i);
-    protected abstract void hideTrack(I image, V roi, InteractiveImage i);
-    protected abstract V generateTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i, boolean forceDefaultDisplay);
+    protected abstract void displayTrack(I image, V roi);
+    protected abstract void hideTrack(I image, V roi);
+    protected abstract V generateTrackRoi(List<ObjectDisplay> track, InteractiveImage i, Color color, boolean forceDefaultDisplay);
     protected abstract void setTrackColor(V roi, Color color);
 
-    public void displayTracks(Image image, InteractiveImage i, Collection<List<SegmentedObject>> tracks, boolean labile) {
+    public void displayTracks(Image image, InteractiveImage i, Collection<List<SegmentedObject>> tracks, Color color, boolean labile, boolean hideIfAlreadyDisplayed) {
         if (image==null) {
-            image = displayer.getCurrentImage2();
+            image = displayer.getCurrentImage();
             if (image==null) return;
         }
         if (i ==null) {
-            i = this.getImageObjectInterface(image);
-            
+            i = this.getInteractiveImage(image);
         }
         //logger.debug("display {} tracks on image: {}, OI: {}", tracks.size(), image.getName(), i.getClass().getSimpleName());
         boolean hyperStack = i instanceof HyperStack;
+        List<List<SegmentedObject>> displayedTracks = new ArrayList<>();
         for (List<SegmentedObject> track : tracks) {
-            displayTrack(image, i, i.pairWithOffset(track), hyperStack? getColor(track.get(0)) : getColor() , labile, false, false);
+            boolean disp = displayTrack(image, i, i.toObjectDisplay(track), color==null?getColor(track.get(0)):color, labile, false, hideIfAlreadyDisplayed, false);
+            if (disp) displayedTracks.add(track);
         }
-        if (hyperStack) {
-            int minFrame = tracks.stream().flatMapToInt(track -> track.stream().mapToInt(SegmentedObject::getFrame)).min().orElse(-1);
-            int maxFrame = tracks.stream().flatMapToInt(track -> track.stream().mapToInt(SegmentedObject::getFrame)).max().orElse(-1);
-            if (minFrame > -1) {
-                int curFrame = ((HyperStack)i).idxMapFrame.get(displayer.getFrame(image));
+
+        int minFrame = displayedTracks.stream().flatMapToInt(track -> track.stream().mapToInt(SegmentedObject::getFrame)).min().orElse(-1);
+        int maxFrame = displayedTracks.stream().flatMapToInt(track -> track.stream().mapToInt(SegmentedObject::getFrame)).max().orElse(-1);
+        if (minFrame > -1) {
+            if (hyperStack) {
+                int curFrame = ((HyperStack)i).parentIdxMapFrame.get(displayer.getFrame(image));
                 if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
+            } else {
+                Kymograph k = (Kymograph) i;
+                int minSlice = k.getSlice(minFrame).mapToInt(ii->ii).min().getAsInt();
+                int maxSlice = k.getSlice(maxFrame).mapToInt(ii->ii).max().getAsInt();
+                int currentSlice = displayer.getFrame(image);
+                if (currentSlice < minSlice || currentSlice > maxSlice) displayer.setFrame(minSlice, image);
             }
         }
-        displayer.updateImageRoiDisplay(image);
+        updateImageRoiDisplay(image);
         //GUI.updateRoiDisplayForSelections(image, i);
     }
-    public void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile) {
-        displayTrack(image, i, track, color, labile, false, true);
-    }
 
-    protected void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile, boolean forceDefaultDisplay, boolean updateDisplay) {
+    protected boolean displayTrack(Image image, InteractiveImage i, List<ObjectDisplay> track, Color color, boolean labile, boolean forceDefaultDisplay, boolean hideIfAlreadyDisplayed, boolean updateDisplay) {
         //logger.debug("display selected track: image: {}, track length: {} color: {}", image, track==null?"null":track.size(), color);
-        if (track==null || track.isEmpty()) return;
+        if (track==null || track.isEmpty()) return true;
         I dispImage;
         if (image==null) {
-            dispImage = getDisplayer().getCurrentImage();
-            if (dispImage==null) return;
+            dispImage = getDisplayer().getCurrentDisplayedImage();
+            if (dispImage==null) return false;
             image = getDisplayer().getImage(dispImage);
         } else dispImage = getDisplayer().getImage(image);
-        if (dispImage==null || image==null) return;
+        if (dispImage==null || image==null) return false;
         if (i==null) {
-            i=this.getImageObjectInterface(image);
+            i=this.getInteractiveImage(image);
             //logger.debug("image: {}, OI: {}", image.getName(), i.getClass().getSimpleName());
-            if (i==null) return;
+            if (i==null) return false;
         }
-        InteractiveImageKey.TYPE type = i.getKey().imageType;
         boolean hyperStack = i instanceof HyperStack;
-        SegmentedObject trackHead = track.get(0).key.getTrackHead();
+        SegmentedObject trackHead = track.get(0).object.getTrackHead();
         boolean canDisplayTrack = i instanceof TimeLapseInteractiveImage;
-        //canDisplayTrack = canDisplayTrack && ((TrackMask)i).parent.getTrackHead().equals(trackHead.getParent().getTrackHead()); // same track head
-        //canDisplayTrack = canDisplayTrack && i.getParent().getStructureIdx()<=trackHead.getStructureIdx();
         if (canDisplayTrack) {
             TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
             tm.trimTrack(track);
             canDisplayTrack = !track.isEmpty();
         }
-        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? (hyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap  ) : (hyperStack ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
-        boolean doNotStore = hyperStack && track.size()==1; // partial tracks: do not store
+        Map<List<ObjectDisplay>, V> map = labile ? (hyperStack ? hyperstackLabileTrackRoiMap : kymographLabileTrackRoiMap) : (hyperStack ? hyperstackTrackRoiMap : kymographTrackRoiMap) ;
         if (canDisplayTrack) {
-            if (i.getKey().interactiveObjectClass != trackHead.getStructureIdx()) { // change current object class
-                i = getImageTrackObjectInterface(i.getParents(), trackHead.getStructureIdx(), type);
-                map.clear();
-            }
-            if (i.getParent()==null) logger.error("Track mask parent null!!!");
-            else if (i.getParent().getTrackHead()==null) logger.error("Track mask parent trackHead null!!!");
-            Pair<SegmentedObject, SegmentedObject> key = new Pair<>(i.getParent().getTrackHead(), trackHead);
-            Set<V>  disp = null;
-            if (labile) disp = displayedLabileTrackRois.getAndCreateIfNecessary(image);
-            V roi = doNotStore ? null:map.get(key);
-            boolean genKymo = i instanceof TimeLapseInteractiveImage && forceDefaultDisplay;
-            Structure.TRACK_DISPLAY targetTrackDisplay = genKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(i.childStructureIdx);
-            if (roi==null || ( roi instanceof TrackRoi && !((TrackRoi)roi).getTrackType().equals(targetTrackDisplay)) ) { // TODO make more generic : interface for TrackRoi
-                roi = generateTrackRoi(i.getParents(),track, color, i, genKymo);
-                map.put(key, roi);
+            Set<V>  disp = labile ? displayedLabileTrackRois.get(image) : displayedTrackRois.get(image);
+            V roi = map.get(track);
+            boolean forceKymo = i instanceof Kymograph && forceDefaultDisplay;
+            Structure.TRACK_DISPLAY targetTrackDisplay = forceKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(trackHead.getStructureIdx());
+            if (roi==null || (i instanceof Kymograph && !roi.getDisplayType().equals(targetTrackDisplay))) {
+                roi = generateTrackRoi(track, i, color, forceKymo);
+                map.put(track, roi);
             } else setTrackColor(roi, color);
-            if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi ,i);
-            if (disp!=null) disp.add(roi);
-            if (updateDisplay) {
-                displayer.updateImageRoiDisplay(image);
+            boolean alreadyDisplayed = disp != null && disp.contains(roi);
+            if (!alreadyDisplayed) {
+                displayTrack(dispImage, roi);
+                if (disp!=null) disp.add(roi);
+            } else if (hideIfAlreadyDisplayed) {
+                disp.remove(roi);
+                hideTrack(dispImage, roi);
+            }
+            if (updateDisplay && !alreadyDisplayed) {
+                updateImageRoiDisplay(image);
+                int minFrame = trackHead.getFrame();
+                int maxFrame = track.get(track.size() - 1).object.getFrame();
                 if (hyperStack) {
-                    int minFrame = trackHead.getFrame();
-                    int maxFrame = track.get(track.size() - 1).key.getFrame();
-                    int curFrame = ((HyperStack)i).idxMapFrame.get(displayer.getFrame(image));
+                    int curFrame = ((HyperStack)i).parentIdxMapFrame.get(displayer.getFrame(image));
                     if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
+                } else  {
+                    Kymograph k = (Kymograph) i;
+                    int minSlice = k.getSlice(minFrame).mapToInt(ii->ii).min().getAsInt();
+                    int maxSlice = k.getSlice(maxFrame).mapToInt(ii->ii).max().getAsInt();
+                    int currentSlice = displayer.getFrame(image);
+                    if (currentSlice < minSlice || currentSlice > maxSlice) displayer.setFrame(minSlice, image);
                 }
             }
-
+            return !hideIfAlreadyDisplayed || !alreadyDisplayed;
         } else logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof TimeLapseInteractiveImage);
+        return false;
     }
     
     public void hideTracks(Image image, InteractiveImage i, Collection<SegmentedObject> trackHeads, boolean labile) {
         I dispImage;
         if (image==null) {
-            dispImage = getDisplayer().getCurrentImage();
+            dispImage = getDisplayer().getCurrentDisplayedImage();
             if (dispImage==null) return;
             image = getDisplayer().getImage(dispImage);
         } else dispImage = getDisplayer().getImage(image);
         if (dispImage==null || image==null) return;
         if (i==null) {
-            i=this.getImageObjectInterface(image);
+            i=this.getInteractiveImage(image);
             if (i==null) return;
         }
-        Set<V> disp = this.displayedLabileTrackRois.get(image);
-        SegmentedObject parentTrackHead = i.getParent().getTrackHead();
-        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? ((i instanceof HyperStack) ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap ) : ((i instanceof HyperStack) ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
-        for (SegmentedObject th : trackHeads) {
-            V roi=map.get(new Pair(parentTrackHead, th));
-            if (roi!=null) {
-                hideTrack(dispImage, roi ,i);
-                if (disp!=null) disp.remove(roi);
+        Set<V> disp = labile ? this.displayedLabileTrackRois.get(image) : displayedTrackRois.get(image);
+        Map<List<ObjectDisplay>, V> map = labile ? (i instanceof Kymograph ? kymographLabileTrackRoiMap : hyperstackLabileTrackRoiMap) : (i instanceof Kymograph ? kymographTrackRoiMap : hyperstackTrackRoiMap);
+        if (disp != null && !trackHeads.isEmpty()) {
+            for (SegmentedObject th : trackHeads) {
+                for (V roi : getTrackRoi(map, th)) {
+                    if (disp.remove(roi)) hideTrack(dispImage, roi);
+                }
             }
         }
-        //GUI.updateRoiDisplayForSelections(image, i);
-        displayer.updateImageRoiDisplay(image);
-        
+        updateImageRoiDisplay(image);
     }
     
     protected abstract void hideAllRois(I image);
+
     public void hideAllRois(Image image, boolean labile, boolean nonLabile) {
         if (!labile && !nonLabile) return;
         I im = getDisplayer().getImage(image);
         if (im !=null) hideAllRois(im);
-        if (!labile) {
-            displayLabileObjects(image);
-            displayLabileTracks(image);
+        if (labile) {
+            Set<U> objectRois = displayedLabileObjectRois.remove(image);
+            if (objectRois!=null) for (U roi : objectRois) hideObject(im, roi);
+            Set<V> trackRois = displayedLabileTrackRois.remove(image);
+            if (trackRois!=null) for (V roi : trackRois) hideTrack(im, roi);
         } else {
-            displayedLabileTrackRois.remove(image);
-            displayedLabileObjectRois.remove(image);
-            InteractiveImage i=this.getImageObjectInterface(image);
+            Set<U> objectRois = displayedObjectRois.remove(image);
+            if (objectRois!=null) for (U roi : objectRois) hideObject(im, roi);
+            Set<V> trackRois = displayedTrackRois.remove(image);
+            if (trackRois!=null) for (V roi : trackRois) hideTrack(im, roi);
         }
-        if (!nonLabile) {
-            GUI.updateRoiDisplayForSelections(image, null);
-        }
+        updateImageRoiDisplay(image);
     }
-    public void displayLabileTracks(Image image) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) return;
-        }
-        Set<V> tracks = this.displayedLabileTrackRois.get(image);
-        if (tracks!=null) {
-            InteractiveImage i=this.getImageObjectInterface(image);
-            I dispImage = displayer.getImage(image);
-            if (dispImage==null) return;
-            for (V roi: tracks) displayTrack(dispImage, roi, i);
-            displayer.updateImageRoiDisplay(image);
-        }
-    }
-    public void hideLabileTracks(Image image) {
-        if (image==null) {
-            image = getDisplayer().getCurrentImage2();
-            if (image==null) return;
-        }
-        Set<V> tracks = this.displayedLabileTrackRois.remove(image);
-        if (tracks!=null) {
-            I dispImage = displayer.getImage(image);
-            if (dispImage==null) return;
-            InteractiveImage i=this.getImageObjectInterface(image);
-            for (V roi: tracks) hideTrack(dispImage, roi, i);
-            displayer.updateImageRoiDisplay(image);
-            //if (listener!=null) listener.fireTracksDeselected(getLabileTrackHeads(image));
-        }
-    }
-    
-    public void displayTrackAllImages(InteractiveImage i, boolean addToCurrentSelectedTracks, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile) {
-        if (i==null && track!=null && !track.isEmpty()) i = this.getImageObjectInterface(track.get(0).key.getTrackHead(), track.get(0).key.getStructureIdx(), false);
-        if (i==null) return;
-        ArrayList<Image> images= Utils.getKeys2(this.imageObjectInterfaceMap, i.getKey().getKey(-1));
-        //logger.debug("display track on {} images", images.size());
-        for (Image image : images) {
-            if (!addToCurrentSelectedTracks) hideAllRois(image, true, true); // TODO only tracks?
-            displayTrack(image, i, track, color, labile);
-        }
-    }
-    
+
     public List<SegmentedObject> getSelectedLabileTrackHeads(Image image) {
         if (image==null) {
-            image = getDisplayer().getCurrentImage2();
+            image = getDisplayer().getCurrentImage();
             if (image==null) return Collections.emptyList();
         }
         Set<V> rois = this.displayedLabileTrackRois.get(image);
-
-        if (rois!=null) {
-            InteractiveImage i = getImageObjectInterface(image);
-            List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof HyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
-            List<SegmentedObject> res = unpairValues(pairs);
-            Utils.removeDuplicates(res, false);
-            //if (i instanceof HyperStack) logger.debug("selected tracks: {}", res);
-            return res;
+        InteractiveImage i = getInteractiveImage(image);
+        if (rois!=null && i!=null) {
+            Map<List<ObjectDisplay>, V> map = i instanceof Kymograph ? kymographLabileTrackRoiMap : hyperstackLabileTrackRoiMap;
+            return Utils.getKeys(map, rois).stream().map(t -> t.get(0).object.getTrackHead()).collect(Collectors.toList());
         } else return Collections.emptyList();
     }
     
     public void removeObjects(Collection<SegmentedObject> objects, boolean removeTrack) {
         if (objects.isEmpty()) return;
         for (Image image : this.displayedLabileObjectRois.keySet()) {
-            InteractiveImage i = this.getImageObjectInterface(image);
-            if (i!=null) hideObjects(image, i.pairWithOffset(objects), true);
+            InteractiveImage i = this.getInteractiveImage(image);
+            if (i!=null) hideObjects(image, i.toObjectDisplay(objects), true);
+        }
+        for (Image image : this.displayedObjectRois.keySet()) {
+            InteractiveImage i = this.getInteractiveImage(image);
+            if (i!=null) hideObjects(image, i.toObjectDisplay(objects), false);
         }
         for (SegmentedObject object : objects) {
-            Pair<SegmentedObject, BoundingBox> k = new Pair<>(object, null);
-            Utils.removeFromMap(objectRoiMap, k);
-            Utils.removeFromMap(labileObjectRoiMap, k);
+            objectRoiMap.keySet().removeIf(o -> o.object.equals(object));
+            labileObjectRoiMap.keySet().removeIf(o -> o.object.equals(object));
         }
         if (removeTrack) removeTracks(SegmentedObjectUtils.getTrackHeads(objects));
 
         // also children
         ExperimentStructure xp = objects.iterator().next().getExperimentStructure();
         SegmentedObjectUtils.splitByStructureIdx(objects, true).forEach((ocIdx, list) -> {
-            if (xp.getAllChildStructures(ocIdx).length > 0) {
-                labileObjectRoiMap.keySet().removeIf(p -> {
-                    SegmentedObject parent = p.key.getParent(ocIdx);
-                    return parent == null || list.contains(parent);
-                });
-                objectRoiMap.keySet().removeIf(p -> {
-                    SegmentedObject parent = p.key.getParent(ocIdx);
-                    return parent == null || list.contains(parent);
-                });
+            for (int cIdx : xp.getAllDirectChildStructures(ocIdx)) {
+                for (SegmentedObject o : list) removeObjects(o.getChildren(cIdx).collect(Collectors.toList()), removeTrack);
             }
         });
     }
     
     public void removeTracks(Collection<SegmentedObject> trackHeads) {
         for (Image image : this.displayedLabileTrackRois.keySet()) hideTracks(image, null, trackHeads, true);
-        for (SegmentedObject trackHead : trackHeads) {
-            Pair k = new Pair(null, trackHead);
-            Utils.removeFromMap(labileParentTrackHeadTrackRoiMap, k);
-            Utils.removeFromMap(labileParentTrackHeadKymographTrackRoiMap, k);
-            Utils.removeFromMap(parentTrackHeadTrackRoiMap, k);
-            Utils.removeFromMap(parentTrackHeadKymographTrackRoiMap, k);
+        for (Image image : this.displayedTrackRois.keySet()) hideTracks(image, null, trackHeads, false);
+        if (! (trackHeads instanceof Set)) trackHeads = new HashSet<>(trackHeads);
+        removeFromMap(hyperstackLabileTrackRoiMap, (Set)trackHeads);
+        removeFromMap(kymographLabileTrackRoiMap, (Set)trackHeads);
+        removeFromMap(hyperstackTrackRoiMap, (Set)trackHeads);
+        removeFromMap(kymographTrackRoiMap, (Set)trackHeads);
+    }
+
+    protected static void removeFromMap(Map<List<ObjectDisplay>, ?> map, Set<SegmentedObject> trackHeads) {
+        map.keySet().removeIf(o -> trackHeads.contains(o.get(0).object.getTrackHead()));
+    }
+    protected List<V> getTrackRoi(Map<List<ObjectDisplay>, V> map, SegmentedObject trackHead) {
+        return map.entrySet().stream().filter(e -> e.getKey().get(0).object.getTrackHead().equals(trackHead)).map(Map.Entry::getValue).collect(Collectors.toList());
+    }
+    protected List<V> removeFromMap(Map<List<ObjectDisplay>, V> map, SegmentedObject trackHead) {
+        List<V> res = new ArrayList<>();
+        Iterator<Map.Entry<List<ObjectDisplay>, V>> it = map.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<List<ObjectDisplay>, V> e = it.next();
+            if (e.getKey().get(0).object.getTrackHead().equals(trackHead)) {
+                res.add(e.getValue());
+                it.remove();
+            }
         }
+        return res;
     }
     
     public void resetObjectsAndTracksRoi() {
-        for (Image image : imageObjectInterfaceMap.keySet()) hideAllRois(image, true, true);
+        for (Image image : imageMapInteractiveImage.keySet()) hideAllRois(image, true, true);
+        displayAllObjects.clear();
+        displayAllTracks.clear();
         objectRoiMap.clear();
         labileObjectRoiMap.clear();
-        labileParentTrackHeadTrackRoiMap.clear();
-        labileParentTrackHeadKymographTrackRoiMap.clear();
-        parentTrackHeadTrackRoiMap.clear();
-        parentTrackHeadKymographTrackRoiMap.clear();
+        hyperstackLabileTrackRoiMap.clear();
+        kymographLabileTrackRoiMap.clear();
+        hyperstackTrackRoiMap.clear();
+        kymographTrackRoiMap.clear();
+        displayedLabileTrackRois.clear();
+        displayedLabileObjectRois.clear();
+        displayedTrackRois.clear();
+        displayedObjectRois.clear();
         trackColor.clear();
     }
     
     public boolean goToNextTrackError(Image trackImage, List<SegmentedObject> trackHeads, boolean next, boolean forceMove) {
         //ImageObjectInterface i = imageObjectInterfaces.get(new ImageObjectInterfaceKey(rois.get(0).getParent().getTrackHead(), rois.get(0).getStructureIdx(), true));
         if (trackImage==null) {
-            I selectedImage = displayer.getCurrentImage();
+            I selectedImage = displayer.getCurrentDisplayedImage();
             trackImage = displayer.getImage(selectedImage);
             if (trackImage==null) return false;
         }
-        InteractiveImage i = this.getImageObjectInterface(trackImage);
+        InteractiveImage i = this.getInteractiveImage(trackImage);
         if (i==null || i instanceof SimpleInteractiveImage) {
             logger.warn("selected image is not a track image");
             return false;
         }
+        int slice = displayer.getFrame(trackImage);
         List<SegmentedObject> errors;
         if (trackHeads!=null && !trackHeads.isEmpty()) {
             errors = trackHeads.stream().flatMap(th -> SegmentedObjectUtils.getTrack(th).stream()).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
         } else {
             trackHeads = this.getSelectedLabileTrackHeads(trackImage);
             if (trackHeads==null || trackHeads.isEmpty()) {
-                errors = i.getObjects().stream().map(p -> p.key).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
+                errors = i.getObjects(interactiveObjectClassIdx, slice).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
             } else {
                 errors = trackHeads.stream().flatMap(th -> SegmentedObjectUtils.getTrack(th).stream()).filter(o -> o.hasTrackLinkError(true, true)).collect(Collectors.toList());
             }
@@ -1184,28 +890,30 @@ public abstract class ImageWindowManager<I, U, V> {
      */
     public boolean goToNextObject(Image trackImage, List<SegmentedObject> objects, boolean next, boolean forceMove) {
         if (trackImage==null) {
-            I selectedImage = displayer.getCurrentImage();
+            I selectedImage = displayer.getCurrentDisplayedImage();
             trackImage = displayer.getImage(selectedImage);
         }
-        InteractiveImage i = this.getImageObjectInterface(trackImage);
+        InteractiveImage i = this.getInteractiveImage(trackImage);
         if (i instanceof SimpleInteractiveImage) {
             logger.warn("selected image is not a track image");
             return false;
         }
+        int slice = displayer.getFrame(trackImage);
         TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
         if (objects==null || objects.isEmpty()) objects = this.getSelectedLabileObjects(trackImage);
-        if (objects==null || objects.isEmpty()) objects = Pair.unpairKeys(i.getObjects());
+        if (objects==null || objects.isEmpty()) objects = i.getObjects(interactiveObjectClassIdx, slice).collect(Collectors.toList());
         if (objects==null || objects.isEmpty()) return false;
         int minTimePoint, maxTimePoint;
         BoundingBox currentDisplayRange;
         if (tm instanceof HyperStack) {
-            minTimePoint = ((HyperStack)tm).getFrame();
+            minTimePoint = slice;
             maxTimePoint = minTimePoint;
             currentDisplayRange = null;
         } else {
             currentDisplayRange = this.displayer.getDisplayRange(trackImage);
-            minTimePoint = tm.getClosestFrame(currentDisplayRange.xMin(), currentDisplayRange.yMin());
-            maxTimePoint = tm.getClosestFrame(currentDisplayRange.xMax(), currentDisplayRange.yMax());
+            Kymograph k = (Kymograph)tm;
+            minTimePoint = k.getClosestFrame(currentDisplayRange.xMin(), currentDisplayRange.yMin(), slice);
+            maxTimePoint = k.getClosestFrame(currentDisplayRange.xMax(), currentDisplayRange.yMax(), slice);
             if (next) {
                 if (maxTimePoint == i.getParents().get(i.getParents().size() - 1).getFrame()) return false;
                 if (maxTimePoint > minTimePoint + 2) maxTimePoint -= 2;
@@ -1229,12 +937,12 @@ public abstract class ImageWindowManager<I, U, V> {
             return false;
         } else {
             if (i instanceof HyperStack) {
-                logger.debug("Hyperstack navigate to frame: {}", nextObject.getFrame());
-                boolean ok = ((HyperStack)i).setFrame(nextObject.getFrame());
-                if (ok) displayer.setFrame(((HyperStack)i).getIdx(), trackImage);
-                return ok;
+                int nextSlice = ((HyperStack)i).getSlice(nextObject.getFrame());
+                logger.debug("Hyperstack navigate to frame: {} (slice: {})", nextObject.getFrame(), nextSlice);
+                displayer.setFrame(nextSlice, trackImage);
+                return true;
             } else {
-                BoundingBox off = tm.getObjectOffset(nextObject);
+                BoundingBox off = tm.getObjectOffset(nextObject, slice);
                 if (off == null) objects = new ArrayList<>(objects);
                 while (off == null) {
                     objects = new ArrayList<>(objects);
@@ -1244,7 +952,7 @@ public abstract class ImageWindowManager<I, U, V> {
                         logger.info("No object detected {} timepoint: {}", next ? "after" : "before", maxTimePoint);
                         return false;
                     }
-                    off = tm.getObjectOffset(nextObject);
+                    off = tm.getObjectOffset(nextObject, slice);
                 }
                 int midX = (off.xMin() + off.xMax()) / 2;
                 if (midX + currentDisplayRange.sizeX() / 2 >= trackImage.sizeX())
@@ -1297,8 +1005,9 @@ public abstract class ImageWindowManager<I, U, V> {
         if (testData.containsKey(image)) { // test menu
             Collection<TestDataStore> stores = testData.get(image);
             if (sel.isEmpty()) {
-                InteractiveImage ii = getImageObjectInterface(null);
-                if (ii!=null) sel = ii.getObjects().stream().map(o -> o.key).collect(Collectors.toList());
+                InteractiveImage ii = getInteractiveImage(null);
+                int slice = displayer.getFrame(image);
+                if (ii!=null) sel = ii.getObjects(interactiveObjectClassIdx, slice).collect(Collectors.toList());
             }
             //SegmentedObject o = sel.isEmpty() ? null : sel.get(0); // only first selected object
             //Predicate<TestDataStore> storeWithinSel = s-> o == null || s.getParent().equals(o.getParent(s.getParent().getStructureIdx()));

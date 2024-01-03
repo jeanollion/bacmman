@@ -40,6 +40,8 @@ import bacmman.ui.gui.configuration.TrackTreeCellRenderer;
 
 import java.util.*;
 import java.util.stream.Collectors;
+
+import bacmman.ui.gui.image_interaction.*;
 import bacmman.utils.EnumerationUtils;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
@@ -219,6 +221,30 @@ public class TrackTreeGenerator {
                         Utils.expandAll(tree, path, pathToSelect);
                         //Utils.addToSelectionPaths(tree, pathToSelect);
                     } //else Utils.addToSelectionPaths(tree, path);
+                    if (e.getClickCount()==2) { // open default image
+                        Object o = path.getLastPathComponent();
+                        Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
+                        int interactiveOC = ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass();
+                        int interactiveChannel = db.getExperiment().getChannelImageIdx(interactiveOC);
+                        if (o instanceof RootTrackNode) {
+                            RootTrackNode r = ((RootTrackNode)o);
+                            SegmentedObject root = r.getParentTrackHead();
+                            if (root != null) {
+                                if (iiType == null) iiType = TimeLapseInteractiveImage.getBestDisplayType(root.getBounds());
+                                if (iiType.equals(HyperStack.class)) r.openHyperStack(interactiveChannel);
+                                else r.openKymograph(interactiveChannel);
+                            }
+                        } else if (o instanceof TrackNode) {
+                            TrackNode r = ((TrackNode) o);
+                            SegmentedObject parent = r.getTrackHead();
+                            if (parent != null) {
+                                if (iiType == null) iiType = TimeLapseInteractiveImage.getBestDisplayType(parent.getBounds());
+                                if (iiType.equals(HyperStack.class)) r.openHyperStack(interactiveChannel);
+                                else r.openKymograph(interactiveChannel);
+                            }
+
+                        }
+                    }
                 }
             }
         });

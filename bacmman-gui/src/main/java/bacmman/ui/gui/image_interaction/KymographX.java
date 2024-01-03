@@ -19,21 +19,16 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.ui.GUI;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.Offset;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.SimpleImageProperties;
-import bacmman.image.SimpleOffset;
 
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiFunction;
 
-import bacmman.utils.Pair;
+import bacmman.utils.ArrayUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,47 +39,65 @@ import org.slf4j.LoggerFactory;
 public class KymographX extends Kymograph {
     public static final Logger logger = LoggerFactory.getLogger(KymographX.class);
     protected final int maxParentSize;
-    public KymographX(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx) {
-        super(data, childStructureIdx, true);
+    public KymographX(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClassIdx) {
+        super(data, loadObjectClassIdx);
         maxParentSize = data.maxParentSizeY;
         if (!TimeLapseInteractiveImageFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
-    
+    public KymographX(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        super(data, channelNumber, imageSupplier, loadObjectClassIdx);
+        maxParentSize = data.maxParentSizeY;
+        if (!TimeLapseInteractiveImageFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
+    }
+
     @Override
-    public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
+    public ObjectDisplay getObjectAtPosition(int x, int y, int z, int objectClassIdx, int slice) {
         if (is2D()) z=0; //do not take in account z in 2D case.
         // recherche du parent: 
-        int i = Arrays.binarySearch(trackOffset, new SimpleOffset(x, 0, 0), new OffsetComparatorX());
+        BoundingBox[] trackOffset = this.trackOffset.get(slice);
+        int i = ArrayUtil.binarySearchKey(trackOffset, x, Offset::xMin);
         if (i<0) i=-i-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         //logger.debug("getClicked object: index: {}, parent: {}, #children: {}", i, i>=0?trackObjects[i]:"", i>=0? trackObjects[i].getObjects().size():"");
-        if (i>=0 && trackOffset[i].containsWithOffset(x, trackOffset[i].yMin(), trackOffset[i].zMin())) return trackObjects[i].getClickedObject(x, y, z);
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        if (i>=0 && trackOffset[i].containsWithOffset(x, trackOffset[i].yMin(), trackOffset[i].zMin())) return trackObjects[i].getObjectAtPosition(x, y, z, objectClassIdx, slice);
         else return null;
     }
     
     @Override
-    public void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list) {
+    public void addObjectsWithinBounds(BoundingBox selection, int objectClassIdx, int slice, List<ObjectDisplay> list) {
         if (is2D() && selection.sizeZ()>0) selection=new SimpleBoundingBox(selection.xMin(), selection.xMax(), selection.yMin(), selection.yMax(), 0, 0);
-        int iMin = Arrays.binarySearch(trackOffset, new SimpleOffset(selection.xMin(), 0, 0), new OffsetComparatorX());
+        BoundingBox[] trackOffset = this.trackOffset.get(slice);
+        int iMin = ArrayUtil.binarySearchKey(trackOffset, selection.xMin(), Offset::xMin);
         if (iMin<0) iMin=-iMin-2; // element inférieur à x puisqu'on compare les xmin des bounding box
-        int iMax = Arrays.binarySearch(trackOffset, new SimpleOffset(selection.xMax(), 0, 0), new OffsetComparatorX());
+        int iMax = ArrayUtil.binarySearchKey(trackOffset, selection.xMax(), Offset::xMin);
         if (iMax<0) iMax=-iMax-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         //if (iMin<0) logger.debug("looking for objects in time: [{};{}] selection: {}", iMin, iMax, selection);
         if (iMin<0) iMin=0; // when a selection bounds is outside the image
-        if (iMax>=trackObjects.length) iMax = trackObjects.length-1; // when a selection bounds is outside the image
-        for (int i = iMin; i<=iMax; ++i) trackObjects[i].addClickedObjects(selection, list);
+        if (iMax>=trackOffset.length) iMax = trackOffset.length-1; // when a selection bounds is outside the image
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        for (int i = iMin; i<=iMax; ++i) trackObjects[i].addObjectsWithinBounds(selection, objectClassIdx, slice, list);
     }
+
+
     
     @Override
-    public int getClosestFrame(int x, int y) {
+    public int getClosestFrame(int x, int y, int slice) {
+        BoundingBox[] trackOffset = this.trackOffset.get(slice);
         int i = Arrays.binarySearch(trackOffset, new SimpleOffset(x, 0, 0), new OffsetComparatorX());
         if (i<0) i=-i-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         if (i<0) GUI.logger.error("get closest frame: x:{}, trackOffset:[{}, {}]",x, trackOffset[0], trackOffset[trackOffset.length-1]);
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
         return trackObjects[i].parent.getFrame();
     }
 
-    @Override 
-    public Image generateEmptyImage(String name, Image type) {
-        return  Image.createEmptyImage(name, type, new SimpleImageProperties(trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSize, Math.max(type.sizeZ(), this.maxParentSizeZ),parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+    @Override
+    public ImageProperties getImageProperties() {
+        return new SimpleImageProperties(trackOffset.get(0)[frameNumber-1].xMax()+1, this.maxParentSize, this.maxParentSizeZ, parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
+    }
+
+    @Override
+    public ImageProperties getImageProperties(int channelIdx) {
+        return new SimpleImageProperties(trackOffset.get(0)[frameNumber-1].xMax()+1, this.maxParentSize, parent.getExperimentStructure().sizeZ(parent.getPositionName(), channelIdx), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
     }
     
     class OffsetComparatorX implements Comparator<Offset>{

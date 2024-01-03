@@ -26,7 +26,6 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -282,7 +281,7 @@ public class DLModelsLibrary {
         });
         setThumbnailButton.addActionListener(e -> {
             if (tree == null) return;
-            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentDisplayedImage();
             if (image != null) { // if null -> remove thumbnail ?
                 if (image instanceof ImagePlus) {
                     ImagePlus ip = (ImagePlus) image;
@@ -301,7 +300,7 @@ public class DLModelsLibrary {
                     Action append = new AbstractAction("Append Thumbnail") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+                            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentDisplayedImage();
                             if (image != null) { // if null -> remove thumbnail ?
                                 if (image instanceof ImagePlus) {
                                     ImagePlus ip = (ImagePlus) image;

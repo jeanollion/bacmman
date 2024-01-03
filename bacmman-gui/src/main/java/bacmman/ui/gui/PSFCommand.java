@@ -1,10 +1,8 @@
 package bacmman.ui.gui;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
-import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.Image;
 import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageWriter;
@@ -15,7 +13,6 @@ import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.utils.Utils;
 
 import javax.swing.*;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.function.Supplier;
@@ -68,7 +65,7 @@ public class PSFCommand {
             flip[2] = flipZ.getSelected();
             Image psf = PSFAlign.getPSF(objects, interpolation.getInterpolation(), flip, sizeXY.getIntValue(), sizeXY.getIntValue(), sizeZ.getIntValue());
             if (psf!=null) {
-                ImageWindowManagerFactory.getImageManager().getDisplayer().showImage(psf);
+                ImageWindowManagerFactory.getImageManager().getDisplayer().displayImage(psf);
                 ImageWriter.writeToFile(psf, Paths.get(path.get(), "PSF").toString(), ImageFormat.TIF);
             }
         });

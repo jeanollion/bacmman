@@ -4,14 +4,13 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.BacmmanToTrackMate;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackMateToBacmman;
-import bacmman.image.Image;
+import bacmman.image.LazyImage5D;
 import bacmman.ui.GUI;
-import bacmman.ui.gui.image_interaction.IJVirtualStack;
+import bacmman.ui.gui.image_interaction.HyperStack;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import fiji.plugin.trackmate.*;
 import fiji.plugin.trackmate.gui.GuiUtils;
 import fiji.plugin.trackmate.gui.displaysettings.DisplaySettings;
-import fiji.plugin.trackmate.gui.displaysettings.DisplaySettingsIO;
 import fiji.plugin.trackmate.gui.displaysettings.DisplaySettingsLazy;
 import fiji.plugin.trackmate.gui.wizard.WizardController;
 import fiji.plugin.trackmate.gui.wizard.WizardSequence;
@@ -44,8 +43,9 @@ public class TrackMateRunner extends TrackMatePlugIn {
     }
     public static List runTM(List<SegmentedObject> parentTrack, int objectClassIdx, JComponent container) {
         Model model = BacmmanToTrackMate.getSpotsAndTracks(parentTrack, objectClassIdx);
-        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
-        ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
+        HyperStack h = HyperStack.generateHyperstack(parentTrack, objectClassIdx);
+        LazyImage5D im = h.generateImage();
+        ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().displayImage(im);
         imp.setTitle("TrackMate HyperStack");
         Calibration cal = imp.getCalibration();
         cal.frameInterval = BacmmanToTrackMate.getFrameDuration(parentTrack.get(0));
@@ -53,10 +53,10 @@ public class TrackMateRunner extends TrackMatePlugIn {
         imp.setCalibration(cal);
         TrackMateRunner tmr = runTM(model, container, imp);
         Runnable close = () -> {
-            ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);
+            ImageWindowManagerFactory.getImageManager().getDisplayer().close(im);
             tmr.close();
         };
-        return new ArrayList(){{add(model); add(hook); add(close);}};
+        return new ArrayList(){{add(model); add(im); add(close);}};
     }
     public static List runTM(File tmFile, List<SegmentedObject> parentTrack, int objectClassIdx, JComponent container) {
         TmXmlReader reader = new TmXmlReader(tmFile);
@@ -64,15 +64,16 @@ public class TrackMateRunner extends TrackMatePlugIn {
         if (!reader.isReadingOk()) throw new RuntimeException("Could not read file "+ reader.getErrorMessage());
         Model model = reader.getModel();
         logger.debug("imported from file: {}: spots: {},  tracks: {}", tmFile, model.getSpots().getNSpots(false), model.getTrackModel().nTracks(false));
-        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
-        ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
+        HyperStack h = HyperStack.generateHyperstack(parentTrack, objectClassIdx);
+        LazyImage5D im = h.generateImage();
+        ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(im);
 
         TrackMateRunner tmr = runTM(model, container, imp);
         Runnable close = () -> {
-            ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);
+            ImageWindowManagerFactory.getImageManager().getDisplayer().close(im);
             tmr.close();
         };
-        return new ArrayList(){{add(model); add(hook); add(close);}};
+        return new ArrayList(){{add(model); add(im); add(close);}};
     }
 
     public static List runTM(File tmFile, JComponent container) {

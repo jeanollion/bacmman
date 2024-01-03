@@ -95,13 +95,13 @@ public class SpineOverlayDrawerImp implements SpineOverlayDrawer {
     @Override
     public void display(String title, ImageMask image, Object overlay) {
         Image im = TypeConverter.toByteMask(image, null, 1).setName(title);
-        ImagePlus ip = DISP.showImage(im);
+        ImagePlus ip = DISP.displayImage(im);
         ip.setOverlay((Overlay)overlay);
     }
     @Override
     public void display(String title, Image image, Object overlay) {
         image.setName(title);
-        ImagePlus ip = DISP.showImage(image);
+        ImagePlus ip = DISP.displayImage(image);
         ip.setOverlay((Overlay)overlay);
     }
     @Override

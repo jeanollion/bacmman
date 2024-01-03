@@ -275,6 +275,16 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         }
         return (T)this;
     }
+    @Override
+    public T translate(int dx, int dy, int dz) {
+        coords[0] +=dx;
+        if (coords.length>1) {
+            coords[1]+=dy;
+            if (coords.length>2) coords[2]+=dz;
+        }
+        return (T)this;
+    }
+
     public T translateRev(Offset other) {
         coords[0] -=other.xMin();
         if (coords.length>1) {

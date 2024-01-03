@@ -164,27 +164,34 @@ public class Roi3D extends HashMap<Integer, Roi> {
         return this;
     }
     public Roi3D duplicate() {
-        Roi3D res = new Roi3D(this.size()).setIs2D(is2D).setLocDelta(locdx, locdy);
+        Roi3D res = new Roi3D(this.sizeZ()).setIs2D(is2D).setLocDelta(locdx, locdy);
         super.forEach((z, r)->res.put(z, (Roi)r.clone()));
         return res;
     }
-    public int size() {
+    public int sizeZ() {
         return (int)keySet().stream().filter(z->z>=0).count();
     }
-    public void duplicateROIUntilZ(int zMax) {
-        if (size()>1 || !containsKey(0)) return;
-        Roi r = this.get(0);
-        for (int z = 1; z<zMax; ++z) {
-            Roi dup = (Roi)r.clone();
-            dup.setPosition(r.getCPosition(), z+1, r.getTPosition());
-            this.put(z, dup);
-        }
-        if (this.containsKey(-1)) { // segmentation correction arrow
-            r = this.get(-1);
-            for (int z = 1; z<zMax; ++z) {
-                Roi dup = (Roi)r.clone();
-                dup.setPosition(r.getCPosition(), z+1, r.getTPosition());
-                this.put(-z-1, dup);
+    public void duplicateROIUntilZ(int zMaxExcl) {
+        if (sizeZ()==zMaxExcl || !containsKey(0)) return;
+        if (sizeZ()>zMaxExcl) {
+            for (int z = sizeZ()-1; z>=zMaxExcl; --z) {
+                remove(z);
+                remove(-z-1);
+            }
+        } else {
+            Roi r = this.get(0);
+            for (int z = 1; z < zMaxExcl; ++z) {
+                Roi dup = (Roi) r.clone();
+                dup.setPosition(r.getCPosition(), z + 1, r.getTPosition());
+                this.put(z, dup);
+            }
+            if (this.containsKey(-1)) { // segmentation correction arrow
+                r = this.get(-1);
+                for (int z = 1; z < zMaxExcl; ++z) {
+                    Roi dup = (Roi) r.clone();
+                    dup.setPosition(r.getCPosition(), z + 1, r.getTPosition());
+                    this.put(-z - 1, dup);
+                }
             }
         }
     }
@@ -195,4 +202,15 @@ public class Roi3D extends HashMap<Integer, Roi> {
         FloatPolygon p = roi.getInterpolatedPolygon(1, false);
         return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel((int)(p.xpoints[i]), (int)(p.ypoints[i]), z));
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return (this == obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
+
 }

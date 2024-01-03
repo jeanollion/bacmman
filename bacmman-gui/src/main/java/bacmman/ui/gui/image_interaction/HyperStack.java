@@ -23,169 +23,170 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.Resize;
-import bacmman.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.function.IntConsumer;
+import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import static bacmman.image.LazyImage5DPlane.homogenizeType;
 
 /**
  *
  * @author Jean Ollion
  */
 public class HyperStack extends TimeLapseInteractiveImage {
-    public static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
-    protected int idx;
+    private static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected final int maxParentSizeX, maxParentSizeY;
-    protected int maxParentSizeZ;
-    protected BoundingBox bounds, bounds2D;
-    public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
-    protected IntConsumer changeIdxCallback;
+    protected final int maxParentSizeZ;
+    protected final BoundingBox bounds, bounds2D;
 
-    boolean displayAllObjects = false;
-    Object lock = new Object();
-    public HyperStack(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx, boolean loadObjects) {
-        super(data, childStructureIdx);
+    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, int... loadObjectClassIdx) {
+        return new HyperStack(TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true), loadObjectClassIdx);
+    }
+    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        return new HyperStack(TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true), channelNumber, imageSupplier, loadObjectClassIdx);
+    }
+    public HyperStack(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClassIdx) {
+        super(data);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
         this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
         this.bounds2D = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0 ,0);
-        frameMapIdx = parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, parents::indexOf));
-        idxMapFrame = parents.stream().collect(Collectors.toMap(parents::indexOf, SegmentedObject::getFrame));
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
-        trackObjects[0].reloadObjects();
-        loadObjectsWorker = new DefaultWorker(i -> {
-            trackObjects[i + 1].getObjects();
-            return "";
-        }, super.getParents().size() - 1, null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
-        if (loadObjects) {
+        loadObjectClasses(loadObjectClassIdx);
+    }
+    public HyperStack(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        super(data, channelNumber, imageSupplier);
+        maxParentSizeX = data.maxParentSizeX;
+        maxParentSizeY = data.maxParentSizeY;
+        maxParentSizeZ = data.maxParentSizeZ;
+        this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
+        this.bounds2D = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0 ,0);
+        if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
+        loadObjectClasses(loadObjectClassIdx);
+    }
+    public void loadObjectClasses(int... loadObjectClassIdx) {
+        trackObjects.get(0)[0].reloadObjects(loadObjectClassIdx);
+        for (int loadOC: loadObjectClassIdx) {
+            DefaultWorker loadObjectsWorker = new DefaultWorker(i -> { // TODO parallel ?
+                trackObjects.get(0)[i+1].reloadObjects(loadOC);
+                return "";
+            }, super.getParents().size() - 1, null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
             loadObjectsWorker.execute();
             loadObjectsWorker.setStartTime();
+            worker.add(loadObjectsWorker);
         }
     }
 
-    public boolean isDisplayAllObjects() {
-        return displayAllObjects;
-    }
-
-    public void setDisplayAllObjects(boolean displayAllObjects) {
-        this.displayAllObjects = displayAllObjects;
-    }
-
-    public void setMaxZ(int maxZ) {
-        if (this.maxParentSizeZ!=maxZ) {
-            this.maxParentSizeZ = maxZ;
-            this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
-        }
-
-    }
-    public boolean setFrame(int frame) {
-        Integer idx = frameMapIdx.get(frame);
-        if (idx==null) return false;
-        setIdx(idx);
-        return true;
-    }
-    public int getIdx() {return idx;}
-    public int getFrame()  {return idxMapFrame.get(idx);}
-    public HyperStack setIdx(int idx) {
-        assert idx<trackObjects.length && idx>=0 : "invalid idx";
-        if (idx!=this.idx) {
-            this.idx=idx;
-            if (changeIdxCallback!=null && ImageWindowManagerFactory.getImageManager().interactiveStructureIdx==this.childStructureIdx) changeIdxCallback.accept(idx);
-        }
-
-        return this;
+    public int getSlice(int frame) {
+        return frameMapParentIdx.get(frame);
     }
 
     @Override
-    public void reloadObjects() {
-        for (SimpleInteractiveImage m : trackObjects) m.resetObjects();
+    protected int getOffsetIdx(int frame, int sliceIdx) {
+        return sliceIdx;
     }
 
     @Override
-    public List<Pair<SegmentedObject, BoundingBox>> getObjects() {
-        return trackObjects[idx].getObjects();
+    protected BoundingBox[] makeTrackOffset(int sliceIdx) {
+        Offset off = data.trackOffset[0].duplicate().reverseOffset();
+        return Arrays.stream(data.trackOffset).map(boundingBox -> boundingBox.duplicate().translate(off)).toArray(BoundingBox[]::new);
     }
-
-    public List<Pair<SegmentedObject, BoundingBox>> getObjects(int frame) {
-        int idx = frameMapIdx.get(frame);
-        return trackObjects[idx].getObjects();
-    }
-
-    public Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
-        return IntStream.range(0, trackObjects.length).mapToObj(i -> trackObjects[i].getObjects()).flatMap(Collection::stream);
-    }
-
-    @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.HYPERSTACK, childStructureIdx, name);
+    @Override
+    protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
+        BoundingBox[] trackOffset = this.trackOffset.get(0);
+        return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
 
     @Override
-    public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
+    public BoundingBox getObjectOffset(SegmentedObject object, int slice) {
+        if (object==null) return null;
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(0);
+        return trackObjects[slice].getObjectOffset(object, 0);
+    }
+
+    @Override
+    public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects) {
+        return objects.stream().map(o -> {
+            int slice = getSlice(o.getFrame());
+            BoundingBox b = this.getObjectOffset(o, slice);
+            return b==null ? null : new ObjectDisplay(o, b, slice);
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    @Override
+    public Stream<ObjectDisplay> getObjectDisplay(int objectClassIdx, int slice) {
+        return trackObjects.get(0)[slice].getAllObjectDisplay(objectClassIdx);
+    }
+
+    @Override
+    public Stream<ObjectDisplay> getAllObjectDisplay(int objectClassIdx) {
+        return IntStream.range(0, trackObjects.get(0).length).boxed().flatMap(i -> trackObjects.get(0)[i].getAllObjectDisplay(objectClassIdx));
+    }
+
+    @Override
+    public Stream<SegmentedObject> getObjects(int objectClassIdx, int slice) {
+        return trackObjects.get(0)[slice].getAllObjects(objectClassIdx);
+    }
+
+    @Override
+    public Stream<SegmentedObject> getAllObjects(int objectClassIdx) {
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(0);
+        return IntStream.range(0, trackObjects.length).boxed().flatMap(i -> trackObjects[i].getAllObjects(objectClassIdx));
+    }
+
+    @Override
+    public ObjectDisplay getObjectAtPosition(int x, int y, int z, int objectClassIdx, int slice) {
         if (is2D()) z=0; //do not take in account z in 2D case.
-        return trackObjects[idx].getClickedObject(x, y, z);
+        return trackObjects.get(0)[slice].getObjectAtPosition(x, y, z, objectClassIdx, slice);
     }
     
     @Override
-    public void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list) {
+    public void addObjectsWithinBounds(BoundingBox selection, int objectClassIdx, int slice, List<ObjectDisplay> list) {
         if (is2D() && selection.sizeZ()>0) selection=new SimpleBoundingBox(selection.xMin(), selection.xMax(), selection.yMin(), selection.yMax(), 0, 0);
         //logger.debug("kymo: {}, idx: {}, all objects: {}", this, idx, trackObjects[idx].objects);
-        trackObjects[idx].addClickedObjects(selection, list);
+        trackObjects.get(0)[slice].addObjectsWithinBounds(selection, objectClassIdx, slice, list);
     }
 
-    public HyperStack setChangeIdxCallback(IntConsumer callback) {
-        this.changeIdxCallback = callback;
-        return this;
+    public String getImageTitle() {
+        return getName() == null || getName().isEmpty() ? (getParents().get(0).isRoot() ? "HyperStack of Position: #"+getParents().get(0).getPositionIdx() : "HyperStack of Track: "+getParents().get(0)): getName();
     }
-
-    public HyperStack appendChangeIdxCallback(IntConsumer callback) {
-        if (this.changeIdxCallback==null) return setChangeIdxCallback(callback);
-        this.changeIdxCallback = this.changeIdxCallback.andThen(callback);
-        return this;
-    }
-
-    @Override
-    public int getClosestFrame(int x, int y) {
-        return parents.get(idx).getFrame();
-    }
-
-
-    @Override public Image generateImage(final int structureIdx) {
-        throw new UnsupportedOperationException("do not generate frame stack this way");
+    @Override public LazyImage5D generateImage() {
+        int frames = getParents().size();
+        int[] fczSize = new int[]{frames, channelNumber, data.maxParentSizeZ};
+        Function<int[], Image> imageOpenerCT  = (fcz) -> getPlane(fcz[2], fcz[1], fcz[0], Resize.EXPAND_MODE.BORDER);
+        return new LazyImage5DPlane(getImageTitle(), homogenizeType(channelNumber, imageOpenerCT), fczSize);
     }
 
     @Override 
-    public Image generateEmptyImage(String name, Image type) {
-        return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSizeX, maxParentSizeY, Math.max(type.sizeZ(), this.maxParentSizeZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+    public ImageProperties getImageProperties() {
+        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, maxParentSizeZ, data.parentTrack.get(0).getMaskProperties().getScaleXY(), data.parentTrack.get(0).getMaskProperties().getScaleZ());
     }
-    public Image getImage(int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
-        Image image = imageSupplier.get(parents.get(idx), objectClassIdx, raw);
+    public Image getImage(int channelIdx, int slice, Resize.EXPAND_MODE paddingMode) {
+        Image image = imageSupplier.apply(data.parentTrack.get(slice), channelIdx);
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else { // TODO larger crop instead of PAD
-            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1).translate(trackOffset[idx]));
+            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1).translate(trackOffset.get(0)[slice]));
             return resized;
         }
     }
-    public Image getPlane(int z, int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
-        Image image = imageSupplier.get(parents.get(idx), objectClassIdx, raw);
+    public Image getPlane(int z, int channelIdx, int slice, Resize.EXPAND_MODE paddingMode) {
+        Image image = imageSupplier.apply(data.parentTrack.get(slice), channelIdx);
+        if (z>0 && image.sizeZ()==1) z = 0;
         image = image.getZPlane(z);
         if (bounds2D.sameDimensions(image)) return image; // no need for padding
         else { // TODO larger crop instead of PAD
-            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, 0).translate(trackOffset[idx]).translate(new SimpleOffset(0, 0, z)));
+            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, 0).translate(trackOffset.get(0)[slice]).translate(new SimpleOffset(0, 0, z)));
             return resized;
         }
     }
-    public int getSizeZ(int objectClassIdx) {
-        return imageSupplier.get(parents.get(idx), objectClassIdx, true).sizeZ();
-    }
-
-
-
 }

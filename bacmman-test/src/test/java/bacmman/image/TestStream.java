@@ -79,7 +79,7 @@ public class TestStream {
         values = im.stream(mask, true).sorted().toArray();
         assertArrayEquals("stream mask, abs off", new double[]{4}, values, 0.0);
         BlankMask mask2 = new BlankMask(3, 1, 3).translate(new MutableBoundingBox(1, 1, 0));
-        test = new double[mask2.getSizeXYZ()];
+        test = new double[mask2.volume()];
         test[test.length-1] = 4;
         test[test.length-2] = 3;
         values = im.stream(mask2, false).sorted().toArray();

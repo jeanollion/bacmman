@@ -73,7 +73,7 @@ public class ManualEdition {
         //Update all open images & objectImageInteraction
         //for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(objects) ) ImageWindowManagerFactory.getImageManager().reloadObjects(p, objectClassIdx, false);
         ImageWindowManagerFactory.getImageManager().resetObjects(null, objectClassIdx);
-        GUI.updateRoiDisplayForSelections(null, null);
+        GUI.updateRoiDisplayForSelections();
 
         // update trackTree
         if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
@@ -119,8 +119,8 @@ public class ManualEdition {
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
             iwm.resetObjectsAndTracksRoi();
             if (!trackToDisp.isEmpty()) {
-                iwm.displayTracks(null, null, trackToDisp, true);
-                //GUI.updateRoiDisplayForSelections(null, null);
+                iwm.displayTracks(null, null, trackToDisp, null, true, false);
+                //GUI.updateRoiDisplayForSelections();
             }
 
         }
@@ -165,8 +165,8 @@ public class ManualEdition {
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
             iwm.resetObjectsAndTracksRoi();
             if (!trackToDisp.isEmpty()) {
-                iwm.displayTracks(null, null, trackToDisp, true);
-                //GUI.updateRoiDisplayForSelections(null, null);
+                iwm.displayTracks(null, null, trackToDisp, null, true, false);
+                //GUI.updateRoiDisplayForSelections();
             }
 
         }
@@ -328,8 +328,8 @@ public class ManualEdition {
                 // update current image
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 if (!trackToDisp.isEmpty()) {
-                    iwm.displayTracks(null, null, trackToDisp, true);
-                    //GUI.updateRoiDisplayForSelections(null, null);
+                    iwm.displayTracks(null, null, trackToDisp, null, true, false);
+                    //GUI.updateRoiDisplayForSelections();
                 }
             }
         }
@@ -393,8 +393,8 @@ public class ManualEdition {
             // update current image
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
             if (!trackToDisp.isEmpty()) {
-                iwm.displayTracks(null, null, trackToDisp, true);
-                GUI.updateRoiDisplayForSelections(null, null);
+                iwm.displayTracks(null, null, trackToDisp, null, true, false);
+                GUI.updateRoiDisplayForSelections();
             }
         }
     }
@@ -402,20 +402,20 @@ public class ManualEdition {
     public static void manualSegmentation(MasterDAO db, Image image, boolean relabel, boolean test) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         if (image==null) {
-            Object im = iwm.getDisplayer().getCurrentImage();
+            Object im = iwm.getDisplayer().getCurrentDisplayedImage();
             if (im!=null) image = iwm.getDisplayer().getImage(im);
             if (image==null) {
                 logger.warn("No image found");
                 return;
             }
         }
-        InteractiveImageKey key =  iwm.getImageObjectInterfaceKey(image);
-        if (key==null) {
+        InteractiveImage ii =  iwm.getInteractiveImage(image);
+        if (ii==null) {
             logger.warn("Current image is not registered");
             return;
         }
         //int structureIdx = key.displayedStructureIdx;
-        int structureIdx = ImageWindowManagerFactory.getImageManager().getInteractiveStructure();
+        int structureIdx = ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass();
         SegmentedObjectFactory factory = getFactory(structureIdx);
         int segmentationParentStructureIdx = db.getExperiment().getStructure(structureIdx).getSegmentationParentStructure();
         int parentStructureIdx = db.getExperiment().getStructure(structureIdx).getParentStructure();
@@ -479,7 +479,7 @@ public class ManualEdition {
                     for (SegmentedObject c : oldChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
                 }
                 ImageMask refMask =  ref2D && mask.sizeZ()==1 && input.sizeZ()>1 ? new ImageMask2D(mask) : mask;
-                if (test) iwm.getDisplayer().showImage(mask, 0, 1);
+                if (test) iwm.getDisplayer().displayImage(mask, 0, 1);
                 // remove seeds located out of mask
                 Iterator<Point> it=e.getValue().iterator();
                 while(it.hasNext()) {
@@ -523,9 +523,9 @@ public class ManualEdition {
             }
             iwm.resetObjects(positions[0], structureIdx);
             // selected newly segmented objects on image
-            InteractiveImage i = iwm.getImageObjectInterface(image);
+            InteractiveImage i = iwm.getInteractiveImage(image);
             if (i!=null) {
-                iwm.displayObjects(image, i.pairWithOffset(segmentedObjects), Color.ORANGE, true, false);
+                iwm.displayObjects(image, i.toObjectDisplay(segmentedObjects), Color.ORANGE, true, false);
                 GUI.updateRoiDisplayForSelections(image, i);
             }
         }
@@ -706,7 +706,7 @@ public class ManualEdition {
             }
             if (updateDisplay && !test) {
                 // unselect
-                ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
+                ImageWindowManagerFactory.getImageManager().hideLabileObjects(null, false);
                 ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);
                 ImageWindowManagerFactory.getImageManager().resetObjects(null, structureIdx);
                 /*Set<SegmentedObject> parents = SegmentedObjectUtils.getParents(newObjects);
@@ -719,12 +719,12 @@ public class ManualEdition {
                     ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
                 }*/
                 // update selection
-                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null, structureIdx);
+                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(null);
                 if (i!=null) {
                     newObjects.addAll(objects);
                     Utils.removeDuplicates(newObjects, false);
-                    ImageWindowManagerFactory.getImageManager().displayObjects(null, i.pairWithOffset(newObjects), Color.orange, true, false);
-                    GUI.updateRoiDisplayForSelections(null, null);
+                    ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(newObjects), Color.orange, true, false);
+                    GUI.updateRoiDisplayForSelections();
                 }
                 // update trackTree
                 if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
@@ -765,20 +765,20 @@ public class ManualEdition {
     public static void relabelAll(MasterDAO db, Image image) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         if (image==null) {
-            Object im = iwm.getDisplayer().getCurrentImage();
+            Object im = iwm.getDisplayer().getCurrentDisplayedImage();
             if (im!=null) image = iwm.getDisplayer().getImage(im);
             if (image==null) {
                 logger.warn("No image found");
                 return;
             }
         }
-        InteractiveImage i = iwm.getImageObjectInterface(image);
+        InteractiveImage i = iwm.getInteractiveImage(image);
         if (i==null) {
             logger.warn("Current image is not registered");
             return;
         }
         List<SegmentedObject> modifiedObjects = new ArrayList<>();
-        int objectClass = i.getChildStructureIdx();
+        int objectClass = iwm.getInteractiveObjectClass();
         SegmentedObjectFactory factory = getFactory(objectClass);
         i.getParents().forEach(p -> {
             factory.relabelChildren(p, modifiedObjects);
@@ -788,7 +788,7 @@ public class ManualEdition {
 
     public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects) {
         logger.debug("hide labile objects...");
-        ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
+        ImageWindowManagerFactory.getImageManager().hideLabileObjects(null, false);
         logger.debug("remove tracks...");
         ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);
         Map<Integer, List<SegmentedObject>> oBySidx = SegmentedObjectUtils.splitByStructureIdx(objects, true);
@@ -802,14 +802,13 @@ public class ManualEdition {
             }*/
             Set<SegmentedObject> parents = SegmentedObjectUtils.getParentTrackHeads(e.getValue());
             //Update all open images & objectImageInteraction
-            // TODO works when displayed from other structure than parent ? use reset instead ?
-            for (SegmentedObject p : parents) ImageWindowManagerFactory.getImageManager().reloadObjects(p, e.getKey(), false);
+            ImageWindowManagerFactory.getImageManager().resetObjects(e.getValue().get(0).getPositionName(), e.getKey());
             // update selection
-            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null, e.getKey());
+            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(null);
             logger.debug("display : {} objects from structure: {}, IOI null ? {}", e.getValue().size(), e.getKey(), i==null);
             if (i!=null) {
-                ImageWindowManagerFactory.getImageManager().displayObjects(null, i.pairWithOffset(e.getValue()), Color.orange, true, false);
-                GUI.updateRoiDisplayForSelections(null, null);
+                ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(e.getValue()), Color.orange, true, false);
+                GUI.updateRoiDisplayForSelections();
             }
         }
         // update trackTree
@@ -831,8 +830,8 @@ public class ManualEdition {
                 //for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(toDelete))
                 //    ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
                 ImageWindowManagerFactory.getImageManager().resetObjects(null, structureIdx);
-                ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh), true);
-                GUI.updateRoiDisplayForSelections(null, null);
+                ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh), null, true, false);
+                GUI.updateRoiDisplayForSelections();
             }
         }
         // update trackTree
@@ -912,7 +911,7 @@ public class ManualEdition {
         if (!selList.isEmpty()) {
             SegmentedObject first = Collections.min(selList, Comparator.comparingInt(SegmentedObject::getFrame));
             InteractiveImage ioi = ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface();
-            List<SegmentedObject> toDelete = ioi.getAllObjects().map(o -> o.key)
+            List<SegmentedObject> toDelete = ioi.getAllObjectDisplay(ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass()).map(o -> o.object)
                     .filter(after ? o -> o.getFrame()>=first.getFrame() : o -> o.getFrame()<=first.getFrame())
                     .collect(Collectors.toList());
             deleteObjects(db, toDelete, ALWAYS_MERGE(), true, true);

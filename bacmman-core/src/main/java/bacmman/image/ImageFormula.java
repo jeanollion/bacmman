@@ -14,7 +14,7 @@ public class ImageFormula extends Image {
         super("image formula", images[0]);
         this.formula=formula;
         this.images=images;
-        if (!Utils.objectsAllHaveSameProperty(Arrays.asList(images), SimpleBoundingBox::sameBounds)) {
+        if (!Utils.objectsAllHaveSameProperty(Arrays.asList(images), Image::sameBounds)) {
             logger.error("Image Bounds differ: {} class: {}", Utils.toStringArray(images, Image::getBoundingBox), Utils.toStringArray(images, Image::getClass));
             throw new IllegalArgumentException("Some images do not have same bounds");
         }

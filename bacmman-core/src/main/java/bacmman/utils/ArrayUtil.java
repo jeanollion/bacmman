@@ -21,7 +21,10 @@ package bacmman.utils;
 import bacmman.image.ImageFloat;
 import bacmman.processing.ImageFeatures;
 import ij.measure.CurveFitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,6 +42,48 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class ArrayUtil {
+    public static final Logger logger = LoggerFactory.getLogger(ArrayUtil.class);
+
+    public static <T, K extends Comparable<K>> int binarySearchKey(T[] sortedArray, K key, Function<T, K> keyExtractor) {
+        return binarySearchKey(sortedArray, key, keyExtractor, 0, sortedArray.length);
+    }
+    public static <T, K extends Comparable<K>> int binarySearchKey(T[] sortedArray, K key, Function<T, K> keyExtractor, int fromIndex, int toIndex) {
+        int low = fromIndex;
+        int high = toIndex - 1;
+        while (low <= high) {
+            int mid = low  + ((high - low) / 2);
+            int comp = keyExtractor.apply(sortedArray[mid]).compareTo(key);
+            if (comp < 0) {
+                low = mid + 1;
+            } else if (comp > 0) {
+                high = mid - 1;
+            } else {
+                return mid; // key found
+            }
+        }
+        return -(low + 1);  // key not found.;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <I> I[] generateArray(Class<I> clazz, int size) {
+        // Use Array native method to create array
+        // of a type only known at run time
+        return(I[]) Array.newInstance(clazz, size);
+    }
+    @SuppressWarnings("unchecked")
+    public static <I> I[][] generateMatrix(Class<I> clazz, int... size) {
+        if (size.length ==0 || size.length > 2) throw new IllegalArgumentException("Invalid size");
+        int[] dims = size.length == 2 ? size : new int[]{size[0], size[0]};
+        return(I[][]) Array.newInstance(clazz, dims);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <I> I[][][] generateTensor3(Class<I> clazz, int... size) {
+        if (size.length !=3 && size.length!=1) throw new IllegalArgumentException("Invalid size");
+        int[] dims = size.length == 3 ? size : new int[]{size[0], size[0], size[0]};
+        return(I[][][]) Array.newInstance(clazz, dims);
+    }
+
     public static DoubleStream stream(double[] array) {
         return Arrays.stream(array);
     }

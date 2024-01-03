@@ -59,13 +59,13 @@ public class IJ1 implements PlugIn {
     private static ImageJ ij;
     public static void initCore() {
         IJImageDisplayer disp = new IJImageDisplayer();
-        IJImageWindowManager man = new IJImageWindowManager(null, disp);
+        IJImageWindowManager man = new IJImageWindowManager(disp);
         ImageWindowManagerFactory.setImageDisplayer(disp, man);
         Core.getCore();
         Core.setFreeDisplayerMemory(man::flush);
-        Core.setImageDisplayer(disp::showImage);
+        Core.setImageDisplayer(disp::displayImage);
         Core.setOverlayDisplayer(disp);
-        Core.setImage5dDisplayer(disp::showImage5D);
+        Core.setImage5dDisplayer(disp::displayImage);
         Core.getCore().getGithubGateway().setPromptGithubCredientials(PromptGithubCredentials::promptCredentials);
     }
 

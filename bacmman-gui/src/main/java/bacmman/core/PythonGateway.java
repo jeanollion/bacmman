@@ -145,7 +145,8 @@ public class PythonGateway {
             if (openWholeSelection) {
                 // limit to 200 objects
                 if (ids.size() > 200) throw new IllegalArgumentException("too many objects in selection");
-                SelectionUtils.displaySelection(savedSel, -2, objectClassIdxDisplay);
+                int channelIdx = GUI.getDBConnection().getExperiment().experimentStructure.getChannelIdx(objectClassIdxDisplay);
+                SelectionUtils.displaySelection(savedSel, -2, channelIdx);
             } else if (open) {
                 GUI.getInstance().navigateToNextObjects(true, null, false, objectClassIdxDisplay, interactiveObjectClassIdx < 0);
             }

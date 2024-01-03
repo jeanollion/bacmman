@@ -709,7 +709,7 @@ public class Processor {
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(dao.getRoots(), parentStructureIdx);
         if (pcb!=null) pcb.log("Generating Image for structure: "+parentStructureIdx+". #tracks: "+allTracks.size()+", child structures: "+Utils.toStringArray(childStructureIdx));
         ThreadRunner.execute(allTracks.values(), false, (List<SegmentedObject> track, int idx) -> {
-            TimeLapseInteractiveImageFactory.Data kymo = TimeLapseInteractiveImageFactory.generateKymographData(track, false, 0, 0);
+            TimeLapseInteractiveImageFactory.Data kymo = TimeLapseInteractiveImageFactory.generateKymographData(track, false, 0, 0, 0);
             for (int childSIdx : cSI) {
                 //Core.userLog("Generating Image for track:"+track.get(0)+", structureIdx:"+childSIdx+" ...");
                 Image im = kymo.generateKymograph("", childSIdx, true);

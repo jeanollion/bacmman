@@ -26,12 +26,9 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.ui.GUI;
-import bacmman.ui.gui.image_interaction.IJVirtualStack;
-import bacmman.ui.gui.image_interaction.InteractiveImage;
-import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.ui.gui.image_interaction.*;
 import bacmman.data_structure.Processor;
 import bacmman.core.Task;
-import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
@@ -249,6 +246,16 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         return Objects.equals(trackHead, trackNode.trackHead);
     }
 
+    public void openHyperStack(int defaultChannelIdx) {
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), HyperStack.class, true);
+        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
+    }
+
+    public void openKymograph(int defaultChannelIdx) {
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), Kymograph.class, true);
+        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(trackHead);
@@ -312,13 +319,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
-                            //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
-                            //trackNode.loadAllTrackObjects(path);
-                            int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
-                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx), i, structureIdx, true);
-                            GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                            GUI.getInstance().setTrackStructureIdx(structureIdx);
+                            int objectClassIdx = getOCIdx.applyAsInt(ae.getActionCommand());
+                            int channelIdx = trackNode.trackHead.getExperimentStructure().getChannelIdx(objectClassIdx);
+                            GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
+                            GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                            trackNode.openKymograph(channelIdx);
                         }
                     }
                 );
@@ -331,10 +336,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
                         logger.debug("opening hyperStack raw image for object class: {} of idx: {}, position: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()), trackHead.getPositionName());
-                        int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                        IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO made this method generic
-                        GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                        GUI.getInstance().setTrackStructureIdx(structureIdx);
+                        int objectClassIdx = getOCIdx.applyAsInt(ae.getActionCommand());
+                        int channelIdx = trackNode.trackHead.getExperimentStructure().getChannelIdx(objectClassIdx);
+                        GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
+                        GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                        trackNode.openHyperStack(channelIdx);
                     }
                 }
                 );
@@ -372,7 +378,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                 // reload tree
                                 root.generator.controller.updateLastParentTracksWithSelection(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
                                 // reload objects
-                                ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
+                                ImageWindowManagerFactory.getImageManager().resetObjects(trackHead.getPositionName(), structureIdx);
                                 // reload selection
                                 GUI.getInstance().populateSelections();
                             });
@@ -415,7 +421,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                 // reload tree
                                 root.generator.controller.updateLastParentTracksWithSelection(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
                                 // reload objects
-                                ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
+                                ImageWindowManagerFactory.getImageManager().resetObjects(trackHead.getPositionName(), structureIdx);
                                 // reload selection
                                 GUI.getInstance().populateSelections();
                             });
@@ -460,7 +466,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             dao.store(s);
                         }
                     }
-                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.updateRoiDisplayForSelections();
                 }
             });
             removeFromSelection.setAction(new AbstractAction("Remove from Selected Selection(s)") {
@@ -476,7 +482,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             dao.store(s);
                         }
                     }
-                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.updateRoiDisplayForSelections();
                 }
             });
         }

@@ -91,6 +91,15 @@ public class SimpleOffset implements Offset<SimpleOffset> {
         zMin+=other.zMin();
         return this;
     }
+
+    @Override
+    public SimpleOffset translate(int dx, int dy, int dz) {
+        xMin+=dx;
+        yMin+=dy;
+        zMin+=dz;
+        return this;
+    }
+
     public boolean sameOffset(Offset other) {
         return xMin == other.xMin() && yMin == other.yMin() && zMin == other.zMin();
     }

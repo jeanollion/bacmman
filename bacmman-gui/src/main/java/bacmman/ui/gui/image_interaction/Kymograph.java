@@ -1,65 +1,220 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.core.DefaultWorker;
-import bacmman.image.Image;
+import bacmman.data_structure.SegmentedObject;
+import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
-import bacmman.ui.GUI;
+import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public abstract class Kymograph extends TimeLapseInteractiveImage {
+    private static final Logger logger = LoggerFactory.getLogger(Kymograph.class);
+    public static int INTERVAL_PIX=0;
     protected final int maxParentSizeZ, frameNumber;
-    int startFrame;
-    public Kymograph(TimeLapseInteractiveImageFactory.Data data, int childStructureIdx, boolean loadObjects) {
-        super(data, childStructureIdx);
+
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int... loadObjectClass) {
+        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP);
+        switch (data.direction) {
+            case X:
+            default:
+                return new KymographX(data, loadObjectClass);
+            case Y:
+                return new KymographY(data, loadObjectClass);
+        }
+    }
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
+        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP);
+        switch (data.direction) {
+            case X:
+            default:
+                return new KymographX(data, channelNumber, imageSupplier, loadObjectClass);
+            case Y:
+                return new KymographY(data, channelNumber, imageSupplier, loadObjectClass);
+        }
+    }
+    public Kymograph(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClass) {
+        super(data);
         maxParentSizeZ = data.maxParentSizeZ;
-        frameNumber = data.frameNumber;
-        loadObjectsWorker = new DefaultWorker(i -> { // TODO parallel ?
-            data.parentTrack.get(i).getChildren(childStructureIdx);
-            return "";
-        }, data.parentTrack.size(), null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
-        if (loadObjects) {
+        frameNumber = data.nFramePerSlice;
+        loadObjectClasses(loadObjectClass);
+    }
+
+    public Kymograph(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
+        super(data, channelNumber, imageSupplier);
+        maxParentSizeZ = data.maxParentSizeZ;
+        frameNumber = data.nFramePerSlice;
+        loadObjectClasses(loadObjectClass);
+    }
+
+    protected void loadObjectClasses(int... loadObjectClass) {
+        for (int loadOC: loadObjectClass) {
+            DefaultWorker loadObjectsWorker = new DefaultWorker(i -> { // TODO parallel ?
+                data.parentTrack.get(i).getChildren(loadOC);
+                return "";
+            }, data.parentTrack.size(), null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
             loadObjectsWorker.execute();
             loadObjectsWorker.setStartTime();
+            worker.add(loadObjectsWorker);
         }
     }
 
-    public boolean canMoveView(boolean next) {
-        if (next) return startFrame + frameNumber < data.parentTrack.size();
-        else return startFrame > 0;
+
+    public abstract int getClosestFrame(int x, int y, int slice);
+
+    protected int getStartParentIdx(int sliceIdx) {
+        if (data.nSlices == 1) return 0;
+        if (sliceIdx>=data.nSlices) throw new IllegalArgumentException("Invalid kymograph slice: "+sliceIdx+" / "+data.nSlices);
+        if (sliceIdx == 0) return 0;
+        if (sliceIdx == data.nSlices-1) return data.parentTrack.size() - data.nFramePerSlice;
+        return (data.nFramePerSlice - data.frameOverlap) * sliceIdx;
     }
 
-    public void setStartFrame(int startFrame) {
-        this.startFrame = Math.min(startFrame, data.parentTrack.size() - data.frameNumber);
-        updateData(this.startFrame);
+    @Override
+    protected BoundingBox[] makeTrackOffset(int sliceIdx) {
+        int startIdx = getStartParentIdx(sliceIdx);
+        Offset off = data.trackOffset[startIdx].duplicate().reverseOffset();
+        return IntStream.range(0, data.nFramePerSlice).mapToObj(i -> data.trackOffset[i+startIdx].duplicate().translate(off)).toArray(BoundingBox[]::new);
+    }
+    @Override
+    protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
+        BoundingBox[] trackOffset = this.trackOffset.get(sliceIdx);
+        int startIdx = getStartParentIdx(sliceIdx);
+        return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxParentSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+    }
+    protected Stream<Integer> getSlice(int frame) {
+        int parentIdx = frameMapParentIdx.get(frame);
+        if (parentIdx<data.nFramePerSlice - data.frameOverlap) return Stream.of(0);
+        else {
+            int totalFrames = data.parentTrack.size();
+            int sliceIdx = (parentIdx>=totalFrames - data.nFramePerSlice) ? data.nSlices - 1 : parentIdx / (data.nFramePerSlice - data.frameOverlap);
+            List<Integer> res=new ArrayList<>();
+            res.add(sliceIdx);
+            int prevSlice = sliceIdx-1; // check if previous slices are also included
+            while(prevSlice>=0) {
+                int prevIdxEnd = getStartParentIdx(prevSlice) + data.nFramePerSlice;
+                if (parentIdx<prevIdxEnd) res.add(prevSlice);
+                else break;
+                --prevSlice;
+            }
+            return res.stream();
+        }
     }
 
-    protected void updateImage(Image image, final int structureIdx) {
+    public void addObjectsFromOverlappingSlices(List<ObjectDisplay> list) {
+        int lastIdx = list.size();
+        for (int i = 0; i<lastIdx; ++i) {
+            ObjectDisplay objectDisplay = list.get(i);
+            getSlice(objectDisplay.object.getFrame()).filter(s -> s != objectDisplay.sliceIdx)
+                    .map(s -> toObjectDisplay(objectDisplay.object, s)).forEach(list::add);
+        }
+    }
+
+    @Override
+    public BoundingBox getObjectOffset(SegmentedObject object, int slice) {
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        if (object==null) return null;
+        int idx = getOffsetIdx(object.getFrame(), slice);
+        BoundingBox b = idx<0 ? null : trackObjects[idx].getObjectOffset(object, 0);
+        if (b==null) { // search in adjacent slides
+            if (slice>0 && this.trackObjects.get(slice-1)!=null && object.getFrame()<trackObjects[0].parent.getFrame()) {
+                idx = getOffsetIdx(object.getFrame(), slice - 1);
+                b = idx<0 ? null : this.trackObjects.get(slice-1)[idx].getObjectOffset(object, 0);
+            }
+            if (b!=null) {
+                Offset off = data.trackOffset[getStartParentIdx(slice)].duplicate().reverseOffset();
+                Offset offPrev = data.trackOffset[getStartParentIdx(slice-1)];
+                b.translate(offPrev).translate(off);
+            } else if (slice+1<data.nSlices && this.trackObjects.get(slice+1)!=null) {
+                idx = getOffsetIdx(object.getFrame(), slice + 1);
+                b = idx<0 ? null : this.trackObjects.get(slice+1)[idx].getObjectOffset(object, 0);
+                if (b!=null) {
+                    Offset off = data.trackOffset[getStartParentIdx(slice)].duplicate().reverseOffset();
+                    Offset offNext = data.trackOffset[getStartParentIdx(slice+1)];
+                    b.translate(offNext).translate(off);
+                }
+            }
+        }
+        return b;
+    }
+
+    @Override
+    public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects) {
+        return objects.stream()
+            .flatMap(o -> getSlice(o.getFrame())// redundancy when overlap != null
+            .map(s -> {
+                BoundingBox b = this.getObjectOffset(o, s);
+                if (b==null) return null;
+                else return new ObjectDisplay(o, b, s);
+            }).filter(Objects::nonNull))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Stream<ObjectDisplay> getObjectDisplay(int objectClassIdx, int slice) {
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        return Arrays.stream(trackObjects).flatMap(i -> i.getAllObjectDisplay(objectClassIdx));
+    }
+
+    @Override
+    public Stream<ObjectDisplay> getAllObjectDisplay(int objectClassIdx) {
+        return IntStream.range(0, data.nSlices).boxed().map(s -> trackObjects.get(s)).flatMap(Arrays::stream)
+                .filter(Utils.distinctByKey(u -> u.parent.getFrame())).flatMap(i->i.getAllObjectDisplay(objectClassIdx));
+    }
+
+    @Override
+    public Stream<SegmentedObject> getObjects(int objectClassIdx, int slice) {
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        return Arrays.stream(trackObjects).flatMap(i -> i.getAllObjects(objectClassIdx));
+    }
+
+    @Override
+    public Stream<SegmentedObject> getAllObjects(int objectClassIdx) {
+        return IntStream.range(0, data.nSlices).boxed().map(s -> trackObjects.get(s))
+                .flatMap(Arrays::stream)
+                .filter(Utils.distinctByKey(u -> u.parent.getFrame())).flatMap(i->i.getAllObjects(objectClassIdx));
+    }
+
+    public void updateImage(Image image, final int channelIdx, final int slice) {
+        Image image_;
+        if (image instanceof LazyImage5D) {
+            image_ = ((LazyImage5D)image).getImage(0, channelIdx, 0);
+        } else image_ = image;
+        logger.debug("updating kymograph for channel : {}", channelIdx);
+        Image type = Image.copyType(image_);
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
+        BoundingBox[] trackOffset = this.trackOffset.get(slice);
         IntStream.range(0, trackOffset.length).parallel().forEach(i->{
-            Image subImage = trackObjects[i].generateImage(structureIdx);
-            Image.pasteImage(subImage, image, trackOffset[i]);
+            Image subImage = trackObjects[i].imageSupplier.apply(trackObjects[i].parent, channelIdx);
+            Image.pasteImage(TypeConverter.cast(subImage, type), image_, trackOffset[i]);
         });
+        image.setName(getImageTitle());
     }
-    @Override public Image generateImage(final int structureIdx) {
-        // use track image only if parent is first element of track image
-        //if (trackObjects[0].parent.getOffsetInTrackImage()!=null && trackObjects[0].parent.getOffsetInTrackImage().xMin()==0 && trackObjects[0].parent.getTrackImage(structureIdx)!=null) return trackObjects[0].parent.getTrackImage(structureIdx);
-        long t0 = System.currentTimeMillis();
-        Image image0 = trackObjects[0].generateImage(structureIdx);
-        //GUI.logger.debug("image bounds: {}, parent {} bounds: {}. is2D: {}", image0.getBoundingBox(), trackObjects[0].parent, trackObjects[0].parent.getBounds(), is2D());
-        if (image0==null) return null;
-        String structureName;
-        if (getParent().getExperimentStructure()!=null) structureName = getParent().getExperimentStructure().getObjectClassName(structureIdx);
-        else structureName= structureIdx+"";
+    public String getImageTitle() {
+        if (name != null && !name.isEmpty()) return name;
         String pStructureName;
         if (getParent().getExperimentStructure()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx());
         else pStructureName= getParent().getStructureIdx()+"";
-        final Image displayImage =  generateEmptyImage("Kymograph@"+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+getParent().getFrame()+";"+parents.get(parents.size()-1).getFrame()+"]: "+structureName, image0);
-        updateImage(displayImage, structureIdx);
-        long t1 = System.currentTimeMillis();
-        GUI.logger.debug("generate image: {} for structure: {}, time: {}ms", parents.get(0), structureIdx, t1-t0);
+        return "Kymograph@"+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+data.parentTrack.get(0).getFrame()+";"+data.parentTrack.get(data.parentTrack.size()-1).getFrame()+"]";
+    }
 
-
-        return displayImage;
+    public abstract ImageProperties getImageProperties(int channelIdx);
+    @Override public LazyImage5D generateImage() {
+        LazyImage5D im = trackObjects.get(0)[0].generateImage(); // will homogenize type
+        ImageProperties props = getImageProperties();
+        Function<int[], Image> generator = fc -> {
+            Image displayImage = Image.createEmptyImage(name, im.getImageType(), getImageProperties(fc[1]));
+            updateImage(displayImage, fc[1], fc[0]);
+            return displayImage;
+        };
+        return new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
     }
 
 }

@@ -64,8 +64,6 @@ public class ParameterUIBinder {
                 if (f!=null) {
                     int idx = pp.getParent().getIndex(pp);
                     ui.addActions(PluginConfigurationUtils.getTransformationTest("Test Transformation", f, idx, false, pcb, expertMode), true);
-                    //ui.addActions(PluginConfigurationUtils.getTransformationTest("Test Transformation (show all steps)", f, idx, true), false);
-                    ui.addActions(PluginConfigurationUtils.getTransformationTestOnCurrentImage("Test Transformation on current Image", f, idx, expertMode), false);
                 }
             }
             return ui;
