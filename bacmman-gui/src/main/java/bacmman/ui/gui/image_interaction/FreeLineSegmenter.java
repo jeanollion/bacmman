@@ -22,7 +22,7 @@ import java.util.stream.IntStream;
 
 public class FreeLineSegmenter {
     public final static Logger logger = LoggerFactory.getLogger(FreeLineSegmenter.class);
-    public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, Collection<SegmentedObject> touchedObjects, int[] xContour, int[] yContour, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
+    public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, int[] xContour, int[] yContour, int z, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (xContour.length!=yContour.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
         Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
@@ -43,7 +43,7 @@ public class FreeLineSegmenter {
                 else modifyObjectLabel = 0;
             } else modifyObjectLabel = 0;
         } else modifyObjectLabel = 0;
-        Set<Voxel> voxels = IntStream.range(0, xContour.length).mapToObj(i->new Voxel(xContour[i], yContour[i], 0)).map(v->v.translate(revOff)).collect(Collectors.toSet());
+        Set<Voxel> voxels = IntStream.range(0, xContour.length).mapToObj(i->new Voxel(xContour[i], yContour[i], z)).map(v->v.translate(revOff)).collect(Collectors.toSet());
         if (modifyObjectLabel==0) { // create a new object
             if (!isClosed) { // close the object by tracing a line between 2 extremities
                 Point start = new Point(xContour[0], yContour[0]).translate(revOff);
@@ -55,6 +55,7 @@ public class FreeLineSegmenter {
                 }
             }
             boolean is2D = pop.getRegions().isEmpty() ? parent.is2D() : pop.getRegions().get(0).is2D();
+            if (is2D) voxels.forEach(v -> v.z = 0);
             Region r = new Region(voxels, pop.getRegions().size() + 1, is2D, pop.getImageProperties().getScaleXY(), pop.getImageProperties().getScaleZ());
             FillHoles2D.fillHoles(r.getMaskAsImageInteger(), 2);
             //Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
@@ -68,7 +69,7 @@ public class FreeLineSegmenter {
             logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
             return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
-        } else {
+        } else { // close the object using border of touching object
             Region rOld = pop.getRegions().stream().filter(rr->rr.getLabel()==modifyObjectLabel).findAny().get();
             Region r = rOld.duplicate();
             r.translate(new SimpleOffset(parent.getBounds()).reverseOffset()); // working in relative landmark

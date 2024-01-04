@@ -27,6 +27,7 @@ import bacmman.plugins.plugins.processing_pipeline.ObjectClassOperation;
 import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -53,6 +54,15 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     private Map<String, HistogramScaler> scalerP = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(p->scaler.instantiatePlugin());
     public enum TRACK_DISPLAY {DEFAULT, CONTOUR}
     EnumChoiceParameter<TRACK_DISPLAY> trackDisplay = new EnumChoiceParameter<>("Track Display", TRACK_DISPLAY.values(), TRACK_DISPLAY.DEFAULT).setHint("In Kymograph mode, track are displayed as arrows by default. Choose contour to display them as coloured contours");
+    public enum OBJECT_COLOR {
+        MAGENTA(Color.MAGENTA), CYAN(Color.CYAN), ORANGE(Color.ORANGE), RED(Color.RED), GREEN(Color.GREEN), BLUE(Color.BLUE), YELLOW(Color.YELLOW), GREY(Color.GRAY), NONE(null);
+        final Color c;
+        OBJECT_COLOR(Color c) {
+            this.c =c;
+        }
+    }
+    EnumChoiceParameter<Structure.OBJECT_COLOR> color = new EnumChoiceParameter<>("Color", Structure.OBJECT_COLOR.values(), OBJECT_COLOR.MAGENTA).setAllowNoSelection(false).setHint("Display color");
+
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -68,6 +78,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         res.put("allowMerge", allowMerge.toJSONEntry());
         res.put("scaler", scaler.toJSONEntry());
         res.put("trackDisplay", trackDisplay.toJSONEntry());
+        res.put("displayColor", color.toJSONEntry());
         return res;
     }
 
@@ -86,6 +97,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
         if (jsonO.containsKey("scaler")) scaler.initFromJSONEntry(jsonO.get("scaler"));
         if (jsonO.containsKey("trackDisplay")) trackDisplay.initFromJSONEntry(jsonO.get("trackDisplay"));
+        if (jsonO.containsKey("displayColor")) color.initFromJSONEntry(jsonO.get("displayColor"));
         setParentStructure(parentStructure.getSelectedClassIdx()); // to initialize related parameters
     }
     
@@ -143,7 +155,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowMerge, allowSplit, trackDisplay); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowMerge, allowSplit, trackDisplay, color); //brightObject
     }
     public boolean allowSplit() {
         return allowSplit.getSelected();
@@ -156,6 +168,8 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     public TRACK_DISPLAY getTrackDisplay() {
         return trackDisplay.getSelectedEnum();
     }
+
+    public Color getColor() {return color.getSelectedEnum().c;}
 
     public Structure setAllowSplit(boolean allowSplit) {
         this.allowSplit.setSelected(allowSplit);

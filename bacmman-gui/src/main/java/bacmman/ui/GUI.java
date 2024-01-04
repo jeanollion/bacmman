@@ -746,6 +746,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 logger.debug("A pressed: " + e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.SELECT_ALL_OBJECT_CLASSES, new AbstractAction("Select All Object Classes") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                selectAllObjectClassesButtonActionPerformed(e);
+                logger.debug("A pressed: " + e);
+            }
+        });
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_TRACKS, new AbstractAction("Select All Tracks") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -4875,6 +4883,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     private void selectAllObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectAllObjectsButtonActionPerformed
         getImageManager().displayAllObjects(null);
+        //GUI.updateRoiDisplayForSelections();
+    }//GEN-LAST:event_selectAllObjectsButtonActionPerformed
+
+    private void selectAllObjectClassesButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectAllObjectsButtonActionPerformed
+        getImageManager().displayAllObjectClasses(null);
         //GUI.updateRoiDisplayForSelections();
     }//GEN-LAST:event_selectAllObjectsButtonActionPerformed
 

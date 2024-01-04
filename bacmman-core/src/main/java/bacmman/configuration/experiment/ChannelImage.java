@@ -25,6 +25,8 @@ import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.configuration.parameters.ContainerParameterImpl;
 import bacmman.configuration.parameters.TextParameter;
+
+import java.awt.*;
 import java.util.function.Predicate;
 
 import bacmman.image.io.ImageIOCoordinates;
@@ -52,8 +54,14 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
             + "<br />First channel must have a non-null keyword is import method is <em>"+ONE_FILE_PER_CHANNEL_POSITION.getMethod()+"</em> and that there are several channels. "
             + "<br />All keywords should be distinct.");
     EnumChoiceParameter<ImageIOCoordinates.RGB> importRGBChannel = new EnumChoiceParameter<>("RGB Channel", ImageIOCoordinates.RGB.values(), ImageIOCoordinates.RGB.R).setHint("In case input images is a color image, choose which channel to import");
-    public enum CHANNEL_COLOR {RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, ORANGE}
-    EnumChoiceParameter<CHANNEL_COLOR> color = new EnumChoiceParameter<>("Color", CHANNEL_COLOR.values(), null).setAllowNoSelection(true).setHint("Display color");
+    public enum CHANNEL_COLOR {
+        RED(Color.RED), GREEN(Color.GREEN), BLUE(Color.BLUE), MAGENTA(Color.MAGENTA), CYAN(Color.CYAN), ORANGE(Color.ORANGE), YELLOW(Color.YELLOW), GREY(Color.GRAY);
+        final Color c;
+        CHANNEL_COLOR(Color c) {
+            this.c =c;
+        }
+    }
+    EnumChoiceParameter<CHANNEL_COLOR> color = new EnumChoiceParameter<>("Color", CHANNEL_COLOR.values(), CHANNEL_COLOR.GREY).setAllowNoSelection(true).setHint("Display color");
     EnumChoiceParameter<Experiment.AXIS_INTERPRETATION> axesInterpretation = new EnumChoiceParameter<>("Axes Interpretation", Experiment.AXIS_INTERPRETATION.values(), Experiment.AXIS_INTERPRETATION.AUTOMATIC).setHint("Defines how to interpret the third axis (after X, Y). Automatic: axis as defined in the image file, Z: axis is interpreted as Z if several frames and only one z-slice are detected, Time: axis is interpreted as time, if several z-slices and only one frame are detected.");
 
     public ChannelImage(String name) {
@@ -64,7 +72,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         this(name);
         setImportImageChannelKeyword(keyword);
     }
-    public CHANNEL_COLOR getColor() {return color.getSelectedEnum();}
+    public Color getColor() {return color.getSelectedEnum()==null ? CHANNEL_COLOR.GREY.c : color.getSelectedEnum().c;}
     public String getImportImageChannelKeyword() {return importKeyWord.getValue();}
     public void setImportImageChannelKeyword(String keyword) {importKeyWord.setValue(keyword);}
     public ImageIOCoordinates.RGB getRGB() {

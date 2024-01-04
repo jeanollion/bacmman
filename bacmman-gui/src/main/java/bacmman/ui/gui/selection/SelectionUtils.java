@@ -113,7 +113,7 @@ public class SelectionUtils {
             Collection<ObjectDisplay> objects = slice>=0 ? getObjects(s, i, slice) : null;
             Consumer<Image> consumer= im -> {
                 Collection<ObjectDisplay> objects_ = slice >= 0 ? objects : getObjects(s, i, iwm.getDisplayer().getFrame(im));
-                if (objects_ != null) iwm.displayObjects(im, objects_, s.getColor(true), false, false);
+                if (objects_ != null) iwm.displayObjects(im, objects_, s.getColor(true), false, false, false);
             };
             if (image == null) iwm.getImages(i).forEach(consumer);
             else consumer.accept(image);

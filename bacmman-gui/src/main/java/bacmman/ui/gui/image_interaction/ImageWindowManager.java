@@ -78,7 +78,8 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     public static Color getColor(int idx) {return palette[idx%palette.length];}
     protected final static Color trackErrorColor = new Color(255, 0, 0);
     protected final static Color trackCorrectionColor = new Color(0, 0, 255);
-    public static double trackRoiContourEdgeOpacity = 0.5;
+    public static double filledRoiOpacity = 0.4;
+    public static double strokeRoiOpacity = 0.6;
     public static Color getColor() {
         return Palette.getColor(150, trackErrorColor, trackCorrectionColor, defaultRoiColor);
     }
@@ -113,8 +114,9 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     protected final Map<Image, Set<U>> displayedObjectRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
     protected final Map<Image, Set<V>> displayedLabileTrackRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
     protected final Map<Image, Set<V>> displayedTrackRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
-    protected final Map<Image, Boolean> displayAllObjects = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(im -> false);
-    protected final Map<Image, Boolean> displayAllTracks = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(im -> false);
+
+    enum DISPLAY_MODE {NONE, OBJECTS, TRACKS, OBJECTS_CLASSES}
+    protected final Map<Image, DISPLAY_MODE> displayMode = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(im -> DISPLAY_MODE.NONE);
 
     public ImageWindowManager(ImageDisplayer<I> displayer) {
         this.displayer=displayer;
@@ -180,8 +182,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
         displayer.flush();
         interactiveImageMapImages.clear();
         imageMapInteractiveImage.clear();
-        displayAllTracks.clear();
-        displayAllObjects.clear();
+        displayMode.clear();
         trackHeadTrackMap.clear();
         displayedRawInputImages.clear();
         displayedPrePocessedImages.clear();
@@ -248,7 +249,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
         };
         LazyImage5D source = new LazyImage5DPlane(title, LazyImage5DPlane.homogenizeType(channels, imageOpenerFCZ), new int[]{frames, channels, maxZ});
         source.setChannelNames(xp.getChannelImagesAsString(true));
-        source.setChannelColors(xp.getChannelColor(true).toArray(String[]::new));
+        source.setChannelColors(xp.getChannelColors(true).toArray(String[]::new));
         I image = getDisplayer().displayImage(source);
         addWindowClosedListener(image, e-> {
             if (!preProcessed) displayedRawInputImages.remove(position);
@@ -313,8 +314,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
             }
             imageMapInteractiveImage.remove(image);
             displayedInteractiveImages.remove(image);
-            displayAllTracks.remove(image);
-            displayAllObjects.remove(image);
+            displayMode.remove(image);
             displayer.removeImage(image, null);
             displayedLabileObjectRois.remove(image);
             displayedObjectRois.remove(image);
@@ -379,7 +379,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
         interactiveImageMapImages.keySet().stream()
             .filter(i->position==null || i.getParent().getPositionName().equals(position))
             .forEach(i -> i.resetObjects(childStructureIdx));
-        resetObjectsAndTracksRoi();
+        resetObjectsAndTracksRoi(); // TODO more specific reset
     }
 
     public InteractiveImage getCurrentImageObjectInterface() {
@@ -505,11 +505,12 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
         
     }
     public abstract void displayAllObjects(Image image);
+    public abstract void displayAllObjectClasses(Image image);
     public abstract void displayAllTracks(Image image);
     public abstract void displayObject(I image, U roi);
     public abstract void hideObject(I image, U roi);
-    protected abstract U generateObjectRoi(ObjectDisplay object, Color color, int frameIdx);
-    protected abstract void setRoiAttributes(U roi, Color color, int frameIdx);
+    protected abstract U generateObjectRoi(ObjectDisplay object, Color color, boolean fill, int frameIdx);
+    protected abstract void setRoiAttributes(U roi, Color color, boolean fill, int frameIdx);
     public void setRoiModifier(RoiModifier<U> modifier) {this.roiModifier=modifier;}
     RoiModifier<U> roiModifier;
     public interface RoiModifier<U> {
@@ -518,9 +519,8 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     
     public abstract void updateImageRoiDisplay(Image image);
     
-    public void displayObjects(Image image, Collection<ObjectDisplay> objectsToDisplay, Color color, boolean labileObjects, boolean hideIfAlreadyDisplayed) {
+    public void displayObjects(Image image, Collection<ObjectDisplay> objectsToDisplay, Color color, boolean fill, boolean labileObjects, boolean hideIfAlreadyDisplayed) {
         if (objectsToDisplay.isEmpty() || (objectsToDisplay.iterator().next()==null)) return;
-        if (color==null) color = ImageWindowManager.defaultRoiColor;
         I dispImage;
         if (image==null) {
             dispImage = displayer.getCurrentDisplayedImage();
@@ -534,10 +534,15 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
         long t0 = System.currentTimeMillis();
         for (ObjectDisplay od : objectsToDisplay) {
             if (od==null) continue;
+            if (color == null) {
+                color = od.object.getExperimentStructure().getObjectColors().toArray(Color[]::new)[od.object.getStructureIdx()];
+                if (color == null) color = defaultRoiColor;
+                color = getTransparentColor(color, fill);
+            }
             //logger.debug("getting mask of object: {}", o);
             U roi=map.get(od);
             if (roi==null) {
-                roi = generateObjectRoi(od, color, od.sliceIdx);
+                roi = generateObjectRoi(od, color, fill, od.sliceIdx);
                 map.put(od, roi);
             }
             if (roiModifier!=null) roiModifier.modifyRoi(od, roi, objectsToDisplay);
@@ -547,7 +552,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
                     displayed.remove(roi);
                 }
             } else {
-                setRoiAttributes(roi, color, od.sliceIdx);
+                setRoiAttributes(roi, color, fill, od.sliceIdx);
                 displayObject(dispImage, roi);
                 displayed.add(roi);
             }
@@ -602,11 +607,9 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
         }
         InteractiveImage i = getInteractiveImage(image);
         if (i==null) return Collections.emptyList();
-        for (int oc = 0; oc<i.getParent().getExperimentStructure().getObjectClassNumber(); ++oc) {
-            if (displayAllObjects.get(image)) {
-                logger.debug("getSelected Labile object: display all objects mode");
-                return i.getAllObjects(oc).collect(Collectors.toList());
-            }
+        if (displayMode.get(image).equals(DISPLAY_MODE.OBJECTS)) {
+            logger.debug("getSelected Labile object: display all objects mode");
+            return i.getAllObjects(interactiveObjectClassIdx).collect(Collectors.toList());
         }
         Set<U> rois = displayedLabileObjectRois.get(image);
         if (rois!=null) {
@@ -618,7 +621,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     }
 
     public List<SegmentedObject> getSelectedLabileObjectsOrTracks(Image image) {
-        if (displayTrackMode) {
+        if (displayTrackMode && !displayMode.get(image).equals(DISPLAY_MODE.OBJECTS) || displayMode.get(image).equals(DISPLAY_MODE.TRACKS)) {
             List<SegmentedObject> th = getSelectedLabileTrackHeads(image);
             return th.stream().flatMap(t -> SegmentedObjectUtils.getTrack(t).stream()).collect(Collectors.toList());
         } else return getSelectedLabileObjects(image);
@@ -627,7 +630,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     
     protected abstract void displayTrack(I image, V roi);
     protected abstract void hideTrack(I image, V roi);
-    protected abstract V generateTrackRoi(List<ObjectDisplay> track, InteractiveImage i, Color color, boolean forceDefaultDisplay);
+    protected abstract V createTrackRoi(List<ObjectDisplay> track, InteractiveImage i, Color color, boolean forceDefaultDisplay);
     protected abstract void setTrackColor(V roi, Color color);
 
     public void displayTracks(Image image, InteractiveImage i, Collection<List<SegmentedObject>> tracks, Color color, boolean labile, boolean hideIfAlreadyDisplayed) {
@@ -694,7 +697,7 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
             boolean forceKymo = i instanceof Kymograph && forceDefaultDisplay;
             Structure.TRACK_DISPLAY targetTrackDisplay = forceKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(trackHead.getStructureIdx());
             if (roi==null || (i instanceof Kymograph && !roi.getDisplayType().equals(targetTrackDisplay))) {
-                roi = generateTrackRoi(track, i, color, forceKymo);
+                roi = createTrackRoi(track, i, color, forceKymo);
                 map.put(track, roi);
             } else setTrackColor(roi, color);
             boolean alreadyDisplayed = disp != null && disp.contains(roi);
@@ -774,9 +777,14 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
             image = getDisplayer().getCurrentImage();
             if (image==null) return Collections.emptyList();
         }
-        Set<V> rois = this.displayedLabileTrackRois.get(image);
         InteractiveImage i = getInteractiveImage(image);
-        if (rois!=null && i!=null) {
+        if (i==null) return Collections.emptyList();
+        if (displayMode.get(image).equals(DISPLAY_MODE.TRACKS)) {
+            logger.debug("getSelected Labile tracks: display all mode");
+            return i.getAllObjects(interactiveObjectClassIdx).filter(SegmentedObject::isTrackHead).collect(Collectors.toList());
+        }
+        Set<V> rois = this.displayedLabileTrackRois.get(image);
+        if (rois!=null) {
             Map<List<ObjectDisplay>, V> map = i instanceof Kymograph ? kymographLabileTrackRoiMap : hyperstackLabileTrackRoiMap;
             return Utils.getKeys(map, rois).stream().map(t -> t.get(0).object.getTrackHead()).collect(Collectors.toList());
         } else return Collections.emptyList();
@@ -838,8 +846,6 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
     
     public void resetObjectsAndTracksRoi() {
         for (Image image : imageMapInteractiveImage.keySet()) hideAllRois(image, true, true);
-        displayAllObjects.clear();
-        displayAllTracks.clear();
         objectRoiMap.clear();
         labileObjectRoiMap.clear();
         hyperstackLabileTrackRoiMap.clear();
@@ -1174,6 +1180,11 @@ public abstract class ImageWindowManager<I, U, V extends TrackRoi> {
             });
         }
     }
+
+    public static Color getTransparentColor(Color color, boolean fill) {
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), (int)Math.round((fill? filledRoiOpacity : strokeRoiOpacity) *255));
+    }
+
     private static SegmentedObjectAccessor getAccessor() {
         try {
             Constructor<SegmentedObjectAccessor> constructor = SegmentedObjectAccessor.class.getDeclaredConstructor();

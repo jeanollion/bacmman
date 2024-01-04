@@ -525,7 +525,7 @@ public class ManualEdition {
             // selected newly segmented objects on image
             InteractiveImage i = iwm.getInteractiveImage(image);
             if (i!=null) {
-                iwm.displayObjects(image, i.toObjectDisplay(segmentedObjects), Color.ORANGE, true, false);
+                iwm.displayObjects(image, i.toObjectDisplay(segmentedObjects), Color.ORANGE, true, true, false);
                 GUI.updateRoiDisplayForSelections(image, i);
             }
         }
@@ -723,7 +723,7 @@ public class ManualEdition {
                 if (i!=null) {
                     newObjects.addAll(objects);
                     Utils.removeDuplicates(newObjects, false);
-                    ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(newObjects), Color.orange, true, false);
+                    ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(newObjects), Color.orange, false, true, false);
                     GUI.updateRoiDisplayForSelections();
                 }
                 // update trackTree
@@ -807,7 +807,7 @@ public class ManualEdition {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(null);
             logger.debug("display : {} objects from structure: {}, IOI null ? {}", e.getValue().size(), e.getKey(), i==null);
             if (i!=null) {
-                ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(e.getValue()), Color.orange, true, false);
+                ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(e.getValue()), Color.orange, false, true, false);
                 GUI.updateRoiDisplayForSelections();
             }
         }

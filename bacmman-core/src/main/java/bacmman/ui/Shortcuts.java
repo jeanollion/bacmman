@@ -43,7 +43,6 @@ import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.JTextComponent;
 
 import bacmman.core.Core;
-import ij.gui.ImageWindow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +70,7 @@ public class Shortcuts {
         MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse/selection-brush tool)", "shift + alt + Line/Oval/Ellipse/Brush"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
         MANUAL_ERASE("Erase part of an existing object using the selection brush tool", "ctrl + Brush"),
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
-        SELECT_ALL_OBJECTS("Display all objects on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
+        SELECT_ALL_OBJECTS("Display all objects of interactive object class on active image"), SELECT_ALL_OBJECT_CLASSES("Display all objects from all classes on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + alt + mouse wheel"),
         SCROLL_Z("Scroll Z-axis", "space + mouse wheel"),
         SCROLL_T("Scroll Time-axis", "alt + mouse wheel"),
@@ -165,6 +164,7 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), ACTION.POST_FILTER);
                 
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_OBJECTS);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK), ACTION.SELECT_ALL_OBJECT_CLASSES);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_TRACKS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0), ACTION.CHANGE_INTERACTIVE_STRUCTURE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0), ACTION.TOGGLE_SELECT_MODE);
@@ -202,6 +202,7 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), ACTION.POST_FILTER);
                 
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_OBJECTS);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK), ACTION.SELECT_ALL_OBJECT_CLASSES);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_TRACKS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0), ACTION.CHANGE_INTERACTIVE_STRUCTURE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0), ACTION.TOGGLE_SELECT_MODE);
@@ -311,7 +312,7 @@ public class Shortcuts {
         Function<String, String> formatString = (s) -> "<html><body style=\"text-align: justify;  text-justify: inter-word;\">" + s + "</body></html>";
         Object[] actions = {
             "<b>Display</b>",
-            SELECT_ALL_OBJECTS, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
+            SELECT_ALL_OBJECTS, SELECT_ALL_OBJECT_CLASSES, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
             TOGGLE_LOCAL_ZOOM, TO_FRONT,
             "<b>Navigation</b>",
             SCROLL_Z,

@@ -1,10 +1,10 @@
 package bacmman.data_structure;
 
-import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 import bacmman.utils.Utils;
 
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -209,9 +209,13 @@ public class ExperimentStructure {
     public String[] getObjectClassNames() {
         return xp.getStructures().getChildrenString();
     }
-    public Stream<ChannelImage.CHANNEL_COLOR> getChannelColors() {
-        return xp.getChannelColor(true);
+    public Stream<Color> getChannelColors() {
+        return xp.getChannelColors(true);
     }
+    public Stream<Color> getObjectColors() {
+        return xp.getObjectColors();
+    }
+
     public boolean allowMerge(int objectClassIdx) {
         return xp.getStructure(objectClassIdx).allowMerge();
     }

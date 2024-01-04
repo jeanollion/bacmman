@@ -22,6 +22,7 @@ import bacmman.configuration.experiment.Experiment.IMPORT_METHOD;
 import bacmman.configuration.parameters.*;
 import org.json.simple.JSONObject;
 
+import java.awt.*;
 import java.util.function.Predicate;
 
 import static bacmman.configuration.experiment.Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION;
@@ -46,7 +47,7 @@ public class ChannelImageDuplicated extends ContainerParameterImpl<ChannelImageD
     public int getSourceChannel() {
         return sourceChannel.getSelectedIndex();
     }
-    public ChannelImage.CHANNEL_COLOR getColor() {return color.getSelectedEnum();}
+    public Color getColor() {return color.getSelectedEnum()==null ? ChannelImage.CHANNEL_COLOR.GREY.c : color.getSelectedEnum().c;}
     @Override
     protected void initChildList() {
         super.initChildren(sourceChannel, color);

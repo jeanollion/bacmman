@@ -26,6 +26,7 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;
 
+import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -435,10 +436,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     
     public String[] getChannelImagesAsString(boolean includeDuplicated) {
         if (!includeDuplicated) return channelImages.getChildrenString();
-        else return Stream.concat(channelImages.getChildren().stream().map(c->c.getName()), channelImagesDuplicated.getChildren().stream().map(c->c.getName())).toArray(String[]::new);
+        else return Stream.concat(channelImages.getChildren().stream().map(ContainerParameterImpl::getName), channelImagesDuplicated.getChildren().stream().map(c->c.getName())).toArray(String[]::new);
     }
-    public Stream<ChannelImage.CHANNEL_COLOR> getChannelColor(boolean includeDuplicated) {
+    public Stream<Color> getChannelColors(boolean includeDuplicated) {
         return includeDuplicated?Stream.concat(channelImages.getChildren().stream().map(ChannelImage::getColor), channelImagesDuplicated.getChildren().stream().map(ChannelImageDuplicated::getColor)) : channelImages.getChildren().stream().map(ChannelImage::getColor);
+    }
+
+    public Stream<Color> getObjectColors() {
+        return structures.getChildren().stream().map(Structure::getColor);
     }
     
     public String[] getPositionsAsString() {return positions.getChildrenString();}
