@@ -2,7 +2,7 @@ package bacmman.data_structure;
 
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ObjectDAO;
-import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.Utils;
@@ -129,7 +129,7 @@ public class TrackMateToBacmman {
             }
         } else {
             BoundingBox bounds = getBounds(roi, center, scaleXY);
-            Roi3D roi3D = convert(roi, spot.getDoublePosition(0), spot.getDoublePosition(1), scaleXY, bounds);
+            IJRoi3D roi3D = convert(roi, spot.getDoublePosition(0), spot.getDoublePosition(1), scaleXY, bounds);
             res = new Region(roi3D, label, bounds, scaleXY, scaleZ);
             res.setCenter(center);
         }
@@ -139,7 +139,7 @@ public class TrackMateToBacmman {
         return res;
     }
 
-    public static Roi3D convert(SpotRoi roi, double scaledCx, double scaledCy, double scaleXY, Offset offset) {
+    public static IJRoi3D convert(SpotRoi roi, double scaledCx, double scaledCy, double scaleXY, Offset offset) {
         float[] x = new float[roi.x.length];
         float[] y = new float[roi.x.length];
         for (int i = 0; i<x.length; ++i) {
@@ -149,7 +149,7 @@ public class TrackMateToBacmman {
             if (y[i]<0) y[i] = 0;
         }
         PolygonRoi ijroi = new PolygonRoi(x, y, Roi.POLYGON);
-        Roi3D roi3D = new Roi3D(1).setIs2D(true);
+        IJRoi3D roi3D = new IJRoi3D(1).setIs2D(true);
         roi3D.put(0, ijroi);
         roi3D.translate(offset);
         return roi3D;

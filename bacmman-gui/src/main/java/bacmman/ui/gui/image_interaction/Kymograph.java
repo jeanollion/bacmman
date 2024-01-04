@@ -126,19 +126,19 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         if (b==null) { // search in adjacent slides
             if (slice>0 && this.trackObjects.get(slice-1)!=null && object.getFrame()<trackObjects[0].parent.getFrame()) {
                 idx = getOffsetIdx(object.getFrame(), slice - 1);
-                b = idx<0 ? null : this.trackObjects.get(slice-1)[idx].getObjectOffset(object, 0);
+                b = idx<0 ? null : this.trackObjects.get(slice-1)[idx].getObjectOffset(object, 0).duplicate();
             }
             if (b!=null) {
                 Offset off = data.trackOffset[getStartParentIdx(slice)].duplicate().reverseOffset();
                 Offset offPrev = data.trackOffset[getStartParentIdx(slice-1)];
-                b.translate(offPrev).translate(off);
+                b.translate(offPrev).translate(off); // put offset in landmark of slice
             } else if (slice+1<data.nSlices && this.trackObjects.get(slice+1)!=null) {
                 idx = getOffsetIdx(object.getFrame(), slice + 1);
-                b = idx<0 ? null : this.trackObjects.get(slice+1)[idx].getObjectOffset(object, 0);
+                b = idx<0 ? null : this.trackObjects.get(slice+1)[idx].getObjectOffset(object, 0).duplicate();
                 if (b!=null) {
                     Offset off = data.trackOffset[getStartParentIdx(slice)].duplicate().reverseOffset();
                     Offset offNext = data.trackOffset[getStartParentIdx(slice+1)];
-                    b.translate(offNext).translate(off);
+                    b.translate(offNext).translate(off); // put offset in landmark of slice
                 }
             }
         }
@@ -148,7 +148,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     @Override
     public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects) {
         return objects.stream()
-            .flatMap(o -> getSlice(o.getFrame())// redundancy when overlap != null
+            .flatMap(o -> getSlice(o.getFrame())// redundancy when overlap > 0
             .map(s -> {
                 BoundingBox b = this.getObjectOffset(o, s);
                 if (b==null) return null;

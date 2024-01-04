@@ -20,15 +20,12 @@ package bacmman.data_structure.region_container;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.image.*;
-import bacmman.image.Image;
 import ij.ImagePlus;
-import ij.gui.ImageRoi;
 import ij.gui.Roi;
 import ij.io.RoiDecoder;
 import ij.io.RoiEncoder;
-import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import bacmman.image.wrappers.IJImageWrapper;
 
@@ -37,7 +34,6 @@ import static bacmman.image.Image.logger;
 import ij.plugin.filter.ThresholdToSelection;
 
 import java.awt.*;
-import java.awt.image.IndexColorModel;
 import java.util.*;
 import java.util.List;
 
@@ -51,7 +47,7 @@ import org.json.simple.JSONObject;
 
 public class RegionContainerIjRoi extends RegionContainer {
     List<byte[]> roiZ; // persists
-    Roi3D roi; // not persistent
+    IJRoi3D roi; // not persistent
     public RegionContainerIjRoi(SegmentedObject structureObject) {
         super(structureObject);
         createRoi(structureObject.getRegion());
@@ -73,11 +69,11 @@ public class RegionContainerIjRoi extends RegionContainer {
      * 
      * @return the ROI if existing null if not
      */
-    public Roi3D getRoi() {
+    public IJRoi3D getRoi() {
         return roi;
     }
     private void decodeRoi() {
-        roi = new Roi3D(roiZ.size());
+        roi = new IJRoi3D(roiZ.size());
         roi.setIs2D(is2D);
         int z=0;
         for (byte[] b : roiZ) {
@@ -135,7 +131,7 @@ public class RegionContainerIjRoi extends RegionContainer {
         return res;
     }
     protected RegionContainerIjRoi() {}
-    public RegionContainerIjRoi(SimpleBoundingBox bounds, Roi3D roi) {
+    public RegionContainerIjRoi(SimpleBoundingBox bounds, IJRoi3D roi) {
         super(bounds, roi.is2D());
         this.roi = roi;
     }
@@ -147,12 +143,12 @@ public class RegionContainerIjRoi extends RegionContainer {
      * @param is3D
      * @return mapping of Roi to Z-slice (taking into account the provided offset)
      */
-    public static Roi3D createRoi(ImageMask mask, Offset offset, boolean is3D) {
+    public static IJRoi3D createRoi(ImageMask mask, Offset offset, boolean is3D) {
         if (offset == null) {
             logger.error("ROI creation : offset null for mask: {}", mask.getName());
             return null;
         }
-        Roi3D res = new Roi3D(mask.sizeZ()).setIs2D(!is3D);
+        IJRoi3D res = new IJRoi3D(mask.sizeZ()).setIs2D(!is3D);
         if (mask instanceof BlankMask) {
             for (int z = 0; z < mask.sizeZ(); ++z) {
                 Roi rect = new Roi(0, 0, mask.sizeX(), mask.sizeY());

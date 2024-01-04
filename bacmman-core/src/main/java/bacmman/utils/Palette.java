@@ -19,8 +19,8 @@
 package bacmman.utils;
 
 import java.awt.Color;
+import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -45,25 +45,25 @@ public class Palette implements Cloneable {
 		public static Color getColorFromDouble(double position) {
 			return palette.getColor(position);
 		}
-        public static synchronized Color getColor(int transparency, Color... avoidColors) {
+        public static synchronized Color getColor(int opacity, Color... avoidColors) {
             Color c = getCol();
             if (avoidColors.length>0) {
                 while (getMinDist(c, avoidColors)<increment) {c = getCol();}
             }
-            if (transparency<255 && transparency>0) c = setTransparency(c, transparency);
+            if (opacity<255 && opacity>0) c = setOpacity(c, opacity);
             return c;
         }
-		public static Color getColor(int transparency, int[] indices) {
+		public static Color getColor(int opacity, int[] indices) {
 			double idx = 0;
 			for (int i : indices) idx = 31 * idx + i;
 			idx /= Math.pow(31*10, indices.length-1);
 			idx = idx%1;
 			Color c = palette.getColor(idx);
-			if (transparency<255 && transparency>0) c = setTransparency(c, transparency);
+			if (opacity<255 && opacity>0) c = setOpacity(c, opacity);
 			return c;
 		}
-        public static Color setTransparency(Color c, int transparency) {
-            return new Color(c.getRed(), c.getGreen(), c.getBlue(), transparency);
+        public static Color setOpacity(Color c, int opacity) {
+            return new Color(c.getRed(), c.getGreen(), c.getBlue(), opacity);
         }
         private static Color getCol() {
             Color c = palette.getColor(currentColorIdx);
@@ -89,6 +89,30 @@ public class Palette implements Cloneable {
         private static float getHue(Color c, float[] array) {
             return Color.RGBtoHSB(c.getRed(), c.getGreen(), c.getBlue(), array)[0];
         }
+
+	public static IndexColorModel getCM(Color color1, Color color2) {
+		byte[] r = new byte[256];
+		byte[] g = new byte[256];
+		byte[] b = new byte[256];
+		float[] hsb1 = Color.RGBtoHSB(color1.getRed(), color1.getGreen(), color1.getBlue(), null);
+		float[] hsb2 = Color.RGBtoHSB(color2.getRed(), color2.getGreen(), color2.getBlue(), null);
+		float b1 = hsb1[2];
+		float b2 = hsb2[2];
+		for (int i = 0; i < 128; ++i) {
+			hsb1[2] = (float) ( (128. - i) / 128.) * b1; // towards middle = black
+			hsb2[2] = (float) ( (128. - i) / 128.) * b2; // towards middle = black
+			color1 = Color.getHSBColor(hsb1[0], hsb1[1], hsb1[2]);
+			r[i] = (byte) color1.getRed();
+			g[i] = (byte) color1.getGreen();
+			b[i] = (byte) color1.getBlue();
+			color2 = Color.getHSBColor(hsb2[0], hsb2[1], hsb2[2]);
+			r[255-i] = (byte) color2.getRed();
+			g[255-i] = (byte) color2.getGreen();
+			b[255-i] = (byte) color2.getBlue();
+		}
+		return new IndexColorModel(8, 256, r, g, b);
+	}
+
 	/**
 	 * The colorType for a palette in which colors are specified as Red/Green/Blue values.
 	 */

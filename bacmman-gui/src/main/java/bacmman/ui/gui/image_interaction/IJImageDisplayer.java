@@ -19,7 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.Region;
-import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.image.*;
 import bacmman.image.Image;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
@@ -36,7 +36,6 @@ import java.awt.*;
 import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.function.IntFunction;
 import java.util.function.ToIntBiFunction;
 
 /**
@@ -452,7 +451,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         }
         return o;
     }
-    private void setFrameAndZ(Roi3D roi, int frame, ImagePlus image) {
+    private void setFrameAndZ(IJRoi3D roi, int frame, ImagePlus image) {
         roi.setFrame(frame);
         if (image.getNSlices()>1 && roi.is2D()) {
             roi.duplicateROIUntilZ(image.getNSlices());
@@ -479,7 +478,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
         if (smoothRadius<=0) smoothRadius = ImageWindowManagerFactory.getImageManager().ROI_SMOOTH_RADIUS;
-        Roi3D roi = region.getRoi();
+        IJRoi3D roi = region.getRoi();
         if (roi == null) {
             region.createRoi();
             roi = region.getRoi();
@@ -509,7 +508,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
         Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
-        Roi3D roi = region.getRoi();
+        IJRoi3D roi = region.getRoi();
         if (roi == null) {
             region.createRoi();
             roi = region.getRoi();
@@ -547,7 +546,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         arrow.setHeadSize(Math.max(strokeWidth * 1.1, 1.1));
         arrow.setStrokeColor(color);
         if (arrowStart && arrowEnd) arrow.setDoubleHeaded(true);
-        Roi3D roi = new Roi3D(1);
+        IJRoi3D roi = new IJRoi3D(1);
         if (start.numDimensions()>2) {
             for (int i = (int)start.get(2); i<=(int)Math.ceil(end.get(2)); ++i) {
                 roi.put(i, (Roi)arrow.clone());

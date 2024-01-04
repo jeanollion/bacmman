@@ -1,17 +1,13 @@
 package bacmman.data_structure;
 
 import bacmman.data_structure.region_container.RegionContainerIjRoi;
-import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.image.*;
-import bacmman.image.wrappers.ImgLib2ImageWrapper;
-import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Model;
 import fiji.plugin.trackmate.SpotCollection;
 import fiji.plugin.trackmate.SpotRoi;
-import fiji.plugin.trackmate.TrackModel;
 import ij.gui.Roi;
-import net.imagej.ImgPlus;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
@@ -21,7 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntFunction;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class BacmmanToTrackMate {
@@ -90,7 +85,7 @@ public class BacmmanToTrackMate {
                 int z = (int)(center.get(2) + 0.5) - region.getBounds().zMin();
                 mask = region.getMaskAsImageInteger().getZPlane(z);
             }
-            Roi3D objRoi = RegionContainerIjRoi.createRoi(mask, region.getBounds(), false);
+            IJRoi3D objRoi = RegionContainerIjRoi.createRoi(mask, region.getBounds(), false);
             Roi r = objRoi.get(region.getBounds().zMin());
             Polygon p = r.getPolygon();
             double[] x = Arrays.stream(p.xpoints).mapToDouble(i -> (i - center.get(0)) * scale).toArray();

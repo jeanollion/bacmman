@@ -5,12 +5,11 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.image.Image;
 import bacmman.plugins.Segmenter;
 import ij.gui.Roi;
 import ij.io.RoiDecoder;
-import ij.plugin.RoiReader;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,7 +32,7 @@ public class ImportROI implements Segmenter {
         RoiDecoder rd = new RoiDecoder(path);
         try {
             Roi ijRoi = rd.getRoi();
-            Roi3D roi = new Roi3D(1);
+            IJRoi3D roi = new IJRoi3D(1);
             roi.setIs2D(true);
             roi.put(0, ijRoi);
             Region region = new Region(roi, 1, roi.getBounds(), parent.getScaleXY(), parent.getScaleZ());

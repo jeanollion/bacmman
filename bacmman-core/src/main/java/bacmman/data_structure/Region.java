@@ -18,7 +18,7 @@
  */
 package bacmman.data_structure;
 
-import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.processing.EDT;
 import com.google.common.collect.Sets;
@@ -86,7 +86,7 @@ public class Region {
     protected Point center;
     protected boolean is2D;
     boolean regionModified;
-    Roi3D roi; // TODO make an interface to allow other types of ROIs
+    IJRoi3D roi; // TODO make an interface to allow other types of ROIs
     /**
      * @param mask : image containing only the object, and whose bounding box is the same as the one of the object
      * @param label
@@ -116,7 +116,7 @@ public class Region {
         this(voxels, label, is2D, scaleXY, scaleZ);
         this.bounds=bounds;
     }
-    public Region(Roi3D roi, int label, BoundingBox bounds, double scaleXY, double scaleZ) {
+    public Region(IJRoi3D roi, int label, BoundingBox bounds, double scaleXY, double scaleZ) {
         this.scaleXY=scaleXY;
         this.scaleZ=scaleZ;
         this.label = label;
@@ -129,7 +129,7 @@ public class Region {
         this.absoluteLandmark = absoluteLandmark;
         return this;
     }
-    public Roi3D getRoi() {
+    public IJRoi3D getRoi() {
         return roi;
     }
     public boolean hasModifications() {

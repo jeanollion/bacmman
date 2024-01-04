@@ -26,6 +26,7 @@ import bacmman.ui.gui.image_interaction.IJImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.GUI;
 import bacmman.utils.FileIO;
+import bacmman.utils.Palette;
 import ij.IJ;
 import ij.ImageJ;
 import ij.plugin.PlugIn;
@@ -76,7 +77,7 @@ public class IJ1 implements PlugIn {
     }
 
     public static void installLUTs() {
-        IndexColorModel lut = IJImageWindowManager.getCM(Color.cyan, Color.yellow);
+        IndexColorModel lut = Palette.getCM(Color.cyan, Color.yellow);
         List<String> lutS = IntStream.range(0, 256).mapToObj(i -> lut.getRed(i)+ " "+ lut.getGreen(i) + " "+ lut.getBlue(i)).collect(Collectors.toList());
         FileIO.writeToFile(IJ.getDirectory("luts")+"Cyan2Yellow.lut", lutS, s->s);
         //logger.debug("LUT dir: {}", IJ.getDirectory("luts")+"Blues2Reds");

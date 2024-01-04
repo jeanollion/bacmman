@@ -1,11 +1,12 @@
 package bacmman.data_structure.region_container.roi;
 
-import bacmman.core.Core;
 import bacmman.data_structure.Voxel;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
+import bacmman.utils.Palette;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.ImageRoi;
 import ij.gui.Overlay;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.image.IndexColorModel;
 import java.util.HashMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -25,12 +27,12 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class Roi3D extends HashMap<Integer, Roi> {
-    public static final Logger logger = LoggerFactory.getLogger(Roi3D.class);
+public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi {
+    public static final Logger logger = LoggerFactory.getLogger(IJRoi3D.class);
     boolean is2D;
     int locdx, locdy; // in case of EllipseRoi -> 0.5 is added to coordinate, this can create inconsistencies in localization as IJ.ROIs use a integer reference. this is a fix when calling set location
     int frame;
-    public Roi3D(int bucketSize) {
+    public IJRoi3D(int bucketSize) {
         super(bucketSize);
     }
 
@@ -59,7 +61,7 @@ public class Roi3D extends HashMap<Integer, Roi> {
         return res;
     }
 
-    public Roi3D smooth(int radius) {
+    public IJRoi3D smooth(int radius) {
         if (radius == 0) return this;
         Set<Integer> frames = keySet().stream().filter(f -> f>=0).collect(Collectors.toSet());
         frames.forEach(f -> {
@@ -96,17 +98,17 @@ public class Roi3D extends HashMap<Integer, Roi> {
         return this;
     }
 
-    public Roi3D setLocDelta(int locdx, int locdy) {
+    public IJRoi3D setLocDelta(int locdx, int locdy) {
         this.locdx = locdx;
         this.locdy = locdy;
         return this;
     }
-    public Roi3D setIs2D(boolean is2D) {this.is2D=is2D; return this;}
+    public IJRoi3D setIs2D(boolean is2D) {this.is2D=is2D; return this;}
     public boolean contained(Overlay o) {
         for (Roi r : values()) if (o.contains(r)) return true;
         return false;
     }
-    public Roi3D setFrame(int frame) {
+    public IJRoi3D setFrame(int frame) {
         this.frame = frame;
         for (Roi r : values()) r.setPosition(r.getCPosition(), r.getZPosition(), frame+1);
         return this;
@@ -116,11 +118,11 @@ public class Roi3D extends HashMap<Integer, Roi> {
         return frame;
     }
 
-    public Roi3D setZToPosition() {
+    public IJRoi3D setZToPosition() {
         for (Roi r: values()) r.setPosition(r.getZPosition());
         return this;
     }
-    public Roi3D setTToPosition() {
+    public IJRoi3D setTToPosition() {
         for (Roi r: values()) r.setPosition(frame+1);
         return this;
     }
@@ -145,11 +147,11 @@ public class Roi3D extends HashMap<Integer, Roi> {
     public Stream<Roi> stream() {
         return entrySet().stream().filter(e -> e.getKey()>=0).map(Entry::getValue);
     }
-    public Roi3D setLocation(Offset off) {
+    public IJRoi3D setLocation(Offset off) {
         return translate(getBounds().reverseOffset().translate(off).setzMin(0));
     }
 
-    public Roi3D translate(Offset off) {
+    public IJRoi3D translate(Offset off) {
         if (off.zMin()!=0) { // need to clear map to update z-mapping
             synchronized(this) {
                 HashMap<Integer, Roi> temp = new HashMap<>(this);
@@ -163,13 +165,26 @@ public class Roi3D extends HashMap<Integer, Roi> {
         });
         return this;
     }
-    public Roi3D duplicate() {
-        Roi3D res = new Roi3D(this.sizeZ()).setIs2D(is2D).setLocDelta(locdx, locdy);
+    public IJRoi3D duplicate() {
+        IJRoi3D res = new IJRoi3D(this.sizeZ()).setIs2D(is2D).setLocDelta(locdx, locdy);
         super.forEach((z, r)->res.put(z, (Roi)r.clone()));
         return res;
     }
     public int sizeZ() {
         return (int)keySet().stream().filter(z->z>=0).count();
+    }
+
+    @Override
+    public void setColor(Color color, boolean fill) {
+        entrySet().stream().filter(e->e.getKey()>=0).forEach(e -> {
+            setRoiColor(e.getValue(), color, fill);
+        });
+    }
+    @Override
+    public void setStrokeWidth(double strokeWidth) {
+        entrySet().stream().filter(e->e.getKey()>=0).forEach(e -> {
+            e.getValue().setStrokeWidth(strokeWidth);
+        });
     }
     public void duplicateROIUntilZ(int zMaxExcl) {
         if (sizeZ()==zMaxExcl || !containsKey(0)) return;
@@ -201,6 +216,67 @@ public class Roi3D extends HashMap<Integer, Roi> {
     public static Stream<Voxel> roiToVoxels(Roi roi, int z) {
         FloatPolygon p = roi.getInterpolatedPolygon(1, false);
         return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel((int)(p.xpoints[i]), (int)(p.ypoints[i]), z));
+    }
+
+    protected static void setRoiColor(Roi roi, Color color, boolean fill) {
+        if (roi instanceof ImageRoi) {
+            ImageRoi r = (ImageRoi)roi;
+            ImageProcessor ip = r.getProcessor();
+            int value = color.getRGB();
+            int[] pixels = (int[])ip.getPixels();
+            for (int i = 0; i<pixels.length; ++i) {
+                if (pixels[i]!=0) pixels[i] = value;
+            }
+            roi.setStrokeColor(color);
+        } else {
+            if (fill) {
+                roi.setFillColor(color);
+                roi.setStrokeColor(null);
+            } else {
+                roi.setStrokeColor(color);
+                roi.setFillColor(null);
+            }
+        }
+    }
+
+    static IndexColorModel getCM(Color color) {
+        byte[] r = new byte[256];
+        byte[] g = new byte[256];
+        byte[] b = new byte[256];
+        for (int i = 1; i < 256; ++i) {
+            r[i] = (byte) color.getRed();
+            g[i] = (byte) color.getGreen();
+            b[i] = (byte) color.getBlue();
+        }
+        return new IndexColorModel(8, 256, r, g, b);
+    }
+
+
+    public static IJRoi3D createRoiImage(ImageMask mask, Offset offset, boolean is3D, Color color, double opacity) {
+        if (offset == null) {
+            logger.error("ROI creation : offset null for mask: {}", mask.getName());
+            return null;
+        }
+        IJRoi3D res = new IJRoi3D(mask.sizeZ()).setIs2D(!is3D);
+        ImageInteger maskIm = TypeConverter.maskToImageInteger(mask, null); // copy only if necessary
+        ImagePlus maskPlus = IJImageWrapper.getImagePlus(maskIm);
+        for (int z = 0; z < mask.sizeZ(); ++z) {
+            ImageProcessor ip = maskPlus.getStack().getProcessor(z + 1);
+            ip.setColorModel(getCM(color));
+            ImageRoi roi = new ImageRoi(offset.xMin(), offset.yMin(), ip);
+            roi.setZeroTransparent(true);
+            roi.setOpacity(opacity);
+            if (roi != null) {
+                Rectangle bds = roi.getBounds();
+                if (bds == null) {
+                    continue;
+                }
+                roi.setPosition(z + 1 + offset.zMin());
+                res.put(z + offset.zMin(), roi);
+            }
+
+        }
+        return res;
     }
 
     @Override
