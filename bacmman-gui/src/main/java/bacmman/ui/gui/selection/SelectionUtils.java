@@ -33,7 +33,6 @@ import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
-import bacmman.image.BoundingBox;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
@@ -46,7 +45,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.*;
 
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,7 +176,7 @@ public class SelectionUtils {
         Collections.sort(parentList);
         Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
         if (iiType==null) iiType = TimeLapseInteractiveImage.getBestDisplayType(parentList.get(0).getBounds());
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, iiType, true);
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(parentList, iiType, true);
         ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, displayChannelIdx), i, true);
     }
         

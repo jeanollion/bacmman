@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.IntStream;
 
 import bacmman.utils.ArrayUtil;
 
@@ -35,15 +36,17 @@ import bacmman.utils.ArrayUtil;
  */
 public class KymographY extends Kymograph {
 
-    protected final int maxParentSize;
-    public KymographY(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClassIdx) {
-        super(data, loadObjectClassIdx);
-        maxParentSize = data.maxParentSizeX;
+    protected final int maxParentSizeX, maxParentSizeY;
+    public KymographY(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClassIdx) {
+        super(data, view, loadObjectClassIdx);
+        maxParentSizeX = data.maxParentSizeX;
+        maxParentSizeY = IntStream.range(0, data.nSlices).map(s -> trackOffset.get(s)[frameNumber-1].yMax()+1).max().getAsInt();
         if (!TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
-    public KymographY(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
-        super(data, channelNumber, imageSupplier, loadObjectClassIdx);
-        maxParentSize = data.maxParentSizeX;
+    public KymographY(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        super(data, view, channelNumber, imageSupplier, loadObjectClassIdx);
+        maxParentSizeX = data.maxParentSizeX;
+        maxParentSizeY = IntStream.range(0, data.nSlices).map(s -> trackOffset.get(s)[frameNumber-1].yMax()+1).max().getAsInt();
         if (!TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
 
@@ -87,12 +90,12 @@ public class KymographY extends Kymograph {
 
     @Override
     public ImageProperties getImageProperties() {
-        return new SimpleImageProperties( this.maxParentSize, trackOffset.get(0)[frameNumber-1].yMax()+1, this.maxParentSizeZ, parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
+        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, this.maxParentSizeZ, parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
     }
 
     @Override
     public ImageProperties getImageProperties(int channelIdx) {
-        return new SimpleImageProperties( this.maxParentSize, trackOffset.get(0)[frameNumber-1].yMax()+1, parent.getExperimentStructure().sizeZ(parent.getPositionName(), channelIdx), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
+        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, parent.getExperimentStructure().sizeZ(parent.getPositionName(), channelIdx), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
     }
     
     class OffsetComparatorY implements Comparator<Offset>{

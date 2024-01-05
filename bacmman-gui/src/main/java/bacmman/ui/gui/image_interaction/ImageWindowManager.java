@@ -244,7 +244,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
         };
         LazyImage5D source = new LazyImage5DPlane(title, LazyImage5DPlane.homogenizeType(channels, imageOpenerFCZ), new int[]{frames, channels, maxZ});
         source.setChannelNames(xp.getChannelImagesAsString(true));
-        source.setChannelColors(xp.getChannelColors(true).toArray(String[]::new));
+        source.setChannelColors(xp.getChannelColorAsString(true).toArray(String[]::new));
         I image = getDisplayer().displayImage(source);
         addWindowClosedListener(image, e-> {
             if (!preProcessed) displayedRawInputImages.remove(position);
@@ -337,15 +337,15 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
             }
         }
     }
-    public <II extends InteractiveImage> II getImageTrackObjectInterface(List<SegmentedObject> parentTrack, Class<II> interactiveImageClass, boolean createIfNotExisting) {
+    public <II extends InteractiveImage> II getInteractiveImage(List<SegmentedObject> parentTrack, Class<II> interactiveImageClass, boolean createIfNotExisting) {
         if (parentTrack.isEmpty()) {
             logger.warn("cannot get interactive image with parent track of length == 0" );
             return null;
         }
         II res = interactiveImageMapImages.keySet().stream().filter(ii -> interactiveImageClass.isAssignableFrom(ii.getClass()) && ii.getParents().equals(parentTrack)).map(ii -> (II)ii).findAny().orElse(null);
         if (res == null && createIfNotExisting) {
-            if (interactiveImageClass.equals(HyperStack.class)) res = (II) HyperStack.generateHyperstack(parentTrack, interactiveObjectClassIdx);
-            else if (interactiveImageClass.equals(Kymograph.class)) res = (II) Kymograph.generateKymograph(parentTrack, interactiveObjectClassIdx);
+            if (interactiveImageClass.equals(HyperStack.class)) res = (II) HyperStack.generateHyperstack(parentTrack, null, interactiveObjectClassIdx);
+            else if (interactiveImageClass.equals(Kymograph.class)) res = (II) Kymograph.generateKymograph(parentTrack, null, interactiveObjectClassIdx);
         }
         return res;
     }

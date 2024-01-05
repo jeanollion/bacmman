@@ -73,6 +73,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         setImportImageChannelKeyword(keyword);
     }
     public Color getColor() {return color.getSelectedEnum()==null ? CHANNEL_COLOR.GREY.c : color.getSelectedEnum().c;}
+    public String getColorName() {return color.getSelectedEnum()==null ? null : color.getSelectedEnum().toString();}
     public String getImportImageChannelKeyword() {return importKeyWord.getValue();}
     public void setImportImageChannelKeyword(String keyword) {importKeyWord.setValue(keyword);}
     public ImageIOCoordinates.RGB getRGB() {

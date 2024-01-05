@@ -441,6 +441,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     public Stream<Color> getChannelColors(boolean includeDuplicated) {
         return includeDuplicated?Stream.concat(channelImages.getChildren().stream().map(ChannelImage::getColor), channelImagesDuplicated.getChildren().stream().map(ChannelImageDuplicated::getColor)) : channelImages.getChildren().stream().map(ChannelImage::getColor);
     }
+    public Stream<String> getChannelColorAsString(boolean includeDuplicated) {
+        return includeDuplicated?Stream.concat(channelImages.getChildren().stream().map(ChannelImage::getColorName), channelImagesDuplicated.getChildren().stream().map(ChannelImageDuplicated::getColorName)) : channelImages.getChildren().stream().map(ChannelImage::getColorName);
+    }
 
     public Stream<Color> getObjectColors() {
         return structures.getChildren().stream().map(Structure::getColor);

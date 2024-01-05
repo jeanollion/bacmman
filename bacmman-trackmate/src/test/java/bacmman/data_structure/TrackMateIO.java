@@ -97,7 +97,7 @@ public class TrackMateIO {
         logger.debug("all spots: {}", model.getSpots().getNSpots(true));
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
         initCore();
-        HyperStack h = HyperStack.generateHyperstack(roots, 0);
+        HyperStack h = HyperStack.generateHyperstack(roots, null, 0);
         LazyImage5D im = h.generateImage();
         ImageDisplayer<ImagePlus> disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
         ImagePlus imp = disp.getImage(im);

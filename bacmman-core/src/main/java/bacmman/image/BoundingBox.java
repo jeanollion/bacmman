@@ -149,9 +149,14 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @param container element that could contain {@param contained}
      * @return whether {@param contained} is included or not in {@param container} only taking into acount x & y dimensions
      */
-    public static boolean isIncluded2D(BoundingBox contained, BoundingBox container) {
+    static boolean isIncluded2D(BoundingBox contained, BoundingBox container) {
         if (!contained.isValid() || !container.isValid()) return false;
         return contained.xMin()>=container.xMin() && contained.xMax()<=container.xMax() && contained.yMin()>=container.yMin() && contained.yMax()<=container.yMax();
+    }
+
+    static boolean isIncluded2D(BoundingBox contained, BoundingBox container, int tolerance) {
+        if (!contained.isValid() || !container.isValid()) return false;
+        return contained.xMin()+tolerance>=container.xMin() && contained.xMax()-tolerance<=container.xMax() && contained.yMin()+tolerance>=container.yMin() && contained.yMax()-tolerance<=container.yMax();
     }
 
     static boolean isIncluded(Point point, BoundingBox container) {

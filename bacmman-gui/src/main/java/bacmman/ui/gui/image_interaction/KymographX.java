@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.IntStream;
 
 import bacmman.utils.ArrayUtil;
 import org.slf4j.Logger;
@@ -38,15 +39,17 @@ import org.slf4j.LoggerFactory;
  */
 public class KymographX extends Kymograph {
     public static final Logger logger = LoggerFactory.getLogger(KymographX.class);
-    protected final int maxParentSize;
-    public KymographX(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClassIdx) {
-        super(data, loadObjectClassIdx);
-        maxParentSize = data.maxParentSizeY;
+    protected final int maxParentSizeX, maxParentSizeY;
+    public KymographX(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClassIdx) {
+        super(data, view, loadObjectClassIdx);
+        maxParentSizeY = data.maxParentSizeY;
+        maxParentSizeX = IntStream.range(0, data.nSlices).map(s -> trackOffset.get(s)[frameNumber-1].xMax()+1).max().getAsInt();
         if (!TimeLapseInteractiveImageFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
-    public KymographX(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
-        super(data, channelNumber, imageSupplier, loadObjectClassIdx);
-        maxParentSize = data.maxParentSizeY;
+    public KymographX(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        super(data, view, channelNumber, imageSupplier, loadObjectClassIdx);
+        maxParentSizeY = data.maxParentSizeY;
+        maxParentSizeX = IntStream.range(0, data.nSlices).map(s -> trackOffset.get(s)[frameNumber-1].xMax()+1).max().getAsInt();
         if (!TimeLapseInteractiveImageFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
 
@@ -92,12 +95,12 @@ public class KymographX extends Kymograph {
 
     @Override
     public ImageProperties getImageProperties() {
-        return new SimpleImageProperties(trackOffset.get(0)[frameNumber-1].xMax()+1, this.maxParentSize, this.maxParentSizeZ, parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
+        return new SimpleImageProperties(this.maxParentSizeX, this.maxParentSizeY, this.maxParentSizeZ, parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
     }
 
     @Override
     public ImageProperties getImageProperties(int channelIdx) {
-        return new SimpleImageProperties(trackOffset.get(0)[frameNumber-1].xMax()+1, this.maxParentSize, parent.getExperimentStructure().sizeZ(parent.getPositionName(), channelIdx), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
+        return new SimpleImageProperties(this.maxParentSizeX, this.maxParentSizeY, parent.getExperimentStructure().sizeZ(parent.getPositionName(), channelIdx), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
     }
     
     class OffsetComparatorX implements Comparator<Offset>{

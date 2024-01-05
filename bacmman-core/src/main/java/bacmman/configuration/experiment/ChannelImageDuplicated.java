@@ -48,6 +48,7 @@ public class ChannelImageDuplicated extends ContainerParameterImpl<ChannelImageD
         return sourceChannel.getSelectedIndex();
     }
     public Color getColor() {return color.getSelectedEnum()==null ? ChannelImage.CHANNEL_COLOR.GREY.c : color.getSelectedEnum().c;}
+    public String getColorName() {return color.getSelectedEnum()==null ? null : color.getSelectedEnum().toString();}
     @Override
     protected void initChildList() {
         super.initChildren(sourceChannel, color);

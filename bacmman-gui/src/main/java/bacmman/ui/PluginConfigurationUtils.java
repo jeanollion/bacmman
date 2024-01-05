@@ -554,7 +554,7 @@ public class PluginConfigurationUtils {
             };
         }));
         List<InteractiveImage> res = imageSuppliers.entrySet().stream().map(e -> {
-            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, 1, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, 1, e.getValue(), childOCIdx);
+            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, 1, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, 1, e.getValue(), childOCIdx);
             ii.setName(e.getKey());
             return ii;
         }).collect(Collectors.toList());

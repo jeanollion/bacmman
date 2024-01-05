@@ -53,6 +53,14 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         this.zMin = zMin;
         this.zMax = zMax;
     }
+    public SimpleBoundingBox(int sizeX, int sizeY, int sizeZ) {
+        this.xMin = 0;
+        this.xMax = sizeX-1;
+        this.yMin = 0;
+        this.yMax = sizeY-1;
+        this.zMin = 0;
+        this.zMax = sizeZ-1;
+    }
     public SimpleBoundingBox(BoundingBox other) {
         this(other.xMin(), other.xMax(), other.yMin(), other.yMax(), other.zMin(), other.zMax());
     }

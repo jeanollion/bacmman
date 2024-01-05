@@ -146,6 +146,27 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     logger.trace("no image interface found");
                     return;
                 }
+                int sliceIdx = ip.getT() - 1;
+                Roi r = ip.getRoi();
+                boolean isKymoView = IJ.getToolName().equals("rectangle") && ctrl && shift && r!=null && r.getType()==Roi.RECTANGLE && i instanceof HyperStack;
+                boolean isHyperView = IJ.getToolName().equals("rectangle") && ctrl && alt && r!=null && r.getType()==Roi.RECTANGLE && i instanceof HyperStack;
+                if (isKymoView || isHyperView) {
+                    Rectangle rect = r.getBounds();
+                    if (rect.height==0 || rect.width==0) return;
+                    BoundingBox view = new SimpleBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, 0, ip.getNSlices()-1);
+                    TimeLapseInteractiveImage kymoView = isKymoView ? Kymograph.generateKymograph(i.getParents(), view, i.channelNumber, i.imageSupplier) :
+                            HyperStack.generateHyperstack(i.getParents(), view, i.channelNumber, i.imageSupplier);
+                    int channelIdx = ip.getC()-1;
+                    Image imageView = kymoView.generateImage().setPosition(0, channelIdx);
+                    addImage(imageView, kymoView, true);
+                    goToNextObject(imageView, i.getParents().subList(sliceIdx, sliceIdx+1), true, true);
+                    List<SegmentedObject> sel = getSelectedLabileObjects(image);
+                    displayObjects(imageView, kymoView.toObjectDisplay(sel), null, false, true, false);
+                    List<SegmentedObject> selTracks = getSelectedLabileTrackHeads(image);
+                    displayTracks(image, kymoView, SegmentedObjectUtils.getTracks(selTracks), null, true, false);
+                    return;
+                }
+
                 boolean displayObjectClasses = displayMode.get(image).equals(DISPLAY_MODE.OBJECTS_CLASSES);
                 boolean drawBrush = brush && (freeHandDraw||freeHandDrawMerge||freeHandErase);
                 if (!displayObjectClasses || !drawBrush) {
@@ -155,9 +176,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     if (stack != null) stack.resetSetFrameCallback();
                 }
                 List<ObjectDisplay> selectedObjects = new ArrayList<>();
-                Roi r = ip.getRoi();
+
                 boolean fromSelection = false;
-                int sliceIdx = ip.getT() - 1;
+
 
                 // get all objects with intersection with ROI
                 if (r!=null) {

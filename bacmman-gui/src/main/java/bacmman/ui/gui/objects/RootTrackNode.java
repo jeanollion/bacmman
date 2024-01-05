@@ -246,7 +246,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         } catch (Exception e) {
         }
         if (rootTrack != null) {
-            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, HyperStack.class, true);
+            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, HyperStack.class, true);
             ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
         }
     }
@@ -256,7 +256,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
         } catch (Exception e) { }
         if (rootTrack!=null) {
-            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, Kymograph.class, true);
+            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, Kymograph.class, true);
             ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
         }
     }

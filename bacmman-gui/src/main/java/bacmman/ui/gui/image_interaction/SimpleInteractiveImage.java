@@ -160,7 +160,8 @@ public class SimpleInteractiveImage extends InteractiveImage {
     public void addObjectsWithinBounds(BoundingBox selection, int objectClassIdx, int slice, List<ObjectDisplay> list) {
         BoundingBox[] offsets = getOffsets(objectClassIdx);
         List<SegmentedObject> objects = getObjectsAsList(objectClassIdx);
-        if (is2D() || objects.isEmpty() || objects.get(0).is2D()) {
+        if (objects.isEmpty()) return;
+        if (is2D() || objects.get(0).is2D()) {
             //logger.debug("click objects: 2D interaction. sel: {}, offsets: {}", selection, offsets);
             for (int i = 0; i < offsets.length; ++i) if (BoundingBox.intersect2D(offsets[i], selection)) list.add(new ObjectDisplay(objects.get(i), offsets[i], sliceIdx));
         } else {
@@ -186,7 +187,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public Stream<SegmentedObject> getObjects(int objectClassIdx, int slice) {
-        return getObjectsAsList(objectClassIdx).stream();
+        return getAllObjects(objectClassIdx);
     }
     @Override
     public Stream<SegmentedObject> getAllObjects(int objectClassIdx) {

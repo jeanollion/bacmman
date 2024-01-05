@@ -34,7 +34,26 @@ public class TimeLapseInteractiveImageFactory {
             }
             return new Data(DIRECTION.Y, maxParentSizeX, -1, maxParentSizeZ, trackOffset, parentTrack, frameNumber, frameOverlap);
         }
+    }
 
+    public static Data generateKymographViewData(List<SegmentedObject> parentTrack, BoundingBox view, int interval, int frameNumber, int frameOverlap) {
+        ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
+        int maxParentSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
+        BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(l -> new BoundingBox[l]);
+        int currentOffset=0;
+        if (view.sizeY() * 1.5 >= view.sizeX()) { // X direction.
+            for (int i = 0; i<parentTrack.size(); ++i) {
+                trackOffset[i].translate(new SimpleOffset(currentOffset, 0, 0)); // Y up of parent track
+                currentOffset+=interval+view.sizeX();
+            }
+            return new Data(DIRECTION.X, -1, view.sizeY(), maxParentSizeZ, trackOffset, parentTrack, frameNumber, frameOverlap);
+        } else { // Y direction
+            for (int i = 0; i<parentTrack.size(); ++i) {
+                trackOffset[i].translate(new SimpleOffset(0, currentOffset, 0)); // X  up of parent track
+                currentOffset+=interval+view.sizeY();
+            }
+            return new Data(DIRECTION.Y, view.sizeX(), -1, maxParentSizeZ, trackOffset, parentTrack, frameNumber, frameOverlap);
+        }
     }
 
     public static Data generateHyperstackData(List<SegmentedObject> parentTrack, boolean middle) {
@@ -47,6 +66,13 @@ public class TimeLapseInteractiveImageFactory {
             if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), 0)); // X & Y  middle of parent track
         }
         return new Data(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack, parentTrack.size(), 0);
+    }
+
+    public static Data generateHyperstackViewData(List<SegmentedObject> parentTrack, BoundingBox view) {
+        ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
+        int maxParentSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
+        BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(l -> new BoundingBox[l]);
+        return new Data(DIRECTION.T, view.sizeX(), view.sizeY(), maxParentSizeZ, trackOffset, parentTrack, parentTrack.size(), 0);
     }
 
     public enum DIRECTION {X, Y, T}

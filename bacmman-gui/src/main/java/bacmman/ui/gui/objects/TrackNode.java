@@ -247,12 +247,12 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     }
 
     public void openHyperStack(int defaultChannelIdx) {
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), HyperStack.class, true);
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(getTrack(), HyperStack.class, true);
         ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
     }
 
     public void openKymograph(int defaultChannelIdx) {
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), Kymograph.class, true);
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(getTrack(), Kymograph.class, true);
         ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
     }
 

@@ -46,33 +46,46 @@ public class HyperStack extends TimeLapseInteractiveImage {
     private static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected final int maxParentSizeX, maxParentSizeY;
     protected final int maxParentSizeZ;
-    protected final BoundingBox bounds, bounds2D;
-
-    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, int... loadObjectClassIdx) {
-        return new HyperStack(TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true), loadObjectClassIdx);
+    protected final BoundingBox bounds, bounds2D, originalView;
+    protected final BoundingBox[] view;
+    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, BoundingBox view, int... loadObjectClassIdx) {
+        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true) :
+                TimeLapseInteractiveImageFactory.generateHyperstackViewData(parentTrack, view);
+        return new HyperStack(data, view, loadObjectClassIdx);
     }
-    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
-        return new HyperStack(TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true), channelNumber, imageSupplier, loadObjectClassIdx);
+    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true) :
+                TimeLapseInteractiveImageFactory.generateHyperstackViewData(parentTrack, view);
+        return new HyperStack(data, view, channelNumber, imageSupplier, loadObjectClassIdx);
     }
-    public HyperStack(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClassIdx) {
+    public HyperStack(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClassIdx) {
         super(data);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
-        this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
-        this.bounds2D = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0 ,0);
+        this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, maxParentSizeZ);
+        this.bounds2D = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY,1);
+        this.view = getViewArray(data.parentTrack, view);
+        this.originalView=view;
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
         loadObjectClasses(loadObjectClassIdx);
     }
-    public HyperStack(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+    public HyperStack(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
         super(data, channelNumber, imageSupplier);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
-        this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
-        this.bounds2D = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0 ,0);
+        this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, maxParentSizeZ);
+        this.bounds2D = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY,1);
+        this.view = getViewArray(data.parentTrack, view);
+        this.originalView=view;
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
         loadObjectClasses(loadObjectClassIdx);
+    }
+    public static BoundingBox[] getViewArray(List<SegmentedObject> parentTrack, BoundingBox view) {
+        if (view == null) return null;
+        TimeLapseInteractiveImageFactory.Data centeredOffsets = TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true);
+        return IntStream.range(0, parentTrack.size()).mapToObj(i -> view.duplicate().translate(centeredOffsets.trackOffset[i].reverseOffset())).toArray(BoundingBox[]::new);
     }
     public void loadObjectClasses(int... loadObjectClassIdx) {
         trackObjects.get(0)[0].reloadObjects(loadObjectClassIdx);
@@ -104,7 +117,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
     @Override
     protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
         BoundingBox[] trackOffset = this.trackOffset.get(0);
-        return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i), view[i], trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
 
     @Override
@@ -158,8 +172,14 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
 
     public String getImageTitle() {
-        return getName() == null || getName().isEmpty() ? (getParents().get(0).isRoot() ? "HyperStack of Position: #"+getParents().get(0).getPositionIdx() : "HyperStack of Track: "+getParents().get(0)): getName();
+        if (name != null && !name.isEmpty()) return name;
+        String pStructureName;
+        if (getParent().getExperimentStructure()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx());
+        else pStructureName= getParent().getStructureIdx()+"";
+        String prefix = view == null ? "HyperStack" : "HyperStackView@["+originalView.xMin()+";"+originalView.xMax()+"]x["+originalView.yMin()+";"+originalView.yMax()+"]";
+        return prefix + " "+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+data.parentTrack.get(0).getFrame()+";"+data.parentTrack.get(data.parentTrack.size()-1).getFrame()+"]";
     }
+
     @Override public LazyImage5D generateImage() {
         int frames = getParents().size();
         int[] fczSize = new int[]{frames, channelNumber, data.maxParentSizeZ};
@@ -171,21 +191,31 @@ public class HyperStack extends TimeLapseInteractiveImage {
     public ImageProperties getImageProperties() {
         return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, maxParentSizeZ, data.parentTrack.get(0).getMaskProperties().getScaleXY(), data.parentTrack.get(0).getMaskProperties().getScaleZ());
     }
-    public Image getImage(int channelIdx, int slice, Resize.EXPAND_MODE paddingMode) {
-        Image image = imageSupplier.apply(data.parentTrack.get(slice), channelIdx);
+    public Image getImage(int channelIdx, int parentIdx, Resize.EXPAND_MODE paddingMode) {
+        Image image = imageSupplier.apply(data.parentTrack.get(parentIdx), channelIdx);
+        if (view != null) {
+            BoundingBox bds = new SimpleBoundingBox(view[parentIdx].xMin(), view[parentIdx].xMax(), view[parentIdx].yMin(), view[parentIdx].yMax(), 0, image.sizeZ()-1);
+            image = image.crop(bds);
+            image.resetOffset();
+        }
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else { // TODO larger crop instead of PAD
-            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1).translate(trackOffset.get(0)[slice]));
+            Image resized = Resize.pad(image, paddingMode, bounds.duplicate().translate(trackOffset.get(0)[parentIdx]));
             return resized;
         }
     }
-    public Image getPlane(int z, int channelIdx, int slice, Resize.EXPAND_MODE paddingMode) {
-        Image image = imageSupplier.apply(data.parentTrack.get(slice), channelIdx);
+    public Image getPlane(int z, int channelIdx, int parentIdx, Resize.EXPAND_MODE paddingMode) {
+        Image image = imageSupplier.apply(data.parentTrack.get(parentIdx), channelIdx);
+        if (view != null) {
+            BoundingBox bds = new SimpleBoundingBox(view[parentIdx].xMin(), view[parentIdx].xMax(), view[parentIdx].yMin(), view[parentIdx].yMax(), 0, image.sizeZ()-1);
+            image = image.crop(bds);
+            image.resetOffset();
+        }
         if (z>0 && image.sizeZ()==1) z = 0;
         image = image.getZPlane(z);
         if (bounds2D.sameDimensions(image)) return image; // no need for padding
         else { // TODO larger crop instead of PAD
-            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, 0).translate(trackOffset.get(0)[slice]).translate(new SimpleOffset(0, 0, z)));
+            Image resized = Resize.pad(image, paddingMode, bounds2D.duplicate().translate(trackOffset.get(0)[parentIdx]).translate(new SimpleOffset(0, 0, z)));
             return resized;
         }
     }

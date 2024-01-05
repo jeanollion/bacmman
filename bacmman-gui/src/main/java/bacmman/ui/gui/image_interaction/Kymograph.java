@@ -19,39 +19,46 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     private static final Logger logger = LoggerFactory.getLogger(Kymograph.class);
     public static int INTERVAL_PIX=0;
     protected final int maxParentSizeZ, frameNumber;
-
-    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int... loadObjectClass) {
-        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP);
+    protected final BoundingBox[] view;
+    protected final BoundingBox originalView;
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, BoundingBox view, int... loadObjectClass) {
+        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP):
+                TimeLapseInteractiveImageFactory.generateKymographViewData(parentTrack, view, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP);
         switch (data.direction) {
             case X:
             default:
-                return new KymographX(data, loadObjectClass);
+                return new KymographX(data, view, loadObjectClass);
             case Y:
-                return new KymographY(data, loadObjectClass);
+                return new KymographY(data, view, loadObjectClass);
         }
     }
-    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
-        TimeLapseInteractiveImageFactory.Data data = TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP);
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
+        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP) :
+                TimeLapseInteractiveImageFactory.generateKymographViewData(parentTrack, view, INTERVAL_PIX, TimeLapseInteractiveImage.FRAME_NUMBER, TimeLapseInteractiveImage.FRAME_OVERLAP);
         switch (data.direction) {
             case X:
             default:
-                return new KymographX(data, channelNumber, imageSupplier, loadObjectClass);
+                return new KymographX(data, view, channelNumber, imageSupplier, loadObjectClass);
             case Y:
-                return new KymographY(data, channelNumber, imageSupplier, loadObjectClass);
+                return new KymographY(data, view, channelNumber, imageSupplier, loadObjectClass);
         }
     }
-    public Kymograph(TimeLapseInteractiveImageFactory.Data data, int... loadObjectClass) {
+    public Kymograph(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClass) {
         super(data);
         maxParentSizeZ = data.maxParentSizeZ;
         frameNumber = data.nFramePerSlice;
         loadObjectClasses(loadObjectClass);
+        this.view = HyperStack.getViewArray(data.parentTrack, view);
+        this.originalView = view;
     }
 
-    public Kymograph(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
+    public Kymograph(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
         super(data, channelNumber, imageSupplier);
         maxParentSizeZ = data.maxParentSizeZ;
         frameNumber = data.nFramePerSlice;
         loadObjectClasses(loadObjectClass);
+        this.view = HyperStack.getViewArray(data.parentTrack, view);
+        this.originalView = view;
     }
 
     protected void loadObjectClasses(int... loadObjectClass) {
@@ -87,7 +94,8 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
         BoundingBox[] trackOffset = this.trackOffset.get(sliceIdx);
         int startIdx = getStartParentIdx(sliceIdx);
-        return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxParentSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxParentSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), view[i], trackOffset[i], data.maxParentSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
     protected Stream<Integer> getSlice(int frame) {
         int parentIdx = frameMapParentIdx.get(frame);
@@ -202,7 +210,8 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         String pStructureName;
         if (getParent().getExperimentStructure()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx());
         else pStructureName= getParent().getStructureIdx()+"";
-        return "Kymograph@"+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+data.parentTrack.get(0).getFrame()+";"+data.parentTrack.get(data.parentTrack.size()-1).getFrame()+"]";
+        String prefix = view == null ? "Kymograph" : "KymographView@["+originalView.xMin()+";"+originalView.xMax()+"]x["+originalView.yMin()+";"+originalView.yMax()+"]";
+        return prefix + " "+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+data.parentTrack.get(0).getFrame()+";"+data.parentTrack.get(data.parentTrack.size()-1).getFrame()+"]";
     }
 
     public abstract ImageProperties getImageProperties(int channelIdx);

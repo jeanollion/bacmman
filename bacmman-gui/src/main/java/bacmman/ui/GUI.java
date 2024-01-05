@@ -3268,7 +3268,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     }
     public void navigateToNextImage(boolean next) {
         if (trackTreeController==null) this.loadObjectTrees();
-        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        ImageWindowManager<Object,?,?> iwm = ImageWindowManagerFactory.getImageManager();
         Object activeImage = iwm.getDisplayer().getCurrentDisplayedImage();
         if (activeImage == null) {
             Utils.displayTemporaryMessage("No active image open", 2000);
@@ -3334,7 +3334,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 return;
             }
             List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent);
-            InteractiveImage nextII = iwm.getImageTrackObjectInterface(parentTrack, i.getClass(), true);
+            InteractiveImage nextII = iwm.getInteractiveImage(parentTrack, i.getClass(), true);
             Image im = iwm.getOneImage(nextII);
             if (im==null) {
                 LazyImage5D nextIm = nextII.generateImage();
@@ -3463,7 +3463,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     iiType = ImageWindowManager.getDefaultInteractiveType();
                     if (iiType==null && track!=null && !track.isEmpty()) iiType = TimeLapseInteractiveImage.getBestDisplayType(track.get(0).getBounds());
                 }
-                InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, iiType, true);
+                InteractiveImage nextI = iwm.getInteractiveImage(track, iiType, true);
                 Image im = iwm.getOneImage(nextI);
                 if (im==null) {
                     LazyImage5D nextIm = nextI.generateImage();

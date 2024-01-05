@@ -42,6 +42,7 @@ public class IJTrackRoi implements TrackRoi {
         objects.addAll(other.objects);
         links.addAll(other.links);
         flags.addAll(other.flags);
+        position.putAll(other.position);
         sliceDuplicates.clear();
         return this;
     }
