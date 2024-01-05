@@ -193,16 +193,16 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi {
                 remove(z);
                 remove(-z-1);
             }
-        } else {
+        } else if (sizeZ()<zMaxExcl){
             Roi r = this.get(0);
-            for (int z = 1; z < zMaxExcl; ++z) {
+            for (int z = sizeZ(); z < zMaxExcl; ++z) {
                 Roi dup = (Roi) r.clone();
                 dup.setPosition(r.getCPosition(), z + 1, r.getTPosition());
                 this.put(z, dup);
             }
-            if (this.containsKey(-1)) { // segmentation correction arrow
+            if (this.containsKey(-1)) { // flags
                 r = this.get(-1);
-                for (int z = 1; z < zMaxExcl; ++z) {
+                for (int z = sizeZ(); z < zMaxExcl; ++z) {
                     Roi dup = (Roi) r.clone();
                     dup.setPosition(r.getCPosition(), z + 1, r.getTPosition());
                     this.put(-z - 1, dup);

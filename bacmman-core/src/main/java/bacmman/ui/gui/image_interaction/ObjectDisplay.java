@@ -24,10 +24,6 @@ public class ObjectDisplay implements Comparable<ObjectDisplay> {
         this.sliceIdx = sliceIdx;
     }
 
-    public int getSliceIdx() {
-        return sliceIdx;
-    }
-
     public static Stream<SegmentedObject> getObjectStream(Collection<ObjectDisplay> od) {
         return od.stream().map(o->o.object);
     }

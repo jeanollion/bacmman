@@ -190,7 +190,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     if (o!=null) {
                         selectedObjects.add(o);
                         if (i instanceof Kymograph) ((Kymograph)i).addObjectsFromOverlappingSlices(selectedObjects);
-                        //logger.debug("single click object: {} all: {}", o.object+"@"+o.getSliceIdx(), Utils.toStringList(selectedObjects, ob -> ob.object+"@"+ob.getSliceIdx()));
+                        //logger.debug("single click object: {} all: {}", o.object+"@"+o.sliceIdx, Utils.toStringList(selectedObjects, ob -> ob.object+"@"+ob.sliceIdx));
                     } else return;
                     if (r!=null && r.getType()==Roi.TRACED_ROI) {
                         //logger.debug("Will delete Roi: type: {}, class: {}", r.getTypeAsString(), r.getClass().getSimpleName());
@@ -520,7 +520,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     void updateOverlay(Image image) { // TODO explore option to call this at every frame change and add only ROIs related to current frame
         ImagePlus ip = displayer.getImage(image);
         if (ip == null) return;
-        ip.setOverlay(new Overlay());
+        ip.setOverlay(new Overlay()); // reset overlay
         for (IJRoi3D roi : displayedObjectRois.get(image)) addObjectToOverlay(ip, roi);
         for (IJRoi3D roi : displayedLabileObjectRois.get(image)) addObjectToOverlay(ip, roi);
         for (IJTrackRoi roi : displayedTrackRois.get(image)) addTrackToOverlay(ip, roi);
@@ -533,7 +533,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     }
 
     void addObjectToOverlay(ImagePlus image, IJRoi3D roi) {
-        if (image.getNFrames()>1 && image.getFrame()-1!=roi.getFrame()) return;
         Overlay o = image.getOverlay();
         if (o==null) {
             o=new Overlay();
@@ -558,12 +557,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         if (o!=null) {
             for (Roi r : roi.values()) o.remove(r);
         }
-    }
-
-    // not to be called directly!!
-    @Override
-    protected void hideAllRois(ImagePlus image) {
-        image.setOverlay(new Overlay());
     }
 
     @Override
@@ -694,7 +687,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             boolean edge = displayTrackEdges && ((p.object.getParent().getPrevious()!=null && p.object.getPrevious()==null) || (p.object.getParent().getNext()!=null && p.object.getNext()==null));
             IJRoi3D r = objectRoiCache.get(p);
             if (r == null) {
-                r = createObjectRoi(p, getTransparentColor(color, edge), edge, p.getSliceIdx());
+                r = createObjectRoi(p, getTransparentColor(color, edge), edge, p.sliceIdx);
                 objectRoiCache.put(p, r);
             } else {
                 r = r.duplicate();
@@ -720,12 +713,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     int zMin = object.offset.zMin();
                     int zMax = object.offset.zMax();
                     if (zMin == zMax) {
-                        arrow.setPosition(0, zMin + 1, object.getSliceIdx() + 1);
+                        arrow.setPosition(0, zMin + 1, object.sliceIdx + 1);
                         trackRoi.addFlag(arrow);
                     } else {
                         for (int z = zMin; z <= zMax; ++z) {
                             Arrow a = (Arrow) arrow.clone();
-                            a.setPosition(0, z + 1, object.getSliceIdx() + 1);
+                            a.setPosition(0, z + 1, object.sliceIdx + 1);
                             trackRoi.addFlag(a);
                         }
                     }
@@ -748,12 +741,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             int zMin = Math.max(o1.offset.zMin(), o2.offset.zMin());
             int zMax = Math.min(o1.offset.zMax(), o2.offset.zMax());
             if (zMin==zMax) {
-                arrow.setPosition(0, zMin+1, o1.getSliceIdx() + 1 );
+                arrow.setPosition(0, zMin+1, o1.sliceIdx + 1 );
                 trackRoi.addLink(arrow);
             } else {
                 for (int z = zMin; z <= zMax; ++z) {
                     Arrow a = (Arrow) arrow.clone();
-                    a.setPosition(0, z+1, o1.getSliceIdx() + 1 );
+                    a.setPosition(0, z+1, o1.sliceIdx + 1 );
                     trackRoi.addLink(a);
                 }
             }
@@ -772,19 +765,19 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             int zMin = Math.max(source.offset.zMin(), target.offset.zMin());
             int zMax = Math.min(source.offset.zMax(), target.offset.zMax());
             if (zMin==zMax) {
-                arrow1.setPosition(0, zMin+1, source.getSliceIdx() + 1 );
+                arrow1.setPosition(0, zMin+1, source.sliceIdx + 1 );
                 trackRoi.addLink(arrow1);
             } else {
                 for (int z = zMin; z <= zMax; ++z) {
                     Arrow a1 = (Arrow) arrow1.clone();
-                    a1.setPosition(0, z+1, source.getSliceIdx() + 1 );
+                    a1.setPosition(0, z+1, source.sliceIdx + 1 );
                     trackRoi.addLink(a1);
                 }
             }
         };
         if (track.size()==1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
             SegmentedObject o = track.get(0).object;
-            int slice = track.get(0).getSliceIdx();
+            int slice = track.get(0).sliceIdx;
             if (o.getPreviousId()!=null) {
                 if (o.getPrevious()==null) logger.debug("object: {} center: {}, previous null, previous id: {}", o,o.getRegion().getGeomCenter(false), o.getPreviousId());
             }
@@ -813,7 +806,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         } else {
             if (track.get(track.size() - 1).object.getNextId() == null) {
                 List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).object).collect(Collectors.toList());
-                int slice = track.get(track.size() - 1).getSliceIdx();
+                int slice = track.get(track.size() - 1).sliceIdx;
                 if (next.size() > 1) { // show division by displaying arrows between objects
                     List<ObjectDisplay> nextP = i.toObjectDisplay(next, slice);
                     for (int idx = 0; idx < next.size() - 1; ++idx)
@@ -824,7 +817,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList());
                 ObjectDisplay target = track.get(0);
                 if (prev.size() > 1) { // show merging by displaying arrows between objects
-                    List<ObjectDisplay> prevP = i.toObjectDisplay(prev, target.getSliceIdx());
+                    List<ObjectDisplay> prevP = i.toObjectDisplay(prev, target.sliceIdx);
                     prevP.forEach(p -> addArrow.accept(p, target, color));
                 }
             }
@@ -882,9 +875,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 boolean correction = editedNext.test(o1.object) || (o2 != null && editedprev.test(o2.object));
                 if (error || correction) {
                     Color c = error ? ImageWindowManager.trackErrorColor : ImageWindowManager.trackCorrectionColor;
-                    trackRoi.addFlag(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, arrowColor, arrowStrokeWidth, o1.getSliceIdx()+1));
-                    if (o2!=null && o2.getSliceIdx() != o1.getSliceIdx()) {
-                        trackRoi.addFlag(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, arrowColor, arrowStrokeWidth, o2.getSliceIdx()+1));
+                    trackRoi.addFlag(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, arrowColor, arrowStrokeWidth, o1.sliceIdx+1));
+                    if (o2!=null && o2.sliceIdx != o1.sliceIdx) {
+                        trackRoi.addFlag(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, arrowColor, arrowStrokeWidth, o2.sliceIdx+1));
                     }
                 }
             }
@@ -907,29 +900,29 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             IntStream.range(1, track.size()).forEach(idx -> {
                 ObjectDisplay o1 = track.get(idx - 1);
                 ObjectDisplay o2 = track.get(idx);
-                if (o1.getSliceIdx()!=o2.getSliceIdx()) {
+                if (o1.sliceIdx!=o2.sliceIdx) {
                     SegmentedObject o1Next = o2.object.equals(o1.object) ? o2.object : o1.object.getNext();
                     SegmentedObject o2Prev = o2.object.equals(o1.object) ? o2.object : o2.object.getPrevious();
-                    //if (o1Next == null || o2Prev == null) logger.error("Error displaying over distinct slices: o1={} next={} o2={} prev={} s1={} s2={}", o1.object, o1.object.getNext(), o2.object, o2.object.getPrevious(), o1.getSliceIdx(), o2.getSliceIdx());
+                    //if (o1Next == null || o2Prev == null) logger.error("Error displaying over distinct slices: o1={} next={} o2={} prev={} s1={} s2={}", o1.object, o1.object.getNext(), o2.object, o2.object.getPrevious(), o1.sliceIdx, o2.sliceIdx);
                     if (o1Next!=null) {
-                        ObjectDisplay o1N = new ObjectDisplay(o1Next, i.getObjectOffset(o1Next, o1.getSliceIdx()), o1.getSliceIdx());
+                        ObjectDisplay o1N = new ObjectDisplay(o1Next, i.getObjectOffset(o1Next, o1.sliceIdx), o1.sliceIdx);
                         appendTrackArrow.accept(o1, o1N);
                     }
                     if (o2Prev!=null) {
-                        ObjectDisplay o2P = new ObjectDisplay(o2Prev, i.getObjectOffset(o2Prev, o2.getSliceIdx()), o2.getSliceIdx());
+                        ObjectDisplay o2P = new ObjectDisplay(o2Prev, i.getObjectOffset(o2Prev, o2.sliceIdx), o2.sliceIdx);
                         appendTrackArrow.accept(o2P, o2);
                     }
                 } else appendTrackArrow.accept(o1, o2);
             });
         }
         // append previous arrows
-        for (ObjectDisplay p : i.toObjectDisplay(SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList()), track.get(0).getSliceIdx())) {
+        for (ObjectDisplay p : i.toObjectDisplay(SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList()), track.get(0).sliceIdx)) {
             appendTrackArrow.accept(p, track.get(0));
         }
         // append next arrows only if not displayed at current slice
         ObjectDisplay last = track.get(track.size()-1);
         if (last.object.getNext() != null && last.object.getNext().getTrackHead().equals(last.object.getTrackHead())) {
-            ObjectDisplay n = new ObjectDisplay(last.object.getNext(), i.getObjectOffset(last.object.getNext(), last.getSliceIdx()), last.getSliceIdx());
+            ObjectDisplay n = new ObjectDisplay(last.object.getNext(), i.getObjectOffset(last.object.getNext(), last.sliceIdx), last.sliceIdx);
             appendTrackArrow.accept(last, n);
         }
 

@@ -738,13 +738,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
         }
         updateImageRoiDisplay(image);
     }
-    
-    protected abstract void hideAllRois(I image);
 
     public void hideAllRois(Image image, boolean labile, boolean nonLabile) {
         if (!labile && !nonLabile) return;
         I im = getDisplayer().getImage(image);
-        if (im !=null) hideAllRois(im);
         if (labile) {
             Set<O> objectRois = displayedLabileObjectRois.remove(image);
             if (objectRois!=null) for (O roi : objectRois) hideObject(im, roi);
