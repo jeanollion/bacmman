@@ -163,13 +163,15 @@ public class IJVirtualStack extends VirtualStack {
     public ImageProcessor getProcessor(int n) {
         //logger.debug("get processor: {} cb null ? {}", n, setFrameCallback==null);
         int[] fcz = getFCZ.apply(n--);
-        //logger.debug("n: {} fcz: {} hyperstack: {}", n, fcz, imp!=null && imp.isDisplayedHyperStack());
+        logger.debug("n: {} fcz: {} hyperstack: {}", n, fcz, imp!=null && imp.isDisplayedHyperStack());
         if (setFrameCallback!=null) setFrameCallback.accept(fcz[0]);
         if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz[0]);
         boolean displaySet = false;
+        boolean firstProcessor = false;
         if (ips[n]==null) {
             synchronized (ips) {
                 if (ips[n]==null) {
+                    if (n ==0) firstProcessor = true;
                     Image toConvert;
                     if (source instanceof LazyImage5D) {
                         //logger.debug("getting image from lazy image: {}", fcz);
@@ -185,7 +187,7 @@ public class IJVirtualStack extends VirtualStack {
             }
         }
         if (!displaySet) setDisplayRange(fcz[1], null, ips[n]);
-        return ips[n];
+        return firstProcessor ? ips[n].duplicate() : ips[n]; // first image processor is used to display others
     }
 
     protected void setDisplayRange(int nextChannel, Image nextImage, ImageProcessor nextIP) {
