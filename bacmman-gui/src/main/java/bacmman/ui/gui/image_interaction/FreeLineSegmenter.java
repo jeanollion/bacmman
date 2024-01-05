@@ -7,6 +7,7 @@ import bacmman.processing.Filters;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import org.slf4j.Logger;
@@ -97,30 +98,29 @@ public class FreeLineSegmenter {
         }
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         SegmentedObject so = new SegmentedObject(parent.getFrame(), objectClassIdx, r.getLabel() - 1, r, parent);
-        List<SegmentedObject> objects = parent.getChildren(objectClassIdx).collect(Collectors.toList());
+        List<SegmentedObject> children = parent.getChildren(objectClassIdx).collect(Collectors.toList());
         Set<SegmentedObject> modified = new HashSet<>();
         if (relabel) {
             // HEURISTIC TO FIND INSERTION POINT // TODO ALSO USE IN OBJECT CREATOR
             Point ref = r.getBounds().getCenter();
-            SegmentedObject[] twoClosest = objects.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(SegmentedObject::getIdx)).toArray(SegmentedObject[]::new);
-            if (twoClosest.length < 2) objects.add(so);
+            SegmentedObject[] twoClosest = children.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(SegmentedObject::getIdx)).toArray(SegmentedObject[]::new);
+            if (twoClosest.length < 2) children.add(so);
             else {
                 Vector dir1 = Vector.vector(twoClosest[0].getBounds().getCenter(), twoClosest[1].getBounds().getCenter());
                 Vector dir2 = Vector.vector(twoClosest[1].getBounds().getCenter(), ref);
-                int idx = dir1.dotProduct(dir2) > 0 ? objects.indexOf(twoClosest[1]) : objects.indexOf(twoClosest[0]);
-                objects.add(idx + 1, so);
+                int idx = dir1.dotProduct(dir2) > 0 ? children.indexOf(twoClosest[1]) : children.indexOf(twoClosest[0]);
+                children.add(idx + 1, so);
             }
-            factory.setChildren(parent, objects);
+            factory.setChildren(parent, children);
             factory.relabelChildren(parent, modified);
             modified.add(so);
-        } else { // just ensure label is not existing
-            int[] idxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(objects);
+        } else { // just ensure a non-existing label
+            int[] idxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(children);
             factory.setIdx(so, idxAndIP[0]);
             modified.add(so);
-            factory.reassignDuplicateIndices(modified);
-            if (idxAndIP[1]>=0) objects.add(idxAndIP[1], so);
-            else objects.add(so);
-            factory.setChildren(parent, objects);
+            if (idxAndIP[1]>=0) children.add(idxAndIP[1], so);
+            else children.add(so);
+            factory.setChildren(parent, children);
         }
         saveToDB.accept(modified);
         return new ArrayList<SegmentedObject>() {{

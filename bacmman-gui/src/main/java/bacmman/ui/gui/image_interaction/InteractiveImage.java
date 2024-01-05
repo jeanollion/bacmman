@@ -18,19 +18,19 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import bacmman.image.ImageProperties;
 import bacmman.image.LazyImage5D;
+import bacmman.utils.ArrayUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,4 +111,13 @@ public abstract class InteractiveImage {
         this.guiMode=guiMode;
     }
 
+    public static int[] getObjectClassesAndChildObjectClasses(ExperimentStructure xp, int... objectClasses) {
+        if (objectClasses==null || objectClasses.length==0) return ArrayUtil.generateIntegerArray(xp.getObjectClassNumber());
+        List<Integer> res = new ArrayList<>();
+        for (int oc : objectClasses) {
+            res.add(oc);
+            for (int coc : xp.getAllChildStructures(oc)) res.add(coc);
+        }
+        return res.stream().distinct().sorted().mapToInt(i->i).toArray();
+    }
 }

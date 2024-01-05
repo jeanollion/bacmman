@@ -628,7 +628,10 @@ public class ManualEdition {
                     if (test_) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                     else {
                         SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
-                        if (newObject == null) logger.warn("Object could not be split!");
+                        if (newObject == null) {
+                            Utils.displayTemporaryMessage("Object could not be split. Draw a line that splits object", 5000);
+                            logger.warn("Object could not be split!");
+                        }
                         else {
                             objectMapNew.put(objectToSplit, newObject);
                             newObjects_.add(newObject);
@@ -732,13 +735,14 @@ public class ManualEdition {
         }
     }
 
-    public static void mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
+    public static List<SegmentedObject> mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
-        if (!canEdit(objects.stream(), db)) return;
+        if (!canEdit(objects.stream(), db)) return Collections.emptyList();
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         SegmentedObjectFactory factory = getFactory(structureIdx);
         List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor, relabel);
         if (updateDisplay) updateDisplayAndSelectObjects(newObjects);
+        return newObjects;
     }
 
     public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {

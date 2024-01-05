@@ -427,7 +427,7 @@ public class Processor {
                 parentTrack.stream().map(p -> {
                     p.setPreFilteredImage(null, structureIdx); // erase preFiltered images
                     return p;
-                }).filter(p -> p.hasChildren(structureIdx))
+                }).filter(p -> p.childrenRetrieved(structureIdx))
                   .forEachOrdered(p -> {
                       p.getChildren(structureIdx)
                               .filter(c -> (c.hasRegion()))

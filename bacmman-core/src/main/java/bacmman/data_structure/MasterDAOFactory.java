@@ -263,6 +263,7 @@ public class MasterDAOFactory {
             db.getDao(position).erase();
         }
         db.getSelectionDAO().erase();
+        logger.debug("selection DAO read only {}", db.getSelectionDAO().isReadOnly());
         pcb.incrementProgress();
         db.unlockPositions();
         db.unlockConfiguration();

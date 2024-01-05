@@ -373,7 +373,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
     public void resetObjects(String position, int... childStructureIdx) {
         interactiveImageMapImages.keySet().stream()
             .filter(i->position==null || i.getParent().getPositionName().equals(position))
-            .forEach(i -> i.resetObjects(childStructureIdx));
+            .forEach(i -> i.resetObjects(InteractiveImage.getObjectClassesAndChildObjectClasses(i.parent.getExperimentStructure(), childStructureIdx)));
         resetObjectsAndTracksRoi(); // TODO more specific reset
     }
 

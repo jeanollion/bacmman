@@ -209,15 +209,18 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                         displayTracks(image, i, tracks, null, true, true);
                     }
                 } else { // edit
-                    if (freeHandSplit && r != null && !selectedObjects.isEmpty()) { // SPLIT
-                        // if there are several objects per parent keep only to
-                        List<SegmentedObject> objects = ObjectDisplay.getObjectList(selectedObjects);
-                        //Map<SegmentedObject, List<SegmentedObject>> byParent = SegmentedObjectUtils.splitByParent(objects);
-                        //objects.removeIf(o -> byParent.get(o.getParent()).size()>1);
-                        // get line & split
-                        FloatPolygon p = r.getInterpolatedPolygon(-1, true);
-                        ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
-                        ManualEdition.splitObjects(GUI.getDBConnection(), objects, GUI.hasInstance() ? GUI.getInstance().getManualEditionRelabel() : true, false, splitter, true);
+                    if (freeHandSplit && r != null) { // SPLIT
+                        if (selectedObjects.isEmpty()) {
+                            Utils.displayTemporaryMessage("No object to split from interactive object class", 3000);
+                        } else {
+                            List<SegmentedObject> objects = ObjectDisplay.getObjectList(selectedObjects);
+                            //Map<SegmentedObject, List<SegmentedObject>> byParent = SegmentedObjectUtils.splitByParent(objects);
+                            //objects.removeIf(o -> byParent.get(o.getParent()).size()>1);
+                            // get line & split
+                            FloatPolygon p = r.getInterpolatedPolygon(-1, true);
+                            ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
+                            ManualEdition.splitObjects(GUI.getDBConnection(), objects, GUI.hasInstance() ? GUI.getInstance().getManualEditionRelabel() : true, false, splitter, true);
+                        }
                     } else if ((freeHandDraw || freeHandDrawMerge || freeHandErase) && r != null) { // DRAW / ERASE
                         int parentObjectClass = i.getParent().getExperimentStructure().getParentObjectClassIdx(getInteractiveObjectClass());
                         List<ObjectDisplay> selectedParentObjects = new ArrayList<>();
@@ -248,7 +251,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             region.translate(revOff);
                             if (!freeHandErase) {
                                 seg = FreeLineSegmenter.createSegmentedObject(region, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
-                            } else {
+                            } else { // eraser
                                 region.translate(parent.getBounds());
                                 region.setIsAbsoluteLandmark(true);
                                 seg = null;
@@ -262,20 +265,25 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                 GUI.getDBConnection().getDao(parent.getPositionName()).delete(toErase, true, true, GUI.getInstance().getManualEditionRelabel());
                                 modified.removeAll(toErase);
                                 store.accept(modified);
-                                resetObjects(i.getParent().getPositionName(), getInteractiveObjectClass());
-                                if (!displayObjectClasses) displayObjects(image, i.toObjectDisplay(modified, sliceIdx), Color.orange, false, true, false);
+                                if (!displayObjectClasses) {
+                                    resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
+                                    displayObjects(image, i.toObjectDisplay(modified, sliceIdx), Color.orange, false, true, false);
+                                }
                             }
                         } else {
                             FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                             seg = FreeLineSegmenter.segment(parent, parentOffset, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), ip.getZ() - 1, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
                         }
+
                         if (!freeHandErase && !seg.isEmpty()) {
-                            resetObjects(i.getParent().getPositionName(), getInteractiveObjectClass());
-                            hideLabileObjects(image, false);
                             if (freeHandDrawMerge && !selectedObjects.isEmpty()) {
                                 seg.addAll(ObjectDisplay.getObjectList(selectedObjects));
-                                ManualEdition.mergeObjects(GUI.getDBConnection(), seg, !GUI.hasInstance() || GUI.getInstance().getManualEditionRelabel(), !drawBrush || !displayObjectClasses);
+                                ManualEdition.mergeObjects(GUI.getDBConnection(), seg, !GUI.hasInstance() || GUI.getInstance().getManualEditionRelabel(), true); // !(drawBrush && displayObjectClasses)
+                                if (drawBrush && displayObjectClasses) removeObjects(seg, true);
                             } else if (!(drawBrush && displayObjectClasses)) {
+                                removeObjects(seg, true);
+                                resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
+                                hideLabileObjects(image, false);
                                 displayObjects(image, i.toObjectDisplay(seg, sliceIdx), Color.orange, false, true, false);
                                 displayObjects(image, selectedObjects, null, false, true, false);
                             }
@@ -283,7 +291,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             Utils.displayTemporaryMessage("No object could be segmented", 3000);
                         }
                     }
-                    if (drawBrush && displayObjectClasses) displayAllObjectClasses(image, sliceIdx);
+                    if (drawBrush && displayObjectClasses) {
+                        resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
+                        displayAllObjectClasses(image, sliceIdx);
+                    }
                 }
             }
 
@@ -385,6 +396,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveObjectClassIdx);
             return;
         }
+        hideAllRois(image, true, false);
         displayMode.put(image, DISPLAY_MODE.OBJECTS);
         displayAllObjects(image, displayer.getFrame(image));
         IJVirtualStack stack = getVirtualStack(image);
@@ -468,6 +480,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             Utils.displayTemporaryMessage("Image is not interactive", 3000);
             return;
         }
+        hideAllRois(image, true, false);
         displayMode.put(image, DISPLAY_MODE.TRACKS);
         displayAllTracks(image, displayer.getFrame(image));
         IJVirtualStack stack = getVirtualStack(image);

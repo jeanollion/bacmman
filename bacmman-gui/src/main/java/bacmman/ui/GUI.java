@@ -702,7 +702,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 mergeObjectsButtonActionPerformed(e);
-                logger.debug("M pressed: " + e);
             }
         });
         actionMap.put(Shortcuts.ACTION.SPLIT, new AbstractAction("Split") {
@@ -710,7 +709,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 splitObjectsButtonActionPerformed(e);
-                logger.debug("S pressed: " + e);
             }
         });
 
@@ -719,7 +717,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 manualSegmentButtonActionPerformed(e);
-                logger.debug("C pressed: " + e);
             }
         });
         actionMap.put(Shortcuts.ACTION.TOGGLE_CREATION_TOOL, new AbstractAction("Toggle creation tool") {
@@ -728,7 +725,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 // do not perform the action is and image is not focused
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 ImageWindowManagerFactory.getImageManager().toggleSetObjectCreationTool();
-                logger.debug("C pressed: " + e);
             }
         });
         actionMap.put(Shortcuts.ACTION.POST_FILTER, new AbstractAction("Post-Filter") {
@@ -743,7 +739,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 selectAllObjectsButtonActionPerformed(e);
-                logger.debug("A pressed: " + e);
             }
         });
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_OBJECT_CLASSES, new AbstractAction("Select All Object Classes") {
@@ -751,7 +746,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 selectAllObjectClassesButtonActionPerformed(e);
-                logger.debug("A pressed: " + e);
             }
         });
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_TRACKS, new AbstractAction("Select All Tracks") {
@@ -759,7 +753,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 selectAllTracksButtonActionPerformed(e);
-                logger.debug("Q pressed: " + e);
             }
         });
         Runnable[] closePreviousMessage = new Runnable[1];
@@ -795,7 +788,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 ImageWindowManagerFactory.getImageManager().toggleActivateLocalZoom();
-                logger.debug("Zoom pressed: " + e);
             }
         });
         actionMap.put(Shortcuts.ACTION.NAV_PREV, new AbstractAction("Prev") {
@@ -828,7 +820,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                logger.debug("Z pressed (shift)");
                 addToSelectionActionPerformed(0);
             }
         });
@@ -836,7 +827,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                logger.debug("Z pressed (alt)");
                 removeFromSelectionActionPerformed(0);
             }
         });
@@ -844,14 +834,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                logger.debug("Z pressed (alt gr)");
                 removeAllFromSelectionActionPerformed(0);
             }
         });
         actionMap.put(Shortcuts.ACTION.TOGGLE_DISPLAY_SEL0, new AbstractAction("Toggle display selection 0") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                logger.debug("Z pressed (ctrl)");
                 toggleDisplaySelection(0);
             }
         });
@@ -859,7 +847,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                logger.debug("E pressed (shift)");
                 addToSelectionActionPerformed(1);
             }
         });
@@ -867,7 +854,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                logger.debug("E pressed (alt)");
                 removeFromSelectionActionPerformed(1);
             }
         });
@@ -875,14 +861,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                logger.debug("E pressed (alt gr)");
                 removeAllFromSelectionActionPerformed(1);
             }
         });
         actionMap.put(Shortcuts.ACTION.TOGGLE_DISPLAY_SEL1, new AbstractAction("Toggle display selection 1") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                logger.debug("E pressed (ctrl)");
                 toggleDisplaySelection(1);
             }
         });

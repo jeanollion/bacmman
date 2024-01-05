@@ -157,7 +157,7 @@ public class SegmentedObjectUtils {
         SegmentedObject.logger.trace("set all children: parent: {}, structure: {}", parentTrack.get(0).getTrackHead(), structureIdx);
         if (dao.getExperiment().experimentStructure.isDirectChildOf(parentTrack.get(0).getStructureIdx(), structureIdx)) {
             List<SegmentedObject> parentWithNoChildren = new ArrayList<>(parentTrack.size());
-            for (SegmentedObject p : parentTrack) if (!p.hasChildren(structureIdx)) parentWithNoChildren.add(p);
+            for (SegmentedObject p : parentTrack) if (!p.childrenRetrieved(structureIdx)) parentWithNoChildren.add(p);
             SegmentedObject.logger.trace("parents with no children : {}", parentWithNoChildren.size());
             if (parentWithNoChildren.isEmpty()) return;
             dao.setAllChildren(parentWithNoChildren, structureIdx);

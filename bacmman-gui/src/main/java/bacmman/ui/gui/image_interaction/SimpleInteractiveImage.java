@@ -87,6 +87,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
             objects.clear();
             offsets.clear();
         } else {
+            objectClassIdx = InteractiveImage.getObjectClassesAndChildObjectClasses(parent.getExperimentStructure(), objectClassIdx);
             for (int oc : objectClassIdx) {
                 objects.remove(oc);
                 offsets.remove(oc);
@@ -96,6 +97,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public void reloadObjects(int... objectClassIdx) {
+        objectClassIdx = InteractiveImage.getObjectClassesAndChildObjectClasses(parent.getExperimentStructure(), objectClassIdx);
         for (int ocIdx : objectClassIdx) reloadObjects(ocIdx);
     }
 

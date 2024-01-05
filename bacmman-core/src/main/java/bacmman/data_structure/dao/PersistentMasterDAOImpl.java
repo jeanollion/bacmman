@@ -121,7 +121,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             else {
                 this.readOnly = true;
                 unlockAndCloseXP();
-                clearCache(false, false, true); // selection DAO needs to be re-created
+                clearCache(false, true, true); // selection DAO needs to be re-created
                 return true;
             }
         } else {
@@ -130,7 +130,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             accessConfigFileAndLockXP();
             if (xpFileLock!=null) {
                 this.readOnly=false;
-                clearCache(false, false, true); // selection DAO needs to be re-created
+                clearCache(false, true, true); // selection DAO needs to be re-created
                 return true;
             } else {
                 this.readOnly = true;

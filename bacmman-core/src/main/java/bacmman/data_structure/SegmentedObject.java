@@ -23,13 +23,11 @@ import bacmman.configuration.experiment.Position;
 import bacmman.data_structure.dao.ImageDAO;
 import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.ObjectDAO;
-import bacmman.data_structure.dao.MemoryObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
 import bacmman.image.*;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.Map.Entry;
 
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.*;
@@ -385,7 +383,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
     }
 
-    boolean hasChildren(int structureIdx) {
+    boolean childrenRetrieved(int structureIdx) {
         return childrenSM.has(structureIdx);
     }
 
@@ -739,18 +737,23 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
 
     void merge(SegmentedObject other, boolean attributes, boolean children, boolean region) {
         // update object
-        if (other==null) logger.debug("merge: {}, other==null", this);
+        if (other==null) {
+            logger.debug("merge: {}, other==null", this);
+            return;
+        }
         if (getRegion()==null) logger.debug("merge: {}+{}, object==null", this, other);
         if (other.getRegion()==null) logger.debug("merge: {}+{}, other object==null", this, other);
         if (region) {
             getRegion().merge(other.getRegion());
             flushImages();
             regionContainer = null;
+            setRegionAttributesToAttributes();
         }
-        if (children) {
+        if (children) { // transfer children
             for (int cOCIdx : getExperimentStructure().getAllDirectChildStructuresAsArray(structureIdx)) {
-                if (other.childrenSM.has(cOCIdx)) {
-                    addChildren(other.childrenSM.get(cOCIdx).stream(), cOCIdx);
+                List<SegmentedObject> c = other.getDirectChildren(cOCIdx);
+                if (c!=null) {
+                    addChildren(c.stream(), cOCIdx);
                     other.setChildren(null, cOCIdx);
                 }
             }
@@ -768,18 +771,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             // set flags
             setAttribute(EDITED_SEGMENTATION, true);
             other.trackHeadId = trackHeadId; // so that it won't be detected in the correction (was other.isTrackHead = false)
-
-            // update children
-            int[] chilIndicies = getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
-            for (int cIdx : chilIndicies) {
-                List<SegmentedObject> otherChildren = other.getDirectChildren(cIdx);
-                if (otherChildren != null) {
-                    for (SegmentedObject o : otherChildren) o.setParent(this);
-                    //xp.getObjectDAO().updateParent(otherChildren);
-                    List<SegmentedObject> ch = this.getDirectChildren(cIdx);
-                    if (ch != null) ch.addAll(otherChildren);
-                }
-            }
         }
     }
 

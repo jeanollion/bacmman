@@ -7,7 +7,6 @@ import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.RegionContainerVoxels;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
-import bacmman.plugins.Measurement;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONObject;
 
@@ -78,9 +77,6 @@ public class SegmentedObjectAccessor {
         o.relabelChildren(objectClassIdx, modifiedObjectsStore);
     }
 
-    public boolean hasChildren(SegmentedObject o, int objectClassIdx) {
-        return o.hasChildren(objectClassIdx);
-    }
     public void setTrackHead(SegmentedObject o, SegmentedObject trackHead, boolean resetPrevious, boolean propagate) {
         o.setTrackHead(trackHead, resetPrevious, propagate, null);
     }

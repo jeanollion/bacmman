@@ -321,16 +321,14 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             }
             if (deleteFromParent) { // only cached objects
                 int parentOCIdx = getExperiment().experimentStructure.getParentObjectClassIdx(objectClassIdx);
-                Map<Long, List<SegmentedObjectBox>> sobByParent = remFromParent.stream().collect(Collectors.groupingBy(SegmentedObjectBox::getParentId));
+                Map<Long, Set<Long>> sobByParent = remFromParent.stream().collect(Collectors.groupingBy(SegmentedObjectBox::getParentId, Utils.collectToSet(SegmentedObjectBox::getId)));
                 SegmentedObjectAccessor accessor = mDAO.getAccess();
                 sobByParent.forEach((pId, l) -> {
                     SegmentedObjectBox parent = this.cache.get(parentOCIdx).get(pId);
                     if (parent!=null && parent.hasSegmentedObject()) {
                         SegmentedObject parentSO = parent.getSegmentedObject(parentOCIdx, this);
-                        if (accessor.hasChildren(parentSO, objectClassIdx)) {
-                            List<SegmentedObject> children = accessor.getDirectChildren(parentSO, objectClassIdx);
-                            l.forEach(o -> children.remove(0));
-                        }
+                        List<SegmentedObject> children = accessor.getDirectChildren(parentSO, objectClassIdx);
+                        if (children!=null) children.removeIf(o->l.contains((Long)o.getId()));
                     }
                 });
             }
@@ -372,7 +370,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             synchronized (cache) {
                 List<SegmentedObject> toStoreMeasSync=Collections.synchronizedList(toStoreMeas);
                 toStore = toStoreSO.parallelStream().map(o -> {
-                    SegmentedObjectBox sob = cache.get(o.getId());
+                    SegmentedObjectBox sob = cache.get((Long)o.getId());
                     if (sob == null) {
                         sob = new SegmentedObjectBox(o);
                         cache.put(sob.getId(), sob);
@@ -383,7 +381,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             }
 
             long t1 = System.currentTimeMillis();
-            if (safeMode) { // store modifications
+            if (safeMode) { // record modifications
                 Set<Long> toRemove = toRemoveAtRollback.get(ocIdx);
                 Map<Long, SegmentedObjectBox> toRestore = toRestoreAtRollback.get(ocIdx);
                 objectStores.get(ocIdx).runInReadTx(() -> {

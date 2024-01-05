@@ -73,18 +73,17 @@ public class SegmentedObjectFactory {
                 int idx = Collections.binarySearch(allIdxs, newObject.getIdx());
                 if (idx>=0) { // idx is already taken -> get the first unused label
                     if (allIdxs.get(0)>0) { // space before first index
-                        //logger.info("Split: relabel object: {} to 0 (first label)", newObject);
                         setIdx(newObject, 0);
                         allIdxs.add(0, newObject.getIdx());
                     } else {
                         for (int i = 1; i < allIdxs.size(); ++i) {
                             if (allIdxs.get(i) > allIdxs.get(i - 1) + 1) {
-                                //logger.info("Split: relabel object: {} to {} (unused label)", newObject, allIdxs.get(i - 1) + 1);
+                                //logger.info("relabel object: {} to {} (unused label)", newObject, allIdxs.get(i - 1) + 1);
                                 setIdx(newObject, allIdxs.get(i - 1) + 1);
                                 allIdxs.add(i, newObject.getIdx());
                                 break;
                             } else if (i == allIdxs.size() - 1) {
-                                //logger.info("Split: relabel object: {} to {} (last label)", newObject, allIdxs.get(i) + 1);
+                                //logger.info("relabel object: {} to {} (last label)", newObject, allIdxs.get(i) + 1);
                                 setIdx(newObject, allIdxs.get(i) + 1);
                                 allIdxs.add(newObject.getIdx());
                                 break;
