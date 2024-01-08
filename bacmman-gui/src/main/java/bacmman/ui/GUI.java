@@ -143,10 +143,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private ChoiceParameter hyperstackMode = new ChoiceParameter("Default Hyperstack Mode", new String[]{"HYPERSTACK", "IMAGE5D"}, "HYPERSTACK", false).setHint("If IMAGE5D is chosen, hyperstack will be open using the image 5D plugin, allowing to display color image. Note that with this mode the whole image needs to be loaded in memory");
     private BooleanParameter displayTrackEdges = new BooleanParameter("Hyperstack: display track edges", true);
     private BooleanParameter displayCorrections = new BooleanParameter("Display manual corrections", true);
-    private NumberParameter kymographFrameNumber = new NumberParameter<>("Kymograph Frame Number", 0, 200).setHint("Limit the number of frames displayed in a kymograph. Use next / previous navigation commands to move within the kymograph");
-    private NumberParameter kymographFrameOverlap = new NumberParameter<>("Kymograph Frame Overlap", 0, 20).setHint("Number of remaining frames from previous view when moving within Kymograph. Use next / previous navigation commands to move within the kymograph");
+    private NumberParameter kymographSize = new NumberParameter<>("Size", 0, 1950).setHint("Limit the size per slice (in pixels) of a kymograph (each Kymograph slice contains several frames).");
+    private NumberParameter kymographOverlap = new NumberParameter<>("Frame Overlap", 0, 650).setHint("Overlap size (in pixels) between two slices of a Kymograph (each Kymograph slice contains several frames).");
 
-    private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
+    private NumberParameter kymographGap = new NumberParameter<>("Gap", 0, 0).setHint("Gap between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("In case of HiDPI screen, a zoom factor is applied to the display, set here this factor");
@@ -457,19 +457,19 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
 
         // kymograph interval
-        PropertyUtils.setPersistent(kymographInterval, "kymograph_interval");
-        Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
-        kymographInterval.addListener(p-> Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue());
-        ConfigurationTreeGenerator.addToMenu(kymographInterval, kymographMenu);
+        PropertyUtils.setPersistent(kymographGap, "kymograph_gap");
+        Kymograph.GAP = kymographGap.getValue().intValue();
+        kymographGap.addListener(p-> Kymograph.GAP = kymographGap.getValue().intValue());
+        ConfigurationTreeGenerator.addToMenu(kymographGap, kymographMenu);
 
-        PropertyUtils.setPersistent(kymographFrameNumber, "kymograph_frame_number");
-        TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue();
-        kymographFrameNumber.addListener(p-> TimeLapseInteractiveImage.FRAME_NUMBER = kymographFrameNumber.getValue().intValue());
-        ConfigurationTreeGenerator.addToMenu(kymographFrameNumber, kymographMenu);
-        PropertyUtils.setPersistent(kymographFrameOverlap, "kymograph_frame_overlap");
-        TimeLapseInteractiveImage.FRAME_OVERLAP = kymographFrameOverlap.getValue().intValue();
-        kymographFrameOverlap.addListener(p-> TimeLapseInteractiveImage.FRAME_OVERLAP = kymographFrameOverlap.getValue().intValue());
-        ConfigurationTreeGenerator.addToMenu(kymographFrameOverlap, kymographMenu);
+        PropertyUtils.setPersistent(kymographSize, "kymograph_size");
+        Kymograph.SIZE = kymographSize.getValue().intValue();
+        kymographSize.addListener(p-> Kymograph.SIZE = kymographSize.getValue().intValue());
+        ConfigurationTreeGenerator.addToMenu(kymographSize, kymographMenu);
+        PropertyUtils.setPersistent(kymographOverlap, "kymograph_overlap");
+        Kymograph.OVERLAP = kymographOverlap.getValue().intValue();
+        kymographOverlap.addListener(p-> Kymograph.OVERLAP = kymographOverlap.getValue().intValue());
+        ConfigurationTreeGenerator.addToMenu(kymographOverlap, kymographMenu);
 
         // local zoom
         PropertyUtils.setPersistent(localZoomFactor, "local_zoom_factor");
@@ -622,6 +622,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
                 shortcuts.toggleDisplayTable(INSTANCE);
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.SYNC_VIEW, new AbstractAction("Synchronize View") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ImageWindowManagerFactory.getImageManager().syncView(null, null);
             }
         });
         actionMap.put(Shortcuts.ACTION.TO_FRONT, new AbstractAction("To Front") {
@@ -3365,7 +3372,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         } else { // try to move within current image
             boolean move;
             if (sel != null) {
-                List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(i, objectClassIdx, currentSlice, sel.getElementStrings(position));
+                List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(i, objectClassIdx, sel.getElementStrings(position));
                 logger.debug("#objects from selection on current image: {} (display sIdx: {}, sel: {})", objects.size(), displayObjectClassIdx, objectClassIdx);
                 move = !objects.isEmpty() && iwm.goToNextObject(null, objects, next, true);
             } else {
@@ -3480,7 +3487,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {
-                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), currentSlice, sel.getElementStrings(position));
+                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), sel.getElementStrings(position));
                     logger.debug("#objects from selection on next image: {}/{} (display oc={}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjectDisplay(sel.getStructureIdx(), currentSlice).count(), displayObjectClassIdx, objectClassIdx, im != null ? im.getName() : "null", nextParent);
                     if (!objects.isEmpty()) {
                         // wait so that new image is displayed -> magnification issue -> window is not well computed

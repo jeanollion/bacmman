@@ -30,13 +30,11 @@ import java.util.*;
 
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -53,19 +51,20 @@ public abstract class TimeLapseInteractiveImage extends InteractiveImage {
     protected Map<Integer, SimpleInteractiveImage[]> trackObjects = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeTrackObjects);
     protected final TimeLapseInteractiveImageFactory.Data data;
     public final Map<Integer, Integer> frameMapParentIdx, parentIdxMapFrame;
-    public static int FRAME_NUMBER=0;
-    public static int FRAME_OVERLAP=0;
+    protected final BoundingBox view;
     List<DefaultWorker> worker = new ArrayList<>();
 
-    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data) {
+    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, BoundingBox view) {
         super(data.parentTrack.get(0));
         this.data = data;
+        this.view = view;
         frameMapParentIdx = data.parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, data.parentTrack::indexOf));
         parentIdxMapFrame = data.parentTrack.stream().collect(Collectors.toMap(data.parentTrack::indexOf, SegmentedObject::getFrame));
     }
-    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier) {
+    public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier) {
         super(data.parentTrack.get(0), channelNumber, imageSupplier);
         this.data = data;
+        this.view = view;
         frameMapParentIdx = data.parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, data.parentTrack::indexOf));
         parentIdxMapFrame = data.parentTrack.stream().collect(Collectors.toMap(data.parentTrack::indexOf, SegmentedObject::getFrame));
     }
@@ -84,6 +83,8 @@ public abstract class TimeLapseInteractiveImage extends InteractiveImage {
         if (i<0) return null;
         else return new SimpleOffset(trackOffset.get(slice)[i]);
     }
+
+    public abstract Stream<SegmentedObject> getObjectsAtFrame(int objectClassIdx, int frame);
     
     @Override public List<SegmentedObject> getParents() {
         return this.data.parentTrack;
@@ -126,6 +127,15 @@ public abstract class TimeLapseInteractiveImage extends InteractiveImage {
         double sY = parentBounds.sizeY();
         boolean hyperstack = (sX > maxSize && sY > maxSize) || (sX > sY && sX / sY < imRatioThld) || (sX <= sY && sY / sX < imRatioThld);
         return hyperstack ? HyperStack.class : Kymograph.class;
+    }
+
+    public String getImageTitle() {
+        if (name != null && !name.isEmpty()) return name;
+        String pStructureName = getParent().getExperimentStructure()!=null ? getParent().getStructureIdx()<0? "": getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx())+"/" :
+                getParent().getStructureIdx()+"/";
+        String className = getClass().getSimpleName();
+        String prefix = view == null ? "" : "View@["+view.xMin()+";"+view.xMax()+"]x["+view.yMin()+";"+view.yMax()+"]";
+        return className + prefix + " "+pStructureName+"Pos"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+data.parentTrack.get(0).getFrame()+";"+data.parentTrack.get(data.parentTrack.size()-1).getFrame()+"]";
     }
 
     protected static SegmentedObjectAccessor getAccessor() {

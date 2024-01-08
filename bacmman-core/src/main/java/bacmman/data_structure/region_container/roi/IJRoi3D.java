@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.image.IndexColorModel;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.ToDoubleBiFunction;
@@ -27,7 +28,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi {
+public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D> {
     public static final Logger logger = LoggerFactory.getLogger(IJRoi3D.class);
     boolean is2D;
     int locdx, locdy; // in case of EllipseRoi -> 0.5 is added to coordinate, this can create inconsistencies in localization as IJ.ROIs use a integer reference. this is a fix when calling set location
@@ -110,7 +111,7 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi {
     }
     public IJRoi3D setFrame(int frame) {
         this.frame = frame;
-        for (Roi r : values()) r.setPosition(r.getCPosition(), r.getZPosition(), frame+1);
+        setHyperstackPosition();
         return this;
     }
 
@@ -119,11 +120,21 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi {
     }
 
     public IJRoi3D setZToPosition() {
-        for (Roi r: values()) r.setPosition(r.getZPosition());
+        forEach((z, r) -> {
+            if (z<0) z = -z-1;
+            r.setPosition(z+1);
+        });
         return this;
     }
     public IJRoi3D setTToPosition() {
         for (Roi r: values()) r.setPosition(frame+1);
+        return this;
+    }
+    public IJRoi3D setHyperstackPosition() {
+        forEach((z, r) -> {
+            if (z<0) z = -z-1;
+            r.setPosition(0, z+1, frame+1);
+        });
         return this;
     }
     public boolean is2D() {
@@ -165,8 +176,9 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi {
         });
         return this;
     }
+    @Override
     public IJRoi3D duplicate() {
-        IJRoi3D res = new IJRoi3D(this.sizeZ()).setIs2D(is2D).setLocDelta(locdx, locdy);
+        IJRoi3D res = new IJRoi3D(this.sizeZ()).setIs2D(is2D).setFrame(frame).setLocDelta(locdx, locdy);
         super.forEach((z, r)->res.put(z, (Roi)r.clone()));
         return res;
     }

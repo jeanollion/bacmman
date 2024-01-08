@@ -46,8 +46,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
     private static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected final int maxParentSizeX, maxParentSizeY;
     protected final int maxParentSizeZ;
-    protected final BoundingBox bounds, bounds2D, originalView;
-    protected final BoundingBox[] view;
+    protected final BoundingBox bounds, bounds2D;
+    protected final BoundingBox[] viewArray;
     public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, BoundingBox view, int... loadObjectClassIdx) {
         TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true) :
                 TimeLapseInteractiveImageFactory.generateHyperstackViewData(parentTrack, view);
@@ -59,26 +59,24 @@ public class HyperStack extends TimeLapseInteractiveImage {
         return new HyperStack(data, view, channelNumber, imageSupplier, loadObjectClassIdx);
     }
     public HyperStack(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClassIdx) {
-        super(data);
+        super(data, view);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
         this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, maxParentSizeZ);
         this.bounds2D = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY,1);
-        this.view = getViewArray(data.parentTrack, view);
-        this.originalView=view;
+        this.viewArray = getViewArray(data.parentTrack, view);
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
         loadObjectClasses(loadObjectClassIdx);
     }
     public HyperStack(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
-        super(data, channelNumber, imageSupplier);
+        super(data, view, channelNumber, imageSupplier);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
         this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, maxParentSizeZ);
         this.bounds2D = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY,1);
-        this.view = getViewArray(data.parentTrack, view);
-        this.originalView=view;
+        this.viewArray = getViewArray(data.parentTrack, view);
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
         loadObjectClasses(loadObjectClassIdx);
     }
@@ -117,8 +115,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
     @Override
     protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
         BoundingBox[] trackOffset = this.trackOffset.get(0);
-        if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
-        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i), view[i], trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        if (viewArray == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i), viewArray[i], trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
 
     @Override
@@ -153,6 +151,12 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
 
     @Override
+    public Stream<SegmentedObject> getObjectsAtFrame(int objectClassIdx, int frame) {
+        int parentIdx = frameMapParentIdx.get(frame);
+        return getObjects(objectClassIdx, parentIdx);
+    }
+
+    @Override
     public Stream<SegmentedObject> getAllObjects(int objectClassIdx) {
         SimpleInteractiveImage[] trackObjects = this.trackObjects.get(0);
         return IntStream.range(0, trackObjects.length).boxed().flatMap(i -> trackObjects[i].getAllObjects(objectClassIdx));
@@ -171,15 +175,6 @@ public class HyperStack extends TimeLapseInteractiveImage {
         trackObjects.get(0)[slice].addObjectsWithinBounds(selection, objectClassIdx, slice, list);
     }
 
-    public String getImageTitle() {
-        if (name != null && !name.isEmpty()) return name;
-        String pStructureName;
-        if (getParent().getExperimentStructure()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx());
-        else pStructureName= getParent().getStructureIdx()+"";
-        String prefix = view == null ? "HyperStack" : "HyperStackView@["+originalView.xMin()+";"+originalView.xMax()+"]x["+originalView.yMin()+";"+originalView.yMax()+"]";
-        return prefix + " "+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+data.parentTrack.get(0).getFrame()+";"+data.parentTrack.get(data.parentTrack.size()-1).getFrame()+"]";
-    }
-
     @Override public LazyImage5D generateImage() {
         int frames = getParents().size();
         int[] fczSize = new int[]{frames, channelNumber, data.maxParentSizeZ};
@@ -193,8 +188,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
     public Image getImage(int channelIdx, int parentIdx, Resize.EXPAND_MODE paddingMode) {
         Image image = imageSupplier.apply(data.parentTrack.get(parentIdx), channelIdx);
-        if (view != null) {
-            BoundingBox bds = new SimpleBoundingBox(view[parentIdx].xMin(), view[parentIdx].xMax(), view[parentIdx].yMin(), view[parentIdx].yMax(), 0, image.sizeZ()-1);
+        if (viewArray != null) {
+            BoundingBox bds = new SimpleBoundingBox(viewArray[parentIdx].xMin(), viewArray[parentIdx].xMax(), viewArray[parentIdx].yMin(), viewArray[parentIdx].yMax(), 0, image.sizeZ()-1);
             image = image.crop(bds);
             image.resetOffset();
         }
@@ -206,8 +201,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
     public Image getPlane(int z, int channelIdx, int parentIdx, Resize.EXPAND_MODE paddingMode) {
         Image image = imageSupplier.apply(data.parentTrack.get(parentIdx), channelIdx);
-        if (view != null) {
-            BoundingBox bds = new SimpleBoundingBox(view[parentIdx].xMin(), view[parentIdx].xMax(), view[parentIdx].yMin(), view[parentIdx].yMax(), 0, image.sizeZ()-1);
+        if (viewArray != null) {
+            BoundingBox bds = new SimpleBoundingBox(viewArray[parentIdx].xMin(), viewArray[parentIdx].xMax(), viewArray[parentIdx].yMin(), viewArray[parentIdx].yMax(), 0, image.sizeZ()-1);
             image = image.crop(bds);
             image.resetOffset();
         }

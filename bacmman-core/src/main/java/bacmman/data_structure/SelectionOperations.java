@@ -242,13 +242,13 @@ public class SelectionOperations {
     public static Collection<SegmentedObject> filter(Stream<SegmentedObject> objects, Collection<String> indices) {
         //Map<String, StructureObject> map = new HashMap<>(objects.size());
         //for (StructureObject o : objects) map.put(Selection.indicesString(o), o);
-        Map<String, SegmentedObject> map = objects.collect(Collectors.toMap(o->Selection.indicesString(o), o->o));
+        Map<String, SegmentedObject> map = objects.collect(Collectors.toMap(Selection::indicesString, o->o));
         map.keySet().retainAll(indices);
         return map.values();
     }
 
     public static List<SegmentedObject> getParents(Selection sel, String position, MasterDAO db) {
-        List<String> parentStrings = Utils.transform(sel.getElementStrings(position), s->Selection.getParent(s));
+        List<String> parentStrings = Utils.transform(sel.getElementStrings(position), Selection::getParent);
         Utils.removeDuplicates(parentStrings, false);
         return new ArrayList<>(filter(SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), db.getExperiment().getStructure(sel.getStructureIdx()).getParentStructure()), parentStrings));
     }

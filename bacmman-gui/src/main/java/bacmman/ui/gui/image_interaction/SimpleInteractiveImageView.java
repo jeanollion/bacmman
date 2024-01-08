@@ -93,7 +93,11 @@ public class SimpleInteractiveImageView extends SimpleInteractiveImage {
 
     protected IntStream getIncludedIndices(int objectClassIdx) {
         BoundingBox[] offsets = super.getOffsets(objectClassIdx);
-        return IntStream.range(0, offsets.length).filter(i -> BoundingBox.isIncluded2D(offsets[i], relView, 5));
+        if (offsets.length==1) return BoundingBox.intersect2D(offsets[0], relView) ? IntStream.of(0) : IntStream.empty();
+        else return IntStream.range(0, offsets.length).filter(i -> {
+            if (BoundingBox.isIncluded2D(offsets[i], relView, 5)) return true;
+            else return BoundingBox.getIntersection2D(offsets[i], relView).getSizeXY() > 0.25 * offsets[i].sizeX() * offsets[i].sizeY();
+        });
         //return IntStream.range(0, offsets.length);
     }
 

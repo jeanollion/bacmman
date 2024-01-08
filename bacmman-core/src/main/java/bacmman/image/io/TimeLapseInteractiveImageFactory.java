@@ -6,12 +6,13 @@ import bacmman.image.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
 public class TimeLapseInteractiveImageFactory {
     public final static Logger logger = LoggerFactory.getLogger(TimeLapseInteractiveImageFactory.class);
-    public static Data generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int interval, int frameNumber, int frameOverlap) {
+    public static Data generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int gap, int size, int overlap) {
         ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
         BoundingBox bb = parentTrack.get(0).getBounds();
         int maxParentSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
@@ -19,35 +20,46 @@ public class TimeLapseInteractiveImageFactory {
         int currentOffset=0;
         if (bb.sizeY() >= bb.sizeX()) { // X direction.
             int maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
+            int averageSize = (int)Math.ceil(Arrays.stream(trackOffset).mapToDouble(BoundingBox::sizeX).average().getAsDouble());
+            int frameNumber = size == 0 ? 0 : Math.max(2, (int)Math.ceil((double)size / averageSize));
+            int frameOverlap = (int)Math.ceil((double)overlap / averageSize);
+            logger.debug("frame number: {} overlap: {} avg size: {} size: {} overlap: {}", frameNumber, frameOverlap, averageSize, size, overlap);
             for (int i = 0; i<parentTrack.size(); ++i) {
                 if (middle) trackOffset[i].translate(new SimpleOffset(currentOffset, (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), 0)); // Y middle of parent track
                 else trackOffset[i].translate(new SimpleOffset(currentOffset, 0, 0)); // Y up of parent track
-                currentOffset+=interval+trackOffset[i].sizeX();
+                currentOffset+=gap+averageSize;
             }
             return new Data(DIRECTION.X, -1, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack, frameNumber, frameOverlap);
         } else { // Y direction
             int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
+            int averageSize = (int)Math.ceil(Arrays.stream(trackOffset).mapToDouble(BoundingBox::sizeY).average().getAsDouble());
+            int frameNumber = size == 0 ? 0 : Math.max(2, (int)Math.ceil((double)size / averageSize));
+            int frameOverlap = (int)Math.ceil((double)overlap / averageSize);
             for (int i = 0; i<parentTrack.size(); ++i) {
                 if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), currentOffset , 0)); // Y  middle of parent track
                 else trackOffset[i].translate(new SimpleOffset(0, currentOffset, 0)); // X  up of parent track
-                currentOffset+=interval+trackOffset[i].sizeY();
+                currentOffset+=gap+averageSize;
             }
             return new Data(DIRECTION.Y, maxParentSizeX, -1, maxParentSizeZ, trackOffset, parentTrack, frameNumber, frameOverlap);
         }
     }
 
-    public static Data generateKymographViewData(List<SegmentedObject> parentTrack, BoundingBox view, int interval, int frameNumber, int frameOverlap) {
+    public static Data generateKymographViewData(List<SegmentedObject> parentTrack, BoundingBox view, int interval, int size, int overlap) {
         ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
         int maxParentSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(l -> new BoundingBox[l]);
         int currentOffset=0;
         if (view.sizeY() * 1.5 >= view.sizeX()) { // X direction.
+            int frameNumber = size == 0 ? 0 : Math.max(2, (int)Math.ceil((double)size / view.sizeX()));
+            int frameOverlap = (int)Math.ceil((double)overlap / view.sizeX());
             for (int i = 0; i<parentTrack.size(); ++i) {
                 trackOffset[i].translate(new SimpleOffset(currentOffset, 0, 0)); // Y up of parent track
                 currentOffset+=interval+view.sizeX();
             }
             return new Data(DIRECTION.X, -1, view.sizeY(), maxParentSizeZ, trackOffset, parentTrack, frameNumber, frameOverlap);
         } else { // Y direction
+            int frameNumber = size == 0 ? 0 : Math.max(2, (int)Math.ceil((double)size / view.sizeY()));
+            int frameOverlap = (int)Math.ceil((double)overlap / view.sizeY());
             for (int i = 0; i<parentTrack.size(); ++i) {
                 trackOffset[i].translate(new SimpleOffset(0, currentOffset, 0)); // X  up of parent track
                 currentOffset+=interval+view.sizeY();
@@ -63,7 +75,7 @@ public class TimeLapseInteractiveImageFactory {
         int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
         int maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
         for (int i = 0; i<parentTrack.size(); ++i) {
-            if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), 0)); // X & Y  middle of parent track
+            if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), 0)).reverseOffset(); // X & Y  middle of parent track
         }
         return new Data(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack, parentTrack.size(), 0);
     }
@@ -90,8 +102,7 @@ public class TimeLapseInteractiveImageFactory {
             this.trackOffset = trackOffset;
             this.parentTrack=parentTrack;
             this.nFramePerSlice = nFramePerSlice <=0 ? parentTrack.size() : Math.min(nFramePerSlice, parentTrack.size());
-            this.frameOverlap = nFramePerSlice ==parentTrack.size() ? 0 : frameOverlap;
-            if (frameOverlap>= nFramePerSlice) throw new IllegalArgumentException("Frame overlap must be lower than frame number");
+            this.frameOverlap = nFramePerSlice ==parentTrack.size() ? 0 : Math.max(0, Math.min(nFramePerSlice-1, frameOverlap));
             if (nFramePerSlice == parentTrack.size()) nSlices = 1;
             else nSlices = (int)Math.ceil((double)(parentTrack.size() - frameOverlap) / (nFramePerSlice -frameOverlap));
             logger.debug("kymograph: total {}, per slice: {} overlap {} total slices: {}", parentTrack.size(), nFramePerSlice, frameOverlap, nSlices);

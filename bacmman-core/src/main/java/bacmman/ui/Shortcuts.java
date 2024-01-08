@@ -71,11 +71,14 @@ public class Shortcuts {
         MANUAL_ERASE("Erase part of an existing object using the selection brush tool", "ctrl + Brush"),
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
         SELECT_ALL_OBJECTS("Display all objects of interactive object class on active image"), SELECT_ALL_OBJECT_CLASSES("Display all objects from all classes on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
+        SYNC_VIEW("Synchronize View between different images"),
+        KYMOGRAPH_VIEW("Generate a Kyomgraph View from selection on current Hyperstack", "rectangle + ctrl + shift"), HYPERSTACK_VIEW("Generate a Hyperstack view from selection on current Hyperstack", "rectangle + ctrl + alt"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + alt + mouse wheel"),
         SCROLL_Z("Scroll Z-axis", "space + mouse wheel"),
         SCROLL_T("Scroll Time-axis", "alt + mouse wheel"),
         SCROLL_C("Scroll Channel-axis", "shift + mouse wheel"),
         NAV_NEXT("Navigate to next objects of the selection enabled for navigation"), NAV_PREV("Navigate to previous objects of the selection enabled for navigation"), OPEN_NEXT("Display next image"), OPEN_PREV("Display previous image"),
+
         ADD_TO_SEL0("Add selected object(s) to active selection group 0"), REM_FROM_SEL0("Remove selected object(s) from active selection group 0"), REM_ALL_FROM_SEL0("Remove all objects contained in active image from active selection group 0"), TOGGLE_DISPLAY_SEL0("Toggle Display Objects for active selection group 0"),
         ADD_TO_SEL1("Add selected object(s) to active selection group 1"), REM_FROM_SEL1("Remove selected object(s) from active selection group 1"), REM_ALL_FROM_SEL1("Remove all objects contained in active image from active selection group 1"), TOGGLE_DISPLAY_SEL1("Toggle Display Objects for active selection group 1"),
         TOGGLE_SAFE_MODE("Toggle Safe Mode (undo: menu Misc > Manual Curation > Revert Changes)"),
@@ -168,12 +171,13 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_TRACKS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0), ACTION.CHANGE_INTERACTIVE_STRUCTURE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0), ACTION.TOGGLE_SELECT_MODE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, 0), SYNC_VIEW);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0), ACTION.TOGGLE_LOCAL_ZOOM);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, KeyEvent.CTRL_DOWN_MASK), ACTION.NAV_PREV);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.CTRL_DOWN_MASK), ACTION.NAV_NEXT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.ALT_DOWN_MASK), ACTION.OPEN_NEXT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, KeyEvent.ALT_DOWN_MASK), ACTION.OPEN_PREV);
-                
+
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.SHIFT_DOWN_MASK), ACTION.ADD_TO_SEL0);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.ALT_DOWN_MASK), ACTION.REM_FROM_SEL0);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.ALT_GRAPH_DOWN_MASK), ACTION.REM_ALL_FROM_SEL0);
@@ -206,6 +210,7 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_TRACKS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0), ACTION.CHANGE_INTERACTIVE_STRUCTURE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0), ACTION.TOGGLE_SELECT_MODE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, 0), SYNC_VIEW);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0), ACTION.TOGGLE_LOCAL_ZOOM);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK), ACTION.NAV_PREV);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.ALT_DOWN_MASK), ACTION.OPEN_PREV);
@@ -313,12 +318,14 @@ public class Shortcuts {
         Object[] actions = {
             "<b>Display</b>",
             SELECT_ALL_OBJECTS, SELECT_ALL_OBJECT_CLASSES, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
+            KYMOGRAPH_VIEW, HYPERSTACK_VIEW,
             TOGGLE_LOCAL_ZOOM, TO_FRONT,
             "<b>Navigation</b>",
             SCROLL_Z,
             SCROLL_T,
             SCROLL_C,
             FAST_SCROLL,
+            SYNC_VIEW,
             OPEN_NEXT,
             OPEN_PREV,
             "<em>Navigation selection is set through right-click menu on selection</em>",

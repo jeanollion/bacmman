@@ -69,7 +69,7 @@ import java.util.stream.Stream;
  * @param <O> object ROI class
  * @param <T> track ROI class
  */
-public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends TrackRoi> {
+public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends TrackRoi> {
     public static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
 
     public enum RegisteredImageType {KYMOGRAPH, RAW_INPUT, PRE_PROCESSED}
@@ -94,17 +94,16 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
     double TRACK_ARROW_STROKE_WIDTH = 3;
     double ROI_STROKE_WIDTH = 0.5;
     public static double TRACK_LINK_MIN_SIZE = 23;
-    protected final Map<InteractiveImage, Set<Image>> interactiveImageMapImages = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
-    protected final Map<Image, InteractiveImage> imageMapInteractiveImage = new HashMap<>();
-
-    protected final Map<SegmentedObject, List<List<SegmentedObject>>> trackHeadTrackMap = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
-    protected final LinkedHashMap<String, I> displayedRawInputImages = new LinkedHashMap<>();
-    protected final LinkedHashMap<String, I> displayedPrePocessedImages = new LinkedHashMap<>();
-    protected final LinkedList<Image> displayedInteractiveImages = new LinkedList<>();
     final ImageDisplayer<I> displayer;
     int interactiveObjectClassIdx;
     int displayedImageNumber = 20;
     ZoomPane localZoom;
+    protected final Map<InteractiveImage, Set<Image>> interactiveImageMapImages = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
+    protected final Map<Image, InteractiveImage> imageMapInteractiveImage = new HashMap<>();
+    protected final LinkedHashMap<String, I> displayedRawInputImages = new LinkedHashMap<>();
+    protected final LinkedHashMap<String, I> displayedPrePocessedImages = new LinkedHashMap<>();
+    protected final LinkedList<Image> displayedInteractiveImages = new LinkedList<>();
+
     // displayed objects 
     protected final Map<ObjectDisplay, O> objectRoiCache = new HashMap<>();
     protected final Map<List<ObjectDisplay>, T> kymographTrackRoiCache =new HashMap<>();
@@ -178,7 +177,6 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
         interactiveImageMapImages.clear();
         imageMapInteractiveImage.clear();
         displayMode.clear();
-        trackHeadTrackMap.clear();
         displayedRawInputImages.clear();
         displayedPrePocessedImages.clear();
         displayedInteractiveImages.clear();
@@ -370,6 +368,71 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
         return interactiveImageMapImages.keySet().stream().filter(ii -> ii.getParents().equals(parentTrack));
     }
 
+    public void syncView(Image referenceImage, TimeLapseInteractiveImage targetInteractiveImage, Image... targetImages) {
+        Image refImage  = referenceImage == null ? displayer.getCurrentImage() : referenceImage;
+        if (refImage == null) return;
+        InteractiveImage refInteractiveImage = getInteractiveImage(referenceImage);
+        if (!(refInteractiveImage instanceof TimeLapseInteractiveImage)) return;
+        if (targetInteractiveImage == null) {
+            logger.debug("Sync view from : {}", refImage.getName());
+            interactiveImageMapImages.keySet().stream().filter(ii -> ii.getParents().equals(refInteractiveImage.getParents())).forEach(ii -> syncView(refImage, (TimeLapseInteractiveImage) ii));
+            return;
+        }
+        if (targetImages.length == 0) targetImages = interactiveImageMapImages.get(targetInteractiveImage).stream().filter(i -> !i.equals(refImage)).toArray(Image[]::new);
+        else targetImages = Arrays.stream(targetImages).filter(i -> !i.equals(refImage)).toArray(Image[]::new);
+
+        boolean setSlice;
+        for (Image targetImage : targetImages) {
+            logger.debug("sync view from {} to {}", refImage.getName(), targetImage.getName());
+            switch (displayMode.get(refImage)) {
+                case NONE:
+                default:
+                    List<SegmentedObject> sel = getSelectedLabileObjects(refImage);
+                    sel.removeIf(o -> targetInteractiveImage.getObjectsAtFrame(o.getStructureIdx(), o.getFrame()).noneMatch(o::equals));
+                    if (!sel.isEmpty()) {
+                        displayObjects(targetImage, targetInteractiveImage.toObjectDisplay(sel), null, false, true, false);
+                        goToNextObject(targetImage, sel, true, false);
+                    }
+                    List<SegmentedObject> selTracks = getSelectedLabileTrackHeads(refImage);
+                    selTracks.removeIf(o -> targetInteractiveImage.getObjectsAtFrame(o.getStructureIdx(), o.getFrame()).noneMatch(o::equals));
+                    if (!selTracks.isEmpty()) displayTracks(targetImage, targetInteractiveImage, SegmentedObjectUtils.getTracks(selTracks), null, true, false);
+                    if (sel.isEmpty() && selTracks.isEmpty()) setSlice = true;
+                    else setSlice = false;
+                    logger.debug("sel: {} tracks: {} sel slice: {}", sel.size(), selTracks.size(), setSlice);
+                    break;
+                case OBJECTS:
+                    displayAllObjects(targetImage);
+                    setSlice = true;
+                    break;
+                case TRACKS:
+                    displayAllTracks(targetImage);
+                    setSlice = true;
+                    break;
+                case OBJECTS_CLASSES:
+                    displayAllObjectClasses(targetImage);
+                    setSlice = true;
+                    break;
+            }
+            if (setSlice) {
+                int sliceIdx = displayer.getFrame(referenceImage);
+                if (refInteractiveImage instanceof HyperStack) {
+                    if (targetInteractiveImage instanceof HyperStack) displayer.setFrame(sliceIdx, targetImage);
+                    else {
+                        int frame = refInteractiveImage.getParents().get(sliceIdx).getFrame();
+                        int targetSlice = ((Kymograph) targetInteractiveImage).getSlice(frame).mapToInt(s -> s).min().getAsInt();
+                        displayer.setFrame(targetSlice, targetImage);
+                    }
+                } else {
+                    if (targetInteractiveImage instanceof Kymograph) displayer.setFrame(sliceIdx, targetImage);
+                    else {
+                        int parentIdx = ((Kymograph)refInteractiveImage).getStartParentIdx(sliceIdx);
+                        displayer.setFrame(parentIdx, targetImage);
+                    }
+                }
+            }
+        }
+    }
+
     public void resetObjects(String position, int... childStructureIdx) {
         interactiveImageMapImages.keySet().stream()
             .filter(i->position==null || i.getParent().getPositionName().equals(position))
@@ -504,7 +567,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
     public abstract void displayAllTracks(Image image);
     public abstract void displayObject(I image, O roi);
     public abstract void hideObject(I image, O roi);
-    protected abstract O createObjectRoi(ObjectDisplay object, Color color, boolean fill, int frameIdx);
+    protected abstract O createObjectRoi(ObjectDisplay object, Color color, boolean fill);
     public abstract void updateImageRoiDisplay(Image image);
     
     public void displayObjects(Image image, Collection<ObjectDisplay> objectsToDisplay, Color color, boolean fill, boolean labileObjects, boolean hideIfAlreadyDisplayed) {
@@ -529,7 +592,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
             //logger.debug("getting mask of object: {}", o);
             O roi= objectRoiCache.get(od);
             if (roi==null) {
-                roi = createObjectRoi(od, color, fill, od.sliceIdx);
+                roi = createObjectRoi(od, color, fill);
                 objectRoiCache.put(od, roi);
             } else {
                 roi.setColor(color, fill);
@@ -878,19 +941,18 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
             trackImage = displayer.getImage(selectedImage);
         }
         InteractiveImage i = this.getInteractiveImage(trackImage);
-        if (i instanceof SimpleInteractiveImage) {
+        if (!(i instanceof TimeLapseInteractiveImage)) {
             logger.warn("selected image is not a track image");
             return false;
         }
         int slice = displayer.getFrame(trackImage);
         TimeLapseInteractiveImage tm = (TimeLapseInteractiveImage)i;
         if (objects==null || objects.isEmpty()) objects = this.getSelectedLabileObjects(trackImage);
-        if (objects==null || objects.isEmpty()) objects = i.getObjects(interactiveObjectClassIdx, slice).collect(Collectors.toList());
-        if (objects==null || objects.isEmpty()) return false;
+        if (objects.isEmpty()) return false;
         int minTimePoint, maxTimePoint;
         BoundingBox currentDisplayRange;
         if (tm instanceof HyperStack) {
-            minTimePoint = slice;
+            minTimePoint = tm.getParents().get(slice).getFrame();
             maxTimePoint = minTimePoint;
             currentDisplayRange = null;
         } else {
@@ -900,22 +962,21 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
             maxTimePoint = k.getClosestFrame(currentDisplayRange.xMax(), currentDisplayRange.yMax(), slice);
             if (next) {
                 if (maxTimePoint == i.getParents().get(i.getParents().size() - 1).getFrame()) return false;
-                if (maxTimePoint > minTimePoint + 2) maxTimePoint -= 2;
-                else maxTimePoint--;
+                //if (maxTimePoint > minTimePoint + 2) maxTimePoint -= 2;
+                //else maxTimePoint--;
             } else {
                 if (minTimePoint == i.getParents().get(0).getFrame()) return false;
-                if (maxTimePoint > minTimePoint + 2) minTimePoint += 2;
-                else minTimePoint++;
+                //if (maxTimePoint > minTimePoint + 2) minTimePoint += 2;
+                //else minTimePoint++;
             }
         }
-        logger.debug("Current Display range: maxTimePoint: {}, minTimePoint: {}, number of objects: {}", maxTimePoint, minTimePoint, objects.size());
-        Collections.sort(objects, SegmentedObjectUtils.frameComparator()); // sort by frame
+        logger.debug("Current Display range: [{}; {}], number of objects: {} frame range: [{}; {}]", minTimePoint, maxTimePoint, objects.size(), objects.stream().mapToInt(SegmentedObject::getFrame).min().orElse(-1), objects.stream().mapToInt(SegmentedObject::getFrame).max().orElse(-1));
+        objects.sort(SegmentedObjectUtils.frameComparator()); // sort by frame
         if (!forceMove) { // check if objects are already displayed and do not move
-            int minTP = minTimePoint;
-            int maxTP = maxTimePoint;
-            if (objects.stream().mapToInt(SegmentedObject::getFrame).anyMatch(f -> f>=minTP || f<=maxTP)) return true;
+            if (objects.stream().mapToInt(SegmentedObject::getFrame).anyMatch(f -> f>= minTimePoint && f<= maxTimePoint)) return true;
         }
-        SegmentedObject nextObject = getNextObject(next? maxTimePoint+1: minTimePoint-1, objects, next);
+        SegmentedObject nextObject = getNextObject(next? maxTimePoint+1: minTimePoint-1, objects, next); // next object outside display range
+        logger.debug("move to next object: {}", nextObject);
         if (nextObject==null) {
             logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
             return false;
@@ -926,8 +987,28 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
                 displayer.setFrame(nextSlice, trackImage);
                 return true;
             } else {
-                BoundingBox off = tm.getObjectOffset(nextObject, slice);
-                if (off == null) objects = new ArrayList<>(objects);
+                boolean dirX = tm instanceof KymographX;
+                int nextSlice = ((Kymograph)tm).getSlice(nextObject.getFrame()).min( (s1, s2) -> { // get the slice in which object is most central
+                    BoundingBox off1 = tm.getObjectOffset(nextObject, s1);
+                    BoundingBox off2 = tm.getObjectOffset(nextObject, s2);
+                    if (dirX) {
+                        double d1 = tm.getImageProperties().xMean() - off1.xMean();
+                        double d2 = tm.getImageProperties().xMean() - off2.xMean();
+                        return Double.compare(Math.abs(d1), Math.abs(d2));
+                    } else {
+                        double d1 = tm.getImageProperties().yMean() - off1.yMean();
+                        double d2 = tm.getImageProperties().yMean() - off2.yMean();
+                        return Double.compare(Math.abs(d1), Math.abs(d2));
+                    }
+                } ).orElse(-1);
+                if (nextSlice == -1) {
+                    Utils.displayTemporaryMessage("Next object not found in interactive image", 5000);
+                    //logger.debug("object: {} not found in interactive image", nextObject);
+                    return false;
+                }
+                BoundingBox off = tm.getObjectOffset(nextObject, nextSlice);
+                //logger.debug("object: {} with off: {} found at slice: {} (among: {}, current: {})", nextObject, off, nextSlice, ((Kymograph)tm).getSlice(nextObject.getFrame()).mapToInt(s->s).toArray(), slice);
+                /*if (off == null) objects = new ArrayList<>(objects);
                 while (off == null) {
                     objects = new ArrayList<>(objects);
                     objects.remove(nextObject);
@@ -937,7 +1018,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
                         return false;
                     }
                     off = tm.getObjectOffset(nextObject, slice);
-                }
+                }*/
                 int midX = (off.xMin() + off.xMax()) / 2;
                 if (midX + currentDisplayRange.sizeX() / 2 >= trackImage.sizeX())
                     midX = trackImage.sizeX() - currentDisplayRange.sizeX() / 2 - 1;
@@ -948,13 +1029,15 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi, T extends Track
                     midY = trackImage.sizeY() - currentDisplayRange.sizeY() / 2 - 1;
                 if (midY - currentDisplayRange.sizeY() / 2 < 0) midY = currentDisplayRange.sizeY() / 2;
 
-                MutableBoundingBox nextDisplayRange = new MutableBoundingBox(midX - currentDisplayRange.sizeX() / 2, midX + currentDisplayRange.sizeX() / 2, midY - currentDisplayRange.sizeY() / 2, midY + currentDisplayRange.sizeY() / 2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
+                MutableBoundingBox nextDisplayRange = new MutableBoundingBox(midX - currentDisplayRange.sizeX() / 2, midX + currentDisplayRange.sizeX() / 2 -1, midY - currentDisplayRange.sizeY() / 2, midY + currentDisplayRange.sizeY() / 2 -1, currentDisplayRange.zMin(), currentDisplayRange.zMax());
+                boolean move = nextSlice != slice;
+                if (nextSlice != slice) displayer.setFrame(nextSlice, trackImage);
                 if (!nextDisplayRange.equals(currentDisplayRange)) {
-                    logger.info("Object detected @ timepoint: {}, xMid: {}, update display range: {} (current was: {}", nextObject.getFrame(), midX, nextDisplayRange, currentDisplayRange);
+                    //logger.info("Object detected @ timepoint: {}, xMid: {}, update display range: {} (current was: {}", nextObject.getFrame(), midX, nextDisplayRange, currentDisplayRange);
                     displayer.setDisplayRange(nextDisplayRange, trackImage);
-                    return true;
+                    move = true;
                 }
-                return false;
+                return move;
             }
         }
     }

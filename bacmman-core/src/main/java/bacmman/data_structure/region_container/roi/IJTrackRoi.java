@@ -91,6 +91,21 @@ public class IJTrackRoi implements TrackRoi {
         for (Roi r: flags) r.setPosition(positionZT.get(r)[1]);
         return this;
     }
+    public IJTrackRoi setHyperstackPosition() {
+        for (Roi r: links) {
+            int[] pZT = positionZT.get(r);
+            r.setPosition(0, pZT[0], pZT[1]);
+        }
+        for (Roi r: objects) {
+            int[] pZT = positionZT.get(r);
+            r.setPosition(0, pZT[0], pZT[1]);
+        }
+        for (Roi r: flags) {
+            int[] pZT = positionZT.get(r);
+            r.setPosition(0, pZT[0], pZT[1]);
+        }
+        return this;
+    }
     public IJTrackRoi setIs2D(boolean is2D) {this.is2D=is2D; return this;}
     public IJTrackRoi duplicateForZ(int z) {
         if (!sliceDuplicates.containsKey(z)) {

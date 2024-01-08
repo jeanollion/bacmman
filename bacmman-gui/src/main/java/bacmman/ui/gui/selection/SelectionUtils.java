@@ -42,6 +42,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.swing.*;
 
@@ -91,14 +92,19 @@ public class SelectionUtils {
         return getSegmentedObjects(i, selections.get(0).getStructureIdx(), slice, allStrings);
     }
 
+    public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, int objectClassIdx, Collection<String> indices) {
+        Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
+        Stream<SegmentedObject> objects;
+        if (i instanceof TimeLapseInteractiveImage) {
+            objects = frames.flatMap(frame -> ((TimeLapseInteractiveImage) i).getObjectsAtFrame(objectClassIdx, frame));
+        } else {
+            objects = i.getAllObjects(objectClassIdx);
+        }
+        return new ArrayList<>(SelectionOperations.filter(objects, indices));
+    }
+
     public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, int objectClassIdx, int slice, Collection<String> indices) {
-        if (i instanceof HyperStack) {
-            // need to get objects from all frames of selection
-            HyperStack h = (HyperStack)i;
-            Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
-            Stream<SegmentedObject> objects = frames.flatMap(frame -> h.getObjects(frame, slice));
-            return new ArrayList<>(SelectionOperations.filter(objects, indices));
-        } else return new ArrayList<>(SelectionOperations.filter(i.getObjects(objectClassIdx, slice), indices));
+        return new ArrayList<>(SelectionOperations.filter(i.getObjects(objectClassIdx, slice), indices));
     }
 
     protected static Collection<ObjectDisplay> getObjects(Selection s, InteractiveImage i, int slice) {

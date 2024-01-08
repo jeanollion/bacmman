@@ -423,10 +423,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             r.y=bounds.yMin();
             r.width=bounds.sizeX();
             r.height=bounds.sizeY();
-            ip.setSlice(bounds.zMin()+1);
+            if (ip.getNSlices()>1 && bounds.zMin()>0) ip.setSlice(bounds.zMin()+1);
             ip.draw();
-            //ip.updateAndDraw();
-            //ip.updateAndRepaintWindow();
             for (MouseWheelListener mwl : ip.getWindow().getMouseWheelListeners()) mwl.mouseWheelMoved(null); // case of track masks : will update image content
         } 
     }

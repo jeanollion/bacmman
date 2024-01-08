@@ -154,16 +154,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     Rectangle rect = r.getBounds();
                     if (rect.height==0 || rect.width==0) return;
                     BoundingBox view = new SimpleBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, 0, ip.getNSlices()-1);
-                    TimeLapseInteractiveImage kymoView = isKymoView ? Kymograph.generateKymograph(i.getParents(), view, i.channelNumber, i.imageSupplier) :
+                    TimeLapseInteractiveImage interactiveImageView = isKymoView ? Kymograph.generateKymograph(i.getParents(), view, i.channelNumber, i.imageSupplier) :
                             HyperStack.generateHyperstack(i.getParents(), view, i.channelNumber, i.imageSupplier);
                     int channelIdx = ip.getC()-1;
-                    Image imageView = kymoView.generateImage().setPosition(0, channelIdx);
-                    addImage(imageView, kymoView, true);
-                    goToNextObject(imageView, i.getParents().subList(sliceIdx, sliceIdx+1), true, true);
-                    List<SegmentedObject> sel = getSelectedLabileObjects(image);
-                    displayObjects(imageView, kymoView.toObjectDisplay(sel), null, false, true, false);
-                    List<SegmentedObject> selTracks = getSelectedLabileTrackHeads(image);
-                    displayTracks(image, kymoView, SegmentedObjectUtils.getTracks(selTracks), null, true, false);
+                    Image imageView = interactiveImageView.generateImage().setPosition(0, channelIdx);
+                    addImage(imageView, interactiveImageView, true);
+                    syncView(image, interactiveImageView, imageView);
                     return;
                 }
 
@@ -565,10 +561,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         if (!image.isDisplayedHyperStack()) {
             if (image.getNSlices()>1) roi.setZToPosition();
             else if (image.getNFrames()>1) roi.setTToPosition();
-        }
+        } else roi.setHyperstackPosition();
         for (Roi r : roi.values()) {
             r.setStrokeWidth(ROI_STROKE_WIDTH);
-            o.add(r);
+            o.add((Roi)r.clone());
         }
     }
 
@@ -581,7 +577,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     }
 
     @Override
-    public IJRoi3D createObjectRoi(ObjectDisplay object, Color color, boolean fill, int frameIdx) {
+    public IJRoi3D createObjectRoi(ObjectDisplay object, Color color, boolean fill) {
         if (object.object.getBounds().sizeZ()<=0 || object.object.getBounds().sizeX()<=0 || object.object.getBounds().sizeY()<=0) logger.error("wrong object dim: o:{} {}", object.object, object.object.getBounds());
         IJRoi3D r;
         if (object.object.getRegion().getRoi()!=null) {
@@ -594,7 +590,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             double rad = ((Spot)object.object.getRegion()).getRadius();
             if (object.object.is2D()) {
                 Roi roi = new EllipseRoi(x + 0.5, y - rad + 0.5, x + 0.5, y + rad + 0.5, 1);
-                roi.setPosition(0, 1, frameIdx+1);
+                roi.setPosition(0, 1, object.sliceIdx+1);
                 r = new IJRoi3D(1).setIs2D(true);
                 r.put(0, roi);
             } else {
@@ -606,7 +602,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     double curRad = Math.sqrt(rad*rad - Math.pow((z-zz)/scaleR, 2)) ; // in order to take into anisotropy into account.
                     if (curRad<0.01 * rad) continue;
                     Roi roi = new EllipseRoi(x + 0.5, y - curRad + 0.5, x + 0.5, y + curRad + 0.5, 1);
-                    roi.setPosition(0, zz + 1, frameIdx+1);
+                    roi.setPosition(0, zz + 1, object.sliceIdx+1);
                     r.put(zz, roi);
                 }
             }
@@ -622,7 +618,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             foci.stream().forEach(p -> p.translate(new Vector((float)dx, (float)dy)));
             Roi roi = new EllipseRoi(foci.get(0).get(0)+ 0.5, foci.get(0).get(1)+ 0.5, foci.get(1).get(0)+ 0.5, foci.get(1).get(1)+ 0.5, o.getAspectRatio());
             if (o.is2D()) sliceZ=0; // necessary ?
-            roi.setPosition(0, sliceZ + 1, frameIdx+1);
+            roi.setPosition(0, sliceZ + 1, object.sliceIdx+1);
             r = new IJRoi3D(1).setIs2D(o.is2D());
             r.put(sliceZ, roi);
             BoundingBox bds = r.getBounds();
@@ -644,13 +640,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             arrow.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
             new HashSet<>(r.keySet()).stream().filter(z->z>=0).forEach((z) -> {
                 Arrow arrowS = r.sizeZ()>1 ? (Arrow)arrow.clone() : arrow;
-                arrowS.setPosition(0, z, frameIdx+1);
+                arrowS.setPosition(0, z, object.sliceIdx+1);
                 r.put(-z-1, arrowS);
             });
         }
         r.setColor(color, fill);
         r.setStrokeWidth(ROI_STROKE_WIDTH);
-        r.setFrame(frameIdx);
+        r.setFrame(object.sliceIdx);
         return r;
     }
 
@@ -668,7 +664,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         if (!image.isDisplayedHyperStack()) {
             if (image.getNSlices()>1) roi.setZToPosition();
             else if (image.getNFrames()>1) roi.setTToPosition();
-        }
+        } else roi.setHyperstackPosition();
         Overlay finalO = o;
         roi.getRois().forEach(finalO::add);
         if (roi.is2D() && image.getNSlices()>1) {
@@ -677,7 +673,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 if (!image.isDisplayedHyperStack()) {
                     if (image.getNSlices() > 1) dup.setZToPosition();
                     else if (image.getNFrames() > 1) dup.setTToPosition();
-                }
+                } else roi.setHyperstackPosition();
                 dup.getRois().forEach(finalO::add);
             }
         }
@@ -702,22 +698,23 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     }
 
     protected IJTrackRoi createContourTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i, boolean flags) {
-        IJTrackRoi trackRoi= new IJTrackRoi().setTrackType(Structure.TRACK_DISPLAY.CONTOUR);
-        trackRoi.setIs2D(track.get(0).object.is2D());
+        IJTrackRoi trackRoi= new IJTrackRoi().setTrackType(Structure.TRACK_DISPLAY.CONTOUR).setIs2D(track.get(0).object.is2D());
         Function<ObjectDisplay, IJRoi3D> getRoi = p -> {
             boolean edge = flags && displayTrackEdges && ((p.object.getParent().getPrevious()!=null && p.object.getPrevious()==null) || (p.object.getParent().getNext()!=null && p.object.getNext()==null));
             IJRoi3D r = objectRoiCache.get(p);
             if (r == null) {
-                r = createObjectRoi(p, getTransparentColor(color, edge), edge, p.sliceIdx);
+                r = createObjectRoi(p, getTransparentColor(color, edge), edge);
                 objectRoiCache.put(p, r.duplicate());
             } else {
-                r = r.duplicate();
+                r = r.duplicate().setHyperstackPosition();
                 r.setColor(getTransparentColor(color, edge), edge);
             }
             return r;
         };
 
-        track.stream().map(getRoi).filter(Objects::nonNull).flatMap(r -> r.is2D() ? Stream.of(r.get(0)) : r.values().stream()).forEach(trackRoi::addObject);
+        track.stream().map(getRoi).filter(Objects::nonNull)
+            .flatMap(r -> r.is2D() ? Stream.of(r.get(0)) : r.values().stream())
+            .forEach(trackRoi::addObject);
         // add flag when track links have been edited
         if (flags && displayCorrections) {
             Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
