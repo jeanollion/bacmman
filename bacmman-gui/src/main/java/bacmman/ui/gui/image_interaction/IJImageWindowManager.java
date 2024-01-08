@@ -691,25 +691,25 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     @Override
     public IJTrackRoi createTrackRoi(List<ObjectDisplay> track, InteractiveImage i, Color color, boolean forceDefaultDisplay) {
         if (i instanceof Kymograph) {
-            if (!forceDefaultDisplay && !track.isEmpty() && track.get(0).object.getExperimentStructure().getTrackDisplay(track.get(0).object.getStructureIdx()).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(track, color, i);
+            if (!forceDefaultDisplay && !track.isEmpty() && track.get(0).object.getExperimentStructure().getTrackDisplay(track.get(0).object.getStructureIdx()).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(track, color, i, true);
             else {
                 IJTrackRoi arrows = createKymographTrackRoi(track, color, i, TRACK_ARROW_STROKE_WIDTH);
-                IJTrackRoi contours = createContourTrackRoi(track, color, i);
+                IJTrackRoi contours = createContourTrackRoi(track, color, i, false);
                 return arrows.mergeWith(contours);
             }
         }
-        else return createContourTrackRoi(track, color, i);
+        else return createContourTrackRoi(track, color, i, true);
     }
 
-    protected IJTrackRoi createContourTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i) {
-        IJTrackRoi trackRoi= new IJTrackRoi();
+    protected IJTrackRoi createContourTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i, boolean flags) {
+        IJTrackRoi trackRoi= new IJTrackRoi().setTrackType(Structure.TRACK_DISPLAY.CONTOUR);
         trackRoi.setIs2D(track.get(0).object.is2D());
         Function<ObjectDisplay, IJRoi3D> getRoi = p -> {
-            boolean edge = displayTrackEdges && ((p.object.getParent().getPrevious()!=null && p.object.getPrevious()==null) || (p.object.getParent().getNext()!=null && p.object.getNext()==null));
+            boolean edge = flags && displayTrackEdges && ((p.object.getParent().getPrevious()!=null && p.object.getPrevious()==null) || (p.object.getParent().getNext()!=null && p.object.getNext()==null));
             IJRoi3D r = objectRoiCache.get(p);
             if (r == null) {
                 r = createObjectRoi(p, getTransparentColor(color, edge), edge, p.sliceIdx);
-                objectRoiCache.put(p, r);
+                objectRoiCache.put(p, r.duplicate());
             } else {
                 r = r.duplicate();
                 r.setColor(getTransparentColor(color, edge), edge);
@@ -719,7 +719,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
 
         track.stream().map(getRoi).filter(Objects::nonNull).flatMap(r -> r.is2D() ? Stream.of(r.get(0)) : r.values().stream()).forEach(trackRoi::addObject);
         // add flag when track links have been edited
-        if (displayCorrections) {
+        if (flags && displayCorrections) {
             Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
             Consumer<ObjectDisplay> addEditedArrow = object -> {
                 if (edited.test(object.object)) { // also display when segmentation is edited
@@ -747,103 +747,108 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             };
             track.stream().forEach(addEditedArrow::accept);
         }
-        // add arrow to indicate splitting
-        Utils.TriConsumer<ObjectDisplay, ObjectDisplay, Color> addSplitArrow = (o1, o2, c) -> {
-            Point p1 = o1.object.getRegion().getCenter() == null ? o1.object.getBounds().getCenter() : o1.object.getRegion().getCenter().duplicate();
-            Point p2 = o2.object.getRegion().getCenter() == null ? o2.object.getBounds().getCenter() : o2.object.getRegion().getCenter().duplicate();
-            p1.translate(o1.offset).translateRev(o1.object.getBounds()); // go back to hyperstack offset
-            p2.translate(o2.offset).translateRev(o2.object.getBounds());
-            Arrow arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
-            arrow.enableSubPixelResolution();
-            arrow.setDoubleHeaded(true);
-            arrow.setStrokeColor(c);
-            arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
-            int zMin = Math.max(o1.offset.zMin(), o2.offset.zMin());
-            int zMax = Math.min(o1.offset.zMax(), o2.offset.zMax());
-            if (zMin==zMax) {
-                arrow.setPosition(0, zMin+1, o1.sliceIdx + 1 );
-                trackRoi.addLink(arrow);
-            } else {
-                for (int z = zMin; z <= zMax; ++z) {
-                    Arrow a = (Arrow) arrow.clone();
-                    a.setPosition(0, z+1, o1.sliceIdx + 1 );
-                    trackRoi.addLink(a);
-                }
-            }
-        };
-        Utils.TriConsumer<ObjectDisplay, ObjectDisplay, Color> addArrow = (source, target, c) -> {
-            Point p1 = source.object.getRegion().getCenter() == null ? source.object.getBounds().getCenter() : source.object.getRegion().getCenter().duplicate();
-            Point p2 = target.object.getRegion().getCenter() == null ? target.object.getBounds().getCenter() : target.object.getRegion().getCenter().duplicate();
-            p1.translate(source.offset).translateRev(source.object.getBounds()); // go back to hyperstack offset
-            p2.translate(target.offset).translateRev(target.object.getBounds());
-            Arrow arrow1 = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
-            arrow1.enableSubPixelResolution();
-            arrow1.setDoubleHeaded(false);
-            arrow1.setStrokeColor(c);
-            arrow1.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow1.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
-            int zMin = Math.max(source.offset.zMin(), target.offset.zMin());
-            int zMax = Math.min(source.offset.zMax(), target.offset.zMax());
-            if (zMin==zMax) {
-                arrow1.setPosition(0, zMin+1, source.sliceIdx + 1 );
-                trackRoi.addLink(arrow1);
-            } else {
-                for (int z = zMin; z <= zMax; ++z) {
-                    Arrow a1 = (Arrow) arrow1.clone();
-                    a1.setPosition(0, z+1, source.sliceIdx + 1 );
-                    trackRoi.addLink(a1);
-                }
-            }
-        };
-        if (track.size()==1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
-            SegmentedObject o = track.get(0).object;
-            int slice = track.get(0).sliceIdx;
-            if (o.getPreviousId()!=null) {
-                if (o.getPrevious()==null) logger.debug("object: {} center: {}, previous null, previous id: {}", o,o.getRegion().getGeomCenter(false), o.getPreviousId());
-            }
-            if (o.getPreviousId()!=null && o.getPrevious()!=null && o.getPrevious().getTrackHead()!=o.getTrackHead()) {
-                List<SegmentedObject> div = SegmentedObjectEditor.getNext(o.getPrevious()).collect(Collectors.toList());
-                if (div.size()>1) { // only show
-                    List<ObjectDisplay> divP = i.toObjectDisplay(div, slice);
-                    for (ObjectDisplay other : divP) {
-                        if (!other.object.equals(o) && other.object.getIdx()>o.getIdx()) addSplitArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
+
+        if (flags) { // add arrow to indicate splitting / merging
+            Utils.TriConsumer<ObjectDisplay, ObjectDisplay, Color> addSplitArrow = (o1, o2, c) -> {
+                Point p1 = o1.object.getRegion().getCenter() == null ? o1.object.getBounds().getCenter() : o1.object.getRegion().getCenter().duplicate();
+                Point p2 = o2.object.getRegion().getCenter() == null ? o2.object.getBounds().getCenter() : o2.object.getRegion().getCenter().duplicate();
+                p1.translate(o1.offset).translateRev(o1.object.getBounds()); // go back to hyperstack offset
+                p2.translate(o2.offset).translateRev(o2.object.getBounds());
+                Arrow arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
+                arrow.enableSubPixelResolution();
+                arrow.setDoubleHeaded(true);
+                arrow.setStrokeColor(c);
+                arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
+                arrow.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
+                int zMin = Math.max(o1.offset.zMin(), o2.offset.zMin());
+                int zMax = Math.min(o1.offset.zMax(), o2.offset.zMax());
+                if (zMin==zMax) {
+                    arrow.setPosition(0, zMin+1, o1.sliceIdx + 1 );
+                    trackRoi.addLink(arrow);
+                } else {
+                    for (int z = zMin; z <= zMax; ++z) {
+                        Arrow a = (Arrow) arrow.clone();
+                        a.setPosition(0, z+1, o1.sliceIdx + 1 );
+                        trackRoi.addLink(a);
                     }
                 }
-            }
-            if (o.getNextId()!=null) {
-                if (o.getNext()==null) logger.debug("object: {} center: {}, next null, next id: {}", o, o.getRegion().getGeomCenter(false), o.getNextId());
-            }
-            if (o.getNextId()!=null && o.getNext()!=null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
-                List<SegmentedObject> merge = SegmentedObjectEditor.getPrevious(o.getNext()).collect(Collectors.toList());
-                ObjectDisplay target = new ObjectDisplay(o.getNext(), i.getObjectOffset(o.getNext(), slice), slice);
-                if (merge.size()>1) { // only show
-                    List<ObjectDisplay> mergeP = i.toObjectDisplay(merge, slice);
-                    for (ObjectDisplay other : mergeP) {
-                        addArrow.accept(other, target, getColor(o.getNext().getTrackHead()));
+            };
+            Utils.TriConsumer<ObjectDisplay, ObjectDisplay, Color> addArrow = (source, target, c) -> {
+                Point p1 = source.object.getRegion().getCenter() == null ? source.object.getBounds().getCenter() : source.object.getRegion().getCenter().duplicate();
+                Point p2 = target.object.getRegion().getCenter() == null ? target.object.getBounds().getCenter() : target.object.getRegion().getCenter().duplicate();
+                p1.translate(source.offset).translateRev(source.object.getBounds()); // go back to hyperstack offset
+                p2.translate(target.offset).translateRev(target.object.getBounds());
+                Arrow arrow1 = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
+                arrow1.enableSubPixelResolution();
+                arrow1.setDoubleHeaded(false);
+                arrow1.setStrokeColor(c);
+                arrow1.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
+                arrow1.setHeadSize(Math.max(TRACK_ARROW_STROKE_WIDTH*1.1, 1.1));
+                int zMin = Math.max(source.offset.zMin(), target.offset.zMin());
+                int zMax = Math.min(source.offset.zMax(), target.offset.zMax());
+                if (zMin==zMax) {
+                    arrow1.setPosition(0, zMin+1, source.sliceIdx + 1 );
+                    trackRoi.addLink(arrow1);
+                } else {
+                    for (int z = zMin; z <= zMax; ++z) {
+                        Arrow a1 = (Arrow) arrow1.clone();
+                        a1.setPosition(0, z+1, source.sliceIdx + 1 );
+                        trackRoi.addLink(a1);
                     }
                 }
-            }
-        } else {
-            if (track.get(track.size() - 1).object.getNextId() == null) {
-                List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).object).collect(Collectors.toList());
-                int slice = track.get(track.size() - 1).sliceIdx;
-                if (next.size() > 1) { // show division by displaying arrows between objects
-                    List<ObjectDisplay> nextP = i.toObjectDisplay(next, slice);
-                    for (int idx = 0; idx < next.size() - 1; ++idx)
-                        addSplitArrow.accept(nextP.get(idx), nextP.get(idx + 1), color);
+            };
+            if (track.size() == 1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
+                SegmentedObject o = track.get(0).object;
+                int slice = track.get(0).sliceIdx;
+                if (o.getPreviousId() != null) {
+                    if (o.getPrevious() == null)
+                        logger.debug("object: {} center: {}, previous null, previous id: {}", o, o.getRegion().getGeomCenter(false), o.getPreviousId());
                 }
-            }
-            if (track.get(0).object.getPreviousId() == null) {
-                List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList());
-                ObjectDisplay target = track.get(0);
-                if (prev.size() > 1) { // show merging by displaying arrows between objects
-                    List<ObjectDisplay> prevP = i.toObjectDisplay(prev, target.sliceIdx);
-                    prevP.forEach(p -> addArrow.accept(p, target, color));
+                if (o.getPreviousId() != null && o.getPrevious() != null && o.getPrevious().getTrackHead() != o.getTrackHead()) {
+                    List<SegmentedObject> div = SegmentedObjectEditor.getNext(o.getPrevious()).collect(Collectors.toList());
+                    if (div.size() > 1) { // only show
+                        List<ObjectDisplay> divP = i.toObjectDisplay(div, slice);
+                        for (ObjectDisplay other : divP) {
+                            if (!other.object.equals(o) && other.object.getIdx() > o.getIdx())
+                                addSplitArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
+                        }
+                    }
+                }
+                if (o.getNextId() != null) {
+                    if (o.getNext() == null)
+                        logger.debug("object: {} center: {}, next null, next id: {}", o, o.getRegion().getGeomCenter(false), o.getNextId());
+                }
+                if (o.getNextId() != null && o.getNext() != null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
+                    List<SegmentedObject> merge = SegmentedObjectEditor.getPrevious(o.getNext()).collect(Collectors.toList());
+                    ObjectDisplay target = new ObjectDisplay(o.getNext(), i.getObjectOffset(o.getNext(), slice), slice);
+                    if (merge.size() > 1) { // only show
+                        List<ObjectDisplay> mergeP = i.toObjectDisplay(merge, slice);
+                        for (ObjectDisplay other : mergeP) {
+                            addArrow.accept(other, target, getColor(o.getNext().getTrackHead()));
+                        }
+                    }
+                }
+            } else {
+                if (track.get(track.size() - 1).object.getNextId() == null) {
+                    List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).object).collect(Collectors.toList());
+                    int slice = track.get(track.size() - 1).sliceIdx;
+                    if (next.size() > 1) { // show division by displaying arrows between objects
+                        List<ObjectDisplay> nextP = i.toObjectDisplay(next, slice);
+                        for (int idx = 0; idx < next.size() - 1; ++idx)
+                            addSplitArrow.accept(nextP.get(idx), nextP.get(idx + 1), color);
+                    }
+                }
+                if (track.get(0).object.getPreviousId() == null) {
+                    List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList());
+                    ObjectDisplay target = track.get(0);
+                    if (prev.size() > 1) { // show merging by displaying arrows between objects
+                        List<ObjectDisplay> prevP = i.toObjectDisplay(prev, target.sliceIdx);
+                        prevP.forEach(p -> addArrow.accept(p, target, color));
+                    }
                 }
             }
         }
-        return trackRoi.setTrackType(Structure.TRACK_DISPLAY.CONTOUR);
+        return trackRoi;
     }
 
     protected static IJTrackRoi createKymographTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i, double arrowStrokeWidth) {

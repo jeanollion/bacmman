@@ -163,7 +163,7 @@ public class IJVirtualStack extends VirtualStack {
     public ImageProcessor getProcessor(int n) {
         //logger.debug("get processor: {} cb null ? {}", n, setFrameCallback==null);
         int[] fcz = getFCZ.apply(n--);
-        logger.debug("n: {} fcz: {} hyperstack: {}", n, fcz, imp!=null && imp.isDisplayedHyperStack());
+        //logger.debug("n: {} fcz: {} hyperstack: {}", n, fcz, imp!=null && imp.isDisplayedHyperStack());
         if (setFrameCallback!=null) setFrameCallback.accept(fcz[0]);
         if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz[0]);
         boolean displaySet = false;

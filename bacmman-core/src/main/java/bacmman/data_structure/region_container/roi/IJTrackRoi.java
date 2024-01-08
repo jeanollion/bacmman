@@ -10,13 +10,14 @@ import java.util.*;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static bacmman.data_structure.region_container.roi.IJRoi3D.logger;
 import static bacmman.data_structure.region_container.roi.IJRoi3D.setRoiColor;
 
 public class IJTrackRoi implements TrackRoi {
     boolean is2D;
     Structure.TRACK_DISPLAY trackType = Structure.TRACK_DISPLAY.DEFAULT;
     Map<Integer, IJTrackRoi> sliceDuplicates= new HashMap<>(); // if Roi from 2D ref displayed on 3D image
-    Map<Roi, int[]> position = new HashMap<>();
+    Map<Roi, int[]> positionZT = new HashMap<>();
 
     List<Roi> objects=new ArrayList<>();
     List<Roi> links = new ArrayList<>();
@@ -42,7 +43,7 @@ public class IJTrackRoi implements TrackRoi {
         objects.addAll(other.objects);
         links.addAll(other.links);
         flags.addAll(other.flags);
-        position.putAll(other.position);
+        positionZT.putAll(other.positionZT);
         sliceDuplicates.clear();
         return this;
     }
@@ -65,29 +66,29 @@ public class IJTrackRoi implements TrackRoi {
     }
 
     public boolean addLink(Roi r) {
-        position.put(r, new int[]{r.getZPosition(), r.getTPosition()});
+        positionZT.put(r, new int[]{r.getZPosition(), r.getTPosition()});
         return links.add(r);
     }
     public boolean addObject(Roi r) {
-        position.put(r, new int[]{r.getZPosition(), r.getTPosition()});
+        positionZT.put(r, new int[]{r.getZPosition(), r.getTPosition()});
         return objects.add(r);
     }
 
     public boolean addFlag(Roi r) {
-        position.put(r, new int[]{r.getZPosition(), r.getTPosition()});
+        positionZT.put(r, new int[]{r.getZPosition(), r.getTPosition()});
         return flags.add(r);
     }
 
     public IJTrackRoi setZToPosition() {
-        for (Roi r: links) r.setPosition(position.get(r)[0]);
-        for (Roi r: objects) r.setPosition(position.get(r)[0]);
-        for (Roi r: flags) r.setPosition(position.get(r)[0]);
+        for (Roi r: links) r.setPosition(positionZT.get(r)[0]);
+        for (Roi r: objects) r.setPosition(positionZT.get(r)[0]);
+        for (Roi r: flags) r.setPosition(positionZT.get(r)[0]);
         return this;
     }
     public IJTrackRoi setTToPosition() {
-        for (Roi r: links) r.setPosition(position.get(r)[1]);
-        for (Roi r: objects) r.setPosition(position.get(r)[1]);
-        for (Roi r: flags) r.setPosition(position.get(r)[1]);
+        for (Roi r: links) r.setPosition(positionZT.get(r)[1]);
+        for (Roi r: objects) r.setPosition(positionZT.get(r)[1]);
+        for (Roi r: flags) r.setPosition(positionZT.get(r)[1]);
         return this;
     }
     public IJTrackRoi setIs2D(boolean is2D) {this.is2D=is2D; return this;}
