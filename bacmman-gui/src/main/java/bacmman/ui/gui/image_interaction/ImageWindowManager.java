@@ -106,6 +106,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
 
     // displayed objects 
     protected final Map<ObjectDisplay, O> objectRoiCache = new HashMap<>();
+    protected final Map<ObjectDisplay, O> persistentObjectRoiCache = new HashMap<>();
     protected final Map<List<ObjectDisplay>, T> kymographTrackRoiCache =new HashMap<>();
     protected final Map<List<ObjectDisplay>, T> hyperstackTrackRoiCache =new HashMap<>();
     protected final Map<Image, Set<O>> displayedLabileObjectRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
@@ -167,6 +168,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         stopAllRunningWorkers();
         if (!objectRoiCache.isEmpty()) logger.debug("flush: will remove {} rois", objectRoiCache.size());
         objectRoiCache.clear();
+        persistentObjectRoiCache.clear();
         hyperstackTrackRoiCache.clear();
         kymographTrackRoiCache.clear();
         displayedLabileObjectRois.clear();
@@ -391,14 +393,15 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                     sel.removeIf(o -> targetInteractiveImage.getObjectsAtFrame(o.getStructureIdx(), o.getFrame()).noneMatch(o::equals));
                     if (!sel.isEmpty()) {
                         displayObjects(targetImage, targetInteractiveImage.toObjectDisplay(sel.stream()).collect(Collectors.toList()), null, false, true, false);
-                        goToNextObject(targetImage, sel, true, false);
+                        boolean move = goToNextObject(targetImage, sel, true, false);
+                        if (!move) goToNextObject(targetImage, sel, false, false);
                     }
                     List<SegmentedObject> selTracks = getSelectedLabileTrackHeads(refImage);
                     selTracks.removeIf(o -> targetInteractiveImage.getObjectsAtFrame(o.getStructureIdx(), o.getFrame()).noneMatch(o::equals));
                     if (!selTracks.isEmpty()) displayTracks(targetImage, targetInteractiveImage, SegmentedObjectUtils.getTracks(selTracks), null, true, false);
                     if (sel.isEmpty() && selTracks.isEmpty()) setSlice = true;
                     else setSlice = false;
-                    logger.debug("sel: {} tracks: {} sel slice: {}", sel.size(), selTracks.size(), setSlice);
+                    //logger.debug("sel: {} tracks: {} sel slice: {}", sel.size(), selTracks.size(), setSlice);
                     break;
                 case OBJECTS:
                     displayAllObjects(targetImage);
@@ -590,10 +593,18 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                 color = getTransparentColor(color, fill);
             }
             //logger.debug("getting mask of object: {}", o);
-            O roi= objectRoiCache.get(od);
+            Map<ObjectDisplay, O> cache = labileObjects ? objectRoiCache : persistentObjectRoiCache;
+            O roi= cache.get(od);
+            if (roi==null && !labileObjects) {
+                roi = objectRoiCache.get(od);
+                if (roi != null) {
+                    roi = roi.duplicate();
+                    persistentObjectRoiCache.put(od, roi);
+                }
+            }
             if (roi==null) {
                 roi = createObjectRoi(od, color, fill);
-                objectRoiCache.put(od, roi);
+                cache.put(od, roi);
             } else {
                 roi.setColor(color, fill);
                 roi.setStrokeWidth(ROI_STROKE_WIDTH);
@@ -625,7 +636,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         Set<O> selectedObjects = labileObjects ? this.displayedLabileObjectRois.get(image) : displayedObjectRois.get(image);
         for (ObjectDisplay p : objects) {
             //logger.debug("hiding: {}", p.key);
-            O roi= objectRoiCache.get(p);
+            O roi= labileObjects ? objectRoiCache.get(p) : persistentObjectRoiCache.get(p);
             if (roi!=null) {
                 hideObject(dispImage, roi);
                 if (selectedObjects!=null) selectedObjects.remove(roi);
@@ -849,6 +860,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         }
         for (SegmentedObject object : objects) {
             objectRoiCache.keySet().removeIf(o -> o.object.equals(object));
+            persistentObjectRoiCache.keySet().removeIf(o -> o.object.equals(object));
         }
         if (removeTrack) removeTracks(SegmentedObjectUtils.getTrackHeads(objects));
 
@@ -891,6 +903,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     public void resetObjectsAndTracksRoi() {
         for (Image image : imageMapInteractiveImage.keySet()) hideAllRois(image, true, true);
         objectRoiCache.clear();
+        persistentObjectRoiCache.clear();
         hyperstackTrackRoiCache.clear();
         kymographTrackRoiCache.clear();
         displayedLabileTrackRois.clear();
@@ -970,14 +983,14 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                 //else minTimePoint++;
             }
         }
-        logger.debug("Current Display range: [{}; {}], number of objects: {} frame range: [{}; {}]", minTimePoint, maxTimePoint, objects.size(), objects.stream().mapToInt(SegmentedObject::getFrame).min().orElse(-1), objects.stream().mapToInt(SegmentedObject::getFrame).max().orElse(-1));
+        //logger.debug("Current Display range: [{}; {}], number of objects: {} frame range: [{}; {}]", minTimePoint, maxTimePoint, objects.size(), objects.stream().mapToInt(SegmentedObject::getFrame).min().orElse(-1), objects.stream().mapToInt(SegmentedObject::getFrame).max().orElse(-1));
         objects.sort(SegmentedObjectUtils.frameComparator()); // sort by frame
         if (!forceMove) { // check if objects are already displayed and do not move
             if (objects.stream().mapToInt(SegmentedObject::getFrame).anyMatch(f -> f>= minTimePoint && f<= maxTimePoint)) return true;
         }
         SegmentedObject nextObject = getNextObject(next? maxTimePoint+1: minTimePoint-1, objects, next); // next object outside display range
         if (nextObject==null) {
-            logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
+            //logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
             return false;
         } else {
             if (i instanceof HyperStack) {
