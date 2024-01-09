@@ -72,7 +72,7 @@ public class Shortcuts {
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
         SELECT_ALL_OBJECTS("Display all objects of interactive object class on active image"), SELECT_ALL_OBJECT_CLASSES("Display all objects from all classes on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         SYNC_VIEW("Synchronize View between different images"),
-        KYMOGRAPH_VIEW("Generate a Kyomgraph View from selection on current Hyperstack", "rectangle + ctrl + shift"), HYPERSTACK_VIEW("Generate a Hyperstack view from selection on current Hyperstack", "rectangle + ctrl + alt"),
+        KYMOGRAPH_VIEW("Generate a Kyomgraph View from selection on current Hyperstack", "rectangle then ctrl + shift"), HYPERSTACK_VIEW("Generate a Hyperstack view from selection on current Hyperstack", "rectangle then ctrl + alt"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + alt + mouse wheel"),
         SCROLL_Z("Scroll Z-axis", "space + mouse wheel"),
         SCROLL_T("Scroll Time-axis", "alt + mouse wheel"),
