@@ -181,8 +181,8 @@ public class SimpleInteractiveImage extends InteractiveImage {
     }
 
     @Override
-    public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects) {
-        return toObjectDisplay(objects, 0);
+    public Stream<ObjectDisplay> toObjectDisplay(Stream<SegmentedObject> objects) {
+        return objects.map(o -> toObjectDisplay(o, 0)).filter(Objects::nonNull);
     }
 
     @Override
@@ -192,6 +192,12 @@ public class SimpleInteractiveImage extends InteractiveImage {
     @Override
     public Stream<SegmentedObject> getAllObjects(int objectClassIdx) {
         return getObjectsAsList(objectClassIdx).stream();
+    }
+
+    @Override
+    public Stream<SegmentedObject> getObjectsAtFrame(int objectClassIdx, int frame) {
+        if (parent.getFrame() == frame) return getAllObjects(objectClassIdx);
+        else return Stream.empty();
     }
 
     @Override

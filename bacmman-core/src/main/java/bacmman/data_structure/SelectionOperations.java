@@ -1,12 +1,8 @@
 package bacmman.data_structure;
 
-import bacmman.configuration.parameters.MeasurementFilterParameter;
 import bacmman.data_structure.dao.MasterDAO;
-import bacmman.image.BoundingBox;
-import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.EdgeContact;
 import bacmman.ui.gui.image_interaction.ObjectDisplay;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -232,42 +228,34 @@ public class SelectionOperations {
         return p.get(idx);
     }
 
-    public static Collection<ObjectDisplay> filterPairs(Stream<ObjectDisplay> objects, Collection<String> indices) {
-        //Utils.removeDuplicates(objects, o->Selection.indicesString(o.key)); // remove duplicate labels. should not occur
-        Map<String, ObjectDisplay> map = objects.collect(Collectors.toMap(o->Selection.indicesString(o.object), o->o));
-        map.keySet().retainAll(indices);
-        return map.values();
+    public static Stream<ObjectDisplay> filterObjectDisplay(Stream<ObjectDisplay> objects, Collection<String> indices) {
+        return objects.filter(o -> indices.contains(Selection.indicesString(o.object)));
     }
 
-    public static Collection<SegmentedObject> filter(Stream<SegmentedObject> objects, Collection<String> indices) {
-        //Map<String, StructureObject> map = new HashMap<>(objects.size());
-        //for (StructureObject o : objects) map.put(Selection.indicesString(o), o);
-        Map<String, SegmentedObject> map = objects.collect(Collectors.toMap(Selection::indicesString, o->o));
-        map.keySet().retainAll(indices);
-        return map.values();
+    public static Stream<SegmentedObject> filter(Stream<SegmentedObject> objects, Set<String> indices) {
+        return objects.filter(o -> indices.contains(Selection.indicesString(o)));
     }
 
     public static List<SegmentedObject> getParents(Selection sel, String position, MasterDAO db) {
-        List<String> parentStrings = Utils.transform(sel.getElementStrings(position), Selection::getParent);
+        Set<String> parentStrings = sel.getElementStrings(position).stream().map(Selection::getParent).collect(Collectors.toSet());
         Utils.removeDuplicates(parentStrings, false);
-        return new ArrayList<>(filter(SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), db.getExperiment().getStructure(sel.getStructureIdx()).getParentStructure()), parentStrings));
+        return filter(SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), db.getExperiment().getStructure(sel.getStructureIdx()).getParentStructure()), parentStrings).collect(Collectors.toList());
     }
 
     public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, MasterDAO db) {
         List<SegmentedObject> parents = getParents(sel, position, db);
-        parents = Utils.transform(parents, o -> o.getTrackHead());
-        Utils.removeDuplicates(parents, false);
-        return parents;
+        return parents.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
     }
 
     public static List<SegmentedObject> getParents(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
         if (!(db.getExperiment().experimentStructure.isChildOf(parentStructureIdx, sel.getStructureIdx())||parentStructureIdx==sel.getStructureIdx())) return Collections.EMPTY_LIST;
         int[] path = db.getExperiment().experimentStructure.getPathToStructure(parentStructureIdx, sel.getStructureIdx());
-        List<String> parentStrings = parentStructureIdx!=sel.getStructureIdx()?Utils.transform(sel.getElementStrings(position), s->Selection.getParent(s, path.length)):new ArrayList<>(sel.getElementStrings(position));
+        Set<String> parentStrings = parentStructureIdx!=sel.getStructureIdx()?sel.getElementStrings(position).stream().map(s->Selection.getParent(s, path.length)).collect(Collectors.toSet()):
+                sel.getElementStrings(position);
         Utils.removeDuplicates(parentStrings, false);
         logger.debug("get parent sel: path: {}, parent strings: {}", path, parentStrings);
         Stream<SegmentedObject> allObjects = SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentStructureIdx);
-        return new ArrayList<>(filter(allObjects, parentStrings));
+        return filter(allObjects, parentStrings).collect(Collectors.toList());
     }
 
     public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, int parentStructureIdx, MasterDAO db) {

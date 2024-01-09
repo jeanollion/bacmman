@@ -390,7 +390,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                     List<SegmentedObject> sel = getSelectedLabileObjects(refImage);
                     sel.removeIf(o -> targetInteractiveImage.getObjectsAtFrame(o.getStructureIdx(), o.getFrame()).noneMatch(o::equals));
                     if (!sel.isEmpty()) {
-                        displayObjects(targetImage, targetInteractiveImage.toObjectDisplay(sel), null, false, true, false);
+                        displayObjects(targetImage, targetInteractiveImage.toObjectDisplay(sel.stream()).collect(Collectors.toList()), null, false, true, false);
                         goToNextObject(targetImage, sel, true, false);
                     }
                     List<SegmentedObject> selTracks = getSelectedLabileTrackHeads(refImage);
@@ -693,7 +693,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         boolean hyperStack = i instanceof HyperStack;
         List<List<SegmentedObject>> displayedTracks = new ArrayList<>();
         for (List<SegmentedObject> track : tracks) {
-            List<ObjectDisplay> trackOD = i.toObjectDisplay(track);
+            List<ObjectDisplay> trackOD = i.toObjectDisplay(track.stream()).collect(Collectors.toList());
             Collections.sort(trackOD);
             boolean disp = displayTrack(image, i, trackOD, color==null?getColor(track.get(0)):color, labile, false, hideIfAlreadyDisplayed, false);
             if (disp) displayedTracks.add(track);
@@ -841,11 +841,11 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         if (objects.isEmpty()) return;
         for (Image image : this.displayedLabileObjectRois.keySet()) {
             InteractiveImage i = this.getInteractiveImage(image);
-            if (i!=null) hideObjects(image, i.toObjectDisplay(objects), true);
+            if (i!=null) hideObjects(image, i.toObjectDisplay(objects.stream()).collect(Collectors.toList()), true);
         }
         for (Image image : this.displayedObjectRois.keySet()) {
             InteractiveImage i = this.getInteractiveImage(image);
-            if (i!=null) hideObjects(image, i.toObjectDisplay(objects), false);
+            if (i!=null) hideObjects(image, i.toObjectDisplay(objects.stream()).collect(Collectors.toList()), false);
         }
         for (SegmentedObject object : objects) {
             objectRoiCache.keySet().removeIf(o -> o.object.equals(object));

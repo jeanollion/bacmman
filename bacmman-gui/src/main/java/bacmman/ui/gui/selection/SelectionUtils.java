@@ -42,7 +42,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.swing.*;
 
@@ -80,61 +79,17 @@ public class SelectionUtils {
         List<Selection> sel = db.getSelectionDAO().getSelections();
         return Utils.transform(sel, Selection::getName).contains(name);
     }
-    
-    public static Collection<SegmentedObject> getSegmentedObjects(InteractiveImage i, int slice, List<Selection> selections) {
-        if (i==null) ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface();
-        if (i==null) return Collections.EMPTY_LIST;
-        String fieldName = i.getParent().getPositionName();
-        if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
-        List<String> allStrings=  new ArrayList<>();
-        for (Selection s : selections) allStrings.addAll(s.getElementStrings(fieldName));
-        return getSegmentedObjects(i, selections.get(0).getStructureIdx(), slice, allStrings);
-    }
 
-    public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, int objectClassIdx, Collection<String> indices) {
-        Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
-        Stream<SegmentedObject> objects;
-        if (i instanceof TimeLapseInteractiveImage) {
-            objects = frames.flatMap(frame -> ((TimeLapseInteractiveImage) i).getObjectsAtFrame(objectClassIdx, frame));
-        } else {
-            objects = i.getAllObjects(objectClassIdx);
-        }
-        return new ArrayList<>(SelectionOperations.filter(objects, indices));
+    public static Stream<SegmentedObject> getSegmentedObjects(InteractiveImage i, int objectClassIdx, Set<String> indices) {
+        Stream<SegmentedObject> objects = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct()
+                .flatMap(frame -> i.getObjectsAtFrame(objectClassIdx, frame));
+        return SelectionOperations.filter(objects, indices);
     }
-
-    public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, int objectClassIdx, int slice, Collection<String> indices) {
-        return new ArrayList<>(SelectionOperations.filter(i.getObjects(objectClassIdx, slice), indices));
+    protected static Stream<ObjectDisplay> getObjectDisplays(Selection s, InteractiveImage i) {
+        return i.toObjectDisplay(getSegmentedObjects(i, s.getStructureIdx(), s.getElementStrings(i.getParent().getPositionName())));
     }
-
-    protected static Collection<ObjectDisplay> getObjects(Selection s, InteractiveImage i, int slice) {
-        return SelectionOperations.filterPairs(i.getObjectDisplay(s.getStructureIdx(), slice), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
-    }
-
-    public static void displayObjects(Selection s, Image image, InteractiveImage i, int slice) {
-        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
-        if (i!=null) {
-            Collection<ObjectDisplay> objects = slice>=0 ? getObjects(s, i, slice) : null;
-            Consumer<Image> consumer= im -> {
-                Collection<ObjectDisplay> objects_ = slice >= 0 ? objects : getObjects(s, i, iwm.getDisplayer().getFrame(im));
-                if (objects_ != null) iwm.displayObjects(im, objects_, s.getColor(true), false, false, false);
-            };
-            if (image == null) iwm.getImages(i).forEach(consumer);
-            else consumer.accept(image);
-        } else iwm.getAllInteractiveImages().forEach( ii -> displayObjects(s, image, ii, slice));
-    }
-    
-    public static void hideObjects(Selection s, Image image, InteractiveImage i, int slice) {
-        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
-        if (i!=null) {
-            Collection<ObjectDisplay> objects = slice>=0 ? getObjects(s, i, slice) : null;
-            Consumer<Image> consumer=im -> {
-                Collection<ObjectDisplay> objects_ = slice >=0 ? objects : getObjects(s, i, iwm.getDisplayer().getFrame(im));
-                if (objects_!=null) iwm.hideObjects(im, objects_, false);
-            };
-            if (image == null) iwm.getImages(i).forEach(consumer);
-            else consumer.accept(image);
-        } else iwm.getAllInteractiveImages().forEach( ii -> hideObjects(s, image, ii, slice));
+    protected static Stream<ObjectDisplay> getObjectDisplays(Selection s, InteractiveImage i, int slice) {
+        return SelectionOperations.filterObjectDisplay(i.getObjectDisplay(s.getStructureIdx(), slice), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
     }
 
     protected static Stream<List<SegmentedObject>> getTracks(Selection s, InteractiveImage i, int slice) {
@@ -144,6 +99,66 @@ public class SelectionUtils {
     protected static Stream<SegmentedObject> getTrackHeads(Selection s, InteractiveImage i, int slice) {
         Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(i.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
         return i.getObjects(s.getStructureIdx(), slice).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains);
+    }
+
+    protected static Stream<List<SegmentedObject>> getTracks(Selection s, InteractiveImage i) {
+        return getTrackHeads(s, i).map(SegmentedObjectUtils::getTrack);
+    }
+
+    protected static Stream<SegmentedObject> getTrackHeads(Selection s, InteractiveImage i) {
+        Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(i.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+        return selTH.stream().map(SegmentedObject::getFrame).distinct()
+                .flatMap(f -> i.getObjectsAtFrame(s.getStructureIdx(), f)).filter(selTH::contains);
+    }
+
+    public static void displayObjects(Selection s, Image image, InteractiveImage i, int slice) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            List<ObjectDisplay> objects = slice>=0 ? getObjectDisplays(s, i, slice).collect(Collectors.toList()) : null;
+            Consumer<Image> consumer= im -> {
+                List<ObjectDisplay> objects_ = slice >= 0 ? objects : getObjectDisplays(s, i, iwm.getDisplayer().getFrame(im)).collect(Collectors.toList());
+                if (objects_ != null) iwm.displayObjects(im, objects_, s.getColor(true), false, false, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> displayObjects(s, image, ii, slice));
+    }
+    
+    public static void hideObjects(Selection s, Image image, InteractiveImage i, int slice) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            Collection<ObjectDisplay> objects = slice>=0 ? getObjectDisplays(s, i, slice).collect(Collectors.toList()) : null;
+            Consumer<Image> consumer=im -> {
+                Collection<ObjectDisplay> objects_ = slice >=0 ? objects : getObjectDisplays(s, i, iwm.getDisplayer().getFrame(im)).collect(Collectors.toList());
+                if (objects_!=null) iwm.hideObjects(im, objects_, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> hideObjects(s, image, ii, slice));
+    }
+
+    public static void displayObjects(Selection s, Image image, InteractiveImage i) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            Consumer<Image> consumer= im -> {
+                List<ObjectDisplay> objects_ = getObjectDisplays(s, i).collect(Collectors.toList());
+                if (objects_ != null) iwm.displayObjects(im, objects_, s.getColor(true), false, false, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> displayObjects(s, image, ii));
+    }
+
+    public static void hideObjects(Selection s, Image image, InteractiveImage i) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            Consumer<Image> consumer=im -> {
+                Collection<ObjectDisplay> objects_ = getObjectDisplays(s, i).collect(Collectors.toList());
+                if (objects_!=null) iwm.hideObjects(im, objects_, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> hideObjects(s, image, ii));
     }
 
     public static void displayTracks(Selection s, Image image, InteractiveImage i, int slice) {
@@ -156,7 +171,19 @@ public class SelectionUtils {
             };
             if (image == null) iwm.getImages(i).forEach(consumer);
             else consumer.accept(image);
-        } else iwm.getAllInteractiveImages().forEach( ii -> displayTracks(s, image, ii, slice));
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> displayTracks(s, image, ii, slice));
+    }
+
+    public static void displayTracks(Selection s, Image image, InteractiveImage i) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            Consumer<Image> consumer=im -> {
+                List<List<SegmentedObject>> tracks_ = getTracks(s, i).collect(Collectors.toList());
+                iwm.displayTracks(im, i, tracks_, s.getColor(true), false, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> displayTracks(s, image, ii));
     }
 
     public static void hideTracks(Selection s, Image image, InteractiveImage i, int slice) {
@@ -169,7 +196,19 @@ public class SelectionUtils {
             };
             if (image == null) iwm.getImages(i).forEach(consumer);
             else consumer.accept(image);
-        } else iwm.getAllInteractiveImages().forEach( ii -> hideTracks(s, image, ii, slice));
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> hideTracks(s, image, ii, slice));
+    }
+
+    public static void hideTracks(Selection s, Image image, InteractiveImage i) {
+        ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
+        if (i!=null) {
+            Consumer<Image> consumer=im -> {
+                List<SegmentedObject> tracks_ = getTrackHeads(s, i).collect(Collectors.toList());
+                if (tracks_!=null) iwm.hideTracks(null, i, tracks_, false);
+            };
+            if (image == null) iwm.getImages(i).forEach(consumer);
+            else consumer.accept(image);
+        } else iwm.getAllInteractiveImages().filter(ii -> s.hasElementsAt(ii.getParent().getPositionName())).forEach( ii -> hideTracks(s, image, ii));
     }
     
     public static void displaySelection(Selection s, int parentStructureIdx, int displayChannelIdx) {
@@ -309,12 +348,12 @@ public class SelectionUtils {
                     s1.setColor(colorName);
                     dao.store(s1); // optimize if necessary -> update
                     if (s1.isDisplayingObjects()) {
-                        hideObjects(s1, null, null, -1);
-                        displayObjects(s1, null, null, -1);
+                        hideObjects(s1, null, null);
+                        displayObjects(s1, null, null);
                     }
                     if (s1.isDisplayingTracks()) {
-                        hideTracks(s1, null, null, -1);
-                        displayTracks(s1, null, null, -1);
+                        hideTracks(s1, null, null);
+                        displayTracks(s1, null, null);
                     }
                 }
                 list.updateUI();

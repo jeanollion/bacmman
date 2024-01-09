@@ -127,12 +127,12 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
 
     @Override
-    public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects) {
-        return objects.stream().map(o -> {
+    public Stream<ObjectDisplay> toObjectDisplay(Stream<SegmentedObject> objects) {
+        return objects.map(o -> {
             int slice = getSlice(o.getFrame());
             BoundingBox b = this.getObjectOffset(o, slice);
             return b==null ? null : new ObjectDisplay(o, b, slice);
-        }).filter(Objects::nonNull).collect(Collectors.toList());
+        }).filter(Objects::nonNull);
     }
 
     @Override

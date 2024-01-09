@@ -1335,15 +1335,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (INSTANCE==null) return;
         ImageWindowManager<?,?,?> iwm = ImageWindowManagerFactory.getImageManager();
         if (iwm==null) return;
-        int slice = image == null ? -1 : iwm.getDisplayer().getFrame(image);
         if (image != null) iwm.hideAllRois(image, false, true);
         else {
             if (i == null) iwm.getAllInteractiveImages().forEach(ii -> iwm.getImages(ii).forEach(im -> iwm.hideAllRois(im, false, true)));
             else iwm.getImages(i).forEach(im -> iwm.hideAllRois(im, false, true));
         }
         EnumerationUtils.toStream(INSTANCE.selectionModel.elements()).forEach(s -> {
-            if (s.isDisplayingTracks()) SelectionUtils.displayTracks(s, image, i, slice);
-            if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, image, i, slice);
+            if (s.isDisplayingTracks()) SelectionUtils.displayTracks(s, image, i);
+            if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, image, i);
         });
     }
 
@@ -3372,7 +3371,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         } else { // try to move within current image
             boolean move;
             if (sel != null) {
-                List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(i, objectClassIdx, sel.getElementStrings(position));
+                List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(i, objectClassIdx, sel.getElementStrings(position)).collect(Collectors.toList());
                 logger.debug("#objects from selection on current image: {} (display sIdx: {}, sel: {})", objects.size(), displayObjectClassIdx, objectClassIdx);
                 move = !objects.isEmpty() && iwm.goToNextObject(null, objects, next, true);
             } else {
@@ -3487,7 +3486,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {
-                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), sel.getElementStrings(position));
+                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), sel.getElementStrings(position)).collect(Collectors.toList());
                     logger.debug("#objects from selection on next image: {}/{} (display oc={}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjectDisplay(sel.getStructureIdx(), currentSlice).count(), displayObjectClassIdx, objectClassIdx, im != null ? im.getName() : "null", nextParent);
                     if (!objects.isEmpty()) {
                         // wait so that new image is displayed -> magnification issue -> window is not well computed

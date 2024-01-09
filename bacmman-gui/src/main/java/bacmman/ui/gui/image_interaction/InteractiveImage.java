@@ -93,6 +93,7 @@ public abstract class InteractiveImage {
     public abstract Stream<SegmentedObject> getObjects(int objectClassIdx, int slice);
 
     public abstract Stream<SegmentedObject> getAllObjects(int objectClassIdx);
+    public abstract Stream<SegmentedObject> getObjectsAtFrame(int objectClassIdx, int frame);
     public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects, int slice) {
         return objects.stream().map(o -> toObjectDisplay(o, slice)).filter(Objects::nonNull).collect(Collectors.toList());
     }
@@ -102,7 +103,7 @@ public abstract class InteractiveImage {
         return b==null ? null : new ObjectDisplay(object, b, slice);
     }
 
-    public abstract List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects);
+    public abstract Stream<ObjectDisplay> toObjectDisplay(Stream<SegmentedObject> objects);
 
     /**
      * 

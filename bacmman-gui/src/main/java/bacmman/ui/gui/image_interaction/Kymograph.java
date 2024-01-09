@@ -156,15 +156,14 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     }
 
     @Override
-    public List<ObjectDisplay> toObjectDisplay(Collection<SegmentedObject> objects) {
-        return objects.stream()
+    public Stream<ObjectDisplay> toObjectDisplay(Stream<SegmentedObject> objects) {
+        return objects
             .flatMap(o -> getSlice(o.getFrame())// redundancy when overlap > 0
             .map(s -> {
                 BoundingBox b = this.getObjectOffset(o, s);
                 if (b==null) return null;
                 else return new ObjectDisplay(o, b, s);
-            }).filter(Objects::nonNull))
-                .collect(Collectors.toList());
+            }).filter(Objects::nonNull));
     }
 
     @Override
