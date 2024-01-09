@@ -976,14 +976,12 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             if (objects.stream().mapToInt(SegmentedObject::getFrame).anyMatch(f -> f>= minTimePoint && f<= maxTimePoint)) return true;
         }
         SegmentedObject nextObject = getNextObject(next? maxTimePoint+1: minTimePoint-1, objects, next); // next object outside display range
-        logger.debug("move to next object: {}", nextObject);
         if (nextObject==null) {
             logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
             return false;
         } else {
             if (i instanceof HyperStack) {
                 int nextSlice = ((HyperStack)i).getSlice(nextObject.getFrame());
-                logger.debug("Hyperstack navigate to frame: {} (slice: {})", nextObject.getFrame(), nextSlice);
                 displayer.setFrame(nextSlice, trackImage);
                 return true;
             } else {

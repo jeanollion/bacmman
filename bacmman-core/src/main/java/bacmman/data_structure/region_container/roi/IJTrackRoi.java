@@ -1,6 +1,7 @@
 package bacmman.data_structure.region_container.roi;
 
 import bacmman.configuration.experiment.Structure;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Palette;
 import bacmman.utils.StreamConcatenation;
 import ij.gui.Roi;
@@ -8,6 +9,7 @@ import ij.gui.Roi;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static bacmman.data_structure.region_container.roi.IJRoi3D.logger;
@@ -22,7 +24,8 @@ public class IJTrackRoi implements TrackRoi {
     List<Roi> objects=new ArrayList<>();
     List<Roi> links = new ArrayList<>();
     List<Roi> flags = new ArrayList<>();
-
+    Map<Roi, Supplier<Color>> flagColorSupplier = new HashMap<>();
+    public static final Supplier<Color> SAME_COLOR = () -> null;
     public IJTrackRoi setTrackType(Structure.TRACK_DISPLAY type) {
         this.trackType = type;
         return this;
@@ -63,6 +66,14 @@ public class IJTrackRoi implements TrackRoi {
             if (r.getStrokeColor()!=null) r.setStrokeColor(c);
             if (r.getFillColor()!=null) r.setFillColor(c);
         }
+        for (Roi r: flags) {
+            Supplier<Color> colorSupplier = flagColorSupplier.get(r);
+            if (colorSupplier == null) continue;
+            Color c = colorSupplier.get();
+            if (c==null) c = color;
+            if (r.getStrokeColor()!=null) r.setStrokeColor(c);
+            if (r.getFillColor()!=null) r.setFillColor(c);
+        }
     }
 
     public boolean addLink(Roi r) {
@@ -74,8 +85,9 @@ public class IJTrackRoi implements TrackRoi {
         return objects.add(r);
     }
 
-    public boolean addFlag(Roi r) {
+    public boolean addFlag(Roi r, Supplier<Color> setColor) {
         positionZT.put(r, new int[]{r.getZPosition(), r.getTPosition()});
+        if (setColor != null) flagColorSupplier.put(r, setColor);
         return flags.add(r);
     }
 
@@ -123,7 +135,7 @@ public class IJTrackRoi implements TrackRoi {
             for (Roi r : flags) {
                 Roi dup = (Roi)r.clone();
                 dup.setPosition(r.getCPosition(), z+1, r.getTPosition());
-                res.addFlag(dup);
+                res.addFlag(dup, flagColorSupplier.get(r));
             }
             sliceDuplicates.put(z, res);
         }

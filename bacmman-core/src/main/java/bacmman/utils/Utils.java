@@ -631,6 +631,14 @@ public class Utils {
     public interface TriPredicate<A, B, C> {
         boolean test(A a, B b, C c);
     }
+    @FunctionalInterface
+    public interface QuadriConsumer<A, B, C, D> {
+        void accept(A a, B b, C c, D d);
+    }
+    @FunctionalInterface
+    public interface QuadriPredicate<A, B, C, D> {
+        boolean test(A a, B b, C c, D d);
+    }
     public static void addHorizontalScrollBar(JComboBox box) {
         Object comp = box.getUI().getAccessibleChild(box, 0);
         if (!(comp instanceof JPopupMenu)) return;

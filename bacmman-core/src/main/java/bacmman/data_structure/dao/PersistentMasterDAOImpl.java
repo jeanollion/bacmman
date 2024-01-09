@@ -351,7 +351,6 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             logger.debug("could not read config file: ", ex);
             return null;
         }
-        logger.debug("read xp : {}", xpString);
         if (xpString==null || xpString.isEmpty()) return null;
         Experiment xp = new Experiment(dbName).setPath(datasetDir);
         xp.initFromJSONEntry(JSONUtils.parse(xpString));
