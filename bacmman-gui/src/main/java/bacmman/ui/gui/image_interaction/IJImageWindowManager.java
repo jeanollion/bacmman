@@ -477,8 +477,16 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             Utils.displayTemporaryMessage("Image is not interactive", 3000);
             return;
         }
-        Color[] objectColors = i.getParent().getExperimentStructure().getObjectColors().toArray(Color[]::new);
+        ExperimentStructure xp = i.getParent().getExperimentStructure();
+        Color[] objectColors = xp.getObjectColors().toArray(Color[]::new);
+        Set<Integer> excludeClasses= new HashSet<>();
+        int oc = i.getParent().getStructureIdx();
+        while(oc>=0) {
+            excludeClasses.add(oc);
+            oc = xp.getParentObjectClassIdx(oc);
+        }
         for (int ocIdx = 0; ocIdx<objectColors.length; ++ocIdx) {
+            if (excludeClasses.contains(ocIdx)) continue;
             if (objectColors[ocIdx]!=null) {
                 displayObjects(image, i.getObjectDisplay(ocIdx, slice).collect(Collectors.toList()), getTransparentColor(objectColors[ocIdx], true), true, true, false);
             }

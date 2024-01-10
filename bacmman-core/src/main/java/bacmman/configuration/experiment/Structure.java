@@ -171,6 +171,13 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
 
     public Color getColor() {return color.getSelectedEnum().c;}
 
+    public Structure setAutomaticColor() {
+        if (getIndex() == -1 && getParent()==null) return this;
+        int idx = (getIndex() == -1 ? getParent().getChildCount() : getIndex()) % (OBJECT_COLOR.values().length-1);
+        if (idx>=0) color.setSelectedEnum(OBJECT_COLOR.values()[idx]);
+        return this;
+    }
+
     public Structure setAllowSplit(boolean allowSplit) {
         this.allowSplit.setSelected(allowSplit);
         return this;
