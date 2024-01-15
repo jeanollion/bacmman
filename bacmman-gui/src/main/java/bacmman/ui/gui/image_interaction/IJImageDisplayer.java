@@ -36,6 +36,7 @@ import java.awt.*;
 import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.function.IntFunction;
 import java.util.function.ToIntBiFunction;
 
 /**
@@ -88,54 +89,65 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (!ip.isVisible()) {
             ip.show();
             InteractiveImage im = ImageWindowManagerFactory.getImageManager().getInteractiveImage(image);
-            TimeLapseInteractiveImageFactory.DIRECTION dir;
-            ToIntBiFunction<Integer, Boolean> nextPos;
-            if (im instanceof KymographX) {
-                KymographX k = (KymographX)im;
-                dir = TimeLapseInteractiveImageFactory.DIRECTION.X;
-                nextPos = (nextSlice, next) -> {
-                    if (next) {
-                        if (nextSlice == k.data.nSlices - 1) {
-                            int lastParentIdx = k.getStartParentIdx(nextSlice - 1) + k.data.nFramePerSlice - 1;
-                            int frame = k.getParents().get(lastParentIdx).getFrame();
-                            return k.getOffsetForFrame(frame, nextSlice).xMin();
-                        } else return 0;
-                    } else {
-                        int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
-                        int frame = k.getParents().get(lastParentIdx).getFrame();
-                        return k.getOffsetForFrame(frame, nextSlice).xMin() + k.getParents().get(lastParentIdx).getBounds().sizeX();
-                    }
-                };
-            }
-            else if (im instanceof KymographY) {
-                KymographY k = (KymographY)im;
-                dir = TimeLapseInteractiveImageFactory.DIRECTION.Y;
-                nextPos = (nextSlice, next) -> {
-                    if (next) {
-                        if (nextSlice == k.data.nSlices - 1) {
-                            int lastParentIdx = k.getStartParentIdx(nextSlice - 1) + k.data.nFramePerSlice - 1;
-                            int frame = k.getParents().get(lastParentIdx).getFrame();
-                            return k.getOffsetForFrame(frame, nextSlice).yMin();
-                        } else return 0;
-                    } else {
-                        int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
-                        int frame = k.getParents().get(lastParentIdx).getFrame();
-                        return k.getOffsetForFrame(frame, nextSlice).yMin() + k.getParents().get(lastParentIdx).getBounds().sizeY();
-                    }
-                };
-            }
-            else if (im instanceof HyperStack) {
-                dir = TimeLapseInteractiveImageFactory.DIRECTION.T;
-                nextPos = null;
-            }
-            else {
-                dir = null;
-                nextPos = null;
-            }
+            TimeLapseInteractiveImageFactory.DIRECTION dir = getDirection(im);
+            ToIntBiFunction<Integer, Boolean> nextPos = getNextPosFunction(im);
             addMouseWheelListener(ip, dir, nextPos);
             ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         }
         return ip;
+    }
+
+    protected ToIntBiFunction<Integer, Boolean> getNextPosFunction(InteractiveImage im) {
+        if (im instanceof KymographX) {
+            KymographX k = (KymographX)im;
+            return (nextSlice, next) -> {
+                if (next) {
+                    if (nextSlice == k.data.nSlices - 1) {
+                        int lastParentIdx = k.getStartParentIdx(nextSlice - 1) + k.data.nFramePerSlice - 1;
+                        int frame = k.getParents().get(lastParentIdx).getFrame();
+                        return k.getOffsetForFrame(frame, nextSlice).xMin();
+                    } else return 0;
+                } else {
+                    int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
+                    int frame = k.getParents().get(lastParentIdx).getFrame();
+                    return k.getOffsetForFrame(frame, nextSlice).xMin() + k.getParents().get(lastParentIdx).getBounds().sizeX();
+                }
+            };
+        }
+        else if (im instanceof KymographY) {
+            KymographY k = (KymographY)im;
+            return (nextSlice, next) -> {
+                if (next) {
+                    if (nextSlice == k.data.nSlices - 1) {
+                        int lastParentIdx = k.getStartParentIdx(nextSlice - 1) + k.data.nFramePerSlice - 1;
+                        int frame = k.getParents().get(lastParentIdx).getFrame();
+                        return k.getOffsetForFrame(frame, nextSlice).yMin();
+                    } else return 0;
+                } else {
+                    int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
+                    int frame = k.getParents().get(lastParentIdx).getFrame();
+                    return k.getOffsetForFrame(frame, nextSlice).yMin() + k.getParents().get(lastParentIdx).getBounds().sizeY();
+                }
+            };
+        }
+        else if (im instanceof HyperStack) {
+            return null;
+        }
+        else {
+            return null;
+        }
+    }
+
+    protected TimeLapseInteractiveImageFactory.DIRECTION getDirection(InteractiveImage im) {
+        if (im instanceof KymographX) {
+            return TimeLapseInteractiveImageFactory.DIRECTION.X;
+        } else if (im instanceof KymographY) {
+            return TimeLapseInteractiveImageFactory.DIRECTION.Y;
+        } else if (im instanceof HyperStack) {
+            return TimeLapseInteractiveImageFactory.DIRECTION.T;
+        } else {
+            return null;
+        }
     }
     
     @Override
@@ -203,8 +215,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 boolean needScrollTime = imp.getNFrames()>1;
                 boolean needScrollChannel = imp.getNChannels()>1;
                 boolean needScrollImage = srcRect.height<height || srcRect.width<width;
-                boolean scrollZ = needScrollZ && ((!needScrollImage && !alt && !shift) || space);
-                boolean scrollTime = needScrollTime && !scrollZ && ((!needScrollImage && !space && !shift) || (alt && !shift));
+                boolean scrollTime = needScrollTime && ((!needScrollImage && !space && !shift) || (alt && !shift));
+                boolean scrollZ = needScrollZ && !scrollTime && ((!needScrollImage && !alt && !shift) || space);
                 boolean scrollChannels = needScrollChannel && !scrollZ && !scrollTime && ((!needScrollImage && !space && !alt) || (shift && !alt));
                 //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
                 if (ctrl && ic!=null) { // zoom
@@ -243,11 +255,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                     int scrollX = rotation*amount* (acceleratedScrolling ? Math.max(width/60, srcRect.width/12) : srcRect.width/12);;
                     int scrollY = rotation*amount*(acceleratedScrolling ?  Math.max(height/60, srcRect.height/12) : srcRect.height/12);
                     if (TimeLapseInteractiveImageFactory.DIRECTION.X.equals(direction)) { // move or change slice if end of image
+                        IntFunction<Integer> ensureBounds = newStartX -> Math.min(width - srcRect.width, Math.max(0, newStartX));
                         if (scrollX>0 && srcRect.x + srcRect.width == width) {
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() + 1;
                             if (slice<=imp.getNFrames()) {
-                                srcRect.x = getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true);
+                                srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true));
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(sw, slice);
@@ -256,21 +269,22 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() - 1;
                             if (slice>0) {
-                                srcRect.x = Math.max(0, getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false) - srcRect.width); //width - srcRect.width;
+                                srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false) - srcRect.width);
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(sw, slice);
                             }
                         } else {
-                            srcRect.x = Math.min(width - srcRect.width, Math.max(0, srcRect.x + scrollX));
-                            imp.updateAndRepaintWindow();
+                            srcRect.x = ensureBounds.apply(srcRect.x + scrollX);
+                            //imp.updateAndRepaintWindow();
                         }
                     } else if (TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(direction)) { // move or change slice if end of image
+                        IntFunction<Integer> ensureBounds = newStartY -> Math.min(height - srcRect.height, Math.max(0, newStartY));
                         if (scrollY>0 && srcRect.y + srcRect.height == height) {
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() + 1;
                             if (slice<=imp.getNFrames()) {
-                                srcRect.y = Math.max(0, getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true));
+                                srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true));
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(sw, slice);
@@ -279,14 +293,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() - 1;
                             if (slice>0) {
-                                srcRect.y = getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false) - srcRect.height;
+                                srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false) - srcRect.height);
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(sw, slice);
                             }
                         } else {
-                            srcRect.y = Math.min(height - srcRect.height, Math.max(0, srcRect.y + scrollY));
-                            imp.updateAndRepaintWindow();
+                            srcRect.y = ensureBounds.apply(srcRect.y + scrollY);
+                            //imp.updateAndRepaintWindow();
                         }
                     } else {
                         if ((double) srcRect.height / height > (double) srcRect.width / width || (srcRect.height / height < srcRect.width / width && space)) { // scroll in the most needed direction
@@ -299,12 +313,11 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                             if (srcRect.y + srcRect.height > height) srcRect.y = height - srcRect.height;
                         }
                     }
+                    if (srcRect.x!=xstart || srcRect.y!=ystart) {
+                        imp.updateAndRepaintWindow();//ic.repaint();
+                    }
                 }
-                if (srcRect.x!=xstart || srcRect.y!=ystart) {
-                    boolean update = false;
-                    if (update) imp.updateAndRepaintWindow();//ic.repaint();
-                    else  ic.repaint();
-                }
+
             }    
 	    };
         // replace mouse wheel listener

@@ -154,8 +154,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     Rectangle rect = r.getBounds();
                     if (rect.height==0 || rect.width==0) return;
                     BoundingBox view = new SimpleBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, 0, ip.getNSlices()-1);
-                    TimeLapseInteractiveImage interactiveImageView = isKymoView ? Kymograph.generateKymograph(i.getParents(), view, i.channelNumber, i.imageSupplier) :
-                            HyperStack.generateHyperstack(i.getParents(), view, i.channelNumber, i.imageSupplier);
+                    TimeLapseInteractiveImage interactiveImageView = isKymoView ? Kymograph.generateKymograph(i.getParents(), view, i.channelNumber, ((TimeLapseInteractiveImage) i).getMaxSizeZ(), i.imageSupplier) :
+                            HyperStack.generateHyperstack(i.getParents(), view, i.channelNumber, ((TimeLapseInteractiveImage) i).getMaxSizeZ(), i.imageSupplier);
                     int channelIdx = ip.getC()-1;
                     Image imageView = interactiveImageView.generateImage().setPosition(0, channelIdx);
                     addImage(imageView, interactiveImageView, true);
@@ -896,8 +896,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         // append next arrows only if not displayed at current slice
         ObjectDisplay last = track.get(track.size()-1);
         if (last.object.getNext() != null && last.object.getNext().getTrackHead().equals(last.object.getTrackHead())) {
-            ObjectDisplay n = new ObjectDisplay(last.object.getNext(), i.getObjectOffset(last.object.getNext(), last.sliceIdx), last.sliceIdx);
-            appendTrackArrow.accept(last, n);
+            Offset off = i.getObjectOffset(last.object.getNext(), last.sliceIdx);
+            if (off != null) {
+                ObjectDisplay n = new ObjectDisplay(last.object.getNext(), off, last.sliceIdx);
+                appendTrackArrow.accept(last, n);
+            }
         }
 
         return trackRoi;

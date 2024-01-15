@@ -52,6 +52,7 @@ import javax.swing.JMenuItem;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import org.slf4j.Logger;
@@ -89,10 +90,13 @@ public class PluginConfigurationUtils {
         SegmentedObject o = parentSelection.get(0);
         int parentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getParentStructure();
         int segParentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getSegmentationParentStructure();
+        Set<Integer> childOC = IntStream.of(xp.experimentStructure.getAllChildStructures(structureIdx)).boxed().collect(Collectors.toSet());
+        Set<Integer> excludeOCIdx = new HashSet<>(childOC);
+        if (!usePresentSegmentedObjects) excludeOCIdx.add(structureIdx);
         // ensure scaler
         Processor.ensureScalerConfiguration(accessor.getDAO(o), structureIdx);
         // get parent objects -> create graph cut
-        DuplicateMasterDAO<?, String> mDAOdup = new DuplicateMasterDAO<>(accessor.getDAO(o).getMasterDAO(), UUID.generator(), usePresentSegmentedObjects?Collections.emptyList():Arrays.asList(structureIdx));
+        DuplicateMasterDAO<?, String> mDAOdup = new DuplicateMasterDAO<>(accessor.getDAO(o).getMasterDAO(), UUID.generator(), excludeOCIdx);
         DuplicateObjectDAO<?, String> dupDAO = mDAOdup.getDao(o.getPositionName());
 
         boolean needToDuplicateWholeParentTrack = ((plugin instanceof Tracker) && !((Tracker)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPostFilter) && !((TrackPostFilter)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPreFilter) && !((TrackPreFilter)plugin).parentTrackMode().allowIntervals());
@@ -108,7 +112,7 @@ public class PluginConfigurationUtils {
         List<Map<SegmentedObject, TestDataStore>> storeList = new ArrayList<>(2);
         storeList.add(stores);
         psc.setTestDataStore(stores);
-        logger.debug("test processing: sel {}", parentSelection);
+        logger.debug("test processing: sel {} dup: {}, test parent dao : {}", parentSelection, parentTrackDup, parentTrackDup.get(0).dao.getClass());
         try {
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
             boolean pf = plugin instanceof PostFilter;
@@ -149,18 +153,18 @@ public class PluginConfigurationUtils {
                 Function<PostFilter, bacmman.plugins.plugins.track_post_filter.PostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
                 SegmentedObjectFactory factory = getFactory(structureIdx);
                 TrackLinkEditor editor = getEditor(structureIdx);
-                List<TrackPostFilter> tpfBefore = psc.getPostFilters().getChildren().subList(0, pluginIdx).stream().filter(PluginParameter::isActivated).map(pp->pfTotpfMapper.apply(pp.instantiatePlugin())).collect(Collectors.toList());
+                List<TrackPostFilter> pfBefore = psc.getPostFilters().getChildren().subList(0, pluginIdx).stream().filter(PluginParameter::isActivated).map(pp->pfTotpfMapper.apply(pp.instantiatePlugin())).collect(Collectors.toList());
 
-                if (!tpfBefore.isEmpty()) {
+                if (!pfBefore.isEmpty()) {
                     // at this point, need to duplicate another time the parent track to get an independent point
-                    DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), Collections.emptyList());
+                    DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                     DuplicateObjectDAO<String, ?> dupDAO1 = mDAOdup1.getDao(o.getPositionName());
                     List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
                     Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                     parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected post-filter", p.getRawImage(structureIdx))); // add input image
                     storeList.add(stores1);
 
-                    tpfBefore.forEach(tpf -> {
+                    pfBefore.forEach(tpf -> {
                         tpf.filter(structureIdx, parentTrackDup1, factory, editor);
                         logger.debug("executing post-filter: {}", tpf.toString());
                     });
@@ -168,7 +172,7 @@ public class PluginConfigurationUtils {
                     parentTrackDup = parentTrackDup1;
                 }
                 // at this point, need to duplicate another time the parent track to get the second point
-                DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), Collections.emptyList());
+                DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                 DuplicateObjectDAO<String, String> dupDAO2 = mDAOdup2.getDao(o.getPositionName());
                 List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
                 Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
@@ -235,7 +239,7 @@ public class PluginConfigurationUtils {
 
             if (!tpfBefore.isEmpty()) {
                 // at this point, need to duplicate another time the parent track to get an independent point
-                DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), Collections.emptyList());
+                DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                 DuplicateObjectDAO<String, String> dupDAO1 = mDAOdup1.getDao(o.getPositionName());
                 List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
                 Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
@@ -250,7 +254,7 @@ public class PluginConfigurationUtils {
                 parentTrackDup = parentTrackDup1;
             }
             // at this point, need to duplicate another time the parent track to get the second point
-            DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), Collections.emptyList());
+            DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
             DuplicateObjectDAO<String, String> dupDAO2 = mDAOdup2.getDao(o.getPositionName());
             List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
             Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
@@ -554,7 +558,8 @@ public class PluginConfigurationUtils {
             };
         }));
         List<InteractiveImage> res = imageSuppliers.entrySet().stream().map(e -> {
-            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, 1, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, 1, e.getValue(), childOCIdx);
+            int sizeZ = e.getValue().apply(parents.get(0), 0).sizeZ();
+            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, 1, sizeZ, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, 1, sizeZ, e.getValue(), childOCIdx);
             ii.setName(e.getKey());
             return ii;
         }).collect(Collectors.toList());

@@ -58,7 +58,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     protected int structureIdx;
     protected int idx;
     protected transient final SmallArray<List<SegmentedObject>> childrenSM= new SmallArray<>(); //maps structureIdx to Children (equivalent to hashMap)
-    transient ObjectDAO dao;
+    public transient ObjectDAO dao;
     
     // track-related attributes
     protected int timePoint;

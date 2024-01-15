@@ -83,8 +83,9 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
             trimFrames.addListener(pl);
         }
     }
-    public boolean isEmpty() {
-        return transformations.isEmpty();
+    public boolean isEmpty(boolean considerOnlyActivated) {
+        if (considerOnlyActivated) return transformations.getActivatedChildren().isEmpty();
+        else return transformations.isEmpty();
     }
     public PreProcessingChain setCustomScale(double scaleXY, double scaleZ) {
         if (Double.isNaN(scaleXY) || Double.isInfinite(scaleXY)) throw new IllegalArgumentException("Invalid scale value");

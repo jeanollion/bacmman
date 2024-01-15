@@ -13,6 +13,7 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
     I[][][] imageFCZ;
     final Function<int[], I> generatorFCZ;
     final I imageType;
+    // GENERATOR GENERATES 2D IMAGES (EVEN IF Z>1)
     // IN CASE SOME CHANNELS ARE 2D AND OTHER 3D, GENERATOR IS RESPONSIBLE FOR REPEATING SLICE
     public LazyImage5DPlane(String name, I imageType, Function<int[], Image> generatorFCZ, int[] sizeFCZ) {
         super(name);

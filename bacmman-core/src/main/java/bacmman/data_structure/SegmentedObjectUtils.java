@@ -581,7 +581,9 @@ public class SegmentedObjectUtils {
      */
     public static boolean newTrackAtNextTimePoint(SegmentedObject object) {
         if (object.getParent()==null || object.getParent().getNext()==null) return false;
-        return object.getParent().getNext().getChildren(object.getStructureIdx()).anyMatch(o -> o.getPrevious().equals(object) && o.isTrackHead());
+        Stream<SegmentedObject> children = object.getParent().getNext().getChildren(object.getStructureIdx());
+        if (children == null) return false;
+        return children.anyMatch(o -> o.isTrackHead() && object.equals(o.getPrevious()));
     }
 
     /**

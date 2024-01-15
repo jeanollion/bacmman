@@ -90,8 +90,11 @@ public class IJVirtualStack extends VirtualStack {
         imp.setStack(this, sizeC, source.sizeZ(), sizeF); // calls get processor
         int targetZ = source.sizeZ()>1 ? source.sizeZ()/2+1 : 1;
         int targetC = source instanceof LazyImage5D ? ((LazyImage5D)source).getChannel()+1 : 1;
-        if (targetZ>1 || targetC>1) imp.setPositionWithoutUpdate(targetC, targetZ, 1);
-        //getProcessor(imp.getCurrentSlice()); // update display range
+        if (targetZ>1 || targetC>1) {
+            if (!imp.isHyperStack()) {  // TODO bug when not displayed as hyperstack, slider is not updated
+                //imp.setSlice(targetZ > 1 ? targetZ : targetC);
+            } else imp.setPosition(targetC, targetZ, 1);
+        } else getProcessor(imp.getCurrentSlice());
         setCalibration();
     }
 
@@ -196,14 +199,14 @@ public class IJVirtualStack extends VirtualStack {
             if (lastChannel>=0) displayRange.put(lastChannel, new double[]{imp.getDisplayRangeMin(), imp.getDisplayRangeMax()}); // record display for last channel
             if (!displayRange.containsKey(nextChannel)) {
                 if (nextImage == null) return;
-                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.01, 99.9);
+                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.00001, 0.99999);
                 //logger.debug("getting display range for channel {} -> {}", nextChannel, minAndMax);
                 displayRange.put(nextChannel, minAndMax);
             }
             double[] curDisp = displayRange.get(nextChannel);
             if (imp.getProcessor()!=null) imp.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
             else nextIP.setMinAndMax(curDisp[0], curDisp[1]); // this is the first image processor that will be set to the ip
-            //logger.debug("disp range for channel {} = [{}; {}] (ip get processor=null?{})", nextChannel, curDisp[0], curDisp[1], ip.getProcessor()==null);
+            //logger.debug("disp range for channel {} = [{}; {}] (ip get processor=null?{})", nextChannel, curDisp[0], curDisp[1], imp.getProcessor()==null);
             lastChannel = nextChannel;
         }
     }

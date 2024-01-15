@@ -253,9 +253,9 @@ public class ConfigurationLibrary {
         });
         copyToLocal.addActionListener(e -> {
             if (remoteConfig == null) return;
-            JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
             switch (currentMode) {
                 case WHOLE: {
+                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
                     String outputPath = xp.getOutputDirectory();
                     String outputImagePath = xp.getOutputImageDirectory();
                     content.remove("positions");
@@ -270,6 +270,7 @@ public class ConfigurationLibrary {
                     break;
                 }
                 case PRE_PROCESSING: {
+                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
                     Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
                     int pIdx = this.localSelectorJCB.getSelectedIndex() - 1;
                     if (pIdx < 0) { // template is selected
@@ -284,11 +285,11 @@ public class ConfigurationLibrary {
                     break;
                 }
                 case MEASUREMENTS: {
-                    Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
-                    this.xp.getMeasurements().setContentFrom(remoteXP.getMeasurements());
+                    this.xp.getMeasurements().initFromJSONEntry(remoteConfig.getRoot().toJSONEntry());
                     break;
                 }
                 case PROCESSING: {
+                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
                     Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
                     xp.getStructure(localSelectorJCB.getSelectedIndex()).getProcessingPipelineParameter().setContentFrom(remoteXP.getStructure(0).getProcessingPipelineParameter());
                     break;

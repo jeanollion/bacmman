@@ -345,7 +345,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         II res = interactiveImageMapImages.keySet().stream().filter(ii -> interactiveImageClass.isAssignableFrom(ii.getClass()) && ii.getParents().equals(parentTrack)).map(ii -> (II)ii).findAny().orElse(null);
         if (res == null && createIfNotExisting) {
             if (interactiveImageClass.equals(HyperStack.class)) res = (II) HyperStack.generateHyperstack(parentTrack, null, interactiveObjectClassIdx);
-            else if (interactiveImageClass.equals(Kymograph.class)) res = (II) Kymograph.generateKymograph(parentTrack, null, interactiveObjectClassIdx);
+            else if (Kymograph.class.isAssignableFrom(interactiveImageClass)) res = (II) Kymograph.generateKymograph(parentTrack, null, interactiveObjectClassIdx);
         }
         return res;
     }

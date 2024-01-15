@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -20,7 +19,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     public static int GAP =0;
     public static int SIZE =0;
     public static int OVERLAP =0;
-    protected final int maxParentSizeZ, frameNumber;
+    protected final int frameNumber;
     protected final BoundingBox[] view;
     protected final BoundingBox originalView;
     public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, BoundingBox view, int... loadObjectClass) {
@@ -34,9 +33,9 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 return new KymographY(data, view, loadObjectClass);
         }
     }
-    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
-        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, GAP, SIZE, OVERLAP) :
-                TimeLapseInteractiveImageFactory.generateKymographViewData(parentTrack, view, GAP, SIZE, OVERLAP);
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, BoundingBox view, int channelNumber, int sizeZ, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
+        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, sizeZ, false, GAP, SIZE, OVERLAP) :
+                TimeLapseInteractiveImageFactory.generateKymographViewData(parentTrack, view, sizeZ, GAP, SIZE, OVERLAP);
         switch (data.direction) {
             case X:
             default:
@@ -47,7 +46,6 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     }
     public Kymograph(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClass) {
         super(data, view);
-        maxParentSizeZ = data.maxParentSizeZ;
         frameNumber = data.nFramePerSlice;
         loadObjectClasses(loadObjectClass);
         this.view = HyperStack.getViewArray(data.parentTrack, view);
@@ -56,7 +54,6 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
 
     public Kymograph(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
         super(data, view, channelNumber, imageSupplier);
-        maxParentSizeZ = data.maxParentSizeZ;
         frameNumber = data.nFramePerSlice;
         loadObjectClasses(loadObjectClass);
         this.view = HyperStack.getViewArray(data.parentTrack, view);
@@ -96,8 +93,9 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
         BoundingBox[] trackOffset = this.trackOffset.get(sliceIdx);
         int startIdx = getStartParentIdx(sliceIdx);
-        if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxParentSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
-        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), view[i], trackOffset[i], data.maxParentSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        logger.debug("start idx = {} for slice: {}", startIdx, sliceIdx);
+        if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), view[i], trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
     public Stream<Integer> getSlice(int frame) {
         int parentIdx = frameMapParentIdx.get(frame);
@@ -201,10 +199,10 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 .filter(Utils.distinctByKey(u -> u.parent.getFrame())).flatMap(i->i.getAllObjects(objectClassIdx));
     }
 
-    public void updateImage(Image image, final int channelIdx, final int slice) {
+    protected void updateImage(Image image, final int channelIdx, final int slice) {
         Image image_;
         if (image instanceof LazyImage5D) {
-            image_ = ((LazyImage5D)image).getImage(0, channelIdx, 0);
+            image_ = ((LazyImage5D)image).getImage(0, channelIdx);
         } else image_ = image;
         Image type = Image.copyType(image_);
         SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
@@ -216,12 +214,14 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         image.setName(getImageTitle());
     }
 
-    public abstract ImageProperties getImageProperties(int channelIdx);
     @Override public LazyImage5D generateImage() {
         LazyImage5D im = trackObjects.get(0)[0].generateImage(); // will homogenize type
         ImageProperties props = getImageProperties();
         Function<int[], Image> generator = fc -> {
-            Image displayImage = Image.createEmptyImage(name, im.getImageType(), getImageProperties(fc[1]));
+            int sizeZ = defaultImageSupplier ? parent.getExperimentStructure().sizeZ(parent.getPositionName(), fc[1]) : getMaxSizeZ();
+            ImageProperties curProps = new SimpleImageProperties(props.sizeX(), props.sizeY(), sizeZ, props.getScaleXY(), props.getScaleZ());
+            logger.debug("generate image for frame: {} channel : {} z = {}. default image supplier : {}", fc[0], fc[1], sizeZ, defaultImageSupplier);
+            Image displayImage = Image.createEmptyImage(name, im.getImageType(), curProps);
             updateImage(displayImage, fc[1], fc[0]);
             return displayImage;
         };

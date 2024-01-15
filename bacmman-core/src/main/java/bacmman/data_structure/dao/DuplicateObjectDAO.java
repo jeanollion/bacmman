@@ -112,7 +112,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         if (source != null) {
             return sourceIdMapDupObject.get((sourceID)source.getId());
         } else { // id could be still source id
-            source = this.source.getById(structureIdx, (sourceID)id, frame, (sourceID)parentTrackHeadId);
+            source = this.source.getById(structureIdx, (sourceID)id, frame, parentTrackHeadId==null?null:(sourceID)parentTrackHeadId);
             if (source != null) {
                 return duplicate(source);
             } else throw new RuntimeException("ID was not duplicated");
@@ -124,7 +124,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         if (excludeFromDuplicate.contains(structureIdx)) return null;
         SegmentedObject sourceParent = newIdMapSourceObject.get(parent.getId());
         if (sourceParent == null) {
-            logger.error("Parent not duplicated {}", parent);
+            logger.error("Parent not duplicated {} (get children @ ocIdx = {}", parent, structureIdx);
             throw new RuntimeException("Parent not duplicated");
         }
         Stream<SegmentedObject> sourceChildren = sourceParent.getChildren(structureIdx);
@@ -259,16 +259,16 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     public Stream<SegmentedObject> getDuplicated(Collection<SegmentedObject> source) {
         synchronized (this) {
-            duplicate(source.stream().filter(s -> !sourceIdMapDupObject.containsKey(s.getId())));
+            duplicate(source.stream().filter(s -> !sourceIdMapDupObject.containsKey((sourceID)s.getId())));
         }
-        return source.stream().map(o -> sourceIdMapDupObject.get(o.getId()));
+        return source.stream().map(o -> sourceIdMapDupObject.get((sourceID)o.getId()));
     }
 
     protected SegmentedObject getDuplicated(SegmentedObject source) {
-        SegmentedObject dup = sourceIdMapDupObject.get(source.getId());
+        SegmentedObject dup = sourceIdMapDupObject.get((sourceID)source.getId());
         if (dup == null) {
             synchronized (this) {
-                dup = sourceIdMapDupObject.get(source.getId());
+                dup = sourceIdMapDupObject.get((sourceID)source.getId());
                 if (dup==null) {
                     dup = duplicate(source);
                 }

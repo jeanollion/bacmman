@@ -14,7 +14,7 @@ import java.util.stream.IntStream;
 public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
     I[][] imageFC;
     final Function<int[], I> generatorFC;
-
+    // GENERATOR GENERATES 3D IMAGES (or 2D IMAGES IF Z==1)
     public LazyImage5DStack(String name, ImageProperties props, I imageType, Function<int[], Image> generatorFC, int[] sizeFC) {
         super(name);
         this.imageType = Image.copyType(imageType);

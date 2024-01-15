@@ -134,7 +134,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 if (imageDAO==null) imageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory(), this::singleFrameChannel);
             }
         }
-        if (allowByPass && this.getPreProcessingChain().isEmpty())  {
+        if (allowByPass && this.getPreProcessingChain().isEmpty(true))  {
             try {
                 if (imageDAO.getPreProcessedImageProperties(0)==null) return new BypassImageDAO(this);
             } catch (IOException e) {

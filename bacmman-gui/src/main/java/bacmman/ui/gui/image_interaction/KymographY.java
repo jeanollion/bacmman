@@ -90,12 +90,7 @@ public class KymographY extends Kymograph {
 
     @Override
     public ImageProperties getImageProperties() {
-        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, this.maxParentSizeZ, parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
-    }
-
-    @Override
-    public ImageProperties getImageProperties(int channelIdx) {
-        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, parent.getExperimentStructure().sizeZ(parent.getPositionName(), channelIdx), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
+        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, getMaxSizeZ(), parent.getMaskProperties().getScaleXY(), parent.getMaskProperties().getScaleZ());
     }
     
     class OffsetComparatorY implements Comparator<Offset>{

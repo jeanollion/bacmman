@@ -38,6 +38,7 @@ public class OmeroIJVirtualStack extends VirtualStack {
     Map<Integer, Image> images = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::openPlane);
     DefaultWorker lazyOpener;
     Map<Integer, double[]> displayRange= new HashMap<>();
+    Map<Integer, Boolean> displayRangeManual = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> false);
     boolean channelWiseDisplayRange = true;
     ImagePlus ip;
     int lastChannel=-1;
@@ -98,15 +99,29 @@ public class OmeroIJVirtualStack extends VirtualStack {
     protected void setDisplayRange(int nextChannel, Image nextImage, ImageProcessor nextIP) {
         if (ip==null || !channelWiseDisplayRange) return;
         if (nextChannel!=lastChannel) {
-            if (lastChannel>=0) displayRange.put(lastChannel, new double[]{ip.getDisplayRangeMin(), ip.getDisplayRangeMax()}); // record display for last channel
+            if (lastChannel>=0) {
+                double[] newDisplayRange = new double[]{ip.getDisplayRangeMin(), ip.getDisplayRangeMax()};
+                if (displayRange.containsKey(lastChannel)) {
+                    double[] oldDisplayRange = displayRange.get(lastChannel);
+                    if (oldDisplayRange[0]!=newDisplayRange[0] || oldDisplayRange[1]!=newDisplayRange[1]) displayRangeManual.put(lastChannel, true);
+                    logger.debug("channel: {} has been modified manually", nextChannel);
+                }
+                displayRange.put(lastChannel, newDisplayRange); // record display for last channel
+            }
             if (!displayRange.containsKey(nextChannel)) { // initialize with actual range // TODO initialize with more elaborated algorithm ?
-                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.01, 99.9);
+                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.00001, 0.99999);
                 displayRange.put(nextChannel, minAndMax);
+            } else if (!displayRangeManual.get(nextChannel) && nextImage!=null) {
+                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.00001, 0.99999);
+                double[] oldDisplayRange = displayRange.get(nextChannel);
+                oldDisplayRange[0] = Math.min(oldDisplayRange[0], minAndMax[0]);
+                oldDisplayRange[1] = Math.min(oldDisplayRange[1], minAndMax[1]);
+                logger.debug("channel: {} updating display range with: {} -> {}",nextChannel, minAndMax, oldDisplayRange);
             }
             double[] curDisp = displayRange.get(nextChannel);
             if (ip.getProcessor()!=null) ip.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
             else nextIP.setMinAndMax(curDisp[0], curDisp[1]);
-            logger.debug("disp range for channel {} = [{}; {}]", nextChannel, curDisp[0], curDisp[1]);
+            //logger.debug("disp range for channel {} = [{}; {}]", nextChannel, curDisp[0], curDisp[1]);
             lastChannel = nextChannel;
         }
     }

@@ -27,12 +27,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -45,7 +43,7 @@ import static bacmman.image.LazyImage5DPlane.homogenizeType;
 public class HyperStack extends TimeLapseInteractiveImage {
     private static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected final int maxParentSizeX, maxParentSizeY;
-    protected final int maxParentSizeZ;
+
     protected final BoundingBox bounds, bounds2D;
     protected final BoundingBox[] viewArray;
     public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, BoundingBox view, int... loadObjectClassIdx) {
@@ -53,17 +51,16 @@ public class HyperStack extends TimeLapseInteractiveImage {
                 TimeLapseInteractiveImageFactory.generateHyperstackViewData(parentTrack, view);
         return new HyperStack(data, view, loadObjectClassIdx);
     }
-    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
-        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, true) :
-                TimeLapseInteractiveImageFactory.generateHyperstackViewData(parentTrack, view);
+    public static HyperStack generateHyperstack(List<SegmentedObject> parentTrack, BoundingBox view, int channelNumber, int sizeZ, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClassIdx) {
+        TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateHyperstackData(parentTrack, sizeZ, true) :
+                TimeLapseInteractiveImageFactory.generateHyperstackViewData(parentTrack, view, sizeZ);
         return new HyperStack(data, view, channelNumber, imageSupplier, loadObjectClassIdx);
     }
     public HyperStack(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int... loadObjectClassIdx) {
         super(data, view);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
-        maxParentSizeZ = data.maxParentSizeZ;
-        this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, maxParentSizeZ);
+        this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, data.maxSizeZ);
         this.bounds2D = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY,1);
         this.viewArray = getViewArray(data.parentTrack, view);
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
@@ -73,8 +70,7 @@ public class HyperStack extends TimeLapseInteractiveImage {
         super(data, view, channelNumber, imageSupplier);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
-        maxParentSizeZ = data.maxParentSizeZ;
-        this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, maxParentSizeZ);
+        this.bounds = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY, data.maxSizeZ);
         this.bounds2D = new SimpleBoundingBox(maxParentSizeX, maxParentSizeY,1);
         this.viewArray = getViewArray(data.parentTrack, view);
         if (!TimeLapseInteractiveImageFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
@@ -115,8 +111,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
     @Override
     protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
         BoundingBox[] trackOffset = this.trackOffset.get(0);
-        if (viewArray == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
-        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i), viewArray[i], trackOffset[i], data.maxParentSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        if (viewArray == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), trackOffset[i], data.maxSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i), viewArray[i], trackOffset[i], data.maxSizeZ, i, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
 
     @Override
@@ -177,14 +173,14 @@ public class HyperStack extends TimeLapseInteractiveImage {
 
     @Override public LazyImage5D generateImage() {
         int frames = getParents().size();
-        int[] fczSize = new int[]{frames, channelNumber, data.maxParentSizeZ};
+        int[] fczSize = new int[]{frames, channelNumber, data.maxSizeZ};
         Function<int[], Image> imageOpenerCT  = (fcz) -> getPlane(fcz[2], fcz[1], fcz[0], Resize.EXPAND_MODE.BORDER);
         return new LazyImage5DPlane(getImageTitle(), homogenizeType(channelNumber, imageOpenerCT), fczSize);
     }
 
     @Override 
     public ImageProperties getImageProperties() {
-        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, maxParentSizeZ, data.parentTrack.get(0).getMaskProperties().getScaleXY(), data.parentTrack.get(0).getMaskProperties().getScaleZ());
+        return new SimpleImageProperties( maxParentSizeX, maxParentSizeY, getMaxSizeZ(), data.parentTrack.get(0).getMaskProperties().getScaleXY(), data.parentTrack.get(0).getMaskProperties().getScaleZ());
     }
     public Image getImage(int channelIdx, int parentIdx, Resize.EXPAND_MODE paddingMode) {
         Image image = imageSupplier.apply(data.parentTrack.get(parentIdx), channelIdx);
