@@ -82,11 +82,13 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
 
     @Override
     public boolean isImageOpen(int f, int c, int z) {
+        if (imageFCZ.length == 1) f=0; // single frame
         return imageFCZ[f][c][z] != null;
     }
 
     @Override
     public boolean isImageOpen(int f, int c) {
+        if (imageFCZ.length == 1) f=0; // single frame
         for (int z = 0; z<imageFCZ[f][c].length; ++z) {
             if (imageFCZ[f][c][z] == null) return false;
         }
@@ -104,6 +106,7 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
     
     @Override 
     public I getImage(int f, int c, int z) {
+        if (imageFCZ.length == 1) f=0; // single frame
         if (imageFCZ[f][c][z] == null) {
             synchronized (this) {
                 if (imageFCZ[f][c][z] == null) {

@@ -215,12 +215,12 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     }
 
     @Override public LazyImage5D generateImage() {
-        LazyImage5D im = trackObjects.get(0)[0].generateImage(); // will homogenize type
+        LazyImage5D im = trackObjects.get(0)[0].generateImage(); // to homogenize type
         ImageProperties props = getImageProperties();
         Function<int[], Image> generator = fc -> {
-            int sizeZ = defaultImageSupplier ? parent.getExperimentStructure().sizeZ(parent.getPositionName(), fc[1]) : getMaxSizeZ();
+            int sizeZ = im.getImage(fc[0], fc[1]).sizeZ();
             ImageProperties curProps = new SimpleImageProperties(props.sizeX(), props.sizeY(), sizeZ, props.getScaleXY(), props.getScaleZ());
-            logger.debug("generate image for frame: {} channel : {} z = {}. default image supplier : {}", fc[0], fc[1], sizeZ, defaultImageSupplier);
+            logger.debug("generate image for frame: {} channel : {} z = {}", fc[0], fc[1], sizeZ);
             Image displayImage = Image.createEmptyImage(name, im.getImageType(), curProps);
             updateImage(displayImage, fc[1], fc[0]);
             return displayImage;

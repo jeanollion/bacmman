@@ -110,6 +110,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 } else {
                     int lastParentIdx = k.getStartParentIdx(nextSlice + 1);
                     int frame = k.getParents().get(lastParentIdx).getFrame();
+                    //logger.debug("prev: lastParent {} frame: {} next slice {}, offset: {}", lastParentIdx, frame, nextSlice, k.getOffsetForFrame(frame, nextSlice));
                     return k.getOffsetForFrame(frame, nextSlice).xMin() + k.getParents().get(lastParentIdx).getBounds().sizeX();
                 }
             };
@@ -202,7 +203,16 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 boolean alt = e.isAltDown();
                 boolean shift = e.isShiftDown();
                 boolean space = IJ.spaceBarDown();
-                boolean acceleratedScrolling = shift && alt; // accelerated scrolling
+
+                if (ctrl && ic!=null) { // zoom
+                    java.awt.Point loc = ic.getCursorLoc();
+                    int x = ic.screenX(loc.x);
+                    int y = ic.screenY(loc.y);
+                    if (rotation<0) ic.zoomIn(x, y);
+                    else ic.zoomOut(x, y);
+                    return;
+                }
+
                 if (amount<1) amount=1;
                 if (rotation==0) return;
                 int width = imp.getWidth();
@@ -214,19 +224,27 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 boolean needScrollZ = imp.getNSlices()>1;
                 boolean needScrollTime = imp.getNFrames()>1;
                 boolean needScrollChannel = imp.getNChannels()>1;
-                boolean needScrollImage = srcRect.height<height || srcRect.width<width;
-                boolean scrollTime = needScrollTime && ((!needScrollImage && !space && !shift) || (alt && !shift));
-                boolean scrollZ = needScrollZ && !scrollTime && ((!needScrollImage && !alt && !shift) || space);
-                boolean scrollChannels = needScrollChannel && !scrollZ && !scrollTime && ((!needScrollImage && !space && !alt) || (shift && !alt));
-                //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
-                if (ctrl && ic!=null) { // zoom
-                    java.awt.Point loc = ic.getCursorLoc();
-                    int x = ic.screenX(loc.x);
-                    int y = ic.screenY(loc.y);
-                    if (rotation<0) ic.zoomIn(x, y);
-                    else ic.zoomOut(x, y);
-                    return;
+                boolean needScrollY = srcRect.height<height;
+                boolean needScrollX = srcRect.width<width;
+
+                boolean scrollX, scrollY;
+                if (TimeLapseInteractiveImageFactory.DIRECTION.X.equals(direction)) {
+                    scrollX = needScrollX && !space && !shift;
+                    scrollY = false;
+                } else if (TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(direction)) {
+                    scrollX = false;
+                    scrollY = needScrollY && !space && !shift;
+                } else {
+                    scrollX = false;
+                    scrollY = false;
                 }
+                if (needScrollX && alt && !shift) scrollX = true;
+                if (needScrollY && alt && shift) scrollY = true;
+                boolean scrollTime = needScrollTime && !scrollX && !scrollY && !space && !shift;
+                boolean scrollZ = needScrollZ && (!scrollTime && !scrollX && !scrollY && !shift || space);
+                boolean scrollChannels = needScrollChannel && (!scrollZ && !scrollTime && !scrollX && !scrollY || (shift && !alt));
+                //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
+
                 if (scrollZ) {
                     StackWindow sw = (StackWindow)iw;
                     int slice = imp.getSlice() + rotation;
@@ -252,11 +270,11 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                     imp.updateStatusbarValue();
                     SyncWindows.setC(sw, slice);
                 } else { // move within image
-                    int scrollX = rotation*amount* (acceleratedScrolling ? Math.max(width/60, srcRect.width/12) : srcRect.width/12);;
-                    int scrollY = rotation*amount*(acceleratedScrolling ?  Math.max(height/60, srcRect.height/12) : srcRect.height/12);
-                    if (TimeLapseInteractiveImageFactory.DIRECTION.X.equals(direction)) { // move or change slice if end of image
+                    int scrollXamount = rotation*amount* (srcRect.width/12);
+                    int scrollYamount = rotation*amount * (srcRect.height/12);
+                    if (TimeLapseInteractiveImageFactory.DIRECTION.X.equals(direction) && scrollX) { // move or change slice if end of image
                         IntFunction<Integer> ensureBounds = newStartX -> Math.min(width - srcRect.width, Math.max(0, newStartX));
-                        if (scrollX>0 && srcRect.x + srcRect.width == width) {
+                        if (scrollXamount>0 && srcRect.x + srcRect.width == width) {
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() + 1;
                             if (slice<=imp.getNFrames()) {
@@ -265,7 +283,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(sw, slice);
                             }
-                        } else if (scrollX<0 && srcRect.x == 0) {
+                        } else if (scrollXamount<0 && srcRect.x == 0) {
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() - 1;
                             if (slice>0) {
@@ -275,12 +293,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                                 SyncWindows.setT(sw, slice);
                             }
                         } else {
-                            srcRect.x = ensureBounds.apply(srcRect.x + scrollX);
+                            srcRect.x = ensureBounds.apply(srcRect.x + scrollXamount);
                             //imp.updateAndRepaintWindow();
                         }
-                    } else if (TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(direction)) { // move or change slice if end of image
+                    } else if (TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(direction) && scrollY) { // move or change slice if end of image
                         IntFunction<Integer> ensureBounds = newStartY -> Math.min(height - srcRect.height, Math.max(0, newStartY));
-                        if (scrollY>0 && srcRect.y + srcRect.height == height) {
+                        if (scrollYamount>0 && srcRect.y + srcRect.height == height) {
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() + 1;
                             if (slice<=imp.getNFrames()) {
@@ -289,7 +307,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(sw, slice);
                             }
-                        } else if (scrollY<0 && srcRect.y == 0) {
+                        } else if (scrollYamount<0 && srcRect.y == 0) {
                             StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() - 1;
                             if (slice>0) {
@@ -299,16 +317,16 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                                 SyncWindows.setT(sw, slice);
                             }
                         } else {
-                            srcRect.y = ensureBounds.apply(srcRect.y + scrollY);
+                            srcRect.y = ensureBounds.apply(srcRect.y + scrollYamount);
                             //imp.updateAndRepaintWindow();
                         }
                     } else {
-                        if ((double) srcRect.height / height > (double) srcRect.width / width || (srcRect.height / height < srcRect.width / width && space)) { // scroll in the most needed direction
-                            srcRect.x += scrollX;
+                        if (scrollX) {
+                            srcRect.x += scrollXamount;
                             if (srcRect.x < 0) srcRect.x = 0;
                             if (srcRect.x + srcRect.width > width) srcRect.x = width - srcRect.width;
-                        } else { // most needed direction is Y
-                            srcRect.y += scrollY;
+                        } else if (scrollY) {
+                            srcRect.y += scrollYamount;
                             if (srcRect.y < 0) srcRect.y = 0;
                             if (srcRect.y + srcRect.height > height) srcRect.y = height - srcRect.height;
                         }

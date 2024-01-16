@@ -99,15 +99,18 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
 
     @Override
     public boolean isImageOpen(int f, int c, int z) {
+        if (imageFC.length == 1) f=0; // single frame
         return imageFC[f][c] != null;
     }
 
     @Override
     public boolean isImageOpen(int f, int c) {
+        if (imageFC.length == 1) f=0; // single frame
         return imageFC[f][c] != null;
     }
 
     @Override public I getImage(int f, int c) {
+        if (imageFC.length == 1) f=0; // single frame
         if (imageFC[f][c] == null) {
             synchronized (this) {
                 if (imageFC[f][c] == null) {
