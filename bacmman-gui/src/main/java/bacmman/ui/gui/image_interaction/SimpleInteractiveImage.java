@@ -68,6 +68,11 @@ public class SimpleInteractiveImage extends InteractiveImage {
     protected void stopAllRunningWorkers() {
     }
 
+    @Override
+    public int getMaxSizeZ() {
+        return sizeZ;
+    }
+
     @Override public List<SegmentedObject> getParents() {
         return parents;
     }

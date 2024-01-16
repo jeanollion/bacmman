@@ -81,6 +81,7 @@ public abstract class InteractiveImage {
         }
         return is2D;
     }
+    public abstract int getMaxSizeZ();
     public SegmentedObject getParent() {return parent;}
     public abstract List<SegmentedObject> getParents();
     public abstract void reloadObjects(int... objectClassIdx);

@@ -69,6 +69,7 @@ public abstract class TimeLapseInteractiveImage extends InteractiveImage {
         parentIdxMapFrame = data.parentTrack.stream().collect(Collectors.toMap(data.parentTrack::indexOf, SegmentedObject::getFrame));
     }
 
+    @Override
     public int getMaxSizeZ() {
         return data.maxSizeZ;
     }

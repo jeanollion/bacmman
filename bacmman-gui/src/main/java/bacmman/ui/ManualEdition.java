@@ -420,7 +420,7 @@ public class ManualEdition {
         int segmentationParentStructureIdx = db.getExperiment().getStructure(structureIdx).getSegmentationParentStructure();
         int parentStructureIdx = db.getExperiment().getStructure(structureIdx).getParentStructure();
         ManualSegmenter segInstance = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
-        
+        int maxSizeZ = ii.getMaxSizeZ();
         if (segInstance==null) {
             Utils.displayTemporaryMessage("No manual segmenter found", 10000);
             logger.warn("No manual segmenter found for structure: {}", structureIdx);
@@ -448,15 +448,14 @@ public class ManualEdition {
             List<SegmentedObject> segmentedObjects = new ArrayList<>();
             
             for (Map.Entry<SegmentedObject, List<Point>> e : points.entrySet()) {
-
                 ManualSegmenter segmenter = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
                 if (!parentThMapParam.isEmpty()) parentThMapParam.get(e.getKey().getParent(parentStructureIdx).getTrackHead()).apply(e.getKey(), segmenter);
                 segmenter.setManualSegmentationVerboseMode(test);
                 SegmentedObject globalParent = e.getKey().getParent(parentStructureIdx);
                 SegmentedObject subParent = e.getKey();
                 boolean subSegmentation = !subParent.equals(globalParent);
-                boolean ref2D = subParent.is2D() && globalParent.getRawImage(structureIdx).sizeZ()>1;
-                
+                boolean ref2D = subParent.is2D();
+                boolean ocId2D;
                 Image input = globalParent.getPreFilteredImage(structureIdx);
                 if (subSegmentation) {
                     BoundingBox cropBounds = ref2D?new MutableBoundingBox(subParent.getBounds()).copyZ(input):
@@ -466,9 +465,10 @@ public class ManualEdition {
                 
                 // generate image mask without old objects
                 ImageByte mask = TypeConverter.toByteMask(e.getKey().getMask(), null, 1); // force creation of a new mask to avoid modification of original mask
-                List<SegmentedObject> oldChildren = e.getKey().getChildren(structureIdx).collect(Collectors.toList());
-                if (!oldChildren.isEmpty()) {
-                    if (ref2D && input.sizeZ()>1 && mask.sizeZ()==1) { // force 3D mask
+                List<SegmentedObject> existingChildren = e.getKey().getChildren(structureIdx).collect(Collectors.toList());
+                if (!existingChildren.isEmpty()) {
+                    ocId2D = existingChildren.get(0).is2D();
+                    if (!ocId2D && input.sizeZ()>1 && mask.sizeZ()==1) { // force 3D mask
                         List<ImageByte> planes = new ArrayList<>(input.sizeZ());
                         for (int i = 0; i<input.sizeZ(); ++i) {
                             if (i==0) planes.add(mask);
@@ -476,8 +476,9 @@ public class ManualEdition {
                         }
                         mask = Image.mergeZPlanes(planes).setName("Segmentation Mask");
                     }
-                    for (SegmentedObject c : oldChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
-                }
+                    for (SegmentedObject c : existingChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
+                } else ocId2D = input.sizeZ() == 1;
+                if (ocId2D && maxSizeZ>1) e.getValue().forEach(p -> p.set(0, 2)); // interactive image is 3D but not current object class
                 ImageMask refMask =  ref2D && mask.sizeZ()==1 && input.sizeZ()>1 ? new ImageMask2D(mask) : mask;
                 if (test) iwm.getDisplayer().displayImage(mask, 0, 1);
                 // remove seeds located out of mask
@@ -494,18 +495,18 @@ public class ManualEdition {
                     if (!parent.equals(e.getKey())) seg.translate(e.getKey().getRelativeBoundingBox(parent), false);
                     ArrayList<SegmentedObject> modified = new ArrayList<>();
                     List<SegmentedObject> newChildren;
-                    oldChildren = parent.getChildren(structureIdx).collect(Collectors.toList());
+                    existingChildren = parent.getChildren(structureIdx).collect(Collectors.toList());
                     if (relabel) {
                         newChildren = factory.setChildObjects(parent, seg);
                         segmentedObjects.addAll(newChildren);
-                        newChildren.addAll(0, oldChildren);
+                        newChildren.addAll(0, existingChildren);
                         factory.relabelChildren(parent, modified);
                     } else {
                         newChildren = seg.getRegions().stream().map(r -> new SegmentedObject(parent.getFrame(), structureIdx, 0, r, parent)).collect(Collectors.toList());
                         factory.reassignDuplicateIndices(newChildren);
-                        oldChildren.addAll(newChildren);
-                        Collections.sort(oldChildren);
-                        factory.setChildren(parent, oldChildren);
+                        existingChildren.addAll(newChildren);
+                        Collections.sort(existingChildren);
+                        factory.setChildren(parent, existingChildren);
                     }
                     modified.addAll(newChildren);
                     Utils.removeDuplicates(modified, false);
