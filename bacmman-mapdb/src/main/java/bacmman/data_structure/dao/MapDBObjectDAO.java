@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -252,11 +253,14 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
                     if (o.getPreviousId()!=null) o.setPrevious(objectMap.get(o.getPreviousId()));
                     if (accessor.trackHeadId(o)!=null) {
                         SegmentedObject th = objectMap.get(accessor.trackHeadId(o));
-                        if (th!=null) accessor.setTrackHead(o, th, false, false);
+                        if (th!=null) {
+                            if (th.isTrackHead()) accessor.setTrackHead(o, th, false, false);
+                            else logger.debug("Object: {} has a trackhead that is not one: {}", o, th);
+                        }
                         else {
                             if (noTh==null) noTh = new ArrayList<>();
                             noTh.add(o);
-                            logger.warn("TrackHead of object : {} from: {} not found", o, key);
+                            logger.debug("TrackHead of object : {} from: {} not found", o, key);
                         }
                     }
                 }
@@ -560,7 +564,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     private Set<Integer> delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings, boolean commit) {
         if (readOnly) return Collections.EMPTY_SET;
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
-        Map<Pair<String, Integer>, List<SegmentedObject>> splitByPTH = splitByParentTrackHeadIdAndStructureIdx(list);
+        Map<Pair<String, Integer>, List<SegmentedObject>> splitByPTH = splitByParentTrackHeadIdAndStructureIdx(list, true);
         Set<Integer> allModifiedStructureIdx = new HashSet<>();
         for (Pair<String, Integer> key : splitByPTH.keySet()) {
             allModifiedStructureIdx.add(key.value);
@@ -639,7 +643,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         //logger.debug("storing: {} commit: {}", objects.size(), commit);
         List<SegmentedObject> upserMeas = new ArrayList<>(objects.size());
         for (SegmentedObject o : objects) accessor.setDAO(o,this);
-        Map<Pair<String, Integer>, List<SegmentedObject>> splitByPTH = splitByParentTrackHeadIdAndStructureIdx(objects);
+        Map<Pair<String, Integer>, List<SegmentedObject>> splitByPTH = splitByParentTrackHeadIdAndStructureIdx(objects, true);
         //logger.debug("storing: {} under #keys: {} commit: {}", objects.size(), splitByPTH.size(), commit);
         for (Pair<String, Integer> key : splitByPTH.keySet()) {
             List<SegmentedObject> toStore = splitByPTH.get(key);
@@ -650,7 +654,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             boolean parallel=false;
             Utils.parallel(IntStream.rangeClosed(0, toStore.size()/FRAME_INDEX_LIMIT).map(i -> i*FRAME_INDEX_LIMIT), parallel).forEach(i -> {
                 int idxMax = Math.min(toStore.size(), i+FRAME_INDEX_LIMIT);
-                logger.debug("storing: #{}/{} ( [{};{}) ) objects of OC: {} to: {}",idxMax-i, toStore.size(), i, idxMax, key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead());
+                logger.debug("storing: #{}/{} ( [{};{}) ) objects of OC: {}",idxMax-i, toStore.size(), i, idxMax, key.value);
                 Function<SegmentedObject, String> serialize = so -> {
                     JSONObject res = so.toJSONEntry();
                     res.put("object", so.getRegionJSONEntry());
@@ -893,9 +897,11 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         measurementdbS.clear();
     }
     
-    public static Map<Pair<String, Integer>, List<SegmentedObject>> splitByParentTrackHeadIdAndStructureIdx(Collection<SegmentedObject> list) {
+    public static Map<Pair<String, Integer>, List<SegmentedObject>> splitByParentTrackHeadIdAndStructureIdx(Collection<SegmentedObject> list, boolean distinct) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> new Pair(o.isRoot()? null : o.getParentTrackHeadId(), o.getStructureIdx())));
+        Stream<SegmentedObject> stream = list.stream();
+        if (distinct && !(list instanceof Set)) stream = stream.distinct();
+        return stream.collect(Collectors.groupingBy(o -> new Pair(o.isRoot()? null : o.getParentTrackHeadId(), o.getStructureIdx())));
     }
 
 
