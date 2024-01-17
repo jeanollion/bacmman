@@ -51,4 +51,9 @@ public class ObjectDisplay implements Comparable<ObjectDisplay> {
         if (c == 0) return object.compareTo(o.object);
         else return c;
     }
+
+    @Override
+    public String toString() {
+        return object.toStringShort() + "|offset="+offset+"|slice="+sliceIdx;
+    }
 }

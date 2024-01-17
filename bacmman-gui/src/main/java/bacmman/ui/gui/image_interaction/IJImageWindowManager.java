@@ -27,8 +27,7 @@ import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.ui.GUI;
 import bacmman.ui.ManualEdition;
-import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Palette;
+import bacmman.utils.*;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
@@ -48,8 +47,6 @@ import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 
 import bacmman.plugins.ObjectSplitter;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import ij.process.ImageProcessor;
@@ -129,8 +126,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 boolean ctrl = e.isControlDown();
                 boolean shift = e.isShiftDown();
                 boolean alt = e.isAltDown();
+                Roi r = ip.getRoi();
                 //boolean ctrl = (IJ.isMacOSX() || IJ.isMacintosh()) ? e.isAltDown() : e.isControlDown(); // for mac: ctrl + click = right click -> alt instead of ctrl
-                boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && ctrl && !shift; //IJ.getToolName().equals("polyline")
+                boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && ctrl && !shift && r!=null && (r instanceof PolygonRoi && ((PolygonRoi)r).getNCoordinates()>1); // ctrl + click = display connected tracks
                 boolean freeHandTool = (IJ.getToolName().equals("freeline") || IJ.getToolName().equals("oval") || IJ.getToolName().equals("ellipse"));
                 boolean brush = IJ.getToolName().equals("brush");
                 boolean freeHandDraw = (freeHandTool||brush) && shift && ctrl;
@@ -147,7 +145,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     return;
                 }
                 int sliceIdx = ip.getT() - 1;
-                Roi r = ip.getRoi();
+
                 boolean isKymoView = IJ.getToolName().equals("rectangle") && ctrl && shift && r!=null && r.getType()==Roi.RECTANGLE && i instanceof HyperStack;
                 boolean isHyperView = IJ.getToolName().equals("rectangle") && ctrl && alt && r!=null && r.getType()==Roi.RECTANGLE && i instanceof HyperStack;
                 if (isKymoView || isHyperView) {
@@ -219,24 +217,30 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                         displayObjects(image, selectedObjects, null, false, true, true);
                     } else { // display tracks
                         Set<List<SegmentedObject>> tracks = selectedObjects.stream()
-                                .map(p -> p.object.getTrackHead())
-                                .distinct().map(SegmentedObjectUtils::getTrack)
-                                .filter(t -> !t.isEmpty())
-                                .collect(Collectors.toSet());
-                        displayTracks(image, i, tracks, null, true, true);
+                            .map(p -> p.object.getTrackHead())
+                            .distinct().map(SegmentedObjectUtils::getTrack)
+                            .filter(t -> !t.isEmpty())
+                            .collect(Collectors.toSet());
+                        if (ctrl) { // also display connected tracks
+                            List<List<SegmentedObject>> connected = tracks.stream()
+                                .flatMap(t -> StreamConcatenation.concat(SegmentedObjectEditor.getPrevious(t.get(0)), SegmentedObjectEditor.getNext(t.get(t.size()-1))))
+                                .map(SegmentedObject::getTrackHead).distinct().map(SegmentedObjectUtils::getTrack)
+                                .filter(t -> !t.isEmpty()).collect(Collectors.toList());
+                            tracks.addAll(connected);
+                        }
+                        displayTracks(image, i, tracks, null, true, !ctrl);
+
                     }
                 } else { // edit
+                    selectedObjects.removeIf(od -> od.sliceIdx != sliceIdx); // in case of a kymograph, selected objects can belong to several slices
                     if (freeHandSplit && r != null) { // SPLIT
                         if (selectedObjects.isEmpty()) {
                             Utils.displayTemporaryMessage("No object to split from interactive object class", 3000);
                         } else {
-                            List<SegmentedObject> objects = ObjectDisplay.getObjectList(selectedObjects);
-                            //Map<SegmentedObject, List<SegmentedObject>> byParent = SegmentedObjectUtils.splitByParent(objects);
-                            //objects.removeIf(o -> byParent.get(o.getParent()).size()>1);
                             // get line & split
                             FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                             ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
-                            ManualEdition.splitObjects(GUI.getDBConnection(), objects, GUI.hasInstance() ? GUI.getInstance().getManualEditionRelabel() : true, false, splitter, true);
+                            ManualEdition.splitObjects(GUI.getDBConnection(), ObjectDisplay.getObjectList(selectedObjects), GUI.hasInstance() ? GUI.getInstance().getManualEditionRelabel() : true, false, splitter, true);
                         }
                     } else if ((freeHandDraw || freeHandDrawMerge || freeHandErase) && r != null) { // DRAW / ERASE
                         int parentObjectClass = i.getParent().getExperimentStructure().getParentObjectClassIdx(getInteractiveObjectClass());

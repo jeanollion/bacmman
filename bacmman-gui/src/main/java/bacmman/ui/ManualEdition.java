@@ -211,7 +211,7 @@ public class ManualEdition {
                             editor.resetTrackLinks(p, false, true, false);
                             editor.resetTrackLinks(n, true, false, false);
                         }
-                        linkObjects(prev.get(0), n, true, editor);
+                        linkObjects(p, n, true, editor);
                     }
                 } else if (prev.size()==1) {
                     for (SegmentedObject c : current) {
@@ -641,6 +641,7 @@ public class ManualEdition {
                         }
                     }
                 });
+                if (newObjects_.isEmpty()) continue;
                 newObjects.addAll(newObjects_);
                 objectsToStore.addAll(objectsToStore_);
                 //logger.debug("track: {} before modify links, new objects: {} to store: {}", track, newObjects, objectsToStore);
@@ -702,6 +703,7 @@ public class ManualEdition {
                     objectsToStore.add(objectToSplit);
                 }
             }
+            if (newObjects.isEmpty()) return;
             if (dispImages) displayIntermediateImages(stores, structureIdx, false);
             if (!relabel) factory.reassignDuplicateIndices(newObjects);
             if (!test && dao!=null) {

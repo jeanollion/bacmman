@@ -45,6 +45,7 @@ public class FreeLineSplitter implements ObjectSplitter {
         if (xPoints.length!=yPoints.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
         //logger.debug("xPoints: {}", xPoints);
         //logger.debug("yPoints: {}", yPoints);
+        //logger.debug("objects to split {}", touchedObjects);
         this.xPoints=xPoints;
         this.yPoints=yPoints;
         offsetMap = new HashMap<>(touchedObjects.size());
