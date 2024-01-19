@@ -40,6 +40,7 @@ import bacmman.ui.gui.configuration.TrackTreeCellRenderer;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.utils.EnumerationUtils;
@@ -69,6 +70,20 @@ public class TrackTreeGenerator {
     public StructureObjectTreeModel getModel() {
         return treeModel;
     }
+    public void flush(String position) {
+        if (treeModel == null) return;
+        TreeNode root = (TreeNode)treeModel.getRoot();
+        if (root instanceof TrackExperimentNode) {
+            Stream<RootTrackNode> allRoots = EnumerationUtils.toStream(root.children());
+            RootTrackNode r = allRoots.filter(o -> o.position.equals(position)).findAny().orElse(null);
+            if (r != null) r.flush();
+        } else if (root instanceof RootTrackNode) {
+            if (((RootTrackNode)root).position.equals(position)) {
+                ((RootTrackNode) root).flush();
+                clearTree();
+            }
+        }
+    }
     public void flush() {
         this.db=null;
         pcb=null;
@@ -89,6 +104,14 @@ public class TrackTreeGenerator {
         resetHighlightedObjects();
         //treeModel.nodeChanged(root);
         //treeModel.nodeStructureChanged(root);
+        tree.updateUI();
+    }
+
+    public void collapseAll() {
+        if (tree == null) return;
+        TreeNode root = (TreeNode)treeModel.getRoot();
+        Enumeration<TreePath> expandedState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{root}));
+        if (expandedState!=null) EnumerationUtils.toStream(expandedState).filter(p -> !p.getLastPathComponent().equals(root)).forEach(p -> tree.collapsePath(p));
         tree.updateUI();
     }
 
@@ -139,6 +162,14 @@ public class TrackTreeGenerator {
             else if (treeModel.getRoot() instanceof TrackExperimentNode) return ((RootTrackNode)tree.getSelectionPath().getPathComponent(1)).position;
         }
         return null;
+    }
+
+    public List<String> getSelectedPositions() {
+        if (tree == null) return Collections.emptyList();
+        TreePath[] paths = tree.getSelectionPaths();
+        if (paths == null) return Collections.emptyList();
+        int compIdx = treeModel.getRoot() instanceof RootTrackNode ? 0 : 1;
+        return Arrays.stream(paths).map(p -> (RootTrackNode)p.getPathComponent(compIdx)).map(r -> r.position).collect(Collectors.toList());
     }
     
     public boolean hasSelection() {return tree!=null?tree.getSelectionCount()>0:false;}
@@ -200,52 +231,52 @@ public class TrackTreeGenerator {
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
-                if (path==null) return;
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    if (!Utils.isSelected(tree, path)) tree.setSelectionPath(path);
-                    Rectangle pathBounds = tree.getUI().getPathBounds(tree, path);
-                    if (pathBounds != null && pathBounds.contains(e.getX(), e.getY())) {
-                        JPopupMenu menu = new JPopupMenu();
-                        Object lastO = path.getLastPathComponent();
-                        //logger.debug("right-click on element: {}", lastO);
-                        if (lastO instanceof UIContainer) {
-                            UIContainer UIC=(UIContainer)lastO;
-                            addToMenu(UIC.getDisplayComponent(tree.getSelectionCount()>1), menu);
-                        }
-                        menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
+            TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+            if (path==null) return;
+            if (SwingUtilities.isRightMouseButton(e)) {
+                if (!Utils.isSelected(tree, path)) tree.setSelectionPath(path);
+                Rectangle pathBounds = tree.getUI().getPathBounds(tree, path);
+                if (pathBounds != null && pathBounds.contains(e.getX(), e.getY())) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Object lastO = path.getLastPathComponent();
+                    //logger.debug("right-click on element: {}", lastO);
+                    if (lastO instanceof UIContainer) {
+                        UIContainer UIC=(UIContainer)lastO;
+                        addToMenu(UIC.getDisplayComponent(tree.getSelectionCount()>1), menu);
                     }
-                } else if (SwingUtilities.isLeftMouseButton(e) && !Utils.isCtrlOrShiftDown(e)) { 
-                    if (tree.isCollapsed(path)) { // expand & select all children
-                        ArrayList<TreePath> pathToSelect = new ArrayList<TreePath>();
-                        Utils.expandAll(tree, path, pathToSelect);
-                        //Utils.addToSelectionPaths(tree, pathToSelect);
-                    } //else Utils.addToSelectionPaths(tree, path);
-                    if (e.getClickCount()==2) { // open default image
-                        Object o = path.getLastPathComponent();
-                        Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
-                        int interactiveOC = ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass();
-                        int interactiveChannel = db.getExperiment().getChannelImageIdx(interactiveOC);
-                        if (o instanceof RootTrackNode) {
-                            RootTrackNode r = ((RootTrackNode)o);
-                            SegmentedObject root = r.getParentTrackHead();
-                            if (root != null) {
-                                if (iiType == null) iiType = TimeLapseInteractiveImage.getBestDisplayType(root.getBounds());
-                                if (iiType.equals(HyperStack.class)) r.openHyperStack(interactiveChannel);
-                                else r.openKymograph(interactiveChannel);
-                            }
-                        } else if (o instanceof TrackNode) {
-                            TrackNode r = ((TrackNode) o);
-                            SegmentedObject parent = r.getTrackHead();
-                            if (parent != null) {
-                                if (iiType == null) iiType = TimeLapseInteractiveImage.getBestDisplayType(parent.getBounds());
-                                if (iiType.equals(HyperStack.class)) r.openHyperStack(interactiveChannel);
-                                else r.openKymograph(interactiveChannel);
-                            }
-
+                    menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
+                }
+            } else if (SwingUtilities.isLeftMouseButton(e) && !Utils.isCtrlOrShiftDown(e)) {
+                if (tree.isCollapsed(path)) { // expand & select all children
+                    ArrayList<TreePath> pathToSelect = new ArrayList<TreePath>();
+                    Utils.expandAll(tree, path, pathToSelect);
+                    //Utils.addToSelectionPaths(tree, pathToSelect);
+                } //else Utils.addToSelectionPaths(tree, path);
+                if (e.getClickCount()==2) { // open default image
+                    Object o = path.getLastPathComponent();
+                    Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
+                    int interactiveOC = ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass();
+                    int interactiveChannel = db.getExperiment().getChannelImageIdx(interactiveOC);
+                    if (o instanceof RootTrackNode) {
+                        RootTrackNode r = ((RootTrackNode)o);
+                        SegmentedObject root = r.getParentTrackHead();
+                        if (root != null) {
+                            if (iiType == null) iiType = TimeLapseInteractiveImage.getBestDisplayType(root.getBounds());
+                            if (iiType.equals(HyperStack.class)) r.openHyperStack(interactiveChannel);
+                            else r.openKymograph(interactiveChannel);
                         }
+                    } else if (o instanceof TrackNode) {
+                        TrackNode r = ((TrackNode) o);
+                        SegmentedObject parent = r.getTrackHead();
+                        if (parent != null) {
+                            if (iiType == null) iiType = TimeLapseInteractiveImage.getBestDisplayType(parent.getBounds());
+                            if (iiType.equals(HyperStack.class)) r.openHyperStack(interactiveChannel);
+                            else r.openKymograph(interactiveChannel);
+                        }
+
                     }
                 }
+            }
             }
         });
     }

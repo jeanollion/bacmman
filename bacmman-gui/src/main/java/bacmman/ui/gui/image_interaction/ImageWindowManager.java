@@ -105,10 +105,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     protected final LinkedList<Image> displayedInteractiveImages = new LinkedList<>();
 
     // displayed objects 
-    protected final Map<ObjectDisplay, O> objectRoiCache = new HashMap<>();
-    protected final Map<ObjectDisplay, O> persistentObjectRoiCache = new HashMap<>();
-    protected final Map<List<ObjectDisplay>, T> kymographTrackRoiCache =new HashMap<>();
-    protected final Map<List<ObjectDisplay>, T> hyperstackTrackRoiCache =new HashMap<>();
+    protected final Map<String, Map<ObjectDisplay, O>> objectRoiCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>());
+    protected final Map<String, Map<ObjectDisplay, O>> persistentObjectRoiCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>());
+    protected final Map<String, Map<List<ObjectDisplay>, T>> kymographTrackRoiCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>());
+    protected final Map<String, Map<List<ObjectDisplay>, T>> hyperstackTrackRoiCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>());
     protected final Map<Image, Set<O>> displayedLabileObjectRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
     protected final Map<Image, Set<O>> displayedObjectRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
     protected final Map<Image, Set<T>> displayedLabileTrackRois = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
@@ -250,7 +250,6 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             if (!preProcessed) displayedRawInputImages.remove(position);
             else displayedPrePocessedImages.remove(position);
             displayer.removeImage(null, image);
-            return null;
         });
         if (!preProcessed) displayedRawInputImages.put(position, image);
         else displayedPrePocessedImages.put(position,  image);
@@ -315,7 +314,6 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             displayedObjectRois.remove(image);
             displayedLabileTrackRois.remove(image);
             displayedTrackRois.remove(image);
-            return null;
         });
         long t2 = System.currentTimeMillis();
         GUI.updateRoiDisplayForSelections(image, i);
@@ -337,6 +335,26 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             }
         }
     }
+
+    public void closeResourcesFromPosition(String position) {
+        List<InteractiveImage> iis = new ArrayList<>(interactiveImageMapImages.keySet());
+        for (InteractiveImage ii : iis) {
+            if (ii.getParent().getPositionName().equals(position)) {
+                Set<Image> images = interactiveImageMapImages.get(ii);
+                images.forEach(displayer::close);
+                // no need to remove from interactiveImageMapImages : this is taken cared by window closed event
+            }
+        }
+        persistentObjectRoiCache.remove(position);
+        hyperstackTrackRoiCache.remove(position);
+        kymographTrackRoiCache.remove(position);
+        objectRoiCache.remove(position);
+        I im = displayedPrePocessedImages.remove(position);
+        if (im!=null) displayer.close(im);
+        im = displayedRawInputImages.remove(position);
+        if (im!=null) displayer.close(im);
+    }
+
     public <II extends InteractiveImage> II getInteractiveImage(List<SegmentedObject> parentTrack, Class<II> interactiveImageClass, boolean createIfNotExisting) {
         if (parentTrack.isEmpty()) {
             logger.warn("cannot get interactive image with parent track of length == 0" );
@@ -459,11 +477,11 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
 
     public abstract void addMouseListener(Image image);
     public abstract void addWindowListener(I image, WindowListener wl);
-    public void addWindowClosedListener(Image image, Function<WindowEvent, Void> closeFunction) {
+    public void addWindowClosedListener(Image image, Consumer<WindowEvent> closeFunction) {
         I im = displayer.getImage(image);
         if (im!=null) addWindowClosedListener(im, closeFunction);
     }
-    public void addWindowClosedListener(I image, Function<WindowEvent, Void> closeFunction) {
+    public void addWindowClosedListener(I image, Consumer<WindowEvent> closeFunction) {
         addWindowListener(image, new WindowListener() {
             @Override
             public void windowOpened(WindowEvent e) { }
@@ -471,7 +489,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             public void windowClosing(WindowEvent e) {}
             @Override
             public void windowClosed(WindowEvent e) {
-                closeFunction.apply(e);
+                closeFunction.accept(e);
             }
             @Override
             public void windowIconified(WindowEvent e) { }
@@ -583,6 +601,8 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         }
         else dispImage = displayer.getImage(image);
         if (dispImage==null || image==null) return;
+        InteractiveImage ii = getInteractiveImage(image);
+        String position = ii.getParent().getPositionName();
         Set<O> displayed = labileObjects ? displayedLabileObjectRois.get(image) : displayedObjectRois.get(image);
         long t0 = System.currentTimeMillis();
         for (ObjectDisplay od : objectsToDisplay) {
@@ -593,13 +613,13 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                 color = getTransparentColor(color, fill);
             }
             //logger.debug("getting mask of object: {}", o);
-            Map<ObjectDisplay, O> cache = labileObjects ? objectRoiCache : persistentObjectRoiCache;
+            Map<ObjectDisplay, O> cache = labileObjects ? objectRoiCache.get(position) : persistentObjectRoiCache.get(position);
             O roi= cache.get(od);
             if (roi==null && !labileObjects) {
-                roi = objectRoiCache.get(od);
+                roi = objectRoiCache.get(position).get(od);
                 if (roi != null) {
                     roi = roi.duplicate();
-                    persistentObjectRoiCache.put(od, roi);
+                    cache.put(od, roi);
                 }
             }
             if (roi==null) {
@@ -633,10 +653,12 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         } 
         dispImage = getDisplayer().getImage(image);
         if (dispImage==null) return;
+        InteractiveImage ii = getInteractiveImage(image);
+        String position = ii.getParent().getPositionName();
         Set<O> selectedObjects = labileObjects ? this.displayedLabileObjectRois.get(image) : displayedObjectRois.get(image);
         for (ObjectDisplay p : objects) {
             //logger.debug("hiding: {}", p.key);
-            O roi= labileObjects ? objectRoiCache.get(p) : persistentObjectRoiCache.get(p);
+            O roi= labileObjects ? objectRoiCache.get(position).get(p) : persistentObjectRoiCache.get(position).get(p);
             if (roi!=null) {
                 hideObject(dispImage, roi);
                 if (selectedObjects!=null) selectedObjects.remove(roi);
@@ -667,6 +689,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             if (image==null) return Collections.emptyList();
         }
         InteractiveImage i = getInteractiveImage(image);
+        String position = i.getParent().getPositionName();
         if (i==null) return Collections.emptyList();
         if (displayMode.get(image).equals(DISPLAY_MODE.OBJECTS)) {
             logger.debug("getSelected Labile object: display all objects mode");
@@ -674,7 +697,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         }
         Set<O> rois = displayedLabileObjectRois.get(image);
         if (rois!=null) {
-            List<ObjectDisplay> ods = Utils.getKeys(objectRoiCache, rois);
+            List<ObjectDisplay> ods = Utils.getKeys(objectRoiCache.get(position), rois);
             List<SegmentedObject> res = ods.stream().map(o->o.object).collect(Collectors.toList());
             Utils.removeDuplicates(res, false);
             return res;
@@ -743,6 +766,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             //logger.debug("image: {}, OI: {}", image.getName(), i.getClass().getSimpleName());
             if (i==null) return false;
         }
+        String position = i.getParent().getPositionName();
         boolean hyperStack = i instanceof HyperStack;
         SegmentedObject trackHead = track.get(0).object.getTrackHead();
         boolean canDisplayTrack = i instanceof TimeLapseInteractiveImage;
@@ -751,7 +775,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             tm.trimTrack(track);
             canDisplayTrack = !track.isEmpty();
         }
-        Map<List<ObjectDisplay>, T> map = hyperStack ? hyperstackTrackRoiCache : kymographTrackRoiCache;
+        Map<List<ObjectDisplay>, T> map = hyperStack ? hyperstackTrackRoiCache.get(position) : kymographTrackRoiCache.get(position);
         if (canDisplayTrack) {
             Set<T>  disp = labile ? displayedLabileTrackRois.get(image) : displayedTrackRois.get(image);
             T roi = map.get(track);
@@ -801,8 +825,9 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             i=this.getInteractiveImage(image);
             if (i==null) return;
         }
+        String position = i.getParent().getPositionName();
         Set<T> disp = labile ? this.displayedLabileTrackRois.get(image) : displayedTrackRois.get(image);
-        Map<List<ObjectDisplay>, T> map = i instanceof Kymograph ? kymographTrackRoiCache : hyperstackTrackRoiCache;
+        Map<List<ObjectDisplay>, T> map = i instanceof Kymograph ? kymographTrackRoiCache.get(position) : hyperstackTrackRoiCache.get(position);
         if (disp != null && !trackHeads.isEmpty()) {
             for (SegmentedObject th : trackHeads) {
                 for (T roi : getTrackRoi(map, th)) {
@@ -837,13 +862,14 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         }
         InteractiveImage i = getInteractiveImage(image);
         if (i==null) return Collections.emptyList();
+        String position = i.getParent().getPositionName();
         if (displayMode.get(image).equals(DISPLAY_MODE.TRACKS)) {
             logger.debug("getSelected Labile tracks: display all mode");
             return i.getAllObjects(interactiveObjectClassIdx).filter(SegmentedObject::isTrackHead).collect(Collectors.toList());
         }
         Set<T> rois = this.displayedLabileTrackRois.get(image);
         if (rois!=null) {
-            Map<List<ObjectDisplay>, T> map = i instanceof Kymograph ? kymographTrackRoiCache : hyperstackTrackRoiCache;
+            Map<List<ObjectDisplay>, T> map = i instanceof Kymograph ? kymographTrackRoiCache.get(position) : hyperstackTrackRoiCache.get(position);
             return Utils.getKeys(map, rois).stream().map(t -> t.get(0).object.getTrackHead()).collect(Collectors.toList());
         } else return Collections.emptyList();
     }
@@ -859,8 +885,9 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             if (i!=null) hideObjects(image, i.toObjectDisplay(objects.stream()).collect(Collectors.toList()), false);
         }
         for (SegmentedObject object : objects) {
-            objectRoiCache.keySet().removeIf(o -> o.object.equals(object));
-            persistentObjectRoiCache.keySet().removeIf(o -> o.object.equals(object));
+            String pos = object.getPositionName();
+            objectRoiCache.get(pos).keySet().removeIf(o -> o.object.equals(object));
+            persistentObjectRoiCache.get(pos).keySet().removeIf(o -> o.object.equals(object));
         }
         if (removeTrack) removeTracks(SegmentedObjectUtils.getTrackHeads(objects));
 
@@ -876,9 +903,12 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     public void removeTracks(Collection<SegmentedObject> trackHeads) {
         for (Image image : this.displayedLabileTrackRois.keySet()) hideTracks(image, null, trackHeads, true);
         for (Image image : this.displayedTrackRois.keySet()) hideTracks(image, null, trackHeads, false);
-        if (! (trackHeads instanceof Set)) trackHeads = new HashSet<>(trackHeads);
-        removeFromMap(hyperstackTrackRoiCache, (Set)trackHeads);
-        removeFromMap(kymographTrackRoiCache, (Set)trackHeads);
+        Map<String, Set<SegmentedObject>> thByPos = trackHeads.stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName, Utils.collectToSet(o->o)));
+        thByPos.forEach((pos, th) -> {
+            removeFromMap(hyperstackTrackRoiCache.get(pos),th);
+            removeFromMap(kymographTrackRoiCache.get(pos), th);
+        });
+
     }
 
     protected static void removeFromMap(Map<List<ObjectDisplay>, ?> map, Set<SegmentedObject> trackHeads) {

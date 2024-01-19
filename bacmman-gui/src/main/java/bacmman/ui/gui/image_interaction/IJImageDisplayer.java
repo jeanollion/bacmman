@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.event.MouseWheelListener;
+import java.awt.event.WindowListener;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.IntFunction;
@@ -165,6 +166,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         ImagePlus imp = this.getImage(image);
         this.displayedImages.remove(image);
         if (imp!=null) {
+            for (WindowListener win : imp.getWindow().getWindowListeners()) win.windowClosed(null);
             imp.close();
             this.displayedImagesInv.remove(imp);
         }
@@ -173,6 +175,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (image==null) return;
         Image im = this.displayedImagesInv.remove(image);
         if (im!=null) this.displayedImages.remove(im);
+        for (WindowListener win : image.getWindow().getWindowListeners()) win.windowClosed(null);
         image.close();
     }
 

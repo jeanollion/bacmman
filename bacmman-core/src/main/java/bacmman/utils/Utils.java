@@ -1031,7 +1031,7 @@ public class Utils {
         return () -> frame.setVisible(false);
     }
     public static boolean promptBoolean(String question, Component parent) {
-        int response = JOptionPane.showConfirmDialog(parent, question, "Confirm", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        int response = JOptionPane.showOptionDialog(parent, question, "Confirm", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, JOptionPane.YES_OPTION);
         return response == JOptionPane.YES_OPTION;
     }
     

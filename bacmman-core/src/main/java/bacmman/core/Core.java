@@ -70,6 +70,7 @@ public class Core {
     public int dockerShmMb=2000;
     final List<Runnable> toFront = new ArrayList<>();
     final List<DiskBackedImageManager> diskBackedImageManagers = new ArrayList<>();
+    protected Consumer<String> closePosition;
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {
@@ -105,8 +106,16 @@ public class Core {
         return ij;
     }
 
+    public void closePosition(String position) {
+        if (closePosition!=null) closePosition.accept(position);
+    }
+
+    public void setClosePosition(Consumer<String> closePosition) {
+        this.closePosition=closePosition;
+    }
+
     public void toFront() { // placed GUI items to front
-        toFront.forEach(r -> r.run());
+        toFront.forEach(Runnable::run);
     }
 
     public void addToFront(Runnable toFront) {

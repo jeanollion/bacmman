@@ -21,13 +21,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S extends SelectionDAO> implements PersistentMasterDAO<ID, T> {
     static final Logger logger = LoggerFactory.getLogger(PersistentMasterDAOImpl.class);
+    public static int MAX_OPEN_DAO = 5; // ObjectBox limit: limited number of dataset can be open at the same time.
     protected final Path datasetDir;
 
     protected final String dbName;
     final HashMap<String, T> DAOs = new HashMap<>();
+    final LinkedList<T> openDAOs = new LinkedList<>();
     final Set<String> positionLock = new HashSet<>();
     protected Experiment xp;
     java.nio.channels.FileLock xpFileLock;
@@ -38,7 +41,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     boolean safeMode;
     private final SegmentedObjectAccessor accessor;
     public List<T> getOpenObjectDAOs() {
-        return new ArrayList<>(this.DAOs.values());
+        return new ArrayList<>(new ArrayList<>(openDAOs));
     }
     protected final ObjectDAOFactory<ID, T> factory;
     protected final SelectionDAOFactory<S> selectionDAOFactory;
@@ -83,7 +86,8 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             if (DAOs.containsKey(p) && DAOs.get(p).isReadOnly()) { //
                 DAOs.get(p).clearCache();
                 DAOs.get(p).unlock();
-                DAOs.remove(p);
+                T dao = DAOs.remove(p);
+                if (dao != null) openDAOs.remove(dao);
             }
             T dao = getDao(p);
             success = success && !dao.isReadOnly();
@@ -103,7 +107,8 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             if (this.DAOs.containsKey(p)) {
                 this.getDao(p).clearCache();
                 this.getDao(p).unlock();
-                DAOs.remove(p);
+                T dao = DAOs.remove(p);
+                if (dao != null) openDAOs.remove(dao);
             }
         }
     }
@@ -165,10 +170,22 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                 if (res == null) {
                     String op = getOutputPath();
                     if (op==null) throw new RuntimeException("No output path set, cannot create DAO");
+                    logger.debug("requesting dao: {} already open: {}", positionName, openDAOs.stream().map(ObjectDAO::getPositionName).collect(Collectors.toList()));
+                    if (openDAOs.size()>=MAX_OPEN_DAO) {
+                        T toClose = openDAOs.pollFirst();
+                        Core.getCore().closePosition(toClose.getPositionName());
+                        toClose.commit(); // TODO : in GUI mode + safe mode + modifications prompt user
+                        toClose.clearCache();
+                        toClose.unlock();
+                        DAOs.remove(toClose.getPositionName());
+                        openDAOs.remove(toClose);
+                    }
                     res = factory.makeDAO(this, positionName, op, positionLock.contains(positionName)?false:readOnly);
                     res.setSafeMode(safeMode);
-                    //logger.debug("creating DAO: {} position lock: {}, read only: {}", positionName, positionLock.contains(positionName), res.isReadOnly());
+                    //logger.debug("creating DAO: {} po
+                    // position lock: {}, read only: {}", positionName, positionLock.contains(positionName), res.isReadOnly());
                     DAOs.put(positionName, res);
+                    openDAOs.add(res);
                 }
             }
         }

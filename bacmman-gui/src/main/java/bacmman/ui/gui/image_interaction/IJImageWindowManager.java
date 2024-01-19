@@ -711,12 +711,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
 
     protected IJTrackRoi createContourTrackRoi(List<ObjectDisplay> track, Color color, InteractiveImage i, boolean flags) {
         IJTrackRoi trackRoi= new IJTrackRoi().setTrackType(Structure.TRACK_DISPLAY.CONTOUR).setIs2D(track.get(0).object.is2D());
+        String position = track.get(0).object.getPositionName();
         Function<ObjectDisplay, IJRoi3D> getRoi = p -> {
             boolean edge = flags && displayTrackEdges && ((p.object.getParent().getPrevious()!=null && p.object.getPrevious()==null) || (p.object.getParent().getNext()!=null && p.object.getNext()==null));
-            IJRoi3D r = objectRoiCache.get(p);
+            Map<ObjectDisplay, IJRoi3D> cache = objectRoiCache.get(position);
+            IJRoi3D r = cache.get(p);
             if (r == null) {
                 r = createObjectRoi(p, getTransparentColor(color, edge), edge);
-                objectRoiCache.put(p, r.duplicate());
+                cache.put(p, r.duplicate());
             } else {
                 r = r.duplicate().setHyperstackPosition();
                 r.setColor(getTransparentColor(color, edge), edge);

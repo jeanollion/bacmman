@@ -42,11 +42,13 @@ import static bacmman.data_structure.Processor.deleteObjects;
 import static bacmman.data_structure.Processor.executeProcessingScheme;
 import static bacmman.data_structure.Processor.getOrCreateRootTrack;
 
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.List;
 import java.util.function.*;
 
 import bacmman.utils.*;
@@ -643,7 +645,7 @@ public class Task implements ProgressCallback {
                 });
                 question.append('\n').append("Proceed ? ");
             }
-            boolean download = !ui.isGUI() || Utils.promptBoolean(question.toString(), null);
+            boolean download = !ui.isGUI() || Utils.promptBoolean(question.toString(), ui instanceof Component ? (Component) ui : null);
             if (download) {
                 dlModelToDownload.forEach( (path, dlModelFP) -> {
                     try{if (ui!=null) ui.setMessage("Downloading: "+path + " ("+ String.format("%.2f", dlModelFP.getLargeFileGist().getSizeMb()) + ')' );}catch(IOException e){}

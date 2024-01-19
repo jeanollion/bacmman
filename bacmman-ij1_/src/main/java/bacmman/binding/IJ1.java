@@ -107,6 +107,7 @@ public class IJ1 implements PlugIn {
                         try {
                             // Set cross-platform Java L&F (also called "Metal")
                             UIManager.setLookAndFeel( lafMap.get(lookAndFeel).getClassName());
+                            UIManager.put("Button.defaultButtonFollowsFocus", Boolean.TRUE);
                         }
                         catch (UnsupportedLookAndFeelException e) {
                             // handle exception
@@ -140,6 +141,10 @@ public class IJ1 implements PlugIn {
                         throw new RuntimeException("No Database system installed. Install bacmman-mapdb update site");
                     }
                     Core.getCore().addToFront(ij::toFront);
+                    Core.getCore().setClosePosition(position -> {
+                        ImageWindowManagerFactory.getImageManager().closeResourcesFromPosition(position);
+                        GUI.getInstance().closeResourceFromPosition(position);
+                    });
                     GUI gui = new GUI();
                     Core.getCore().addToFront(gui::toFront);
                     Core.setUserLogger(gui);

@@ -684,7 +684,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                if (Utils.promptBoolean("Delete All Objects after selected Frame ? ", null)) ManualEdition.deleteAllObjectsFromFrame(db, true);
+                if (Utils.promptBoolean("Delete All Objects after selected Frame ? ", INSTANCE)) ManualEdition.deleteAllObjectsFromFrame(db, true);
             }
         });
         actionMap.put(Shortcuts.ACTION.PRUNE, new AbstractAction("Create Branch") {
@@ -701,7 +701,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
                 if (selList.isEmpty()) logger.warn("Select at least one object to Create track from first!");
-                else if (selList.size()<=10 || Utils.promptBoolean("Create "+selList.size()+ " new tracks ? ", null)) ManualEdition.createTracks(db, selList, true);
+                else if (selList.size()<=10 || Utils.promptBoolean("Create "+selList.size()+ " new tracks ? ", INSTANCE)) ManualEdition.createTracks(db, selList, true);
             }
         });
         actionMap.put(Shortcuts.ACTION.MERGE, new AbstractAction("Merge") {
@@ -1609,6 +1609,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         setObjectClassJCB(interactiveStructure, true);
         setTrackTreeStructures();
         resetSelectionHighlight();
+    }
+
+    public void closeResourceFromPosition(String position) {
+        if (trackTreeController!=null) trackTreeController.flush(position);
     }
 
     public void populateActionStructureList() {
@@ -4683,7 +4687,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action delete = new AbstractAction("Delete") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":""), microscopyFieldList)) return;
+                    if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":""), INSTANCE)) return;
                     for (String pos : positions) {
                         db.getExperiment().getPosition(pos).eraseData();
                         db.getExperiment().getPosition(pos).removeFromParent();
@@ -4836,7 +4840,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         logger.info("delete: evt source {}, evt: {}, ac: {}, param: {}", evt.getSource(), evt, evt.getActionCommand(), evt.paramString());
         //if (db.isReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
-        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE(), relabel.getSelected(), true);
+        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", this)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE(), relabel.getSelected(), true);
     }//GEN-LAST:event_deleteObjectsButtonActionPerformed
 
     private void deleteObjectsButtonMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_deleteObjectsButtonMousePressed
@@ -4891,7 +4895,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         //if (db.isReadOnly()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least two objects to Merge first!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects ? ", null))  ManualEdition.mergeObjects(db, selList, relabel.getSelected(), true);
+        else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects ? ", this))  ManualEdition.mergeObjects(db, selList, relabel.getSelected(), true);
     }//GEN-LAST:event_mergeObjectsButtonActionPerformed
 
     private void splitObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_splitObjectsButtonActionPerformed
@@ -4899,14 +4903,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         //if (db.isReadOnly()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, true);
+        else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", this)) ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, true);
     }//GEN-LAST:event_splitObjectsButtonActionPerformed
 
     private void postFilterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_postFilterActionPerformed
         if (!checkConnection()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to apply post-filters on!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, relabel.getSelected(), true);
+        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", this)) ManualEdition.applyPostFilters(db, selList, relabel.getSelected(), true);
     }//GEN-LAST:event_postFilterActionPerformed
 
     private void nextTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed

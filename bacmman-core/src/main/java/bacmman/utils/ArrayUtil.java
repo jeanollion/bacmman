@@ -634,7 +634,8 @@ public class ArrayUtil {
     public static double quantile(DoubleStream sortedStream, int size, double quantile) {
         if (quantile<=0) return sortedStream.min().orElse(Double.NaN);
         if (quantile>=1) return sortedStream.max().orElse(Double.NaN);
-        if (size<0) { // count is terminating stream
+        if (size==0) return Double.NaN;
+        if (size<0) { // cannot invoke count > would terminate stream
             double[] values = sortedStream.toArray();
             return quantile(values, quantile);
         }
@@ -657,6 +658,7 @@ public class ArrayUtil {
     }
     public static double[] quantiles(int[] values, double... quantile) {
         if (quantile.length==0) return new double[0];
+        if (values.length==0) return Arrays.stream(quantile).map(d -> Double.NaN).toArray();
         Arrays.sort(values);
         double[] res = new double[quantile.length];
         for (int qIdx = 0; qIdx<quantile.length; ++qIdx) {
@@ -672,6 +674,7 @@ public class ArrayUtil {
     }
     public static double[] quantiles(double[] values, double... quantile) {
         if (quantile.length==0) return new double[0];
+        if (values.length==0) return Arrays.stream(quantile).map(d -> Double.NaN).toArray();
         Arrays.sort(values);
         double[] res = new double[quantile.length];
         for (int qIdx = 0; qIdx<quantile.length; ++qIdx) {

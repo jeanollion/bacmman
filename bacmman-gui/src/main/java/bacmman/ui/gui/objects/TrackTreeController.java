@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.tree.TreePath;
 import java.util.*;
 
 /**
@@ -49,6 +50,18 @@ public class TrackTreeController {
         this.pcb=pcb;
         initGeneratorsIfNecessary();
         displayedGeneratorS=new TreeMap<>();
+    }
+    public void flush(String position) {
+        if (getSelectedPositions().contains(position)) {
+            clearTreesFromIdx(1);
+            for  (TrackTreeGenerator g : allGeneratorS.values()) {
+                if (g.tree != null) {
+                    g.tree.setSelectionPaths(new TreePath[0]);
+                    g.collapseAll();
+                }
+            }
+        }
+        for  (TrackTreeGenerator g : allGeneratorS.values()) g.flush(position);
     }
     public void flush() {
         this.db=null;
@@ -89,7 +102,7 @@ public class TrackTreeController {
             displayedGeneratorS.put(s, allGeneratorS.get(s));
         }
         updateLastParentTracksWithSelection();
-        if (GUI.logger.isTraceEnabled()) GUI.logger.trace("track tree controller set structure: number of generators: {}", displayedGeneratorS.size());
+        if (logger.isTraceEnabled()) logger.trace("track tree controller set structure: number of generators: {}", displayedGeneratorS.size());
     }
     
     private int getLastTreeIdxWithSelection() {
@@ -124,7 +137,7 @@ public class TrackTreeController {
     
     public void clearTreesFromIdx(int treeIdx) {
         for (int i = treeIdx; i < structurePathToRoot.length; ++i) {
-            GUI.logger.debug("clearing tree for structure: {}", structurePathToRoot[i]);
+            logger.debug("clearing tree for structure: {}", structurePathToRoot[i]);
             allGeneratorS.get(structurePathToRoot[i]).clearTree();
         }
     }
@@ -172,7 +185,7 @@ public class TrackTreeController {
         if (trackHeads==null) return;
         else if (trackHeads.isEmpty()) return;
         int structureIdx = SegmentedObjectUtils.getStructureIdx(trackHeads);
-        GUI.logger.debug("unselect : {} tracks from structure: {}", trackHeads.size(), structureIdx);
+        logger.debug("unselect : {} tracks from structure: {}", trackHeads.size(), structureIdx);
         if (structureIdx == -2) throw new IllegalArgumentException("TrackHeads have different structure indicies");
         allGeneratorS.get(structureIdx).deselectTracks(trackHeads);
     }
@@ -188,6 +201,10 @@ public class TrackTreeController {
         int count = displayedGeneratorS.get(0).tree.getSelectionCount();
         if (count!=1) return null;
         return displayedGeneratorS.get(0).getSelectedPosition();
+    }
+    protected List<String> getSelectedPositions() {
+        if (displayedGeneratorS.isEmpty()) return Collections.EMPTY_LIST;
+        return displayedGeneratorS.get(0).getSelectedPositions();
     }
     public void selectPosition(String position, int childObjectClassIdx) {
         if (displayedGeneratorS.isEmpty()) return;
