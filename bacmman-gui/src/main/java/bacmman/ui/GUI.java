@@ -3279,7 +3279,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     public void navigateToNextImage(boolean next) {
         if (trackTreeController==null) this.loadObjectTrees();
         ImageWindowManager<Object,?,?> iwm = ImageWindowManagerFactory.getImageManager();
-        Object activeImage = iwm.getDisplayer().getCurrentDisplayedImage();
+        Image activeImage = iwm.getDisplayer().getCurrentImage();
         if (activeImage == null) {
             Utils.displayTemporaryMessage("No active image open", 2000);
             return;
@@ -3306,7 +3306,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 iwm.displayInputImage(db.getExperiment(), nextPosition, pp);
             }
         } else  { // interactive: if IOI found
-            final InteractiveImage i = iwm.getInteractiveImage(null);
+            final InteractiveImage i = iwm.getInteractiveImage(activeImage);
             if (i==null) return;
             // get next parent
             SegmentedObject nextParent = null;
@@ -3348,7 +3348,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Image im = iwm.getOneImage(nextII);
             if (im==null) {
                 LazyImage5D nextIm = nextII.generateImage();
-                int c = iwm.getDisplayer().getChannel(im);
+                int c = iwm.getDisplayer().getChannel(activeImage);
                 if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
                 iwm.addImage(nextIm, nextII, true);
             } else ImageWindowManagerFactory.getImageManager().setActive(im);
@@ -3362,8 +3362,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         int objectClassIdx = sel==null? iwm.getInteractiveObjectClass() : sel.getStructureIdx();
         if (sel != null && objectClassIdx==-2) sel = null;
         Image currentImage = iwm.getDisplayer().getCurrentImage();
-        if (currentImage == null) return;
-        int currentSlice = iwm.getDisplayer().getFrame(currentImage);
         InteractiveImage i = iwm.getInteractiveImage(currentImage);
         if (i==null && sel!=null && setInteractiveStructure) { // set interactive structure & navigate to next object in newly open image
             setInteractiveStructureIdx(objectClassIdx);
@@ -3445,7 +3443,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 }
             }
             Collections.sort(parents);
-            logger.debug("parent track heads: {} (sel object Idx: {}, parent object class: {}, displaySIdx: {})", parents.size(), objectClassIdx, parentSIdx, displayObjectClassIdx);
             int nextParentIdx = 0;
             if (i!=null && !positionChanged) { // look for next parent within parents of current position
                 int idx = Collections.binarySearch(parents, i.getParent());
@@ -3478,20 +3475,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 if (im==null) {
                     LazyImage5D nextIm = nextI.generateImage();
                     int c = -1;
-                    if (displayObjectClassIdx>=0) c = db.getExperiment().experimentStructure.getChannelIdx(displayObjectClassIdx);
-                    else {
-                        if (i != null) {
-                            Image prevIm = iwm.getOneImage(i); // TODO or active image ?
-                            if (prevIm!=null) iwm.getDisplayer().getChannel(prevIm);
-                        }
-                    }
+                    if (currentImage != null) c = iwm.getDisplayer().getChannel(currentImage);
+                    else if (displayObjectClassIdx>=0) c = db.getExperiment().experimentStructure.getChannelIdx(displayObjectClassIdx);
                     if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
                     iwm.addImage(nextIm, nextI, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {
                     List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), sel.getElementStrings(position)).collect(Collectors.toList());
-                    logger.debug("#objects from selection on next image: {}/{} (display oc={}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjectDisplay(sel.getStructureIdx(), currentSlice).count(), displayObjectClassIdx, objectClassIdx, im != null ? im.getName() : "null", nextParent);
+                    //logger.debug("#objects from selection on next image: {}/{} (display oc={}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjectDisplay(sel.getStructureIdx(), currentSlice).count(), displayObjectClassIdx, objectClassIdx, im != null ? im.getName() : "null", nextParent);
                     if (!objects.isEmpty()) {
                         // wait so that new image is displayed -> magnification issue -> window is not well computed
                         iwm.goToNextObject(im, objects, next, false);

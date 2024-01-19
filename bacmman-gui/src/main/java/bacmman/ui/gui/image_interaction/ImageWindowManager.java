@@ -100,8 +100,8 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     ZoomPane localZoom;
     protected final Map<InteractiveImage, Set<Image>> interactiveImageMapImages = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.SetFactory<>());
     protected final Map<Image, InteractiveImage> imageMapInteractiveImage = new HashMap<>();
-    protected final LinkedHashMap<String, I> displayedRawInputImages = new LinkedHashMap<>();
-    protected final LinkedHashMap<String, I> displayedPrePocessedImages = new LinkedHashMap<>();
+    protected final LinkedHashMap<String, Image> displayedRawInputImages = new LinkedHashMap<>();
+    protected final LinkedHashMap<String, Image> displayedPrePocessedImages = new LinkedHashMap<>();
     protected final LinkedList<Image> displayedInteractiveImages = new LinkedList<>();
 
     // displayed objects 
@@ -246,17 +246,17 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         source.setChannelNames(xp.getChannelImagesAsString(true));
         source.setChannelColors(xp.getChannelColorAsString(true).toArray(String[]::new));
         I image = getDisplayer().displayImage(source);
-        addWindowClosedListener(image, e-> {
+        addWindowClosedListener(image, ()-> {
             if (!preProcessed) displayedRawInputImages.remove(position);
             else displayedPrePocessedImages.remove(position);
             displayer.removeImage(null, image);
         });
-        if (!preProcessed) displayedRawInputImages.put(position, image);
-        else displayedPrePocessedImages.put(position,  image);
+        if (!preProcessed) displayedRawInputImages.put(position, source);
+        else displayedPrePocessedImages.put(position,  source);
         closeLastInputImages(displayedImageNumber);
     }
 
-    public String getPositionOfInputImage(I image) {
+    public String getPositionOfInputImage(Image image) {
         String pos = Utils.getOneKey(displayedRawInputImages, image);
         if (pos!=null) return pos;
         return Utils.getOneKey(displayedPrePocessedImages, image);
@@ -269,7 +269,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             Iterator<String> it = displayedRawInputImages.keySet().iterator();
             while(displayedRawInputImages.size()>numberOfKeptImages && it.hasNext()) {
                 String i = it.next();
-                I im = displayedRawInputImages.get(i);
+                Image im = displayedRawInputImages.get(i);
                 it.remove();
                 displayer.close(im);
             }
@@ -278,7 +278,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             Iterator<String> it = displayedPrePocessedImages.keySet().iterator();
             while(displayedPrePocessedImages.size()>numberOfKeptImages && it.hasNext()) {
                 String i = it.next();
-                I im = displayedPrePocessedImages.get(i);
+                Image im = displayedPrePocessedImages.get(i);
                 it.remove();
                 displayer.close(im);
             }
@@ -300,7 +300,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         long t1 = System.currentTimeMillis();
         displayedInteractiveImages.add(image);
         addMouseListener(image);
-        addWindowClosedListener(image, e-> {
+        addWindowClosedListener(image, ()-> {
             interactiveImageMapImages.get(i).remove(image);
             if (interactiveImageMapImages.get(i).isEmpty()) {
                 i.stopAllRunningWorkers();
@@ -349,7 +349,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         hyperstackTrackRoiCache.remove(position);
         kymographTrackRoiCache.remove(position);
         objectRoiCache.remove(position);
-        I im = displayedPrePocessedImages.remove(position);
+        Image im = displayedPrePocessedImages.remove(position);
         if (im!=null) displayer.close(im);
         im = displayedRawInputImages.remove(position);
         if (im!=null) displayer.close(im);
@@ -477,11 +477,11 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
 
     public abstract void addMouseListener(Image image);
     public abstract void addWindowListener(I image, WindowListener wl);
-    public void addWindowClosedListener(Image image, Consumer<WindowEvent> closeFunction) {
+    public void addWindowClosedListener(Image image, Runnable closeFunction) {
         I im = displayer.getImage(image);
         if (im!=null) addWindowClosedListener(im, closeFunction);
     }
-    public void addWindowClosedListener(I image, Consumer<WindowEvent> closeFunction) {
+    public void addWindowClosedListener(I image, Runnable closeFunction) {
         addWindowListener(image, new WindowListener() {
             @Override
             public void windowOpened(WindowEvent e) { }
@@ -489,7 +489,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             public void windowClosing(WindowEvent e) {}
             @Override
             public void windowClosed(WindowEvent e) {
-                closeFunction.accept(e);
+                closeFunction.run();
             }
             @Override
             public void windowIconified(WindowEvent e) { }
