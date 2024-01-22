@@ -810,12 +810,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         Predicate<SegmentedObject> editedNext = o -> o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
         IJTrackRoi trackRoi= new IJTrackRoi();
         trackRoi.setIs2D(track.get(0).object.is2D());
-        double arrowSize = track.size()==1 ? 1.5 : 0.65;
+        double arrowSize = 0.65;
         Color arrowColor = Palette.setOpacity(color, (int)Math.round(arrowOpacity * 255));
         BiConsumer<ObjectDisplay, ObjectDisplay> appendTrackArrow = (o1, o2) -> {
             Arrow arrow;
             if (track.size()==1 && o2==null) { // arrow that shows the object
-                double size = arrowStrokeWidth*arrowSize;
+                double size = arrowStrokeWidth*1.5;
                 Point p = new Point((float)o1.object.getBounds().xMean(), (float)o1.object.getBounds().yMean());
                 o1.object.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(-1, -1));
                 p.translate(o1.offset).translateRev(o1.object.getBounds()); // go to kymograph offset
@@ -845,7 +845,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 }
                 arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
                 arrow.enableSubPixelResolution();
-                arrow.setDoubleHeaded(true);
+                arrow.setDoubleHeaded(false);
             }
             arrow.setStrokeWidth(arrowStrokeWidth);
             arrow.setHeadSize(arrowStrokeWidth*arrowSize);
