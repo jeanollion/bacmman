@@ -105,6 +105,10 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         elements = new HashMap<>();
         this.mDAO=mDAO;
     }
+    public void freeMemoryForPositions(String... positions) {
+        if (positions.length==0) retrievedElements.clear();
+        else for (String p : positions) retrievedElements.remove(p);
+    }
     public Set<String> getAllPositions() {
         return elements.keySet();
     }

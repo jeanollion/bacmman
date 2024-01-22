@@ -72,7 +72,7 @@ import java.util.stream.Stream;
 public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends TrackRoi> {
     public static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
 
-    public enum RegisteredImageType {KYMOGRAPH, RAW_INPUT, PRE_PROCESSED}
+    public enum RegisteredImageType {KYMOGRAPH, HYPERSTACK, RAW_INPUT, PRE_PROCESSED}
     public static boolean displayTrackMode, displayTrackEdges, displayCorrections;
     public final static Color[] palette = new Color[]{new Color(166, 206, 227, 150), new Color(31,120,180, 150), new Color(178,223,138, 150), new Color(51,160,44, 150), new Color(251,154,153, 150), new Color(253,191,111, 150), new Color(255,127,0, 150), new Color(255,255,153, 150), new Color(177,89,40, 150)};
     public final static Color defaultRoiColor = new Color(255, 0, 255, 150);
@@ -143,18 +143,14 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     public int getDisplayImageLimit() {
         return displayedImageNumber;
     }
-    public RegisteredImageType getRegisterType(Object image) {
-        if (image instanceof Image) {
-            if (displayedInteractiveImages.contains(image)) return RegisteredImageType.KYMOGRAPH;
-            else return null;
+    public RegisteredImageType getRegisterType(Image image) {
+        InteractiveImage ii = imageMapInteractiveImage.get(image);
+        if (ii != null) {
+            if (ii instanceof Kymograph) return RegisteredImageType.KYMOGRAPH;
+            else if (ii instanceof HyperStack) return RegisteredImageType.HYPERSTACK;
         }
         if (this.displayedRawInputImages.containsValue(image)) return RegisteredImageType.RAW_INPUT;
         if (this.displayedPrePocessedImages.containsValue(image)) return RegisteredImageType.PRE_PROCESSED;
-        try {
-            I im = (I) image;
-            if (displayedInteractiveImages.contains(getDisplayer().getImage(im))) return RegisteredImageType.KYMOGRAPH;
-        } catch(Exception e) {}
-        
         return null;
     }
 

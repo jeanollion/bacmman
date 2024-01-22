@@ -254,7 +254,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             return pop;
         }
         Set<Region> foregroundL = pop.getRegions().stream().filter(r->!backgroundL.contains(r) && values.get(r)>=foreThld).collect(Collectors.toSet());
-        if (stores!=null) Plugin.logger.debug("min thld: {} max thld: {}, background: {}, foreground: {}, unknown: {}", bckThld, foreThld, backgroundL.size(), foregroundL.size(), pop.getRegions().size()-backgroundL.size()-foregroundL.size());
+        if (stores!=null) logger.debug("min thld: {} max thld: {}, background: {}, foreground: {}, unknown: {}", bckThld, foreThld, backgroundL.size(), foregroundL.size(), pop.getRegions().size()-backgroundL.size()-foregroundL.size());
         if (pop.getRegions().size()>foregroundL.size()+backgroundL.size()) { // merge indeterminate regions with either background or foreground
             pop.getRegions().removeAll(backgroundL);
             pop.getRegions().removeAll(foregroundL);
@@ -330,13 +330,14 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     @Override
     public TrackConfigurable.TrackConfigurer<BacteriaFluo> run(int structureIdx, List<SegmentedObject> parentTrack) {
         if (parentTrack.get(0).getRawImage(structureIdx)==parentTrack.get(0).getPreFilteredImage(structureIdx)) { // no prefilter -> perform on root
-            Plugin.logger.debug("no prefilters detected: global mean & sigma on root track");
+            logger.debug("no prefilters detected: global mean & sigma on root track");
             double[] ms = getRootBckMeanAndSigma(parentTrack, structureIdx, null);
             this.globalBackgroundLevel = ms[0];
             this.globalBackgroundSigma = ms[1];
         } else { // prefilters -> perform on parent track
-            Plugin.logger.debug("prefilters detected: global mean & sigma on parent track");
-            Map<Image, ImageMask> imageMapMask = parentTrack.stream().collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask() )); 
+            //logger.debug("prefilters detected: global mean & sigma on parent track");
+            //logger.debug("parent track: {}", Utils.toStringList(parentTrack, p -> p+" pf="+p.getPreFilteredImage(structureIdx)+" mask="+p.getMask()));
+            Map<Image, ImageMask> imageMapMask = parentTrack.stream().collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), SegmentedObject::getMask));
             // Background fit on parent track doesn't necessarily
             /*
             Histogram histo = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
@@ -417,7 +418,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                 } else foreThld = getRootThreshold(parentTrack, structureIdx, histoRoot, false);
             } else foreThld = thlder.runThresholderHisto(getHistoParent.get());  // parent threshold
         } 
-        Plugin.logger.debug("parent: {} global threshold on images with foreground: [{};{}]", parentTrack.get(0), bckThld, foreThld);
+        logger.debug("parent: {} global threshold on images with foreground: [{};{}]", parentTrack.get(0), bckThld, foreThld);
         return new double[]{bckThld, foreThld}; 
     }
     
@@ -445,7 +446,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                     }
                     double thld = thlder.runThresholderHisto(histo);
                     parents.get(0).getRoot().setAttribute(key, thld);
-                    Plugin.logger.debug("computing thld: {} on root: {} -> {}", key, parents.get(0).getRoot(), thld);
+                    logger.debug("computing thld: {} on root: {} -> {}", key, parents.get(0).getRoot(), thld);
                     return thld;
                 }
             }
@@ -456,7 +457,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         String meanK = "backgroundMean_"+structureIdx;
         String stdK = "backgroundStd_"+structureIdx;
         if (parents.get(0).getRoot().getAttributeKeys().contains(meanK)) {
-            Plugin.logger.debug("found on root {} mean {}, sigma: {}", parents.get(0), parents.get(0).getRoot().getAttribute(meanK, 0d),parents.get(0).getRoot().getAttribute(stdK, 1d));
+            logger.debug("found on root {} mean {}, sigma: {}", parents.get(0), parents.get(0).getRoot().getAttribute(meanK, 0d),parents.get(0).getRoot().getAttribute(stdK, 1d));
             return new double[]{parents.get(0).getRoot().getAttribute(meanK, 0d), parents.get(0).getRoot().getAttribute(stdK, 1d)};
         } else {
             synchronized(parents.get(0).getRoot()) {
@@ -474,7 +475,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                     BackgroundFit.backgroundFit(histo, 10, ms);
                     parents.get(0).getRoot().setAttribute(meanK, ms[0]);
                     parents.get(0).getRoot().setAttribute(stdK, ms[1]);
-                    Plugin.logger.debug("compute root {} mean {}, sigma: {}", parents.get(0), ms[0], ms[1]);
+                    logger.debug("compute root {} mean {}, sigma: {}", parents.get(0), ms[0], ms[1]);
                     return ms;
                 }
             }
@@ -483,10 +484,10 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     @Override
     protected void displayAttributes() {
         Core.userLog("Background Threshold: "+this.bckThld);
-        Plugin.logger.info("Background Threshold: "+this.bckThld);
+        logger.info("Background Threshold: "+this.bckThld);
         Core.userLog("Foreground Threshold: "+this.foreThld);
-        Plugin.logger.info("Foreground Threshold: {}", foreThld);
+        logger.info("Foreground Threshold: {}", foreThld);
         Core.userLog("Background Mean: "+this.globalBackgroundLevel+" Sigma: "+globalBackgroundSigma);
-        Plugin.logger.info("Background Mean: {} Sigma: {}", globalBackgroundLevel, globalBackgroundSigma);
+        logger.info("Background Mean: {} Sigma: {}", globalBackgroundLevel, globalBackgroundSigma);
     }
 }

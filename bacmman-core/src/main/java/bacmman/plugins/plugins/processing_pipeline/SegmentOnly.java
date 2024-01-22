@@ -112,8 +112,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 Segmenter seg = segmenter.instantiatePlugin();
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
                 Image input = globalParent.getPreFilteredImage(structureIdx);
-                if (subSegmentation)
-                    input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
+                if (subSegmentation) input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
                 RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
                 if (subSegmentation && pop != null) pop.translate(subParent.getBounds(), true);
                 return pop;

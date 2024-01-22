@@ -29,6 +29,7 @@ import java.util.List;
 import bacmman.plugins.TrackPreFilter;
 import bacmman.plugins.HistogramScaler;
 import bacmman.utils.MultipleException;
+import bacmman.utils.Utils;
 
 import java.util.Map;
 import java.util.Map.Entry;
@@ -60,6 +61,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
             return;
         }
         Map<SegmentedObject, Image> images = filterImages(structureIdx, parentTrack);
+        //logger.debug("track pre-filter is empty: {} -> {}", isEmpty(), Utils.toStringList(parentTrack, p->p+" "+images.get(p)));
         SegmentedObjectAccessor accessor = getAccessor();
         for (Entry<SegmentedObject, Image> en : images.entrySet()) {
             accessor.setPreFilteredImage(en.getKey(), structureIdx,en.getValue());

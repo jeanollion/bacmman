@@ -179,17 +179,29 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                         toClose.unlock();
                         DAOs.remove(toClose.getPositionName());
                         openDAOs.remove(toClose);
+                        clearSelectionCache(toClose.getPositionName());
                     }
                     res = factory.makeDAO(this, positionName, op, positionLock.contains(positionName)?false:readOnly);
                     res.setSafeMode(safeMode);
                     //logger.debug("creating DAO: {} po
                     // position lock: {}, read only: {}", positionName, positionLock.contains(positionName), res.isReadOnly());
                     DAOs.put(positionName, res);
-                    openDAOs.add(res);
+                    openDAOs.addLast(res);
                 }
             }
         }
+        if (openDAOs.isEmpty() || !res.equals(openDAOs.getLast())) {
+            synchronized (openDAOs) { // put in last position
+                openDAOs.remove(res);
+                openDAOs.addLast(res);
+            }
+        }
         return res;
+    }
+
+    protected void clearSelectionCache(String... positions) {
+        SelectionDAO dao = getSelectionDAO();
+        dao.getSelections().forEach(s -> s.freeMemoryForPositions(positions));
     }
 
     @Override
@@ -313,17 +325,20 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         if (getExperiment().getPosition(position)!=null) getExperiment().getPosition(position).flushImages(true, true); // input images
         T dao = DAOs.get(position);
         if (dao!=null) dao.clearCache();
+        if (selectionDAO != null) clearSelectionCache(position);
     }
     @Override public synchronized void clearCache(boolean configuration, boolean selectionDAO, boolean objectDAOs) {
         logger.debug("clearing cache...");
-        if (objectDAOs) {
-            for (T dao : DAOs.values()) clearCache(dao.getPositionName());
-        }
-
         if (selectionDAO && this.selectionDAO!=null) {
             getSelectionDAO().clearCache();
             this.selectionDAO=null;
         }
+        if (objectDAOs) {
+            for (T dao : DAOs.values()) {
+                clearCache(dao.getPositionName());
+            }
+        }
+
         if (configuration) {
             //this.unlockXP();
             this.xp=null;

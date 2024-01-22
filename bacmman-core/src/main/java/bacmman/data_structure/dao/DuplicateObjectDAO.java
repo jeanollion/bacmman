@@ -20,8 +20,8 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     final ObjectDAO<sourceID> source;
     List<SegmentedObject> roots;
     final Map<Integer, SegmentedObject> rootMap = new HashMap<>();
-    final Map<sourceID, SegmentedObject> sourceIdMapDupObject = new HashMap<>(); // maps source ID to new object
-    final Map<ID, SegmentedObject> newIdMapSourceObject = new HashMap<>(); // maps new ID to source object
+    final Map<Integer, Map<sourceID, SegmentedObject>> sourceIdMapDupObject = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>()); // maps source ID to new object
+    final Map<Integer, Map<ID, SegmentedObject>> newIdMapSourceObject = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>()); // maps new ID to source object
     final HashMapGetCreate.HashMapGetCreateRedirectedSync<Integer, SegmentedObjectFactory> factory = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(DuplicateObjectDAO::getFactory);
     final Set<Integer> excludeFromDuplicate;
     final Function<Integer, ID> idGenerator;
@@ -108,10 +108,11 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     @Override
     public synchronized SegmentedObject getById(int structureIdx, ID id, int frame, ID parentTrackHeadId) {
-        SegmentedObject source = newIdMapSourceObject.get(id);
+        SegmentedObject source = newIdMapSourceObject.get(structureIdx).get(id);
         if (source != null) {
-            return sourceIdMapDupObject.get((sourceID)source.getId());
+            return sourceIdMapDupObject.get(structureIdx).get((sourceID)source.getId());
         } else { // id could be still source id
+            if (true) throw new RuntimeException("ID was not duplicated");
             source = this.source.getById(structureIdx, (sourceID)id, frame, parentTrackHeadId==null?null:(sourceID)parentTrackHeadId);
             if (source != null) {
                 return duplicate(source);
@@ -122,7 +123,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     @Override
     public List<SegmentedObject> getChildren(SegmentedObject parent, int structureIdx) {
         if (excludeFromDuplicate.contains(structureIdx)) return null;
-        SegmentedObject sourceParent = newIdMapSourceObject.get(parent.getId());
+        SegmentedObject sourceParent = newIdMapSourceObject.get(parent.getStructureIdx()).get(parent.getId());
         if (sourceParent == null) {
             logger.error("Parent not duplicated {} (get children @ ocIdx = {}", parent, structureIdx);
             throw new RuntimeException("Parent not duplicated");
@@ -212,15 +213,15 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         }
         return this.roots;
     }
-    protected List<SegmentedObject> duplicate(Stream<SegmentedObject> source) {
+    protected void duplicate(Stream<SegmentedObject> source) {
         List<SegmentedObject> resList = source.map(s -> {
             SegmentedObject res = factory.get(s.getStructureIdx()).duplicate(s, this, s.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements, false);
-            sourceIdMapDupObject.put((sourceID)s.getId(), res);
-            newIdMapSourceObject.put((ID)res.getId(), s);
+            sourceIdMapDupObject.get(s.getStructureIdx()).put((sourceID)s.getId(), res);
+            newIdMapSourceObject.get(res.getStructureIdx()).put((ID)res.getId(), s);
             return res;
         }).collect(Collectors.toList());
         resList.forEach(res -> {
-            SegmentedObject s = newIdMapSourceObject.get(res.getId());
+            SegmentedObject s = newIdMapSourceObject.get(res.getStructureIdx()).get((ID)res.getId());
             if (s.getParent()!=null) {
                 SegmentedObject parent = getDuplicated(s.getParent());
                 res.setParent(parent);
@@ -235,12 +236,11 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
             }
             res.setTrackHead(getDuplicated(s.getTrackHead()));
         });
-        return resList;
     }
     protected SegmentedObject duplicate(SegmentedObject source) {
         SegmentedObject res = factory.get(source.getStructureIdx()).duplicate(source, this, source.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements, false);
-        sourceIdMapDupObject.put((sourceID)source.getId(), res);
-        newIdMapSourceObject.put((ID)res.getId(), source);
+        sourceIdMapDupObject.get(source.getStructureIdx()).put((sourceID)source.getId(), res);
+        newIdMapSourceObject.get(res.getStructureIdx()).put((ID)res.getId(), source);
         if (source.getParent()!=null) {
             SegmentedObject parent = getDuplicated(source.getParent());
             res.setParent(parent);
@@ -259,16 +259,16 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     public Stream<SegmentedObject> getDuplicated(Collection<SegmentedObject> source) {
         synchronized (this) {
-            duplicate(source.stream().filter(s -> !sourceIdMapDupObject.containsKey((sourceID)s.getId())));
+            duplicate(source.stream().filter(s -> !sourceIdMapDupObject.get(s.getStructureIdx()).containsKey((sourceID)s.getId())));
         }
-        return source.stream().map(o -> sourceIdMapDupObject.get((sourceID)o.getId()));
+        return source.stream().map(o -> sourceIdMapDupObject.get(o.getStructureIdx()).get((sourceID)o.getId()));
     }
 
     protected SegmentedObject getDuplicated(SegmentedObject source) {
-        SegmentedObject dup = sourceIdMapDupObject.get((sourceID)source.getId());
+        SegmentedObject dup = sourceIdMapDupObject.get(source.getStructureIdx()).get((sourceID)source.getId());
         if (dup == null) {
             synchronized (this) {
-                dup = sourceIdMapDupObject.get((sourceID)source.getId());
+                dup = sourceIdMapDupObject.get(source.getStructureIdx()).get((sourceID)source.getId());
                 if (dup==null) {
                     dup = duplicate(source);
                 }
@@ -290,7 +290,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     @Override
     public List<SegmentedObject> getTrack(SegmentedObject trackHead) {
-        SegmentedObject sourceTh = newIdMapSourceObject.get(trackHead.getId());
+        SegmentedObject sourceTh = newIdMapSourceObject.get(trackHead.getStructureIdx()).get(trackHead.getId());
         if (sourceTh==null) throw new RuntimeException("Object not duplicated");
         List<SegmentedObject> sourceTrack = source.getTrack(sourceTh);
         return sourceTrack.stream().map(this::getDuplicated).collect(Collectors.toList());
@@ -298,7 +298,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     @Override
     public List<SegmentedObject> getTrackHeads(SegmentedObject parentTrackHead, int structureIdx) {
-        SegmentedObject sourceTh = newIdMapSourceObject.get(parentTrackHead.getId());
+        SegmentedObject sourceTh = newIdMapSourceObject.get(parentTrackHead.getStructureIdx()).get(parentTrackHead.getId());
         if (sourceTh==null) throw new RuntimeException("Object not duplicated");
         List<SegmentedObject> sourceTrack = source.getTrackHeads(sourceTh, structureIdx);
         return sourceTrack.stream().map(this::getDuplicated).collect(Collectors.toList());

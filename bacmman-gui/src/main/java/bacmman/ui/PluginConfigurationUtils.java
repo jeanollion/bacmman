@@ -134,7 +134,7 @@ public class PluginConfigurationUtils {
             if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
             logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
 
-            TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, segmenter);
+            TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, runPreFiltersOnWholeTrack? wholeParentTrackDup : parentTrackDup, segmenter);
             SegmentOnly so = new SegmentOnly(segmenter); // no post-filters
             if (segParentStrutureIdx!=parentStrutureIdx && o.getStructureIdx()==segParentStrutureIdx) { // when selected objects are segmentation parent -> remove all others
                 Set<SegmentedObject> selectedObjects = dupDAO.getDuplicated(parentSelection).collect(Collectors.toSet());
@@ -191,7 +191,7 @@ public class PluginConfigurationUtils {
             int maxF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
             parentTrackDup = wholeParentTrackDup.stream().filter(p->p.getFrame()>=minF && p.getFrame()<=maxF).collect(Collectors.toList());
 
-            if (psc instanceof ProcessingPipelineWithTracking) ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll();
+            if (psc instanceof ProcessingPipelineWithTracking) ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll(); // do not perform post-filters
 
             // run testing
             if (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) { // run pre-filters on whole track

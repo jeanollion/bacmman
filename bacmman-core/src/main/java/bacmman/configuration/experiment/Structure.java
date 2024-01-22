@@ -250,7 +250,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     }
     
     public int getSegmentationParentStructure() {
-        return segmentationParent.getSelectedIndex()<parentStructure.getSelectedIndex() ? parentStructure.getSelectedIndex() : segmentationParent.getSelectedIndex();
+        return Math.max(segmentationParent.getSelectedIndex(), parentStructure.getSelectedIndex());
     }
     
     public void setParentStructure(int parentIdx) {

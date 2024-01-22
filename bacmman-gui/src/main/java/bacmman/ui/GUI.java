@@ -1613,6 +1613,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     public void closeResourceFromPosition(String position) {
         if (trackTreeController!=null) trackTreeController.flush(position);
+        if (db!=null && db.getExperiment()!=null && db.getExperiment().getPosition(position)!=null) db.getExperiment().getPosition(position).flushImages(true, true); // input images
     }
 
     public void populateActionStructureList() {

@@ -93,11 +93,12 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     protected SimpleInteractiveImage[] makeTrackObjects(int sliceIdx) {
         BoundingBox[] trackOffset = this.trackOffset.get(sliceIdx);
         int startIdx = getStartParentIdx(sliceIdx);
-        logger.debug("start idx = {} for slice: {}", startIdx, sliceIdx);
+        //logger.debug("start idx = {} for slice: {}", startIdx, sliceIdx);
         if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
         else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), view[i], trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
     public Stream<Integer> getSlice(int frame) {
+        if (frameMapParentIdx.get(frame)==null) logger.debug("null parent for frame: {} all parents : {}", frame, data.parentTrack);
         int parentIdx = frameMapParentIdx.get(frame);
         if (parentIdx<data.nFramePerSlice - data.frameOverlap) return Stream.of(0);
         else {
@@ -220,7 +221,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         Function<int[], Image> generator = fc -> {
             int sizeZ = im.getImage(fc[0], fc[1]).sizeZ();
             ImageProperties curProps = new SimpleImageProperties(props.sizeX(), props.sizeY(), sizeZ, props.getScaleXY(), props.getScaleZ());
-            logger.debug("generate image for frame: {} channel : {} z = {}", fc[0], fc[1], sizeZ);
+            //logger.debug("generate image for frame: {} channel : {} z = {}", fc[0], fc[1], sizeZ);
             Image displayImage = Image.createEmptyImage(name, im.getImageType(), curProps);
             updateImage(displayImage, fc[1], fc[0]);
             return displayImage;
