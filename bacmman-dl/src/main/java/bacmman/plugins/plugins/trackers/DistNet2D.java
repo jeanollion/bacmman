@@ -66,7 +66,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter gcdmSmoothRad = new BoundedNumberParameter("GCDM Smooth", 5, 0, 0, null).setEmphasized(false).setHint("Smooth radius for GCDM image. Set 0 to skip this step, or a radius in pixel (typically 2) if predicted GCDM image is not smooth a too many centers are detected");
 
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas");
-    BoundedNumberParameter minMaxEDM = new BoundedNumberParameter("Min Max EDM Threshold", 5, 1, 0, null).setEmphasized(false).setHint("Segmented Object with maximal EDM value lower than this threshold are filtered out");
+    BoundedNumberParameter minMaxEDM = new BoundedNumberParameter("Min Max EDM Threshold", 5, 1, 0, null).setEmphasized(false).setHint("Segmented Object with maximal EDM value lower than this threshold are merged or filtered out");
 
     BoundedNumberParameter objectThickness = new BoundedNumberParameter("Object Thickness", 5, 6, 3, null).setEmphasized(true).setHint("Minimal thickness of objects to segment. Increase this parameter to reduce over-segmentation and false positives");
     BoundedNumberParameter mergeCriterion = new BoundedNumberParameter("Merge Criterion", 5, 0.001, 1e-5, 1).setEmphasized(false).setHint("Increase to reduce over-segmentation.  <br />When two objects are in contact, the intensity of their center is compared. If the ratio (max/min) is below this threshold, objects are merged.");
@@ -289,9 +289,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         double sizeMinFactor = 0.5;
         double sizeMaxFactor = 2;
         double minOverlapProportion = 0.25;
-        ImageMask LMMask = minMaxEDMThreshold<=edmThreshold ? insideCellsM : PredicateMask.and(parent.getMask(), new PredicateMask(edmI, minMaxEDMThreshold, true, false));
         Image centerLap = ImageFeatures.getLaplacian(centerI, sigma, true, false);
-        LMMask = PredicateMask.and(LMMask, new PredicateMask(centerLap, lapThld, true, true));
+        ImageMask LMMask = PredicateMask.and(insideCellsM, new PredicateMask(centerLap, lapThld, true, true));
         if (stores!=null) stores.get(parent).addIntermediateImage("Center Laplacian", centerLap);
         ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, 0, centerI));
         WatershedTransform.WatershedConfiguration centerConfig = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(lapThld));
@@ -354,6 +353,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         // 4) Post-filtering (honor minSize + user-defined post-filters)
         if (minSize>0) {
             pop.filter(new RegionPopulation.Size().setMin(minSize));
+        }
+        if (minMaxEDMThreshold>edmThreshold) {
+            pop.filter(new RegionPopulation.QuantileIntensity(1, minMaxEDMThreshold, true, edmI));
         }
         if (postFilters != null) postFilters.filter(pop, objectClassIdx, parent);
         pop.getRegions().forEach(r -> { // set centers & save memory // absolute offset
