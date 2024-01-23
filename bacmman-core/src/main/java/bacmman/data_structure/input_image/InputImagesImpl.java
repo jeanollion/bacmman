@@ -23,20 +23,13 @@ import static bacmman.image.Image.logger;
 import bacmman.plugins.Autofocus;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.Transformation;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
-import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  *
@@ -50,7 +43,8 @@ public class InputImagesImpl implements InputImages {
     Autofocus autofocusAlgo = null;
     Integer[] autofocusPlanes;
     int freeMemoryFrameWindow = 0; // 200;
-
+    double memoryProportionLimit;
+    final LinkedList<SymetricalPair<Integer>> lastUsedImages = new LinkedList<>();
     public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig) {
         this.imageCT = imageCT;
         this.defaultTimePoint= defaultTimePoint;
@@ -64,7 +58,10 @@ public class InputImagesImpl implements InputImages {
     public void setDefaultTimePoint(int defaultTimePoint) {
         this.defaultTimePoint=defaultTimePoint;
     }
-    
+    @Override
+    public void setMemoryProportionLimit(double memoryProportionLimit) {
+        this.memoryProportionLimit = memoryProportionLimit;
+    }
     public InputImagesImpl duplicate() {
         InputImage[][] imageCTDup = new InputImage[imageCT.length][];
         for (int i = 0; i<imageCT.length; ++i) {
@@ -166,8 +163,14 @@ public class InputImagesImpl implements InputImages {
 
     @Override public Image getImage(int channelIdx, int timePoint) throws IOException {
         if (imageCT[channelIdx].length==1) timePoint = 0;
-        if (freeMemoryFrameWindow>0 && timePoint > freeMemoryFrameWindow) freeMemory(timePoint - freeMemoryFrameWindow);
-        return imageCT[channelIdx][timePoint].getImage();
+        synchronized (lastUsedImages) {
+            SymetricalPair<Integer> p = new SymetricalPair<>(channelIdx, timePoint);
+            lastUsedImages.remove(p);
+            lastUsedImages.addLast(p);
+        }
+        Image result = imageCT[channelIdx][timePoint].getImage();
+        freeMemory(result.byteCount() * result.sizeXYZ());
+        return result;
     }
     @Override public Image getRawPlane(int z, int channelIdx, int timePoint) throws IOException  {
         if (imageCT[channelIdx].length==1) timePoint = 0;
@@ -179,6 +182,9 @@ public class InputImagesImpl implements InputImages {
     }
     public void flush(int channelIdx, int timePoint) {
         imageCT[channelIdx][timePoint].flush();
+        synchronized (lastUsedImages) {
+            lastUsedImages.remove(new SymetricalPair<>(channelIdx, timePoint));
+        }
     }
     public Image[][] getImagesTC() throws IOException {
         return getImagesTC(0, this.getFrameNumber());
@@ -234,7 +240,10 @@ public class InputImagesImpl implements InputImages {
                     }
                     imageF[f].saveImage(tempCheckPoint);
                 }
-                if (close) imageF[f].flush();
+                if (close) {
+                    imageF[f].flush();
+                    lastUsedImages.remove(new SymetricalPair<>(c, f));
+                }
             };
             ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100);
             logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
@@ -246,17 +255,27 @@ public class InputImagesImpl implements InputImages {
         logger.debug("apply transformation & {} save: total time: {}, for {} time points and {} channels", tempCheckPoint ? "temp":"", tEnd-tStart, getFrameNumber(), getChannelNumber() );
     }
 
-    private void freeMemory(int maxFrame) {
-        for (int c = 0; c<getChannelNumber(); ++c) {
-            InputImage[] imageF = imageCT[c];
-            for (int f = maxFrame-1; f>=0; --f) {
-                InputImage im = imageF[f];
-                if (im.imageOpened()) {
-                    synchronized (im) {
-                        if (im.imageOpened()) {
-                            if (im.modified()) im.saveImage(true);
-                            im.flush();
-                        }
+    private void freeMemory(long imageSize) {
+        if (memoryProportionLimit == 0 || memoryProportionLimit == 1) return;
+        double toFree = Utils.getMemoryUsageProportion() - memoryProportionLimit;
+        if (toFree < memoryProportionLimit*0.1) return;
+        synchronized (lastUsedImages) {
+            toFree = Utils.getMemoryUsageProportion() - memoryProportionLimit;
+            if (toFree < memoryProportionLimit*0.1) return;
+            long maxImages = Utils.getTotalMemory() / imageSize;
+            int nImagesToFree = Math.min(lastUsedImages.size()-1, (int) (maxImages * toFree * 1.1) ); // convert in number of images
+            if (nImagesToFree>0) logger.debug("free memory: proportion to free: {} used: {}/{} nImages to free {}/{}, usage per image: {}/{} max images: {}", toFree, Utils.getMemoryUsageProportion(), memoryProportionLimit, nImagesToFree, lastUsedImages.size(), imageSize/(1000d*1000d), Utils.getTotalMemory()/(1000*1000), maxImages);
+
+            int freed = 0;
+            while(freed<nImagesToFree && lastUsedImages.size()>1) {
+                SymetricalPair<Integer> p = lastUsedImages.pollFirst();
+                if (p == null) break;
+                InputImage image = imageCT[p.key][p.value];
+                synchronized (image) {
+                    if (image.imageOpened()) {
+                        if (image.modified()) image.saveImage(true);
+                        image.flush();
+                        ++freed;
                     }
                 }
             }
@@ -279,6 +298,7 @@ public class InputImagesImpl implements InputImages {
                 imageCT[c][t].flush();
             }
         }
+        lastUsedImages.clear();
     }
     
     /**

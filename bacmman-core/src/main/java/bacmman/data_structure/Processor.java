@@ -125,6 +125,7 @@ public class Processor {
     public static void preProcessImages(Position position, ObjectDAO dao, boolean deleteObjects, double memoryLimit, ProgressCallback pcb) throws IOException {
         if (!dao.getPositionName().equals(position.getName())) throw new IllegalArgumentException("field name should be equal");
         InputImagesImpl images = position.getInputImages();
+        images.setMemoryProportionLimit(memoryLimit);
         try {
             if (images==null || images.getImage(0, images.getDefaultTimePoint())==null) {
                 if (pcb!=null) pcb.log("Error: no input images found for position: "+position.getName());
@@ -149,6 +150,7 @@ public class Processor {
     
     public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb) throws IOException {
         InputImagesImpl images = position.getInputImages();
+        images.setMemoryProportionLimit(memoryLimit);
         PreProcessingChain ppc = position.getPreProcessingChain();
         if (pcb!=null) {
             int confTransfo = (int)ppc.getTransformations(true).stream().filter(t->t.instantiatePlugin() instanceof ConfigurableTransformation).count();

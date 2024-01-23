@@ -26,6 +26,7 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.ConfigurableTransformation;
 
 import java.io.IOException;
@@ -97,17 +98,18 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             default :
                 frames =  InputImages.chooseNImagesWithSignal(inputImages, channelIdx, framesN);
         }
-        List<Image> images = ThreadRunner.parallelExecutionBySegmentsFunction(f-> {
+        /*List<Image> images = ThreadRunner.parallelExecutionBySegmentsFunction(f-> {
             try {
                 return inputImages.getImage(channelIdx, f);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        }, frames, 100);
-        Function<Integer, MutableBoundingBox> getBds = i -> {
-            Image<? extends Image> im = images.get(i);
+        }, frames, 100);*/
+        IOException[] ex = new IOException[1];
+        Function<Integer, MutableBoundingBox> getBds = f -> {
+            Image<? extends Image> im = InputImages.getImage(inputImages,channelIdx, f, ex);
             if (im.sizeZ()>1) {
-                int plane = inputImages.getBestFocusPlane(i);
+                int plane = inputImages.getBestFocusPlane(f);
                 if (plane<0) throw new RuntimeException("CropMicrochannel can only be run on 2D images AND no autofocus algorithm was set");
                 im = im.splitZPlanes().get(plane);
             }
@@ -121,11 +123,16 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             getBds.apply(frames.indexOf(idx));
         }
         if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);
-        Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(IntStream.range(0, frames.size()).boxed().parallel(), i->i, getBds::apply, true); // not using Collectors.toMap because result of getBounds can be null
+        logger.debug("computing bounding box on {} frames", frames.size());
+        List<MutableBoundingBox> bds = ThreadRunner.parallelExecutionBySegmentsFunction(getBds, frames, 200, true);
+        if (ex[0]!=null) throw ex[0];
+        Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(frames.stream(), i->i, bds::get, true); // not using Collectors.toMap because result of getBounds can be null
+
         List<Integer> nullBounds = bounds.entrySet().stream().filter(e->e.getValue()==null).map(Map.Entry::getKey).collect(Collectors.toList());
-        if (!nullBounds.isEmpty()) logger.warn("bounds could not be computed for frames: {}", nullBounds);
+        if (!nullBounds.isEmpty()) logger.debug("bounds could not be computed for frames: {}", nullBounds);
         bounds.values().removeIf(b->b==null);
         if (bounds.isEmpty()) throw new RuntimeException("Bounds could not be computed");
+        logger.debug("filling gaps... (memory usage: {})", Utils.getMemoryUsage());
         if (framesN==0 && bounds.size()<frames.size()) { // fill null bounds
             Set<Integer> missingFrames = new HashSet<>(frames);
             missingFrames.removeAll(bounds.keySet());
@@ -141,6 +148,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
                 else bounds.put(f, bounds.get(supF).duplicate());
             });
         }
+        logger.debug("uniformize bounding boxes... (memory usage: {})", Utils.getMemoryUsage());
         uniformizeBoundingBoxes(bounds, inputImages, channelIdx);
         if (framesN==0)  cropBounds = bounds;
         else this.bounds = bounds.values().stream().findAny().get();
@@ -156,7 +164,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     protected abstract void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx)  throws IOException;
     
     protected void uniformizeX(Map<Integer, MutableBoundingBox> allBounds) {
-        int sizeX = allBounds.values().stream().mapToInt(b->b.sizeX()).min().getAsInt();
+        int sizeX = allBounds.values().stream().mapToInt(SimpleBoundingBox::sizeX).min().getAsInt();
         allBounds.values().stream().filter(bb->bb.sizeX()!=sizeX).forEach(bb-> {
             int diff = bb.sizeX() - sizeX;
             int addLeft=diff/2;

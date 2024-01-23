@@ -436,19 +436,6 @@ public class ThreadRunner {
             IntStream.range(min, max).parallel().forEach(action::accept);
         }
     }
-    public static <T> List<T> parallelExecutionBySegmentsFunction(Function<Integer, T> action, int minIdx, int maxIdxExcl, int window) {
-        int n = (maxIdxExcl - minIdx + 1) / window;
-        double r = (maxIdxExcl - minIdx + 1) % window;
-        if (r>=window/2. || n==0) ++n;
-        List<T> res = new ArrayList<>();
-        for (int s = 0;s<n; ++s) {
-            int min = s*window + minIdx;
-            int max = s==n-1 ? maxIdxExcl :  (s+1) * window + minIdx;
-            logger.debug("parallel ex by segment: [{}; {}[ € [{}; {}[", min, max, minIdx, maxIdxExcl);
-            res.addAll(IntStream.range(min, max).parallel().boxed().map(action).collect(Collectors.toList()));
-        }
-        return res;
-    }
     public static void parallelExecutionBySegments(Consumer<Integer> action, List<Integer> indices, int window) {
         int n = indices.size() / window;
         double r = indices.size() % window;
@@ -456,21 +443,37 @@ public class ThreadRunner {
         for (int s = 0;s<n; ++s) {
             int min = s*window;
             int max = s==n-1 ? indices.size() :  (s+1) * window;
-            logger.debug("parallel ex by segment: [{}; {}[ € [{}; {}[", min, max, 0, indices.size());
+            logger.debug("parallel ex by segment: [{}; {}) € [{}; {})", min, max, 0, indices.size());
             IntStream.range(min, max).parallel().mapToObj(indices::get).forEach(action);
         }
     }
-    public static <T> List<T> parallelExecutionBySegmentsFunction(Function<Integer, T> action, List<Integer> indices, int window) {
+    public static <T> List<T> parallelExecutionBySegmentsFunction(Function<Integer, T> action, int minIdx, int maxIdxExcl, int window, boolean multithreadPerSegment) {
+        return parallelExecutionBySegmentsFunction(action, IntStream.range(minIdx, maxIdxExcl).boxed().collect(Collectors.toList()), window, multithreadPerSegment);
+    }
+
+    public static <T> List<T> parallelExecutionBySegmentsFunction(Function<Integer, T> action, Collection<Integer> indices, int window, boolean multithreadPerSegment) {
         int n = indices.size() / window;
         double r = indices.size() % window;
         if (r>=window/2. || n==0) ++n;
-        List<T> res = new ArrayList<>();
-        for (int s = 0;s<n; ++s) {
-            int min = s*window;
-            int max = s==n-1 ? indices.size() :  (s+1) * window;
-            logger.debug("parallel ex by segment: [{}; {}[ € [{}; {}[", min, max, 0, indices.size());
-            res.addAll(IntStream.range(min, max).parallel().mapToObj(indices::get).map(action).collect(Collectors.toList()));
+        List<Integer> indiceList = indices instanceof List ? (List<Integer>)indices : new ArrayList<>(indices);
+        if (multithreadPerSegment) {
+            List<T> res = new ArrayList<>();
+            for (int s = 0;s<n; ++s) {
+                int min = s*window;
+                int max = s==n-1 ? indiceList.size() :  (s+1) * window;
+                logger.debug("parallel ex by segment: [{}; {}) / [{}; {})", min, max, 0, indiceList.size());
+                res.addAll(IntStream.range(min, max).parallel().mapToObj(indiceList::get).map(action).collect(Collectors.toList()));
+            }
+            return res;
+        } else {
+            List<T>[] allLists = new List[n];
+            IntStream.range(0, n).boxed().parallel().forEach(s -> {
+                int min = s*window;
+                int max = s==allLists.length-1 ? indiceList.size() :  (s+1) * window;
+                logger.debug("parallel ex by segment: [{}; {}) / [{}; {})", min, max, 0, indiceList.size());
+                allLists[s] = IntStream.range(min, max).mapToObj(indiceList::get).map(action).collect(Collectors.toList());
+            });
+            return Arrays.stream(allLists).flatMap(Collection::stream).collect(Collectors.toList());
         }
-        return res;
     }
 }

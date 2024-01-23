@@ -95,6 +95,7 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
 
     public int getSlice(int frame) {
+        if (frameMapParentIdx.get(frame)==null) logger.error("null parent idx for frame: {}, parent track: {}", frame, data.parentTrack);
         return frameMapParentIdx.get(frame);
     }
 

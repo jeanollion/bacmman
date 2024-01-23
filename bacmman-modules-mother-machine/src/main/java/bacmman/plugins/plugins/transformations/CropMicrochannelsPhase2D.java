@@ -32,6 +32,7 @@ import bacmman.processing.ImageOperations;
 import bacmman.plugins.Plugin;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
 import java.io.IOException;
@@ -270,19 +271,20 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
 
     @Override
     protected void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx) throws IOException {
-        boolean stabFromDown = false;
-
-        int maxSizeY = allBounds.values().stream().mapToInt(b->b.sizeY()).max().getAsInt();
+        int maxSizeY = allBounds.values().stream().mapToInt(SimpleBoundingBox::sizeY).max().getAsInt();
         IOException[] ex = new IOException[1];
-        int sY = allBounds.entrySet().stream().mapToInt(b-> {
-            Image im = InputImages.getImage(inputImages,channelIdx, b.getKey(), ex);
-            int yMinNull = getYmin( im , b.getValue().xMin(), b.getValue().xMax()); // limit sizeY so that no null pixels (due to rotation) is present in the image & not out-of-bounds
-            logger.debug("yMinnull: {}", yMinNull);
-            return b.getValue().yMax() - Math.max(b.getValue().yMax()-(maxSizeY-1), yMinNull)+1;
-        }).min().getAsInt();
+        int sY = ThreadRunner.parallelExecutionBySegmentsFunction(i-> {
+            MutableBoundingBox b = allBounds.get(i);
+            Image im = InputImages.getImage(inputImages,channelIdx, i, ex);
+            int yMinNull = getYmin( im , b.xMin(), b.xMax()); // limit sizeY so that no null pixels (due to rotation) is present in the image & not out-of-bounds
+            //logger.debug("yMinnull: {}", yMinNull);
+            return b.yMax() - Math.max(b.yMax()-(maxSizeY-1), yMinNull)+1;
+        }, allBounds.keySet(), 200, true)
+                .stream().mapToInt(i->i).min().getAsInt();
         if (ex[0]!=null) throw ex[0];
-        logger.info("max size Y: {} uniformized sizeY: {}", maxSizeY, sY);
-        logger.info("all bounds: {}", allBounds.entrySet().stream().filter(e->e.getKey()%100==0).sorted(Comparator.comparingInt(Map.Entry::getKey)).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));
+        logger.debug("max size Y: {} uniformized sizeY: {}", maxSizeY, sY);
+        int modulo = Math.max(1, allBounds.size() / 10);
+        logger.debug("all bounds: {}", allBounds.entrySet().stream().filter(e->e.getKey()%modulo==0).sorted(Comparator.comparingInt(Map.Entry::getKey)).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));
         if (!landmarkUpperPeak.getSelected()) allBounds.values().stream().filter(bb->bb.sizeY()!=sY).forEach(bb-> bb.setyMin(bb.yMax()-(sY-1)));
         else allBounds.values().stream().filter(bb->bb.sizeY()!=sY).forEach(bb-> bb.setyMax(bb.yMin()+(sY-1)));
         //logger.info("all bounds after uniformize Y: {}", allBounds.entrySet().stream().filter(e->e.getKey()%100==0).sorted((e1, e2)->Integer.compare(e1.getKey(), e2.getKey())).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));

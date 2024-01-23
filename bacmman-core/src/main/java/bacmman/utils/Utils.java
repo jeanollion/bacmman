@@ -246,7 +246,11 @@ public class Utils {
     public static String getMemoryUsage() {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         //String of = Utils.getOpenedFileCount();
-        return " Used Memory: "+ (used/1000000)/1000d+"GB ("+ (int)Math.round(100d*used/((double)Runtime.getRuntime().maxMemory())) + "%)"; //+(of.length()==0?"": " OpenedFiles: "+of
+        double f = 1024 * 1024 / (1000d * 1000);
+        return " Used Memory: "+ (f * used/(1000*1000))/1000d+"GB ("+ (int)Math.round(100d*used/((double)Runtime.getRuntime().maxMemory())) + "%)"; //+(of.length()==0?"": " OpenedFiles: "+of
+    }
+    public static long getTotalMemory() {
+        return Runtime.getRuntime().maxMemory();
     }
     public static double getMemoryUsageProportion() {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();

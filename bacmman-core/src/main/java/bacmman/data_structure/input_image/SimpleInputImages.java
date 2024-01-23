@@ -61,4 +61,9 @@ public class SimpleInputImages implements InputImages {
     public boolean singleFrameChannel(int channelIdx) {
         return false;
     }
+
+    @Override
+    public void setMemoryProportionLimit(double memoryProportionLimit) {
+
+    }
 }

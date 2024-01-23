@@ -80,10 +80,12 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     NumberParameter thresholdFactor_dt = new BoundedNumberParameter("dI/dt threshold factor", 3, 0.5, 0.01, null).setEmphasized(false).setHint("Threshold factor to filter dI/dt image");
     NumberParameter thresholdFactor_dy = new BoundedNumberParameter("dI/dy threshold factor", 3, 0.5, 0.01, null).setEmphasized(false).setHint("Threshold factor to filter dI/dy image");
     NumberParameter stabSegment = new BoundedNumberParameter("Frame segment", 0, 20, 5, null).setEmphasized(false).setHint("Frame segment for XY stabilization (see ImageStabilizerXY plugin)");
+    NumberParameter frameLimit = new BoundedNumberParameter("Frame Limit", 0, 200, 5, null).setEmphasized(false).setHint("Maximum number of frames to consider");
+
     BooleanParameter stabilize = new BooleanParameter("Stabilize", true);
     ConditionalParameter<Boolean> stabCond = new ConditionalParameter<>(stabilize).setActionParameters(Boolean.TRUE, stabSegment);
     ConditionalParameter<String> cond = new ConditionalParameter<>(method)
-            .setActionParameters(OPTICAL_FLOW.name, binFactor, thresholdFactor_dt, thresholdFactor_dy, stabCond)
+            .setActionParameters(OPTICAL_FLOW.name, frameLimit, binFactor, thresholdFactor_dt, thresholdFactor_dy, stabCond)
             .setActionParameters(AutoFlipMethod.FLUO.name, fluoThld, minObjectSize)
             .setActionParameters(AutoFlipMethod.PHASE.name, microchannelLength);
     Boolean flip = null;
@@ -131,7 +133,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     }
                     return isFlipFluo(image);
                 };
-                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50);
+                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50, true);
                 if (ioe[0]!=null) throw ioe[0];
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
@@ -158,7 +160,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     }
                     return isFlipFluoUpperHalf(image);
                 };
-                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50);
+                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50, true);
                 if (ioe[0]!=null) throw ioe[0];
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
@@ -199,10 +201,11 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 break;
             } case OPTICAL_FLOW: {
                 if (inputImages.getFrameNumber()<3) throw new RuntimeException("AutoFlipY > Optical flow method requires at least 3 frames");
-                // TODO frame subset
+                int frameLimit = Math.min(this.frameLimit.getIntValue(), inputImages.getFrameNumber());
+                if (frameLimit <=1 ) frameLimit = inputImages.getFrameNumber();
                 // compute dI/dy & dI/dt
                 int binFactor = this.binFactor.getValue().intValue();
-                Image[] images = new Image[inputImages.getFrameNumber()];
+                Image[] images = new Image[frameLimit];
                 for (int t = 0; t<images.length; ++t) {
                     images[t] = inputImages.getImage(channelIdx, t);
                     if (images[t].sizeZ()>1) images[t] = images[t].getZPlane(inputImages.getBestFocusPlane(t));

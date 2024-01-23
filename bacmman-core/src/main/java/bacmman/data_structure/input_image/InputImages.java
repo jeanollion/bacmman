@@ -29,6 +29,7 @@ import bacmman.processing.ImageOperations;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import bacmman.utils.ArrayUtil;
@@ -37,8 +38,10 @@ import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -68,6 +71,7 @@ public interface InputImages {
     public void flush();
     public double getCalibratedTimePoint(int c, int t, int z);
     public boolean singleFrameChannel(int channelIdx);
+    void setMemoryProportionLimit(double memoryProportionLimit);
     public static Image[] getImageForChannel(InputImages images, int channelIdx, boolean ensure2D) {
         if(channelIdx<0 || channelIdx>=images.getChannelNumber()) throw new IllegalArgumentException("invalid channel idx: "+channelIdx+" max idx: "+(images.getChannelNumber()-1));
         Function<Integer, Image> fun;
@@ -95,7 +99,7 @@ public interface InputImages {
                 return image;
             };
         }
-        List<Image> res = ThreadRunner.parallelExecutionBySegmentsFunction(fun, 0,  images.getFrameNumber(), 100);
+        List<Image> res = ThreadRunner.parallelExecutionBySegmentsFunction(fun, 0,  images.getFrameNumber(), 100, true);
         return res.toArray(new Image[0]);
     }
     
@@ -109,16 +113,23 @@ public interface InputImages {
         return ImageOperations.meanZProjection(Image.mergeZPlanes(imagesToAv));
     }
     /**
-     * See {@link #chooseNImagesWithSignal(java.util.List, int) }
+     * See {@link #chooseNImagesWithSignal(java.util.function.Supplier, int, int) }
      * @param inputImages
      * @param channelIdx
      * @param n
      * @return 
      */
     public static List<Integer> chooseNImagesWithSignal(InputImages inputImages, int channelIdx, int n) {
-        List<Image> imagesByFrame = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
-        return chooseNImagesWithSignal(imagesByFrame, n);
-
+        int modulo = Math.max(1, inputImages.getFrameNumber()/(12*n));
+        if (modulo>1) logger.debug("choose {} images among {} -> modulo: {}", n, inputImages.getFrameNumber(), modulo);
+        Supplier<Stream<Pair<Integer, Image>>> images = () -> IntStream.range(0, inputImages.getFrameNumber()).filter(f -> f%modulo==0).mapToObj(f -> {
+            try {
+                return new Pair<>(f, inputImages.getImage(channelIdx, f));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        return chooseNImagesWithSignal(images, n, inputImages.getFrameNumber()/modulo);
     }
     /**
      * Measure amount of signal in each image by counting number of pixel above  a threshold computed by {@link BackgroundFit} method with parameter = 3.
@@ -126,21 +137,22 @@ public interface InputImages {
      * @param n number of indices to return
      * @return list of image indexed from {@param images} list paired with signal measurement
      */
-    public static List<Integer> chooseNImagesWithSignal(List<Image> images, int n) {
-        if (n>=images.size()) return Utils.toList(ArrayUtil.generateIntegerArray(images.size()));
-        // signal is measured as number of 
+    public static List<Integer> chooseNImagesWithSignal(Supplier<Stream<Pair<Integer, Image>>> images, int n, int totalImagesNumber) {
+        if (n>=totalImagesNumber) return Utils.toList(ArrayUtil.generateIntegerArray(totalImagesNumber));
+        // signal is measured as number of
         long t0 = System.currentTimeMillis();
-        double sTot = images.get(0).sizeXYZ();
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(images).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+        double sTot = images.get().findAny().get().value.sizeXYZ();
+        Histogram histo = HistogramFactory.getHistogram(()->images.get().parallel().flatMapToDouble(im -> im.value.stream()), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
         //histo.plotIJ1("choose "+n+" images: histogram.", true);
         double thld = BackgroundFit.backgroundFit(histo, 3);
-        
-        List<Pair<Integer, Double>> signal = IntStream.range(0, images.size()).parallel()
-                .mapToObj((int i) ->  new Pair<>(i, images.get(i).stream().filter(v->v>thld).count() /  sTot))
-                .sorted((p1, p2)->-Double.compare(p1.value, p2.value)).collect(Collectors.toList());
-        if (n==1) return Arrays.asList(new Integer[]{signal.get(0).key});
+
+        List<Pair<Integer, Double>> signal = images.get().parallel()
+                .map(im -> new Pair<>(im.key, im.value.stream().filter(v->v>thld).count() /  sTot))
+                .sorted((p1, p2)->-Double.compare(p1.value, p2.value))
+                .collect(Collectors.toList());
+        if (n==1) return Collections.singletonList(signal.get(0).key);
         // choose n frames among the X frames with most signal
-        int candidateNumber = Math.max(images.size()/4, n);
+        int candidateNumber = Math.max(totalImagesNumber/4, n);
         double delta = Math.max((double)candidateNumber / (double)(n+1), 1);
         signal = signal.subList(0, candidateNumber);
         List<Pair<Integer, Double>> res = new ArrayList<>(n);
@@ -149,7 +161,7 @@ public interface InputImages {
             res.add(signal.get(idx));
         }
         long t1 = System.currentTimeMillis();
-        logger.debug("choose {} images: {} t={} (among: {})", n, res, t1-t0, signal);
+        logger.debug("choose {} images: {} t={} (among: {})", n, res, t1-t0, signal);
         return Pair.unpairKeys(res);
     }
 }
