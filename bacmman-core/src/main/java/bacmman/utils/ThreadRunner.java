@@ -432,7 +432,7 @@ public class ThreadRunner {
         for (int s = 0;s<n; ++s) {
             int min = s*window + minIdx;
             int max = s==n-1 ? maxIdxExcl :  (s+1) * window + minIdx;
-            //logger.debug("parallel ex by segment: [{}; {}[ € [{}; {}[", min, max, minIdx, maxIdxExcl);
+            logger.debug("parallel ex by segment: [{}; {}) / [{}; {})", min, max, minIdx, maxIdxExcl);
             IntStream.range(min, max).parallel().forEach(action::accept);
         }
     }
@@ -443,7 +443,7 @@ public class ThreadRunner {
         for (int s = 0;s<n; ++s) {
             int min = s*window;
             int max = s==n-1 ? indices.size() :  (s+1) * window;
-            logger.debug("parallel ex by segment: [{}; {}) € [{}; {})", min, max, 0, indices.size());
+            logger.debug("parallel ex by segment: [{}; {}) / [{}; {})", min, max, 0, indices.size());
             IntStream.range(min, max).parallel().mapToObj(indices::get).forEach(action);
         }
     }

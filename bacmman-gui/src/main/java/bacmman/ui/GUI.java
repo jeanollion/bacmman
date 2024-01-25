@@ -30,6 +30,7 @@ import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.LazyImage5D;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;

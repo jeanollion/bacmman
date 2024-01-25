@@ -13,7 +13,7 @@ import bacmman.processing.matching.trackmate.Spot;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.skeleton.SparseSkeleton;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import net.imglib2.RealLocalizable;
@@ -92,7 +92,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             });
         }
         // precompute FTF overlaps
-        Map<SymetricalPair<Region>, Overlap> overlapMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> overlapFun.apply(p.key, p.value));
+        Map<UnaryPair<Region>, Overlap> overlapMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> overlapFun.apply(p.key, p.value));
         List<Region> currentRegions = parentTrack.get(0).getChildren(structureIdx).map(SegmentedObject::getRegion).collect(Collectors.toList());
         for (int i = 1; i<parentTrack.size(); ++i) {
             List<Region> nextRegions = parentTrack.get(i).getChildren(structureIdx).map(SegmentedObject::getRegion).collect(Collectors.toList());
@@ -101,7 +101,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
                     for (Region r2 : nextRegions) {
                         Overlap o = overlapFun.apply(r1, r2);
                         if (o!=null) {
-                            overlapMap.put(new SymetricalPair<>(r1, r2), o);
+                            overlapMap.put(new UnaryPair<>(r1, r2), o);
                             if (test) {
                                 rMm.get(r1).setValue("NextOverlap_"+(r2.getLabel()-1), o.overlap);
                                 rMm.get(r1).setValue("NextOverlapDistance_"+(r2.getLabel()-1), 1-o.jacardIndex());
@@ -254,14 +254,14 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         }
     }
     public static class LAPObjectOverlap extends AbstractLAPObject<LAPObjectOverlap> {
-        final Map<SymetricalPair<Region>, Overlap> overlapMap;
-        public LAPObjectOverlap(Region r, int frame, Map<SymetricalPair<Region>, Overlap> overlapMap) {
+        final Map<UnaryPair<Region>, Overlap> overlapMap;
+        public LAPObjectOverlap(Region r, int frame, Map<UnaryPair<Region>, Overlap> overlapMap) {
             super(r, frame);
             this.overlapMap = overlapMap;
         }
         @Override public double squareDistanceTo(LAPObjectOverlap otherR) {
             if (otherR.getFrame() < getFrame()) return otherR.squareDistanceTo(this);
-            SymetricalPair<Region> key = new SymetricalPair<>(r, otherR.r);
+            UnaryPair<Region> key = new UnaryPair<>(r, otherR.r);
             if (getFrame() == (otherR).getFrame() - 1 && !overlapMap.containsKey(key)) return Double.POSITIVE_INFINITY; // all FTF overlap have been computed -> no need to call redirected get method
             Overlap o = overlapMap.get(key);
             if (o==null || o.overlap == 0) return Double.POSITIVE_INFINITY;
@@ -309,7 +309,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             return distSq;
         }
     }
-    public <T extends AbstractLAPObject<T>> LAPLinker<T> getTMInterface(Map<SymetricalPair<Region>, Overlap> overlapMap) {
+    public <T extends AbstractLAPObject<T>> LAPLinker<T> getTMInterface(Map<UnaryPair<Region>, Overlap> overlapMap) {
         switch (distance.getSelectedEnum()) {
             case GEOM_CENTER_DISTANCE:
             case MASS_CENTER_DISTANCE:

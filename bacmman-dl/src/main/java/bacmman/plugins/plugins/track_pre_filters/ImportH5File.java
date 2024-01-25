@@ -5,6 +5,7 @@ import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.image.Image;
 import bacmman.plugins.DevPlugin;
 import bacmman.plugins.ProcessingPipeline;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class ImportH5File implements TrackPreFilter, DevPlugin {
     public final FileChooser h5File = new FileChooser("Input images", FileChooser.FileChooserOption.FILE_ONLY).setEmphasized(true);// todo add relative path option in FileChooser parameter
@@ -45,11 +47,10 @@ public class ImportH5File implements TrackPreFilter, DevPlugin {
     }
 
     @Override
-    public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
+    public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
         if (preFilteredImages.isEmpty()) return;
-        List<SegmentedObject> track = new ArrayList<>(preFilteredImages.keySet());
-        preFilteredImages.clear();
-        preFilteredImages.putAll(getImages(track));
+        List<SegmentedObject> track = preFilteredImages.streamKeys().collect(Collectors.toList());
+        getImages(track).forEach(preFilteredImages::set); // TODO : proceed by segments if needed
     }
     public Map<SegmentedObject, Image> getImages(List<SegmentedObject> track) {
         File file = new File(h5File.getFirstSelectedFilePath());

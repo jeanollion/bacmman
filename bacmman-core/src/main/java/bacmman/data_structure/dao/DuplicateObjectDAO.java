@@ -130,7 +130,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         }
         Stream<SegmentedObject> sourceChildren = sourceParent.getChildren(structureIdx);
         if (sourceChildren == null) return null;
-        return sourceChildren.map(this::duplicate).collect(Collectors.toList());
+        return getDuplicated(sourceChildren.collect(Collectors.toList())).collect(Collectors.toList());
     }
 
     @Override
@@ -213,35 +213,67 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         }
         return this.roots;
     }
+    protected SegmentedObject makeDuplicate(SegmentedObject s) {
+        Map<sourceID, SegmentedObject> sourceMapDup = sourceIdMapDupObject.get(s.getStructureIdx());
+        SegmentedObject res = sourceMapDup.get(s.getId());
+        if (res == null) {
+            res = factory.get(s.getStructureIdx()).duplicate(s, this, s.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements);
+            sourceMapDup.put((sourceID) s.getId(), res);
+            newIdMapSourceObject.get(s.getStructureIdx()).put((ID) res.getId(), s);
+        }
+        return res;
+    }
     protected void duplicate(Stream<SegmentedObject> source) {
-        List<SegmentedObject> resList = source.map(s -> {
-            SegmentedObject res = factory.get(s.getStructureIdx()).duplicate(s, this, s.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements, false);
-            sourceIdMapDupObject.get(s.getStructureIdx()).put((sourceID)s.getId(), res);
-            newIdMapSourceObject.get(res.getStructureIdx()).put((ID)res.getId(), s);
-            return res;
+        Map<SegmentedObject, SegmentedObject> sourceMapRes = source.distinct().collect(Collectors.toMap(s->s, this::makeDuplicate));
+        if (sourceMapRes.isEmpty()) return;
+        // ensure parents are duplicated
+        duplicate(sourceMapRes.keySet().stream().filter(o -> !o.isRoot()).map(SegmentedObject::getParent));
+        // ensure prev / nexts are duplicated
+        List<SegmentedObject> toDuplicate = sourceMapRes.keySet().stream().flatMap(s -> {
+            boolean prev = s.getPrevious()!=null && !sourceMapRes.containsKey(s.getPrevious());
+            boolean next = s.getNext()!=null && !sourceMapRes.containsKey(s.getNext());
+            if (prev && next) return Stream.of(s.getPrevious(), s.getNext());
+            else if (prev) return Stream.of(s.getPrevious());
+            else if (next) return Stream.of(s.getNext());
+            else return Stream.empty();
         }).collect(Collectors.toList());
-        resList.forEach(res -> {
-            SegmentedObject s = newIdMapSourceObject.get(res.getStructureIdx()).get((ID)res.getId());
+        toDuplicate.forEach(s -> sourceMapRes.put(s, makeDuplicate(s)));
+        // ensure trackheads
+        toDuplicate = sourceMapRes.keySet().stream().filter(s->!s.isTrackHead()).map(SegmentedObject::getTrackHead)
+                .filter(s->!sourceMapRes.containsKey(s)).distinct().collect(Collectors.toList());
+        toDuplicate.forEach(s -> sourceMapRes.put(s, makeDuplicate(s)));
+        // set parent, prev, next
+        sourceMapRes.forEach((s, res) -> {
             if (s.getParent()!=null) {
-                SegmentedObject parent = getDuplicated(s.getParent());
+                SegmentedObject parent = sourceIdMapDupObject.get(s.getParent().getStructureIdx()).get((sourceID)s.getParentId());
+                if (parent == null) {
+                    logger.error("Parent not duplicated for {} (parent: {})", s, s.getParent());
+                    throw new RuntimeException("Parent not duplicated");
+                }
                 res.setParent(parent);
             }
+            Map<sourceID, SegmentedObject> map = sourceIdMapDupObject.get(s.getStructureIdx());
             if (s.getPrevious()!=null) {
-                SegmentedObject previous = getDuplicated(s.getPrevious());
+                SegmentedObject previous = map.get((sourceID)s.getPreviousId());
                 res.setPrevious(previous);
             }
             if (s.getNext()!=null) {
-                SegmentedObject next = getDuplicated(s.getNext());
+                SegmentedObject next = map.get((sourceID)s.getNextId());
                 res.setNext(next);
             }
-            res.setTrackHead(getDuplicated(s.getTrackHead()));
+            SegmentedObject th = map.get((sourceID)s.getTrackHeadId());
+            if (th == null) {
+                logger.error("TrackHead not duplicated for {} (th: {})", s, s.getTrackHead());
+                throw new RuntimeException("Next not duplicated");
+            }
+            res.setTrackHead(th);
         });
     }
     protected SegmentedObject duplicate(SegmentedObject source) {
-        SegmentedObject res = factory.get(source.getStructureIdx()).duplicate(source, this, source.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements, false);
+        SegmentedObject res = factory.get(source.getStructureIdx()).duplicate(source, this, source.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements);
         sourceIdMapDupObject.get(source.getStructureIdx()).put((sourceID)source.getId(), res);
         newIdMapSourceObject.get(res.getStructureIdx()).put((ID)res.getId(), source);
-        if (source.getParent()!=null) {
+        if (source.getStructureIdx()>=0 && source.getParent()!=null) {
             SegmentedObject parent = getDuplicated(source.getParent());
             res.setParent(parent);
         }
@@ -259,7 +291,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     public Stream<SegmentedObject> getDuplicated(Collection<SegmentedObject> source) {
         synchronized (this) {
-            duplicate(source.stream().filter(s -> !sourceIdMapDupObject.get(s.getStructureIdx()).containsKey((sourceID)s.getId())));
+            duplicate(source.stream());
         }
         return source.stream().map(o -> sourceIdMapDupObject.get(o.getStructureIdx()).get((sourceID)o.getId()));
     }

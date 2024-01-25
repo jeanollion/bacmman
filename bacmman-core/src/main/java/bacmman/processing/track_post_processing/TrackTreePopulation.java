@@ -4,7 +4,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectFactory;
 import bacmman.data_structure.TrackLinkEditor;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +20,7 @@ import java.util.stream.Stream;
 public class TrackTreePopulation {
     public final static Logger logger = LoggerFactory.getLogger(TrackTreePopulation.class);
     final Set<TrackTree> trees;
-    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, Collection<SymetricalPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
+    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, Collection<UnaryPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
         this(Track.getTracks(parentTrack,objectClassIdx, additionalLinks, allowTrackheadsOutsideParentTrack));
     }
     public TrackTreePopulation(Map<SegmentedObject, Track> tracks) {
@@ -38,19 +38,19 @@ public class TrackTreePopulation {
         return null;
     }
 
-    public SymetricalPair<Track> getLink(SymetricalPair<SegmentedObject> pair) {
+    public UnaryPair<Track> getLink(UnaryPair<SegmentedObject> pair) {
         if (pair.key.getFrame() > pair.value.getFrame()) return getLink(pair.reverse());
         TrackTree tt = getTrackTree(pair.value);
         if (tt==null) return null;
         Track next = tt.get(pair.value);
         for (Track prev : next.getPrevious()) {
-            if (prev.tail().equals(pair.key)) return new SymetricalPair<>(prev, next);
+            if (prev.tail().equals(pair.key)) return new UnaryPair<>(prev, next);
         }
         return null;
     }
 
-    public boolean isComplexLink(SymetricalPair<SegmentedObject> pair) {
-        SymetricalPair<Track> tracks = getLink(pair);
+    public boolean isComplexLink(UnaryPair<SegmentedObject> pair) {
+        UnaryPair<Track> tracks = getLink(pair);
         if (tracks==null) return false;
         return tracks.key.getNext().size()>1 && tracks.value.getPrevious().size()>1;
     }

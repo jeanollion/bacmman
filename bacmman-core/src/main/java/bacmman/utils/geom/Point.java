@@ -21,10 +21,9 @@ package bacmman.utils.geom;
 import bacmman.data_structure.Voxel;
 import bacmman.image.BoundingBox;
 import bacmman.image.Offset;
-import bacmman.processing.skeleton.SparseSkeleton;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 
 import java.util.*;
@@ -419,18 +418,18 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     }
 
     // misc function
-    public static SymetricalPair<Point> getClosest(SymetricalPair<Point> dipole1, SymetricalPair<Point> dipole2) {
+    public static UnaryPair<Point> getClosest(UnaryPair<Point> dipole1, UnaryPair<Point> dipole2) {
         double d11 = dipole1.key.distSq(dipole2.key);
         double d12 = dipole1.key.distSq(dipole2.value);
         double d21 = dipole1.value.distSq(dipole2.key);
         double d22 = dipole1.value.distSq(dipole2.value);
         double min = DoubleStream.of(d11, d12, d21, d22).min().getAsDouble();
-        if (d11 == min) return new SymetricalPair<>(dipole1.key, dipole2.key);
-        else if (d12 == min) return new SymetricalPair<>(dipole1.key, dipole2.value);
-        else if (d21 == min) return new SymetricalPair<>(dipole1.value, dipole2.key);
-        else return new SymetricalPair<>(dipole1.value, dipole2.value);
+        if (d11 == min) return new UnaryPair<>(dipole1.key, dipole2.key);
+        else if (d12 == min) return new UnaryPair<>(dipole1.key, dipole2.value);
+        else if (d21 == min) return new UnaryPair<>(dipole1.value, dipole2.key);
+        else return new UnaryPair<>(dipole1.value, dipole2.value);
     }
-    public static Point getClosest(SymetricalPair<Point> dipole, Point reference) {
+    public static Point getClosest(UnaryPair<Point> dipole, Point reference) {
         double d1 = dipole.key.distSq(reference);
         double d2 = dipole.value.distSq(reference);
         if (d1<=d2) return dipole.key;

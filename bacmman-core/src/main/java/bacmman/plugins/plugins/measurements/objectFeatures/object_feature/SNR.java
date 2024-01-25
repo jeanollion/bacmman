@@ -29,7 +29,7 @@ import bacmman.plugins.object_feature.IntensityMeasurement;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -125,7 +125,7 @@ public class SNR extends IntensityMeasurement implements Hint {
         double dilRad = this.dilateExcluded.getScaleXY();
         double dilRadZ = this.dilateExcluded.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
         // assign parents to children by inclusion
-        HashMapGetCreate<Region, List<SymetricalPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory<>());
+        HashMapGetCreate<Region, List<UnaryPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory<>());
         for (Region o : foregroundPopulation.getRegions()) {
             Region p = o.getMostOverlappingRegion(backgroundObjects, foregroundOffset, null); // parents are in absolute offset
             if (p!=null) {
@@ -135,14 +135,14 @@ public class SNR extends IntensityMeasurement implements Hint {
                     oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilRad, dilRadZ, oMask), true, false);
                     oDil = new Region(oMask, o.getLabel(), o.is2D()).setIsAbsoluteLandmark(o.isAbsoluteLandMark());
                 }
-                backgroundMapForeground.getAndCreateIfNecessary(p).add(new SymetricalPair<>(o, oDil));
+                backgroundMapForeground.getAndCreateIfNecessary(p).add(new UnaryPair<>(o, oDil));
             }
         }
         
         // remove foreground objects from background mask & erode it
         foregroundMapBackground = new HashMap<>();
         for (Region backgroundRegion : backgroundObjects) {
-            List<SymetricalPair<Region>> children = backgroundMapForeground.get(backgroundRegion);
+            List<UnaryPair<Region>> children = backgroundMapForeground.get(backgroundRegion);
             if (children!=null) {
                 ImageInteger mask = backgroundRegion.getMask() instanceof ImageInteger ? backgroundRegion.getMaskAsImageInteger().duplicate() : backgroundRegion.getMaskAsImageInteger();
                 for (Pair<Region, Region> o : backgroundMapForeground.get(backgroundRegion)) o.value.draw(mask, 0, foregroundOffset);// was with offset: absolute = 0 / relative = parent

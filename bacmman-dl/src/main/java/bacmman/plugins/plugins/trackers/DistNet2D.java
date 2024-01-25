@@ -2,7 +2,7 @@ package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
-import bacmman.core.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.*;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
@@ -132,7 +132,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public void segmentTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
-        imageManager.startDaemon(0.75, 2000);
         Consumer<Image> detach = im -> {
             if (im instanceof DiskBackedImage) imageManager.detach((DiskBackedImage)im, true);
         };
@@ -142,7 +141,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         int refFrame = parentTrack.get(0).getFrame();
         PredictionResults prevPrediction = null;
         TRACK_POST_PROCESSING_WINDOW_MODE ppMode = trackPPRange.getSelectedEnum();
-        Set<SymetricalPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
+        Set<UnaryPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
         Map<SegmentedObject, LINK_MULTIPLICITY> lwFW=null, lmBW=null;
         Map<SegmentedObject, LINK_MULTIPLICITY>[] linkMultiplicityMapContainer = new Map[2];
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(linkDistanceTolerance.getIntValue());
@@ -166,7 +165,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             if (i>0) subParentTrack = parentTrack.subList(i-1, maxIdx); // add last frame of previous window for tracking (in order to have overlap)
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            Set<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, linkMultiplicityMapContainer, refFrame);
+            Set<UnaryPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, linkMultiplicityMapContainer, refFrame);
             if (lwFW==null || TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT.equals(ppMode)) lwFW = linkMultiplicityMapContainer[0];
             else lwFW.putAll(linkMultiplicityMapContainer[0]);
             if (lmBW==null || TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT.equals(ppMode)) lmBW = linkMultiplicityMapContainer[1];
@@ -638,7 +637,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     public enum LINK_MULTIPLICITY {SINGLE, NULL, MULTIPLE}
-    protected Set<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, Map<SegmentedObject, LINK_MULTIPLICITY>[] linkMultiplicityMapContainer, int refFrame) {
+    protected Set<UnaryPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, Map<SegmentedObject, LINK_MULTIPLICITY>[] linkMultiplicityMapContainer, int refFrame) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy bw", prediction.dyBW.get(o)));
@@ -750,7 +749,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             prev.forEach(contour::remove); // save memory
         }
         logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
-        Set<SymetricalPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor);
+        Set<UnaryPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor);
         if (stores!=null) {
             parentTrack.forEach(p -> {
                 stores.get(p).addMisc("Display Previous Contours", sel -> {
@@ -925,7 +924,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         });
     }
 
-    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack,  boolean fullParentTrack, Set<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<SegmentedObject, LINK_MULTIPLICITY> lmFW, Map<SegmentedObject, LINK_MULTIPLICITY> lmBW, TrackAssigner assigner, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, boolean fullParentTrack, Set<UnaryPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<SegmentedObject, LINK_MULTIPLICITY> lmFW, Map<SegmentedObject, LINK_MULTIPLICITY> lmBW, TrackAssigner assigner, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         Function<SegmentedObject, List<Region>> sm = getPostProcessingSplitter(prediction);
         Predicate<SegmentedObject> dividing = lmFW==null ? o -> false :
                 o -> lmFW.get(o).equals(MULTIPLE);
@@ -1239,7 +1238,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     if (Double.isNaN(ecc) || ellipse.getEccentricity()<eccentricityThld) {
                         return new Pair<>(null, r.getContour());
                     } else {
-                        SymetricalPair<Point> polesTh = ellipse.getPoles();
+                        UnaryPair<Point> polesTh = ellipse.getPoles();
                         Set<Voxel> contour = r.getContour();
                         // get contour points within pole angle
                         Vector dir = Vector.vector2D(polesTh.key, polesTh.value);
@@ -1260,10 +1259,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     Pair<FitEllipseShape.Ellipse, Set<? extends RealLocalizable>> pole1 = getContour.apply(r1);
                     Pair<FitEllipseShape.Ellipse, Set<? extends RealLocalizable>> pole2 = getContour.apply(r2);
                     if (pole1.key!=null && pole2.key!=null) { // test alignment of 2 dipoles
-                        SymetricalPair<Point> poles1 = pole1.key.getPoles();
-                        SymetricalPair<Point> poles2 = pole2.key.getPoles();
-                        SymetricalPair<Point> closests = Point.getClosest(poles1, poles2);
-                        SymetricalPair<Point> farthests = new SymetricalPair<>(Pair.getOther(poles1, closests.key), Pair.getOther(poles2, closests.value));
+                        UnaryPair<Point> poles1 = pole1.key.getPoles();
+                        UnaryPair<Point> poles2 = pole2.key.getPoles();
+                        UnaryPair<Point> closests = Point.getClosest(poles1, poles2);
+                        UnaryPair<Point> farthests = new UnaryPair<>(Pair.getOther(poles1, closests.key), Pair.getOther(poles2, closests.value));
                         // test angle between dir of 1st bacteria and each pole
                         Vector v1 = Vector.vector2D(closests.key, farthests.key);
                         Vector v12 = Vector.vector2D(closests.key, farthests.value);
@@ -1315,7 +1314,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         };
     }
 
-    protected void trackPostProcessing(List<SegmentedObject> parentTrack, boolean fullParentTrack, int objectClassIdx, Set<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, Predicate<SegmentedObject> merging, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void trackPostProcessing(List<SegmentedObject> parentTrack, boolean fullParentTrack, int objectClassIdx, Set<UnaryPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, Predicate<SegmentedObject> merging, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         switch (trackPostProcessing.getSelectedEnum()) {
             case NO_POST_PROCESSING:
@@ -1340,9 +1339,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
                 // remove additional links that were consumed
                 if (!fullParentTrack) {
-                    Iterator<SymetricalPair<SegmentedObject>> it = additionalLinks.iterator();
+                    Iterator<UnaryPair<SegmentedObject>> it = additionalLinks.iterator();
                     while (it.hasNext()) {
-                        SymetricalPair<SegmentedObject> l = it.next();
+                        UnaryPair<SegmentedObject> l = it.next();
                         if (!trackPop.isComplexLink(l)) it.remove();
                     }
                 }

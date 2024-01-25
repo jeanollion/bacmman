@@ -67,7 +67,7 @@ public class CircularContourFactory {
     public static CircularNode<Voxel> getCircularContour(Set<Voxel> contour) {
         Set<Voxel> contourVisited = new HashSet<>(contour.size());
         EllipsoidalNeighborhood neigh = new EllipsoidalNeighborhood(1.5, true);
-        CircularNode<Voxel> circContour = new CircularNode(contour.stream().min(Comparator.comparingInt((Voxel v) -> v.x + v.y)).get()); // circContour with upper-leftmost voxel
+        CircularNode<Voxel> circContour = new CircularNode<>(contour.stream().min(Comparator.comparingInt((Voxel v) -> v.x + v.y)).get()); // circContour with upper-leftmost voxel
         contourVisited.add(circContour.element);
         int count = 1;
         CircularNode<Voxel> current = null;
@@ -80,9 +80,11 @@ public class CircularContourFactory {
             if (contour.contains(next)) crossPMap.put(next.duplicate(), (double)(neigh.dx[i]-neigh.dy[i]));
         }
         if (crossPMap.isEmpty()) {
+            logger.error("Error circular contour: no first neighbor found. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
             throw new RuntimeException("circular contour: no first neighbor found");
         }
         if (crossPMap.size() == 1) {
+            logger.error("Error circular contour: first point is end point. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
             throw new RuntimeException("circular contour: first point is end point");
         }
         current = circContour.setNext(crossPMap.entrySet().stream().max(Comparator.comparingDouble(Map.Entry::getValue)).get().getKey());

@@ -18,30 +18,31 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.core.Core;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.data_structure.SegmentedObjectImageMap;
+import bacmman.image.DiskBackedImage;
 import bacmman.image.Image;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
+
 import bacmman.plugins.TrackPreFilter;
 import bacmman.plugins.HistogramScaler;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Utils;
-
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, TrackPreFilterSequence> {
-    
+    Logger logger = LoggerFactory.getLogger(TrackPreFilterSequence.class);
     public TrackPreFilterSequence(String name) {
         super(name, "Track Pre-Filter", TrackPreFilter.class, false);
     }
@@ -60,36 +61,40 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         if (isEmpty() && allPFImagesAreSet(parentTrack, structureIdx)) { // if no preFilters &  only add raw images if no prefiltered image is present
             return;
         }
-        Map<SegmentedObject, Image> images = filterImages(structureIdx, parentTrack);
+        SegmentedObjectImageMap images = filterImages(structureIdx, parentTrack);
         //logger.debug("track pre-filter is empty: {} -> {}", isEmpty(), Utils.toStringList(parentTrack, p->p+" "+images.get(p)));
         SegmentedObjectAccessor accessor = getAccessor();
-        for (Entry<SegmentedObject, Image> en : images.entrySet()) {
-            accessor.setPreFilteredImage(en.getKey(), structureIdx,en.getValue());
-        }
+        images.streamKeys().forEach(o -> accessor.setPreFilteredImage(o, structureIdx, images.getOriginal(o)));
     }
 
-    public Map<SegmentedObject, Image> filterImages(int structureIdx, List<SegmentedObject> parentTrack) {
-        boolean first = true;
-        TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getRawImage(structureIdx))));
+    public SegmentedObjectImageMap filterImages(int structureIdx, List<SegmentedObject> parentTrack) {
+        if (parentTrack.isEmpty()) return new SegmentedObjectImageMap(Collections.EMPTY_LIST, o->o.getRawImage(structureIdx));
+        long neededMemory = (long) parentTrack.size() * parentTrack.get(0).getMaskProperties().sizeXYZ() * (4 + parentTrack.get(0).getRawImage(structureIdx).byteCount());
+        boolean needDiskBackedImage = (Utils.getTotalMemory() / neededMemory) <= 4 || (parentTrack.get(0).getRawImage(structureIdx) instanceof DiskBackedImage);
+        if (needDiskBackedImage) logger.debug("needed memory: {} / {} -> request disk backed manager. byte count: {} size XY: {} size Z: {}", neededMemory/(1000d*1000), Utils.getTotalMemory()/(1000*1000),parentTrack.get(0).getRawImage(structureIdx).byteCount(), parentTrack.get(0).getMaskProperties().sizeXY(), parentTrack.get(0).getMaskProperties().sizeZ());
+        DiskBackedImageManager dbim = needDiskBackedImage ? Core.getDiskBackedManager(parentTrack.get(0)) : null;
+
+        SegmentedObjectImageMap images = new SegmentedObjectImageMap(parentTrack, needDiskBackedImage ? o -> dbim.createSimpleDiskBackedImage(o.getRawImage(structureIdx), true, false) : o->o.getRawImage(structureIdx));
         // apply global scaling if necessary
         SegmentedObjectAccessor accessor = getAccessor();
         HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());
         if (scaler != null) {
             if (!scaler.isConfigured()) throw new RuntimeException("Scaler not configured for object class:"+structureIdx);
-            images.entrySet().parallelStream().forEach(e -> e.setValue(scaler.scale(e.getValue())));
-            first = false; // image can be modified
+            images.streamKeys().forEach(o -> images.set(o, scaler.scale(images.get(o))));
+            images.setModifyImages(true);  // image can be modified inplace
         }
         double scaleXY = parentTrack.get(0).getScaleXY();
         double scaleZ = parentTrack.get(0).getScaleZ();
-        Runnable setScale = () -> images.entrySet().forEach(e->{
-            e.getValue().setCalibration(scaleXY, scaleZ);
-            e.getValue().resetOffset().translate(e.getKey().getBounds());
+        Runnable setScale = () -> images.streamKeys().forEach(o-> {
+            Image im = images.getOriginal(o);
+            im.setCalibration(scaleXY, scaleZ);
+            im.resetOffset().translate(o.getBounds());
         });
         setScale.run();
         for (TrackPreFilter p : this.get()) {
-            p.filter(structureIdx, images, !first);
+            p.filter(structureIdx, images);
             setScale.run();
-            first = false;
+            images.setModifyImages(true);  // image can be modified inplace
         }
         return images;
     }

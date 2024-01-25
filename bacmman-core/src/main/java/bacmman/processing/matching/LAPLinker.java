@@ -20,8 +20,7 @@ package bacmman.processing.matching;
 
 import bacmman.data_structure.*;
 import bacmman.utils.Pair;
-import bacmman.utils.StreamConcatenation;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import com.google.common.collect.Sets;
@@ -258,14 +257,14 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         if (s==null || t==null) return null;
         return graph.getEdge(s, t);
     }
-    public Set<SymetricalPair<DefaultWeightedEdge>> getCrossingLinks(double spatialTolerence, Set<S> involvedSpots) {
+    public Set<UnaryPair<DefaultWeightedEdge>> getCrossingLinks(double spatialTolerence, Set<S> involvedSpots) {
         if (graph==null) return Collections.EMPTY_SET;
-        Set<SymetricalPair<DefaultWeightedEdge>> res = new HashSet<>();
+        Set<UnaryPair<DefaultWeightedEdge>> res = new HashSet<>();
         for (DefaultWeightedEdge e1 : graph.edgeSet()) {
             for (DefaultWeightedEdge e2 : graph.edgeSet()) {
                 if (e1.equals(e2)) continue;
                 if (intersect(e1, e2, spatialTolerence, involvedSpots)) {
-                    res.add(new SymetricalPair<>(e1, e2));
+                    res.add(new UnaryPair<>(e1, e2));
                 }
             }
         }
@@ -292,7 +291,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         if (graph==null) return;
         long t0 = System.currentTimeMillis();
         Set<S> toRemSpot = new HashSet<>();
-        Set<SymetricalPair<DefaultWeightedEdge>> toRemove = getCrossingLinks(spatialTolerence, toRemSpot);
+        Set<UnaryPair<DefaultWeightedEdge>> toRemove = getCrossingLinks(spatialTolerence, toRemSpot);
         removeFromGraph(Pair.flatten(toRemove, null), toRemSpot, false);
         long t1 = System.currentTimeMillis();
         logger.debug("number of edges after removing intersecting links: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);

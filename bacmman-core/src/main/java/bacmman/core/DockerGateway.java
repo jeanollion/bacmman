@@ -1,12 +1,10 @@
 package bacmman.core;
 
-import bacmman.utils.SymetricalPair;
-import bacmman.utils.Triplet;
+import bacmman.utils.UnaryPair;
 
 import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -17,9 +15,9 @@ public interface DockerGateway {
     Stream<String> listImages();
     String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
-    Stream<SymetricalPair<String>> listContainers();
-    Stream<SymetricalPair<String>> listContainers(String imageId);
-    String createContainer(String image, int shmSizeMb, int[] gpuIds, SymetricalPair<String>... mountDirs);
+    Stream<UnaryPair<String>> listContainers();
+    Stream<UnaryPair<String>> listContainers(String imageId);
+    String createContainer(String image, int shmSizeMb, int[] gpuIds, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
     void stopContainer(String containerId);
     static Consumer<String> applyToSplit(Consumer<String> consumer) {

@@ -1,6 +1,6 @@
 package bacmman.image;
 
-import bacmman.core.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 
 import java.io.IOException;
 import java.util.stream.DoubleStream;
@@ -22,6 +22,11 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         this(image.getName(), image, Image.copyType(image), manager, writable);
         this.image = image;
     }
+
+    public DiskBackedImageManager getManager() {
+        return manager;
+    }
+
     public long heapMemory() {
         return (long)image.sizeXYZ() * imageType.byteCount();
     }
@@ -64,14 +69,26 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
             synchronized (this) {
                 if (image == null) {
                     try {
-                        image = manager.openImage(this);
+                        image = manager.openImageContent(this);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
             }
+        } else { // case calibration / offset have been modified on this object
+            synchronized (image) {
+                if (!image.getOffset().sameOffset(this)) image.resetOffset().translate(this);
+                image.setCalibration(scaleXY, scaleZ);
+            }
         }
         return image;
+    }
+    public synchronized boolean setImage(I image) {
+        if (!this.sameDimensions(image)) return false;
+        if (getImageType().getClass().equals(image.getClass())) return false;
+        this.image = image;
+        this.modified = true;
+        return true;
     }
     @Override
     public I getZPlane(int idxZ) {

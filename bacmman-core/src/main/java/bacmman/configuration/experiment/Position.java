@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import bacmman.data_structure.dao.DiskBackedImageManagerImageDAO;
 import org.json.simple.JSONObject;
 
 import java.util.Map;
@@ -51,8 +52,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     InputImagesImpl inputImages;
     public static final int defaultTP = 50;
     private final Map<Integer, Integer> channelMapSizeZ = new HashMap<>();
-    ImageDAO imageDAO;
-
+    ImageDAO originalImageDAO;
+    DiskBackedImageManagerImageDAO imageDAO;
     @Override
     public Object toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -125,25 +126,57 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         if (sourceImages==null) return false;
         return sourceImages.singleFrame(getExperiment().getSourceChannel(channelIdx));
     }
-    public ImageDAO getImageDAO() {
-        return getImageDAO(true);
+    public double getCalibratedTimePoint(int t, int c, int z) {
+        if (sourceImages == null) return Double.NaN;
+        return sourceImages.getCalibratedTimePoint(t, c, z);
     }
-    private ImageDAO getImageDAO(boolean allowByPass) {
-        if (imageDAO==null) {
-            synchronized(this) {
-                if (imageDAO==null) imageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory(), this::singleFrameChannel);
-            }
-        }
-        if (allowByPass && this.getPreProcessingChain().isEmpty(true))  {
-            try {
-                if (imageDAO.getPreProcessedImageProperties(0)==null) return new BypassImageDAO(this);
-            } catch (IOException e) {
-                return new BypassImageDAO(this);
-            }
-        }
+    public ImageDAO getImageDAO() {
+        createImageDAO();
         return imageDAO;
     }
-
+    private void createImageDAO() {
+        if (originalImageDAO ==null) {
+            synchronized(this) {
+                if (originalImageDAO ==null) {
+                    originalImageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory(), this::singleFrameChannel);
+                }
+            }
+        }
+        if (this.getPreProcessingChain().isEmpty(true))  { // ensure bybass DAO if no pre-filters have been set
+            if (imageDAO !=null && imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
+                ((BypassImageDAO) imageDAO.getSourceImageDAO()).updateXP(this.getExperiment()); // in case duplicated channels have been modified
+                return;
+            }
+            synchronized(this) {
+                if (imageDAO !=null && imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
+                    ((BypassImageDAO) imageDAO.getSourceImageDAO()).updateXP(this.getExperiment()); // in case duplicated channels have been modified
+                    return;
+                }
+                BypassImageDAO bp = null;
+                try {
+                    if (originalImageDAO.getPreProcessedImageProperties(0) == null) {
+                        bp = new BypassImageDAO(this.getExperiment(), this.sourceImages);
+                    }
+                } catch (IOException e) {
+                    bp = new BypassImageDAO(this.getExperiment(), this.sourceImages);
+                }
+                if (bp != null) imageDAO = new DiskBackedImageManagerImageDAO(bp);
+                else imageDAO = new DiskBackedImageManagerImageDAO(imageDAO); // image have been pre-filtered
+            }
+        } else { // ensure not bypass DAO
+            if (imageDAO == null || imageDAO.getSourceImageDAO() instanceof BypassImageDAO) { // not init or bypass but pre-filters have been added
+                synchronized (this) {
+                    if (imageDAO == null || imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
+                        if (imageDAO != null) imageDAO.clear(true);
+                        imageDAO = new DiskBackedImageManagerImageDAO(originalImageDAO);
+                    }
+                }
+            }
+        }
+    }
+    public boolean hasInputImage() {
+        return inputImages != null;
+    }
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {
             logger.warn("current inputImages has: {} frames while there are {} input images", inputImages.getFrameNumber(), getFrameNumber(false));
@@ -152,8 +185,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             synchronized(this) {
                 if (inputImages ==null) { //inputImages.getFrameNumber()!=getTimePointNumber(false)
                     logger.debug("generate input images with {} frames (old: {}) ", getFrameNumber(false), inputImages !=null? inputImages.getFrameNumber() : "null");
-                    ImageDAO dao = getImageDAO(false);
-                    if (dao==null || sourceImages==null) return null;
+                    if (originalImageDAO == null) createImageDAO();
+                    if (originalImageDAO ==null || sourceImages==null) return null;
                     int tpOff = getStartTrimFrame();
                     int tpNp = getEndTrimFrame() - tpOff+1;
                     int[] duplicatedChannelSources = getExperiment().getDuplicatedChannelSources();
@@ -162,7 +195,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                         int inputC = c<sourceImages.getChannelNumber() ? c : duplicatedChannelSources[c-sourceImages.getChannelNumber()];
                         res[c] = sourceImages.singleFrame(inputC) ? new InputImage[1] : new InputImage[tpNp];
                         for (int t = 0; t<res[c].length; ++t) {
-                            res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, dao);
+                            res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, originalImageDAO);
                             if (preProcessingChain.useCustomScale()) res[c][t].overwriteCalibration(preProcessingChain.getScaleXY(), preProcessingChain.getScaleZ());
                         } 
                     }
@@ -193,6 +226,10 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         if (imageDAO!=null) {
             imageDAO.flush();
             imageDAO=null;
+        }
+        if (originalImageDAO !=null) {
+            originalImageDAO.flush();
+            originalImageDAO =null;
         }
     }
     

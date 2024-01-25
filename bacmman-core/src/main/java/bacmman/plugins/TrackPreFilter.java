@@ -19,6 +19,7 @@
 package bacmman.plugins;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 
@@ -32,8 +33,9 @@ import java.util.stream.Collectors;
  */
 public interface TrackPreFilter  extends ImageProcessingPlugin {
     ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode();
-    void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages);
+    void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages);
     static Map<Image, ImageMask> getMaskMap(Map<SegmentedObject, Image> map) {
-        return map.entrySet().stream().collect(Collectors.toMap(e->e.getValue(), e->e.getKey().getMask()));
+        return map.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, e->e.getKey().getMask()));
     }
+
 } 

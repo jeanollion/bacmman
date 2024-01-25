@@ -4,7 +4,7 @@ import bacmman.data_structure.GraphObject;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackLinkEditor;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
@@ -92,10 +92,10 @@ public class ObjectGraph<S extends GraphObject<S>> {
             } else return c;
         };
     }
-    public Set<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
+    public Set<UnaryPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
         return setTrackLinks(objectsF, editor, true, true);
     }
-    public Set<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean setTrackHead, boolean propagateTrackHead) {
+    public Set<UnaryPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean setTrackHead, boolean propagateTrackHead) {
         if (objectsF==null || objectsF.isEmpty()) return Collections.emptySet();
         List<SegmentedObject> objects = Utils.flattenMap(objectsF);
         int minF = objectsF.keySet().stream().min(Comparator.comparingInt(i -> i)).get();
@@ -105,7 +105,7 @@ public class ObjectGraph<S extends GraphObject<S>> {
             //logger.error("Graph not initialized!");
             return Collections.emptySet();
         }
-        Set<SymetricalPair<SegmentedObject>> additionalLinks = new HashSet<>(); // links that cannot be encoded in segmentedObjects
+        Set<UnaryPair<SegmentedObject>> additionalLinks = new HashSet<>(); // links that cannot be encoded in segmentedObjects
         // set links
 
         TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(edgeComparator());
@@ -121,7 +121,7 @@ public class ObjectGraph<S extends GraphObject<S>> {
         }
         return additionalLinks;
     }
-    private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, boolean setTrackHead, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor, Set<SymetricalPair<SegmentedObject>> additionalLinks) {
+    private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, boolean setTrackHead, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor, Set<UnaryPair<SegmentedObject>> additionalLinks) {
         for (SegmentedObject o : objects) {
             edgesBucket.clear();
             //logger.debug("settings links for: {}", child);
@@ -160,7 +160,7 @@ public class ObjectGraph<S extends GraphObject<S>> {
                         .filter(Objects::nonNull)
                         .map(otherSpot -> getSegmentedObject(objectsByF.get(otherSpot.getFrame()), otherSpot))
                         .filter(Objects::nonNull)
-                        .forEach(other -> additionalLinks.add(prev?new SymetricalPair<>(other, o):new SymetricalPair<>(o, other)));
+                        .forEach(other -> additionalLinks.add(prev?new UnaryPair<>(other, o):new UnaryPair<>(o, other)));
             }
         }
     }

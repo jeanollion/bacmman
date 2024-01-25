@@ -23,10 +23,8 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-import static bacmman.image.Image.logger;
 import static bacmman.image.io.OmeroUtils.convertPlane;
 
 
@@ -35,13 +33,15 @@ public class OmeroIJVirtualStack extends VirtualStack {
     RawPixelsStorePrx rawData;
     final int sizeX, sizeY, sizeZ, sizeC, sizeT;
     final String type;
-    Map<Integer, Image> images = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::openPlane);
+    final Map<Integer, Image> cachedImages = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::openPlane);
     DefaultWorker lazyOpener;
     Map<Integer, double[]> displayRange= new HashMap<>();
     Map<Integer, Boolean> displayRangeManual = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> false);
     boolean channelWiseDisplayRange = true;
     ImagePlus ip;
     int lastChannel=-1;
+    final LinkedList<Integer> cacheQueue = new LinkedList<>();
+    public static int N_CACHED_FRAMES = 100;
     public OmeroIJVirtualStack(PixelsData pixels, OmeroGatewayI gateway) throws DSOutOfServiceException, ServerError {
         super(pixels.getSizeX(), pixels.getSizeY(), null, "");
         this.rawData = gateway.gateway().createPixelsStore(gateway.securityContext());
@@ -58,10 +58,26 @@ public class OmeroIJVirtualStack extends VirtualStack {
 
     @Override
     public ImageProcessor getProcessor(int n) {
-        Image nextImage = images.get(n);
+        Image nextImage = cachedImages.get(n);
         ImageProcessor nextIP = IJImageWrapper.getImagePlus(nextImage).getProcessor();
         int nextChannel = ((n-1)%sizeC);
         setDisplayRange(nextChannel, nextImage, nextIP);
+
+        synchronized (cacheQueue) { // put in front
+            cacheQueue.remove((Integer)n);
+            cacheQueue.add(n);
+            if (N_CACHED_FRAMES>0) {
+                List<Integer> toRemove = new ArrayList<>();
+                while (cacheQueue.size() > N_CACHED_FRAMES) {
+                    toRemove.add(cacheQueue.pollFirst());
+                }
+                if (!toRemove.isEmpty()) {
+                    synchronized (cachedImages) {
+                        toRemove.forEach(cachedImages::remove);
+                    }
+                }
+            }
+        }
         return nextIP;
     }
 
@@ -134,7 +150,7 @@ public class OmeroIJVirtualStack extends VirtualStack {
             ImagePlus ip = new ImagePlus();
             stack.setImagePlus(ip);
             stack.lazyOpener = DefaultWorker.execute(i -> {
-                stack.images.get(i+1);
+                stack.cachedImages.get(i+1);
                 return null;
             }, stack.getSize()).appendEndOfWork(() -> ip.setTitle(name));
 

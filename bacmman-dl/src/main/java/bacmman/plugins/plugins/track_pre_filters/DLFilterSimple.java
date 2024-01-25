@@ -2,6 +2,7 @@ package bacmman.plugins.plugins.track_pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformation, Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
@@ -70,25 +72,25 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
     }
 
     @Override
-    public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
+    public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
         Image[] out;
         boolean inputFrameIndex = this.inputFrameIndex.getSelected();
         if (!this.timelapse.getSelected()) {
             Image[][][] in = new Image[inputFrameIndex ? 2 : 1][][];
-            in[0] = preFilteredImages.values().stream().map(im -> new Image[]{im}).toArray(Image[][]::new);
-            if (inputFrameIndex) in[1] = preFilteredImages.keySet().stream().map(p -> new Image[]{asImage(p.getFrame())}).toArray(Image[][]::new);
+            in[0] = preFilteredImages.streamValues().map(im -> new Image[]{im}).toArray(Image[][]::new);
+            if (inputFrameIndex) in[1] = preFilteredImages.streamKeys().map(p -> new Image[]{asImage(p.getFrame())}).toArray(Image[][]::new);
             out = predict(in);
         } else {
             boolean[] noPrevParent = new boolean[preFilteredImages.size()];
             noPrevParent[0] = true;
-            List<SegmentedObject> parentTrack = new ArrayList<>(preFilteredImages.keySet());
+            List<SegmentedObject> parentTrack = preFilteredImages.streamKeys().collect(Collectors.toList());
             for (int i = 1; i < noPrevParent.length; ++i) if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
             ToIntFunction<SegmentedObject> getFrame = testNoFrame ? p->0 : SegmentedObject::getFrame;
-            Image[] frames = inputFrameIndex ? preFilteredImages.keySet().stream().map(p -> asImage(getFrame.applyAsInt(p))).toArray(Image[]::new) : null;
-            out = predictTimelapse(preFilteredImages.values().toArray(new Image[0]), frames, noPrevParent);
+            Image[] frames = inputFrameIndex ? preFilteredImages.streamKeys().map(p -> asImage(getFrame.applyAsInt(p))).toArray(Image[]::new) : null;
+            out = predictTimelapse(preFilteredImages.streamValues().toArray(Image[]::new), frames, noPrevParent);
         }
-        int idx = 0;
-        for (Map.Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) e.setValue(out[idx++]);
+        int[] idx = new int[1];
+        preFilteredImages.streamKeys().sequential().forEach(o -> preFilteredImages.set(o, out[idx[0]++]));
     }
 
 

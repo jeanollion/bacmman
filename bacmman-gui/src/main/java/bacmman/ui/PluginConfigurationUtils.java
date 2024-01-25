@@ -159,7 +159,7 @@ public class PluginConfigurationUtils {
                     // at this point, need to duplicate another time the parent track to get an independent point
                     DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                     DuplicateObjectDAO<String, ?> dupDAO1 = mDAOdup1.getDao(o.getPositionName());
-                    List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
+                    List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
                     Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                     parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected post-filter", p.getRawImage(structureIdx))); // add input image
                     storeList.add(stores1);
@@ -168,13 +168,13 @@ public class PluginConfigurationUtils {
                         tpf.filter(structureIdx, parentTrackDup1, factory, editor);
                         logger.debug("executing post-filter: {}", tpf.toString());
                     });
-                    wholeParentTrackDup = dupDAO1.getDuplicated(wholeParentTrackDup).collect(Collectors.toList()); // for next step
                     parentTrackDup = parentTrackDup1;
+                    mDAOdup = mDAOdup1;
                 }
                 // at this point, need to duplicate another time the parent track to get the second point
                 DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                 DuplicateObjectDAO<String, String> dupDAO2 = mDAOdup2.getDao(o.getPositionName());
-                List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
+                List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
                 Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores2);
@@ -215,11 +215,10 @@ public class PluginConfigurationUtils {
                 //if (tpf!=null) tpf.filter(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
             }
         } else if (plugin instanceof TrackPostFilter) {
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after segmentation and post-filters", p.getRawImage(structureIdx))); // add input image
 
             // get continuous parent track
-            int minF = parentTrackDup.stream().mapToInt(p->p.getFrame()).min().getAsInt();
-            int maxF = parentTrackDup.stream().mapToInt(p->p.getFrame()).max().getAsInt();
+            int minF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+            int maxF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
             parentTrackDup = wholeParentTrackDup.stream().filter(p->p.getFrame()>=minF && p.getFrame()<=maxF).collect(Collectors.toList());
 
             TrackPostFilterSequence tpfs =((ProcessingPipelineWithTracking)psc).getTrackPostFilters();
@@ -236,27 +235,29 @@ public class PluginConfigurationUtils {
                 // need to be able to run track-parametrizable on whole parentTrack....
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
             }
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after segmentation and post-filters", p.getRawImage(structureIdx))); // add input image
+
 
             if (!tpfBefore.isEmpty()) {
                 // at this point, need to duplicate another time the parent track to get an independent point
                 DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                 DuplicateObjectDAO<String, String> dupDAO1 = mDAOdup1.getDao(o.getPositionName());
-                List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
+                List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
                 Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected track post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores1);
 
                 tpfBefore.forEach(tpf -> {
+                    logger.debug("executing track post-filter before");
                     tpf.filter(structureIdx, parentTrackDup1, factory, editor);
-                    logger.debug("executing track post-filter");
                 });
-                wholeParentTrackDup = dupDAO1.getDuplicated(wholeParentTrackDup).collect(Collectors.toList()); // for next step
                 parentTrackDup = parentTrackDup1;
+                mDAOdup = mDAOdup1;
             }
             // at this point, need to duplicate another time the parent track to get the second point
             DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
             DuplicateObjectDAO<String, String> dupDAO2 = mDAOdup2.getDao(o.getPositionName());
-            List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup.stream().map(getParent).distinct().collect(Collectors.toList())).sorted().collect(Collectors.toList());
+            List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
             Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
             parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected track post-filter", p.getRawImage(structureIdx))); // add input image
             storeList.add(stores2);
@@ -277,25 +278,13 @@ public class PluginConfigurationUtils {
             if (plugin instanceof TrackPreFilter) pluginIdx+=psc.getPreFilters().getActivatedChildCount();
             TrackPreFilterSequence seq = psc.getTrackPreFilters(true);
             List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(PluginParameter::isActivated).map(PluginParameter::instantiatePlugin).collect(Collectors.toList());
-            boolean first = true;
-            TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(oo->oo, oo->oo.getRawImage(structureIdx))));
-            // scale images if necessary
-            HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());
-            if (scaler != null) {
-                if (!scaler.isConfigured()) throw new RuntimeException("Scaler not configured for object class:"+structureIdx);
-                logger.warn("scaling images");
-                images.entrySet().parallelStream().forEach(e -> e.setValue(scaler.scale(e.getValue())));
-                first = false; // image can be modified
-            }
-            for (TrackPreFilter p : before) {
-                p.filter(structureIdx, images, !first);
-                first = false;
-            }
-            if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", images.get(p).duplicate())); // add images before processing
+            TrackPreFilterSequence seqBefore = new TrackPreFilterSequence("Track Pre-filter before").add(before);
+            SegmentedObjectImageMap filteredImages = seqBefore.filterImages(structureIdx, parentTrack);
+            if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", filteredImages.get(p).duplicate())); // add images before processing
             TrackPreFilter current = seq.getChildAt(pluginIdx).instantiatePlugin();
             if (current instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)current).setTestDataStore(stores);
-            current.filter(structureIdx, images, !first);
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
+            current.filter(structureIdx, filteredImages);
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", filteredImages.get(p))); // add images before processing
         }
         } catch (Throwable t) {
             GUI.log("An error occurred while testing...");

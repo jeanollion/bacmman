@@ -3,17 +3,14 @@ package bacmman.processing.track_post_processing;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackLinkEditor;
 import bacmman.processing.matching.LAPLinker;
-import bacmman.utils.Pair;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
-import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static bacmman.processing.track_post_processing.Track.getTrack;
 
@@ -82,7 +79,7 @@ public interface TrackAssigner {
             } else if (prevTracks.size()==2 && nextTracks.size()==2) { // quicker method for the most common case: 2 vs 2
                 List<Track> prevL = prevTracks instanceof List ? (List<Track>)prevTracks : new ArrayList<>(prevTracks);
                 List<Track> nextL = nextTracks instanceof List ? (List<Track>)nextTracks : new ArrayList<>(nextTracks);
-                boolean matchOrder = Track.matchOrder(new SymetricalPair<>(prevL.get(0).tail().getRegion(), prevL.get(1).tail().getRegion()), new SymetricalPair<>(nextL.get(0).head().getRegion(), nextL.get(1).head().getRegion()));
+                boolean matchOrder = Track.matchOrder(new UnaryPair<>(prevL.get(0).tail().getRegion(), prevL.get(1).tail().getRegion()), new UnaryPair<>(nextL.get(0).head().getRegion(), nextL.get(1).head().getRegion()));
                 if (matchOrder) {
                     prevL.get(0).addNext(nextL.get(0));
                     prevL.get(1).addNext(nextL.get(1));

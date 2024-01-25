@@ -18,16 +18,9 @@
  */
 package bacmman.ui.gui.image_interaction;
 
-import bacmman.data_structure.ExperimentStructure;
-import bacmman.data_structure.SegmentedObject;
 import bacmman.image.LazyImage5D;
-import bacmman.image.PrimitiveType;
-import bacmman.image.TypeConverter;
-import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.ImageOperations;
-import bacmman.processing.Resize;
 import bacmman.ui.gui.Utils;
-import bacmman.utils.ArrayUtil;
 import ij.ImagePlus;
 import ij.VirtualStack;
 import ij.measure.Calibration;
@@ -63,7 +56,9 @@ public class IJVirtualStack extends VirtualStack {
     int lastChannel=-1;
     boolean virtual = true;
     final int sizeF, sizeC;
-    final ImageProcessor[] ips;
+    final LinkedList<Integer> cacheQueue = new LinkedList<>();
+    final Map<Integer, ImageProcessor> cachedImages = new HashMap<>();
+    public static int N_CACHED_FRAMES = 100;
     public IJVirtualStack(Image image) {
         super(image.sizeX(), image.sizeY(), null, "");
         this.source= image;
@@ -77,7 +72,6 @@ public class IJVirtualStack extends VirtualStack {
             sizeC = 1;
             isSinglePlaneFC = (f, c) -> false;
         }
-        ips = new ImageProcessor[sizeF * sizeC * image.sizeZ()];
         getFCZ = IJImageWrapper.getStackIndexFunctionRev(new int[]{sizeF, sizeC, image.sizeZ()});
         logger.debug("create virtual stack for: {}, frames: {}, channels: {} z: {}", image.getName(), sizeF, sizeC, image.sizeZ());
         for (int n = 0; n<sizeF * sizeC * image.sizeZ(); ++n) super.addSlice("");
@@ -171,9 +165,11 @@ public class IJVirtualStack extends VirtualStack {
         if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz[0]);
         boolean displaySet = false;
         boolean firstProcessor = false;
-        if (ips[n]==null) {
-            synchronized (ips) {
-                if (ips[n]==null) {
+        ImageProcessor ip = cachedImages.get(n);
+        if (ip == null) {
+            synchronized (cachedImages) {
+                ip = cachedImages.get(n);
+                if (ip == null) {
                     if (n ==0) firstProcessor = true;
                     Image toConvert;
                     if (source instanceof LazyImage5D) {
@@ -182,15 +178,30 @@ public class IJVirtualStack extends VirtualStack {
                     } else {
                         toConvert = source.getZPlane(fcz[2]);
                     }
-                    ImageProcessor ip = IJImageWrapper.getImagePlus(toConvert).getProcessor();
+                    ip = IJImageWrapper.getImagePlus(toConvert).getProcessor();
                     setDisplayRange(fcz[1], toConvert, ip);
                     displaySet = true;
-                    ips[n] = ip;
+                    cachedImages.put(n, ip);
                 }
             }
         }
-        if (!displaySet) setDisplayRange(fcz[1], null, ips[n]);
-        return firstProcessor ? ips[n].duplicate() : ips[n]; // first image processor is used to display others
+        synchronized (cacheQueue) { // put in front
+            cacheQueue.remove((Integer)n);
+            cacheQueue.add(n);
+            if (N_CACHED_FRAMES>0) {
+                List<Integer> toRemove = new ArrayList<>();
+                while (cacheQueue.size() > N_CACHED_FRAMES) {
+                    toRemove.add(cacheQueue.pollFirst());
+                }
+                if (!toRemove.isEmpty()) {
+                    synchronized (cachedImages) {
+                        toRemove.forEach(cachedImages::remove);
+                    }
+                }
+            }
+        }
+        if (!displaySet) setDisplayRange(fcz[1], null, ip);
+        return firstProcessor ? ip.duplicate() : ip; // first image processor is used to display others
     }
 
     protected void setDisplayRange(int nextChannel, Image nextImage, ImageProcessor nextIP) {

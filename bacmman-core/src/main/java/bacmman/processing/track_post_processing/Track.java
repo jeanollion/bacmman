@@ -1,9 +1,7 @@
 package bacmman.processing.track_post_processing;
 
 import bacmman.data_structure.*;
-import bacmman.utils.Pair;
-import bacmman.utils.SymetricalPair;
-import bacmman.utils.Triplet;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
@@ -198,9 +196,9 @@ public class Track implements Comparable<Track> {
         Collections.sort(track);
 
     }
-    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<SymetricalPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
-        Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
-        Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<UnaryPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
+        Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
+        Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
         for (List<SegmentedObject> t: allTracks.values()) {
             t.sort(SegmentedObject.frameComparator());
@@ -260,9 +258,9 @@ public class Track implements Comparable<Track> {
         Track track2 = new Track(new ArrayList<SegmentedObject>(){{add(head2);}});
         //logger.debug("setting regions: {} + {}", regions.get(0).v1.getGeomCenter(false), regions.get(0).v2.getGeomCenter(false));
         for (int i = 1; i< track.length(); ++i) { // populate track
-            SymetricalPair<Region> r = new SymetricalPair<>(regions.get(track.objects.get(i)).get(0), regions.get(track.objects.get(i)).get(1));
+            UnaryPair<Region> r = new UnaryPair<>(regions.get(track.objects.get(i)).get(0), regions.get(track.objects.get(i)).get(1));
             SegmentedObject prev = track.objects.get(i-1);
-            boolean matchInOrder = matchOrder(new SymetricalPair<>(prev.getRegion(), track2.tail().getRegion()), r);
+            boolean matchInOrder = matchOrder(new UnaryPair<>(prev.getRegion(), track2.tail().getRegion()), r);
             //logger.debug("setting regions: {} + {}", match.key.getGeomCenter(false), match.value.getGeomCenter(false));
             SegmentedObject nextO1 = track.objects.get(i);
             SegmentedObject nextO2 = factory.duplicate(nextO1,nextO1.getStructureIdx(), true, false, false, false);
@@ -537,7 +535,7 @@ public class Track implements Comparable<Track> {
         return track1;
     }
 
-    public static boolean matchOrder(SymetricalPair<Region> source, SymetricalPair<Region> target) {
+    public static boolean matchOrder(UnaryPair<Region> source, UnaryPair<Region> target) {
         Point sourceCenter1 = source.key.getCenterOrGeomCenter();
         Point sourceCenter2 = source.value.getCenterOrGeomCenter();
         Point targetCenter1 = target.key.getCenterOrGeomCenter();

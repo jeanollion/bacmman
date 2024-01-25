@@ -24,6 +24,7 @@ import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.data_structure.Voxel;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -76,18 +78,18 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         return "Subtract-background algorithm adapted to microchannel track";
     }
     @Override
-    public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
+    public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
         //smooth.setSelected(true);
         // construct one single image 
         long t0 = System.currentTimeMillis();
-        TrackMaskYWithMirroring tm = new TrackMaskYWithMirroring(new ArrayList<>(preFilteredImages.keySet()), true, false);
+        TrackMaskYWithMirroring tm = new TrackMaskYWithMirroring(preFilteredImages.streamKeys().collect(Collectors.toList()), true, false);
         ImageFloat allImagesY = (ImageFloat)tm.generateEmptyImage("sub mc", new ImageFloat("", 0, 0, 0));
         int idx = 0;
         for (SegmentedObject o : tm.parents) {
             Image im = preFilteredImages.get(o);
-            if (!(im instanceof ImageFloat) || !canModifyImages) {
+            if (!(im instanceof ImageFloat) || !preFilteredImages.canModifyImages()) {
                 im = TypeConverter.toFloat(im, null);
-                preFilteredImages.replace(o, im);
+                preFilteredImages.set(o, im);
             }
             //fillOutsideMask(o.getRegion(), im);
             tm.pasteMirror(im, allImagesY, idx++);
@@ -113,6 +115,7 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         idx = 0;
         for (SegmentedObject o : tm.parents) {
             Image.pasteImageView(allImagesY, preFilteredImages.get(o), null, tm.getObjectOffset(idx++, 1));
+            preFilteredImages.setModified(o);
             //fillOutsideMask(o.getRegion(), preFilteredImages.get(o));
         }
         long t3 = System.currentTimeMillis();

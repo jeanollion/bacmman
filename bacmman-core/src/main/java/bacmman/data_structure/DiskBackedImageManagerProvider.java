@@ -1,6 +1,7 @@
 package bacmman.data_structure;
 
-import bacmman.core.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManagerImpl;
 import bacmman.utils.HashMapGetCreate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +13,7 @@ import java.util.Map;
 
 public class DiskBackedImageManagerProvider {
     Logger logger = LoggerFactory.getLogger(DiskBackedImageManagerProvider.class);
-    Map<String, DiskBackedImageManager> managers = new HashMapGetCreate.HashMapGetCreateRedirected<>(DiskBackedImageManager::new);
+    Map<String, DiskBackedImageManager> managers = new HashMapGetCreate.HashMapGetCreateRedirected<>(DiskBackedImageManagerImpl::new);
 
     public synchronized DiskBackedImageManager getManager(String directory) {
         return managers.get(directory);
@@ -20,7 +21,9 @@ public class DiskBackedImageManagerProvider {
 
     public synchronized DiskBackedImageManager getManager(SegmentedObject segmentedObject) {
         String tmp = getTempDirectory(segmentedObject.getDAO().getMasterDAO().getDatasetDir(), true);
-        return managers.get(tmp);
+        DiskBackedImageManager manager = managers.get(tmp);
+        manager.startDaemon(0.75, 2000);
+        return manager;
     }
 
     public synchronized void clear() {

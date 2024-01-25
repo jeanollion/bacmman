@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
@@ -52,8 +53,8 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
         return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
     @Override
-    public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImage) {
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(preFilteredImages.values()).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+    public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
+        Histogram histo = HistogramFactory.getHistogram(()->preFilteredImages.streamValues().flatMapToDouble(im -> im.stream()), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
         double[] minAndMax = new double[2];
         minAndMax[0] = histo.getMinValue();
         if (saturation.getValue().doubleValue()<1) minAndMax[1] = histo.getQuantiles(saturation.getValue().doubleValue())[0];
@@ -64,11 +65,15 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
             scale = -scale;
             offset = 1 - offset;
         }
+        double scale_ = scale;
+        double offset_ = offset;
         logger.debug("Normalization: range: [{}-{}] scale: {} off: {}", minAndMax[0], minAndMax[1], scale, offset);
-        for (Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) {
-            Image trans = ImageOperations.affineOperation(e.getValue(), canModifyImage?e.getValue():null, scale, offset);
-            e.setValue(trans);
-        }
+        preFilteredImages.streamKeys().forEach(o -> {
+            Image source = preFilteredImages.get(o);
+            Image trans = ImageOperations.affineOperation(source, preFilteredImages.canModifyImages()?source:null, scale_, offset_);
+            if (source.equals(trans)) preFilteredImages.setModified(o);
+            else preFilteredImages.set(o, trans);
+        });
     }
 
     @Override

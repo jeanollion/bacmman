@@ -31,15 +31,9 @@ public class SegmentedObjectFactory {
         return res;
     }
 
-    public <ID> SegmentedObject duplicate(SegmentedObject o, ObjectDAO<ID> targetDAO, int targetObjectClass, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes, boolean duplicateMeasurements, boolean removeParentAndTrackAttributes) {
+    public <ID> SegmentedObject duplicate(SegmentedObject o, ObjectDAO<ID> targetDAO, int targetObjectClass, boolean duplicateRegion, boolean duplicateImages, boolean duplicateAttributes, boolean duplicateMeasurements) {
         SegmentedObject res = o.duplicate(targetDAO, null, duplicateRegion, duplicateImages, duplicateAttributes, duplicateMeasurements);
         res.structureIdx = targetObjectClass;
-        if (removeParentAndTrackAttributes) {
-            res.parent = null;
-            res.next = null;
-            res.previous = null;
-            res.trackHead = null;
-        }
         return res;
     }
 

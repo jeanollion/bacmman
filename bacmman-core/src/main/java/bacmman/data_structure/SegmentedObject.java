@@ -154,10 +154,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         } else {
             if (parent == null && dao == null) throw new IllegalArgumentException("Either Parent or DAO must be provided for non-root objects");
             res = new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?getRegion().duplicate():getRegion(), parent);
-            if (parent == null) {
+            if (parent == null) { // new ID was not generated
                 res.setDAO(dao);
                 res.id = dao.generateID(res.getStructureIdx(), res.getFrame());
-                res.parentId = parentId;
             }
         }
         if (duplicateImages) {
@@ -231,8 +230,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (getExperiment()==null) return Double.NaN;
         Position f = getExperiment().getPosition(getPositionName());
         int z = (int)Math.round((getBounds().zMin()+getBounds().zMax())/2);
-        double res  = f.getInputImages()==null || isRoot() ? Double.NaN : f.getInputImages().getCalibratedTimePoint(getExperiment().getChannelImageIdx(structureIdx), timePoint, z);
-        //double res = Double.NaN; // for old xp TODO change
+        double res = f.getCalibratedTimePoint(getExperiment().getChannelImageIdx(structureIdx), timePoint, z);
         if (Double.isNaN(res)) res = timePoint * f.getFrameDuration();
         return res;
     }
@@ -271,10 +269,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      */
     public SegmentedObject getParent() {
         if (parent==null && parentId!=null) parent = dao.getById(getExperiment().getStructure(structureIdx).getParentStructure(), parentId, timePoint, null);
-        /*if (parent!=null && parent.getStructureIdx()==getStructureIdx()) {
+        if (parent!=null && parent.getStructureIdx()==getStructureIdx()) {
             logger.error("parent {} has same object class idx as {}. oc idx: {}, position: {}", parent.toStringShort(), this.toStringShort(), structureIdx, getPositionName());
             throw new RuntimeException("parent has same object class idx");
-        }*/
+        }
         return parent;
     }
     public boolean hasParent() {
@@ -938,11 +936,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                     if (isRoot()) {
                         if (rawImagesC.getAndExtend(channelIdx)==null) {
                             if (getPosition().singleFrame(structureIdx) && !isTrackHead() && trackHead!=null) { // getImage from trackHead
-                                rawImagesC.set(trackHead.getRawImage(structureIdx), channelIdx);
+                                trackHead.getRawImage(structureIdx);
+                                rawImagesC.set(trackHead.rawImagesC.get(channelIdx), channelIdx); // in case of disk backed image
                             } else {
                                 Image im = null;
                                 try {
                                     im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint);
+
                                 } catch (IOException e) {
 
                                 }
@@ -999,7 +999,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                 }
             }
         }
-        return rawImagesC.get(channelIdx);
+        Image im = rawImagesC.get(channelIdx);
+        if (im instanceof DiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
+        else return im;
     }
     /**
      *
@@ -1007,7 +1009,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return Pre-filtered image of the channel associated to {@param objectClassIdx} cropped to the bounds of this object. Pre-filtered image is ensured to be set only to the segmentation parent of {@param ObjectClassIdx} at segmentation step of {@param ObjectClassIdx}, at any other step will return null.
      */
     public Image getPreFilteredImage(int structureIdx) {
-        return this.preFilteredImagesS.get(structureIdx);
+        Image im = this.preFilteredImagesS.get(structureIdx);
+        if (im instanceof DiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
+        else return im;
     }
     void setPreFilteredImage(Image image, int structureIdx) {
         if (image!=null) {

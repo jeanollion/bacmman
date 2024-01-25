@@ -45,14 +45,8 @@ import bacmman.utils.geom.PointContainer2;
 import bacmman.utils.geom.Vector;
 import bacmman.utils.geom.PointSmoother;
 import ij.ImagePlus;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
-import java.util.Set;
+
+import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -198,8 +192,9 @@ public class BacteriaSpineFactory {
         Offset logOff = new SimpleOffset(mask).reverseOffset();
         List<Pair<CircularNode<T>, CircularNode<T>>> contourPairs = mapToContourPair(skeleton, contour, circContour,logOff);
         if (contourPairs.stream().anyMatch(cp->cp.key==null||cp.value==null)) {
+            logger.error("Error contour skeleton size: {} contour size: {}", skeleton, contour);
             if (imageDisp!=null) imageDisp.accept(new SpineResult().setBounds(mask).setCircContour(circContour).drawSpine(verboseZoomFactor, false).setName("Error init contour pairs"));
-            throw new RuntimeException("Spine could not be created");
+            throw new RuntimeException("Spine could not be created (invalid contour)");
         }
         List<PointContainer2<Vector, Double>> spListSk = contourPairs.stream().map(v -> PointContainer2.fromPoint(Point.middle2D(v.key.element, v.value.element), Vector.vector2D(v.key.element, v.value.element), 0d)).collect(Collectors.toList());
         // 2) smooth direction vectors in order to limit brutal direction change
@@ -231,11 +226,30 @@ public class BacteriaSpineFactory {
     
     public static <T extends Localizable> List<Pair<CircularNode<T>, CircularNode<T>>> mapToContourPair(List<Voxel> skeleton, Set<T> contour, CircularNode<T> circContour, Offset logOff) {
         if (skeleton.size()<=2) { // circular shape : convention: axis = X
-            return skeleton.stream().map(vertebra -> {
-                T left  = contour.stream().filter(v->v.getFloatPosition(0)<vertebra.x).min((v1, v2) -> Double.compare(Math.abs(vertebra.y-v1.getDoublePosition(1)), Math.abs(vertebra.y-v2.getDoublePosition(1)))).orElse(null);
-                T right  = contour.stream().filter(v->v.getFloatPosition(0)>vertebra.x).min((v1, v2) -> Double.compare(Math.abs(vertebra.y-v1.getDoublePosition(1)), Math.abs(vertebra.y-v2.getDoublePosition(1)))).orElse(null);
-                return new Pair<>(circContour.getInFollowing(left, false), circContour.getInFollowing(right, true));
-            }).collect(Collectors.toList());
+            // special case: flat object
+            double[] xMinMax = new double[]{Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+            double[] yMinMax = new double[]{Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+            contour.forEach(c -> {
+                double x = c.getDoublePosition(0);
+                if (x<xMinMax[0]) xMinMax[0] = x;
+                if (x>xMinMax[1]) xMinMax[1] = x;
+                double y = c.getDoublePosition(1);
+                if (y<yMinMax[0]) yMinMax[0] = y;
+                if (y>yMinMax[1]) yMinMax[1] = y;
+            });
+            if (xMinMax[1]-xMinMax[0]<=1 && xMinMax[1]-xMinMax[0]<yMinMax[1]-yMinMax[0]) { // flat along X
+                return skeleton.stream().map(vertebra -> {
+                    T left  = contour.stream().filter(v->v.getFloatPosition(1)<=vertebra.y).min(Comparator.comparingDouble(v -> Math.abs(vertebra.x - v.getDoublePosition(0)))).orElse(contour.stream().min(Comparator.comparingDouble(v->v.getDoublePosition(1))).get());
+                    T right  = contour.stream().filter(v->v.getFloatPosition(1)>=vertebra.y).min(Comparator.comparingDouble(v -> Math.abs(vertebra.x - v.getDoublePosition(0)))).orElse(contour.stream().max(Comparator.comparingDouble(v->v.getDoublePosition(1))).get());
+                    return new Pair<>(circContour.getInFollowing(left, false), circContour.getInFollowing(right, true));
+                }).collect(Collectors.toList());
+            } else {
+                return skeleton.stream().map(vertebra -> {
+                    T left = contour.stream().filter(v -> v.getFloatPosition(0) <= vertebra.x).min(Comparator.comparingDouble(v -> Math.abs(vertebra.y - v.getDoublePosition(1)))).orElse(contour.stream().min(Comparator.comparingDouble(v -> v.getDoublePosition(0))).get());
+                    T right = contour.stream().filter(v -> v.getFloatPosition(0) >= vertebra.x).min(Comparator.comparingDouble(v -> Math.abs(vertebra.y - v.getDoublePosition(1)))).orElse(contour.stream().max(Comparator.comparingDouble(v -> v.getDoublePosition(1))).get());
+                    return new Pair<>(circContour.getInFollowing(left, false), circContour.getInFollowing(right, true));
+                }).collect(Collectors.toList());
+            }
         } 
         // start from center and go to each direction
         int centerIdx = skeleton.size()/2;

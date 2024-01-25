@@ -5,7 +5,7 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.BoundingBox;
 import bacmman.measurement.FitEllipseShape;
 import bacmman.utils.Pair;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import net.imglib2.RealLocalizable;
@@ -37,7 +37,7 @@ public class TestAlignment {
             if (Double.isNaN(ecc) || ellipse.getEccentricity()<0.5) {
                 return new Pair<>(null, r.getContour());
             } else {
-                SymetricalPair<Point> polesTh = ellipse.getPoles();
+                UnaryPair<Point> polesTh = ellipse.getPoles();
                 Set<Voxel> contour = r.getContour();
                 // get contour points closest to th poles
                 Set<Point> poles = new HashSet<>(4);
@@ -52,10 +52,10 @@ public class TestAlignment {
         if (pole1.key!=null && pole2.key!=null) { // test alignment of 2 dipoles
             logger.debug("center1: {}, center2: {}", r1.getCenterOrGeomCenter(), r2.getCenterOrGeomCenter());
             logger.debug("major1: {}, major2: {}", pole1.key.majorAxisLength, pole2.key.majorAxisLength);
-            SymetricalPair<Point> poles1 = new SymetricalPair<>((Point)pole1.value.iterator().next(), (Point)new ArrayList(pole1.value).get(1));
-            SymetricalPair<Point> poles2 = new SymetricalPair<>((Point)pole2.value.iterator().next(), (Point)new ArrayList(pole2.value).get(1));
-            SymetricalPair<Point> closests = Point.getClosest(poles1, poles2);
-            SymetricalPair<Point> farthests = new SymetricalPair<>(Pair.getOther(poles1, closests.key), Pair.getOther(poles2, closests.value));
+            UnaryPair<Point> poles1 = new UnaryPair<>((Point)pole1.value.iterator().next(), (Point)new ArrayList(pole1.value).get(1));
+            UnaryPair<Point> poles2 = new UnaryPair<>((Point)pole2.value.iterator().next(), (Point)new ArrayList(pole2.value).get(1));
+            UnaryPair<Point> closests = Point.getClosest(poles1, poles2);
+            UnaryPair<Point> farthests = new UnaryPair<>(Pair.getOther(poles1, closests.key), Pair.getOther(poles2, closests.value));
             logger.debug("poles 1: {}, poles 2: {}, closests: {} farthests: {}", poles1, poles2, closests, farthests);
             Vector v1 = Vector.vector2D(closests.key, farthests.key);
             Vector v21 = Vector.vector2D(closests.key, closests.value);
@@ -78,7 +78,7 @@ public class TestAlignment {
             //logger.debug("aligned cells: {}+{} angle={}", r1.getLabel()-1, r2.getLabel()-1, angle);
         } else if (pole1.key!=null || pole2.key!=null) { // test alignment of 1 dipole and 1 degenerated dipole assimilated to its center
             logger.debug("center1: {}, center2: {}", r1.getCenterOrGeomCenter(), r2.getCenterOrGeomCenter());
-            SymetricalPair<Point> poles;
+            UnaryPair<Point> poles;
             Point center;
             if (pole1.key!=null) {
                 poles = pole1.key.getPoles();
@@ -106,20 +106,20 @@ public class TestAlignment {
     }
     protected static Set<Voxel> getPolesContour(Set<Voxel> contour, double poleSize) {
         double poleSize2 = Math.pow(poleSize, 2);
-        SymetricalPair<Voxel> poles = getPoleCenters(contour);
+        UnaryPair<Voxel> poles = getPoleCenters(contour);
         return contour.stream().filter(v -> v.getDistanceSquare(poles.key)<=poleSize2 || v.getDistanceSquare(poles.value)<=poleSize2).collect(Collectors.toSet());
     }
-    protected static SymetricalPair<Voxel> getPoleCenters(Set<Voxel> contour) { // two farthest points
+    protected static UnaryPair<Voxel> getPoleCenters(Set<Voxel> contour) { // two farthest points
         List<Voxel> list = new ArrayList<>(contour);
         int voxCount = contour.size();
         double d2Max = 0;
-        SymetricalPair<Voxel> max = null;
+        UnaryPair<Voxel> max = null;
         for (int i = 0; i<voxCount-1; ++i) {
             for (int j = i+1; j<voxCount; ++j) {
                 double d2Temp = list.get(i).getDistanceSquare(list.get(j));
                 if (d2Temp>d2Max) {
                     d2Max = d2Temp;
-                    max = new SymetricalPair<>(list.get(i), list.get(j));
+                    max = new UnaryPair<>(list.get(i), list.get(j));
                 }
             }
         }

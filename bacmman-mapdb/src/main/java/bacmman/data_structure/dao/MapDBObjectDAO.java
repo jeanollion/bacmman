@@ -114,10 +114,10 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         if (lock!=null) return true;
         try {
             Path p = getLockedFilePath();
-            logger.debug("locking position: {}, lock file exists: {}", getPositionName(), Files.exists(p));
+            //logger.debug("locking position: {}, lock file exists: {}", getPositionName(), Files.exists(p));
             lockChannel = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             lock = lockChannel.tryLock();
-            logger.debug("locking position: {}, locked: {}", getPositionName(), lock!=null);
+            //logger.debug("locking position: {}, locked: {}", getPositionName(), lock!=null);
             if (Files.exists(p)) p.toFile().deleteOnExit(); // shutdown hook
         } catch (IOException|OverlappingFileLockException ex) {
             logger.debug("error locking position: "+getPositionName(), ex);

@@ -1,8 +1,7 @@
 package bacmman.ui.gui;
 
-import bacmman.core.OmeroGateway;
 import bacmman.ui.PropertyUtils;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 
@@ -24,11 +23,11 @@ public class PromptOmeroConnectionInformation extends JDialog {
     private JPanel connectionPanel;
     private JButton cancelButton;
     private JButton storePasswordButton;
-    private final Map<SymetricalPair<String>, char[]> savedPassword;
+    private final Map<UnaryPair<String>, char[]> savedPassword;
     SetCredentials callback;
     Frame owner;
 
-    public PromptOmeroConnectionInformation(Map<SymetricalPair<String>, char[]> savedPassword, SetCredentials callback, Frame owner) {
+    public PromptOmeroConnectionInformation(Map<UnaryPair<String>, char[]> savedPassword, SetCredentials callback, Frame owner) {
         super(owner, true);
         this.owner = owner;
         this.savedPassword = savedPassword;
@@ -96,8 +95,8 @@ public class PromptOmeroConnectionInformation extends JDialog {
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
     }
 
-    private SymetricalPair<String> getPWKey() {
-        return new SymetricalPair<>(hostname.getText(), username.getText());
+    private UnaryPair<String> getPWKey() {
+        return new UnaryPair<>(hostname.getText(), username.getText());
     }
 
 
@@ -195,7 +194,7 @@ public class PromptOmeroConnectionInformation extends JDialog {
         dispose();
     }
 
-    public static void promptCredentials(Map<SymetricalPair<String>, char[]> savedPasswords, SetCredentials callback, Object owner) {
+    public static void promptCredentials(Map<UnaryPair<String>, char[]> savedPasswords, SetCredentials callback, Object owner) {
         PromptOmeroConnectionInformation dialog = new PromptOmeroConnectionInformation(savedPasswords, callback, owner instanceof Frame ? (Frame) owner : null);
         dialog.pack();
         dialog.setVisible(true);

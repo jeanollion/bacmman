@@ -471,8 +471,8 @@ public class DockerTrainingWindow implements ProgressLogger {
         String image = ensureImage(trainer, dockerGateway);
         logger.debug("docker image: {}", image);
         try {
-            List<SymetricalPair<String>> mounts = new ArrayList<>();
-            mounts.add(new SymetricalPair<>(currentWorkingDirectory, "/data"));
+            List<UnaryPair<String>> mounts = new ArrayList<>();
+            mounts.add(new UnaryPair<>(currentWorkingDirectory, "/data"));
             if (mountTempData) {
                 Path dataTemp;
                 if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) { //TODO add docker menu parameter
@@ -488,9 +488,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                     }
                 }
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
-                mounts.add(new SymetricalPair<>(dataTemp.toString(), "/dataTemp"));
+                mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            return dockerGateway.createContainer(image, Core.getCore().dockerShmMb, Core.getCore().dockerGPUs, mounts.toArray(new SymetricalPair[0]));
+            return dockerGateway.createContainer(image, Core.getCore().dockerShmMb, Core.getCore().dockerGPUs, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             setMessage("Error trying to start container");
             setMessage(e.getMessage());

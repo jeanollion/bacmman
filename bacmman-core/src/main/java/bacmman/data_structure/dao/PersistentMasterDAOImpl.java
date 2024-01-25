@@ -170,7 +170,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                 if (res == null) {
                     String op = getOutputPath();
                     if (op==null) throw new RuntimeException("No output path set, cannot create DAO");
-                    logger.debug("requesting dao: {} already open: {}", positionName, openDAOs.stream().map(ObjectDAO::getPositionName).collect(Collectors.toList()));
+                    //logger.debug("requesting dao: {} already open: {}", positionName, openDAOs.stream().map(ObjectDAO::getPositionName).collect(Collectors.toList()));
                     if (openDAOs.size()>=MAX_OPEN_DAO) {
                         T toClose = openDAOs.pollFirst();
                         Core.getCore().closePosition(toClose.getPositionName());

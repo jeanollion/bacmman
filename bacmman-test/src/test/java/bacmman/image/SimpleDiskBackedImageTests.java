@@ -1,6 +1,7 @@
 package bacmman.image;
 
-import bacmman.core.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManagerImpl;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -20,7 +21,7 @@ public class SimpleDiskBackedImageTests {
     @BeforeClass
     public static void setUp() throws IOException {
         logger.debug("init ");
-        manager = new DiskBackedImageManager(DiskBackedImageManager.getDefaultTempDir().toString());
+        manager = new DiskBackedImageManagerImpl(DiskBackedImageManagerImpl.getDefaultTempDir().toString());
     }
 
     @AfterClass
@@ -32,7 +33,7 @@ public class SimpleDiskBackedImageTests {
     @Test
     public void testDaemon() throws IOException, InterruptedException {
         Image im = new ImageByte("", 100, 100, 100);
-        DiskBackedImageManager manager = new DiskBackedImageManager(DiskBackedImageManager.getDefaultTempDir().toString());
+        DiskBackedImageManager manager = new DiskBackedImageManagerImpl(DiskBackedImageManagerImpl.getDefaultTempDir().toString());
         SimpleDiskBackedImage dbIm = manager.createSimpleDiskBackedImage(im, false, false);
         manager.startDaemon(0, 1);
         Thread.sleep(100);

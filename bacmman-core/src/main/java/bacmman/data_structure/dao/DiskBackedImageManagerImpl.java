@@ -1,27 +1,31 @@
-package bacmman.core;
+package bacmman.data_structure.dao;
 
-import bacmman.image.*;
+import bacmman.image.DiskBackedImage;
+import bacmman.image.Image;
+import bacmman.image.PrimitiveType;
+import bacmman.image.SimpleDiskBackedImage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.util.*;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class DiskBackedImageManager {
-    static Logger logger = LoggerFactory.getLogger(DiskBackedImageManager.class);
+public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
+    static Logger logger = LoggerFactory.getLogger(DiskBackedImageManagerImpl.class);
     final Queue<DiskBackedImage> queue = new LinkedList<>();
     Map<DiskBackedImage, File> files = new ConcurrentHashMap<>();
     Thread daemon;
     long daemonTimeInterval;
     boolean stopDaemon = false;
     final String directory;
-    public DiskBackedImageManager(String directory) {
+    public DiskBackedImageManagerImpl(String directory) {
         this.directory = directory;
     }
+    @Override
     public synchronized boolean startDaemon(double memoryFraction, long timeInterval) {
         if (daemon != null ) return false;
         Runnable run = () -> {
@@ -41,6 +45,7 @@ public class DiskBackedImageManager {
         daemon.start();
         return true;
     };
+    @Override
     public synchronized boolean stopDaemon() {
         if (daemon != null && !stopDaemon) {
             stopDaemon = true;
@@ -61,31 +66,26 @@ public class DiskBackedImageManager {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed) return;
-        List<DiskBackedImage> closedImages = new ArrayList<>();
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
-            DiskBackedImage im = null;
-            synchronized (queue) {
-                if (!queue.isEmpty()) {
+            if (!queue.isEmpty()) {
+                DiskBackedImage im = null;
+                synchronized (queue) {
                     im = queue.poll();
+                    queue.add(im);
                 }
-            }
-            if (im!=null) {
-                if (im.isOpen()) {
-                    used -= im.heapMemory();
-                    im.freeMemory(true);
+                if (im != null) {
+                    if (im.isOpen()) {
+                        used -= im.heapMemory();
+                        im.freeMemory(true); // sync on im
+                    }
                 }
-                closedImages.add(im);
-            }
-        }
-        synchronized (queue) { // keep track of all images
-            for (DiskBackedImage im : closedImages) {
-                if (files.containsKey(im)) queue.add(im); // if image was detached during the while loop, it would have been removed from files
             }
         }
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
 
-    public <I extends Image<I>> I openImage(SimpleDiskBackedImage<I> fmi) throws IOException {
+    @Override
+    public <I extends Image<I>> I openImageContent(SimpleDiskBackedImage<I> fmi) throws IOException {
         File file = files.get(fmi);
         if (file == null) {
             logger.error("Image {} was erased", fmi.getName());
@@ -101,6 +101,7 @@ public class DiskBackedImageManager {
         return res;
     }
 
+    @Override
     public <I extends Image<I>> void storeSimpleDiskBackedImage(SimpleDiskBackedImage<I> fmi) throws IOException {
         if (!fmi.isOpen()) throw new IOException("Cannot store a SimpleDiskBackedImage whose image is not open");
         File f = files.get(fmi);
@@ -113,6 +114,7 @@ public class DiskBackedImageManager {
         }
         write(f, fmi.getImage());
     }
+    @Override
     public <I extends Image<I>> SimpleDiskBackedImage<I> createSimpleDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
         SimpleDiskBackedImage<I> res = new SimpleDiskBackedImage<>(image, this, writable);
         res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
@@ -122,14 +124,6 @@ public class DiskBackedImageManager {
         if (freeMemory) res.freeMemory(true);
         return res;
     }
-    public static void clearDiskBackedImageFiles(String directory) { // only valid when stored in temp directory
-        if (directory == null) return;
-        File tempDir = new File(directory);
-        File[] images = tempDir.listFiles((f, fn) -> fn.endsWith(".bmimage"));
-        if (images!=null) {
-            for (File f : images) f.delete();
-        }
-    }
 
     public static File getDefaultTempDir() throws IOException {
         File dummyFile = File.createTempFile("tmp", ".bmimage");
@@ -138,17 +132,16 @@ public class DiskBackedImageManager {
         return tempDir;
     }
 
+    @Override
     public boolean detach(DiskBackedImage image, boolean freeMemory) {
-        File f = null;
-        boolean rem = false;
+        File f;
+        boolean rem;
         synchronized (queue) {
             rem = queue.remove(image);
             f = files.remove(image);
+            if (freeMemory) image.freeMemory(false);
         }
         if (f!=null) f.delete();
-        if (freeMemory) {
-            image.freeMemory(false);
-        }
         return rem;
     }
 

@@ -1,31 +1,40 @@
 package bacmman.data_structure.dao;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.data_structure.ExperimentStructure;
+import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class BypassImageDAO implements ImageDAO {
-    InputImagesImpl inputImages;
-    final Position p;
-    public BypassImageDAO(Position p) {
-        this.p=p;
+    final MultipleImageContainer sourceImages;
+    int[] dupChannelMapChannel;
+    public BypassImageDAO(Experiment xp, MultipleImageContainer sourceImages) {
+        this.sourceImages=sourceImages;
+        this.dupChannelMapChannel = getDupChannelMapChannel(xp);
     }
-    private InputImagesImpl getInputImages() {
-        if (inputImages==null) {
-            synchronized (p) {
-                if (inputImages==null) inputImages = p.getInputImages();
-            }
-        }
-        return inputImages;
+    public void updateXP(Experiment xp) {
+        this.dupChannelMapChannel = getDupChannelMapChannel(xp);
+    }
+    protected int[] getDupChannelMapChannel(Experiment xp) {
+        int[] dupChannelMapChannel = new int[xp.getChannelImageCount(true)];
+        int[] dupSources = xp.getDuplicatedChannelSources();
+        int nonDupSize = dupChannelMapChannel.length-dupSources.length;
+        for (int c = 0; c<nonDupSize; ++c) dupChannelMapChannel[c] = c;
+        for (int c = 0; c<dupSources.length; ++c) dupChannelMapChannel[c+nonDupSize] = dupSources[c];
+        return dupChannelMapChannel;
     }
 
     @Override
     public void flush() {
-        inputImages.flush();
+        sourceImages.flush();
     }
 
     @Override
@@ -35,9 +44,7 @@ public class BypassImageDAO implements ImageDAO {
 
     @Override
     public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException {
-        InputImagesImpl ii = getInputImages();
-        Image res = ii.getImage(channelImageIdx, timePoint);
-        ii.flush(channelImageIdx, timePoint);
+        Image res = sourceImages.getImage(timePoint, dupChannelMapChannel[channelImageIdx]);
         return res;
     }
 
@@ -49,8 +56,7 @@ public class BypassImageDAO implements ImageDAO {
 
     @Override
     public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException {
-        InputImagesImpl ii = getInputImages();
-        return ii.getRawPlane(z, channelImageIdx, timePoint);
+        return sourceImages.getPlane(z, timePoint, dupChannelMapChannel[channelImageIdx]);
     }
 
     @Override
@@ -65,6 +71,6 @@ public class BypassImageDAO implements ImageDAO {
 
     @Override
     public void deletePreProcessedImage(int channelImageIdx, int timePoint) {
-
+        // do nothing
     }
 }

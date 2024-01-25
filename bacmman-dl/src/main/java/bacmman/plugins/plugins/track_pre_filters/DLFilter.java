@@ -2,6 +2,7 @@ package bacmman.plugins.plugins.track_pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
@@ -48,19 +49,19 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     }
 
     @Override
-    public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
+    public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
         Image[][][] in = new Image[1+inputs.getChildCount()][][];
-        in[0] = preFilteredImages.values().stream().map(im->new Image[]{im}).toArray(Image[][]::new);
+        in[0] = preFilteredImages.streamValues().map(im->new Image[]{im}).toArray(Image[][]::new);
         for (int i = 1; i<in.length; ++i) in[i] = extractInput(preFilteredImages, inputs.getChildAt(i-1));
         Image[] out = predict(in);
-        int idx = 0;
-        for (Map.Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) e.setValue(out[idx++]);
+        int[] idx = new int[1];
+        preFilteredImages.streamKeys().sequential().forEach(o -> preFilteredImages.set(o, out[idx[0]++]));
     }
 
-    private static Image[][] extractInput(TreeMap<SegmentedObject, Image> preFilteredImages, GroupParameter params) {
+    private static Image[][] extractInput(SegmentedObjectImageMap preFilteredImages, GroupParameter params) {
         ObjectClassParameterAbstract oc = (ObjectClassParameterAbstract) params.getChildAt(0);
         int ocIdx = oc.getSelectedClassIdx();
-        logger.info("Object class IDX: {}", ocIdx);
+        logger.debug("Object class IDX: {}", ocIdx);
         EnumChoiceParameter<INPUT_TYPE> type = (EnumChoiceParameter<INPUT_TYPE>) params.getChildAt(1);
         Function<SegmentedObject, Image[]> extractor;
         switch (type.getSelectedEnum()) {
@@ -77,7 +78,7 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
                 break;
             }
         }
-        return preFilteredImages.keySet().stream().map(extractor).toArray(Image[][]::new);
+        return preFilteredImages.streamKeys().map(extractor).toArray(Image[][]::new);
     }
 
     @Override

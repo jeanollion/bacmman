@@ -1,7 +1,7 @@
 package bacmman.measurement;
 
 import bacmman.data_structure.Region;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
@@ -17,7 +17,7 @@ public class FitEllipseShape {
     public static class Ellipse {
         public final double majorAxisLength, minorAxisLength, orientation;
         final public Point center;
-        SymetricalPair<Point> poles;
+        UnaryPair<Point> poles;
         public Ellipse(Point center, double majorAxisLength, double minorAxisLength, double orientation) {
             this.center = center;
             this.majorAxisLength = majorAxisLength;
@@ -30,20 +30,20 @@ public class FitEllipseShape {
         public Vector getDirection() {
             return new Vector(Math.cos(orientation * Math.PI / 180), Math.sin(orientation * Math.PI / 180)).multiply(majorAxisLength);
         }
-        public SymetricalPair<Point> getPoles() {
+        public UnaryPair<Point> getPoles() {
             if (poles!=null) return poles;
             else return computePoles();
         }
 
-        protected SymetricalPair<Point> computePoles() {
+        protected UnaryPair<Point> computePoles() {
             Vector dir = getDirection().multiply(0.5);
-            return new SymetricalPair<>(center.duplicate().translate(dir), center.duplicate().translateRev(dir));
+            return new UnaryPair<>(center.duplicate().translate(dir), center.duplicate().translateRev(dir));
         }
         public void ensurePolesBelongToContour(Collection<? extends RealLocalizable> contour) {
-            SymetricalPair<Point> poles = computePoles();
+            UnaryPair<Point> poles = computePoles();
             Point p1 = Point.asPoint2D(Utils.getClosest(poles.key, contour, Point::distSqXY));
             Point p2 = Point.asPoint2D(Utils.getClosest(poles.value, contour, Point::distSqXY));
-            this.poles = new SymetricalPair<>(p1, p2);
+            this.poles = new UnaryPair<>(p1, p2);
         }
     }
 

@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.measurements;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
@@ -36,6 +37,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  *
@@ -132,10 +134,9 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
         Set<Integer> allChildOC = features.getActivatedChildren().stream().map(PluginParameter::instantiatePlugin).filter(o -> o instanceof IntensityMeasurement).map(o -> ((IntensityMeasurement)o).getIntensityStructure()).collect(Collectors.toSet());;
         Map<Integer, BiFunction<Image, ImageMask, Image>> preFilterSequenceMapByOC = new HashMap<>();
         for (int oc : allChildOC) {
-            Map<SegmentedObject, Image> preFiltered = preFilters.filterImages(oc, parentTrack);
-            Map<Image, Image> rawToPF = preFiltered.entrySet().stream()
-                    .collect(Collectors.toMap(e -> e.getKey().getRawImage(oc), Map.Entry::getValue));
-            preFilterSequenceMapByOC.put(oc, (im, mask)->rawToPF.get(im));
+            SegmentedObjectImageMap preFiltered = preFilters.filterImages(oc, parentTrack);
+            Map<Image, SegmentedObject> rawToObject = preFiltered.streamKeys().collect(Collectors.toMap(o -> o.getRawImage(oc), o->o));
+            preFilterSequenceMapByOC.put(oc, (im, mask)->preFiltered.get(rawToObject.get(im)));
         }
         ThreadRunner.executeAndThrowErrors(parentTrack.parallelStream(), parent -> {
             for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {

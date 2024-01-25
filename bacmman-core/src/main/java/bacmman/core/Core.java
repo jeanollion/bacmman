@@ -21,6 +21,7 @@ package bacmman.core;
 import bacmman.data_structure.DiskBackedImageManagerProvider;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.Image;
 import bacmman.image.LazyImage5DStack;
 import bacmman.plugins.PluginFactory;
@@ -37,7 +38,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static bacmman.plugins.PluginFactory.getClasses;

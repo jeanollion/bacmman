@@ -44,7 +44,7 @@ public class InputImagesImpl implements InputImages {
     Integer[] autofocusPlanes;
     int freeMemoryFrameWindow = 0; // 200;
     double memoryProportionLimit;
-    final LinkedList<SymetricalPair<Integer>> lastUsedImages = new LinkedList<>();
+    final LinkedList<UnaryPair<Integer>> lastUsedImages = new LinkedList<>();
     public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig) {
         this.imageCT = imageCT;
         this.defaultTimePoint= defaultTimePoint;
@@ -164,7 +164,7 @@ public class InputImagesImpl implements InputImages {
     @Override public Image getImage(int channelIdx, int timePoint) throws IOException {
         if (imageCT[channelIdx].length==1) timePoint = 0;
         synchronized (lastUsedImages) {
-            SymetricalPair<Integer> p = new SymetricalPair<>(channelIdx, timePoint);
+            UnaryPair<Integer> p = new UnaryPair<>(channelIdx, timePoint);
             lastUsedImages.remove(p);
             lastUsedImages.addLast(p);
         }
@@ -183,7 +183,7 @@ public class InputImagesImpl implements InputImages {
     public void flush(int channelIdx, int timePoint) {
         imageCT[channelIdx][timePoint].flush();
         synchronized (lastUsedImages) {
-            lastUsedImages.remove(new SymetricalPair<>(channelIdx, timePoint));
+            lastUsedImages.remove(new UnaryPair<>(channelIdx, timePoint));
         }
     }
     public Image[][] getImagesTC() throws IOException {
@@ -242,7 +242,7 @@ public class InputImagesImpl implements InputImages {
                 }
                 if (close) {
                     imageF[f].flush();
-                    lastUsedImages.remove(new SymetricalPair<>(c, f));
+                    lastUsedImages.remove(new UnaryPair<>(c, f));
                 }
             };
             ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100);
@@ -268,7 +268,7 @@ public class InputImagesImpl implements InputImages {
 
             int freed = 0;
             while(freed<nImagesToFree && lastUsedImages.size()>1) {
-                SymetricalPair<Integer> p = lastUsedImages.pollFirst();
+                UnaryPair<Integer> p = lastUsedImages.pollFirst();
                 if (p == null) break;
                 InputImage image = imageCT[p.key][p.value];
                 synchronized (image) {

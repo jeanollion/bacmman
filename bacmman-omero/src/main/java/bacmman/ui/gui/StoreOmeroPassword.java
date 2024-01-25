@@ -2,7 +2,7 @@ package bacmman.ui.gui;
 
 import bacmman.core.OmeroGateway;
 import bacmman.ui.PropertyUtils;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 
@@ -25,10 +25,10 @@ public class StoreOmeroPassword {
     private JCheckBox displayLocalPasswordCheckBox;
     private JPanel mainPanel;
     boolean canceled;
-    final Map<SymetricalPair<String>, char[]> savedPassword;
-    Consumer<SymetricalPair<String>> serverAndUserConsumer;
+    final Map<UnaryPair<String>, char[]> savedPassword;
+    Consumer<UnaryPair<String>> serverAndUserConsumer;
 
-    public StoreOmeroPassword(String server, String user, Map<SymetricalPair<String>, char[]> savedPassword, Consumer<SymetricalPair<String>> serverAndUserConsumer) {
+    public StoreOmeroPassword(String server, String user, Map<UnaryPair<String>, char[]> savedPassword, Consumer<UnaryPair<String>> serverAndUserConsumer) {
         this.serverAndUserConsumer = serverAndUserConsumer;
         this.savedPassword = savedPassword;
         Runnable checkPW = () -> {
@@ -65,8 +65,8 @@ public class StoreOmeroPassword {
         if (serverAndUserConsumer != null) serverAndUserConsumer.accept(getPWKey());
     }
 
-    private SymetricalPair<String> getPWKey() {
-        return new SymetricalPair<>(hostname.getText(), username.getText());
+    private UnaryPair<String> getPWKey() {
+        return new UnaryPair<>(hostname.getText(), username.getText());
     }
 
     private void updateStoreButton() {
@@ -101,7 +101,7 @@ public class StoreOmeroPassword {
         }
     }
 
-    public static void storeOmeroPassword(String hostname, String username, Map<SymetricalPair<String>, char[]> savedPassword, Consumer<SymetricalPair<String>> serverAndUserConsumer, Frame parent) {
+    public static void storeOmeroPassword(String hostname, String username, Map<UnaryPair<String>, char[]> savedPassword, Consumer<UnaryPair<String>> serverAndUserConsumer, Frame parent) {
         StoreOmeroPassword store = new StoreOmeroPassword(hostname, username, savedPassword, serverAndUserConsumer);
         Dial dia = store.new Dial(parent, "Store Omero Password");
         dia.setVisible(true);

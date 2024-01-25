@@ -241,11 +241,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                         if (!file.exists()) { // TODO: otherwise fetch from server
                             continue;
                         }
-                        List<SymetricalPair<String>> entries = FileIO.readFromFile(file.getPath(), line -> {
+                        List<UnaryPair<String>> entries = FileIO.readFromFile(file.getPath(), line -> {
                             if (!line.contains("=")) return null;
                             String[] p = line.split("=");
                             if (p.length!=2) return null;
-                            return new SymetricalPair<>(p[0], p[1]);
+                            return new UnaryPair<>(p[0], p[1]);
                         }, null);
                         List<Long> timestamps = entries.stream().filter(Objects::nonNull).filter(p -> p.key.startsWith("timestamp")).sorted(Comparator.comparing(p->p.key)).map(p -> p.value).map(Long::parseLong).collect(Collectors.toList());
                         if (timestamps.size() == sizeZC[c]) {

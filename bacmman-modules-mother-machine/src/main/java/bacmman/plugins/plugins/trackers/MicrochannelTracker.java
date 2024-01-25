@@ -187,6 +187,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             //parent.setPreFilteredImage(null, structureIdx); // save memory
             // TODO perform post-filters at this step and remove the use of boundingBoxes array.. or update the bounding box array by matching each object ...
         };
+        ThreadRunner.parallelExecutionBySegments(exe, 0, parentTrack.size(), 200);
         ThreadRunner.executeAndThrowErrors(Utils.parallel(IntStream.range(0, parentTrack.size()).mapToObj(i->i), true), exe);
         Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = new HashMap<>(boundingBoxes.length);
         for (int i = 0; i<boundingBoxes.length; ++i) parentBBMap.put(parentTrack.get(i), boundingBoxes[i]);

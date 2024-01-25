@@ -1,11 +1,9 @@
 package bacmman.core;
 
-import bacmman.core.DockerGateway;
 import bacmman.docker.ExecResultCallback;
 import bacmman.docker.PullImageResultCallback;
 import bacmman.ui.PropertyUtils;
-import bacmman.utils.SymetricalPair;
-import bacmman.utils.Triplet;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.*;
@@ -17,7 +15,6 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.transport.DockerHttpClient;
 import com.github.dockerjava.zerodep.ZerodepDockerHttpClient;
 //import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
-import net.imagej.ops.Ops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,8 +23,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -94,18 +89,18 @@ public class DockerGatewayImpl implements DockerGateway {
     }
 
     @Override
-    public Stream<SymetricalPair<String>> listContainers() {
-        return dockerClient.listContainersCmd().exec().stream().map(c -> new SymetricalPair<>(c.getImage(), c.getId()));
+    public Stream<UnaryPair<String>> listContainers() {
+        return dockerClient.listContainersCmd().exec().stream().map(c -> new UnaryPair<>(c.getImage(), c.getId()));
     }
 
     @Override
-    public Stream<SymetricalPair<String>> listContainers(String imageId) {
-        return dockerClient.listContainersCmd().exec().stream().filter(c -> c.getImageId().equals(imageId)).map(c -> new SymetricalPair<>(c.getImage(), c.getId()));
+    public Stream<UnaryPair<String>> listContainers(String imageId) {
+        return dockerClient.listContainersCmd().exec().stream().filter(c -> c.getImageId().equals(imageId)).map(c -> new UnaryPair<>(c.getImage(), c.getId()));
     }
 
     @SafeVarargs
     @Override
-    public final String createContainer(String image, int shmSizeMb, int[] gpuIds, SymetricalPair<String>... mountDirs) {
+    public final String createContainer(String image, int shmSizeMb, int[] gpuIds, UnaryPair<String>... mountDirs) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withAutoRemove(true);
                 //.withRestartPolicy(RestartPolicy.noRestart())

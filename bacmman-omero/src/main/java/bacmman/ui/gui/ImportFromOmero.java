@@ -1,12 +1,11 @@
 package bacmman.ui.gui;
 
-import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.image.io.OmeroImageMetadata;
 import bacmman.core.OmeroGatewayI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.objects.OmeroTree;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -43,13 +42,13 @@ public class ImportFromOmero extends JFrame {
     private JCheckBox displayAllUsersCheckBox;
     private JCheckBox importMetadataCheckBox;
     private JButton storePasswordButton;
-    Map<SymetricalPair<String>, char[]> savedPassword;
+    Map<UnaryPair<String>, char[]> savedPassword;
     OmeroTree tree;
     ProgressCallback bacmmanLogger;
     OmeroGatewayI gateway;
     BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback;
 
-    public ImportFromOmero(OmeroGatewayI gateway, Map<SymetricalPair<String>, char[]> savedPassword, BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback, ProgressCallback bacmmanLogger) {
+    public ImportFromOmero(OmeroGatewayI gateway, Map<UnaryPair<String>, char[]> savedPassword, BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback, ProgressCallback bacmmanLogger) {
         setContentPane(contentPane);
         setTitle("Omero Browser");
         getRootPane().setDefaultButton(connect);
@@ -161,8 +160,8 @@ public class ImportFromOmero extends JFrame {
         });
     }
 
-    private SymetricalPair<String> getPWKey() {
-        return new SymetricalPair<>(hostname.getText(), username.getText());
+    private UnaryPair<String> getPWKey() {
+        return new UnaryPair<>(hostname.getText(), username.getText());
     }
 
     private void saveCurrentConnectionParameters() {

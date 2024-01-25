@@ -29,13 +29,13 @@ import java.io.IOException;
  * @author Jean Ollion
  */
 public interface ImageDAO {
-    public void flush();
-    public String getImageExtension();
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException;
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException;
-    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException;
-    public BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException;
-    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint);
-    public void deletePreProcessedImage(int channelImageIdx, int timePoint);
+    void flush();
+    String getImageExtension();
+    Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException;
+    Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException;
+    Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException;
+    BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException;
+    void writePreProcessedImage(Image image, int channelImageIdx, int timePoint);
+    void deletePreProcessedImage(int channelImageIdx, int timePoint);
     
 }

@@ -14,7 +14,7 @@ import bacmman.omero.OmeroAquisitionMetadata;
 import bacmman.ui.gui.ImportFromOmero;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Pair;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import omero.ServerError;
 import omero.api.RawPixelsStorePrx;
 import omero.gateway.Gateway;
@@ -52,7 +52,7 @@ public class OmeroGatewayI implements OmeroGateway {
     SecurityContext ctx;
     BrowseFacility browse;
     String hostname, username, password;
-    final private Map<SymetricalPair<String>, char[]> serverPasswords = new HashMap<>();
+    final private Map<UnaryPair<String>, char[]> serverPasswords = new HashMap<>();
     ImportFromOmero importInstance;
     ProgressLogger bacmmanLogger;
     public OmeroGatewayI() {
@@ -83,7 +83,7 @@ public class OmeroGatewayI implements OmeroGateway {
     }
     public boolean validCredentials() {
         if (hostname!=null && !hostname.isEmpty() && username!=null && !username.isEmpty()) {
-            SymetricalPair<String> key = new SymetricalPair<>(hostname, username);
+            UnaryPair<String> key = new UnaryPair<>(hostname, username);
             if ((password==null || password.isEmpty()) && serverPasswords.containsKey(key)) password = String.valueOf(serverPasswords.get(key));
             return password!=null && !password.isEmpty();
         }

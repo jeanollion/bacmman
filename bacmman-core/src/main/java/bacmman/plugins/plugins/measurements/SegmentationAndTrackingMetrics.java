@@ -16,7 +16,7 @@ import bacmman.processing.matching.SimpleTrackGraph;
 import bacmman.processing.track_post_processing.TrackAssigner;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultWeightedEdge;
@@ -437,19 +437,19 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 return count;
             }
         }
-        public List<SymetricalPair<Set<SegmentedObject>>> getClusters(int frame) {
+        public List<UnaryPair<Set<SegmentedObject>>> getClusters(int frame) {
             return getClusters(groundTruth.get(frame).stream(), true, true);
         }
-        public List<SymetricalPair<Set<SegmentedObject>>> getClusters(Stream<SegmentedObject> source, boolean sourceIsGroundTruth, boolean growWithPrev) {
+        public List<UnaryPair<Set<SegmentedObject>>> getClusters(Stream<SegmentedObject> source, boolean sourceIsGroundTruth, boolean growWithPrev) {
             Set<SegmentedObject> sourceVisited = new HashSet<>();
-            List<SymetricalPair<Set<SegmentedObject>>> clusters = new ArrayList<>();
+            List<UnaryPair<Set<SegmentedObject>>> clusters = new ArrayList<>();
             source.forEach( s -> {
                 if (!sourceVisited.contains(s)) {
                     Set<SegmentedObject> tMatch = getAllMatching(s, sourceIsGroundTruth).collect(Collectors.toSet());
                     if (!tMatch.isEmpty()) {
                         Set<SegmentedObject> sMatch = growCluster(Arrays.asList(s), tMatch, sourceIsGroundTruth);
                         if (!growWithPrev) {
-                            clusters.add(new SymetricalPair<>(sMatch, tMatch));
+                            clusters.add(new UnaryPair<>(sMatch, tMatch));
                             sourceVisited.addAll(sMatch);
                         } else { // now get previous and grow according to previous
                             boolean prevInc = false;
@@ -469,7 +469,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                                 } else increment = 0;
                             } while (increment>0);
                             tMatch = getAllMatching(sMatch.stream(), sourceIsGroundTruth).collect(Collectors.toSet());
-                            clusters.add(new SymetricalPair<>(sMatch, tMatch));
+                            clusters.add(new UnaryPair<>(sMatch, tMatch));
                             if (prevInc) logger.debug("Cluster prevInc: {} -> {}", sMatch, tMatch);
                             sourceVisited.addAll(sMatch);
                         }
