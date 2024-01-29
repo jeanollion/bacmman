@@ -491,7 +491,7 @@ public class PluginConfigurationUtils {
                         }
                         images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
                         if (i<transfoIdx &&  transfo instanceof TransformationApplyDirectly) { // copyTo
-                            images.applyTranformationsAndSave(false, false);
+                            images.applyTransformationsAndSave(false, false);
                         }
                         if (showAllSteps || i==transfoIdx) {
                             int[] outputChannels =null;

@@ -141,7 +141,7 @@ public class Processor {
         }
         setTransformations(position, memoryLimit, pcb);
         logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
-        images.applyTranformationsAndSave(true, false); // here : should be able to close if necessary
+        images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
@@ -172,7 +172,7 @@ public class Processor {
             if (i<transfos.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // TransformationApplyDirectly plugins are cases where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
                 //if (pcb!=null) pcb.log(Utils.getMemoryUsage() + "limit is set to "+memoryLimit+" -> saving temporarily images to disk");
                 logger.debug("{} -> performing temp save & close", Utils.getMemoryUsage());
-                images.applyTranformationsAndSave(true, true);
+                images.applyTransformationsAndSave(true, true);
                 System.gc();
                 logger.debug("after temp save: {}", Utils.getMemoryUsage());
             }

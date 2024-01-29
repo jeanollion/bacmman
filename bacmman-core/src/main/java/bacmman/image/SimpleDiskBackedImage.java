@@ -64,6 +64,41 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
     public void setModified(boolean modified) {
         this.modified = modified;
     }
+
+    @Override
+    public I setCalibration(double scaleXY, double scaleZ) {
+        super.setCalibration(scaleXY, scaleZ);
+        if (image != null) image.setCalibration(scaleXY, scaleZ);
+        return (I)this;
+    }
+    @Override
+    public I resetOffset() {
+        super.resetOffset();
+        if (image != null) image.resetOffset();
+        return (I)this;
+    }
+
+    @Override
+    public I reverseOffset() {
+        super.reverseOffset();
+        if (image != null) image.reverseOffset();
+        return (I)this;
+    }
+
+    @Override
+    public I translate(Offset offset) {
+        super.translate(offset);
+        if (image != null) image.translate(offset);
+        return (I)this;
+    }
+
+    @Override
+    public I translate(int dx, int dy, int dz) {
+        super.translate(dx, dy, dz);
+        if (image != null) image.translate(dx, dy, dz);
+        return (I)this;
+    }
+
     public I getImage() {
         if (image == null ) {
             synchronized (this) {

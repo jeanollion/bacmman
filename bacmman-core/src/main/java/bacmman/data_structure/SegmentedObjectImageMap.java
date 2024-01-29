@@ -43,6 +43,12 @@ public class SegmentedObjectImageMap {
         if (im instanceof SimpleDiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
         else return im;
     }
+
+    /**
+     *
+     * @param o
+     * @return image that may be wrapped in a DiskedBackedImage
+     */
     public Image getOriginal(SegmentedObject o) {
         return imageMap.get(o);
     }

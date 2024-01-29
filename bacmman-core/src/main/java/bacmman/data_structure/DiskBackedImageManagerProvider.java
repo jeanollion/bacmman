@@ -16,14 +16,14 @@ public class DiskBackedImageManagerProvider {
     Map<String, DiskBackedImageManager> managers = new HashMapGetCreate.HashMapGetCreateRedirected<>(DiskBackedImageManagerImpl::new);
 
     public synchronized DiskBackedImageManager getManager(String directory) {
-        return managers.get(directory);
+        DiskBackedImageManager manager = managers.get(directory);
+        manager.startDaemon(0.75, 2000);
+        return manager;
     }
 
     public synchronized DiskBackedImageManager getManager(SegmentedObject segmentedObject) {
         String tmp = getTempDirectory(segmentedObject.getDAO().getMasterDAO().getDatasetDir(), true);
-        DiskBackedImageManager manager = managers.get(tmp);
-        manager.startDaemon(0.75, 2000);
-        return manager;
+        return getManager(tmp);
     }
 
     public synchronized void clear() {

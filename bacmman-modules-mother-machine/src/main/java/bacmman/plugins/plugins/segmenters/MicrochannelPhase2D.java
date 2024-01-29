@@ -45,7 +45,9 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 import static bacmman.plugins.plugins.segmenters.MicrochannelPhase2D.X_DER_METHOD.CONSTANT;
 
@@ -171,7 +173,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
         // get X coordinates of each microchannel
         imCrop = closedEndY==0?image:image.crop(new MutableBoundingBox(0, image.sizeX()-1, closedEndY, image.sizeY()-1, 0, image.sizeZ()-1));
         float[] xProj = ImageOperations.meanProjection(imCrop, ImageOperations.Axis.X, null);
-        // check for null values @ start & end that could be introduces by rotation and replace by first non-null value
+        // check for null values @ start & end that could be introduced by rotation and replace by first non-null value
         int start = 0;
         while (start<xProj.length && xProj[start]==0) ++start;
         if (start>0) Arrays.fill(xProj, 0, start, xProj[start]);
@@ -291,8 +293,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
             default:
                 // compute signal range on all images
                 //logger.debug("parent track: {}",parentTrack.stream().map(p->p.getPreFilteredImage(structureIdx)).collect(Collectors.toList()) );
-                Map<Image, ImageMask> maskMap = parentTrack.stream().collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask()));
-                Histogram histo = HistogramFactory.getHistogram(()->Image.stream(maskMap, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                Supplier<DoubleStream> supplier = () -> parentTrack.parallelStream().flatMapToDouble(so -> so.getPreFilteredImage(structureIdx).stream(so.getMask(), true));
+                Histogram histo = HistogramFactory.getHistogram(supplier, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
                 double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
                 int thldIdx = (int)histo.getIdxFromValue(thld);
                 double foreground = histo.duplicate(thldIdx, histo.getData().length).getQuantiles(0.5)[0];

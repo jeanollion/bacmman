@@ -42,7 +42,6 @@ public class InputImagesImpl implements InputImages {
     int autofocusChannel=-1;
     Autofocus autofocusAlgo = null;
     Integer[] autofocusPlanes;
-    int freeMemoryFrameWindow = 0; // 200;
     double memoryProportionLimit;
     final LinkedList<UnaryPair<Integer>> lastUsedImages = new LinkedList<>();
     public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig) {
@@ -220,7 +219,7 @@ public class InputImagesImpl implements InputImages {
         return imagesTC;
     }
 
-    public void applyTranformationsAndSave(boolean close, boolean tempCheckPoint) {
+    public void applyTransformationsAndSave(boolean close, boolean tempCheckPoint) {
         long tStart = System.currentTimeMillis();
         // start with modified channels
         List<Integer> modifiedChannels = IntStream.range(0, getChannelNumber()).filter(c -> IntStream.range(0, imageCT[c].length).anyMatch(f -> imageCT[c][f].modified())).mapToObj(c->c).sorted(Comparator.reverseOrder()).collect(Collectors.toList());
@@ -244,8 +243,10 @@ public class InputImagesImpl implements InputImages {
                     imageF[f].flush();
                     lastUsedImages.remove(new UnaryPair<>(c, f));
                 }
+                if (f%100==0) System.gc();
             };
             ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100);
+            System.gc();
             logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
         });
         if (close) { // in case some image have been re-opened by the process of other channels -> close them
@@ -264,8 +265,7 @@ public class InputImagesImpl implements InputImages {
             if (toFree < memoryProportionLimit*0.1) return;
             long maxImages = Utils.getTotalMemory() / imageSize;
             int nImagesToFree = Math.min(lastUsedImages.size()-1, (int) (maxImages * toFree * 1.1) ); // convert in number of images
-            if (nImagesToFree>0) logger.debug("free memory: proportion to free: {} used: {}/{} nImages to free {}/{}, usage per image: {}/{} max images: {}", toFree, Utils.getMemoryUsageProportion(), memoryProportionLimit, nImagesToFree, lastUsedImages.size(), imageSize/(1000d*1000d), Utils.getTotalMemory()/(1000*1000), maxImages);
-
+            //if (nImagesToFree>0) logger.debug("free memory: proportion to free: {} used: {}/{} nImages to free {}/{}, usage per image: {}/{} max images: {}", toFree, Utils.getMemoryUsageProportion(), memoryProportionLimit, nImagesToFree, lastUsedImages.size(), imageSize/(1000d*1000d), Utils.getTotalMemory()/(1000*1000), maxImages);
             int freed = 0;
             while(freed<nImagesToFree && lastUsedImages.size()>1) {
                 UnaryPair<Integer> p = lastUsedImages.pollFirst();
@@ -279,6 +279,8 @@ public class InputImagesImpl implements InputImages {
                     }
                 }
             }
+            System.gc();
+            //logger.debug("after free memory: memory used: {}/{} remaining images: {}", Utils.getMemoryUsageProportion(), memoryProportionLimit, lastUsedImages.size());
         }
     }
 

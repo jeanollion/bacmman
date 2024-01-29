@@ -40,11 +40,11 @@ public interface MicrochannelSegmenter extends Segmenter {
      * @param input image to segment microchannels from
      * @return Result object defining bounds of each segmented microchannel within {@param input} image
      */
-    public Result segment(Image input, int structureIdx, SegmentedObject parent);
+    Result segment(Image input, int structureIdx, SegmentedObject parent);
     /**
      * Result Class for Microchannel Segmenters that defines the bounds of every microchannels, ordered from left to rigth. 
      */
-    public static class Result {
+    class Result {
         public final int[] xMax;
         public final int[] xMin;
         public final int[] yMinShift;
