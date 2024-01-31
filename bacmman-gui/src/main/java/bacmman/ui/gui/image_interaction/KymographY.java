@@ -22,13 +22,13 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.geom.Point;
 
 /**
  *
@@ -98,5 +98,17 @@ public class KymographY extends Kymograph {
         public int compare(Offset arg0, Offset arg1) {
             return Integer.compare(arg0.yMin(), arg1.yMin());
         }
+    }
+
+    @Override
+    protected int compareCenters(Point c1, Point c2) {
+        int c = Double.compare(c1.get(1), c2.get(1));
+        if (c==0) c = Double.compare(c1.get(0), c2.get(0));
+        return c;
+    }
+
+    @Override
+    protected double getDistance(Point c1, Point c2) {
+        return Math.abs(c1.get(0)-c2.get(0));
     }
 }

@@ -4,13 +4,17 @@ import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
+import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
+import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -234,5 +238,48 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         };
         return new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
     }
+    static double DIST_THLD = 10;
+    public List<SegmentedObject> getNextTracks(int objectClassIdx, int sliceIdx, List<SegmentedObject> currentTracks, boolean next) {
+        Map<SegmentedObject, Point> centers = new HashMapGetCreate.HashMapGetCreateRedirected<>(so -> so.getRegion().getCenterOrGeomCenter());
+        int startFrame = parentIdxMapFrame.get(getStartParentIdx(sliceIdx));
+        BiFunction<SegmentedObject, SegmentedObject, UnaryPair<SegmentedObject>> getComparableObjects = (o1, o2) -> {
+            // compare centers at common slice >= startFrame, or closest slice
+            if (o1.getFrame()<startFrame) o1 = o1.getNextAtFrame(startFrame, true);
+            if (o2.getFrame()<startFrame) o2 = o2.getNextAtFrame(startFrame, true);
+            if (o1.getFrame()>startFrame && o2.getFrame()==startFrame) o2 = o2.getNextAtFrame(o1.getFrame(), true);
+            else if (o1.getFrame()==startFrame && o2.getFrame()>startFrame) o1 = o1.getNextAtFrame(o2.getFrame(), true);
+            else if (o1.getFrame()<o2.getFrame()) o1 = o1.getNextAtFrame(o2.getFrame(), true);
+            else if (o2.getFrame()<o1.getFrame()) o2 = o2.getNextAtFrame(o1.getFrame(), true);
+            return new UnaryPair<>(o1, o2);
+        };
+        Comparator<SegmentedObject> comp = (o1, o2) -> {
+            UnaryPair<SegmentedObject> c = getComparableObjects.apply(o1, o2);
+            int mul = next ? -1 : 1; // inverse comparator to speed up removal from list
+            return mul * compareCenters(centers.get(c.key), centers.get(c.value));
+        };
+        List<SegmentedObject> tracks = getObjects(objectClassIdx, sliceIdx).map(SegmentedObject::getTrackHead).distinct().sorted(comp).collect(Collectors.toList());
+        // remove all tracks before currently selected tracks
+        currentTracks.retainAll(tracks);
+        if (!currentTracks.isEmpty()) {
+            currentTracks.sort(comp);
+            int idx = tracks.indexOf(currentTracks.get(0));
+            tracks = tracks.subList(0, idx);
+        }
+        // select all objects that have a
+        List<SegmentedObject> selectedTracks = new ArrayList<>();
+        if (!tracks.isEmpty()) selectedTracks.add(tracks.remove(tracks.size()-1));
+        while(!tracks.isEmpty()) {
+            SegmentedObject cur = tracks.remove(tracks.size() -1);
+            if (selectedTracks.stream().anyMatch( o -> {
+                UnaryPair<SegmentedObject> c = getComparableObjects.apply(o, cur);
+                if (c.key.getFrame()!=c.value.getFrame()) return false; // no overlap between tracks
+                return getDistance(centers.get(c.key), centers.get(c.value))<DIST_THLD;
+            })) break;
+            else selectedTracks.add(cur);
+        }
+        return selectedTracks;
+    }
 
+    protected abstract int compareCenters(Point c1, Point c2);
+    protected abstract double getDistance(Point c1, Point c2);
 }

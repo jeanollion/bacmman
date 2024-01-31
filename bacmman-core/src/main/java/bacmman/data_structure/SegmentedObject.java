@@ -560,6 +560,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             while (p.getPrevious()!= null && p.getFrame()>frame) p = p.getPrevious();
         } else {
             while (p != null && p.getFrame()>frame) p = p.getPrevious();
+            if (p==null || p.getFrame()!=frame) return null;
         }
         return p;
     }
@@ -571,6 +572,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             while (n.getNext() != null && n.getFrame()<frame) n = n.getNext();
         } else {
             while (n != null && n.getFrame()<frame) n = n.getNext();
+            if (n==null || n.getFrame()!=frame) return null;
         }
 
         return n;

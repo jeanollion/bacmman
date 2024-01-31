@@ -71,7 +71,7 @@ public class Shortcuts {
         MANUAL_ERASE("Erase part of an existing object using the selection brush tool", "ctrl + Brush"),
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
         SELECT_CONNECTED("In track mode, displays selected tracks and their connected tracks", "ctrl + selection"),
-        SELECT_ALL_OBJECTS("Display all objects of interactive object class on active image"), SELECT_ALL_OBJECT_CLASSES("Display all objects from all classes on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
+        SELECT_ALL_OBJECTS("Display all objects of interactive object class on active image"), SELECT_ALL_OBJECT_CLASSES("Display all objects from all classes on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), SELECT_NEXT_TRACKS("Display Next tracks on active Kymograph"), SELECT_PREVIOUS_TRACKS("Display previous tracks on active Kymograph"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         SYNC_VIEW("Synchronize View between different images"),
         KYMOGRAPH_VIEW("Generate a Kyomgraph View from selection on current Hyperstack", "rectangle then ctrl + shift"), HYPERSTACK_VIEW("Generate a Hyperstack view from selection on current Hyperstack", "rectangle then ctrl + alt"),
         SCROLL_X("Scroll X-axis", "alt + mouse wheel"),
@@ -171,6 +171,8 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_OBJECTS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK), ACTION.SELECT_ALL_OBJECT_CLASSES);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_TRACKS);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.SHIFT_DOWN_MASK), SELECT_NEXT_TRACKS);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, KeyEvent.SHIFT_DOWN_MASK), SELECT_PREVIOUS_TRACKS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0), ACTION.CHANGE_INTERACTIVE_STRUCTURE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0), ACTION.TOGGLE_SELECT_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, 0), SYNC_VIEW);
@@ -210,6 +212,8 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_OBJECTS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK), ACTION.SELECT_ALL_OBJECT_CLASSES);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_TRACKS);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.SHIFT_DOWN_MASK), SELECT_NEXT_TRACKS);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.SHIFT_DOWN_MASK), SELECT_PREVIOUS_TRACKS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0), ACTION.CHANGE_INTERACTIVE_STRUCTURE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0), ACTION.TOGGLE_SELECT_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, 0), SYNC_VIEW);
@@ -319,7 +323,7 @@ public class Shortcuts {
         Function<String, String> formatString = (s) -> "<html><body style=\"text-align: justify;  text-justify: inter-word;\">" + s + "</body></html>";
         Object[] actions = {
             "<b>Display</b>",
-            SELECT_ALL_OBJECTS, SELECT_ALL_OBJECT_CLASSES, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE, SELECT_CONNECTED,CHANGE_INTERACTIVE_STRUCTURE,
+            SELECT_ALL_OBJECTS, SELECT_ALL_OBJECT_CLASSES, SELECT_ALL_TRACKS, SELECT_PREVIOUS_TRACKS, SELECT_NEXT_TRACKS,TOGGLE_SELECT_MODE, SELECT_CONNECTED,CHANGE_INTERACTIVE_STRUCTURE,
             KYMOGRAPH_VIEW, HYPERSTACK_VIEW,
             TOGGLE_LOCAL_ZOOM, TO_FRONT,
             "<b>Navigation</b>",

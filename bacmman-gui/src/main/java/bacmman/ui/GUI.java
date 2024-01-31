@@ -763,6 +763,20 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 selectAllTracksButtonActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.SELECT_NEXT_TRACKS, new AbstractAction("Display Next Tracks") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                displayNextTracksOnKymograph(true);
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.SELECT_PREVIOUS_TRACKS, new AbstractAction("Display Next Tracks") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                displayNextTracksOnKymograph(false);
+            }
+        });
         Runnable[] closePreviousMessage = new Runnable[1];
         actionMap.put(Shortcuts.ACTION.CHANGE_INTERACTIVE_STRUCTURE, new AbstractAction("Change Interactive structure") {
             @Override
@@ -3496,6 +3510,24 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 }
             }
         }
+    }
+
+    public void displayNextTracksOnKymograph(boolean next) {
+        ImageWindowManager<?,?,?> iwm = ImageWindowManagerFactory.getImageManager();
+        Image currentImage =  iwm.getDisplayer().getCurrentImage();
+        if (currentImage == null) return;
+        InteractiveImage i = iwm.getInteractiveImage(currentImage);
+        if (! (i instanceof Kymograph)) {
+            Utils.displayTemporaryMessage("Current image is not a kymograph", 2000);
+            return;
+        }
+        Kymograph k = (Kymograph)i;
+        List<SegmentedObject> sel = iwm.getSelectedLabileTrackHeads(currentImage);
+        int ocIdx = iwm.getInteractiveObjectClass();
+        sel.removeIf(o -> o.getStructureIdx()!=ocIdx);
+        List<SegmentedObject> toDisp = k.getNextTracks(ocIdx, iwm.getDisplayer().getFrame(currentImage), sel, next);
+        iwm.hideAllRois(currentImage, true, false);
+        iwm.displayTracks(currentImage, k, SegmentedObjectUtils.getTracks(toDisp), null, true, false);
     }
 
     private Selection getNavigatingSelection() {
