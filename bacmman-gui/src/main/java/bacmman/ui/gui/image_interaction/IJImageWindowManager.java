@@ -856,9 +856,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 if (error || correction) {
                     Color c = error ? ImageWindowManager.trackErrorColor : ImageWindowManager.trackCorrectionColor;
                     trackRoi.addFlag(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, arrowColor, arrowStrokeWidth, o1.sliceIdx+1), null);
-                    if (o2!=null && o2.sliceIdx != o1.sliceIdx) {
-                        trackRoi.addFlag(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, arrowColor, arrowStrokeWidth, o2.sliceIdx+1), null);
-                    }
                 }
             }
             int zMin = Math.max(o1.offset.zMin(), o2==null ? -1 : o2.offset.zMin());
@@ -881,8 +878,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 ObjectDisplay o1 = track.get(idx - 1);
                 ObjectDisplay o2 = track.get(idx);
                 if (o1.sliceIdx!=o2.sliceIdx) {
-                    SegmentedObject o1Next = o2.object.equals(o1.object) ? o2.object : o1.object.getNext();
-                    SegmentedObject o2Prev = o2.object.equals(o1.object) ? o2.object : o2.object.getPrevious();
+                    SegmentedObject o1Next = o1.object.getNext();
+                    SegmentedObject o2Prev = o2.object.getPrevious();
                     //if (o1Next == null || o2Prev == null) logger.error("Error displaying over distinct slices: o1={} next={} o2={} prev={} s1={} s2={}", o1.object, o1.object.getNext(), o2.object, o2.object.getPrevious(), o1.sliceIdx, o2.sliceIdx);
                     if (o1Next!=null) {
                         ObjectDisplay o1N = new ObjectDisplay(o1Next, i.getObjectOffset(o1Next, o1.sliceIdx), o1.sliceIdx);
@@ -896,9 +893,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             });
         }
         // append previous arrows
-        for (ObjectDisplay p : i.toObjectDisplay(SegmentedObjectEditor.getPrevious(track.get(0).object).collect(Collectors.toList()), track.get(0).sliceIdx)) {
-            appendTrackArrow.accept(p, track.get(0));
-        }
+        track.stream().filter(o -> o.object.isTrackHead()).forEach( head -> {
+            for (ObjectDisplay p : i.toObjectDisplay(SegmentedObjectEditor.getPrevious(head.object).collect(Collectors.toList()), head.sliceIdx)) {
+                appendTrackArrow.accept(p, head);
+            }
+        });
         // append next arrows only if not displayed at current slice
         ObjectDisplay last = track.get(track.size()-1);
         if (last.object.getNext() != null && last.object.getNext().getTrackHead().equals(last.object.getTrackHead())) {
@@ -908,7 +907,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 appendTrackArrow.accept(last, n);
             }
         }
-
         return trackRoi;
     }
     private static Arrow getErrorArrow(double x1, double y1, double x2, double y2, Color c, Color fillColor, double arrowStrokeWidth, int slice) {
