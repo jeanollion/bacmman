@@ -58,8 +58,8 @@ public class SubtractBackground implements PreFilter, Filter, Hint {
         this.radius.setScaleZ(radiusZ);
     }
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return filter(input, radius.getScaleXY(), radius.getScaleZ(input.getScaleXY(), input.getScaleZ()), false, canModifyImage);
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
+        return filter(input, radius.getScaleXY(), radius.getScaleZ(input.getScaleXY(), input.getScaleZ()), false, allowInplaceModification);
     }
     
     public Image filter(Image input, double radiusXY, double radiusZ, boolean parallele, boolean canModifyImage) {

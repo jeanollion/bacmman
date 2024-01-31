@@ -10,6 +10,7 @@ import java.io.IOException;
 public interface DiskBackedImageManager {
     boolean startDaemon(double memoryFraction, long timeInterval);
     boolean stopDaemon();
+    boolean isFreeingMemory();
     <I extends Image<I>> I openImageContent(SimpleDiskBackedImage<I> fmi) throws IOException;
     <I extends Image<I>> void storeSimpleDiskBackedImage(SimpleDiskBackedImage<I> fmi) throws IOException;
     <I extends Image<I>> SimpleDiskBackedImage<I> createSimpleDiskBackedImage(I image, boolean writable, boolean freeMemory);

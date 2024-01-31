@@ -4,6 +4,7 @@ import bacmman.image.DiskBackedImage;
 import bacmman.image.Image;
 import bacmman.image.PrimitiveType;
 import bacmman.image.SimpleDiskBackedImage;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +22,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     Thread daemon;
     long daemonTimeInterval;
     boolean stopDaemon = false;
+    boolean freeingMemory = false;
     final String directory;
     public DiskBackedImageManagerImpl(String directory) {
         this.directory = directory;
@@ -59,6 +61,12 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             return true;
         } else return false;
     }
+
+    @Override
+    public boolean isFreeingMemory() {
+        return freeingMemory;
+    }
+
     public void freeMemory(double memoryFraction) {
         freeMemory(memoryFraction, false);
     }
@@ -66,6 +74,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed) return;
+        long toFree = used - maxUsed;
+        freeingMemory = true;
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
             if (!queue.isEmpty()) {
                 DiskBackedImage im = null;
@@ -81,6 +91,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
                 }
             }
         }
+        freeingMemory = false;
+        logger.debug("freed : {}Mb/{}Mb used: {}", (double)toFree / (1000*1000), (double)Runtime.getRuntime().maxMemory() / (1000*1000), Utils.getMemoryUsageProportion());
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
 

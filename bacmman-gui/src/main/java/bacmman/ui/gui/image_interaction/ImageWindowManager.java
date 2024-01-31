@@ -70,7 +70,7 @@ import java.util.stream.Stream;
  * @param <T> track ROI class
  */
 public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends TrackRoi> {
-    public static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
+    static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
 
     public enum RegisteredImageType {KYMOGRAPH, HYPERSTACK, RAW_INPUT, PRE_PROCESSED}
     public static boolean displayTrackMode, displayTrackEdges, displayCorrections;
@@ -723,8 +723,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         boolean hyperStack = i instanceof HyperStack;
         List<List<SegmentedObject>> displayedTracks = new ArrayList<>();
         for (List<SegmentedObject> track : tracks) {
-            List<ObjectDisplay> trackOD = i.toObjectDisplay(track.stream()).collect(Collectors.toList());
-            Collections.sort(trackOD);
+            List<ObjectDisplay> trackOD = i.toObjectDisplay(track.stream()).sorted().collect(Collectors.toList());
             boolean disp = displayTrack(image, i, trackOD, color==null?getColor(track.get(0)):color, labile, false, hideIfAlreadyDisplayed, false);
             if (disp) displayedTracks.add(track);
         }

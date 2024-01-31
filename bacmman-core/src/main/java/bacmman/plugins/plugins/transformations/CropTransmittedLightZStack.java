@@ -127,7 +127,7 @@ public class CropTransmittedLightZStack implements ConfigurableTransformation, M
     }
 
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
         return applyTransformation(0, 0, input);
     }
 

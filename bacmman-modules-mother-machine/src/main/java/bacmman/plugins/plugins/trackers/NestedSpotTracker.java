@@ -467,55 +467,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         }
         return false;
     }
-    /*
-    private static void switchCrossingLinksWithLQBranches(TrackMateInterface<NestedSpot> tmi, double spatialTolerance, double distanceThld, int maxGap) {
-        long t0 = System.currentTimeMillis();
-        double distanceSqThld = distanceThld*distanceThld;
-        Set<SymetricalPair<DefaultWeightedEdge>> crossingLinks = tmi.getCrossingLinks(spatialTolerance, null);
-        HashMapGetCreate<DefaultWeightedEdge, List<NestedSpot>> trackBefore = new HashMapGetCreate<>(e -> tmi.getTrack(tmi.getObject(e, true), true, false));
-        HashMapGetCreate<DefaultWeightedEdge, List<NestedSpot>> trackAfter = new HashMapGetCreate<>(e -> tmi.getTrack(tmi.getObject(e, false), false, true));
-        Function<SymetricalPair<DefaultWeightedEdge>, Double> distance = p -> {
-            boolean beforeLQ1 = isLowQ(trackBefore.getAndCreateIfNecessary(p.key));
-            boolean afterLQ1 = isLowQ(trackAfter.getAndCreateIfNecessarySync(p.key));
-            if (beforeLQ1!=afterLQ1) return Double.POSITIVE_INFINITY;
-            boolean beforeLQ2 = isLowQ(trackBefore.getAndCreateIfNecessary(p.value));
-            boolean afterLQ2 = isLowQ(trackAfter.getAndCreateIfNecessarySync(p.value));
-            if (beforeLQ2!=afterLQ2 || beforeLQ1==beforeLQ2) return Double.POSITIVE_INFINITY;
-            if (beforeLQ1) { // link before2 and after1
-                return tmi.getObject(p.value, true).squareDistanceTo(tmi.getObject(p.key, false));
-            } else { // link before1 and after2
-                return tmi.getObject(p.key, true).squareDistanceTo(tmi.getObject(p.value, false));
-            }
-        };
-        HashMapGetCreate<SymetricalPair<DefaultWeightedEdge>, Double> linkDistance = new HashMapGetCreate<>(p -> distance.apply(p));
-        crossingLinks.removeIf(p -> linkDistance.getAndCreateIfNecessary(p)>distanceSqThld);
-        Map<DefaultWeightedEdge, Set<DefaultWeightedEdge>> map = Pair.toMapSym(crossingLinks);
-        Set<DefaultWeightedEdge> deletedEdges = new HashSet<>();
-        for (Entry<DefaultWeightedEdge, Set<DefaultWeightedEdge>> e : map.entrySet()) {
-            if (deletedEdges.contains(e.getKey())) continue;
-            e.getValue().removeAll(deletedEdges);
-            if (e.getValue().isEmpty()) continue;
-            DefaultWeightedEdge closestEdge = e.getValue().size()==1? e.getValue().iterator().next() : Collections.min(e.getValue(), (e1, e2)-> Double.compare(linkDistance.getAndCreateIfNecessary(new SymetricalPair<>(e.getKey(), e1)), linkDistance.getAndCreateIfNecessary(new SymetricalPair<>(e.getKey(), e2))));
-            NestedSpot e1 = tmi.getObject(e.getKey(), true);
-            NestedSpot t1 = tmi.getObject(e.getKey(), false);
-            NestedSpot e2 = tmi.getObject(closestEdge, true);
-            NestedSpot t2 = tmi.getObject(closestEdge, false);
-            if (t2.frame()>e1.frame() && (t2.frame()-e1.frame()) <=maxGap && e1.squareDistanceTo(t2)<=distanceSqThld)  tmi.addEdge(e1, t2);
-            if (t1.frame()>e2.frame() && (t1.frame()-e2.frame()) <=maxGap && e2.squareDistanceTo(t1)<=distanceSqThld)  tmi.addEdge(e2, t1);
-            tmi.removeFromGraph(e.getKey());
-            tmi.removeFromGraph(closestEdge);
-            deletedEdges.add(e.getKey());
-            deletedEdges.add(closestEdge);
-        }
-        long t1 = System.currentTimeMillis();
-        tmi.logGraphStatus("switch LQ links", t1-t0);
-    }
-    
-    private static boolean isLowQ(List<NestedSpot> track) {
-        for (NestedSpot s : track) if (!s.isLowQuality()) return false;
-        return true;
-    }
-    */
+
     private static void removeUnlinkedLQSpots(List<SegmentedObject> parentTrack, int structureIdx, LAPLinker<NestedSpot> tmi, SegmentedObjectFactory factory) {
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);
         Set<SegmentedObject> parentsToRelabel = new HashSet<>();

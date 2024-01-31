@@ -54,8 +54,8 @@ public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
     });
     Parameter[] parameters = new Parameter[]{autoEstimateCond};
     // TODO in Filter mode + autoestimate sigma -> configuration compute mean sigma on whole track
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return run(input, !canModifyImage);
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
+        return run(input, !allowInplaceModification);
     }
     private Image run(Image input, boolean duplicate) {
         if (duplicate) input = input.duplicate();

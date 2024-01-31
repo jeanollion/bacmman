@@ -81,7 +81,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         if (scaler != null) {
             if (!scaler.isConfigured()) throw new RuntimeException("Scaler not configured for object class:"+structureIdx);
             images.streamKeys().forEach(o -> images.set(o, scaler.scale(images.get(o))));
-            images.setModifyImages(true);  // image can be modified inplace
+            images.setAllowInplaceModification(true);  // image can be modified inplace
         }
         double scaleXY = parentTrack.get(0).getScaleXY();
         double scaleZ = parentTrack.get(0).getScaleZ();
@@ -94,7 +94,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         for (TrackPreFilter p : this.get()) {
             p.filter(structureIdx, images);
             setScale.run();
-            images.setModifyImages(true);  // image can be modified inplace
+            images.setAllowInplaceModification(true);  // image can be modified inplace
         }
         return images;
     }

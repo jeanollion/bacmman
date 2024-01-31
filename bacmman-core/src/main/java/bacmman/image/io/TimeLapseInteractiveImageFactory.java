@@ -112,9 +112,14 @@ public class TimeLapseInteractiveImageFactory {
             this.parentTrack=parentTrack;
             this.nFramePerSlice = nFramePerSlice <=0 ? parentTrack.size() : Math.min(nFramePerSlice, parentTrack.size());
             avgFrameOverlap = this.nFramePerSlice == parentTrack.size() ? 0 : Math.max(0, Math.min(this.nFramePerSlice-1, avgFrameOverlap));
-            if (this.nFramePerSlice == parentTrack.size()) nSlices = 1;
-            else nSlices = (int)Math.ceil((double)(parentTrack.size() - avgFrameOverlap) / (this.nFramePerSlice - avgFrameOverlap));
-            this.frameOverlap = nSlices==1 ? 0 : this.nFramePerSlice - (parentTrack.size() - this.nFramePerSlice) / (nSlices - 1);
+            if (this.nFramePerSlice == parentTrack.size()) {
+                nSlices = 1;
+                this.frameOverlap = 0;
+            } else {
+                int nSlices_ = (int)Math.ceil((double)(parentTrack.size() - avgFrameOverlap) / (this.nFramePerSlice - avgFrameOverlap));
+                this.frameOverlap = this.nFramePerSlice - (parentTrack.size() - this.nFramePerSlice) / (nSlices_ - 1);
+                this.nSlices = (int)Math.ceil((double)(parentTrack.size() - frameOverlap) / (this.nFramePerSlice - frameOverlap));
+            }
             logger.debug("kymograph: total {}, per slice: {} overlap {} total slices: {}", parentTrack.size(), this.nFramePerSlice, this.frameOverlap, nSlices);
         }
 

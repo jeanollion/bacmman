@@ -118,7 +118,7 @@ public class HistogramFactory {
             case AUTO_WITH_LIMITS:
                 if (stats[7]==0) binSize=1;
                 else {
-                    // enshure histogram will respect nbins range
+                    // ensure histogram will respect nbins range
                     int nBins = getNBins(stats[5], stats[6], binSize);
                     if (nBins<MIN_N_BINS) binSize = getBinSize(stats[5], stats[6], MIN_N_BINS); 
                     if (nBins>MAX_N_BINS) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS);

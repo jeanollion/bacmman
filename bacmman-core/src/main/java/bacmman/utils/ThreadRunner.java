@@ -39,9 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -425,18 +423,19 @@ public class ThreadRunner {
         }
     }
 
-    public static void parallelExecutionBySegments(Consumer<Integer> action, int minIdx, int maxIdxExcl, int window) {
-        int n = (maxIdxExcl - minIdx + 1) / window;
-        double r = (maxIdxExcl - minIdx + 1) % window;
+    public static void parallelExecutionBySegments(IntConsumer action, int minIdx, int maxIdxExcl, int window, IntConsumer segmentEnd) {
+        int n = (maxIdxExcl - minIdx) / window;
+        double r = (maxIdxExcl - minIdx) % window;
         if (r>=window/2. || n==0) ++n;
         for (int s = 0;s<n; ++s) {
             int min = s*window + minIdx;
             int max = s==n-1 ? maxIdxExcl :  (s+1) * window + minIdx;
             logger.debug("parallel ex by segment: [{}; {}) / [{}; {})", min, max, minIdx, maxIdxExcl);
-            IntStream.range(min, max).parallel().forEach(action::accept);
+            IntStream.range(min, max).parallel().forEach(action);
+            if (segmentEnd!=null) segmentEnd.accept(s);
         }
     }
-    public static void parallelExecutionBySegments(Consumer<Integer> action, List<Integer> indices, int window) {
+    public static void parallelExecutionBySegments(IntConsumer action, List<Integer> indices, int window, IntConsumer segmentEnd) {
         int n = indices.size() / window;
         double r = indices.size() % window;
         if (r>=window/2. || n==0) ++n;
@@ -444,7 +443,8 @@ public class ThreadRunner {
             int min = s*window;
             int max = s==n-1 ? indices.size() :  (s+1) * window;
             logger.debug("parallel ex by segment: [{}; {}) / [{}; {})", min, max, 0, indices.size());
-            IntStream.range(min, max).parallel().mapToObj(indices::get).forEach(action);
+            IntStream.range(min, max).parallel().mapToObj(indices::get).mapToInt(i->i).forEach(action);
+            if (segmentEnd!=null) segmentEnd.accept(s);
         }
     }
     public static <T> List<T> parallelExecutionBySegmentsFunction(Function<Integer, T> action, int minIdx, int maxIdxExcl, int window, boolean multithreadPerSegment) {
@@ -475,5 +475,17 @@ public class ThreadRunner {
             });
             return Arrays.stream(allLists).flatMap(Collection::stream).collect(Collectors.toList());
         }
+    }
+
+    public static <T> Stream<T> parallelStreamBySegment(IntFunction<T> mapper, int minIdx, int maxIdxExcl, int window, IntConsumer segmentEnd) {
+        int n = (maxIdxExcl - minIdx) / window;
+        double r = (maxIdxExcl - minIdx) % window;
+        if (r>=window/2. || n==0) ++n;
+        int n_ = n;
+        return IntStream.range(0, n).boxed().flatMap( s -> {
+            int min = s*window + minIdx;
+            int max = s==n_-1 ? maxIdxExcl :  (s+1) * window + minIdx;
+            return IntStream.range(min, max).parallel().mapToObj(mapper).onClose(()->segmentEnd.accept(s));
+        });
     }
 }

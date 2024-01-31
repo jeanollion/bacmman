@@ -99,28 +99,22 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         return (I)this;
     }
 
-    public I getImage() {
+    public synchronized I getImage() {
         if (image == null ) {
-            synchronized (this) {
-                if (image == null) {
-                    try {
-                        image = manager.openImageContent(this);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
+            try {
+                image = manager.openImageContent(this);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         } else { // case calibration / offset have been modified on this object
-            synchronized (image) {
-                if (!image.getOffset().sameOffset(this)) image.resetOffset().translate(this);
-                image.setCalibration(scaleXY, scaleZ);
-            }
+            if (!image.getOffset().sameOffset(this)) image.resetOffset().translate(this);
+            image.setCalibration(scaleXY, scaleZ);
         }
         return image;
     }
     public synchronized boolean setImage(I image) {
         if (!this.sameDimensions(image)) return false;
-        if (getImageType().getClass().equals(image.getClass())) return false;
+        if (!getImageType().typeEquals(image)) return false;
         this.image = image;
         this.modified = true;
         return true;

@@ -294,7 +294,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         Set<UnaryPair<DefaultWeightedEdge>> toRemove = getCrossingLinks(spatialTolerence, toRemSpot);
         removeFromGraph(Pair.flatten(toRemove, null), toRemSpot, false);
         long t1 = System.currentTimeMillis();
-        logger.debug("number of edges after removing intersecting links: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
+        //logger.debug("number of edges after removing intersecting links: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
     }
 
     private boolean intersect(DefaultWeightedEdge e1, DefaultWeightedEdge e2, double spatialTolerence, Set<S> toRemSpot) {

@@ -98,7 +98,10 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), view[i], trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
     public Stream<Integer> getSlice(int frame) {
-        if (frameMapParentIdx.get(frame)==null) logger.debug("null parent for frame: {} all parents : {}", frame, data.parentTrack);
+        if (frameMapParentIdx.get(frame)==null) { // this can happen when displayed image is a subset as in tests
+            //logger.debug("null parent for frame: {} all parents : {}", frame, data.parentTrack);
+            return Stream.empty();
+        }
         int parentIdx = frameMapParentIdx.get(frame);
         if (parentIdx<data.nFramePerSlice - data.frameOverlap) return Stream.of(0);
         else {
@@ -112,6 +115,9 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 if (parentIdx<prevIdxEnd) res.add(prevSlice);
                 else break;
                 --prevSlice;
+            }
+            if (res.contains(data.nSlices)) {
+                logger.debug("end slice contained. frame: {} parentIdx: {} total frames: {} nFrames per Slice {} overlap: {} pIdx/(nps-overlap): {} ", frame, parentIdx, totalFrames, data.nFramePerSlice, data.frameOverlap, parentIdx / (data.nFramePerSlice - data.frameOverlap));
             }
             return res.stream();
         }

@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.input_image;
 
+import bacmman.core.Core;
 import bacmman.image.Image;
 import static bacmman.image.Image.logger;
 import bacmman.plugins.Autofocus;
@@ -28,6 +29,7 @@ import bacmman.utils.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -230,7 +232,7 @@ public class InputImagesImpl implements InputImages {
         logger.debug("modified channels: {} unmodified: {}", modifiedChannels, unmodifiedChannels);
         allChannels.stream().forEachOrdered(c -> {
             InputImage[] imageF = imageCT[c];
-            Consumer<Integer> ex = f -> {
+            IntConsumer ex = f -> {
                 if (!tempCheckPoint || ((imageF[f].imageOpened() || imageF[f].hasHighMemoryTransformations() || imageF[f].hasApplyDirectlyTransformations()) && (imageF[f].modified() || imageF[f].hasTransformations()))) {
                     try {
                         imageF[f].getImage();
@@ -245,7 +247,7 @@ public class InputImagesImpl implements InputImages {
                 }
                 if (f%100==0) System.gc();
             };
-            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100);
+            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100, s -> Core.freeMemory());
             System.gc();
             logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
         });

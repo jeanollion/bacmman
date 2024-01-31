@@ -14,6 +14,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     Thread daemon;
     long daemonTimeInterval;
     boolean stopDaemon = false;
+    boolean freeingMemory = false;
     final Queue<SimpleDiskBackedImage> queue = new LinkedList<>();
     Map<UnaryPair<Integer>, SimpleDiskBackedImage> openImages = new HashMap<>();
     Map<SimpleDiskBackedImage, UnaryPair<Integer>> openImagesRev = new HashMap<>();
@@ -55,6 +56,11 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             daemon = null;
             return true;
         } else return false;
+    }
+
+    @Override
+    public boolean isFreeingMemory() {
+        return freeingMemory;
     }
 
     @Override
@@ -118,6 +124,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed) return;
+        freeingMemory = true;
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
             if (!queue.isEmpty()) {
                 SimpleDiskBackedImage im = null;
@@ -133,6 +140,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 }
             }
         }
+        freeingMemory = false;
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
 

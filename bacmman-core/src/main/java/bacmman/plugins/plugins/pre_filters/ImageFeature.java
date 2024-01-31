@@ -103,12 +103,12 @@ public class ImageFeature implements PreFilter, Filter, Hint {
     }
     
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
         //logger.debug("ImageFeature: feature equasl: {}, scale equals: {}, normScale equals: {}", feature==cond.getActionableParameter(), scale == cond.getCurrentParameters().get(0), normScale == cond.getParameters("Normalized Hessian Max").get(1));
         //logger.debug("ImageFeauture: feature: {}, scale: {}, scaleZ: {} (from image: {}) normScale: {}", feature.getSelectedItem(), scale.getScaleXY(), scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), scale.getUseImageCalibration(), normScale.getValue());
         double scaleXY = scale.getScaleXY();
         double scaleZ = scale.getScaleZ(input.getScaleXY(), input.getScaleZ());
-        Function<Image, Image> fun = getFeatureFunction(scaleXY, scaleZ, canModifyImage);
+        Function<Image, Image> fun = getFeatureFunction(scaleXY, scaleZ, allowInplaceModification);
         if (applySliceBySlice.getSelected()) return ImageOperations.applyPlaneByPlane(input, fun);
         else return fun.apply(input);
     }

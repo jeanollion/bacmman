@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.data_structure.input_image.InputImages;
@@ -37,6 +38,7 @@ import java.util.List;
 import bacmman.utils.ThreadRunner;
 
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  *
@@ -59,7 +61,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
         final Integer[] conf = new Integer[inputImages.getFrameNumber()];
         if (inputImages.getSourceSizeZ(channelIdx)>1) {
             IOException[] ioe = new IOException[1];
-            Consumer<Integer> ex = t -> {
+            IntConsumer ex = t -> {
                 Image image = InputImages.getImage(inputImages, channelIdx, t, ioe);
                 if (image == null) return;
                 if (image.sizeZ()>1) {
@@ -69,7 +71,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
             };
-            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100, s -> Core.freeMemory());
             if (ioe[0]!=null) throw ioe[0];
         }
         bestFocusPlaneIdxT.addAll(Arrays.asList(conf));

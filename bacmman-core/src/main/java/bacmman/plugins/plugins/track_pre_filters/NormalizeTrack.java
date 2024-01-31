@@ -22,7 +22,6 @@ import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
-import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
@@ -31,10 +30,7 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.ImageOperations;
 
-import java.util.TreeMap;
 import bacmman.plugins.TrackPreFilter;
-
-import java.util.Map.Entry;
 
 /**
  *
@@ -70,9 +66,8 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
         logger.debug("Normalization: range: [{}-{}] scale: {} off: {}", minAndMax[0], minAndMax[1], scale, offset);
         preFilteredImages.streamKeys().forEach(o -> {
             Image source = preFilteredImages.get(o);
-            Image trans = ImageOperations.affineOperation(source, preFilteredImages.canModifyImages()?source:null, scale_, offset_);
-            if (source.equals(trans)) preFilteredImages.setModified(o);
-            else preFilteredImages.set(o, trans);
+            Image trans = ImageOperations.affineOperation(source, preFilteredImages.allowInplaceModification()?source:null, scale_, offset_);
+            preFilteredImages.set(o, trans);
         });
     }
 

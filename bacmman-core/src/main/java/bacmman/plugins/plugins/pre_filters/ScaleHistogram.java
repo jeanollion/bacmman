@@ -16,7 +16,7 @@ public class ScaleHistogram implements PreFilter {
     }
 
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return scaler.instantiatePlugin().transformInputImage(canModifyImage).scale(input);
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
+        return scaler.instantiatePlugin().transformInputImage(allowInplaceModification).scale(input);
     }
 }

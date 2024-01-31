@@ -17,7 +17,7 @@ public class SegmentedObjectImageMap {
     final List<SegmentedObject> track;
     final Function<SegmentedObject, Image> imageSupplier;
     final Map<SegmentedObject, Image> imageMap;
-    boolean canModifyImages = false;
+    boolean allowModifyInplace = false;
     public SegmentedObjectImageMap(List<SegmentedObject> track, int objectClassIdx) {
         this(track, o -> o.getRawImage(objectClassIdx));
     }
@@ -26,11 +26,11 @@ public class SegmentedObjectImageMap {
         this.imageSupplier=imageSupplier;
         imageMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(imageSupplier::apply);
     }
-    public void setModifyImages(boolean canModifyImages) {
-        this.canModifyImages = canModifyImages;
+    public void setAllowInplaceModification(boolean canModifyImages) {
+        this.allowModifyInplace = canModifyImages;
     }
-    public boolean canModifyImages() {
-        return canModifyImages;
+    public boolean allowInplaceModification() {
+        return allowModifyInplace;
     }
     public int size() {
         return track.size();
@@ -62,22 +62,14 @@ public class SegmentedObjectImageMap {
         Image existingImage = imageMap.get(o);
         if (existingImage instanceof SimpleDiskBackedImage) {
             SimpleDiskBackedImage existingSDBI = (SimpleDiskBackedImage)existingImage;
-            boolean replaced = existingSDBI.setImage(image);
+            boolean replaced = existingSDBI.setImage(image); // only replaced if image type and dimensions are identical
             if (!replaced) { // delete old image and replace with new one
-                logger.debug("could not replace existing image {} @ {} with {} will create a new disk backed image", existingImage.getName(), o, image.getName());
+                //logger.debug("could not replace existing image {} @ {} with {} will create a new disk backed image", existingImage.getName(), o, image.getName());
                 DiskBackedImageManager manager = existingSDBI.getManager();
                 manager.detach(existingSDBI, true);
                 Image newSDBI = manager.createSimpleDiskBackedImage(image, true, false);
                 imageMap.put(o, newSDBI);
             }
         } else imageMap.put(o, image);
-    }
-    public void setModified(SegmentedObject o) {
-        Image existingImage = imageMap.get(o);
-        if (!canModifyImages) throw new RuntimeException("Cannot set modified when canModifyImages is false");
-        if (existingImage instanceof SimpleDiskBackedImage) {
-            SimpleDiskBackedImage existingSDBI = (SimpleDiskBackedImage)existingImage;
-            existingSDBI.setModified(true);
-        }
     }
 }

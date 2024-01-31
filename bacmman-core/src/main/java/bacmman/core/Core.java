@@ -22,6 +22,8 @@ import bacmman.data_structure.DiskBackedImageManagerProvider;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageManagerImageDAO;
+import bacmman.data_structure.dao.ImageDAO;
 import bacmman.image.Image;
 import bacmman.image.LazyImage5DStack;
 import bacmman.plugins.PluginFactory;
@@ -133,8 +135,16 @@ public class Core {
     public static DiskBackedImageManager getDiskBackedManager(SegmentedObject segmentedObject) {
         return diskBackedImageManagerProvider.getManager(segmentedObject);
     }
+    public static DiskBackedImageManagerImageDAO getDiskBackedManager(String position, ImageDAO imageDAO, boolean forceCreation) {
+        return diskBackedImageManagerProvider.getManager(position, imageDAO, forceCreation);
+    }
     public static void clearDiskBackedImageManagers() {
         diskBackedImageManagerProvider.clear();
+    }
+
+    public static void freeMemory() {
+        diskBackedImageManagerProvider.waitFreeMemory();
+        System.gc();
     }
 
     public static void setUserLogger(ProgressLogger plogger) {

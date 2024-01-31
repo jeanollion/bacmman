@@ -46,6 +46,7 @@ import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
 
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  *
@@ -116,7 +117,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         if (scale>0) backgroundMask = new Image[allImages.length];
         double mScale = maskSmoothScale.getScaleXY();
         double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
-        Consumer<Integer> ex = frame -> {
+        IntConsumer ex = frame -> {
             Image currentImage = allImages[frame];
             ImageMask m;
             if (chExcl>=0) {
@@ -139,7 +140,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
             if (backgroundMask!=null) backgroundMask[frame] = SubtractGaussSignalExclusion.getBackgroundImage(currentImage, m, scale, scaleZ);
             if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());
         };
-        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
+        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100, s -> Core.freeMemory());
 
         if (testMode.testExpert()) { // make stripes images
             Image[][] stripesTC = new Image[meanFZY.length][1];

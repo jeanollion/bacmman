@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
@@ -34,6 +35,7 @@ import bacmman.image.SimpleBoundingBox;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.plugins.segmenters.MicrochannelPhase2D;
@@ -43,6 +45,8 @@ import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static bacmman.utils.Utils.parallel;
 import java.util.function.Consumer;
@@ -53,6 +57,7 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
+    static Logger logger = LoggerFactory.getLogger(MicrochannelTracker.class);
     protected PluginParameter<MicrochannelSegmenter> segmenter = new PluginParameter<>("Segmentation algorithm", MicrochannelSegmenter.class, new MicrochannelPhase2D(), false).setEmphasized(true);
     NumberParameter maxShiftGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 0, 100, 1, null).setHint("Maximal distance (in pixels) used for for the gap-closing step<br /> Increase the value to take into account XY-shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
     NumberParameter maxGapGC = new BoundedNumberParameter("Maximum Frame Gap", 0, 10, 0, null).setHint("Maximum frame gap for microchannel linking during gap-closing procedure: if two segmented microchannels are separated by a gap in frames larger than this value, they cannot be linked. 0 means no gap-closing");
@@ -139,7 +144,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         List<SegmentedObject> allChildren = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx).collect(Collectors.toList());
         logger.debug("tracking: total number of objects: {}", allChildren.size());
-        logger.debug("tracking: {}", Utils.toStringList(map.entrySet(), e->"t:"+e.getKey()+"->"+e.getValue().size()));
+        //logger.debug("tracking: {}", Utils.toStringList(map.entrySet(), e->"t:"+e.getKey()+"->"+e.getValue().size()));
         tmi.addObjects(allChildren.stream());
         if (tmi.graphObjectMapper.isEmpty()) {
             logger.debug("No objects to track");
@@ -151,11 +156,18 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         double ftfDistance = maxDistanceFTF.getValue().doubleValue()*parentTrack.get(0).getScaleXY();
         logger.debug("ftfDistance: {}", ftfDistance);
         boolean ok = tmi.processFTF(ftfDistance);
+        tmi.logGraphStatus("after FTF", 0);
         int maxGap = this.maxGapGC.getValue().intValue();
         if (maxGap>=1) {
-            if (ok) ok = tmi.processSegments(maxDistance, maxGap, false, false);
+            if (ok) {
+                ok = tmi.processSegments(maxDistance, maxGap, false, false);
+                tmi.logGraphStatus("after gap closing", 0);
+            }
             if (ok) tmi.removeCrossingLinksFromGraph(meanWidth / 4);
-            if (ok) ok = tmi.processSegments(maxDistance, maxGap, false, false); // second GC for crossing links!
+            if (ok) {
+                ok = tmi.processSegments(maxDistance, maxGap, false, false); // second GC for crossing links!
+                tmi.logGraphStatus("after gap closing (2)", 0);
+            }
         }
         tmi.setTrackLinks(map, editor);
     }
@@ -176,7 +188,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         final MicrochannelSegmenter.Result[] boundingBoxes = new MicrochannelSegmenter.Result[parentTrack.size()];
         trackPreFilters.filter(structureIdx, parentTrack);
         TrackConfigurable.TrackConfigurer<? super MicrochannelSegmenter> applyToSegmenter = TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
-        Consumer<Integer> exe =  idx -> {
+        IntConsumer exe =  idx -> {
             SegmentedObject parent = parentTrack.get(idx);
             MicrochannelSegmenter s = segmenter.instantiatePlugin();
             if (applyToSegmenter !=null) applyToSegmenter.apply(parent, s);
@@ -187,11 +199,16 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             //parent.setPreFilteredImage(null, structureIdx); // save memory
             // TODO perform post-filters at this step and remove the use of boundingBoxes array.. or update the bounding box array by matching each object ...
         };
-        ThreadRunner.parallelExecutionBySegments(exe, 0, parentTrack.size(), 200);
-        ThreadRunner.executeAndThrowErrors(Utils.parallel(IntStream.range(0, parentTrack.size()).mapToObj(i->i), true), exe);
-        Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = new HashMap<>(boundingBoxes.length);
-        for (int i = 0; i<boundingBoxes.length; ++i) parentBBMap.put(parentTrack.get(i), boundingBoxes[i]);
-        
+        IntConsumer endOfSegment = s -> {
+            //int min = s * 200;
+            //String log = IntStream.range(min, Math.min(min+200, boundingBoxes.length)).boxed().map(i->(i+"->"+boundingBoxes[i].size())).collect(Collectors.joining(";"));
+            //int count = IntStream.range(min, Math.min(min+200, boundingBoxes.length)).map(i -> boundingBoxes[i].size()).sum();
+            //logger.debug("Window: {} -> {} ({})", s, count, log);
+            Core.freeMemory();
+        };
+        ThreadRunner.parallelExecutionBySegments(exe, 0, parentTrack.size(), 200, endOfSegment);
+        Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i->boundingBoxes[i]));
+
         // tracking
         if (debug) logger.debug("mc2: {}", Utils.toStringList(parentTrack, p->"t:"+p.getFrame()+"->"+p.getChildren(structureIdx).count()));
         track(structureIdx, parentTrack, editor);

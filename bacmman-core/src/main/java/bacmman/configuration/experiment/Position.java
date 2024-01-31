@@ -19,6 +19,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
@@ -160,15 +161,14 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 } catch (IOException e) {
                     bp = new BypassImageDAO(this.getExperiment(), this.sourceImages);
                 }
-                if (bp != null) imageDAO = new DiskBackedImageManagerImageDAO(bp);
-                else imageDAO = new DiskBackedImageManagerImageDAO(imageDAO); // image have been pre-filtered
+                if (bp != null) imageDAO = Core.getDiskBackedManager(getName(), bp, true);
+                else imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // image have been pre-filtered
             }
         } else { // ensure not bypass DAO
             if (imageDAO == null || imageDAO.getSourceImageDAO() instanceof BypassImageDAO) { // not init or bypass but pre-filters have been added
                 synchronized (this) {
                     if (imageDAO == null || imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
-                        if (imageDAO != null) imageDAO.clear(true);
-                        imageDAO = new DiskBackedImageManagerImageDAO(originalImageDAO);
+                        imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // will clear old DAO if existing
                     }
                 }
             }

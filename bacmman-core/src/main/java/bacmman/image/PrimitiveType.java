@@ -6,6 +6,9 @@ public interface PrimitiveType {
     Object[] getPixelArray();
     int byteCount();
     boolean floatingPoint();
+    default boolean typeEquals(PrimitiveType other) {
+        return byteCount() == other.byteCount() && floatingPoint() == other.floatingPoint();
+    }
     interface ByteType extends PrimitiveType {
         byte[][] getPixelArray();
         default int byteCount() {return 1;}

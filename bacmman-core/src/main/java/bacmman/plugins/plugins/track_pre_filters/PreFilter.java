@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.track_pre_filters;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.PreFilterSequence;
+import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.image.Image;
@@ -29,14 +30,12 @@ import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPreFilter;
 import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
 
 import static bacmman.utils.Utils.parallel;
 
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
-import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -67,16 +66,15 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
     @Override
     public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
         List<SegmentedObject> track = preFilteredImages.streamKeys().collect(Collectors.toList());
-        Consumer<Integer> c  = i->{
+        IntConsumer c  = i->{
             SegmentedObject o = track.get(i);
             bacmman.plugins.PreFilter instance = filter.instantiatePlugin();
             if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
             Image source = preFilteredImages.get(o);
-            Image filtered = instance.runPreFilter(source, o.getMask(), preFilteredImages.canModifyImages());
-            if (preFilteredImages.canModifyImages() && source.equals(filtered)) preFilteredImages.setModified(o); // modified inplace
-            else preFilteredImages.set(o, filtered);
+            Image filtered = instance.runPreFilter(source, o.getMask(), preFilteredImages.allowInplaceModification());
+            preFilteredImages.set(o, filtered);
         };
-        ThreadRunner.parallelExecutionBySegments(c, 0, track.size(), 200);
+        ThreadRunner.parallelExecutionBySegments(c, 0, track.size(), 200, s -> Core.freeMemory());
     }
 
     @Override

@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -27,6 +28,7 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
 import bacmman.image.BlankMask;
@@ -37,17 +39,14 @@ import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Set;
+import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 import static bacmman.plugins.plugins.segmenters.MicrochannelPhase2D.X_DER_METHOD.CONSTANT;
 
@@ -267,7 +266,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
                 if (stores != null) {
                     int ii = idx;
                     stores.get(parent).addMisc("Display closed-end adjument", l -> {
-                        Set<Integer> idxes = l.stream().map(o -> o.getIdx()).collect(Collectors.toSet());
+                        Set<Integer> idxes = l.stream().map(SegmentedObject::getIdx).collect(Collectors.toSet());
                         if (idxes.contains(ii))
                             Utils.plotProfile("Closed-end y-adjustment: first local max @ y=:" + (localMaxY.get(0) + win.yMin()), proj, win.yMin(), "y", "dI/dy");
                     });
@@ -293,16 +292,43 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
             default:
                 // compute signal range on all images
                 //logger.debug("parent track: {}",parentTrack.stream().map(p->p.getPreFilteredImage(structureIdx)).collect(Collectors.toList()) );
-                Supplier<DoubleStream> supplier = () -> parentTrack.parallelStream().flatMapToDouble(so -> so.getPreFilteredImage(structureIdx).stream(so.getMask(), true));
-                Histogram histo = HistogramFactory.getHistogram(supplier, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
-                double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
-                int thldIdx = (int)histo.getIdxFromValue(thld);
-                double foreground = histo.duplicate(thldIdx, histo.getData().length).getQuantiles(0.5)[0];
-                double background = histo.getValueFromIdx(histo.getMeanIdx(0, thldIdx-1));
-                double range =foreground - background;
-                double xDerThld = range / this.relativeDerThld.getValue().doubleValue(); // divide by ratio and set to segmenter
-                return (p, s) -> s.globalLocalDerThld = xDerThld;
+                int n = parentTrack.size() / 1000;
+                double r = parentTrack.size() % 1000;
+                if (r>=500 || n==0) ++n;
+                int window = parentTrack.size() / n;
+                Map<SegmentedObject, Double> thldMap = new HashMap<>(parentTrack.size());
+                for (int i = 0; i<n; ++i) {
+                    int min = i * window;
+                    int max = i==n-1 ? parentTrack.size() : min + window;
+                    double thld = getRelativeThreshold(parentTrack.subList(min, max), structureIdx);
+                    //if (n>1) logger.debug("computed threshold for range: [{}, {}) -> {}", min, max, thld);
+                    IntStream.range(min, max).forEach(ii -> thldMap.put(parentTrack.get(ii), thld));
+                }
+                return (p, s) -> s.globalLocalDerThld = thldMap.get(p);
         }
+    }
+
+    protected double getRelativeThreshold(List<SegmentedObject> parentTrack, int objectClassIdx) {
+        //logger.debug("getting histogram for {} images", parentTrack.size());
+        IntConsumer endOfSegment = w -> {
+            Core.freeMemory();
+            //logger.debug("after end of segment: {}, memory: {}", w, Utils.getMemoryUsageProportion());
+        };
+        List<SegmentedObject> parentTrack_;
+        if (parentTrack.size()>=200) {
+            parentTrack_ = IntStream.range(0, parentTrack.size()).filter(i->i%(int)(Math.floor(parentTrack.size()/100d))==0).mapToObj(parentTrack::get).collect(Collectors.toList());
+        }
+        else parentTrack_ = parentTrack;
+        Supplier<DoubleStream> supplier = () -> ThreadRunner.parallelStreamBySegment(i -> parentTrack_.get(i).getPreFilteredImage(objectClassIdx).stream(parentTrack_.get(i).getMask(), true), 0, parentTrack_.size(), 100, endOfSegment).flatMapToDouble(ds -> ds);
+        Histogram histo = HistogramFactory.getHistogram(supplier, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
+        int thldIdx = (int)histo.getIdxFromValue(thld);
+        double foreground = histo.duplicate(thldIdx, histo.getData().length).getQuantiles(0.5)[0];
+        double background = histo.getValueFromIdx(histo.getMeanIdx(0, thldIdx-1));
+        double range = foreground - background;
+        //logger.debug("histo computed on {}/{} images foreground={} background={} range={}", parentTrack_.size(), parentTrack.size(), foreground, background, range);
+        return range / this.relativeDerThld.getValue().doubleValue();
+
     }
 
     @Override

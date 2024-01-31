@@ -94,7 +94,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     public boolean isCurrentFocusOwnerAnImage() {
         Component c = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
         if (c==null) return false;
-        //GUI.logger.debug("current focus owner class: {}", c.getClass());
+        //logger.debug("current focus owner class: {}", c.getClass());
         return (c instanceof ImageCanvas || c instanceof ImageWindow);
     }
     @Override
@@ -102,7 +102,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         final ImagePlus ip = displayer.getImage(image);
         final ImageCanvas canvas = ip.getCanvas();
         if (canvas==null) {
-            GUI.logger.warn("image: {} could not be set interactive", image.getName());
+            logger.warn("image: {} could not be set interactive", image.getName());
             return;
         }
         MouseListener ml =  new MouseListener() {

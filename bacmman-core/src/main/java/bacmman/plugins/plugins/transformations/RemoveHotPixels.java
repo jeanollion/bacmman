@@ -127,7 +127,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         };
         List<Image> imList = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         if (frameRadius>=1) SlidingOperator.performSlideLeft(imList, frameRadius, operator);
-        else ThreadRunner.parallelExecutionBySegments(i-> operator.compute(new Pair<>(i, imList.get(i))), 0, imList.size(), 100);
+        else ThreadRunner.parallelExecutionBySegments(i-> operator.compute(new Pair<>(i, imList.get(i))), 0, imList.size(), 100, s -> Core.freeMemory());
         if (testMode.testExpert()) {
             // first frames are not computed
             for (int f = 0; f<frameRadius-1; ++f) testMeanTC[f][0] = testMeanTC[frameRadius-1][0];

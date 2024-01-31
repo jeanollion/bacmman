@@ -22,7 +22,7 @@ public class FastRadialSymmetryTransform implements PreFilter, Hint {
     ScaleXYZParameter gradientScale = new ScaleXYZParameter("Gradient Scale", 1.5, 1, false).setNumberParameters(1, 3, 2, true, true);
 
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
         return FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, useOrientationOnly.getSelected(), gradientSign.getSelectedEnum(), smoothFactor.getValue().doubleValue(), alpha.getValue().doubleValue(), 0, gradientScale.getScaleXY(), gradientScale.getScaleZ(input.getScaleXY(), input.getScaleZ()));
     }
 

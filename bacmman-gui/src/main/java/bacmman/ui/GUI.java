@@ -2011,7 +2011,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         exportSelectionsMenuItem = new javax.swing.JCheckBoxMenuItem();
         miscMenu = new javax.swing.JMenu();
         clearMemoryMenuItem = new javax.swing.JMenuItem();
-        CloseNonInteractiveWindowsMenuItem = new javax.swing.JMenuItem();
+        closeNonInteractiveWindowsMenuItem = new javax.swing.JMenuItem();
         closeAllWindowsMenuItem = new javax.swing.JMenuItem();
         jMenu1 = new javax.swing.JMenu();
         clearTrackImagesMenuItem = new javax.swing.JMenuItem();
@@ -3135,15 +3135,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 clearMemoryMenuItemActionPerformed(evt);
             }
         });
-        miscMenu.add(clearMemoryMenuItem);
+        //miscMenu.add(clearMemoryMenuItem);
 
-        CloseNonInteractiveWindowsMenuItem.setText("Close Non Interactive Windows");
-        CloseNonInteractiveWindowsMenuItem.addActionListener(new java.awt.event.ActionListener() {
+        closeNonInteractiveWindowsMenuItem.setText("Close non-interactive windows");
+        closeNonInteractiveWindowsMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                CloseNonInteractiveWindowsMenuItemActionPerformed(evt);
+                closeNonInteractiveWindowsMenuItemActionPerformed(evt);
             }
         });
-        miscMenu.add(CloseNonInteractiveWindowsMenuItem);
+        miscMenu.add(closeNonInteractiveWindowsMenuItem);
 
         closeAllWindowsMenuItem.setText("Close all windows");
         closeAllWindowsMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -4018,6 +4018,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         for (String p : positions) db.getDao(p).clearCache();
     }
     private void clearMemoryMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearMemoryMenuItemActionPerformed
+        Core.freeMemory();
         if (!checkConnection()) return;
 
     }//GEN-LAST:event_clearMemoryMenuItemActionPerformed
@@ -4079,7 +4080,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         PropertyUtils.set(PropertyUtils.LOG_APPEND, this.activateLoggingMenuItem.isSelected());
     }//GEN-LAST:event_appendToFileMenuItemActionPerformed
 
-    private void CloseNonInteractiveWindowsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_CloseNonInteractiveWindowsMenuItemActionPerformed
+    private void closeNonInteractiveWindowsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_CloseNonInteractiveWindowsMenuItemActionPerformed
         ImageWindowManagerFactory.getImageManager().closeNonInteractiveWindows();
     }//GEN-LAST:event_CloseNonInteractiveWindowsMenuItemActionPerformed
 
@@ -5362,7 +5363,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JMenuItem CloseNonInteractiveWindowsMenuItem;
+    private javax.swing.JMenuItem closeNonInteractiveWindowsMenuItem;
     private javax.swing.JScrollPane TimeJSP;
     private javax.swing.JScrollPane actionJSP;
     private javax.swing.JPanel actionPanel;

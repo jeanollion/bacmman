@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion.bacmman</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>3.8.0</version>
+    <version>3.8.1</version>
 
     <licenses>
         <license>
@@ -18,12 +18,11 @@
         </license>
     </licenses>
     <properties>
-        <bacmman.version>3.8.0</bacmman.version>
+        <bacmman.version>3.8.1</bacmman.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <tensorflow.version>2</tensorflow.version>
     </properties>
     <modules>
         <module>bacmman-core</module>
@@ -32,7 +31,7 @@
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-headless</module>
         <module>bacmman-dl</module>
-        <module>bacmman-tf${tensorflow.version}</module>
+        <module>bacmman-tf2</module>
         <module>bacmman-tango</module>
         <module>bacmman-trackmate</module>
         <module>bacmman-omero</module>

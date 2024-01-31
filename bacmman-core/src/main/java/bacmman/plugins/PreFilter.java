@@ -26,5 +26,5 @@ import bacmman.image.ImageMask;
  * @author Jean Ollion
  */
 public interface PreFilter extends ImageProcessingPlugin {
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage);
+    Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification);
 }

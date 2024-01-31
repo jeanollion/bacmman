@@ -54,12 +54,12 @@ public class TopHat implements PreFilter, Filter, Hint {
     }
     public TopHat() { }
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
         if (convertToFloat.getSelected() && !input.floatingPoint()) {
             input = TypeConverter.toFloat(input, null);
-            canModifyImage = true;
+            allowInplaceModification = true;
         }
-        if (smooth.getSelected()) input = smoothMethod.instantiatePlugin().runPreFilter(input, mask, canModifyImage);
+        if (smooth.getSelected()) input = smoothMethod.instantiatePlugin().runPreFilter(input, mask, allowInplaceModification);
         return topHat(input, radius.getScaleXY(), radius.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), darkBackground.getSelected(), false);
     }
     

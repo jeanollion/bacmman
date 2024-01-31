@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 public class SubtractGaussSignalExclusion implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
     public final static Logger logger = LoggerFactory.getLogger(SubtractGaussSignalExclusion.class);
@@ -55,7 +56,7 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
         double mScale = maskSmoothScale.getScaleXY();
         double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
         bck = new Image[allImages.length];
-        Consumer<Integer> ex = frame -> {
+        IntConsumer ex = frame -> {
             Image currentImage = allImages[frame];
             Image se1 = allImagesExcl[frame];
             if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
@@ -65,7 +66,7 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
             if (testMode.testExpert()) mask[frame] = new RegionPopulation(maskT).getLabelMap();
 
         };
-        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
+        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100, s -> Core.freeMemory());
         if (testMode.testSimple()) {
             Image[][] maskTC = Arrays.stream(bck).map(a->new Image[]{a}).toArray(Image[][]::new);
             Core.showImage5D("Background", maskTC);

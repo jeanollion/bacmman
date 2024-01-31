@@ -45,17 +45,18 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class IJSubtractBackground implements PreFilter, Filter, Hint {
-    BooleanParameter method = new BooleanParameter("Method", "Rolling Ball", "Sliding Paraboloid", true).setEmphasized(true);
-    BooleanParameter imageType = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);
+    BooleanParameter isRollingBall = new BooleanParameter("Method", "Rolling Ball", "Sliding Paraboloid", true).setEmphasized(true);
+
+    BooleanParameter isDarkBackground = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);
     BooleanParameter smooth = new BooleanParameter("Perform Smoothing", true);
     BooleanParameter corners = new BooleanParameter("Correct corners", true);
     NumberParameter radius = new BoundedNumberParameter("Radius", 2, 20, 0.01, null).setEmphasized(true);
-    Parameter[] parameters = new Parameter[]{radius, method, imageType, smooth, corners};
+    Parameter[] parameters = new Parameter[]{radius, isRollingBall, isDarkBackground, smooth, corners};
     
     public IJSubtractBackground(double radius, boolean doSlidingParaboloid, boolean lightBackground, boolean smooth, boolean corners) {
         this.radius.setValue(radius);
-        method.setSelected(!doSlidingParaboloid);
-        this.imageType.setSelected(!lightBackground);
+        isRollingBall.setSelected(!doSlidingParaboloid);
+        this.isDarkBackground.setSelected(!lightBackground);
         this.smooth.setSelected(smooth);
         this.corners.setSelected(corners);
     }
@@ -63,8 +64,8 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
     public IJSubtractBackground(){}
     
     @Override
-    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return filter(input, radius.getValue().doubleValue(), !method.getSelected(), !imageType.getSelected(), smooth.getSelected(), corners.getSelected(), !canModifyImage);
+    public Image runPreFilter(Image input, ImageMask mask, boolean allowInplaceModification) {
+        return filter(input, radius.getValue().doubleValue(), !isRollingBall.getSelected(), !isDarkBackground.getSelected(), smooth.getSelected(), corners.getSelected(), !allowInplaceModification);
     }
     /**
      * IJ's subtract background {@link ij.plugin.filter.BackgroundSubtracter#rollingBallBackground(ij.process.ImageProcessor, double, boolean, boolean, boolean, boolean, boolean) }
@@ -96,7 +97,7 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
     
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        return filter(image, radius.getValue().doubleValue(), !method.getSelected(), !imageType.getSelected(), smooth.getSelected(), corners.getSelected());
+        return filter(image, radius.getValue().doubleValue(), !isRollingBall.getSelected(), !isDarkBackground.getSelected(), smooth.getSelected(), corners.getSelected());
     }
     
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {

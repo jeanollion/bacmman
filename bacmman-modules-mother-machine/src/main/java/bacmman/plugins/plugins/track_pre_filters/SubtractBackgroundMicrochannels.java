@@ -44,10 +44,8 @@ import bacmman.plugins.TrackPreFilter;
 import bacmman.plugins.plugins.pre_filters.IJSubtractBackground;
 import bacmman.plugins.plugins.pre_filters.IJSubtractBackground.FILTER_DIRECTION;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -87,7 +85,7 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         int idx = 0;
         for (SegmentedObject o : tm.parents) {
             Image im = preFilteredImages.get(o);
-            if (!(im instanceof ImageFloat) || !preFilteredImages.canModifyImages()) {
+            if (!(im instanceof ImageFloat) || !preFilteredImages.allowInplaceModification()) {
                 im = TypeConverter.toFloat(im, null);
                 preFilteredImages.set(o, im);
             }
@@ -114,12 +112,14 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         // recover data
         idx = 0;
         for (SegmentedObject o : tm.parents) {
-            Image.pasteImageView(allImagesY, preFilteredImages.get(o), null, tm.getObjectOffset(idx++, 1));
-            preFilteredImages.setModified(o);
+            Image dest = preFilteredImages.get(o);
+            if (!preFilteredImages.allowInplaceModification()) dest = Image.createEmptyImage("filtered", allImagesY, dest);
+            Image.pasteImageView(allImagesY, dest, null, tm.getObjectOffset(idx++, 1));
+            preFilteredImages.set(o, dest);
             //fillOutsideMask(o.getRegion(), preFilteredImages.get(o));
         }
         long t3 = System.currentTimeMillis();
-        logger.debug("subtrack backgroun microchannel done in {}ms, filtering: {}ms", t3-t0, t2-t1);
+        logger.debug("subtract background microchannel done in {}ms, filtering: {}ms", t3-t0, t2-t1);
     }
     
     
