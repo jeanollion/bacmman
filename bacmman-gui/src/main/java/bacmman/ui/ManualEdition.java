@@ -616,7 +616,8 @@ public class ManualEdition {
             Set<SegmentedObject> objectsToStore = new HashSet<>();
             TrackLinkEditor editor = getEditor(structureIdx, objectsToStore);
             List<SegmentedObject> newObjects = new ArrayList<>();
-            if (!(splitter instanceof FreeLineSplitter)) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(SegmentedObject::getParent), structureIdx, splitter.getMinimalTemporalNeighborhood(), xp, dao);
+            boolean freeLineSplitter  = splitter instanceof FreeLineSplitter;
+            if (!freeLineSplitter) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(SegmentedObject::getParent), structureIdx, splitter.getMinimalTemporalNeighborhood(), xp, dao);
             List<SegmentedObject> objectsToSplit = objectsByPosition.get(f);
             Map<SegmentedObject, List<SegmentedObject>> tracks = SegmentedObjectUtils.splitByTrackHead(objectsToSplit);
 
@@ -630,7 +631,7 @@ public class ManualEdition {
                     else {
                         SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
                         if (newObject == null) {
-                            Utils.displayTemporaryMessage("Object could not be split. Draw a line that splits object", 5000);
+                            Utils.displayTemporaryMessage("Object could not be split"+(freeLineSplitter?" Draw a line that split objects" : ""), 5000);
                             logger.warn("Object could not be split!");
                         }
                         else {

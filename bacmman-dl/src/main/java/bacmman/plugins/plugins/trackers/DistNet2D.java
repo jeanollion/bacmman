@@ -941,7 +941,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return seg;
     }
 
-    protected PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
+    protected Image predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
         List<SegmentedObject> parentTrack = new ArrayList<>();
         int fw = inputWindow.getIntValue();
         int sub = frameSubsampling.getIntValue();
@@ -965,36 +965,44 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 //.peek(p->{if (p.getPreFilteredImage(objectClassIdx)==null) logger.debug("null pf for {}", p);} )
                 .collect(Collectors.toMap(SegmentedObject::getFrame, p -> minimalBounds==null ? p.getPreFilteredImage(objectClassIdx) : p.getPreFilteredImage(objectClassIdx).crop(minimalBounds)));
         int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
-        return predict(allImages, sortedFrames, parentTrack, null, minimalBounds);
+        return predict(allImages, sortedFrames, parentTrack, null, minimalBounds).edm.get(parent);
     }
-
+    // flaw : input image is not used -> prefiltered image is used instead because a temporal neighborhood is required
     @Override
     public ObjectSplitter getObjectSplitter() {
         Segmenter seg = getSegmenter(null);
         if (seg instanceof ObjectSplitter) { // Predict EDM and delegate method to segmenter
-            return new DNManualSegmenterSplitter(seg);
+            return new DNManualSegmenterSplitter(seg, inputWindow.getIntValue(), frameSubsampling.getIntValue(), manualCurationMargin.getIntValue(), dlResizeAndScale::getOptimalPredictionBoundingBox, this::predictEDM);
         } else return null;
     }
-
+    // flaw : input image is not used -> prefiltered image is used instead because a temporal neighborhood is required
     @Override
     public ManualSegmenter getManualSegmenter() {
         Segmenter seg = getSegmenter(null);
         if (seg instanceof ManualSegmenter) {
-            return new DNManualSegmenterSplitter((ManualSegmenter)seg);
+            return new DNManualSegmenterSplitter(seg, inputWindow.getIntValue(), frameSubsampling.getIntValue(), manualCurationMargin.getIntValue(), dlResizeAndScale::getOptimalPredictionBoundingBox, this::predictEDM);
         } else return null;
     }
 
-    public class DNManualSegmenterSplitter implements bacmman.plugins.ManualSegmenter, ObjectSplitter, TestableProcessingPlugin {
+    public static class DNManualSegmenterSplitter implements bacmman.plugins.ManualSegmenter, ObjectSplitter, TestableProcessingPlugin {
         final Plugin seg;
-        final Map<Triplet<SegmentedObject, Integer, BoundingBox>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.v1, k.v2, k.v3));
-        public DNManualSegmenterSplitter(Plugin seg) {
+        final Map<Triplet<SegmentedObject, Integer, BoundingBox>, Image> predictions;
+        final int inputWindow, frameSubsampling, manualCurationMargin;
+        final BiFunction<BoundingBox, BoundingBox, BoundingBox> getOptimalPredictionBoundingBox;
+        final TriFunction<SegmentedObject, Integer, BoundingBox, Image> predictEDMFunction;
+        public DNManualSegmenterSplitter(Plugin seg, int inputWindow, int frameSubsampling, int manualCurationMargin, BiFunction<BoundingBox, BoundingBox, BoundingBox> getOptimalPredictionBoundingBox, TriFunction<SegmentedObject, Integer, BoundingBox, Image> predictEDMFunction) {
             this.seg = seg;
+            this.inputWindow = inputWindow;
+            this.frameSubsampling = frameSubsampling;
+            this.manualCurationMargin = manualCurationMargin;
+            this.getOptimalPredictionBoundingBox=getOptimalPredictionBoundingBox;
+            this.predictEDMFunction=predictEDMFunction;
+            this.predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDMFunction.apply(k.v1, k.v2, k.v3));
         }
         @Override
         public int getMinimalTemporalNeighborhood() {
-            int fw = inputWindow.getIntValue();
-            int sub = frameSubsampling.getIntValue();
-            return fw == 1 ? 1 : 1 + (fw-1) * sub;
+            if (inputWindow == 0) return 0;
+            return inputWindow == 1 ? 1 : 1 + (inputWindow-1) * frameSubsampling;
         }
         @Override
         public void setManualSegmentationVerboseMode(boolean verbose) {
@@ -1005,23 +1013,21 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
             MutableBoundingBox minimalBounds = new MutableBoundingBox();
             seedsXYZ.forEach(s -> minimalBounds.union(s));
-            int margin = manualCurationMargin.getIntValue();
-            if (margin>0) {
-                BoundingBox expand = new SimpleBoundingBox(-margin, margin, -margin, margin, 0, 0);
+            if (manualCurationMargin>0) {
+                BoundingBox expand = new SimpleBoundingBox(-manualCurationMargin, manualCurationMargin, -manualCurationMargin, manualCurationMargin, 0, 0);
                 minimalBounds.extend(expand);
             }
             Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(objectClassIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
-            PredictionResults pred;
             if (key == null) {
-                BoundingBox optimalBB = dlResizeAndScale.getOptimalPredictionBoundingBox(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
+                BoundingBox optimalBB = getOptimalPredictionBoundingBox.apply(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
                 logger.debug("Semi automatic segmentaion: minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
                 key = new Triplet<>(parent, objectClassIdx, optimalBB);
             }
-            pred = predictions.get(key);
+            Image edm = predictions.get(key);
             Offset off = key.v3.duplicate().reverseOffset();
             seedsXYZ = seedsXYZ.stream().map(p -> p.translate(off)).collect(Collectors.toList());
             synchronized (seg) {
-                RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(pred.edm.get(parent), parent, new MaskView(segmentationMask, key.v3), objectClassIdx, seedsXYZ);
+                RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(edm, parent, new MaskView(segmentationMask, key.v3), objectClassIdx, seedsXYZ);
                 pop.getRegions().forEach(Region::clearVoxels);
                 if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
                 return pop;
@@ -1030,21 +1036,20 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         @Override
         public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
             MutableBoundingBox minimalBounds = new MutableBoundingBox(object.getBounds());
-            int margin = manualCurationMargin.getIntValue();
-            if (margin>0) {
-                BoundingBox expand = new SimpleBoundingBox(-margin, margin, -margin, margin, 0, 0);
+            if (manualCurationMargin>0) {
+                BoundingBox expand = new SimpleBoundingBox(-manualCurationMargin, manualCurationMargin, -manualCurationMargin, manualCurationMargin, 0, 0);
                 minimalBounds.extend(expand);
             }
             if (object.isAbsoluteLandMark()) minimalBounds.translate(parent.getBounds().duplicate().reverseOffset());
             Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(structureIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
             if (key == null) {
-                BoundingBox optimalBB = dlResizeAndScale.getOptimalPredictionBoundingBox(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
+                BoundingBox optimalBB = getOptimalPredictionBoundingBox.apply(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
                 //logger.debug("Semi automatic split : minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
                 key = new Triplet<>(parent, structureIdx, optimalBB);
             }
-            PredictionResults pred = predictions.get(key);
+            Image edm = predictions.get(key);
             synchronized (seg) {
-                RegionPopulation pop = ((ObjectSplitter) seg).splitObject(pred.edm.get(parent), parent, structureIdx, object);
+                RegionPopulation pop = ((ObjectSplitter) seg).splitObject(edm, parent, structureIdx, object);
                 pop.getRegions().forEach(Region::clearVoxels);
                 if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
                 return pop;
