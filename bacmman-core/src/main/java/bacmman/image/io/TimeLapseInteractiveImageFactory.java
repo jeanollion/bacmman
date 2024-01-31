@@ -118,7 +118,7 @@ public class TimeLapseInteractiveImageFactory {
             } else {
                 int nSlices_ = (int)Math.ceil((double)(parentTrack.size() - avgFrameOverlap) / (this.nFramePerSlice - avgFrameOverlap));
                 this.frameOverlap = this.nFramePerSlice - (parentTrack.size() - this.nFramePerSlice) / (nSlices_ - 1);
-                this.nSlices = (int)Math.ceil((double)(parentTrack.size() - frameOverlap) / (this.nFramePerSlice - frameOverlap));
+                this.nSlices = (int)Math.ceil((double)(parentTrack.size() - frameOverlap) / (this.nFramePerSlice - frameOverlap)); // ceil -> last overlap can be greater than frameOverlap
             }
             logger.debug("kymograph: total {}, per slice: {} overlap {} total slices: {}", parentTrack.size(), this.nFramePerSlice, this.frameOverlap, nSlices);
         }
