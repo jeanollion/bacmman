@@ -186,7 +186,16 @@ public class SegmentedObjectUtils {
         Stream<SegmentedObject>[] allChildrenStream = parentTrack.map(p->p.getChildren(structureIdx)).filter(s->s!=null).toArray(l->new Stream[l]);
         return StreamConcatenation.concat(allChildrenStream);
     }
-
+    public static Stream<List<SegmentedObject>> getConnectedTracks(Stream<List<SegmentedObject>> tracks, boolean previous) {
+        if (previous) return tracks.map(t -> t.get(0).getTrackHead())
+                .flatMap(SegmentedObjectEditor::getPrevious)
+                .map(SegmentedObject::getTrackHead)
+                .distinct().map(SegmentedObjectUtils::getTrack);
+        else return tracks.map(t -> t.get(t.size()-1))
+                .flatMap(SegmentedObjectEditor::getNext)
+                .map(SegmentedObject::getTrackHead)
+                .distinct().map(SegmentedObjectUtils::getTrack);
+    }
     public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(Collection<SegmentedObject> objects) {
         HashMapGetCreate<SegmentedObject, List<SegmentedObject>> allTracks = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
         for (SegmentedObject o : objects) allTracks.getAndCreateIfNecessary(o.getTrackHead()).add(o);

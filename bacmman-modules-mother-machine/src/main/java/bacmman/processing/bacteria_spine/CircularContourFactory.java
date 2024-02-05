@@ -80,11 +80,11 @@ public class CircularContourFactory {
             if (contour.contains(next)) crossPMap.put(next.duplicate(), (double)(neigh.dx[i]-neigh.dy[i]));
         }
         if (crossPMap.isEmpty()) {
-            logger.error("Error circular contour: no first neighbor found. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
+            logger.warn("Error circular contour: no first neighbor found. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
             throw new RuntimeException("circular contour: no first neighbor found");
         }
         if (crossPMap.size() == 1) {
-            logger.error("Error circular contour: first point is end point. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
+            logger.warn("X circular contour: first point is end point. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
             throw new RuntimeException("circular contour: first point is end point");
         }
         current = circContour.setNext(crossPMap.entrySet().stream().max(Comparator.comparingDouble(Map.Entry::getValue)).get().getKey());
@@ -173,7 +173,7 @@ public class CircularContourFactory {
                 BacteriaSpineFactory.imageDisp.accept(BacteriaSpineFactory.drawSpine(new Region(contour, 1, true, 1, 1).getMask(), null, circContour, 1, false));
             }
             //ImageWindowManagerFactory.showImage(new Region(contour, 1, true, 1, 1).getMaskAsImageInteger());
-            BacteriaSpineFactory.logger.error("unable to close contour: {}/{}, first: {} first'sprev: {}, current: {}", count, contourSize, circContour.element, circContour.prev.element, current.element);
+            BacteriaSpineFactory.logger.warn("unable to close contour: {}/{}, first: {} first'sprev: {}, current: {}", count, contourSize, circContour.element, circContour.prev.element, current.element);
             throw new RuntimeException("unable to close circular contour");
         }
         return circContour;

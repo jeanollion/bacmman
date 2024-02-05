@@ -148,6 +148,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter kymographOverlap = new NumberParameter<>("Frame Overlap", 0, 650).setHint("Overlap size (in pixels) between two slices of a Kymograph (each Kymograph slice contains several frames).");
 
     private NumberParameter kymographGap = new NumberParameter<>("Gap", 0, 0).setHint("Gap between images, in pixels");
+    private NumberParameter kymographDisplayTrackDistance = new NumberParameter<>("Display Track Distance", 0, 20).setHint("Minimal distance (in pixels) between displayed tracks by the command <em>display next/previous tracks</em>, along the axis perpenticular to the kymograph");
+
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("In case of HiDPI screen, a zoom factor is applied to the display, set here this factor");
@@ -471,6 +473,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         Kymograph.OVERLAP = kymographOverlap.getValue().intValue();
         kymographOverlap.addListener(p-> Kymograph.OVERLAP = kymographOverlap.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographOverlap, kymographMenu);
+        PropertyUtils.setPersistent(kymographDisplayTrackDistance, "kymograph_display_distance");
+        Kymograph.DISPLAY_DISTANCE = kymographDisplayTrackDistance.getValue().intValue();
+        kymographDisplayTrackDistance.addListener(p-> Kymograph.DISPLAY_DISTANCE = kymographDisplayTrackDistance.getValue().doubleValue());
+        ConfigurationTreeGenerator.addToMenu(kymographDisplayTrackDistance, kymographMenu);
 
         // local zoom
         PropertyUtils.setPersistent(localZoomFactor, "local_zoom_factor");
@@ -3917,6 +3923,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         Task.executeTask(t, getUserInterface(), getPreProcessingMemoryThreshold(), () -> {
             db.clearCache(true, true, true);
             updateConfigurationTree();
+            loadObjectTrees();
         });
     }//GEN-LAST:event_runSelectedActionsMenuItemActionPerformed
 

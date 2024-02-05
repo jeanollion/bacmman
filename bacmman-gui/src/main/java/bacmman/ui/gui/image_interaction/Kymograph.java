@@ -23,6 +23,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     public static int GAP =0;
     public static int SIZE =0;
     public static int OVERLAP =0;
+    public static double DISPLAY_DISTANCE = 20;
     protected final int frameNumber;
     protected final BoundingBox[] view;
     protected final BoundingBox originalView;
@@ -66,7 +67,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
 
     protected void loadObjectClasses(int... loadObjectClass) {
         for (int loadOC: loadObjectClass) {
-            DefaultWorker loadObjectsWorker = new DefaultWorker(i -> { // TODO parallel ?
+            DefaultWorker loadObjectsWorker = new DefaultWorker(i -> {
                 data.parentTrack.get(i).getChildren(loadOC);
                 return "";
             }, data.parentTrack.size(), null).setCancel(() -> getAccessor().getDAO(getParent()).closeThreadResources());
@@ -238,7 +239,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         };
         return new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
     }
-    static double DIST_THLD = 10;
+
     public List<SegmentedObject> getNextTracks(int objectClassIdx, int sliceIdx, List<SegmentedObject> currentTracks, boolean next) {
         Map<SegmentedObject, Point> centers = new HashMapGetCreate.HashMapGetCreateRedirected<>(so -> so.getRegion().getCenterOrGeomCenter());
         int startFrame = parentIdxMapFrame.get(getStartParentIdx(sliceIdx));
@@ -273,7 +274,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
             if (selectedTracks.stream().anyMatch( o -> {
                 UnaryPair<SegmentedObject> c = getComparableObjects.apply(o, cur);
                 if (c.key.getFrame()!=c.value.getFrame()) return false; // no overlap between tracks
-                return getDistance(centers.get(c.key), centers.get(c.value))<DIST_THLD;
+                return getDistance(centers.get(c.key), centers.get(c.value))< DISPLAY_DISTANCE;
             })) break;
             else selectedTracks.add(cur);
         }

@@ -222,11 +222,17 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             .filter(t -> !t.isEmpty())
                             .collect(Collectors.toSet());
                         if (ctrl) { // also display connected tracks
-                            List<List<SegmentedObject>> connected = tracks.stream()
-                                .flatMap(t -> StreamConcatenation.concat(SegmentedObjectEditor.getPrevious(t.get(0)), SegmentedObjectEditor.getNext(t.get(t.size()-1))))
-                                .map(SegmentedObject::getTrackHead).distinct().map(SegmentedObjectUtils::getTrack)
-                                .filter(t -> !t.isEmpty()).collect(Collectors.toList());
-                            tracks.addAll(connected);
+                            // TODO limit depth ?
+                            List<List<SegmentedObject>> prevConnected = SegmentedObjectUtils.getConnectedTracks(tracks.stream(), true).collect(Collectors.toList());
+                            List<List<SegmentedObject>> nextConnected = SegmentedObjectUtils.getConnectedTracks(tracks.stream(), false).collect(Collectors.toList());
+                            while(!prevConnected.isEmpty()) {
+                                tracks.addAll(prevConnected);
+                                prevConnected = SegmentedObjectUtils.getConnectedTracks(prevConnected.stream(), true).collect(Collectors.toList());
+                            }
+                            while(!nextConnected.isEmpty()) {
+                                tracks.addAll(nextConnected);
+                                nextConnected = SegmentedObjectUtils.getConnectedTracks(nextConnected.stream(), false).collect(Collectors.toList());
+                            }
                         }
                         displayTracks(image, i, tracks, null, true, !ctrl);
 
@@ -328,10 +334,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             }
         };
         canvas.disablePopupMenu(true); 
-        MouseListener[] mls = canvas.getMouseListeners();
-        for (MouseListener m : mls) canvas.removeMouseListener(m);
-        canvas.addMouseListener(ml);
-        for (MouseListener m : mls) canvas.addMouseListener(m);
+        //MouseListener[] mls = canvas.getMouseListeners();
+        //for (MouseListener m : mls) canvas.removeMouseListener(m);
+        canvas.addMouseListener(ml); // put in front
+        //for (MouseListener m : mls) canvas.addMouseListener(m);
     }
     private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection, int sliceZ) {
         //logger.debug("intersect method: {}, bounds:{}, off: {}, sel length: {}, slice: {}", seg.getRegion().getClass(), seg.getBounds(), offset, selection.npoints, sliceZ);
@@ -369,13 +375,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     
     @Override public void setActive(Image image) {
         super.setActive(image);
-        ImagePlus ip = this.displayer.getImage(image);
-        if (displayer.isDisplayed(ip)) {
-            IJ.selectWindow(ip.getTitle());
-        } else { // not visible -> show image
-            displayer.displayImage(image);
-            addMouseListener(image);
-            displayer.updateImageRoiDisplay(image);
+        if (displayer.isDisplayed(image)) {
+            IJ.selectWindow(image.getName());
         }
     }
     

@@ -198,8 +198,13 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     }
     
     public void setActive(Image image) {
+        InteractiveImage i = getInteractiveImage(image);
         boolean b = displayedInteractiveImages.remove(image);
-        if (b) displayedInteractiveImages.add(image);
+        if (b && i!=null) displayedInteractiveImages.add(image);
+        if (!displayer.isDisplayed(image)) {
+            if (i != null) displayImage(image, i);
+            else displayer.displayImage(image);
+        }
     }
 
     public void displayInputImage(Experiment xp, String position, boolean preProcessed) {

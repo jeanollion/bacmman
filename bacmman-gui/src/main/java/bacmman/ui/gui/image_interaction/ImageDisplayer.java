@@ -40,7 +40,7 @@ public interface ImageDisplayer<T> {
     void updateTitle(Image image);
     void putImage(Image image, T displayedImage);
     void removeImage(Image image, T displayedImage);
-    boolean isDisplayed(T image);
+    boolean isDisplayed(Image image);
     T displayImage(Image image, double... displayRange);
     void close(Image image);
     void close(T image);
