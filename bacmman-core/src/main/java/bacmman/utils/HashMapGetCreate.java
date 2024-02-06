@@ -36,6 +36,7 @@ import java.util.stream.Stream;
  */
 public class HashMapGetCreate<K, V> extends HashMap<K, V> {
     Function<K, V> factory;
+    boolean allowNull = false;
     public HashMapGetCreate(Function<K, V> factory) {
         super();
         this.factory=factory;
@@ -43,6 +44,10 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
     public HashMapGetCreate(int initialCapacity, Function<K, V> factory) {
         super(initialCapacity);
         this.factory=factory;
+    }
+    public HashMapGetCreate<K, V> setAllowNullValues(boolean allow) {
+        this.allowNull = allow;
+        return this;
     }
     /**
      * Ensure keys are present in the map
@@ -55,7 +60,8 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         return this;
     }
     public V getAndCreateIfNecessary(Object key) {
-        V v = super.get(key);
+        if (allowNull && super.containsKey(key)) return super.get(key);
+        V v = allowNull ? null : super.get(key);
         if (v==null) {
             v = factory.apply((K)key);
             super.put((K)key, v);
@@ -63,17 +69,31 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         return v;
     }
     public V getAndCreateIfNecessarySync(Object key) {
-        V v = super.get(key);
-        if (v==null) {
+        if (allowNull) {
+            if (super.containsKey(key)) return super.get(key);
             synchronized(this) {
-                v = super.get(key);
-                if (v==null) {
-                    v = factory.apply((K)key);
+                if (super.containsKey(key)) return super.get(key);
+                else {
+                    V v = factory.apply((K)key);
                     super.put((K)key, v);
+                    return v;
                 }
             }
         }
-        return v;
+        else {
+            V v = super.get(key);
+            if (v == null) {
+                synchronized (this) {
+                    v = super.get(key);
+                    if (v == null) {
+                        v = factory.apply((K) key);
+                        super.put((K) key, v);
+                    }
+                }
+            }
+            return v;
+        }
+
     }
     /**
      * synchronization is done on key so that if creation of V is long, the whole map is not blocked during creation of V
@@ -81,19 +101,31 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
      * @return 
      */
     public V getAndCreateIfNecessarySyncOnKey(Object key) {
-        V v = super.get(key);
-        if (v==null) {
+        if (allowNull) {
+            if (super.containsKey(key)) return super.get(key);
             synchronized(key) {
-                v = super.get(key);
-                if (v==null) {
-                    v = factory.apply((K)key);
-                    synchronized(this){
-                        super.put((K)key, v);
+                if (super.containsKey(key)) return super.get(key);
+                else {
+                    V v = factory.apply((K)key);
+                    super.put((K)key, v);
+                    return v;
+                }
+            }
+        } else {
+            V v = super.get(key);
+            if (v == null) {
+                synchronized (key) {
+                    v = super.get(key);
+                    if (v == null) {
+                        v = factory.apply((K) key);
+                        synchronized (this) {
+                            super.put((K) key, v);
+                        }
                     }
                 }
             }
+            return v;
         }
-        return v;
     }
 
 
