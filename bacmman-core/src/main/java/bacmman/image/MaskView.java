@@ -2,7 +2,6 @@ package bacmman.image;
 
 public class MaskView extends SimpleImageProperties<MaskView> implements ImageMask<MaskView> {
     protected final ImageMask source;
-    protected final BoundingBox boundingBox;
     protected final OUT_OF_BOUNDS_POLICY oob;
     public enum OUT_OF_BOUNDS_POLICY {OUT, IN}
 
@@ -11,7 +10,6 @@ public class MaskView extends SimpleImageProperties<MaskView> implements ImageMa
     }
     public MaskView(ImageMask mask, BoundingBox boundingBox, OUT_OF_BOUNDS_POLICY oob) {
         super(new SimpleImageProperties(boundingBox, mask.getScaleXY(), mask.getScaleZ()));
-        this.boundingBox=boundingBox;
         this.source=mask instanceof MaskView? ((MaskView)mask).source : mask;
         this.oob = oob;
     }
@@ -79,6 +77,36 @@ public class MaskView extends SimpleImageProperties<MaskView> implements ImageMa
 
     @Override
     public MaskView duplicateMask() {
-        return new MaskView(source, boundingBox, oob);
+        return new MaskView(source, new SimpleBoundingBox<>(this), oob);
     }
+
+    @Override
+    public MaskView resetOffset() {
+        source.translate(new SimpleOffset(this).reverseOffset());
+        super.resetOffset();
+        return this;
+    }
+
+    @Override
+    public MaskView reverseOffset() {
+        Offset off = new SimpleOffset(this).reverseOffset();
+        source.translate(off).translate(off);
+        super.reverseOffset();
+        return this;
+    }
+
+    @Override
+    public MaskView translate(Offset other) {
+        source.translate(other);
+        super.translate(other);
+        return this;
+    }
+
+    @Override
+    public MaskView translate(int dx, int dy, int dz) {
+        source.translate(dx, dy, dz);
+        super.translate(dx, dy, dz);
+        return this;
+    }
+
 }

@@ -138,9 +138,15 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
         }
     }
 
+    /**
+     * translate the current bounding box so that it is located into other as much as possible
+     * @param other
+     * @return
+     */
     public MutableBoundingBox translateInto(BoundingBox other) {
         translate(Math.max(other.xMin()-xMin, 0), Math.max(other.yMin()-yMin, 0), Math.max(other.zMin()-zMin, 0));
         translate(Math.min(other.xMax()-xMax, 0), Math.min(other.yMax()-yMax, 0), Math.min(other.zMax()-zMax, 0));
+        translate(Math.max((other.xMin()-xMin)/2, 0), Math.max((other.yMin()-yMin)/2, 0), Math.max((other.zMin()-zMin)/2, 0));
         return this;
     }
     /**

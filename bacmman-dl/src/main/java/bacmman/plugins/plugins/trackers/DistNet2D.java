@@ -1011,25 +1011,38 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         @Override
         public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
+            if (seedsXYZ.isEmpty()) return new RegionPopulation(new SimpleImageProperties(input));
             MutableBoundingBox minimalBounds = new MutableBoundingBox();
-            seedsXYZ.forEach(s -> minimalBounds.union(s));
+            seedsXYZ.forEach(minimalBounds::union);  // landmark = relative to parent
             if (manualCurationMargin>0) {
                 BoundingBox expand = new SimpleBoundingBox(-manualCurationMargin, manualCurationMargin, -manualCurationMargin, manualCurationMargin, 0, 0);
                 minimalBounds.extend(expand);
             }
+
             Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(objectClassIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
-            if (key == null) {
+            if (key == null) { // landmark = relative to parent
                 BoundingBox optimalBB = getOptimalPredictionBoundingBox.apply(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
-                logger.debug("Semi automatic segmentaion: minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
+                //logger.debug("Semi automatic segmentation: minimal bounds {} after optimize: {}", minimalBounds, optimalBB);
                 key = new Triplet<>(parent, objectClassIdx, optimalBB);
             }
             Image edm = predictions.get(key);
-            Offset off = key.v3.duplicate().reverseOffset();
-            seedsXYZ = seedsXYZ.stream().map(p -> p.translate(off)).collect(Collectors.toList());
+            Offset offRev = key.v3.duplicate().reverseOffset();
+            seedsXYZ = seedsXYZ.stream().map(p -> p.translate(offRev)).collect(Collectors.toList());
             synchronized (seg) {
-                RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(edm, parent, new MaskView(segmentationMask, key.v3), objectClassIdx, seedsXYZ);
+                // go to relative landmark
+                BoundingBox segMaskBds = key.v3.duplicate().translate(parent.getBounds());
+                segmentationMask = new MaskView(segmentationMask, segMaskBds);
+                segmentationMask.resetOffset();
+                edm.resetOffset();
+                //logger.debug("manual seg: seed bds: {} minimal bds: {} optimal bds: {}, segmask: {}, edm: {}", bds, minimalBounds, key.v3, new SimpleBoundingBox<>(segmentationMask), new SimpleBoundingBox<>(edm));
+                RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(edm, parent, segmentationMask, objectClassIdx, seedsXYZ);
+                pop.filter(new RegionPopulation.Size().setMin(2)); // exclude 1-pixel objects (outside mask)
                 pop.getRegions().forEach(Region::clearVoxels);
-                if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
+                //logger.debug("manual seg: #{} pop bds: {} isabs: {}", pop.getRegions().size(), new SimpleBoundingBox<>(pop.getImageProperties()), pop.isAbsoluteLandmark());
+                if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, false);
+                pop.translate(parent.getBounds(), true);
+                segmentationMask.translate(segMaskBds);
+                edm.translate(key.v3);
                 return pop;
             }
         }

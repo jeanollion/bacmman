@@ -622,6 +622,8 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                     if (targetDim[i] == 0) targetDim[i] = closestNumber(minimalBouningBox.size(i), contraction[i], true) - padding[i]*2;
                     if (targetDim[i]>minimalBouningBox.size(i)) res.setSize(targetDim[i], MutableBoundingBox.DIRECTION.CENTER, i );
                 }
+                res.translateInto(globalBoundingBox);
+                return res;
             }
             case RESAMPLE: {
                 // either honor contraction or target shape
@@ -631,10 +633,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                     if (targetDim[i] == 0) targetDim[i] = closestNumber(minimalBouningBox.size(i), contraction[i], true);
                     if (targetDim[i]>minimalBouningBox.size(i)) res.setSize(targetDim[i], MutableBoundingBox.DIRECTION.CENTER, i );
                 }
-
+                res.translateInto(globalBoundingBox);
+                return res;
             }
             default: {
-                return minimalBouningBox;
+                return new MutableBoundingBox(minimalBouningBox).translateInto(globalBoundingBox);
             }
         }
     }
