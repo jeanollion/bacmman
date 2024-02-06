@@ -3,6 +3,7 @@ package bacmman.processing;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
+import bacmman.utils.ArrayUtil;
 import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
@@ -18,16 +19,17 @@ import java.util.stream.IntStream;
 
 public class ImageDerivatives {
 
-    public static ImageFloat[] getGradient(Image image, double scale) {
+    public static ImageFloat[] getGradient(Image image, double scale, int... axis) {
         Img input = ImgLib2ImageWrapper.getImage(image);
-        ImageFloat[] res = new ImageFloat[input.numDimensions()];
+        if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
+        ImageFloat[] res = new ImageFloat[axis.length];
         RandomAccessible inputRA = Views.extendBorder(input);
         if (scale>=1) {
             Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             Gauss3.gauss(scale, inputRA, smooth);
             inputRA = Views.extendBorder(smooth);
         }
-        for (int d = 0; d<input.numDimensions(); ++d) {
+        for (int d : axis) {
             Img<FloatType> der = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             PartialDerivative.gradientCentralDifference(inputRA, der, d);
             res[d] = (ImageFloat)ImgLib2ImageWrapper.wrap(der);

@@ -23,7 +23,9 @@ import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.processing.ImageDerivatives;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
@@ -31,13 +33,6 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
-import bacmman.image.BlankMask;
-import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageMask;
 
 import java.util.*;
 
@@ -163,14 +158,15 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
         double derScale = 2;
         int[] yStartStop = new int[]{0, image.sizeY()-1};
         Image imCrop = (image instanceof ImageFloat ? image.duplicate() : image);
-        
+        Image[] imDer = ImageDerivatives.getGradient(imCrop, derScale, 0, 1);
         // get global closed-end Y coordinate
-        Image imDerY = ImageFeatures.getDerivative(imCrop, derScale, 0, 1, 0, true);
+        Image imDerY = imDer[1];
         float[] yProj = openEnd?null: ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
         int closedEndY = openEnd?yStartStop[0] : ArrayUtil.max(yProj, 0, yProj.length-minLength.getIntValue()) + yStartStop[0];
 
         // get X coordinates of each microchannel
-        imCrop = closedEndY==0?image:image.crop(new MutableBoundingBox(0, image.sizeX()-1, closedEndY, image.sizeY()-1, 0, image.sizeZ()-1));
+        BoundingBox bds = new MutableBoundingBox(0, image.sizeX()-1, closedEndY, image.sizeY()-1, 0, image.sizeZ()-1);
+        imCrop = closedEndY==0?image:image.crop(bds);
         float[] xProj = ImageOperations.meanProjection(imCrop, ImageOperations.Axis.X, null);
         // check for null values @ start & end that could be introduced by rotation and replace by first non-null value
         int start = 0;
@@ -181,7 +177,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
         if (end<xProj.length-1) Arrays.fill(xProj, end+1, xProj.length, xProj[end]);
         //derivate
         ArrayUtil.gaussianSmooth(xProj, 1); // derScale
-        Image imDerX = ImageFeatures.getDerivative(imCrop, derScale, 1, 0, 0, closedEndY>0);
+        if (closedEndY!=0) imDer[0] = imDer[0].crop(bds);
+        Image imDerX = imDer[0];
         float[] xProjDer = ImageOperations.meanProjection(imDerX, ImageOperations.Axis.X, null);
         
         if (stores!=null) {
@@ -260,8 +257,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
                 MutableBoundingBox win = new MutableBoundingBox((int) (peak[0] + sizeX / 3 + 0.5), (int) (peak[1] - sizeX / 3 + 0.5), Math.max(0, closedEndY - closedEndYAdjustWindow), Math.min(imDerY.sizeY() - 1, closedEndY + closedEndYAdjustWindow), 0, 0);
                 float[] proj = ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, win);
                 List<Integer> localMaxY = ArrayUtil.getRegionalExtrema(proj, 2, true);
-                //peak[2] = ArrayUtil.max(proj)-yStartAdjustWindow;
                 if (localMaxY.isEmpty()) continue;
+                localMaxY.sort((lm1, lm2) -> -Float.compare(proj[lm1], proj[lm2]));
                 peak[2] = localMaxY.get(0) - (closedEndY >= closedEndYAdjustWindow ? closedEndYAdjustWindow : 0);
                 if (stores != null) {
                     int ii = idx;
