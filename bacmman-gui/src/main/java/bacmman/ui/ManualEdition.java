@@ -32,6 +32,7 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentationAndTrackingProcessingPipeline;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.UnaryPair;
 import bacmman.utils.geom.Point;
 
 import java.awt.Color;
@@ -125,6 +126,7 @@ public class ManualEdition {
 
         }
     }
+
     public static void modifyObjectLinksTracks(MasterDAO db, List<SegmentedObject> trackHeads, boolean unlink, boolean forceDoubleLink, boolean updateDisplay) {
         SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(trackHeads);
         SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(trackHeads);
@@ -136,7 +138,7 @@ public class ManualEdition {
         Set<SegmentedObject> modifiedObjects = new HashSet<>();
         if (!canEdit(trackHeads.stream(), db)) return;
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
-        TreeMap<SegmentedObject, List<SegmentedObject>> trackHeadsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParent(trackHeads)); // sorted by time point
+        TreeMap<SegmentedObject, List<SegmentedObject>> trackHeadsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParentTrackHead(trackHeads)); // sorted by time point
         for (List<SegmentedObject> ths : trackHeadsByParent.values()) {
             TreeMap<Integer, List<SegmentedObject>> thByFrame = new TreeMap<>(SegmentedObjectUtils.splitByFrame(ths.stream()));
             List<SegmentedObject> trackEnds = trackHeads.stream().map(SegmentedObjectUtils::getTrack).map(t -> t.get(t.size()-1)).collect(Collectors.toList());

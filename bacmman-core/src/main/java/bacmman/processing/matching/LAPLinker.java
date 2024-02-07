@@ -260,11 +260,11 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     public Set<UnaryPair<DefaultWeightedEdge>> getCrossingLinks(double spatialTolerence, Set<S> involvedSpots) {
         if (graph==null) return Collections.EMPTY_SET;
         Set<UnaryPair<DefaultWeightedEdge>> res = new HashSet<>();
-        for (DefaultWeightedEdge e1 : graph.edgeSet()) {
-            for (DefaultWeightedEdge e2 : graph.edgeSet()) {
-                if (e1.equals(e2)) continue;
-                if (intersect(e1, e2, spatialTolerence, involvedSpots)) {
-                    res.add(new UnaryPair<>(e1, e2));
+        List<DefaultWeightedEdge> edges =  new ArrayList<>(graph.edgeSet());
+        for (int i = 0; i<edges.size()-1; ++i) {
+            for (int j = i+1; j<edges.size(); ++j) {
+                if (intersect(edges.get(i), edges.get(j), spatialTolerence, involvedSpots)) {
+                    res.add(new UnaryPair<>(edges.get(i), edges.get(j)));
                 }
             }
         }
@@ -294,7 +294,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         Set<UnaryPair<DefaultWeightedEdge>> toRemove = getCrossingLinks(spatialTolerence, toRemSpot);
         removeFromGraph(Pair.flatten(toRemove, null), toRemSpot, false);
         long t1 = System.currentTimeMillis();
-        //logger.debug("number of edges after removing intersecting links: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
+        logger.debug("number of edges after removing crossing links: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
     }
 
     private boolean intersect(DefaultWeightedEdge e1, DefaultWeightedEdge e2, double spatialTolerence, Set<S> toRemSpot) {

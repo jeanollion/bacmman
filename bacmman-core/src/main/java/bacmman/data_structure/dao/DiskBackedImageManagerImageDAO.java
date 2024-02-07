@@ -11,6 +11,7 @@ import java.util.*;
 public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImageManager {
     static Logger logger = LoggerFactory.getLogger(DiskBackedImageManagerImageDAO.class);
     final ImageDAO imageDAO;
+    final String position;
     Thread daemon;
     long daemonTimeInterval;
     boolean stopDaemon = false;
@@ -18,12 +19,14 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     final Queue<SimpleDiskBackedImage> queue = new LinkedList<>();
     Map<UnaryPair<Integer>, SimpleDiskBackedImage> openImages = new HashMap<>();
     Map<SimpleDiskBackedImage, UnaryPair<Integer>> openImagesRev = new HashMap<>();
-    public DiskBackedImageManagerImageDAO(ImageDAO imageDAO) {
-       this.imageDAO=imageDAO;
+    public DiskBackedImageManagerImageDAO(String position, ImageDAO imageDAO) {
+        this.position = position;
+        this.imageDAO=imageDAO;
     }
     public ImageDAO getSourceImageDAO() {
         return this.imageDAO;
     }
+    @Override
     public synchronized boolean startDaemon(double memoryFraction, long timeInterval) {
         if (daemon != null ) return false;
         Runnable run = () -> {
@@ -39,6 +42,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         daemonTimeInterval = timeInterval;
         stopDaemon = false;
         daemon = new Thread(run);
+        daemon.setName("DiskBackedImageManagerImageDAODaemon@"+position);
         daemon.setDaemon(true);
         daemon.start();
         return true;

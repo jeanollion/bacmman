@@ -36,10 +36,8 @@ import java.util.function.Function;
  * @param <T>
  */
 public interface ImageDisplayer<T> {
-    static double zoomMagnitude=1;
-    void updateTitle(Image image);
-    void putImage(Image image, T displayedImage);
-    void removeImage(Image image, T displayedImage);
+    double zoomMagnitude=1;
+    void removeImage(Image image);
     boolean isDisplayed(Image image);
     T displayImage(Image image, double... displayRange);
     void close(Image image);

@@ -52,8 +52,7 @@ public abstract class TimeLapseInteractiveImage extends InteractiveImage {
     protected final TimeLapseInteractiveImageFactory.Data data;
     public final Map<Integer, Integer> frameMapParentIdx, parentIdxMapFrame;
     protected final BoundingBox view;
-    List<DefaultWorker> worker = new ArrayList<>();
-
+    final List<DefaultWorker> worker = new ArrayList<>();
     public TimeLapseInteractiveImage(TimeLapseInteractiveImageFactory.Data data, BoundingBox view) {
         super(data.parentTrack.get(0));
         this.data = data;

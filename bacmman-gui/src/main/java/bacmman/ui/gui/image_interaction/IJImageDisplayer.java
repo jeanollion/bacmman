@@ -48,23 +48,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     static Logger logger = LoggerFactory.getLogger(IJImageDisplayer.class);
     protected HashMap<Image, ImagePlus> displayedImages=new HashMap<>();
     protected HashMap<ImagePlus, Image> displayedImagesInv=new HashMap<>();
-
+    protected HashMap<Image, Runnable> runOnClose = new HashMap<>();
     @Override
-    public void updateTitle(Image image) {
-        ImagePlus ip = displayedImages.get(image);
-        if (ip!=null) ip.setTitle(image.getName());
-    }
-    @Override
-    public void putImage(Image image, ImagePlus displayedImage) {
-        displayedImages.put(image, displayedImage);
-        displayedImagesInv.put(displayedImage, image);
-    }
-    @Override
-    public void removeImage(Image image, ImagePlus displayedImage) {
-        if (image==null && displayedImage!=null) image = getImage(displayedImage);
-        else if (displayedImage==null && image!=null) displayedImage = getImage(image);
-        if (image!=null) displayedImages.remove(image);
+    public void removeImage(Image image) {
+        ImagePlus displayedImage = displayedImages.get(image);
+        displayedImages.remove(image);
         if (displayedImage!=null) displayedImagesInv.remove(displayedImage);
+        Runnable roc = runOnClose.remove(image);
+        if (roc != null) roc.run();
     }
     @Override public ImagePlus displayImage(Image image, double... displayRange) {
         if (imageExistsButHasBeenClosed(image)) {
@@ -175,6 +166,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             imp.close();
             this.displayedImagesInv.remove(imp);
         }
+        Runnable roc = runOnClose.remove(image);
+        if (roc != null) roc.run();
     }
     @Override public void close(ImagePlus image) {
         if (image==null) return;
@@ -390,6 +383,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 if (IJVirtualStack.OpenAsImage5D) s.generateImage5D();
                 else s.generateImagePlus();
                 ip = s.imp;
+                runOnClose.put(image, s::flush);
             } else {
                 ip = IJImageWrapper.getImagePlus(image);
             }

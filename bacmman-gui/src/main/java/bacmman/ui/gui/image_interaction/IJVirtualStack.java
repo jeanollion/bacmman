@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.image.ImageCoordinate;
 import bacmman.image.LazyImage5D;
 import bacmman.processing.ImageOperations;
 import bacmman.ui.gui.Utils;
@@ -47,7 +48,7 @@ import java.util.stream.IntStream;
 public class IJVirtualStack extends VirtualStack {
     public final static Logger logger = LoggerFactory.getLogger(IJVirtualStack.class);
     final Image source;
-    final Function<Integer, int[]> getFCZ;
+    final Function<Integer, ImageCoordinate> getFCZ;
     final BiPredicate<Integer, Integer> isSinglePlaneFC;
     IntConsumer setFrameCallback, setFrameCallbackLabile;
     Map<Integer, double[]> displayRange= new HashMap<>();
@@ -56,9 +57,10 @@ public class IJVirtualStack extends VirtualStack {
     int lastChannel=-1;
     boolean virtual = true;
     final int sizeF, sizeC;
-    final LinkedList<Integer> cacheQueue = new LinkedList<>();
-    final Map<Integer, ImageProcessor> cachedImages = new HashMap<>();
+    final LinkedList<ImageCoordinate> cacheQueue = new LinkedList<>();
+    final Map<ImageCoordinate, ImageProcessor> cachedImages = new HashMap<>();
     public static int N_CACHED_FRAMES = 100;
+    BackgroundImageLoader backgroundImageLoader;
     public IJVirtualStack(Image image) {
         super(image.sizeX(), image.sizeY(), null, "");
         this.source= image;
@@ -75,6 +77,17 @@ public class IJVirtualStack extends VirtualStack {
         getFCZ = IJImageWrapper.getStackIndexFunctionRev(new int[]{sizeF, sizeC, image.sizeZ()});
         logger.debug("create virtual stack for: {}, frames: {}, channels: {} z: {}", image.getName(), sizeF, sizeC, image.sizeZ());
         for (int n = 0; n<sizeF * sizeC * image.sizeZ(); ++n) super.addSlice("");
+        backgroundImageLoader = new BackgroundImageLoader(this::getLoadedPositions, this::getProcessor, 2, sizeF);
+    }
+
+    public void flush() {
+        if (backgroundImageLoader!=null) backgroundImageLoader.interrupt();
+        cachedImages.clear();
+        cacheQueue.clear();
+    }
+
+    public Set<ImageCoordinate> getLoadedPositions() {
+        return Collections.unmodifiableSet(this.cachedImages.keySet());
     }
 
     public void generateImagePlus() {
@@ -87,7 +100,10 @@ public class IJVirtualStack extends VirtualStack {
         if (targetZ>1 || targetC>1) {
             if (!imp.isHyperStack()) {  // TODO bug when not displayed as hyperstack, slider is not updated
                 //imp.setSlice(targetZ > 1 ? targetZ : targetC);
-            } else imp.setPosition(targetC, targetZ, 1);
+            } else {
+                logger.debug("virtual stack creation: set Z: {} set C: {}", targetZ-1, targetC-1);
+                imp.setPosition(targetC, targetZ, 1);
+            }
         } else getProcessor(imp.getCurrentSlice());
         setCalibration();
     }
@@ -159,37 +175,46 @@ public class IJVirtualStack extends VirtualStack {
     @Override
     public ImageProcessor getProcessor(int n) {
         //logger.debug("get processor: {} cb null ? {}", n, setFrameCallback==null);
-        int[] fcz = getFCZ.apply(n--);
+        ImageCoordinate fcz = getFCZ.apply(n);
         //logger.debug("n: {} fcz: {} hyperstack: {}", n, fcz, imp!=null && imp.isDisplayedHyperStack());
-        if (setFrameCallback!=null) setFrameCallback.accept(fcz[0]);
-        if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz[0]);
+        if (setFrameCallback!=null) setFrameCallback.accept(fcz.getFrame());
+        if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz.getFrame());
+        ImageProcessor res = getProcessor(fcz);
+        if (backgroundImageLoader!=null) {
+            backgroundImageLoader.setPosition(fcz);
+            logger.debug("position: {} set", fcz);
+        }
+        return res;
+    }
+
+    protected ImageProcessor getProcessor(ImageCoordinate fcz) {
+        ImageProcessor ip = cachedImages.get(fcz);
         boolean displaySet = false;
         boolean firstProcessor = false;
-        ImageProcessor ip = cachedImages.get(n);
         if (ip == null) {
             synchronized (cachedImages) {
-                ip = cachedImages.get(n);
+                firstProcessor = cachedImages.isEmpty();
+                ip = cachedImages.get(fcz);
                 if (ip == null) {
-                    if (n ==0) firstProcessor = true;
                     Image toConvert;
                     if (source instanceof LazyImage5D) {
                         //logger.debug("getting image from lazy image: {}", fcz);
-                        toConvert = ((LazyImage5D)source).getImage(fcz[0], fcz[1], fcz[2]);
+                        toConvert = ((LazyImage5D)source).getImage(fcz.getFrame(), fcz.getChannel(), fcz.getZ());
                     } else {
-                        toConvert = source.getZPlane(fcz[2]);
+                        toConvert = source.getZPlane(fcz.getZ());
                     }
                     ip = IJImageWrapper.getImagePlus(toConvert).getProcessor();
-                    setDisplayRange(fcz[1], toConvert, ip);
+                    setDisplayRange(fcz.getChannel(), toConvert, ip);
                     displaySet = true;
-                    cachedImages.put(n, ip);
+                    cachedImages.put(fcz, ip);
                 }
             }
         }
         synchronized (cacheQueue) { // put in front
-            cacheQueue.remove((Integer)n);
-            cacheQueue.add(n);
+            cacheQueue.remove(fcz);
+            cacheQueue.add(fcz);
             if (N_CACHED_FRAMES>0) {
-                List<Integer> toRemove = new ArrayList<>();
+                List<ImageCoordinate> toRemove = new ArrayList<>();
                 while (cacheQueue.size() > N_CACHED_FRAMES) {
                     toRemove.add(cacheQueue.pollFirst());
                 }
@@ -200,7 +225,7 @@ public class IJVirtualStack extends VirtualStack {
                 }
             }
         }
-        if (!displaySet) setDisplayRange(fcz[1], null, ip);
+        if (!displaySet) setDisplayRange(fcz.getChannel(), null, ip);
         return firstProcessor ? ip.duplicate() : ip; // first image processor is used to display others
     }
 

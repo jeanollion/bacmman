@@ -43,6 +43,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         daemonTimeInterval = timeInterval;
         stopDaemon = false;
         daemon = new Thread(run);
+        daemon.setName("DiskBackedImageManagerDaemon@"+directory);
         daemon.setDaemon(true);
         daemon.start();
         return true;

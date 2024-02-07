@@ -369,6 +369,7 @@ public class TrackTreeGenerator {
     }
     
     public List<SegmentedObject> getSelectedTrackHeads() {
+        if (tree == null) return Collections.emptyList();
         int count = tree.getSelectionCount();
         ArrayList<SegmentedObject> res = new ArrayList<SegmentedObject>(count);
         if (count==0) return res;

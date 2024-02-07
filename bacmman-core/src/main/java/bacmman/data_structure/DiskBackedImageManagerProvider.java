@@ -41,20 +41,20 @@ public class DiskBackedImageManagerProvider {
         return manager;
     }
 
-    public DiskBackedImageManagerImageDAO getManager(String directory, ImageDAO imageDAO, boolean replaceIfExisting) {
-        DiskBackedImageManager manager = managers.get(directory);
+    public DiskBackedImageManagerImageDAO getManager(String position, ImageDAO imageDAO, boolean replaceIfExisting) {
+        DiskBackedImageManager manager = managers.get(position);
         if (manager == null || replaceIfExisting) {
             synchronized (managers) {
-                manager = managers.get(directory);
+                manager = managers.get(position);
                 if (manager == null || replaceIfExisting) {
                     if (manager!=null) manager.clear(true);
-                    manager = new DiskBackedImageManagerImageDAO(imageDAO);
-                    managers.put(directory, manager);
+                    manager = new DiskBackedImageManagerImageDAO(position, imageDAO);
+                    managers.put(position, manager);
                     manager.startDaemon(0.75, 2000);
                 }
             }
         }
-        if (!(manager instanceof DiskBackedImageManagerImageDAO)) throw new RuntimeException("Image manager at directory "+directory+" is not a DiskBackedImageManagerImageDAO");
+        if (!(manager instanceof DiskBackedImageManagerImageDAO)) throw new RuntimeException("Image manager at position "+position+" is not a DiskBackedImageManagerImageDAO");
         return (DiskBackedImageManagerImageDAO)manager;
     }
 

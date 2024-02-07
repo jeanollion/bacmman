@@ -250,7 +250,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         addWindowClosedListener(image, ()-> {
             if (!preProcessed) displayedRawInputImages.remove(position);
             else displayedPrePocessedImages.remove(position);
-            displayer.removeImage(null, image);
+            displayer.removeImage(source);
         });
         if (!preProcessed) displayedRawInputImages.put(position, source);
         else displayedPrePocessedImages.put(position,  source);
@@ -310,7 +310,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             imageMapInteractiveImage.remove(image);
             displayedInteractiveImages.remove(image);
             displayMode.remove(image);
-            displayer.removeImage(image, null);
+            displayer.removeImage(image);
             displayedLabileObjectRois.remove(image);
             displayedObjectRois.remove(image);
             displayedLabileTrackRois.remove(image);
