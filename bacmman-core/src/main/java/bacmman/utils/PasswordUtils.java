@@ -16,46 +16,31 @@ import java.util.Base64;
 
 public class PasswordUtils {
     private static final Logger logger = LoggerFactory.getLogger(PasswordUtils.class);
-    public static String[] encryptFromPassphrase(String text, char[] passphrase) {
+    public static String[] encryptFromPassphrase(String text, char[] passphrase) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
         SecureRandom random = new SecureRandom();
         byte[] salt = new byte[16];
         random.nextBytes(salt);
         KeySpec spec = new PBEKeySpec(passphrase, salt, 65536, 256); // AES-256
-        try {
-            SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            byte[] key = f.generateSecret(spec).getEncoded();
-            String enc = encrypt(text, key);
-            String saltString = Base64.getEncoder().encodeToString(salt);
-            return new String[]{enc, saltString};
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-           throw new RuntimeException(e);
-        }
+        SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        byte[] key = f.generateSecret(spec).getEncoded();
+        String enc = encrypt(text, key);
+        String saltString = Base64.getEncoder().encodeToString(salt);
+        return new String[]{enc, saltString};
     }
-    public static String decryptFromPassphrase(char[] passphrase, String enc, String salt) {
+    public static String decryptFromPassphrase(char[] passphrase, String enc, String salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
         byte[] saltB = Base64.getDecoder().decode(salt);
         KeySpec spec = new PBEKeySpec(passphrase, saltB, 65536, 256); // AES-256
-        try {
-            SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            byte[] key = f.generateSecret(spec).getEncoded();
-            return decrypt(enc, key);
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            throw new RuntimeException(e);
-        }
+        SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        byte[] key = f.generateSecret(spec).getEncoded();
+        return decrypt(enc, key);
     }
-    public static String encrypt(String text, byte[] key) {
+    public static String encrypt(String text, byte[] key) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         Key aesKey = new SecretKeySpec(key, "AES");
-        try {
-            Cipher cipher = Cipher.getInstance("AES");
-            // encrypt the text
-            cipher.init(Cipher.ENCRYPT_MODE, aesKey);
-            byte[] encrypted = cipher.doFinal(text.getBytes());
-            return Base64.getEncoder().encodeToString(encrypted);
-            //StringBuilder sb = new StringBuilder();
-            //for (byte b: encrypted) sb.append((char)b);
-            //return sb.toString();
-        } catch (NoSuchAlgorithmException|NoSuchPaddingException|BadPaddingException|InvalidKeyException|IllegalBlockSizeException e) {
-            throw new RuntimeException(e);
-        }
+        Cipher cipher = Cipher.getInstance("AES");
+        // encrypt the text
+        cipher.init(Cipher.ENCRYPT_MODE, aesKey);
+        byte[] encrypted = cipher.doFinal(text.getBytes());
+        return Base64.getEncoder().encodeToString(encrypted);
     }
 
    public static String decrypt(String enc, byte[] key) {

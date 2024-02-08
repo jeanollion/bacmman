@@ -9,6 +9,8 @@ import bacmman.utils.Pair;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -111,7 +113,7 @@ public class GithubGateway {
                 TokenAuth auth = new TokenAuth(cred.key, cred.value);
                 passwords.put(cred.key, cred.value);
                 return auth;
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | NoSuchAlgorithmException | InvalidKeySpecException e) {
                 if (error!=null) error.accept("Could not retried Token. Has Token been stored ?");
                 logger.info("Authentication error", e);
                 return new NoAuth();

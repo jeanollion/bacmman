@@ -11,6 +11,9 @@ import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
@@ -22,11 +25,14 @@ import java.awt.event.*;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 
 import static bacmman.ui.gui.Utils.addCopyMenu;
 
 public class GenerateGistToken extends JDialog {
-    public static final Logger logger = LoggerFactory.getLogger(GenerateGistToken.class);
+    static final Logger logger = LoggerFactory.getLogger(GenerateGistToken.class);
     private JPanel contentPane;
     private JButton storeToken;
     private JTextField username;
@@ -136,23 +142,23 @@ public class GenerateGistToken extends JDialog {
         String u = username.getText();
         char[] p = password.getPassword();
         String t = token.getText();
-        boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
+        boolean enableSave = !u.isEmpty() && p.length != 0 && !t.isEmpty();
         storeToken.setEnabled(enableSave);
-        requestTokenButton.setEnabled(deviceCode.length() > 0);
+        requestTokenButton.setEnabled(!deviceCode.isEmpty());
     }
 
     private void onOK() {
         String username = this.username.getText();
         char[] pass = password.getPassword();
         String token = this.token.getText();
-        if (username.length() > 0 && pass.length > 0 && token.length() > 0) {
+        if (!username.isEmpty() && pass.length > 0 && !token.isEmpty()) {
             try {
                 TokenAuth.encryptAndStore(username, pass, token);
                 logger.debug("token stored successfully");
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Token stored successfully");
                 result = new Pair<>(this.username.getText(), this.password.getPassword());
                 dispose();
-            } catch (Throwable t) {
+            } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | InvalidKeySpecException | BadPaddingException | InvalidKeyException t) {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Could not store token");
                 logger.error("could not store token", t);
             }

@@ -15,28 +15,35 @@ public class BackgroundImageLoader {
     Thread daemon;
     ImageCoordinate currentPosition;
     final int cacheSize, maxFrames;
-    public BackgroundImageLoader(Supplier<Set<ImageCoordinate>> loadedPosition, Consumer<ImageCoordinate> loadFunction, int cacheSize, int maxFrames) {
+    final Object lock;
+    public BackgroundImageLoader(Supplier<Set<ImageCoordinate>> loadedPosition, Consumer<ImageCoordinate> loadFunction, Object lock, int cacheSize, int maxFrames) {
         this.loadedPosition = loadedPosition;
         this.loadFunction = loadFunction;
         this.cacheSize = cacheSize;
         this.maxFrames=maxFrames;
+        this.lock=lock;
         daemon = new Thread(this::run);
+        daemon.setPriority(1);
         daemon.setDaemon(true);
         daemon.setName("BackgroundImageLoader-"+daemon.getName());
         daemon.start();
     }
-    protected synchronized void run() {
+    protected void run() {
         while(true) {
-            ImageCoordinate nextPosition = getNextPosition();
+            synchronized (lock) {
+                ImageCoordinate nextPosition = getNextPosition();
+                try {
+                    if (nextPosition == null) {
+                        lock.wait();
+                    } else {
+                        loadFunction.accept(nextPosition);
+                    }
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
             try {
-                if (nextPosition == null) {
-                    logger.debug("no next position: waiting");
-                    wait();
-                }
-                else {
-                    //logger.debug("current position: {} will load: {}", currentPosition, nextPosition);
-                    loadFunction.accept(nextPosition);
-                }
+                Thread.sleep(100); // give priority to main process
             } catch (InterruptedException e) {
                 return;
             }
@@ -54,10 +61,13 @@ public class BackgroundImageLoader {
         }
         return null;
     }
-    public synchronized void setPosition(ImageCoordinate fcz) {
+    public void setPosition(ImageCoordinate fcz) {
         //logger.debug("setting position: {} (was {})", fcz, currentPosition);
-        currentPosition = fcz;
-        notifyAll();
+        if (fcz.equals(this.currentPosition)) return;
+        synchronized (lock) {
+            currentPosition = fcz;
+            lock.notifyAll();
+        }
     }
     public void interrupt() {
         daemon.interrupt();

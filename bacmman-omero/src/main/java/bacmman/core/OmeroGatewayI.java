@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -109,7 +111,12 @@ public class OmeroGatewayI implements OmeroGateway {
     public OmeroGateway setCredentials(String hostname, String username, String password) {
         this.username=username;
         this.hostname=hostname;
-        String decryptedPass = OmeroGateway.decryptPassword(hostname, username, password.toCharArray());
+        String decryptedPass = null;
+        try {
+            decryptedPass = OmeroGateway.decryptPassword(hostname, username, password.toCharArray());
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+
+        }
         this.password=decryptedPass == null ? password : decryptedPass; // if password correspond to encryption password, then decryptedPass is the remote password otherwise password is the remote password
         return this;
     }

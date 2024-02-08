@@ -23,6 +23,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -267,7 +269,7 @@ public class DLModelsLibrary {
                                         updateGistDisplay();
                                         tree.setSelectedGist(toSave);
                                     }
-                                } catch (IllegalArgumentException ex) {
+                                } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
                                     pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 }
                             }

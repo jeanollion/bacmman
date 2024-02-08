@@ -310,7 +310,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         if (ids.length==0) return;
         remove(objectClassIdx, ids);
         measurementBoxes.get(objectClassIdx).remove(ids);
-        logger.debug("deleted {} objects from oc: {}", ids.length, objectClassIdx);
+        //logger.debug("deleted {} objects from oc: {}", ids.length, objectClassIdx);
         if (cache.containsKey(objectClassIdx)) {
             if (objectClassIdx<0) deleteFromParent=false;
             Map<Long, SegmentedObjectBox> cache = this.cache.get(objectClassIdx);

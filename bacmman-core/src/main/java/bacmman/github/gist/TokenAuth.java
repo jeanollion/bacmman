@@ -5,12 +5,18 @@ import bacmman.ui.PropertyUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.net.HttpURLConnection;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 
 public class TokenAuth implements UserAuth {
     private static final Logger logger = LoggerFactory.getLogger(TokenAuth.class);
     private final String token;
-    public TokenAuth(String username, char[] passphrase) {
+    public TokenAuth(String username, char[] passphrase) throws NoSuchAlgorithmException, InvalidKeySpecException {
         String encryptedToken = PropertyUtils.get(username+"_g_t_e");
         String salt = PropertyUtils.get(username+"_g_t_s");
         if (salt==null || encryptedToken==null) throw new IllegalArgumentException("No token stored");
@@ -20,7 +26,7 @@ public class TokenAuth implements UserAuth {
     public TokenAuth(String token) {
         this.token=token;
     }
-    public static void encryptAndStore(String username, char[] passphrase, String token) {
+    public static void encryptAndStore(String username, char[] passphrase, String token) throws NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
         String[] encryptedTokenAndSalt = PasswordUtils.encryptFromPassphrase(token, passphrase);
         PropertyUtils.set(username+"_g_t_e", encryptedTokenAndSalt[0]);
         PropertyUtils.set(username+"_g_t_s", encryptedTokenAndSalt[1]);

@@ -163,7 +163,10 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
                 ok = tmi.processSegments(maxDistance, maxGap, false, false);
                 tmi.logGraphStatus("after gap closing", 0);
             }
-            if (ok) tmi.removeCrossingLinksFromGraph(meanWidth / 4);
+            if (ok) {
+                logger.debug("removing crossing links...");
+                tmi.removeCrossingLinksFromGraph(meanWidth / 4);
+            }
             if (ok) {
                 ok = tmi.processSegments(maxDistance, maxGap, false, false); // second GC for crossing links!
                 tmi.logGraphStatus("after gap closing (2)", 0);

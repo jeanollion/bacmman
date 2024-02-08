@@ -5,16 +5,25 @@ import bacmman.ui.PropertyUtils;
 import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Map;
 import java.util.function.Consumer;
 
 public class StoreOmeroPassword {
+    static final Logger logger = LoggerFactory.getLogger(StoreOmeroPassword.class);
     private JButton storeButton;
     private JButton cancelButton;
     private JTextField hostname;
@@ -77,8 +86,12 @@ public class StoreOmeroPassword {
     }
 
     private void storePassword() {
-        OmeroGateway.encryptPassword(hostname.getText(), username.getText(), localPasswordField.getPassword(), remotePasswordField.getPassword());
-        saveCurrentConnectionParameters();
+        try {
+            OmeroGateway.encryptPassword(hostname.getText(), username.getText(), localPasswordField.getPassword(), remotePasswordField.getPassword());
+            saveCurrentConnectionParameters();
+        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
+            logger.error("Error while storing password", e);
+        }
     }
 
     protected class Dial extends JDialog {

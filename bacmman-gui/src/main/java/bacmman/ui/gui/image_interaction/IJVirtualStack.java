@@ -59,7 +59,7 @@ public class IJVirtualStack extends VirtualStack {
     final int sizeF, sizeC;
     final LinkedList<ImageCoordinate> cacheQueue = new LinkedList<>();
     final Map<ImageCoordinate, ImageProcessor> cachedImages = new HashMap<>();
-    public static int N_CACHED_FRAMES = 100;
+    public static int N_CACHED_FRAMES = 100; // TODO cache = memory limit
     BackgroundImageLoader backgroundImageLoader;
     public IJVirtualStack(Image image) {
         super(image.sizeX(), image.sizeY(), null, "");
@@ -77,7 +77,7 @@ public class IJVirtualStack extends VirtualStack {
         getFCZ = IJImageWrapper.getStackIndexFunctionRev(new int[]{sizeF, sizeC, image.sizeZ()});
         logger.debug("create virtual stack for: {}, frames: {}, channels: {} z: {}", image.getName(), sizeF, sizeC, image.sizeZ());
         for (int n = 0; n<sizeF * sizeC * image.sizeZ(); ++n) super.addSlice("");
-        backgroundImageLoader = new BackgroundImageLoader(this::getLoadedPositions, this::getProcessor, 2, sizeF);
+        backgroundImageLoader = new BackgroundImageLoader(this::getLoadedPositions, this::getProcessor, cachedImages, Math.max(2, N_CACHED_FRAMES), sizeF);
     }
 
     public void flush() {
@@ -180,10 +180,22 @@ public class IJVirtualStack extends VirtualStack {
         if (setFrameCallback!=null) setFrameCallback.accept(fcz.getFrame());
         if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz.getFrame());
         ImageProcessor res = getProcessor(fcz);
-        if (backgroundImageLoader!=null) {
-            backgroundImageLoader.setPosition(fcz);
-            logger.debug("position: {} set", fcz);
+        synchronized (cacheQueue) { // put in front
+            cacheQueue.remove(fcz);
+            cacheQueue.add(fcz);
+            if (N_CACHED_FRAMES>0) {
+                List<ImageCoordinate> toRemove = new ArrayList<>();
+                while (cacheQueue.size() > N_CACHED_FRAMES) {
+                    toRemove.add(cacheQueue.pollFirst());
+                }
+                if (!toRemove.isEmpty()) {
+                    synchronized (cachedImages) {
+                        toRemove.forEach(cachedImages::remove);
+                    }
+                }
+            }
         }
+        if (backgroundImageLoader!=null) backgroundImageLoader.setPosition(fcz);
         return res;
     }
 
@@ -207,21 +219,6 @@ public class IJVirtualStack extends VirtualStack {
                     setDisplayRange(fcz.getChannel(), toConvert, ip);
                     displaySet = true;
                     cachedImages.put(fcz, ip);
-                }
-            }
-        }
-        synchronized (cacheQueue) { // put in front
-            cacheQueue.remove(fcz);
-            cacheQueue.add(fcz);
-            if (N_CACHED_FRAMES>0) {
-                List<ImageCoordinate> toRemove = new ArrayList<>();
-                while (cacheQueue.size() > N_CACHED_FRAMES) {
-                    toRemove.add(cacheQueue.pollFirst());
-                }
-                if (!toRemove.isEmpty()) {
-                    synchronized (cachedImages) {
-                        toRemove.forEach(cachedImages::remove);
-                    }
                 }
             }
         }
