@@ -240,7 +240,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         return new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
     }
 
-    public List<SegmentedObject> getNextTracks(int objectClassIdx, int sliceIdx, List<SegmentedObject> currentTracks, boolean next) {
+    public Set<SegmentedObject> getNextTracks(int objectClassIdx, int sliceIdx, List<SegmentedObject> currentTracks, boolean next) {
         Map<SegmentedObject, Point> centers = new HashMapGetCreate.HashMapGetCreateRedirected<>(so -> so.getRegion().getCenterOrGeomCenter());
         int startFrame = parentIdxMapFrame.get(getStartParentIdx(sliceIdx));
         BiFunction<SegmentedObject, SegmentedObject, UnaryPair<SegmentedObject>> getComparableObjects = (o1, o2) -> {
@@ -259,24 +259,49 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
             return mul * compareCenters(centers.get(c.key), centers.get(c.value));
         };
         List<SegmentedObject> tracks = getObjects(objectClassIdx, sliceIdx).map(SegmentedObject::getTrackHead).distinct().sorted(comp).collect(Collectors.toList());
-        // remove all tracks before currently selected tracks
-        currentTracks.retainAll(tracks);
-        if (!currentTracks.isEmpty()) {
+        currentTracks.retainAll(tracks); // remove tracks that are not included in this slice
+        if (!currentTracks.isEmpty()) { // remove all tracks before currently selected tracks
             currentTracks.sort(comp);
-            int idx = tracks.indexOf(currentTracks.get(0));
-            tracks = tracks.subList(0, idx);
+            List<SegmentedObject> toRemove = new ArrayList<>(); // remove directly connected tracks that could have been added in a previous call of this function and that are located after in the list
+            for (int i = 0; i<currentTracks.size(); ++i) {
+                SegmentedObject th  = currentTracks.get(i);
+                if (th.getPrevious()!=null) {
+                    int j = currentTracks.indexOf(th.getPrevious().getTrackHead());
+                    if (j>=0) {
+                        if (i>j) toRemove.add(currentTracks.get(i));
+                        else toRemove.add(currentTracks.get(j));
+                    }
+                }
+            }
+            currentTracks.removeAll(toRemove);
+            if (!currentTracks.isEmpty()) {
+                int idx = tracks.indexOf(currentTracks.get(0));
+                tracks = tracks.subList(0, idx);
+            }
         }
         // select all objects that have a
-        List<SegmentedObject> selectedTracks = new ArrayList<>();
+        Set<SegmentedObject> selectedTracks = new HashSet<>();
         if (!tracks.isEmpty()) selectedTracks.add(tracks.remove(tracks.size()-1));
-        while(!tracks.isEmpty()) {
-            SegmentedObject cur = tracks.remove(tracks.size() -1);
+        while(!tracks.isEmpty()) { // add all remaining tracks that are distant enough from tracks to be displayed
+            SegmentedObject cur = tracks.get(tracks.size() -1);
             if (selectedTracks.stream().anyMatch( o -> {
                 UnaryPair<SegmentedObject> c = getComparableObjects.apply(o, cur);
                 if (c.key.getFrame()!=c.value.getFrame()) return false; // no overlap between tracks
-                return getDistance(centers.get(c.key), centers.get(c.value))< DISPLAY_DISTANCE;
+                return getDistance(centers.get(c.key), centers.get(c.value)) < DISPLAY_DISTANCE;
             })) break;
-            else selectedTracks.add(cur);
+            else {
+                tracks.remove(tracks.size()-1);
+                selectedTracks.add(cur);
+            }
+        }
+        // also add directly connected tracks
+        List<SegmentedObject> toAdd = new ArrayList<>();
+        for (SegmentedObject th : selectedTracks) {
+            if (th.getFrame()>startFrame && th.getPrevious()!=null && !selectedTracks.contains(th.getPrevious().getTrackHead()) && !currentTracks.contains(th.getPrevious().getTrackHead())) toAdd.add(th.getPrevious().getTrackHead());
+        }
+        selectedTracks.addAll(toAdd);
+        for (SegmentedObject th : tracks) { // also look in remaining tracks
+            if (th.getPrevious()!=null && selectedTracks.contains(th.getPrevious().getTrackHead())) selectedTracks.add(th);
         }
         return selectedTracks;
     }
