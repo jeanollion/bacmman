@@ -184,6 +184,11 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
     }
 
     @Override
+    public LazyImage5DPlane<I> duplicateLazyImage() {
+        return new LazyImage5DPlane<>(name, generatorFCZ, new int[]{getSizeF(), getSizeC(), sizeZ});
+    }
+
+    @Override
     public DoubleStream streamPlane(int z) {
         return getImage(f, c, z).streamPlane(0);
     }
@@ -195,12 +200,13 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
 
     @Override
     public void invert() {
-        if (isSinglePlane(f, c)) getImage(f, c, 0).invert();
+        throw new UnsupportedOperationException();
+        /*if (isSinglePlane(f, c)) getImage(f, c, 0).invert();
         else {
             for (int z = 0; z < sizeZ; ++z) {
                 getImage(f, c, z).invert();
             }
-        }
+        }*/
     }
 
     @Override

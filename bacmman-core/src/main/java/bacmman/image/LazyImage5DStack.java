@@ -30,6 +30,22 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
         imageFC = ArrayUtil.generateMatrix((Class<I>)imageType.getClass(), sizeFC[0], sizeFC[1]);
     }
 
+    // for duplicate only
+    private LazyImage5DStack(LazyImage5DStack other) {
+        super(other.name);
+        this.imageType = Image.copyType(imageType);
+        this.sizeX = other.sizeX();
+        this.sizeY = other.sizeY();
+        this.sizeZ = other.sizeZ();
+        this.sizeXY = sizeX * sizeY;
+        this.sizeXYZ = sizeXY * sizeZ;
+        this.translate(other);
+        this.scaleXY = other.getScaleXY();
+        this.scaleZ = other.getScaleZ();
+        this.generatorFC = other.generatorFC;
+        imageFC = ArrayUtil.generateMatrix((Class<I>)imageType.getClass(), other.getSizeF(), other.getSizeC());
+    }
+
     public LazyImage5DStack(String name, Function<int[], Image> generatorFC, int[] sizeFC) {
         super(name);
         Triplet<Function<int[], I>, ImageProperties, I> genAndProps = homogenizeType(sizeFC[1], generatorFC);
@@ -208,7 +224,12 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
 
     @Override
     public void invert() {
-        getImage(f, c).invert();
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public LazyImage5DStack<I> duplicateLazyImage() {
+        return new LazyImage5DStack<>(this);
     }
 
     @Override

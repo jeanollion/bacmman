@@ -81,9 +81,11 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (!ip.isVisible()) {
             ip.show();
             InteractiveImage im = ImageWindowManagerFactory.getImageManager().getInteractiveImage(image);
-            TimeLapseInteractiveImageFactory.DIRECTION dir = getDirection(im);
-            ToIntBiFunction<Integer, Boolean> nextPos = getNextPosFunction(im);
-            addMouseWheelListener(ip, dir, nextPos);
+            if (im != null) {
+                TimeLapseInteractiveImageFactory.DIRECTION dir = getDirection(im);
+                ToIntBiFunction<Integer, Boolean> nextPos = getNextPosFunction(im);
+                addMouseWheelListener(ip, dir, nextPos);
+            }
             ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         }
         return ip;

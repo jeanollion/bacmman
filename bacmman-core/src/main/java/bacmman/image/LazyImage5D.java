@@ -55,10 +55,12 @@ public abstract class LazyImage5D<I extends Image<I>> extends Image<I> {
     public abstract I getImage(int f, int c);
 
     public void setChannelNames(String[] channelNames) {
+        if (channelNames.length != getSizeC()) throw new IllegalArgumentException("Invalid channel length");
         this.channelNames = channelNames;
     }
 
     public void setChannelColors(String[] channelColors) {
+        if (channelColors.length != getSizeC()) throw new IllegalArgumentException("Invalid channel length");
         this.channelColors = channelColors;
     }
 
@@ -85,6 +87,8 @@ public abstract class LazyImage5D<I extends Image<I>> extends Image<I> {
     public I duplicate(String name) {
         return getImage(f, c).duplicate(name);
     }
+
+    public abstract LazyImage5D<I> duplicateLazyImage();
 
     @Override
     public I newImage(String name, ImageProperties properties) {

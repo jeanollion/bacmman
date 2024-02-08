@@ -1287,6 +1287,20 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         return Palette.setOpacity(color, (int)Math.round((fill? filledRoiOpacity : strokeRoiOpacity) *255));
     }
 
+    public void showDuplicateWithAllTracks(Image image) {
+        if (image == null) image = displayer.getCurrentImage();
+        if (image == null) return;
+        InteractiveImage i = getInteractiveImage(image);
+        if (i == null) return;
+        Map<SegmentedObject, List<SegmentedObject>> tracks = i.getAllObjects(interactiveObjectClassIdx).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+        Image dup;
+        if (image instanceof LazyImage5D) dup = ((LazyImage5D)image).duplicateLazyImage();
+        else dup = image.duplicate();
+        I disp = displayer.displayImage(dup);
+        displayTracks(dup, i, tracks.values(), null, true, false);
+        displayer.removeImage(dup);
+    }
+
     private static SegmentedObjectAccessor getAccessor() {
         try {
             Constructor<SegmentedObjectAccessor> constructor = SegmentedObjectAccessor.class.getDeclaredConstructor();

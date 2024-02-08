@@ -3214,6 +3214,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         pyGatewayMenu.setText("Python Gateway");
         miscMenu.add(pyGatewayMenu);
 
+        JMenuItem displayDuplicateWithTracks = new JMenuItem("Duplicate image with tracks");
+        displayDuplicateWithTracks.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                ImageWindowManagerFactory.getImageManager().showDuplicateWithAllTracks(null);
+            }
+        });
+        displayDuplicateWithTracks.setToolTipText("Duplicates current active image, and display all tracks of interactive object class");
+        miscMenu.add(displayDuplicateWithTracks);
+
         tensorflowMenu.setText("Tensorflow Options");
         optionMenu.add(tensorflowMenu);
         dockerMenu.setText("Docker Options");
@@ -3517,7 +3526,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             }
         }
     }
-
     public void displayNextTracksOnKymograph(boolean next) {
         ImageWindowManager<?,?,?> iwm = ImageWindowManagerFactory.getImageManager();
         Image currentImage =  iwm.getDisplayer().getCurrentImage();
