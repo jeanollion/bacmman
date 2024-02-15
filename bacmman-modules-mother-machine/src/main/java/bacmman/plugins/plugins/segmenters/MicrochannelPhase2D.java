@@ -137,6 +137,9 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
      */
     @Override
     public Result segment(Image image, int structureIdx, SegmentedObject parent) {
+        if (image.sizeZ()>1) { // TODO select best focus plane
+            //image = image.getZPlane(image.sizeZ()/2);
+        }
         int closedEndYAdjustWindow = this.closedEndYAdjustWindow.getValue().intValue();
         int[] width = this.channelWidth.getValuesAsInt();
         int channelWidth = width[1];

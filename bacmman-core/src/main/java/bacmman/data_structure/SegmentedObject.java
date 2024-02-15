@@ -578,6 +578,27 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         return n;
     }
 
+    public SegmentedObject getTrackTail() {
+        SegmentedObject n = this;
+        while (n.getNext() != null) n = n.getNext();
+        return n;
+    }
+
+    /**
+     *
+     * @param frameLimit
+     * @return track tail if trackTail.getFrame()<=frameLimit else null
+     */
+    public SegmentedObject getTrackTail(int frameLimit) {
+        if (this.getFrame()>=frameLimit) return null;
+        SegmentedObject n = this;
+        while (n.getNext() != null) {
+            n = n.getNext();
+            if (n.getFrame()>=frameLimit) return null;
+        }
+        return n;
+    }
+
     public Object getNextId() {
         return nextId;
     }
@@ -1059,8 +1080,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     
     private BoundingBox extendBoundsInZIfNecessary(int channelIdx, BoundingBox bounds) { //when the current structure is 2D but channel is 3D 
         //logger.debug("extends bounds Z if necessary: is2D: {}, bounds: {}, sizeZ of image to open: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx));
-        if (bounds.sizeZ()==1 && is2D() && channelIdx!=this.getExperiment().getChannelImageIdx(structureIdx)) { 
-            int sizeZ = getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx); //TODO no reliable if a transformation removes planes -> need to record the dimensions of the preProcessed Images
+        if (bounds.sizeZ()==1 && is2D()) {
+            int sizeZ = getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx);
             if (sizeZ>1) {
                 //logger.debug("extends bounds Z: is2D: {}, bounds: {}, sizeZ of image to open: {}, new bounds: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx), new MutableBoundingBox(bounds).unionZ(sizeZ-1));
                 if (bounds instanceof MutableBoundingBox) ((MutableBoundingBox)bounds).unionZ(sizeZ-1);

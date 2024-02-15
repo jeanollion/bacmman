@@ -272,6 +272,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         return getPixelLinInter((int)x-xMin, (int)y-yMin, (int)z-zMin, (float)(x-(int)x), (float)(y-(int)y), (float)(z-(int)z));
     }
     public int[] dimensions() {
+        if (sizeZ == 1 && sizeY == 1) return new int[]{sizeX}; // 1D case
         return sizeZ>1 ? new int[]{sizeX, sizeY, sizeZ}:new int[]{sizeX, sizeY};
     }
     public abstract double getPixel(int xy, int z);

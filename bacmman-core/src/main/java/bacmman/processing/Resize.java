@@ -37,7 +37,7 @@ public class Resize {
             for (int i = 0; i<dimensions.length; ++i) dims[i] = Math.abs(dimensions[i]);
             dimensions=dims;
         }
-        double[] scaleFactors = new double[input.sizeZ()>1? 3:2];
+        double[] scaleFactors = new double[input.dimensions().length];
         for (int i = 0; i<scaleFactors.length;++i) scaleFactors[i] = dimensions.length>i && dimensions[i]>0 ? (double)dimensions[i]/input.size(i) : 1; // dim == 0 -> no resampling
         if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
         Img in = ImgLib2ImageWrapper.getImage(input);

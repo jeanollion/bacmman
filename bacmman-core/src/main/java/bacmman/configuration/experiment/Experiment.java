@@ -94,17 +94,21 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("Output").setHint("Directory where preprocessed images will be stored");
     protected FileChooser outputPath = new FileChooser("Output Path", FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("Output").setHint("Directory where segmentation & lineage results will be stored");
     ChoiceParameter importMethod = new ChoiceParameter("Import Method", IMPORT_METHOD.getChoices(), null, false);
-    TextParameter positionSeparator = new TextParameter("Position Separator", "xy", true).setHint("character sequence located just before the position index.  It should be shared by all image files of the dataset, and unique in the file name. <br>Write the single char ^ in order to use the char sequence located before the channel keyword as position name (it should thus be the same for all files)");
+    TextParameter positionSeparator = new TextParameter("Position Separator", "xy", true).setHint("character sequence located just before the position index.  It should be shared by all image files of the dataset, and unique in the file name. <br>For <em>One File Per Position, Channel And Frame</em> mode only: Write the single char ^ in order to use the char sequence located before the channel keyword as position name (it should thus be the same for all files)");
     TextParameter frameSeparator = new TextParameter("Frame Separator", "t", true).setHint("character sequence located just before the frame number. It should be shared by all image files of the dataset, and unique in the file name");
     BooleanParameter invertTZ = new BooleanParameter("Swap T & Z dimension", false).setHint("BACMMAN can analyze time series of Z-stacks. For some image formats, the Z and time dimensions may be swapped. In this case, set SWAP time and Z to TRUE. <br />The correct interpretation of time and Z dimensions can be checked after import by opening the images of a position through the <em>Open Input Images</em> command and checking the properties of the image (CTRL + SHIFT + P under imageJ/FIJI)<br />After changing this parameter, images should be re-imported (re-run the import / re-link command)");
 
     public enum AXIS_INTERPRETATION {AUTOMATIC, TIME, Z}
     EnumChoiceParameter<AXIS_INTERPRETATION> axesInterpretation = new EnumChoiceParameter<>("Force axis", AXIS_INTERPRETATION.values(), AXIS_INTERPRETATION.AUTOMATIC).setHint("Defines how to interpret the third axis (after X, Y). Automatic: axis as defined in the image file, Z: axis is interpreted as Z if several frames and only one z-slice are detected, Time: axis is interpreted as time, if several z-slices and only one frame are detected. <br /> when Frame or Z are selected, the option <em>Swap T & Z dimension</em> is not taken into account.<br>This parameter can also be defined for each channel image.");
+    enum POSITION_NAME_PREFIX {NONE, FILENAME, REMOVE}
+    EnumChoiceParameter<POSITION_NAME_PREFIX> positionNamePrefixChoice = new EnumChoiceParameter<>("Position Name Prefix", POSITION_NAME_PREFIX.values(), POSITION_NAME_PREFIX.NONE).setHint("Prefix added to position name. <br /> Avoid name collision when importing several files containing several positions");
+    TextParameter positionNameRemove = new TextParameter("Replace", "", true).setHint("character sequence to remove from filename. position prefix will be the remaining characters will");
 
+    ConditionalParameter<POSITION_NAME_PREFIX> positionNamePrefixCond = new ConditionalParameter<>(positionNamePrefixChoice).setActionParameters(POSITION_NAME_PREFIX.REMOVE, positionNameRemove);
     ConditionalParameter<String> importCond = new ConditionalParameter<>(importMethod)
             .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator)
             .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ, axesInterpretation)
-            .setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ, axesInterpretation)
+            .setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ, axesInterpretation, positionNamePrefixCond)
             .setHint("<b>Define here the organization of input images</b><ol>"
                     + "<li>"+IMPORT_METHOD.SINGLE_FILE.getMethod()+": A single file contains all frames, detection channels and positions</li>"
                     + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod()+": For each position, there is one file per detection channel, which contains all frames<br /> File names must contain the user-defined channel keywords (defined in <em>Detection Channel</em>). For a given position, the file names should differ only by their channel keyword. In case one file contains several channels, several <em>Detection Channels</em> with the same channel keyword can be set. They will point to each channel in the corresponding file (in the same order)</li>"
@@ -308,7 +312,17 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
     
     public String getImportImagePositionSeparator() {
-        return positionSeparator.getValue();
+        if (getImportImageMethod().equals(IMPORT_METHOD.SINGLE_FILE)) {
+            switch (positionNamePrefixChoice.getSelectedEnum()) {
+                case NONE:
+                default:
+                    return null;
+                case FILENAME:
+                    return "";
+                case REMOVE:
+                    return positionNameRemove.getValue();
+            }
+        } else return positionSeparator.getValue();
     }
 
     public Experiment setImportImagePositionSeparator(String sep) {

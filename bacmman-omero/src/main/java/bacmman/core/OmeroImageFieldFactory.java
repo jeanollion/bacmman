@@ -87,10 +87,14 @@ public class OmeroImageFieldFactory {
         if (image.getSizeC()==xp.getChannelImageCount(false)) {
             Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
             boolean invertTZ = (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && image.getSizeZ() > 1 && image.getSizeT() == 1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && image.getSizeZ() == 1 && image.getSizeT() > 1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ());
-            MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(Utils.removeExtension(image.getFileName()), image.getFileId(), invertTZ?image.getSizeT():image.getSizeZ(), image.getSizeC(), invertTZ?image.getSizeZ():image.getSizeT(), image.getScaleXY(), image.getScaleZ(), invertTZ);
+            String positionSeparator = xp.getImportImagePositionSeparator();
+            String name;
+            if (positionSeparator == null || positionSeparator.isEmpty()) name = Utils.removeExtension(image.getFileName());
+            else name = Utils.removeExtension(image.getFileName()).replace(positionSeparator, "");
+            MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(name, image.getFileId(), invertTZ?image.getSizeT():image.getSizeZ(), image.getSizeC(), invertTZ?image.getSizeZ():image.getSizeT(), image.getScaleXY(), image.getScaleZ(), invertTZ);
             if (image.getTimepoints()!=null && image.getTimepoints().size()==c.getFrameNumber()) c.setTimePoints(image.getTimepoints());
             containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
-            logger.info("image {} imported successfully", image.getFileNameAndId());
+            logger.info("image {} imported successfully", image.getFileNameAndId());
         } else {
             if (pcb!=null) pcb.log("WARNING: Invalid Image: "+image.getFileNameAndId() +" has: "+image.getSizeC()+" channels instead of: "+xp.getChannelImageCount(false));
             logger.warn("Invalid Image: {} has: {} channels instead of: {}", image.getFileNameAndId(), image.getSizeC(), xp.getChannelImageCount(false));

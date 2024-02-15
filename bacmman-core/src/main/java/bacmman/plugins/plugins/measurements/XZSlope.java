@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.measurements;
 
+import bacmman.configuration.parameters.BoundedNumberParameter;
+import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
@@ -26,23 +28,29 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.plugins.transformations.SelectBestFocusPlane;
+import bacmman.utils.LinearRegression;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 
 /**
  *
  * @author Jean Ollion
  */
-public class XZSlope implements Measurement, DevPlugin {
+public class XZSlope implements Measurement {
     protected ObjectClassParameter microchannel = new ObjectClassParameter("Object Class", 0, false, false).setHint("Select object class corresponding to microchannel");
+    NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 1, 10);
+    NumberParameter smoothScale = new BoundedNumberParameter("Smooth Scale", 5, 2, 1, 10);
+    NumberParameter precisionFactor = new BoundedNumberParameter("precision Factor", 0, 2, 1, 10);
+
     @Override
     public int getCallObjectClassIdx() {
-        return -1;
+        return microchannel.getParentObjectClassIdx();
     }
 
     @Override
@@ -52,29 +60,52 @@ public class XZSlope implements Measurement, DevPlugin {
 
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
-        return new ArrayList<MeasurementKey>(){{add(new MeasurementKeyObject("XZSlope", 0));add(new MeasurementKeyObject("FocusPlane", 0));}};
+        int mcOCIdx = microchannel.getSelectedClassIdx();
+        int parentIdx = microchannel.getParentObjectClassIdx();
+        return new ArrayList<MeasurementKey>(){{add(new MeasurementKeyObject("XZSlope", parentIdx));add(new MeasurementKeyObject("FocusPlane", mcOCIdx));}};
     }
 
     @Override
     public void performMeasurement(SegmentedObject object) {
-        List<SegmentedObject> mcs = object.getChildren(0).collect(Collectors.toList());;
+        int mcOCIDx = microchannel.getSelectedClassIdx();
+        double gradientScale = this.gradientScale.getDoubleValue();
+        double smoothScale = this.smoothScale.getDoubleValue();
+        int precisionFactor = this.precisionFactor.getIntValue();
+        List<SegmentedObject> mcs = object.getChildren(mcOCIDx).collect(Collectors.toList());;
         if (mcs.size()<2) return;
         Collections.sort(mcs, Comparator.comparingInt(o -> o.getBounds().xMin()));
-        SegmentedObject oLeft = mcs.get(0);
-        SegmentedObject oRight = mcs.get(mcs.size()-1);
-        int left = SelectBestFocusPlane.getBestFocusPlane(oLeft.getRawImage(oLeft.getStructureIdx()).splitZPlanes(), 3, null, true, null);
-        int right = SelectBestFocusPlane.getBestFocusPlane(oRight.getRawImage(oLeft.getStructureIdx()).splitZPlanes(), 3, null, true, null);
-        double value = (right-left) * object.getScaleZ() / ((oRight.getBounds().xMean()-oLeft.getBounds().xMean()) * object.getScaleXY());
-        logger.debug("focus plane left: {} right: {} value: {} (scale XY: {}, Z: {})", left, right, value, object.getScaleXY(), object.getScaleZ());
-        oLeft.getMeasurements().setValue("XZSlope", value);
-        oRight.getMeasurements().setValue("XZSlope", value);
-        oLeft.getMeasurements().setValue("FocusPlane", left);
-        oRight.getMeasurements().setValue("FocusPlane", right);
+        double[] values = mcs.stream().mapToDouble(mc -> SelectBestFocusPlane.getBestFocusPlane(mc.getRawImage(mcOCIDx).splitZPlanes(), gradientScale, smoothScale, precisionFactor, null, true, null)).toArray();
+        double[] xPos = mcs.stream().mapToDouble(mc -> mc.getBounds().xMean() * object.getScaleXY()).toArray();
+        for (int i = 0; i<mcs.size(); ++i) {
+            mcs.get(i).getMeasurements().setValue("FocusPlane", values[i]);
+            values[i] *= object.getScaleZ();
+        }
+        logger.debug("focus planes: {}", values);
+        // filter out null values (empty microchannels)
+        int nNull = (int)DoubleStream.of(values).filter(d->d<=0).count();
+        if (nNull>0) {
+            double[] newValues = new double[values.length - nNull];
+            double[] newX = new double[values.length - nNull];
+            int idx = 0;
+            for (int i = 0; i<values.length; ++i) {
+                if (values[i]>0) {
+                    newValues[idx] = values[i];
+                    newX[idx] = xPos[i];
+                    ++idx;
+                }
+            }
+            values = newValues;
+            xPos = newX;
+        }
+        double[] reg = LinearRegression.run(xPos, values);
+        //double value = (right-left) * object.getScaleZ() / ((oRight.getBounds().xMean()-oLeft.getBounds().xMean()) * object.getScaleXY());
+        logger.debug("slope: {} (scale XY: {}, Z: {})", reg[1], object.getScaleXY(), object.getScaleZ());
+        object.getMeasurements().setValue("XZSlope", reg[1]);
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{microchannel};
+        return new Parameter[]{microchannel, gradientScale,smoothScale, precisionFactor};
     }
     
 }

@@ -130,11 +130,16 @@ public class ImageFieldFactory {
         int[][] stc = reader.getSTCXYZNumbers();
         long t2 = System.currentTimeMillis();
         int s = 0;
-        String end = "";
+        String positionName = "";
         int digits=Utils.nDigits(stc.length);
         for (int[] tc : stc) {
-            if (stc.length>1) end = sep+Utils.formatInteger(digits, s);
-            else end = Utils.removeExtension(image.getName());
+            if (sep == null) positionName = "xy";
+            else if (sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
+            else positionName = getPositionName(Utils.removeExtension(image.getName()), sep);
+            if (stc.length>1) {
+                if (sep != null) positionName += "_";
+                positionName += Utils.formatInteger(digits, s);
+            }
             if (tc[1]==xp.getChannelImageCount(false)) {
                 double[] scaleXYZ = reader.getScaleXYZ(1);
                 boolean invertTZ;
@@ -147,7 +152,7 @@ public class ImageFieldFactory {
                     invertTZ = axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ();
                     // no need to swap as it was already done when reader was invertTZ was set to reader
                 }
-                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], invertTZ);
+                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(positionName, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], invertTZ);
                 containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
                 if (importMetadata) {
                     Map<String, Object> metadata = reader.getSeriesMetadata(s);
@@ -167,6 +172,9 @@ public class ImageFieldFactory {
         reader.closeReader();
         long t3 = System.currentTimeMillis();
         logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t3-t0, t1-t0, t2-t1, t3-t2);
+    }
+    protected static String getPositionName(String fileName, String separator) {
+        return fileName.replace(separator, "");
     }
     protected static boolean fileExistsExtensionCase(String name) {
         File f = new File(name);
