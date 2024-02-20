@@ -183,7 +183,7 @@ public class ImgLib2ImageWrapper {
             final int sizeY =  ( int ) source.dimension( 1 );
             final ArrayImg< T2,  ArrayDataAccess< ? > > img = (ArrayImg< T2, ArrayDataAccess< ? > >)new ArrayImgFactory<>( type ).create(sizeX, sizeY);
             final AbstractProjector2D projector = new IterableIntervalProjector2D<>( 0, 1, source, img, converter );
-            projector.setPosition( z, 2 );
+            if (source.numDimensions()>2) projector.setPosition( z, 2 );
             projector.map();
             return img;
         }
