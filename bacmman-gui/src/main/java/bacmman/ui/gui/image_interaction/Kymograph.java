@@ -268,7 +268,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 if (th.getPrevious()!=null) {
                     int j = currentTracks.indexOf(th.getPrevious().getTrackHead());
                     if (j>=0) {
-                        if (i>j) toRemove.add(currentTracks.get(i));
+                        if (i<j) toRemove.add(currentTracks.get(i));
                         else toRemove.add(currentTracks.get(j));
                     }
                 }

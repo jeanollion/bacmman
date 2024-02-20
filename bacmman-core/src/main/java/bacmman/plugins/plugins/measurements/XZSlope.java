@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.measurements;
 
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
@@ -44,7 +41,8 @@ import java.util.stream.DoubleStream;
  */
 public class XZSlope implements Measurement {
     protected ObjectClassParameter microchannel = new ObjectClassParameter("Object Class", 0, false, false).setHint("Select object class corresponding to microchannel");
-    NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 1, 10);
+    NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 0, 10);
+    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters");
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth Scale", 5, 2, 1, 10);
     NumberParameter precisionFactor = new BoundedNumberParameter("precision Factor", 0, 2, 1, 10);
 
@@ -74,7 +72,7 @@ public class XZSlope implements Measurement {
         List<SegmentedObject> mcs = object.getChildren(mcOCIDx).collect(Collectors.toList());;
         if (mcs.size()<2) return;
         Collections.sort(mcs, Comparator.comparingInt(o -> o.getBounds().xMin()));
-        double[] values = mcs.stream().mapToDouble(mc -> SelectBestFocusPlane.getBestFocusPlane(mc.getRawImage(mcOCIDx).splitZPlanes(), gradientScale, smoothScale, precisionFactor, null, true, null)).toArray();
+        double[] values = mcs.stream().mapToDouble(mc -> SelectBestFocusPlane.getBestFocusPlane(mc.getRawImage(mcOCIDx).splitZPlanes(), gradientScale, smoothScale, precisionFactor, null, true, null, preFilters)).toArray();
         double[] xPos = mcs.stream().mapToDouble(mc -> mc.getBounds().xMean() * object.getScaleXY()).toArray();
         for (int i = 0; i<mcs.size(); ++i) {
             mcs.get(i).getMeasurements().setValue("FocusPlane", values[i]);
@@ -100,12 +98,12 @@ public class XZSlope implements Measurement {
         double[] reg = LinearRegression.run(xPos, values);
         //double value = (right-left) * object.getScaleZ() / ((oRight.getBounds().xMean()-oLeft.getBounds().xMean()) * object.getScaleXY());
         logger.debug("slope: {} (scale XY: {}, Z: {})", reg[1], object.getScaleXY(), object.getScaleZ());
-        object.getMeasurements().setValue("XZSlope", reg[1]);
+        object.getMeasurements().setValue("XZSlope", reg[1] * 100);
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{microchannel, gradientScale,smoothScale, precisionFactor};
+        return new Parameter[]{microchannel, preFilters, gradientScale,smoothScale, precisionFactor};
     }
     
 }

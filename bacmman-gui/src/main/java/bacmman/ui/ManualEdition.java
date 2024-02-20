@@ -210,8 +210,8 @@ public class ManualEdition {
                     } else {
                         if (p.getNext()!=null && p.getNext().equals(n) && n.getPrevious()!=null && n.getPrevious().equals(p) && n.getTrackHead().equals(p.getTrackHead())) continue;
                         if (forceDoubleLink) { // unlink
-                            editor.resetTrackLinks(p, false, true, true);
-                            editor.resetTrackLinks(n, true, false, true);
+                            unlinkObjects(p, null, ALWAYS_MERGE(), editor);
+                            unlinkObjects(null, n, ALWAYS_MERGE(), editor);
                         }
                         linkObjects(p, n, true, editor);
                     }

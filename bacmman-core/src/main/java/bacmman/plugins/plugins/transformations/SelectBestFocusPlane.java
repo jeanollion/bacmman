@@ -23,20 +23,18 @@ import bacmman.core.Core;
 import bacmman.image.*;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.pre_filters.IJSubtractBackground;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.data_structure.input_image.InputImages;
-import bacmman.processing.ImageDerivatives;
-import bacmman.processing.ImageOperations;
+import bacmman.processing.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import bacmman.processing.ImageFeatures;
-
 import java.util.List;
 
-import bacmman.processing.Resize;
+import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
 
@@ -49,12 +47,13 @@ import java.util.function.IntConsumer;
  */
 public class SelectBestFocusPlane implements ConfigurableTransformation, MultichannelTransformation, Autofocus, Hint {
     ArrayList<Integer> bestFocusPlaneIdxT = new ArrayList<Integer>();
-    NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 1, 10);
+    NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 0, 10);
+    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters");
     NumberParameter smooothScale = new BoundedNumberParameter("Smooth Scale", 5, 2, 1, 10);
 
     PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(2.5, 3, 3), true).setHint("Gradient magnitude maximization is performed among pixels with value over this threshold"); //new ConstantValue(150)    Parameter[] parameters = new Parameter[]{gradientScale};
     BooleanParameter excludeUnderThld = new BooleanParameter("Exclude under Threshold", true);
-    Parameter[] parameters = new Parameter[]{gradientScale, smooothScale, signalExclusionThreshold, excludeUnderThld};
+    Parameter[] parameters = new Parameter[]{preFilters, gradientScale, smooothScale, signalExclusionThreshold, excludeUnderThld};
     public SelectBestFocusPlane() {}
     public SelectBestFocusPlane(double gradientScale) {
         this.gradientScale.setValue(gradientScale);
@@ -73,7 +72,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                 if (image.sizeZ()>1) {
                     List<Image> planes = image.splitZPlanes();
                     SimpleThresholder thlder = signalExclusionThreshold.instantiatePlugin();
-                    conf[t] = (int)getBestFocusPlane(planes, scale, sscale, 1, thlder, excludeUnderThld.getSelected(), null);
+                    conf[t] = (int)getBestFocusPlane(planes, scale, sscale, 1, thlder, excludeUnderThld.getSelected(), null, preFilters);
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
             };
@@ -86,10 +85,10 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
     @Override
     public int getBestFocusPlane(Image image, ImageMask mask) {
         if (image.sizeZ()<=1) return 0;
-        return (int)getBestFocusPlane(image.splitZPlanes(), this.gradientScale.getValue().doubleValue(), this.smooothScale.getDoubleValue(), 1, this.signalExclusionThreshold.instantiatePlugin(), this.excludeUnderThld.getSelected(), mask);
+        return (int)getBestFocusPlane(image.splitZPlanes(), this.gradientScale.getValue().doubleValue(), this.smooothScale.getDoubleValue(), 1, this.signalExclusionThreshold.instantiatePlugin(), this.excludeUnderThld.getSelected(), mask, preFilters);
     }
     
-    public static double getBestFocusPlane(List<Image> planes, double scale, double smoothScale, int precisionFactor, SimpleThresholder thlder, boolean excludeUnder, ImageMask globalMask) {
+    public static double getBestFocusPlane(List<Image> planes, double scale, double smoothScale, int precisionFactor, SimpleThresholder thlder, boolean excludeUnder, ImageMask globalMask, PreFilterSequence preFilters) {
         ImageMask mask = null;
         double[] values = new double[planes.size()];
         for (int zz = 0; zz<planes.size(); ++zz) {
@@ -103,20 +102,37 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                 final int zzz = zz;
                 mask = new PredicateMask(planes.get(zz), (x, y, z)->globalMask.insideMask(x, y, zzz), (xy, z)->globalMask.insideMask(xy, zzz), true);
             }
-            values[zz] = evalPlane(planes.get(zz), scale, mask);
+            Image plane = planes.get(zz);
+            if (!preFilters.isEmpty()) plane = preFilters.filter(plane, null); // new ImageMask2D(globalMask, zz)
+            values[zz] = evalPlane(plane, scale, mask);
         }
         ImageDouble im = new ImageDouble("", values.length, values);
         if (smoothScale>=1) im = (ImageDouble)ImageDerivatives.gaussianSmooth(im, smoothScale);
         if (precisionFactor>1) {
             ImageDouble imResample = Resize.resample(im, ImgLib2ImageWrapper.INTERPOLATION.LANCZOS5, values.length * precisionFactor);
+            logger.debug("max:{} max resample: {} values: {} resample: {}", ArrayUtil.max(values), ArrayUtil.max(imResample.getPixelArray()[0]) / (double)precisionFactor, values, imResample.getPixelArray()[0]);
             return ArrayUtil.max(imResample.getPixelArray()[0]) / (double)precisionFactor;
         } else {
+            logger.debug("max: {} values: {}", ArrayUtil.max(im.getPixelArray()[0]), im.getPixelArray()[0]);
             return ArrayUtil.max(im.getPixelArray()[0]);
         }
     }
     public static double evalPlane(Image plane, double scale, ImageMask mask) {
-        Image gradient = ImageFeatures.getGradientMagnitude(plane, scale, false);
+        if (scale>0) plane = ImageDerivatives.gaussianSmooth(plane, scale);
+        Image gradient = ImageDerivatives.getGradientMagnitude(plane, 0, 0, 1);
+        //Image gradient = ImageFeatures.getGradientMagnitude(plane, scale, false);
         return ImageOperations.getMeanAndSigma(gradient, mask, null)[0];
+        /*Neighborhood n = Filters.getNeighborhood(Math.max(1.5, scale), plane);
+        Image sigma = Filters.sigma(plane, null, n, true);
+        Image mean = Filters.mean(plane, null, n, true);
+        double[] cum = new double[2];
+        BoundingBox.LoopFunction fun = (x, y, z) -> {
+            cum[0] += sigma.getPixel(x, y, z) / mean.getPixel(x, y, z);
+            ++cum[1];
+        };
+        if (mask == null) BoundingBox.loop(sigma.getBoundingBox().resetOffset(), fun);
+        else ImageMask.loop(mask, fun);
+        return cum[0] / cum[1];*/
     }
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {

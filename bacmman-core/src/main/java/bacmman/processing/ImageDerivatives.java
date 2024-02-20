@@ -60,12 +60,46 @@ public class ImageDerivatives {
         return ImgLib2ImageWrapper.wrap(smooth);
     }
 
-     public static ImageFloat[] getGradient(Image image, double scale, int... axis) {
+    public static ImageFloat getGradientMagnitude(Image image, double scale, int... axis) {
+        ImageFloat[] grad = getGradient(image,scale, axis);
+        ImageFloat res = new ImageFloat(image.getName() + ":gradientMagnitude", image);
+        final float[][] pixels = res.getPixelArray();
+        if (grad.length == 3) {
+            final int sizeX = image.sizeX();
+            final float[][] grad0 = grad[0].getPixelArray();
+            final float[][] grad1 = grad[1].getPixelArray();
+            final float[][] grad2 = grad[2].getPixelArray();
+            int offY, off;
+            for (int z = 0; z< image.sizeZ(); ++z) {
+                for (int y = 0; y< image.sizeY(); ++y) {
+                    offY = y * sizeX;
+                    for (int x = 0; x< sizeX; ++x) {
+                        off = x + offY;
+                        pixels[z][off] = (float) Math.sqrt(grad0[z][off] * grad0[z][off] + grad1[z][off] * grad1[z][off] + grad2[z][off] * grad2[z][off]);
+                    }
+                }
+            }
+        } else {
+            final int sizeX = image.sizeX();
+            final float[][] grad0 = grad[0].getPixelArray();
+            final float[][] grad1 = grad[1].getPixelArray();
+            int offY, off;
+            for (int y = 0; y< image.sizeY(); ++y) {
+                offY = y * sizeX;
+                for (int x = 0; x< sizeX; ++x) {
+                    off = x + offY;
+                    pixels[0][off] = (float) Math.sqrt(grad0[0][off] * grad0[0][off] + grad1[0][off] * grad1[0][off]);
+                }
+            }
+        }
+        return res;
+    }
+    public static ImageFloat[] getGradient(Image image, double scale, int... axis) {
         Img input = ImgLib2ImageWrapper.getImage(image);
         if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
         ImageFloat[] res = new ImageFloat[axis.length];
         RandomAccessible inputRA = Views.extendBorder(input);
-        if (scale>=1) {
+        if (scale>0) {
             Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             Gauss3.gauss(scale, inputRA, smooth);
             inputRA = Views.extendBorder(smooth);

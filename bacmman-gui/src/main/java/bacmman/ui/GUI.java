@@ -4813,14 +4813,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 logger.warn("Select at least one track to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinksTracks(db, sel, true, false, true);
+            ManualEdition.modifyObjectLinksTracks(db, sel, true, true, true);
         } else {
             List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
             if (sel.isEmpty()) {
                 logger.warn("Select at least one object to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinks(db, sel, true, false, true);
+            ManualEdition.modifyObjectLinks(db, sel, true, true, true);
         }
     }//GEN-LAST:event_unlinkObjectsButtonActionPerformed
 

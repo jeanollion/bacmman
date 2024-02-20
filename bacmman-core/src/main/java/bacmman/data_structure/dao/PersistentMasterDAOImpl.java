@@ -432,7 +432,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         logger.debug("Updating configuration file..");
         if (xp!=null && cfg!=null) {
             try {
-                logger.debug("updating xp: {}", xp.toJSONEntry().toJSONString());
+                //logger.debug("updating xp: {}", xp.toJSONEntry().toJSONString());
                 FileIO.write(cfg, xp.toJSONEntry().toJSONString(), false);
                 if (this.experimentChangedFromFile()) {
                     Core.userLog("Could not save configuration");

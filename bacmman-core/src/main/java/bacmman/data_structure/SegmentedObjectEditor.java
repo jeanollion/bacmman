@@ -200,7 +200,6 @@ public class SegmentedObjectEditor {
                 }
                 Set<SegmentedObject> parents = SegmentedObjectUtils.getParents(toDelete);
                 if (relabel) for (SegmentedObject p : parents) p.relabelChildren(structureIdx, editor.getModifiedObjects()); // relabel
-
                 if (dao != null) {
                     logger.info("Deleting {} objects, from {} parents", toDelete.size(), parents.size());
                     dao.delete(toDelete, true, false, false);
