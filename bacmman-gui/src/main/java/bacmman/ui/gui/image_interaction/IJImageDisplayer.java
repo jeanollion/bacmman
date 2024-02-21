@@ -195,7 +195,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         final boolean[] zoomHasBeenFixed = new boolean[1];
         MouseWheelListener mwl = e ->  { // code modified from IJ source
             synchronized (iw) {
-                if (!zoomHasBeenFixed[0] && ic.getMagnification()<0.05) { // case zoom is very low -> set to 100%
+                if (!zoomHasBeenFixed[0] && ic.getMagnification()<0.1) { // case zoom is very low -> set to 100%
                     ic.zoom100Percent();
                     zoomHasBeenFixed[0] = true;
                 }
@@ -249,53 +249,48 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
 
                 if (scrollZ) {
-                    StackWindow sw = (StackWindow)iw;
                     int slice = imp.getSlice() + rotation;
                     if (slice<1) slice = 1;
                     else if (slice>imp.getNSlices()) slice = imp.getNSlices();
                     imp.setZ(slice);
                     imp.updateStatusbarValue();
-                    SyncWindows.setZ(sw, slice);
+                    SyncWindows.setZ(iw, slice);
                 } else if (scrollTime) {
-                    StackWindow sw = (StackWindow)iw;
                     int slice = imp.getFrame() + rotation;
                     if (slice<1) slice = 1;
                     else if (slice>imp.getNFrames()) slice = imp.getNFrames();
                     imp.setT(slice);
                     imp.updateStatusbarValue();
-                    SyncWindows.setT(sw, slice);
+                    SyncWindows.setT(iw, slice);
                 } else if (scrollChannels) {
-                    StackWindow sw = (StackWindow)iw;
                     int slice = imp.getChannel() + rotation;
                     if (slice<1) slice = 1;
                     else if (slice>imp.getNChannels()) slice = imp.getNChannels();
                     imp.setC(slice);
                     imp.updateStatusbarValue();
-                    SyncWindows.setC(sw, slice);
+                    SyncWindows.setC(iw, slice);
                 } else { // move within image
                     int scrollXamount = rotation*amount* (srcRect.width/12);
                     int scrollYamount = rotation*amount * (srcRect.height/12);
                     if (TimeLapseInteractiveImageFactory.DIRECTION.X.equals(direction) && scrollX) { // move or change slice if end of image
                         IntFunction<Integer> ensureBounds = newStartX -> Math.min(width - srcRect.width, Math.max(0, newStartX));
                         if (scrollXamount>0 && srcRect.x + srcRect.width == width) {
-                            StackWindow sw = (StackWindow)iw;
                             int nextSlice = imp.getFrame() + 1;
                             if (nextSlice<=imp.getNFrames()) {
                                 srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(nextSlice-1, true));
                                 //srcRect.x = 0;
                                 imp.setT(nextSlice);
                                 imp.updateStatusbarValue();
-                                SyncWindows.setT(sw, nextSlice);
+                                SyncWindows.setT(iw, nextSlice);
                             }
                         } else if (scrollXamount<0 && srcRect.x == 0) {
-                            StackWindow sw = (StackWindow)iw;
                             int nextSlice = imp.getFrame() - 1;
                             if (nextSlice>0) {
                                 srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(nextSlice-1, false));
                                 //srcRect.x = width - srcRect.width;
                                 imp.setT(nextSlice);
                                 imp.updateStatusbarValue();
-                                SyncWindows.setT(sw, nextSlice);
+                                SyncWindows.setT(iw, nextSlice);
                             }
                         } else {
                             srcRect.x = ensureBounds.apply(srcRect.x + scrollXamount);
@@ -304,22 +299,20 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                     } else if (TimeLapseInteractiveImageFactory.DIRECTION.Y.equals(direction) && scrollY) { // move or change slice if end of image
                         IntFunction<Integer> ensureBounds = newStartY -> Math.min(height - srcRect.height, Math.max(0, newStartY));
                         if (scrollYamount>0 && srcRect.y + srcRect.height == height) {
-                            StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() + 1;
                             if (slice<=imp.getNFrames()) {
                                 srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true));
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
-                                SyncWindows.setT(sw, slice);
+                                SyncWindows.setT(iw, slice);
                             }
                         } else if (scrollYamount<0 && srcRect.y == 0) {
-                            StackWindow sw = (StackWindow)iw;
                             int slice = imp.getFrame() - 1;
                             if (slice>0) {
                                 srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false));
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
-                                SyncWindows.setT(sw, slice);
+                                SyncWindows.setT(iw, slice);
                             }
                         } else {
                             srcRect.y = ensureBounds.apply(srcRect.y + scrollYamount);
