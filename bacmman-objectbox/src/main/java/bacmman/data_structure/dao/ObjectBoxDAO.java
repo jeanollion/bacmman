@@ -611,6 +611,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             res = objectStores.get(objectClassIdx).callInReadTx(() -> {
                 long id = query.findFirstId();
                 query.close();
+                if (id == 0) return null;
                 SegmentedObjectBox sob = cache.get(id);
                 if (sob == null) {
                     sob = box.get(id);
@@ -619,6 +620,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                 return sob;
             });
         }
+        if (res==null) return null;
         return res.getSegmentedObject(objectClassIdx, this);
     }
 

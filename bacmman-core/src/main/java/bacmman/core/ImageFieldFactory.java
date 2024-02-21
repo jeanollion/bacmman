@@ -133,12 +133,15 @@ public class ImageFieldFactory {
         String positionName = "";
         int digits=Utils.nDigits(stc.length);
         for (int[] tc : stc) {
-            if (sep == null) positionName = "xy";
-            else if (sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
-            else positionName = getPositionName(Utils.removeExtension(image.getName()), sep);
             if (stc.length>1) {
+                if (sep == null) positionName = "xy";
+                else if (sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
+                else positionName = Utils.removeExtension(image.getName()).replace(sep, "");
                 if (sep != null) positionName += "_";
                 positionName += Utils.formatInteger(digits, s);
+            } else {
+                if (sep == null || sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
+                else positionName = Utils.removeExtension(image.getName()).replace(sep, "");
             }
             if (tc[1]==xp.getChannelImageCount(false)) {
                 double[] scaleXYZ = reader.getScaleXYZ(1);
@@ -173,9 +176,7 @@ public class ImageFieldFactory {
         long t3 = System.currentTimeMillis();
         logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t3-t0, t1-t0, t2-t1, t3-t2);
     }
-    protected static String getPositionName(String fileName, String separator) {
-        return fileName.replace(separator, "");
-    }
+
     protected static boolean fileExistsExtensionCase(String name) {
         File f = new File(name);
         if (!f.exists()) { // try to switch extension case

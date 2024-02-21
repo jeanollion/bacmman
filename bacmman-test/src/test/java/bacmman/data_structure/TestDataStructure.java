@@ -37,6 +37,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -59,13 +60,9 @@ public class TestDataStructure {
     public TemporaryFolder testFolder = new TemporaryFolder();
     
     static {MasterDAOFactory.findModules("bacmman.data_structure.dao");}
-    private MasterDAO generateDB(String type) {
+    private MasterDAO generateDB(String type) throws IOException{
         String dir = "";
-        try {
-            dir = testFolder.newFolder().getAbsolutePath();
-        } catch (Exception e) {
-            logger.error("could not create folder:", e);
-        }
+        dir = testFolder.newFolder().getAbsolutePath();
         MasterDAO dao = MasterDAOFactory.getDAO("testdb", dir, type);
         dao.setConfigurationReadOnly(false);
         dao.lockPositions();
@@ -168,6 +165,7 @@ public class TestDataStructure {
         }
         List<SegmentedObject> rootTrack = xp.getPosition(0).createRootObjects(dao);
         assertEquals("root object creation: number of objects", 3, rootTrack.size());
+        logger.debug("root ids: {}",rootTrack.stream().map(r -> r.id).collect(Collectors.toList()));
         Processor.processAndTrackStructures(db, true);
         dao.clearCache();
 

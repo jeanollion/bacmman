@@ -43,7 +43,7 @@ public class BackgroundImageLoader {
                 }
             }
             try {
-                Thread.sleep(100); // give priority to main process
+                Thread.sleep(500); // give priority to main process
             } catch (InterruptedException e) {
                 return;
             }

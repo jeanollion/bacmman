@@ -102,7 +102,6 @@ public class DeleteFromDAOTest {
         MasterDAO dao = generateDB("MemoryMasterDAO");
         deleteTest(dao);
         dao.eraseAll();
-        // probleme store: concurent modification: les children sont déjà set lorsque store est apellée... ajouter un test?
     }
     @Test
     public void deleteTestMapDB() throws IOException{

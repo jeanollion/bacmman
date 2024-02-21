@@ -100,11 +100,11 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
 
     public enum AXIS_INTERPRETATION {AUTOMATIC, TIME, Z}
     EnumChoiceParameter<AXIS_INTERPRETATION> axesInterpretation = new EnumChoiceParameter<>("Force axis", AXIS_INTERPRETATION.values(), AXIS_INTERPRETATION.AUTOMATIC).setHint("Defines how to interpret the third axis (after X, Y). Automatic: axis as defined in the image file, Z: axis is interpreted as Z if several frames and only one z-slice are detected, Time: axis is interpreted as time, if several z-slices and only one frame are detected. <br /> when Frame or Z are selected, the option <em>Swap T & Z dimension</em> is not taken into account.<br>This parameter can also be defined for each channel image.");
-    enum POSITION_NAME_PREFIX {NONE, FILENAME, REMOVE}
-    EnumChoiceParameter<POSITION_NAME_PREFIX> positionNamePrefixChoice = new EnumChoiceParameter<>("Position Name Prefix", POSITION_NAME_PREFIX.values(), POSITION_NAME_PREFIX.NONE).setHint("Prefix added to position name. <br /> Avoid name collision when importing several files containing several positions");
-    TextParameter positionNameRemove = new TextParameter("Replace", "", true).setHint("character sequence to remove from filename. position prefix will be the remaining characters will");
+    enum POSITION_NAME_PREFIX {NONE, FILENAME}
+    EnumChoiceParameter<POSITION_NAME_PREFIX> positionNamePrefixChoice = new EnumChoiceParameter<>("Position Name Prefix", POSITION_NAME_PREFIX.values(), POSITION_NAME_PREFIX.NONE).setHint("Prefix added to position name. <br /> Avoid name collision when importing several files containing several positions <br/>NONE: if files contains several positions, position name is xy<POSITION_INDEX> otherwise file name. FILENAME: position name is filename without extension, followed by _<POSITION_INDEX> if file contains several position");
+    TextParameter positionNameReplace = new TextParameter("Remove from name", "", true).setHint("character sequence to remove from filename. position prefix will be the remaining characters");
 
-    ConditionalParameter<POSITION_NAME_PREFIX> positionNamePrefixCond = new ConditionalParameter<>(positionNamePrefixChoice).setActionParameters(POSITION_NAME_PREFIX.REMOVE, positionNameRemove);
+    ConditionalParameter<POSITION_NAME_PREFIX> positionNamePrefixCond = new ConditionalParameter<>(positionNamePrefixChoice).setActionParameters(POSITION_NAME_PREFIX.FILENAME, positionNameReplace);
     ConditionalParameter<String> importCond = new ConditionalParameter<>(importMethod)
             .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator)
             .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ, axesInterpretation)
@@ -315,12 +315,10 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         if (getImportImageMethod().equals(IMPORT_METHOD.SINGLE_FILE)) {
             switch (positionNamePrefixChoice.getSelectedEnum()) {
                 case NONE:
-                default:
                     return null;
                 case FILENAME:
-                    return "";
-                case REMOVE:
-                    return positionNameRemove.getValue();
+                default:
+                    return positionNameReplace.getValue();
             }
         } else return positionSeparator.getValue();
     }
