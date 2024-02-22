@@ -10,6 +10,7 @@ import bacmman.processing.Resize;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
+import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Reader;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class PyDatasetReader {
     private IHDF5Reader reader;
     private Set<String> groupLevel1;
     private Set<Pair<String, String>> groupDB;
-    private Map<Pair<String, String>, DatasetAccess> dataAccess = new HashMap<>();
+    private final Map<Pair<String, String>, DatasetAccess> dataAccess = new HashMap<>();
     public PyDatasetReader(File file) {
         reader = HDF5IO.getReader(file);
         HashSet<String> g= new HashSet<>(reader.getGroupMembers("/"));
@@ -58,6 +59,9 @@ public class PyDatasetReader {
         return groupDB;
     }
     public DatasetAccess getDatasetAccess(String group, String dbName) {
+        return getDatasetAccess(group, dbName, 1, 0);
+    }
+    public DatasetAccess getDatasetAccess(String group, String dbName, int subsamplingFactor, int subsamplingOffset) {
         if (group==null) group="";
         Pair<String, String> p = new Pair<>(group, dbName);
         if (!groupDB.contains(p)) {
@@ -67,7 +71,7 @@ public class PyDatasetReader {
         if (!dataAccess.containsKey(p)) {
             synchronized (dataAccess) {
                 if (!dataAccess.containsKey(p)) {
-                    dataAccess.put(p, new DatasetAccess(group, dbName));
+                    dataAccess.put(p, new DatasetAccess(group, dbName, subsamplingFactor, subsamplingOffset));
                 }
             }
         }
@@ -75,7 +79,7 @@ public class PyDatasetReader {
     }
     public void close() {
         reader.close();
-        dataAccess.values().forEach(da -> da.flush());
+        dataAccess.values().forEach(DatasetAccess::flush);
         dataAccess.clear();
     }
     public void flush(String dbName) {
@@ -96,9 +100,12 @@ public class PyDatasetReader {
         final Map<String, ObjectCoordinates[]> coords;
         final Map<String, int[][]> originalDims;
         final Set<String> positions;
-        public DatasetAccess(String group, String dbName) {
+        final int subsamplingFactor, offset;
+        public DatasetAccess(String group, String dbName, int subsamplingFactor, int offset) {
             this.group = group;
             this.dbName = dbName;
+            this.subsamplingFactor = subsamplingFactor;
+            this.offset = offset;
             // get all positions for dataset
             positions = reader.getGroupMembers(dsName()).stream().filter(p->reader.isGroup(dsName(p))).collect(Collectors.toSet());
             coords = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(position -> {
@@ -118,6 +125,7 @@ public class PyDatasetReader {
                 return reader.int32().readMatrix(dsName(position) + "/originalDimensions");
             });
         }
+
         public Histogram getHistogram(String datasetName) {
             long[] histoData = reader.int64().getArrayAttr(dsName(), datasetName+"_histogram");
             double binSize = reader.float64().getAttr(dsName(), datasetName+"_histogram_bin_size");
@@ -139,10 +147,11 @@ public class PyDatasetReader {
             this.originalDims.remove(posName);
         }
         public String dsName() {
-            return group.length()==0 ? dbName : group +"/"+dbName;
+            return group.isEmpty() ? dbName : group +"/"+dbName;
         }
         public String dsName(String position) {
-            return group.length()==0 ? dbName : group +"/"+dbName+"/"+position;
+            if (subsamplingFactor == 1) return group.isEmpty() ? dbName : group +"/"+dbName+"/"+position;
+            else return group.isEmpty() ? dbName : group +"/"+dbName+"/sub"+subsamplingFactor+"/off"+ Utils.formatInteger(subsamplingFactor-1, 1, offset);
         }
 
         public List<String> getDatasetNames(String position) {

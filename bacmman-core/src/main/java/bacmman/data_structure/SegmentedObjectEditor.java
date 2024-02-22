@@ -2,6 +2,7 @@ package bacmman.data_structure;
 
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,33 @@ public class SegmentedObjectEditor {
         if (prevs==null) return Stream.empty();
         return prevs.filter(e -> o.equals(e.getNext()));
     }
+
+    public static Stream<SegmentedObject> getPreviousAtFrame(SegmentedObject o, final int frame) {
+        if (frame == o.getFrame()-1) return getPrevious(o).filter(n -> n.getFrame()==o.getFrame()-1);
+        if (frame == o.getFrame()) return Stream.of(o);
+        if (frame > o.getFrame()) throw new IllegalArgumentException("Previous frame must be before object frame");
+        List<SegmentedObject> currentObjects = getPrevious(o).collect(Collectors.toList());
+        int currentFrame = currentObjects.size() == 1 ? currentObjects.get(0).getFrame() : o.getFrame() - 1;
+        if (currentFrame<frame) return Stream.empty(); // gap in track
+        else if (currentFrame == frame) return currentObjects.stream();
+        Map<Integer, Set<SegmentedObject>> gapLinkedObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory<>());
+        while (!currentObjects.isEmpty() || !gapLinkedObjects.isEmpty()) {
+            --currentFrame;
+            int cf = currentFrame;
+            Stream<SegmentedObject> nextStream = currentObjects.stream().flatMap(SegmentedObjectEditor::getPrevious).distinct().filter(n -> {
+                if (n.getFrame() == cf) return true;
+                else { // gap in track -> move to unseen objects
+                    gapLinkedObjects.get(n.getFrame()).add(n);
+                    return false;
+                }
+            });
+            if (gapLinkedObjects.containsKey(currentFrame)) nextStream = Stream.concat(nextStream, gapLinkedObjects.remove(currentFrame).stream()).distinct();
+            if (currentFrame == frame) return nextStream;
+            currentObjects = nextStream.collect(Collectors.toList());
+        }
+        return Stream.empty();
+    }
+
     public static void unlinkObject(SegmentedObject o, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, TrackLinkEditor editor) {
         if (o==null) return;
         getNext(o).forEach(n -> unlinkObjects(o, n, mergeTracks, editor));

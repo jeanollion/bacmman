@@ -673,13 +673,19 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 resetLinksButtonActionPerformed(e);
             }
         });
-        actionMap.put(Shortcuts.ACTION.RESET_LINKS, new AbstractAction("Reset Links") {
+        /*actionMap.put(Shortcuts.ACTION.TEST, new AbstractAction("TEST") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                resetLinksButtonActionPerformed(e);
+                ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+                List<SegmentedObject> obj = iwm.getSelectedLabileObjects(null);
+                if (!obj.isEmpty()) {
+                    Stream<SegmentedObject> toSelect = obj.stream().flatMap(o->SegmentedObjectEditor.getPreviousAtFrame(o, o.getFrame()-10));
+                    InteractiveImage ii = iwm.getInteractiveImage(null);
+                    iwm.displayObjects(null, ii.toObjectDisplay(toSelect).collect(Collectors.toList()), null, true, true, false);
+                }
             }
-        });
+        });*/
         actionMap.put(Shortcuts.ACTION.DELETE, new AbstractAction("Delete") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -4318,7 +4324,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                             db.getSelectionDAO().store(s);
                             selectedSelections = Collections.singletonList(s.getName());
                         }
-                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, getExtractedDSCompressionFactor());
+                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, 1, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {

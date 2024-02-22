@@ -15,13 +15,15 @@ public class BackgroundImageLoader {
     Thread daemon;
     ImageCoordinate currentPosition;
     final int cacheSize, maxFrames;
+    final long waitTime;
     final Object lock;
-    public BackgroundImageLoader(Supplier<Set<ImageCoordinate>> loadedPosition, Consumer<ImageCoordinate> loadFunction, Object lock, int cacheSize, int maxFrames) {
+    public BackgroundImageLoader(Supplier<Set<ImageCoordinate>> loadedPosition, Consumer<ImageCoordinate> loadFunction, Object lock, int maxFrames, int cacheSize, long latency) {
         this.loadedPosition = loadedPosition;
         this.loadFunction = loadFunction;
         this.cacheSize = cacheSize;
         this.maxFrames=maxFrames;
         this.lock=lock;
+        this.waitTime=latency;
         daemon = new Thread(this::run);
         daemon.setPriority(1);
         daemon.setDaemon(true);
@@ -43,7 +45,7 @@ public class BackgroundImageLoader {
                 }
             }
             try {
-                Thread.sleep(500); // give priority to main process
+                Thread.sleep(waitTime); // give priority to main process
             } catch (InterruptedException e) {
                 return;
             }

@@ -59,7 +59,7 @@ public class IJVirtualStack extends VirtualStack {
     final int sizeF, sizeC;
     final LinkedList<ImageCoordinate> cacheQueue = new LinkedList<>();
     final Map<ImageCoordinate, ImageProcessor> cachedImages = new HashMap<>();
-    public static int N_CACHED_FRAMES = 100; // TODO cache = memory limit
+    public static int N_CACHED_FRAMES = 20; // TODO cache = memory limit
     BackgroundImageLoader backgroundImageLoader;
     public IJVirtualStack(Image image) {
         super(image.sizeX(), image.sizeY(), null, "");
@@ -77,7 +77,7 @@ public class IJVirtualStack extends VirtualStack {
         getFCZ = IJImageWrapper.getStackIndexFunctionRev(new int[]{sizeF, sizeC, image.sizeZ()});
         logger.debug("create virtual stack for: {}, frames: {}, channels: {} z: {}", image.getName(), sizeF, sizeC, image.sizeZ());
         for (int n = 0; n<sizeF * sizeC * image.sizeZ(); ++n) super.addSlice("");
-        backgroundImageLoader = new BackgroundImageLoader(this::getLoadedPositions, this::getProcessor, cachedImages, Math.max(2, N_CACHED_FRAMES), sizeF);
+        backgroundImageLoader = new BackgroundImageLoader(this::getLoadedPositions, this::getProcessor, cachedImages, sizeF, 2, 1000);
     }
 
     public void flush() {

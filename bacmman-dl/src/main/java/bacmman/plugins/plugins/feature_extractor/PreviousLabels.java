@@ -9,9 +9,8 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
-import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
-import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.FeatureExtractorTemporal;
 import bacmman.plugins.Hint;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
@@ -21,7 +20,7 @@ import java.util.stream.Collectors;
 
 import static bacmman.plugins.plugins.feature_extractor.RawImage.handleZ;
 
-public class PreviousLabels implements FeatureExtractor, Hint {
+public class PreviousLabels implements FeatureExtractorTemporal, Hint {
     EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
     BoundedNumberParameter plane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
     ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
@@ -36,18 +35,32 @@ public class PreviousLabels implements FeatureExtractor, Hint {
     public Task.ExtractZAxis getExtractZDim() {
         return this.extractZ.getSelectedEnum();
     }
+
+    int subsamplingFactor = 1;
+    int subsamplingOffset = 0;
+    @Override
+    public void setSubsampling(int factor, int offset) {
+        this.subsamplingFactor = factor;
+        this.subsamplingOffset = offset;
+    }
+
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
         RegionPopulation curPop = resampledPopulations.get(objectClassIdx).get(parent);
         Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().stream().mapToInt(Region::getLabel).max().orElse(0), curPop.getImageProperties());
-        if (parent.getPrevious()!=null && resampledPopulations.get(objectClassIdx).get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
-            parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null && c.getPrevious().getFrame()==c.getFrame()-1).forEach(c -> {
-                Region r = curPop.getRegion(c.getIdx()+1);
-                if (r==null) {
-                    logger.error("Object: {} (rel center: {}, bds: {}) not found from it's label. all labels (-1): {}, all objects: {}", c, c.getRegion().getGeomCenter(false).translate(c.getParent().getBounds().duplicate().reverseOffset()), c.getRelativeBoundingBox(c.getParent()), curPop.getRegions().stream().mapToInt(re -> re.getLabel()-1).toArray(), parent.getChildren(objectClassIdx).filter(o->o.getPrevious()!=null).collect(Collectors.toList()));
-                    throw new RuntimeException("Object not found from it's label");
+        int previousFrame = parent.getFrame() - subsamplingFactor;
+        SegmentedObject previousParent = parent.getPreviousAtFrame(previousFrame, false);
+        if (previousParent!=null && resampledPopulations.get(objectClassIdx).get(previousParent)!=null) { // if first frame previous image is self: no previous labels
+            parent.getChildren(objectClassIdx).forEach(c -> {
+                SegmentedObject previous = c.getPreviousAtFrame(previousFrame, false);
+                if (previous != null) {
+                    Region r = curPop.getRegion(c.getIdx() + 1);
+                    if (r == null) {
+                        logger.error("Object: {} (rel center: {}, bds: {}) not found from it's label. all labels (-1): {}, all objects: {}", c, c.getRegion().getGeomCenter(false).translate(c.getParent().getBounds().duplicate().reverseOffset()), c.getRelativeBoundingBox(c.getParent()), curPop.getRegions().stream().mapToInt(re -> re.getLabel() - 1).toArray(), parent.getChildren(objectClassIdx).filter(o -> o.getPrevious() != null).collect(Collectors.toList()));
+                        throw new RuntimeException("Object not found from it's label");
+                    }
+                    r.draw(prevLabel, previous.getIdx() + 1);
                 }
-                r.draw(prevLabel, c.getPrevious().getIdx()+1);
             });
         }
         return handleZ(prevLabel, extractZ.getSelectedEnum(), plane.getIntValue());

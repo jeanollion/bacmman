@@ -410,6 +410,10 @@ public class ImageFieldFactory {
                         List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
                         filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, sortedFiles::get));
                     }
+                    if (filesByTimePoint.isEmpty()) {
+                        ok = false;
+                        break;
+                    }
                     int minTimePoint = filesByTimePoint.keySet().stream().mapToInt(i->i).min().orElse(0);
                     if (minTimePoint == 1) { // should be zero-based
                         filesByTimePoint = filesByTimePoint.entrySet().stream().collect(Collectors.toMap(e -> e.getKey()-1, Entry::getValue));

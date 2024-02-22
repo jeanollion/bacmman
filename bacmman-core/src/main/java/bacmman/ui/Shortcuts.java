@@ -54,6 +54,7 @@ public class Shortcuts {
     public static final Logger logger = LoggerFactory.getLogger(Shortcuts.class);
     public enum PRESET {QWERTY, AZERTY}
     public enum ACTION {
+        //TEST("TEST"),
         TO_FRONT("Bring BACMMAN window at front"),
         LINK("Link selected objects"),
         APPEND_LINK("Link selected objects (keep existing links if 1 object per frame is selected)"),
@@ -151,6 +152,7 @@ public class Shortcuts {
         switch(preset) {
             case AZERTY:
             default:
+                //keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), TEST);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), TO_FRONT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, 0), TOGGLE_SAFE_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.CTRL_DOWN_MASK), ACTION.LINK);

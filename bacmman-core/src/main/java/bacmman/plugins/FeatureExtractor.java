@@ -15,7 +15,7 @@ public interface FeatureExtractor extends Plugin {
     String defaultName();
     Task.ExtractZAxis getExtractZDim();
 
-    public static class Feature {
+    class Feature {
         final String name, selectionFilter;
         final FeatureExtractor featureExtractor;
         final int objectClass;

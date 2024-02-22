@@ -62,7 +62,7 @@ public class ImportH5File implements TrackPreFilter, DevPlugin {
         SegmentedObject ref = track.get(0);
         String dbName = ref.getExperimentStructure().getDatasetName();
         String posName = ref.getPositionName();
-        PyDatasetReader.DatasetAccess datasetAccess = reader.getDatasetAccess(groupName, dbName);
+        PyDatasetReader.DatasetAccess datasetAccess = reader.getDatasetAccess(groupName, dbName, 1, 0);
         if (datasetAccess==null) throw new RuntimeException("Dataset not found: file:"+file+" group:"+groupName+" db:"+dbName);
         return datasetAccess.extractImagesForTrack(datasetName, posName, track, binary);
     }
