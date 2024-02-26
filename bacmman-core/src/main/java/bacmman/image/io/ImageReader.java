@@ -8,4 +8,5 @@ public interface ImageReader {
     Image openImage(ImageIOCoordinates coords);
     double[] getScaleXYZ(double defaultValue);
     double getTimePoint(int c, int t, int z);
+    boolean imageExists();
 }

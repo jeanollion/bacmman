@@ -163,6 +163,11 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     }
 
     @Override
+    public boolean isEmpty() {
+        return imageDAO.isEmpty();
+    }
+
+    @Override
     public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException {
         UnaryPair<Integer> key = getKey(channelImageIdx, timePoint);
         SimpleDiskBackedImage im = openImages.get(key);

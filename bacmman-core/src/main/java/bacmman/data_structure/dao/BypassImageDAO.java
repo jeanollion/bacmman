@@ -8,12 +8,15 @@ import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class BypassImageDAO implements ImageDAO {
+    static Logger logger = LoggerFactory.getLogger(BypassImageDAO.class);
     final MultipleImageContainer sourceImages;
     int[] dupChannelMapChannel;
     public BypassImageDAO(Experiment xp, MultipleImageContainer sourceImages) {
@@ -44,7 +47,10 @@ public class BypassImageDAO implements ImageDAO {
 
     @Override
     public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException {
+        //long t0 = System.currentTimeMillis();
         Image res = sourceImages.getImage(timePoint, dupChannelMapChannel[channelImageIdx]);
+        //long t1 = System.currentTimeMillis();
+        //logger.debug("opening source image: tp={} channel: {} -> {}, res={} time to open: {}ms", timePoint, channelImageIdx, dupChannelMapChannel[channelImageIdx], res, t1-t0);
         return res;
     }
 
@@ -56,12 +62,21 @@ public class BypassImageDAO implements ImageDAO {
 
     @Override
     public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException {
-        return sourceImages.getPlane(z, timePoint, dupChannelMapChannel[channelImageIdx]);
+        //long t0 = System.currentTimeMillis();
+        Image res = sourceImages.getPlane(z, timePoint, dupChannelMapChannel[channelImageIdx]);
+        //long t1 = System.currentTimeMillis();
+        //logger.debug("open plane: z={}, chan={} tp={} in {}ms", z, channelImageIdx, timePoint, t1-t0);
+        return res;
     }
 
     @Override
     public BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException {
         return new BlankMask(openPreProcessedImage(channelImageIdx, 0));
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return sourceImages.isEmpty();
     }
 
     @Override

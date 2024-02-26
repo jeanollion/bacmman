@@ -22,6 +22,8 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.*;
+import bacmman.data_structure.dao.ImageDAO;
+import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.region_container.roi.ObjectRoi;
 import bacmman.data_structure.region_container.roi.TrackRoi;
 import bacmman.image.*;
@@ -212,13 +214,15 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
         String title = (preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex();
+        ImageDAO imageDAO = preProcessed ? f.getImageDAO() : null;
+        InputImages inputImages = !preProcessed ? f.getInputImages() : null;
         IntUnaryOperator getSizeZC = preProcessed ? c -> {
             try {
-                return f.getImageDAO().getPreProcessedImageProperties(c).sizeZ();
+                return imageDAO.getPreProcessedImageProperties(c).sizeZ();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        } : c -> f.getInputImages().getSourceSizeZ(c);
+        } : inputImages::getSourceSizeZ;
         int[] sizeZC = IntStream.range(0, channels).map(getSizeZC).toArray();
         int maxZIdx = ArrayUtil.max(sizeZC);
         int maxZ = sizeZC[maxZIdx];
@@ -231,21 +235,21 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         Function<int[], Image> imageOpenerFCZ  = preProcessed ? (fcz) -> {
             if (sizeZC[fcz[1]] == 1) fcz[2] = 0;
             try {
-                return f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]);
+                return imageDAO.openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         } : (fcz) -> {
             if (sizeZC[fcz[1]] == 1) fcz[2] = 0;
             try {
-                return f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
+                return inputImages.getRawPlane(fcz[2], fcz[1], fcz[0]);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         };
         LazyImage5D source = new LazyImage5DPlane(title, LazyImage5DPlane.homogenizeType(channels, imageOpenerFCZ), new int[]{frames, channels, maxZ});
-        source.setChannelNames(xp.getChannelImagesAsString(true));
-        source.setChannelColors(xp.getChannelColorAsString(true).toArray(String[]::new));
+        source.setChannelNames(xp.getChannelImagesAsString(preProcessed));
+        source.setChannelColors(xp.getChannelColorAsString(preProcessed).toArray(String[]::new));
         I image = getDisplayer().displayImage(source);
         addWindowClosedListener(image, ()-> {
             if (!preProcessed) displayedRawInputImages.remove(position);

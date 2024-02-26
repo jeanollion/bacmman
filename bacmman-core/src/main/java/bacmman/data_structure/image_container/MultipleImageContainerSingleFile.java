@@ -67,6 +67,15 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
             return true;
         } else return false;
     }
+
+    @Override
+    public boolean isEmpty() {
+        try {
+            return !getReader().imageExists();
+        } catch (IOException e) {
+            return true;
+        }
+    }
     
     @Override
     public Object toJSONEntry() {

@@ -313,11 +313,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 }
             );
             DefaultWorker.executeSingleTask(() -> {
-                try {
-                    openPreprocessedAllFrames.setEnabled(generator.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
-                } catch (IOException e) {
-                    openPreprocessedAllFrames.setEnabled(false);
-                }
+                openPreprocessedAllFrames.setEnabled(!generator.getExperiment().getPosition(position).getImageDAO().isEmpty());
             }, null);
             kymographSubMenu = new JMenu("Open Kymograph");
             actions[2] = kymographSubMenu;

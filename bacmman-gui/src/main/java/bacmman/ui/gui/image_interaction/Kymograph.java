@@ -217,12 +217,16 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
             image_ = ((LazyImage5D)image).getImage(0, channelIdx);
         } else image_ = image;
         Image type = Image.copyType(image_);
+        long t0 = System.currentTimeMillis();
         SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
         BoundingBox[] trackOffset = this.trackOffset.get(slice);
+        long t1 = System.currentTimeMillis();
         IntStream.range(0, trackOffset.length).parallel().forEach(i->{
             Image subImage = trackObjects[i].imageSupplier.apply(trackObjects[i].parent, channelIdx);
             Image.pasteImage(TypeConverter.cast(subImage, type), image_, trackOffset[i]);
         });
+        long t2 = System.currentTimeMillis();
+        //logger.debug("generate image: s={} c={}, get objects: {} paste images: {}", slice, channelIdx, t1-t0, t2-t1);
         image.setName(getImageTitle());
     }
 

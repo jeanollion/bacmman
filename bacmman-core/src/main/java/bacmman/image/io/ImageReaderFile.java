@@ -84,6 +84,12 @@ public class ImageReaderFile implements ImageReader {
         setFullPath(fullPath);
         initReader();
     }
+
+    @Override
+    public boolean imageExists() {
+        return new File(getImagePath()).exists();
+    }
+
     public ImageReaderFile setInvertTZ(boolean invertTZ) {
         this.invertTZ=invertTZ;
         return this;
@@ -124,7 +130,7 @@ public class ImageReaderFile implements ImageReader {
     }
     //loci.formats.ImageReader ifr;
     private void initReader() {
-        if (!new File(getImagePath()).exists()) logger.error("File: {} was not found", getImagePath());
+        if (!imageExists()) logger.error("File: {} was not found", getImagePath());
         //logger.debug("init reader: {}", getImagePath());
         //ifr = LociPrefs.makeImageReader();
         //reader = new ImageProcessorReader(new ChannelSeparator(LociPrefs.makeImageReader()));

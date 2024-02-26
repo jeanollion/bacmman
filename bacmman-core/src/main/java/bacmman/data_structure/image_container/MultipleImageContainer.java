@@ -52,6 +52,7 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public abstract double getCalibratedTimePoint(int t, int c, int z);
     public abstract MultipleImageContainer duplicate();
     public abstract boolean singleFrame(int channel);
+    public abstract boolean isEmpty();
     protected Path path;
     public MultipleImageContainer setPath(Path path) {
         this.path=path;

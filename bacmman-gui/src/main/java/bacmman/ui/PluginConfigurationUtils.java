@@ -530,18 +530,19 @@ public class PluginConfigurationUtils {
             int maxZ = stores.stream().filter(s -> s.images.containsKey(name)).mapToInt(s -> s.images.get(name).sizeZ()).max().getAsInt();
             return (p, channel) -> {
                 List<TestDataStore> currentStores = stores.stream().filter(s -> s.images.containsKey(name)).filter(s -> s.parent.getParent(parentOCIdx).equals(p)).collect(Collectors.toList());
-                if (currentStores.size() == 1 && currentStores.get(0).parent.getStructureIdx() == parentOCIdx) {
+                if (currentStores.size() == 1 && currentStores.get(0).parent.getStructureIdx() == parentOCIdx) { // same parent
                     Image res = TypeConverter.cast(currentStores.get(0).images.get(name), type_);
                     if (res.sizeZ() < maxZ) throw new RuntimeException("Should resize in Z");
                     return res;
-                } else {
+                } else { // sub segmentation -> need to paste image
                     ImageProperties props = p.getMaskProperties();
-                    Image res = Image.createEmptyImage(name, type_, new SimpleImageProperties(props.sizeX(), props.sizeY(), maxZ, props.getScaleXY(), props.getScaleZ()).translate(props));
+                    Image res = Image.createEmptyImage(name, type_, new SimpleImageProperties(props.sizeX(), props.sizeY(), maxZ, props.getScaleXY(), props.getScaleZ()));
                     if (!currentStores.isEmpty()) {
                         for (TestDataStore s : currentStores) {
-                            Image.pasteImage(TypeConverter.cast(s.images.get(name), type_), s.parent.getMask(), res, null);
+                            Image.pasteImage(TypeConverter.cast(s.images.get(name), type_), s.parent.getMask(), res, s.parent.getMask());
                         }
                     }
+                    res.translate(props);
                     return res;
                 }
             };

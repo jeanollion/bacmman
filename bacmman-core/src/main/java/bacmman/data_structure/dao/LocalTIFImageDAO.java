@@ -70,10 +70,10 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         File f = new File(path);
         if (f.exists()) {
             //long t0 = System.currentTimeMillis();
-            Image im = ImageReaderFile.openImage(path);
+            return ImageReaderFile.openImage(path);
             //long t1 = System.currentTimeMillis();
-            //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {}, in {}ms path : {}", channelImageIdx, timePoint, microscopyFieldName, t1-t0, path);
-            return im;
+            //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {}, in {}ms path : {}", channelImageIdx, timePoint, position, t1-t0, path);
+            //return im;
         } else {
             throw new FileNotFoundException(path);
         }
@@ -84,8 +84,11 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
-            logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, position, bounds);
+            //long t0 = System.currentTimeMillis();
             return ImageReaderFile.openImage(path, new ImageIOCoordinates(bounds));
+            //long t1 = System.currentTimeMillis();
+            //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {} bounds: {} in {}ms", channelImageIdx, timePoint, position, bounds, t1-t0);
+            //return res;
         } else {
             throw new FileNotFoundException(path);
         }
@@ -96,8 +99,11 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
-            //logger.debug("Opening pre-processed plane:  channel: {} timePoint: {} fieldName: {} z: {}", channelImageIdx, timePoint, microscopyFieldName, z);
+            //long t0 = System.currentTimeMillis();
             return ImageReaderFile.openImage(path, new ImageIOCoordinates(new SimpleBoundingBox(0, -1, 0, -1, z, z)));
+            //long t1 = System.currentTimeMillis();
+            //logger.debug("Opening pre-processed plane:  channel: {} timePoint: {} position: {} z: {} in {}ms", channelImageIdx, timePoint, position, z, t1-t0);
+            //return res;
         } else {
             throw new FileNotFoundException(path);
         }
@@ -124,13 +130,18 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         }
     }
 
-    
+    @Override
+    public boolean isEmpty() {
+        String path = getPreProcessedImagePath(0, 0);
+        return !new File(path).exists();
+    }
+
     @Override
     public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint) {
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         f.mkdirs();
-        logger.trace("writing preprocessed image to path: {}", path);
+        //logger.trace("writing preprocessed image to path: {}", path);
         //if (f.exists()) f.delete();
         ImageWriter.writeToFile(image, path, ImageFormat.TIF);
     }
@@ -151,7 +162,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         File f = new File(path);
         f.delete();
         f.getParentFile().mkdirs();
-        logger.trace("writing track image to path: {}", path);
+        //logger.trace("writing track image to path: {}", path);
         ImageWriter.writeToFile(image, path, ImageFormat.TIF);
     }
     @Override

@@ -1,12 +1,15 @@
 [
-  { "name": "Phase Contrast", "folder": "Mother Machine", "gist_id": "01a255d5a11f71d6b7cd6a8f81b41caa", "hint": "50 fr, 53Mb" },
+  { "name": "Phase Contrast", "folder": "Mother Machine", "gist_id": "01a255d5a11f71d6b7cd6a8f81b41caa", "hint": "50 frames, 53Mb" },
   { "name": "Fluoresence", "folder": "Mother Machine", "gist_id": "adb4e7b76c1bd261fa477f70a2768e8a",
     "hint": "50 fr, 2 Channels, 57Mb"
   },
   { "name": "Neutrophils", "folder": "Segmentation", "gist_id": "917bd79628670b95ec9b571f824201e3",
     "hint": "Fluorescence imaged neutrophils. <br/>Credit: Ludvikova et al. <em>Near-infrared co-illumination of fluorescent proteins reduces photobleaching and phototoxicity</em> Nature Biotechnology 2023. <br/>3 images, 4.72Mb"
   },
-  { "name": "Bacteria 2D", "folder": "Cell Tracking", "gist_id": "5104ca0deda85ba7057c1b618ec5cff6", "hint": "100 fr, 10Mb. <br/>Subset of evaluation set PhC-C2DH-PA14 used in DiSTNet2D <br/>Credits: https://arxiv.org/abs/2310.19641" },
-  { "name": "Human Cells 2D", "folder": "Cell Tracking", "gist_id": "cfd622af0ca25a4ba332d5c3458e1ce3", "hint": "99 fr, 44Mb. <br/>Subset of evaluation set Fluo-C2DH-HBEC used in DiSTNet2D <br/>Credits: https://arxiv.org/abs/2310.19641" }
+  { "name": "Bacteria 2D", "folder": "Cell Tracking", "gist_id": "5104ca0deda85ba7057c1b618ec5cff6", "hint": "100 frames, 10Mb. <br/>Subset of evaluation set PhC-C2DH-PA14 used in DiSTNet2D <br/>Credits: https://arxiv.org/abs/2310.19641" },
+  { "name": "Human Cells 2D", "folder": "Cell Tracking", "gist_id": "cfd622af0ca25a4ba332d5c3458e1ce3", "hint": "99 frames, 44Mb. <br/>Subset of evaluation set Fluo-C2DH-HBEC used in DiSTNet2D <br/>Credits: https://arxiv.org/abs/2310.19641" },
+  { "name": "TL Bacteria 2D + SMF Spots", "folder": "Segmentation", "gist_id": "60d387067f645851c9be4a0dbfb94606",
+    "hint": "Bacteria imaged with transmitted light stack and single-molecule fluorescence spots. <br/>Credit: Daniel Thédié <em>El Karoui Lab, The University of Edinburgh</em><br/>6Mb"
+  }
 ]
 

@@ -84,7 +84,16 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             return true;
         } else return false;
     }
-    
+
+    @Override
+    public boolean isEmpty() {
+        try {
+            return !getReader(0, 0).imageExists();
+        } catch (IOException e) {
+            return true;
+        }
+    }
+
     @Override
     public Object toJSONEntry() {
         JSONObject res = new JSONObject();

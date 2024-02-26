@@ -4723,11 +4723,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 }
             };
             DefaultWorker.executeSingleTask(() -> {
-                try {
-                    openPP.setEnabled(singlePosition && db.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
-                } catch (IOException e) {
-                    openPP.setEnabled(false);
-                }
+                openPP.setEnabled(singlePosition && !db.getExperiment().getPosition(position).getImageDAO().isEmpty());
             }, null);
             menu.add(openPP);
             menu.add(new JSeparator());

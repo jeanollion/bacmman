@@ -335,7 +335,16 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         }*/
         return image;
     }
-    
+
+    @Override
+    public boolean isEmpty() {
+        try {
+            return !getReader(0).imageExists();
+        } catch (IOException e) {
+            return true;
+        }
+    }
+
     @Override
     public void flush() {
         for (int i = 0; i<this.getChannelNumber(); ++i) {

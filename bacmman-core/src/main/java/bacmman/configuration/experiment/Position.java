@@ -153,15 +153,11 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     ((BypassImageDAO) imageDAO.getSourceImageDAO()).updateXP(this.getExperiment()); // in case duplicated channels have been modified
                     return;
                 }
-                BypassImageDAO bp = null;
-                try {
-                    if (originalImageDAO.getPreProcessedImageProperties(0) == null) {
-                        bp = new BypassImageDAO(this.getExperiment(), this.sourceImages);
-                    }
-                } catch (IOException e) {
-                    bp = new BypassImageDAO(this.getExperiment(), this.sourceImages);
+                boolean ppFilesExist = !originalImageDAO.isEmpty();
+                if (ppFilesExist && imageDAO!=null && !(imageDAO.getSourceImageDAO() instanceof BypassImageDAO)) {
+                    return;
                 }
-                if (bp != null) imageDAO = Core.getDiskBackedManager(getName(), bp, true);
+                if (!ppFilesExist) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), true);
                 else imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // image have been pre-filtered
             }
         } else { // ensure not bypass DAO

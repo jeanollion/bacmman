@@ -1,10 +1,8 @@
 package bacmman.image.io;
 
 import bacmman.core.OmeroGatewayI;
-import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.MutableBoundingBox;
-import bacmman.image.SimpleBoundingBox;
 import ome.model.units.BigResult;
 import omero.ServerError;
 import omero.api.RawPixelsStorePrx;
@@ -59,6 +57,16 @@ public class ImageReaderOmero implements ImageReader {
             logger.debug("error while retrieving image5D: ", e);
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public boolean imageExists() {
+        try {
+            initIfNecessary();
+        } catch (RuntimeException e) {
+            return false;
+        }
+        return true;
     }
 
     @Override

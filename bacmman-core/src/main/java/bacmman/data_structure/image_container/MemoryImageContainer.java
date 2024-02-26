@@ -34,6 +34,12 @@ public class MemoryImageContainer extends MultipleImageContainer {
         super(imageCT[0][0].getScaleXY(), imageCT[0][0].getScaleZ());
         this.imageCT=imageCT;
     }
+
+    @Override
+    public boolean isEmpty() {
+        return imageCT.length!=0 && imageCT[0].length!=0 && imageCT[0][0]!=null;
+    }
+
     @Override
     public boolean sameContent(MultipleImageContainer other) {
         return true;

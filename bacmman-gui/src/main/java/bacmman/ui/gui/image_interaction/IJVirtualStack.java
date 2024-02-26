@@ -174,12 +174,15 @@ public class IJVirtualStack extends VirtualStack {
     }
     @Override
     public ImageProcessor getProcessor(int n) {
+        long t0 = System.currentTimeMillis();
         //logger.debug("get processor: {} cb null ? {}", n, setFrameCallback==null);
         ImageCoordinate fcz = getFCZ.apply(n);
         //logger.debug("n: {} fcz: {} hyperstack: {}", n, fcz, imp!=null && imp.isDisplayedHyperStack());
         if (setFrameCallback!=null) setFrameCallback.accept(fcz.getFrame());
         if (setFrameCallbackLabile!=null) setFrameCallbackLabile.accept(fcz.getFrame());
+        long t1 = System.currentTimeMillis();
         ImageProcessor res = getProcessor(fcz);
+        long t2 = System.currentTimeMillis();
         synchronized (cacheQueue) { // put in front
             cacheQueue.remove(fcz);
             cacheQueue.add(fcz);
@@ -195,7 +198,10 @@ public class IJVirtualStack extends VirtualStack {
                 }
             }
         }
+        long t3 = System.currentTimeMillis();
         if (backgroundImageLoader!=null) backgroundImageLoader.setPosition(fcz);
+        long t4 = System.currentTimeMillis();
+        //logger.debug("callbacks: {} get image: {} put in front: {} inform background loader: {}", t1-t0, t2-t1, t3-t2, t4-t3);
         return res;
     }
 
