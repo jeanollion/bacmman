@@ -130,7 +130,10 @@ public class ImageReaderFile implements ImageReader {
     }
     //loci.formats.ImageReader ifr;
     private void initReader() {
-        if (!imageExists()) logger.error("File: {} was not found", getImagePath());
+        if (!imageExists()) {
+            logger.error("File: {} was not found", getImagePath());
+            return;
+        }
         //logger.debug("init reader: {}", getImagePath());
         //ifr = LociPrefs.makeImageReader();
         //reader = new ImageProcessorReader(new ChannelSeparator(LociPrefs.makeImageReader()));

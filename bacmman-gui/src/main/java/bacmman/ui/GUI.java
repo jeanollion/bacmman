@@ -4709,7 +4709,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 }
             };
             menu.add(openRaw);
-            openRaw.setEnabled(singlePosition);
+            openRaw.setEnabled(singlePosition && db.getExperiment().getPosition(position).sourceImagesLinked());
             Action openPP = new AbstractAction("Open Pre-Processed Images") {
                 @Override
                 public void actionPerformed(ActionEvent e) {

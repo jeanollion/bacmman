@@ -1,5 +1,6 @@
 package bacmman.configuration.parameters;
 
+import bacmman.core.Core;
 import bacmman.dl.TileUtils;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;

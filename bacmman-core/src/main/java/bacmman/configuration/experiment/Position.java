@@ -170,8 +170,11 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             }
         }
     }
-    public boolean hasInputImage() {
+    public boolean inputImagesInstanciated() {
         return inputImages != null;
+    }
+    public boolean sourceImagesLinked() {
+        return sourceImages!=null && !sourceImages.isEmpty();
     }
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {

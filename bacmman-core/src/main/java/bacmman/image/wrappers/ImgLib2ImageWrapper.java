@@ -19,31 +19,22 @@
 package bacmman.image.wrappers;
 
 import bacmman.image.*;
-import bacmman.plugins.Plugin;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
 import bacmman.utils.Triplet;
-import ij.ImagePlus;
+
 import static bacmman.image.wrappers.IJImageWrapper.getImagePlus;
 
-import net.imagej.Data;
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imglib2.FinalInterval;
-import net.imglib2.Positionable;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.converter.Converter;
 import net.imglib2.display.projector.AbstractProjector2D;
-import net.imglib2.display.projector.IterableIntervalProjector2D;
-import net.imglib2.display.projector.MultithreadedIterableIntervalProjector2D;
-import net.imglib2.img.ImagePlusAdapter;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgFactory;
-import net.imglib2.img.basictypeaccess.DataAccess;
 import net.imglib2.img.basictypeaccess.array.*;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.img.planar.PlanarImg;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.ClampingNLinearInterpolatorFactory;
@@ -56,7 +47,6 @@ import net.imglib2.type.numeric.integer.*;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Fraction;
-import net.imglib2.util.IntervalIndexer;
 import net.imglib2.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,7 +114,7 @@ public class ImgLib2ImageWrapper {
             //logger.debug("planar image conversion: dimensions {} num slices: {}", img.dimensionsAsLongArray(), pImg.numSlices());
             return IntStream.range(0, pImg.numSlices()).mapToObj(pImg::getPlane).map(ArrayDataAccess::getCurrentStorageArray).toArray(generator);
         } else {
-            //logger.debug("generic image conversion: dimensions: {}", img.dimensionsAsLongArray());
+            //logger.debug("generic image conversion: dimensions: {} offset: {}", img.dimensionsAsLongArray(), img.minAsLongArray());
             return IntStream.range(0, img.numDimensions()>2 ? (int)img.dimension(2) : 1).mapToObj(z -> getSlice(img, z, genAndCon.v2, conv)).map(aImg -> aImg.update( null ).getCurrentStorageArray()).toArray(generator);
         }
     }
@@ -162,31 +152,15 @@ public class ImgLib2ImageWrapper {
             converter = (Converter<T, T2>)conv;
         }
         if (type == null) type = (T2)Util.getTypeFromInterval( source );
-        final int sizeX = ( int ) source.dimension( 0 );
-        if (source.numDimensions()==1) {
-            final ArrayImg< T2, ArrayDataAccess< ? > > target = (ArrayImg< T2, ArrayDataAccess< ? > >)new ArrayImgFactory<>( type ).create(sizeX);
-            long[] min = new long[]{target.min( 0 )};
-            long[] max = new long[]{target.max( 0 )};
-            final FinalInterval sourceInterval = new FinalInterval( min, max );
-            final RandomAccess< T2 > targetRandomAccess = target.randomAccess( target );
-            final RandomAccess< T > sourceRandomAccess = source.randomAccess( sourceInterval );
-            final long width = target.dimension( 0 );
-            sourceRandomAccess.setPosition( min );
-            targetRandomAccess.setPosition( min[ 0 ], 0 );
-            for ( long x = 0; x < width; ++x ) {
-                converter.convert( sourceRandomAccess.get(), targetRandomAccess.get() );
-                sourceRandomAccess.fwd( 0 );
-                targetRandomAccess.fwd( 0 );
-            }
-            return target;
-        } else {
-            final int sizeY =  ( int ) source.dimension( 1 );
-            final ArrayImg< T2,  ArrayDataAccess< ? > > img = (ArrayImg< T2, ArrayDataAccess< ? > >)new ArrayImgFactory<>( type ).create(sizeX, sizeY);
-            final AbstractProjector2D projector = new IterableIntervalProjector2D<>( 0, 1, source, img, converter );
-            if (source.numDimensions()>2) projector.setPosition( z, 2 );
-            projector.map();
-            return img;
-        }
+        long[] dimensions = source.numDimensions()==1 ? new long[]{source.dimension(0)} : new long[]{source.dimension(0), source.dimension(1)};
+        int[] sourceAxis = source.numDimensions()==1 ? new int[]{0} : new int[]{0, 1};
+        final ArrayImg< T2,  ArrayDataAccess< ? > > img = (ArrayImg< T2, ArrayDataAccess< ? > >)new ArrayImgFactory<>( type ).create(dimensions);
+        final IterableIntervalProjector1D2D projector = new IterableIntervalProjector1D2D<>(sourceAxis, source, img, converter );
+        projector.setPosition(source.min(0), 0);
+        if (source.numDimensions()>1) projector.setPosition(source.min(1), 1);
+        if (source.numDimensions()>2) projector.setPosition( z, 2 );
+        projector.map();
+        return img;
     }
     
     public static <T extends RealType<T>> Img<T> getImage(Image image) {

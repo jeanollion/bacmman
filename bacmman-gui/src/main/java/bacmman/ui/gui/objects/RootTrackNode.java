@@ -297,6 +297,9 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 }
             }
             );
+            DefaultWorker.executeSingleTask(() -> {
+                openRawAllFrames.setEnabled(generator.getExperiment().getPosition(position).sourceImagesLinked());
+            }, null);
             openPreprocessedAllFrames = new JMenuItem("Open Pre-processed Frames");
             actions[1] = openPreprocessedAllFrames;
             openPreprocessedAllFrames.setAction(new AbstractAction(openPreprocessedAllFrames.getActionCommand()) {

@@ -37,6 +37,9 @@ public class PositionUI implements ParameterUI {
             }
        }
         );
+        DefaultWorker.executeSingleTask(() -> {
+            openRawAllFrames.setEnabled(p.sourceImagesLinked());
+        }, null);
         openPreprocessedAllFrames = new JMenuItem("Open Pre-processed Frames");
         actions[1] = openPreprocessedAllFrames;
         openPreprocessedAllFrames.setAction(new AbstractAction(openPreprocessedAllFrames.getActionCommand()) {

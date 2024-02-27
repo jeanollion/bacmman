@@ -200,7 +200,7 @@ public class Resize {
         }
         Image[] res = IntStream.range(0, coords.length)
                 .mapToObj(i -> FinalInterval.createMinSize(coords[i], sizes.length>1 ? sizes[i] : sizes[0]))
-                .map(interval -> Views.interval( inView, interval )).map(im->ImgLib2ImageWrapper.wrap(im))
+                .map(interval -> Views.interval( inView, interval )).map(ImgLib2ImageWrapper::wrap)
                 .toArray(Image[]::new);
         for (int i = 0; i<res.length; ++i) { // absolute offset
             res[i].setCalibration(input);
