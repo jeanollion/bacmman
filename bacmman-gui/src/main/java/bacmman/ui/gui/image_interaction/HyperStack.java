@@ -95,7 +95,10 @@ public class HyperStack extends TimeLapseInteractiveImage {
     }
 
     public int getSlice(int frame) {
-        if (frameMapParentIdx.get(frame)==null) logger.error("null parent idx for frame: {}, parent track: {}", frame, data.parentTrack);
+        if (frameMapParentIdx.get(frame)==null) { // this happens when frame-subsets hyperstack are displayed (e.g. test mode)
+            //logger.error("null parent idx for frame: {}, parent track: {}", frame, data.parentTrack);
+            return -1;
+        }
         return frameMapParentIdx.get(frame);
     }
 
@@ -127,6 +130,7 @@ public class HyperStack extends TimeLapseInteractiveImage {
     public Stream<ObjectDisplay> toObjectDisplay(Stream<SegmentedObject> objects) {
         return objects.map(o -> {
             int slice = getSlice(o.getFrame());
+            if (slice<0) return null;
             BoundingBox b = this.getObjectOffset(o, slice);
             return b==null ? null : new ObjectDisplay(o, b, slice);
         }).filter(Objects::nonNull);

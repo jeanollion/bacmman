@@ -18,7 +18,9 @@
  */
 package bacmman.core;
 
+import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.Selection;
+import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.GUI;
 
 import java.net.InetAddress;
@@ -27,6 +29,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import bacmman.ui.gui.objects.DatasetTree;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.*;
@@ -83,7 +86,8 @@ public class PythonGateway {
 
     /**
      * Save a selection to the dataset {@param dbName}
-     * @param dbRelPath relative path of the dataset
+     * @param dbName name of the dataset (or path relative to the working directory if @param dbPath is null)
+     * @param dbPath path of the dataset
      * @param objectClassIdx index of the class of the objects contained the selection
      * @param selectionName name of the selection
      * @param ids indices of the objects contained in the selection
@@ -95,33 +99,29 @@ public class PythonGateway {
      * @param objectClassIdxDisplay
      * @param interactiveObjectClassIdx
      */
-    public void saveCurrentSelection(String dbRelPath, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
-        logger.debug("saveCurrentSelection: db: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbRelPath, objectClassIdx, selectionName, ids.size(), positions.size());
+    public void saveCurrentSelection(String dbName, String dbPath, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
+        logger.debug("saveCurrentSelection: db: {} path: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbName, dbPath, objectClassIdx, selectionName, ids.size(), positions.size());
         if (ids.isEmpty()) return;
         if (ids.size()!=positions.size()) throw new IllegalArgumentException("idx & position lists should be of same size "+ids.size() +" vs "+ positions.size());
-        if (selectionName.length()==0) selectionName=null;
-        HashMapGetCreate<String, List<String>> idsByPosition = new HashMapGetCreate<>(ids.size(), new HashMapGetCreate.ListFactory());
+        if (selectionName.isEmpty()) selectionName=null;
+        HashMapGetCreate<String, List<String>> idsByPosition = new HashMapGetCreate<>(ids.size(), new HashMapGetCreate.ListFactory<>());
         for (int i = 0; i<ids.size(); ++i) idsByPosition.getAndCreateIfNecessary(positions.get(i)).add(ids.get(i));
         Selection res = Selection.generateSelection(selectionName, objectClassIdx, idsByPosition);
         logger.info("Generating selection: size: {} ({})", positions.size(), res.count());
         SwingUtilities.invokeLater(() -> {
-            Pair<String, String> dbRelPathAndName = Utils.splitNameAndRelpath(dbRelPath);
-            if (GUI.getDBConnection() == null || !GUI.getDBConnection().getDBName().equals(dbRelPathAndName.value)) {
-                if (GUI.getDBConnection() != null)
-                    logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbRelPath);
-                logger.info("Connection to {}....", dbRelPath);
-                String dir = ExperimentSearchUtils.searchForLocalDir(dbRelPath);
-                if (dir == null) throw new IllegalArgumentException("Could find dataset:" + dbRelPath);
-                GUI.getInstance().openDataset(dbRelPath, dir, false);
-                if (GUI.getDBConnection().isConfigurationReadOnly()) {
-                    String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
-                    //SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
-                    FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
-                        add(res);
-                    }}, s -> s.toJSONEntry().toString());
-                    logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbRelPath, outputFile);
-                    return;
-                }
+            // get relative path:
+            String workingDir = GUI.getInstance().getWorkingDirectory();
+            String dbPathCorr = dbPath == null ? workingDir : dbPath;
+            String dbRelPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbPathCorr, workingDir);
+            boolean dbOpen;
+            if (GUI.getDBConnection() != null) {
+                String curDBRelPath = DatasetTree.getRelPathFromNameAndDir(GUI.getDBConnection().getDBName(), GUI.getDBConnection().getDatasetDir().toString(), workingDir);
+                dbOpen = curDBRelPath.equals(workingDir);
+            } else dbOpen = false;
+            if (GUI.getDBConnection() == null) {
+                logger.info("Opening dataset {}....", dbRelPath);
+                GUI.getInstance().openDataset(dbRelPath, null, false);
+                dbOpen = true;
                 try {
                     logger.info("Selection tab....");
                     GUI.getInstance().setSelectedTab(3);
@@ -130,27 +130,43 @@ public class PythonGateway {
 
                 }
             }
-            GUI.getDBConnection().getSelectionDAO().store(res);
-            logger.info("pop sels..");
-            GUI.getInstance().populateSelections();
-            logger.debug("all selections: {}", GUI.getInstance().getSelections().stream().map(s -> s.getName()).toArray());
-            Selection savedSel = GUI.getInstance().getSelections().stream().filter(s -> s.getName().equals(res.getName())).findFirst().orElse(null);
-            if (savedSel == null) throw new IllegalArgumentException("selection could not be saved");
-            savedSel.setIsDisplayingObjects(showObjects);
-            savedSel.setIsDisplayingTracks(showTracks);
-            savedSel.setHighlightingTracks(true);
-            savedSel.setNavigate(true);
-            GUI.getInstance().getSelections().stream().filter(s -> !s.getName().equals(res.getName())).forEach(s->s.setNavigate(false));
-
-            if (openWholeSelection) {
-                // limit to 200 objects
-                if (ids.size() > 200) throw new IllegalArgumentException("too many objects in selection");
-                int channelIdx = GUI.getDBConnection().getExperiment().experimentStructure.getChannelIdx(objectClassIdxDisplay);
-                SelectionUtils.displaySelection(savedSel, -2, channelIdx);
-            } else if (open) {
-                GUI.getInstance().navigateToNextObjects(true, null, false, objectClassIdxDisplay, interactiveObjectClassIdx < 0);
+            MasterDAO db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(dbName, dbPathCorr);
+            db.setConfigurationReadOnly(false);
+            if (db.isConfigurationReadOnly()) {
+                String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
+                FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
+                    add(res);
+                }}, s -> s.toJSONEntry().toString());
+                logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbRelPath, outputFile);
+                return;
             }
-            if (interactiveObjectClassIdx >= 0) GUI.getInstance().setInteractiveStructureIdx(interactiveObjectClassIdx);
+            db.getSelectionDAO().store(res);
+            if (dbOpen) {
+                logger.info("pop sels..");
+                GUI.getInstance().populateSelections();
+                logger.debug("all selections: {}", GUI.getInstance().getSelections().stream().map(Selection::getName).toArray());
+                Selection savedSel = GUI.getInstance().getSelections().stream().filter(s -> s.getName().equals(res.getName())).findFirst().orElse(null);
+                if (savedSel == null) throw new IllegalArgumentException("selection could not be saved");
+                savedSel.setIsDisplayingObjects(showObjects);
+                savedSel.setIsDisplayingTracks(showTracks);
+                savedSel.setHighlightingTracks(true);
+                savedSel.setNavigate(true);
+                GUI.getInstance().getSelections().stream().filter(s -> !s.getName().equals(res.getName())).forEach(s -> s.setNavigate(false));
+                if (openWholeSelection) {
+                    // limit to 200 objects
+                    if (ids.size() > 200) throw new IllegalArgumentException("too many objects in selection");
+                    int channelIdx = GUI.getDBConnection().getExperiment().experimentStructure.getChannelIdx(objectClassIdxDisplay);
+                    SelectionUtils.displaySelection(savedSel, -2, channelIdx);
+                } else if (open) {
+                    GUI.getInstance().navigateToNextObjects(true, null, false, objectClassIdxDisplay, interactiveObjectClassIdx < 0);
+                }
+                if (interactiveObjectClassIdx >= 0)
+                    GUI.getInstance().setInteractiveStructureIdx(interactiveObjectClassIdx);
+            } else {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+            }
         });
     }
 

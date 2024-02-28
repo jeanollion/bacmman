@@ -1029,6 +1029,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         } else {
             if (i instanceof HyperStack) {
                 int nextSlice = ((HyperStack)i).getSlice(nextObject.getFrame());
+                if (nextSlice<0) return false;
                 displayer.setFrame(nextSlice, trackImage);
                 return true;
             } else {

@@ -467,8 +467,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     protected String getOutputPath() {
-        getExperiment();
-        if (xp==null) return null;
+        if (getExperiment()==null) return null;
         String res = xp.getOutputDirectory();
         if (res==null) return null;
         File f = new File(res);
@@ -483,7 +482,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     @Override
     public S getSelectionDAO() {
         if (this.selectionDAO==null) {
-            if (xp==null) return null;
+            if (getExperiment()==null) return null;
             String op = getOutputPath();
             if (op==null) {
                 logger.debug("No output path. experiment==null? {} output: {}", getExperiment()==null, getExperiment()==null?"null":getExperiment().getOutputDirectory());
