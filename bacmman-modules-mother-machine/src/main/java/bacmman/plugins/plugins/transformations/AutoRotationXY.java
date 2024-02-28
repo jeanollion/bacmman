@@ -172,7 +172,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
         return !Double.isNaN(rotationAngle);
     }
     
-    public double[] computeRotationAngleXY(Image image, int z, double ang1, double ang2, double stepSize, float[] proj, boolean var, double filterScale) {
+    public double[] computeRotationAngleXY(Image image, int z, double ang1, double ang2, double stepSize, double[] proj, boolean var, double filterScale) {
 
         // initial search
         double[] angles = getAngleArray(ang1, ang2, stepSize);
@@ -205,16 +205,15 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
     
     public double computeRotationAngleXY(Image image, int z , double ang1, double ang2, double stepsize1, double stepsize2, boolean var, boolean rotate90, double filterScale) {
         // first search:
-        //float[] proj = new float[(int)Math.sqrt(image.getSizeX()*image.getSizeX() + image.getSizeY()*image.getSizeY())];
-        float[] proj = new float[Math.min(image.sizeX(),image.sizeY())];
+        double[] proj = new double[Math.min(image.sizeX(),image.sizeY())];
         double inc = rotate90?90:0;
         double[] firstSearch = computeRotationAngleXY(image, z, ang1+inc, ang2+inc, stepsize1, proj, var, filterScale);
         double[] secondSearch = computeRotationAngleXY(image, z, -firstSearch[0]-2*stepsize1, -firstSearch[1]+2*stepsize1, stepsize2, proj, var, filterScale);
-        logger.debug("radon rotation search: first: {} second: {}", firstSearch, secondSearch);
+        logger.debug("radon rotation search: first: {} second: {}", firstSearch, secondSearch);
         return (secondSearch[0]+secondSearch[1])/2d+inc;
     }
     
-    private static void paste(float[] proj, ImageFloat image, int x) {
+    private static void paste(double[] proj, ImageFloat image, int x) {
         for (int y = 0; y<proj.length; ++y) image.setPixel(x, y, 0, proj[y]);
     }
 
