@@ -637,8 +637,10 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 res.translateInto(globalBoundingBox);
                 return res;
             }
+            case SCALE_ONLY:
             default: {
-                return new MutableBoundingBox(minimalBouningBox).translateInto(globalBoundingBox);
+                return globalBoundingBox;
+                //return new MutableBoundingBox(minimalBouningBox).translateInto(globalBoundingBox);
             }
         }
     }

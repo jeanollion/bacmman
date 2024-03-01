@@ -339,7 +339,15 @@ public class DatasetTree {
     }
 
     public static String getRelPathFromNameAndDir(String dbName, String dbDir, String baseDir) {
-        return Utils.getRelativePath(dbDir, baseDir).getParent().resolve(dbName).toString();
+        try {
+            Path rel = Utils.getRelativePath(dbDir, baseDir);
+            Path parent = rel.getParent();
+            if (parent == null) {
+                throw new RuntimeException("relative path "+rel+ " has not parent");
+            } else return parent.resolve(dbName).toString();
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("no relative path from "+baseDir+ " to "+dbDir, e);
+        }
     }
 
     public class DatasetTreeNode extends DefaultMutableTreeNode {

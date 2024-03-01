@@ -24,7 +24,7 @@ public class PixMClass implements DockerDLTrainer {
             .setHint("Select object classes that represent background, foreground (and contour)").addValidationFunction(oc -> oc.getSelectedIndices().length>=2);
     ObjectClassParameter extractParentClass = new ObjectClassParameter("Parent Class", -1, true, false)
         .setNoSelectionString("ViewField").setHint("Class that will define bounds of the extracted images");
-    EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. EXISTING: choose previously defined selection. NEW: will generate a selection");
+    EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. EXISTING: choose previously defined selection. NEW: will generate a selection (it will include only annotated images)");
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
