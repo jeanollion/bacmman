@@ -342,9 +342,8 @@ public class DatasetTree {
         try {
             Path rel = Utils.getRelativePath(dbDir, baseDir);
             Path parent = rel.getParent();
-            if (parent == null) {
-                throw new RuntimeException("relative path "+rel+ " has not parent");
-            } else return parent.resolve(dbName).toString();
+            if (parent == null) return dbName;
+            else return parent.resolve(dbName).toString();
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("no relative path from "+baseDir+ " to "+dbDir, e);
         }
