@@ -195,6 +195,32 @@ public class Utils {
         if (parallele) return stream.parallel();
         else return stream.sequential();
     }
+
+    /**
+     * for each with stop condition
+     * @param stream
+     * @param action
+     * @param stop
+     * @return true if stop condition has been reached
+     * @param <T>
+     */
+    public static <T> boolean forEachWhile(Stream<T> stream, Consumer<T> action, Predicate<T> stop) {
+        return stream.peek(action).anyMatch(stop);
+    }
+    public static <T, P> boolean objectsAllHaveSameProperty(Stream<T> objects, Function<T, P> propertyFunction) {
+        if (objects==null) return true;
+        boolean[] propSet = new boolean[1];
+        Object[] property = new Object[1];
+        Consumer<T> action = o -> {
+            P p=propertyFunction.apply(o);
+            if (!propSet[0]) {
+                property[0] = p;
+                propSet[0] = true;
+            }
+        };
+        Predicate<T> stop = o -> propSet[0] && !Objects.equals(property[0], o);
+        return !forEachWhile(objects, action, stop);
+    }
     public static <T, P> boolean objectsAllHaveSameProperty(Collection<T> objects, Function<T, P> propertyFunction) {
         if (objects==null || objects.size()<=1) return true;
         boolean propSet = false;

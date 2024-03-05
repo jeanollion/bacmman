@@ -40,6 +40,7 @@ import bacmman.utils.Utils;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -163,5 +164,17 @@ public interface InputImages {
         long t1 = System.currentTimeMillis();
         logger.debug("choose {} images: {} t={} (among: {})", n, res, t1-t0, signal);
         return Pair.unpairKeys(res);
+    }
+    static Stream<Image> streamChannel(InputImages images, int channelIdx) {
+        return IntStream.range(0, images.getFrameNumber()).mapToObj(f -> {
+            try {
+                return images.getImage(channelIdx, f);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+    static DoubleStream streamChannelValues(InputImages images, int channelIdx) {
+        return streamChannel(images, channelIdx).flatMapToDouble(Image::stream);
     }
 }

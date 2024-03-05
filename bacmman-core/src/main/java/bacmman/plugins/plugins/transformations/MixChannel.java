@@ -17,8 +17,8 @@ import java.util.function.BiFunction;
 
 public class MixChannel implements ConfigurableTransformation, TransformationApplyDirectly, Hint {
     ChannelImageParameter otherChannel = new ChannelImageParameter("Other Channel").setEmphasized(true).setHint("Other Channel to be mixed with this channel");
-    PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale this channel before mixing. Scaling will be reversed after mixing");
-    PluginParameter<HistogramScaler> otherScaler = new PluginParameter<>("Other Scaler", HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale the other channel before mixing");
+    PluginParameter<bacmman.plugins.HistogramScaler> scaler = new PluginParameter<>("Scaler", bacmman.plugins.HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale this channel before mixing. Scaling will be reversed after mixing");
+    PluginParameter<bacmman.plugins.HistogramScaler> otherScaler = new PluginParameter<>("Other Scaler", bacmman.plugins.HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale the other channel before mixing");
     BooleanParameter scalePerFrame = new BooleanParameter("Scale Per Frame" ,false).setHint("If true, scaling is done per frame, otherwise for all frames").setEmphasized(true);
     enum MIX {MAX, AVERAGE, WEIGHTED_SUM}
     EnumChoiceParameter<MIX> mix = new EnumChoiceParameter<>("Mix Mode", MIX.values(), MIX.MAX).setEmphasized(true);
@@ -28,7 +28,7 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
     ConditionalParameter<MIX> mixCond = new ConditionalParameter<>(mix).setActionParameters(MIX.WEIGHTED_SUM, w1, w2);
     InputImages ii;
     int inputChannelIdx;
-    HistogramScaler scalerInstance, otherScalerInstance;
+    bacmman.plugins.HistogramScaler scalerInstance, otherScalerInstance;
     BiConsumer<Image, Image> mixFunction;
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
@@ -100,12 +100,12 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
             mixFunction.accept(image, otherImage);
             if (scalerInstance!=null) image = scalerInstance.reverseScale(image);
         } else {
-            HistogramScaler scalerI = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
+            bacmman.plugins.HistogramScaler scalerI = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
             if (scalerI!=null) {
                 Image i = image;
                 scalerI.setHistogram(HistogramFactory.getHistogram(i::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
             }
-            HistogramScaler otherScalerI = otherScaler.isOnePluginSet() ? otherScaler.instantiatePlugin() : null;
+            bacmman.plugins.HistogramScaler otherScalerI = otherScaler.isOnePluginSet() ? otherScaler.instantiatePlugin() : null;
             if (otherScalerI!=null) otherImage = otherScalerI.scale(otherImage);
             if (scalerI!=null) image = scalerI.scale(image);
             mixFunction.accept(image, otherImage);

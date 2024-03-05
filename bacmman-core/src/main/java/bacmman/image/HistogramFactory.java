@@ -185,7 +185,7 @@ public class HistogramFactory {
         return stream.collect(() -> new double[2],cons, combiner);
     }
     
-    public static boolean allImagesAreInteger(Collection<Image> images) {
+    public static boolean allImagesAreInteger(Stream<Image> images) {
         return Utils.objectsAllHaveSameProperty(images, im -> im instanceof ImageInteger);
     }
     
