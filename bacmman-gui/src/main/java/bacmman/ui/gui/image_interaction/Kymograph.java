@@ -2,6 +2,7 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.image.*;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.HashMapGetCreate;
@@ -25,8 +26,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     public static int OVERLAP =0;
     public static double DISPLAY_DISTANCE = 20;
     protected final int frameNumber;
-    protected final BoundingBox[] view;
-    protected final BoundingBox originalView;
+    protected final BoundingBox[] viewArray;
     public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, BoundingBox view, int... loadObjectClass) {
         TimeLapseInteractiveImageFactory.Data data = view == null ? TimeLapseInteractiveImageFactory.generateKymographData(parentTrack, false, GAP, SIZE, OVERLAP):
                 TimeLapseInteractiveImageFactory.generateKymographViewData(parentTrack, view, GAP, SIZE, OVERLAP);
@@ -53,16 +53,14 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         super(data, view);
         frameNumber = data.nFramePerSlice;
         loadObjectClasses(loadObjectClass);
-        this.view = HyperStack.getViewArray(data.parentTrack, view);
-        this.originalView = view;
+        this.viewArray = HyperStack.getViewArray(data.parentTrack, view);
     }
 
     public Kymograph(TimeLapseInteractiveImageFactory.Data data, BoundingBox view, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier, int... loadObjectClass) {
         super(data, view, channelNumber, imageSupplier);
         frameNumber = data.nFramePerSlice;
         loadObjectClasses(loadObjectClass);
-        this.view = HyperStack.getViewArray(data.parentTrack, view);
-        this.originalView = view;
+        this.viewArray = HyperStack.getViewArray(data.parentTrack, view);
     }
 
     protected void loadObjectClasses(int... loadObjectClass) {
@@ -99,8 +97,8 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         BoundingBox[] trackOffset = this.trackOffset.get(sliceIdx);
         int startIdx = getStartParentIdx(sliceIdx);
         //logger.debug("start idx = {} for slice: {}", startIdx, sliceIdx);
-        if (view == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
-        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), view[i], trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        if (viewArray == null) return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i+startIdx), trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
+        else return IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImageView(data.parentTrack.get(i+startIdx), viewArray[i], trackOffset[i], data.maxSizeZ, sliceIdx, channelNumber, imageSupplier)).toArray(SimpleInteractiveImage[]::new);
     }
     public Stream<Integer> getSlice(int frame) {
         if (frameMapParentIdx.get(frame)==null) { // this can happen when displayed image is a subset as in tests
@@ -247,6 +245,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
     public Set<SegmentedObject> getNextTracks(int objectClassIdx, int sliceIdx, List<SegmentedObject> currentTracks, boolean next) {
         Map<SegmentedObject, Point> centers = new HashMapGetCreate.HashMapGetCreateRedirected<>(so -> so.getRegion().getCenterOrGeomCenter());
         int startFrame = parentIdxMapFrame.get(getStartParentIdx(sliceIdx));
+        int endFrame = startFrame + data.nFramePerSlice;
         BiFunction<SegmentedObject, SegmentedObject, UnaryPair<SegmentedObject>> getComparableObjects = (o1, o2) -> {
             // compare centers at common slice >= startFrame, or closest slice
             if (o1.getFrame()<startFrame) o1 = o1.getNextAtFrame(startFrame, true);
@@ -264,9 +263,9 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         };
         List<SegmentedObject> tracks = getObjects(objectClassIdx, sliceIdx).map(SegmentedObject::getTrackHead).distinct().sorted(comp).collect(Collectors.toList());
         currentTracks.retainAll(tracks); // remove tracks that are not included in this slice
+        List<SegmentedObject> toRemove = new ArrayList<>(); // remove directly connected tracks that could have been added in a previous call of this function and that are located after in the list
         if (!currentTracks.isEmpty()) { // remove all tracks before currently selected tracks
             currentTracks.sort(comp);
-            List<SegmentedObject> toRemove = new ArrayList<>(); // remove directly connected tracks that could have been added in a previous call of this function and that are located after in the list
             for (int i = 0; i<currentTracks.size(); ++i) {
                 SegmentedObject th  = currentTracks.get(i);
                 if (th.getPrevious()!=null) {
@@ -283,7 +282,7 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 tracks = tracks.subList(0, idx);
             }
         }
-        // select all objects that have a
+
         Set<SegmentedObject> selectedTracks = new HashSet<>();
         if (!tracks.isEmpty()) selectedTracks.add(tracks.remove(tracks.size()-1));
         while(!tracks.isEmpty()) { // add all remaining tracks that are distant enough from tracks to be displayed
@@ -298,15 +297,20 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 selectedTracks.add(cur);
             }
         }
+        toRemove.forEach(selectedTracks::remove); // have already been shown
         // also add directly connected tracks
         List<SegmentedObject> toAdd = new ArrayList<>();
-        for (SegmentedObject th : selectedTracks) {
-            if (th.getFrame()>startFrame && th.getPrevious()!=null && !selectedTracks.contains(th.getPrevious().getTrackHead()) && !currentTracks.contains(th.getPrevious().getTrackHead())) toAdd.add(th.getPrevious().getTrackHead());
+        for (SegmentedObject th : selectedTracks) { // for parents and siblings
+            if (th.getFrame()>startFrame && th.getPrevious()!=null && !selectedTracks.contains(th.getPrevious().getTrackHead()) && !currentTracks.contains(th.getPrevious().getTrackHead())) {
+                toAdd.add(th.getPrevious().getTrackHead());
+                SegmentedObjectEditor.getNext(th.getPrevious()).filter(nTh -> !nTh.equals(th)).forEach(toAdd::add); // add siblings
+            }
+            SegmentedObject tail = th.getTrackTail(endFrame);
+            if (tail != null) { // track has a tail in this slice
+                SegmentedObjectEditor.getNext(tail).forEach(toAdd::add); // add children
+            }
         }
         selectedTracks.addAll(toAdd);
-        for (SegmentedObject th : tracks) { // also look in remaining tracks
-            if (th.getPrevious()!=null && selectedTracks.contains(th.getPrevious().getTrackHead())) selectedTracks.add(th);
-        }
         return selectedTracks;
     }
 

@@ -253,8 +253,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                         List<ObjectDisplay> selectedParentObjects = new ArrayList<>();
                         Rectangle rect = r.getBounds();
                         MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x + rect.width, rect.y, rect.y + rect.height, ip.getZ() - 1, ip.getZ());
-                        InteractiveImage ioi = getInteractiveImage(image);
-                        ioi.addObjectsWithinBounds(selection, parentObjectClass, sliceIdx, selectedParentObjects);
+                        i.addObjectsWithinBounds(selection, parentObjectClass, sliceIdx, selectedParentObjects);
                         if (selectedParentObjects.size() > 1) {
                             Utils.displayTemporaryMessage("selection is over several parents: "+selectedParentObjects.size(), 3000);
                             return;
@@ -263,7 +262,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             return;
                         }
                         SegmentedObject parent = selectedParentObjects.get(0).object;
-                        Offset parentOffset = selectedParentObjects.get(0).offset;
+                        Offset parentOffset = new SimpleOffset(selectedParentObjects.get(0).offset);
                         Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
                         Collection<SegmentedObject> seg;
                         if (brush) {

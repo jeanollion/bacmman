@@ -42,7 +42,7 @@ public class SimpleInteractiveImageView extends SimpleInteractiveImage {
     protected void reloadObjects(int objectClassIdx) {
         if (objectClassIdx == parentStructureIdx) {
             objects.put(objectClassIdx, Collections.singletonList(parent));
-            offsets.put(objectClassIdx, new BoundingBox[]{view.duplicate().resetOffset().translate(additionalOffset)});
+            offsets.put(objectClassIdx, new BoundingBox[]{parent.getBounds().duplicate().translate(viewRelOffRev).translate(additionalOffset)});
         } else  {
             Stream<SegmentedObject> str = parent.getChildren(objectClassIdx);
             if (str==null) {
@@ -96,7 +96,8 @@ public class SimpleInteractiveImageView extends SimpleInteractiveImage {
         if (offsets.length==1) return BoundingBox.intersect2D(offsets[0], relView) ? IntStream.of(0) : IntStream.empty();
         else return IntStream.range(0, offsets.length).filter(i -> {
             if (BoundingBox.isIncluded2D(offsets[i], relView, 5)) return true;
-            else return BoundingBox.getIntersection2D(offsets[i], relView).getSizeXY() > 0.25 * offsets[i].sizeX() * offsets[i].sizeY();
+            if (BoundingBox.isIncluded2D(relView, offsets[i])) return true;
+            else return BoundingBox.getIntersection2D(offsets[i], relView).getSizeXY() > 0.25 * Math.min(offsets[i].sizeX() * offsets[i].sizeY(), relView.sizeX() * relView.sizeY());
         });
         //return IntStream.range(0, offsets.length);
     }

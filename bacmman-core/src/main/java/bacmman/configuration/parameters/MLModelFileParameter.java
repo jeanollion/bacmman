@@ -18,7 +18,7 @@ import static bacmman.configuration.parameters.DLMetadataConfigurable.configureP
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 
 public class MLModelFileParameter extends ContainerParameterImpl<MLModelFileParameter> {
-    FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("../../DLModels").setEmphasized(true).setHint("Deep learning with Tensorflow: Select the folder containing the saved model (.pb file)<br/>Ilastik: select project file (.ilp)");
+    FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("../../DLModels").setEmphasized(true).setHint("Deep learning with Tensorflow: Select the folder containing the saved model (.pb file)<br/>Ilastik: select project file (.ilp). <br/>Caution: ensure there are no spaces in the absolute path of this file.");
     TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
     LargeFileGist lf;
     Predicate<String> validDirectory;

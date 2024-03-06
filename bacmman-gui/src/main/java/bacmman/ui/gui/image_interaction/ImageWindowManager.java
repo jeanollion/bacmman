@@ -787,6 +787,13 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             Structure.TRACK_DISPLAY targetTrackDisplay = forceKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(trackHead.getStructureIdx());
             if (roi==null || (i instanceof Kymograph && !roi.getDisplayType().equals(targetTrackDisplay))) {
                 roi = createTrackRoi(track, i, color, forceKymo);
+                /*try { // erase malformed objects
+                    roi = createTrackRoi(track, i, color, forceKymo);
+                } catch (NullPointerException e) {
+                    track.stream().map(o -> o.object).forEach(o -> {
+                        GUI.getDBConnection().getDao(o.getPositionName()).delete(o, true, true, true);
+                    });
+                }*/
                 map.put(track, roi);
             } else roi.setColor(color, strokeRoiOpacity, filledRoiOpacity, arrowOpacity);
             boolean alreadyDisplayed = disp != null && disp.contains(roi); // TODO : fails for partial tracks

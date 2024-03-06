@@ -74,7 +74,7 @@ public class TimeLapseInteractiveImageFactory {
         return generateKymographViewData(parentTrack, view, maxSizeZ, interval, size, overlap);
     }
     public static Data generateKymographViewData(List<SegmentedObject> parentTrack, BoundingBox view, int maxSizeZ, int interval, int size, int overlap) {
-        BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(l -> new BoundingBox[l]);
+        BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(BoundingBox[]::new);
         int currentOffset=0;
         if (view.sizeY() * 1.5 >= view.sizeX()) { // X direction.
             int frameNumber = size == 0 ? 0 : Math.max(2, (int)Math.ceil((double)size / view.sizeX()));

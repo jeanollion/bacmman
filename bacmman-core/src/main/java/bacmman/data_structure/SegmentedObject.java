@@ -586,15 +586,15 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
 
     /**
      *
-     * @param frameLimit
-     * @return track tail if trackTail.getFrame()<=frameLimit else null
+     * @param frameLimitExcl
+     * @return track tail if trackTail.getFrame()<frameLimit else null
      */
-    public SegmentedObject getTrackTail(int frameLimit) {
-        if (this.getFrame()>=frameLimit) return null;
+    public SegmentedObject getTrackTail(int frameLimitExcl) {
+        if (this.getFrame()>=frameLimitExcl) return null;
         SegmentedObject n = this;
         while (n.getNext() != null) {
             n = n.getNext();
-            if (n.getFrame()>=frameLimit) return null;
+            if (n.getFrame()>=frameLimitExcl) return null;
         }
         return n;
     }
