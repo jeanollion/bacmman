@@ -61,6 +61,7 @@ public class ImageReaderOmero implements ImageReader {
 
     @Override
     public boolean imageExists() {
+        //if (!gateway.isConnected()) return true; // do not try to connect for this test
         try {
             initIfNecessary();
         } catch (RuntimeException e) {

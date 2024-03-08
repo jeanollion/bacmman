@@ -339,6 +339,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     @Override
     public boolean isEmpty() {
         try {
+            if (fromOmero() && !omeroGateway.isConnected()) return false; // do not try to connect
             return !getReader(0).imageExists();
         } catch (IOException e) {
             return true;

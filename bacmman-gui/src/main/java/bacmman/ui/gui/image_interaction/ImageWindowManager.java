@@ -613,7 +613,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         for (ObjectDisplay od : objectsToDisplay) {
             if (od==null) continue;
             if (color == null) {
-                color = od.object.getExperimentStructure().getObjectColors().toArray(Color[]::new)[od.object.getStructureIdx()];
+                color = od.object.getStructureIdx()<0 ? null : od.object.getExperimentStructure().getObjectColors().toArray(Color[]::new)[od.object.getStructureIdx()];
                 if (color == null) color = defaultRoiColor;
                 color = getTransparentColor(color, fill);
             }
@@ -694,8 +694,8 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             if (image==null) return Collections.emptyList();
         }
         InteractiveImage i = getInteractiveImage(image);
-        String position = i.getParent().getPositionName();
         if (i==null) return Collections.emptyList();
+        String position = i.getParent().getPositionName();
         if (displayMode.get(image).equals(DISPLAY_MODE.OBJECTS)) {
             logger.debug("getSelected Labile object: display all objects mode");
             return i.getAllObjects(interactiveObjectClassIdx).collect(Collectors.toList());
