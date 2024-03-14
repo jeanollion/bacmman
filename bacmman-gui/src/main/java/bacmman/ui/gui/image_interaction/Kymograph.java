@@ -270,17 +270,17 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 SegmentedObject th  = currentTracks.get(i);
                 if (th.getPrevious()!=null) {
                     int j = currentTracks.indexOf(th.getPrevious().getTrackHead());
-                    if (j>=0) {
-                        if (i<j) toRemove.add(currentTracks.get(i));
-                        else toRemove.add(currentTracks.get(j));
-                    }
+                    if (j>=0 && j>i) toRemove.add(currentTracks.get(i));
+
                 }
             }
             currentTracks.removeAll(toRemove);
             if (!currentTracks.isEmpty()) {
                 int idx = tracks.indexOf(currentTracks.get(0));
+                //logger.debug("idx: {} tracks: {} currently selected tracks: {} to remove: {}", idx, tracks, currentTracks, toRemove);
                 tracks = tracks.subList(0, idx);
-            }
+            } //else logger.debug("no current tracks. linked removed: {}", toRemove);
+            tracks.removeAll(toRemove); // already displayed
         }
 
         Set<SegmentedObject> selectedTracks = new HashSet<>();
@@ -297,20 +297,22 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
                 selectedTracks.add(cur);
             }
         }
-        toRemove.forEach(selectedTracks::remove); // have already been shown
+
         // also add directly connected tracks
         List<SegmentedObject> toAdd = new ArrayList<>();
-        for (SegmentedObject th : selectedTracks) { // for parents and siblings
-            if (th.getFrame()>startFrame && th.getPrevious()!=null && !selectedTracks.contains(th.getPrevious().getTrackHead()) && !currentTracks.contains(th.getPrevious().getTrackHead())) {
+        for (SegmentedObject th : selectedTracks) {
+            // for parents and siblings
+            /*if (th.getFrame()>startFrame && th.getPrevious()!=null && !selectedTracks.contains(th.getPrevious().getTrackHead()) && !currentTracks.contains(th.getPrevious().getTrackHead())) {
                 toAdd.add(th.getPrevious().getTrackHead());
                 SegmentedObjectEditor.getNext(th.getPrevious()).filter(nTh -> !nTh.equals(th)).forEach(toAdd::add); // add siblings
-            }
+            }*/
             SegmentedObject tail = th.getTrackTail(endFrame);
             if (tail != null) { // track has a tail in this slice
                 SegmentedObjectEditor.getNext(tail).forEach(toAdd::add); // add children
             }
         }
         selectedTracks.addAll(toAdd);
+
         return selectedTracks;
     }
 

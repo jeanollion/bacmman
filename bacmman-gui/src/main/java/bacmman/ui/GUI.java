@@ -503,13 +503,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         // manual edition
         PropertyUtils.setPersistent(relabel, "manual_curation_relabel");
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(relabel, manualCuration);
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(safeMode, manualCuration);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(relabel, manualCuration, miscMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(safeMode, manualCuration, miscMenu);
         JMenuItem commit = new javax.swing.JMenuItem();
         commit.setText("Commit Changes");
         commit.addActionListener(evt -> {
             if (db!=null) {
                 db.getOpenObjectDAOs().forEach(ObjectDAO::commit);
+                setMessage("Changes committed");
             }
         });
         manualCuration.add(commit);
@@ -523,6 +524,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 db.getOpenObjectDAOs().forEach(ObjectDAO::rollback);
                 iwm.flush();
                 trackTreeController.updateTrackTree();
+                setMessage("Changes reverted");
             }
         });
         manualCuration.add(rollback);

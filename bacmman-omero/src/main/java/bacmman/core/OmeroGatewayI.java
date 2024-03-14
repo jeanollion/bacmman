@@ -247,41 +247,36 @@ public class OmeroGatewayI implements OmeroGateway {
                             // write metadata files to SourceImageMetadata folder
                             File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
                             if (!dir.exists()) dir.mkdirs();
-                            switch (xp.getImportImageMethod()) {
-                                case SINGLE_FILE:
-                                    images.stream().map(m -> (MultipleImageContainerSingleFile) m).forEach(m -> {
-                                        OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID());
+                            Consumer<MultipleImageContainer> writeMetadata = m -> {
+                                if (m instanceof MultipleImageContainerSingleFile) {
+                                    OmeroAquisitionMetadata metadata = metadataMap.get(((MultipleImageContainerSingleFile)m).getOmeroID());
+                                    if (metadata != null) {
+                                        String path = Paths.get(dir.getAbsolutePath(), m.getName() + ".txt").toAbsolutePath().toString();
+                                        metadata.writeToFile(path);
+                                    }
+                                } else if ( m instanceof MultipleImageContainerChannelSerie) {
+                                    for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
+                                        OmeroAquisitionMetadata metadata = metadataMap.get(((MultipleImageContainerChannelSerie)m).getOmeroID(cIdx));
                                         if (metadata != null) {
-                                            String path = Paths.get(dir.getAbsolutePath(), m.getName() + ".txt").toAbsolutePath().toString();
+                                            String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + ".txt").toAbsolutePath().toString();
                                             metadata.writeToFile(path);
                                         }
-                                    });
-                                    break;
-                                case ONE_FILE_PER_CHANNEL_POSITION:
-                                    images.stream().map(m -> (MultipleImageContainerChannelSerie) m).forEach(m -> {
-                                        for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
-                                            OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID(cIdx));
+                                    }
+                                } else if ( m instanceof MultipleImageContainerPositionChannelFrame) {
+                                    for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
+                                        int frameNumber = m.singleFrame(cIdx) ? 1 : m.getFrameNumber();
+                                        for (int t = 0; t < frameNumber; ++t) {
+                                            OmeroAquisitionMetadata metadata = metadataMap.get(((MultipleImageContainerPositionChannelFrame)m).getImageID(cIdx, t));
                                             if (metadata != null) {
-                                                String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + ".txt").toAbsolutePath().toString();
+                                                String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + "_t" + t + ".txt").toAbsolutePath().toString();
                                                 metadata.writeToFile(path);
                                             }
                                         }
-                                    });
-                                case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
-                                    images.stream().map(m -> (MultipleImageContainerPositionChannelFrame) m).forEach(m -> {
-                                        for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
-                                            int frameNumber = m.singleFrame(cIdx) ? 1 : m.getFrameNumber();
-                                            for (int t = 0; t < frameNumber; ++t) {
-                                                OmeroAquisitionMetadata metadata = metadataMap.get(m.getImageID(cIdx, t));
-                                                if (metadata != null) {
-                                                    String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + "_t" + t + ".txt").toAbsolutePath().toString();
-                                                    metadata.writeToFile(path);
-                                                }
-                                            }
-                                        }
-                                    });
+                                    }
                                 }
                             };
+                            images.forEach(writeMetadata);
+                        };
                         if (importMetadata) {
                             logger.debug("fetching metadata for : {} files", sel.size());
                             DefaultWorker res = new DefaultWorker(metadataTask, sel.size(), null)

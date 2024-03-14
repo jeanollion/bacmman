@@ -594,11 +594,11 @@ public class ManualEdition {
     }
     public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean test, ObjectSplitter defaultSplitter, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
-        int[] directChildrenOC = db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
         if (objects.isEmpty()) return;
+        Experiment xp = db!=null ? db.getExperiment() : getAccessor().getExperiment(objects.iterator().next());
+        int[] directChildrenOC = xp.experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
         boolean test_ = db==null ? true : test;
         if (!canEdit(objects.stream(), db)) return;
-        Experiment xp = db!=null ? db.getExperiment() : getAccessor().getExperiment(objects.iterator().next());
         ObjectSplitter splitter = defaultSplitter==null ? xp.getStructure(structureIdx).getObjectSplitter() : defaultSplitter;
         if (splitter==null) {
             Utils.displayTemporaryMessage("No splitter found for interactive object class", 10000);
@@ -609,8 +609,8 @@ public class ManualEdition {
         boolean dispImages = splitter instanceof TestableProcessingPlugin && test_;
         Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestableProcessingPlugin.TestDataStore(so, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), true), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (dispImages) ((TestableProcessingPlugin)splitter).setTestDataStore(stores);
-        boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
-        boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
+        boolean merge = xp.getStructure(structureIdx).allowMerge();
+        boolean split = xp.getStructure(structureIdx).allowSplit();
         SegmentedObjectFactory factory = getFactory(structureIdx);
         Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
         for (String f : objectsByPosition.keySet()) {
@@ -632,11 +632,7 @@ public class ManualEdition {
                     if (test_) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                     else {
                         SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
-                        if (newObject == null) {
-                            Utils.displayTemporaryMessage("Object could not be split"+(freeLineSplitter?" Draw a line that split objects" : ""), 5000);
-                            logger.warn("Object could not be split!");
-                        }
-                        else {
+                        if (newObject != null) {
                             objectMapNew.put(objectToSplit, newObject);
                             newObjects_.add(newObject);
                             if (relabel) factory.relabelChildren(objectToSplit.getParent(), objectsToStore_);
@@ -706,7 +702,11 @@ public class ManualEdition {
                     objectsToStore.add(objectToSplit);
                 }
             }
-            if (newObjects.isEmpty()) return;
+            if (newObjects.isEmpty()) {
+                Utils.displayTemporaryMessage("Object could not be split"+(freeLineSplitter?" Draw a line that split objects" : ""), 5000);
+                logger.debug("No object(s) could not be split!");
+                return;
+            }
             if (dispImages) displayIntermediateImages(stores, structureIdx, false);
             if (!relabel) factory.reassignDuplicateIndices(newObjects);
             if (!test && dao!=null) {
