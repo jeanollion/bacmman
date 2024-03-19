@@ -327,8 +327,8 @@ public class JSONUtils {
                     ++count;
                     initP.add((P)r);
                 } catch(Throwable ex) {
-                    logger.info("Error While initializing parameter: {} (class: {}) with: {}", r, r.getClass(), e);
-                    logger.info("Error while init:" ,ex);
+                    logger.debug("Error While initializing parameter: {} (class: {}) with: {}", r, r.getClass(), e);
+                    logger.debug("Error while init:" ,ex);
                     initLP.accept(e);
                 }
             } else initLP.accept(e);

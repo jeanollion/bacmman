@@ -40,9 +40,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
@@ -863,7 +861,25 @@ public class Utils {
         }
         p.show();
     }
-
+    public static void moveOrMerge(Path source, Path target) throws IOException {
+        if (!Files.isDirectory(target) || isEmpty(target)) Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        else { // target is a non empty directory
+            if (!Files.isDirectory(source)) throw new IllegalArgumentException("Target is a directory but source is not");
+            IOException[] ex = new IOException[1];
+            Files.list(source).collect(Collectors.toList()).forEach(subFile -> {
+                try {
+                    moveOrMerge(subFile, target.resolve(subFile.getFileName()));
+                } catch (IOException e) {
+                    ex[0] = e;
+                }
+            });
+            if (ex[0]!=null) throw ex[0];
+            Files.deleteIfExists(source);
+        }
+    }
+    public static boolean isEmpty(Path dir) throws IOException {
+        return !Files.list(dir).findAny().isPresent();
+    }
     public static void deleteDirectory(String dir) {
         if (dir!=null) deleteDirectory(new File(dir));
     }

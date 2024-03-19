@@ -3614,7 +3614,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     private void move(DatasetTree.DatasetTreeNode dataset) throws IOException {
         if (dataset==null) return;
-        boolean wasOpen = db!=null && db.getDatasetDir().toFile() == dataset.getFile() && db.getDBName().equals(dataset.getName());
+        boolean wasOpen = db!=null && db.getDatasetDir().toFile().getAbsolutePath().equals(dataset.getFile().getAbsolutePath()) && db.getDBName().equals(dataset.getName());
+        logger.debug("was open: {} current={}@{} to move={}@{}", wasOpen, db==null?"null":db.getDBName(), db==null?"null":db.getDatasetDir().toFile(), dataset.getName(), dataset.getFile());
         Triplet<String, String, File> newDestination = promptNewDatasetPath();
         if (newDestination == null) return;
         if (wasOpen) closeDataset();
@@ -3629,9 +3630,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         Path newConfig = oldDatasetPath.resolve(newDestination.v1 + "_config.json");
         Files.move(oldConfig, newConfig);
         // move whole directory
-        Files.move(oldDatasetPath, newDir);
+        Utils.moveOrMerge(oldDatasetPath, newDir);
         populateDatasetTree();
-        if (wasOpen) openDataset(newDestination.v2, null, false);
+        if (wasOpen) {
+            logger.debug("will open: {}, {}, {}", newDestination.v2, newDestination.v1, newDestination.v3);
+            openDataset(newDestination.v2, null, false);
+        }
         this.dsTree.setSelectedDataset(newDestination.v2);
     }
 
