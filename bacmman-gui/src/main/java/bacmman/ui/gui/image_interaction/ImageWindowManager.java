@@ -745,8 +745,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                 if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
             } else {
                 Kymograph k = (Kymograph) i;
-                int minSlice = k.getSlice(minFrame).mapToInt(ii->ii).min().getAsInt();
-                int maxSlice = k.getSlice(maxFrame).mapToInt(ii->ii).max().getAsInt();
+                int minSlice = k.getSlice(minFrame).mapToInt(ii->ii).min().orElse(-1);
+                if (minSlice<0) return;
+                int maxSlice = k.getSlice(maxFrame).mapToInt(ii->ii).max().orElse(-1);
+                if (maxSlice<0) return;
                 int currentSlice = displayer.getFrame(image);
                 if (currentSlice < minSlice || currentSlice > maxSlice) displayer.setFrame(minSlice, image);
             }

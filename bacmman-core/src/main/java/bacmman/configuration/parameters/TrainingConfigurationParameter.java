@@ -232,6 +232,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new BoundedNumberParameter("Min Learning Rate", 8, defaultValue, 10e-8, null);
     }
 
+    public static IntervalParameter getEpsilonRangeParameter(double defaultMaxValue, double defaultMinValue) {
+        return new IntervalParameter("Epsilon Range", 8, 10e-8, null, defaultMinValue, defaultMaxValue).setHint("Epsilon parameter used by optimiser (such as Adam). Default is usually a low value such as 1e-7 but values close to 1 can improve training efficiency in some cases. If a range is given, epsilon will start at the maximal value and end at the lower value.");
+    }
+
     public static BooleanParameter getUseSharedMemParameter(boolean defaultValue) {
         return new BooleanParameter("Use Shared Memory", defaultValue).setHint("If true, and multiprocessing is enabled, mini-batch will be passed through shared memory to speed up training. Increase the size of shared memory so that the mini-batch queue can fit (queue max size = workers*1.5)");
     }
