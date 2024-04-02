@@ -15,7 +15,7 @@ import org.json.simple.JSONObject;
 import java.util.stream.Collectors;
 
 public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getUseSharedMemParameter(true), TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getEpsilonRangeParameter(0.1, 1e-7)};
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7)};
     Parameter[] datasetParameters = new Parameter[0];
     BoundedNumberParameter frameSubSampling = new BoundedNumberParameter("Frame Subsampling", 0, 15, 1, null).setHint("Random time Subsampling of dataset to increase input diversity. Only used in timelapse mode<br>Extent E of the frame window <em>seen</em> by the neural network is drawn randomly in interval [0, FRAME_SUBSAMLPING). final seen frame window is W = 2 x E + 1. If W is greater than the input window of the neural network, gaps between frame are introduced, except between central frame and first adjacent frame");
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
@@ -47,13 +47,15 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     SelectionParameter extractSel = new SelectionParameter("Selection", false, false).setSelectionObjectClass(parentObjectClass.getSelectedClassIdx());
     EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
     BoundedNumberParameter extractZPlane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
-    IntegerParameter frameInteval = new IntegerParameter("Frame Interval", 3).setHint("Frames to include before and after frames located in the selected selection. If any segmented object is present in the newly included frames but not in the selection, it will be ignored");
+    IntegerParameter frameInteval = new IntegerParameter("Frame Interval", 0).setHint("Frames to include before and after frames located in the selected selection. If any segmented object is present in the newly included frames but not in the selection, it will be ignored");
+    IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
+
     ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
             .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, extractZPlane)
             .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.SPARSE_FRAMES, extractSel, frameInteval);
-    Parameter[] datasetExtractionParameters = new Parameter[] {objectClass, parentObjectClass, channel, extractZCond, selModeCond};
+    Parameter[] datasetExtractionParameters = new Parameter[] {objectClass, parentObjectClass, channel, extractZCond, selModeCond, spatialDownsampling};
 
 
     @Override
@@ -100,7 +102,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
                 break;
             }
         }
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, outputFile, 0);
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, outputFile, spatialDownsampling.getIntValue(), 0);
     }
 
     public String getDockerImageName() {

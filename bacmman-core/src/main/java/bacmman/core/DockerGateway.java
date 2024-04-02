@@ -20,6 +20,7 @@ public interface DockerGateway {
     String createContainer(String image, int shmSizeMb, int[] gpuIds, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
     void stopContainer(String containerId);
+    void authenticate(String user, String token);
     static Consumer<String> applyToSplit(Consumer<String> consumer) {
         return message -> {
             if (message == null || message.isEmpty()) return;

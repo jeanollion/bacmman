@@ -38,7 +38,7 @@ public class ExtractDataset extends JDialog {
     private final ConfigurationTreeGenerator outputConfigTree;
     private final SimpleListParameter<GroupParameter> outputFeatureList;
     SimpleListParameter<ObjectClassParameter> eraseTouchingContours;
-    IntegerParameter subsamplingFactor;
+    IntegerParameter subsamplingFactor, downsamplingFactor;
     private final ArrayNumberParameter outputShape;
     private final GroupParameter container;
     private final FileChooser outputFile;
@@ -103,7 +103,8 @@ public class ExtractDataset extends JDialog {
                 .setMaxChildCount(2)
                 .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions. Set [0, 0] to keep original image size");
         subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract 2 version of the dataset with one fame out of two");
-        container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours, subsamplingFactor);
+        downsamplingFactor = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
+        container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours, subsamplingFactor, downsamplingFactor);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v ->
                 setEnableOk(), (s, l) -> {
@@ -201,7 +202,7 @@ public class ExtractDataset extends JDialog {
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
         int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
-        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC, subsamplingFactor.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC, downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 

@@ -34,11 +34,20 @@ public class DockerGatewayImpl implements DockerGateway {
     static String defaultHostWindows = "docker.for.unix.localhost";
     DockerClient dockerClient;
     DockerGatewayImpl() {
-        String dockerHost = PropertyUtils.get("docker_host", Utils.isUnix() ? defaultHostUnix : defaultHostWindows);
-        DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
-            //.withDockerHost(dockerHost)
-            .withDockerTlsVerify(false)
-            .build();
+        initClient(null, null);
+    }
+    public void authenticate(String user, String token) {
+        initClient(user, token);
+    }
+    protected void initClient(String user, String token) {
+        //String dockerHost = PropertyUtils.get("docker_host", Utils.isUnix() ? defaultHostUnix : defaultHostWindows);
+        DefaultDockerClientConfig.Builder configBuilder = DefaultDockerClientConfig.createDefaultConfigBuilder()
+                //.withDockerHost(dockerHost)
+                .withDockerTlsVerify(false);
+        if (user!=null && token !=null) {
+            configBuilder = configBuilder.withRegistryUsername(user).withRegistryPassword(token);
+        }
+        DockerClientConfig config = configBuilder.build();
         //DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
         DockerHttpClient httpClient = new ZerodepDockerHttpClient.Builder()
                 .dockerHost(config.getDockerHost())

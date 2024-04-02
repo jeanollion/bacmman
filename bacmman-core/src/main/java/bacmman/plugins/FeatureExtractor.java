@@ -10,7 +10,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import java.util.Map;
 
 public interface FeatureExtractor extends Plugin {
-    Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions);
+    Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions);
     InterpolatorFactory interpolation();
     String defaultName();
     Task.ExtractZAxis getExtractZDim();

@@ -89,6 +89,7 @@ public class Task implements ProgressCallback {
         int[] extractDSDimensions;
         int[] extractDSEraseTouchingContoursOC;
         int extractDSSubsamplingFactor=1;
+        int extractDSSpatialDownsamplingFactor =1;
         SimpleBoundingBox extractDSRawBounds;
         Map<String, List<Integer>> extractDSRawPositionMapFrames;
         int[] extractDSRawChannels;
@@ -410,6 +411,9 @@ public class Task implements ProgressCallback {
     public int getExtractDSSubsamplingFactor() {
         return extractDSSubsamplingFactor;
     }
+    public int getExtractDSSpatialDownsamplingFactor() {
+        return extractDSSpatialDownsamplingFactor;
+    }
 
     public Task setAllActions() {
         this.preProcess=true;
@@ -454,12 +458,13 @@ public class Task implements ProgressCallback {
         this.generateTrackImages=generateTrackImages;
         return this;
     }
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, int subsamplingFactor, int compression) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, int spatialDownSamplingFactor, int subsamplingFactor, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
+        this.extractDSSpatialDownsamplingFactor = spatialDownSamplingFactor;
         this.extractDSSubsamplingFactor = subsamplingFactor;
         this.extractDSCompression = compression;
         return this;

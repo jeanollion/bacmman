@@ -25,7 +25,7 @@ public class FreeLineSegmenter {
     public final static Logger logger = LoggerFactory.getLogger(FreeLineSegmenter.class);
     public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, int[] xContour, int[] yContour, int z, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (xContour.length!=yContour.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
-        Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
+        Offset revOff = new SimpleOffset(parentOffset).reverseOffset(); // translate to offset relative to parent
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
         boolean isClosed = Math.pow(xContour[0]-xContour[xContour.length-1], 2) + Math.pow(yContour[0]-yContour[xContour.length-1], 2) <=1;
         int modifyObjectLabel;
@@ -61,13 +61,12 @@ public class FreeLineSegmenter {
             FillHoles2D.fillHoles(r.getMaskAsImageInteger(), 2);
             //Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
             r.clearVoxels();
-
-            logger.debug("region size {}", r.size());
+            //logger.debug("region size {}", r.size());
             ImageMask parentMask = parent.getMask();
             r.removeVoxels(r.getVoxels().stream().filter(v -> !parentMask.contains(v.x, v.y, v.z) || !parentMask.insideMask(v.x, v.y, v.z)).collect(Collectors.toList()));
-            logger.debug("region size after overlap with parent {}", r.size());
+            //logger.debug("region size after overlap with parent {}", r.size());
             r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z)).collect(Collectors.toList())); // remove points already segmented
-            logger.debug("region size after overlap with other objects {}", r.size());
+            //logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
             return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         } else { // close the object using border of touching object
@@ -75,18 +74,17 @@ public class FreeLineSegmenter {
             Region r = rOld.duplicate();
             r.translate(new SimpleOffset(parent.getBounds()).reverseOffset()); // working in relative landmark
             r.setIsAbsoluteLandmark(false);
-            logger.debug("region size before modify {}", r.size());
+            //logger.debug("region size before modify {}, bb: {}", r.size(), r.getBounds());
             r.addVoxels(voxels);
             FillHoles2D.fillHoles(r.getMaskAsImageInteger(), 2);
             Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
-            logger.debug("region size after modify {}", r.size());
+            //logger.debug("region size after modify {}, bb: {}", r.size(), r.getBounds());
             r.clearVoxels(); // update voxels because mask has changed
             ImageMask parentMask = parent.getMask();
             r.removeVoxels(r.getVoxels().stream().filter(v -> !parentMask.contains(v.x, v.y, v.z) || !parentMask.insideMask(v.x, v.y, v.z)).collect(Collectors.toList()));
-            logger.debug("region size after overlap with parent {}", r.size());
-            r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z) && pop.getLabelMap().getPixelInt(v.x, v.y, v.z)!=modifyObjectLabel).collect(Collectors.toList()));
-            logger.debug("region size after erase overlap {}", r.size());
-            r.remove(rOld);
+            //logger.debug("region size after overlap with parent {}, bounds: {}", r.size(), r.getBounds());
+            r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z) && pop.getLabelMap().getPixelInt(v.x, v.y, v.z)!=0).collect(Collectors.toList()));
+            //logger.debug("region size after erase overlap {}, bounds: {}", r.size(), r.getBounds());
             return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         }
     }

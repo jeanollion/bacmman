@@ -105,7 +105,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
     protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
-    protected double stepDuration = Double.NaN, epochDuration = Double.NaN;
+    protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps=Double.NaN;
+
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
 
     public DockerTrainingWindow(DockerGateway dockerGateway) {
@@ -149,10 +150,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             currentProgressBar = trainingProgressBar;
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
+            if (GUI.hasInstance() && GUI.getDBConnection()!=null) {
+                GUI.getDBConnection().getExperiment().getDLengineProvider().closeAllEngines();
+            }
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-                currentContainer = getContainer(trainer, dockerGateway, false, null);
+                currentContainer = getContainer(trainer, dockerGateway, false, null, false);
                 if (currentContainer != null) {
                     try {
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data");
@@ -184,7 +188,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
                 String[] dataTemp = new String[1];
-                currentContainer = getContainer(trainer, dockerGateway, true, dataTemp);
+                currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
                 File outputFile = Paths.get(dataTemp[0], "test_data_augmentation.h5").toFile();
                 if (currentContainer != null) {
                     try {
@@ -257,7 +261,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
             runLater(() -> {
-                currentContainer = getContainer(trainer, dockerGateway, false, null);
+                currentContainer = getContainer(trainer, dockerGateway, false, null, true);
                 if (currentContainer != null) {
                     try {
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data", "--export_only");
@@ -435,8 +439,8 @@ public class DockerTrainingWindow implements ProgressLogger {
         return dlModelLibrary;
     }
 
-    protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway) {
-        DockerImageParameter.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage();
+    protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean export) {
+        DockerImageParameter.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage(export);
         if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;
             File dockerDir = null;
@@ -467,8 +471,8 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else return currentImage.getTag();
     }
 
-    protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount) {
-        String image = ensureImage(trainer, dockerGateway);
+    protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount, boolean export) {
+        String image = ensureImage(trainer, dockerGateway, export);
         logger.debug("docker image: {}", image);
         try {
             List<UnaryPair<String>> mounts = new ArrayList<>();
@@ -541,6 +545,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         trainTime = 0;
         stepDuration = Double.NaN;
         epochDuration = Double.NaN;
+        elapsedSteps = Double.NaN;
         updateTrainingDisplay();
     }
 
@@ -611,7 +616,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 int[] prog = parseProgress(message);
                 setProgress(stepProgressBar, prog[0], prog[1]);
                 displayTime(true);
-                displayLoss(message, prog[0] == prog[1]);
+                if (!currentProgressBar.isIndeterminate()) displayLoss(message, prog[0] == prog[1]); // epoch bar = indeterminate -> first epoch has not started (active learning phase..)
 
             } else { //Epoch 00002: loss improved from 0.78463 to 0.54376, saving model to /data/test.h5
                 m = epochEndPattern.matcher(message);
@@ -630,11 +635,10 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected synchronized void displayTime(boolean isStep) {
-        int currentEpoch = currentProgressBar.getValue();
+        int currentEpoch = currentProgressBar.isIndeterminate() ? 1 : currentProgressBar.getValue();
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
         int maxStep = stepProgressBar.getMaximum();
-        int elapsedSteps = (currentEpoch - 1) * maxStep + currentStep - 1;
         if (currentStep <= 1 && currentEpoch <= 1) trainTime = System.currentTimeMillis();
         if (!isStep) {
             if (currentEpoch <= 1) lastEpochTime = System.currentTimeMillis();
@@ -646,6 +650,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                 lastEpochTime = currentEpochTime;
             }
         } else {
+            if (Double.isNaN(elapsedSteps)) elapsedSteps = 0;
+            ++elapsedSteps;
             if (currentStep <= 1) lastStepTime = System.currentTimeMillis();
             else {
                 long currentStepTime = System.currentTimeMillis();
@@ -656,13 +662,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
         }
         String stepTime, epochTime, trainingTime;
-        if (!Double.isNaN(stepDuration)) {
+        if (!Double.isNaN(stepDuration) && !Double.isNaN(elapsedSteps)) {
             double avgTimeMS = stepDuration / elapsedSteps;
             stepTime = Utils.formatDuration((long) avgTimeMS) + "/step";
         } else {
             stepTime = "     /step";
         }
-        if (!Double.isNaN(epochDuration) || !Double.isNaN(stepDuration)) {
+        if (!currentProgressBar.isIndeterminate() && (!Double.isNaN(epochDuration) || (!Double.isNaN(stepDuration) && !Double.isNaN(elapsedSteps)))) {
             double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - 1);
             long avgEpochTimeMSL = (long) avgEpochTimeMS;
             long elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
@@ -709,12 +715,18 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     String[] ignoreError = new String[]{"TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
-
+    String[] isInfo = new String[]{"Created device"};
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
         for (String ignore : ignoreError) if (message.contains(ignore)) return;
         setMessage(message);
-        logger.error("ERROR: {}", message);
+        for (String info : isInfo) {
+            if (message.contains(info)) {
+                logger.info("{}", message);
+                return;
+            }
+        }
+        logger.error("{}", message);
     }
 
     protected void updateExtractDatasetConfiguration() {

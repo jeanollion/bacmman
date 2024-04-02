@@ -9,6 +9,7 @@
   </appender>
     <logger name="org.bytedeco" level="info"/>
     <logger name="loci" level="error"/>
+    <logger name="com.github.dockerjava" level="error"/>
   <root level="debug">
     <appender-ref ref="STDOUT" />
   </root>

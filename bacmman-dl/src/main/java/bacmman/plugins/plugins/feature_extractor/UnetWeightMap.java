@@ -40,7 +40,7 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
         double apply(int x, int y, int z);
     }
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         RegionPopulation pop = resampledPopulations.get(objectClassIdx).get(parent);
         // compute class frequency
         double foreground = pop.getRegions().stream().mapToDouble(r->r.size()).sum();

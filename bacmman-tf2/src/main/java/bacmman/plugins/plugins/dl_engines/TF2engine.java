@@ -76,6 +76,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
                     .withTags("serve");
             if (configProto!=null) loader = loader.withConfigProto(configProto);
             model = loader.load();
+
             //model = SavedModelBundle.load(modelFile.getModelFile().getAbsolutePath(), "serve");
             Signature s = model.function("serving_default").signature();
             //System.setOut(stdout);
@@ -117,7 +118,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     }
 
     @Override
-    public void close() {
+    public void close() { // TODO this do not deallocate GPU memory
         if (model!=null) {
             model.close();
             model = null;

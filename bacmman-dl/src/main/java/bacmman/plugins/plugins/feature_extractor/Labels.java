@@ -30,7 +30,7 @@ public class Labels implements FeatureExtractor, Hint {
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res= resampledPopulations.get(objectClassIdx).get(parent).getLabelMap();
         return handleZ(res, extractZ.getSelectedEnum(), plane.getIntValue());
     }

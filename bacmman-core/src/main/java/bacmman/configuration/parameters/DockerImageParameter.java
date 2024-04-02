@@ -21,7 +21,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         this.minimalVersion = minimalVersion;
         this.maximalVersion = maximalVersion;
         refreshImageList();
-        if (selectedItem == null && !allImages.isEmpty()) {
+        if (selectedItem == null && !allImages.isEmpty() && !isAllowNoSelection()) {
             // set first installed value
             setValue(allImages.stream().filter(DockerImage::isInstalled).findFirst().orElse(allImages.get(0)));
         }
@@ -63,6 +63,12 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         this.selectedItem = value;
         fireListeners();
         setCondValue();
+    }
+
+    @Override
+    public DockerImage getValue() {
+        if (selectedItem != null && !selectedItem.isInstalled()) refreshImageList(); // in case image has been installed but not refreshed
+        return selectedItem;
     }
 
     @Override

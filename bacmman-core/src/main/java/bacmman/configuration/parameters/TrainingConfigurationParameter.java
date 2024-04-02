@@ -120,15 +120,18 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
     public TrainingConfigurationParameter setDockerImageRequirements(String imageName, int[] minimalVersion, int[] maximalVersion) {
         trainingParameters.dockerImage.setImageRequirement(imageName, minimalVersion, maximalVersion);
+        trainingParameters.dockerImageExport.setImageRequirement(imageName, minimalVersion, maximalVersion);
         return this;
     }
 
     public TrainingConfigurationParameter refreshDockerImages() {
         trainingParameters.dockerImage.refreshImageList();
+        trainingParameters.dockerImageExport.refreshImageList();
         return this;
     }
 
-    public DockerImageParameter.DockerImage getSelectedDockerImage() {
+    public DockerImageParameter.DockerImage getSelectedDockerImage(boolean export) {
+        if (export && trainingParameters.dockerImageExport.getSelectedIndex()>=0) return trainingParameters.dockerImageExport.getValue();
         return trainingParameters.dockerImage.getValue();
     }
 
@@ -223,7 +226,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         @Override
         public String getPythonConfigurationKey() {return "dataset_parameters";}
     }
-
+    public static BoundedNumberParameter getStartEpochParameter() {
+        return new BoundedNumberParameter("Start Epoch", 0, 0, 0, null).setHint("Indicate how many epoch have already been performed when retraining a network");
+    }
 
     public static BoundedNumberParameter getPatienceParameter(int defaultValue) {
         return new BoundedNumberParameter("Patience", 0, defaultValue, 1, null);
@@ -242,13 +247,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {
         DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
+        DockerImageParameter dockerImageExport = new DockerImageParameter("Docker Image (export)").setAllowNoSelection(true).setHint("Docker image used to export model only. If left to void, <em>Docker Image</em> will be used");
         BoundedNumberParameter epochNumber = new BoundedNumberParameter("Epoch Number", 0, 32, 0, null);
         BoundedNumberParameter stepNumber = new BoundedNumberParameter("Step Number", 0, 100, 1, null);;
         BoundedNumberParameter learningRate = new BoundedNumberParameter("Learning Rate", 8, 2e-4, 10e-8, null);
         TextParameter modelName = new TextParameter("Model Name", "", false, false).setHint("Name given to log / weight and saved model");
         BoundedNumberParameter workers = new BoundedNumberParameter("Multiprocessing Workers", 0, 8, 1, null).setHint("Number of CPU threads at training. Can increase training speed when mini-batch generation is time-consuming");
         TextParameter weightDir = new TextParameter("Weight Dir", "", false, true).setHint("Relative path to directory where weights will be stored (created if not existing)");
-        TextParameter logDir = new TextParameter("Log Dir", "Logs", false, true).setHint("Relative path to directory where training logs will be stored (created if not existing)");
+        TextParameter logDir = new TextParameter("Log Dir", "", false, true).setHint("Relative path to directory where training logs will be stored (created if not existing)");
         Path refPath;
         MLModelFileParameter loadModelName = new MLModelFileParameter("Load Model")
                 .setFileChooserOption(FileChooser.FileChooserOption.FILE_OR_DIRECTORY)
@@ -261,6 +267,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             super(name);
             this.children = new ArrayList<>();
             children.add(dockerImage);
+            children.add(dockerImageExport);
             children.add(epochNumber);
             children.add(stepNumber);
             children.add(learningRate);
@@ -332,7 +339,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
     enum TILE_NUMBER_MODE {CONSTANT, AUTOMATIC}
     public class DatasetParameter extends GroupParameterAbstract<DatasetParameter> implements PythonConfiguration, Deactivatable {
-        FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_ONLY,false)
+        FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_OR_DIRECTORY,false)
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
         TextParameter channel = new TextParameter("Channel Name", "raw", false, false).setHint("Name of images / movies to consider within the dataset");

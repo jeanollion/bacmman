@@ -27,8 +27,8 @@ public class ProgressParser {
         }*/
         if (item.getId() != null && item.getProgressDetail() != null && item.getProgressDetail().getCurrent() !=null && item.getProgressDetail().getTotal()!=null) {
             progress.put(item.getId()+item.getStatus(), item.getProgressDetail());
-            long currentProgress=progress.values().stream().mapToInt(pd -> Math.toIntExact(pd.getCurrent())/1000).sum();
-            long totalProgress=progress.values().stream().mapToInt(pd -> Math.toIntExact(pd.getTotal())/1000).sum();
+            long currentProgress=progress.values().stream().mapToLong(pd -> pd==null || pd.getCurrent()==null ? 0 : pd.getCurrent()/1024).sum()/1024;
+            long totalProgress=progress.values().stream().mapToLong(pd -> pd == null || pd.getTotal()==null ? 0 : pd.getTotal()/(1024*1024)).sum();
             if (stepProgress !=null) {
                 stepProgress.accept((int)currentProgress, (int)totalProgress);
             }

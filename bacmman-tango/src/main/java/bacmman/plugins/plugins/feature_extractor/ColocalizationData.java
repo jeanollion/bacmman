@@ -29,16 +29,16 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
             .addValidationFunction(l -> l.getActivatedChildren().stream().map(EVFParameter::getResampleZ).distinct().count()==1) // resample in Z should be equal
             .setHint("If items are added to this list, Eroded Volume Fraction (EVF) will be computed for each pixel and returned as an additional channel");
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (objectClassIdx != parent.getStructureIdx()) throw new IllegalArgumentException("invalid object class: should correspond to parent selection that has object class==: "+parent.getStructureIdx());
         double zAspectRatio = parent.getScaleZ()/parent.getScaleXY();
-        boolean resample = !evfList.isEmpty() && evfList.getChildAt(0).getResampleZ();
+        boolean resample = !evfList.isEmpty() && evfList.getChildAt(0).getResampleZ() || downsamplingFactor>1;
         UnaryOperator<Image> resampleZFun = im -> {
             if (!resample || zAspectRatio==1 || im.sizeZ()==1) return im;
-            return Resize.resample(im, false, im.sizeX(), im.sizeY(), (int)Math.round(im.sizeZ() * zAspectRatio));
+            return Resize.resample(im, false, im.sizeX()/downsamplingFactor, im.sizeY()/downsamplingFactor, (int)Math.round(im.sizeZ() * zAspectRatio));
         };
         ImageMask parentMask = parent.getMask();
-        if (resample && zAspectRatio!=1) parentMask = Resize.resample(TypeConverter.maskToImageInteger(parent.getMask(), null), true, parentMask.sizeX(), parentMask.sizeY(), (int)Math.round(parentMask.sizeZ() * zAspectRatio));
+        if (resample && (zAspectRatio!=1 || downsamplingFactor>1) ) parentMask = Resize.resample(TypeConverter.maskToImageInteger(parent.getMask(), null), true, parentMask.sizeX()/downsamplingFactor, parentMask.sizeY()/downsamplingFactor, (int)Math.round(parentMask.sizeZ() * zAspectRatio));
         List<Image> images = channels.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx)
                 .mapToObj(parent::getRawImage)
                 .map(resampleZFun)

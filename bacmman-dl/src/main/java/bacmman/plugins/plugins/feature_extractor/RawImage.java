@@ -35,7 +35,7 @@ public class RawImage implements FeatureExtractor, Hint {
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res = parent.getRawImage(objectClassIdx);
         return handleZ(res, extractZ.getSelectedEnum(), plane.getIntValue());
     }

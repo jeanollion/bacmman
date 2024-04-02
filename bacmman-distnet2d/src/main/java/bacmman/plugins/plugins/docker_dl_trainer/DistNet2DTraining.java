@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class DistNet2DTraining implements DockerDLTrainer, Hint {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getEpsilonRangeParameter(0.1, 1e-7)};
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), new ActiveLearningParameter("Active Learning")};
     Parameter[] datasetParameters = new Parameter[0];
     BoundedNumberParameter frameSubSampling = new BoundedNumberParameter("Frame Subsampling", 0, 15, 1, null).setHint("Time Subsampling of dataset to increase displacement range<br>Extent E of the frame window <em>seen</em> by the neural network is drawn randomly in interval [0, FRAME_SUBSAMLPING). if neural network inputs previous and next frames, final seen frame window is W = 2 x E + 1 otherwise W = E + 1. If W is greater than the input window of the neural network, gaps between frame are introduced, except between central frame and first adjacent frame");
     BoundedNumberParameter eraseEdgeCellSize = new BoundedNumberParameter("Erase Edge Cell Size", 0, 50, 0, null).setHint("Size (in pixels) of cells touching edges that should be erased");
@@ -27,7 +27,10 @@ public class DistNet2DTraining implements DockerDLTrainer, Hint {
 
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, eraseEdgeCellSize, staticProba, new AffineTransformParameter("Affine Transform"), new ElasticDeformParameter("Elastic Deform"), new Swim1DParameter("Swim 1D"), new IlluminationParameter("Illumination Transform", true)};
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
-    Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
+    enum CENTER_MODE {MEDOID, GEOMETRICAL}
+    EnumChoiceParameter<CENTER_MODE> center = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID);
+    GroupParameter datasetFeatures = new GroupParameter("Dataset Features", center).setHint("MEDOID: ");
+    Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE), datasetFeatures};
     Parameter[] otherParameters = new Parameter[]{arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
@@ -45,6 +48,8 @@ public class DistNet2DTraining implements DockerDLTrainer, Hint {
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ArrayNumberParameter extractDims = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
+    IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
+
     IntegerParameter subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract 2 version of the dataset with one fame out of two");
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.EXISTING, extractSel)
@@ -52,7 +57,7 @@ public class DistNet2DTraining implements DockerDLTrainer, Hint {
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
     // store in a group so that parameters have same parent -> needed because of listener
-    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, extractDims, selModeCond, selectionFilter, subsamplingFactor);
+    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, extractDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor);
 
 
     @Override
@@ -94,7 +99,7 @@ public class DistNet2DTraining implements DockerDLTrainer, Hint {
                 break;
             }
         }
-        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, subsamplingFactor.getIntValue(), 0);
+        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), 0);
 
     }
 

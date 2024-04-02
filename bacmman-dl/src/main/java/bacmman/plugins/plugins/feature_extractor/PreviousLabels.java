@@ -45,7 +45,7 @@ public class PreviousLabels implements FeatureExtractorTemporal, Hint {
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         RegionPopulation curPop = resampledPopulations.get(objectClassIdx).get(parent);
         Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().stream().mapToInt(Region::getLabel).max().orElse(0), curPop.getImageProperties());
         int previousFrame = parent.getFrame() - subsamplingFactor;

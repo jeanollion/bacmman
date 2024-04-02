@@ -104,8 +104,7 @@ import bacmman.ui.logger.ProgressLogger;
  */
 public class GUI extends javax.swing.JFrame implements ProgressLogger {
     public static final Logger logger = LoggerFactory.getLogger(GUI.class);
-    // check if mapDB is present
-    public static final String DBprefix = "boa_";
+    public static final String DBprefix = "";
     public String currentDBPrefix = "";
     private static GUI INSTANCE;
     // db-related attributes
@@ -168,7 +167,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
     private BoundedNumberParameter dbConcurrencyScale = new BoundedNumberParameter("Database Concurrency Scale", 0, 8, 1, ThreadRunner.getMaxCPUs());
 
-    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAllTypes().toArray(new String[0]), "MapDB", false).setHint("Database structure to store objects and measurements. <br/>Note that with MapDB, it is not safe to manually edit parent objects that already have children objects");
+    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAllTypes().toArray(new String[0]), "ObjectBox", false).setHint("Database structure to store objects and measurements. <br/>Note that with MapDB, it is not safe to manually edit parent objects that already have children objects");
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
     private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
     private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
@@ -363,13 +362,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         ConfigurationTreeGenerator.addToMenu(dbConcurrencyScale, databaseMenu);
         */
 
-        //PropertyUtils.setPersistent(this.dbType, PropertyUtils.DATABASE_TYPE); // TODO RESTORE
+        PropertyUtils.setPersistent(this.dbType, PropertyUtils.DATABASE_TYPE);
         MasterDAOFactory.setCurrentType(dbType.getSelectedItem());
         JMenu dbTypeSubMenu = (JMenu)ConfigurationTreeGenerator.addToMenu(dbType, databaseMenu)[0];
         dbType.addListener(e -> {
             dbTypeSubMenu.setText(dbType.toString());
             if (db != null) {
-                String defaultDBType = PropertyUtils.get(PropertyUtils.DATABASE_TYPE, "MapDB");
+                String defaultDBType = PropertyUtils.get(PropertyUtils.DATABASE_TYPE, "ObjectBox");
                 String targetType = dbType.getSelectedItem();
                 if (!MasterDAOFactory.isType(db, targetType)) {
                     if (Utils.promptBoolean("Convert Database from "+MasterDAOFactory.getType(db)+" to "+targetType+" ?", this)) {
@@ -388,7 +387,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                         }, this).appendEndOfWork(()-> openDataset(relPath, getHostNameOrDir(), false));
                     }
                 }
-                //PropertyUtils.set(PropertyUtils.DATABASE_TYPE, defaultDBType); // TODO RESTORE do not override database type when converting current database
+                PropertyUtils.set(PropertyUtils.DATABASE_TYPE, defaultDBType); // do not override database type when converting current database
             } else {
                 logger.debug("new default target type : {}", dbType.getSelectedItem());
                 MasterDAOFactory.setCurrentType(dbType.getSelectedItem());
@@ -4330,7 +4329,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                             db.getSelectionDAO().store(s);
                             selectedSelections = Collections.singletonList(s.getName());
                         }
-                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, 1, getExtractedDSCompressionFactor());
+                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, 1, 1, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {
