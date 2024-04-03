@@ -570,13 +570,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_MB);
         ConfigurationTreeGenerator.addToMenu(dockerVisibleGPUList, dockerMenu);
         ConfigurationTreeGenerator.addToMenu(dockerShmSizeMb, dockerMenu);
-        Runnable setDockerProps = () -> {
-            Core.getCore().dockerGPUs = DockerGateway.parseGPUList(dockerVisibleGPUList.getValue());
-            Core.getCore().dockerShmMb = dockerShmSizeMb.getIntValue();
-        };
-        setDockerProps.run();
-        dockerVisibleGPUList.addListener(p->setDockerProps.run());
-        dockerShmSizeMb.addListener(p->setDockerProps.run());
 
         // python gateway
         PropertyUtils.setPersistent(pyGatewayPort, "py_gateway_port");
@@ -1323,6 +1316,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     public double getPreProcessingMemoryThreshold() {return this.memoryThreshold.getValue().doubleValue();}
     public int getExtractedDSCompressionFactor() {return this.extractDSCompression.getIntValue();}
     public String getWorkingDirectory() {return this.getHostNameOrDir();}
+
     //public StructureObjectTreeGenerator getObjectTree() {return this.objectTreeGenerator;}
     public TrackTreeController getTrackTrees() {return this.trackTreeController;}
     

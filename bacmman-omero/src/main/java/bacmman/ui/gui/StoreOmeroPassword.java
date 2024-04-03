@@ -89,54 +89,10 @@ public class StoreOmeroPassword {
         try {
             OmeroGateway.encryptPassword(hostname.getText(), username.getText(), localPasswordField.getPassword(), remotePasswordField.getPassword());
             saveCurrentConnectionParameters();
-        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
+        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException |
+                 InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
             logger.error("Error while storing password", e);
         }
-    }
-
-    protected class Dial extends JDialog {
-        Dial(Frame parent, String title) {
-            super(parent, title, true);
-            getContentPane().add(mainPanel);
-            setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-            pack();
-            cancelButton.addActionListener(e -> {
-                canceled = true;
-                setVisible(false);
-                dispose();
-            });
-            storeButton.addActionListener(e -> {
-                canceled = false;
-                storePassword();
-                setVisible(false);
-                dispose();
-            });
-        }
-    }
-
-    public static void storeOmeroPassword(String hostname, String username, Map<UnaryPair<String>, char[]> savedPassword, Consumer<UnaryPair<String>> serverAndUserConsumer, Frame parent) {
-        StoreOmeroPassword store = new StoreOmeroPassword(hostname, username, savedPassword, serverAndUserConsumer);
-        Dial dia = store.new Dial(parent, "Store Omero Password");
-        dia.setVisible(true);
-    }
-
-    public static DocumentListener getDocumentListener(Consumer<DocumentEvent> consumer) {
-        return new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                consumer.accept(e);
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                consumer.accept(e);
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                consumer.accept(e);
-            }
-        };
     }
 
     {
@@ -204,6 +160,51 @@ public class StoreOmeroPassword {
      */
     public JComponent $$$getRootComponent$$$() {
         return mainPanel;
+    }
+
+    protected class Dial extends JDialog {
+        Dial(Frame parent, String title) {
+            super(parent, title, true);
+            getContentPane().add(mainPanel);
+            setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+            pack();
+            cancelButton.addActionListener(e -> {
+                canceled = true;
+                setVisible(false);
+                dispose();
+            });
+            storeButton.addActionListener(e -> {
+                canceled = false;
+                storePassword();
+                setVisible(false);
+                dispose();
+            });
+        }
+    }
+
+    public static void storeOmeroPassword(String hostname, String username, Map<UnaryPair<String>, char[]> savedPassword, Consumer<UnaryPair<String>> serverAndUserConsumer, Frame parent) {
+        StoreOmeroPassword store = new StoreOmeroPassword(hostname, username, savedPassword, serverAndUserConsumer);
+        Dial dia = store.new Dial(parent, "Store Omero Password");
+        dia.setVisible(true);
+    }
+
+    public static DocumentListener getDocumentListener(Consumer<DocumentEvent> consumer) {
+        return new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                consumer.accept(e);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                consumer.accept(e);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                consumer.accept(e);
+            }
+        };
     }
 
 }

@@ -269,7 +269,8 @@ public class DLModelsLibrary {
                                         updateGistDisplay();
                                         tree.setSelectedGist(toSave);
                                     }
-                                } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                                } catch (IllegalArgumentException | NoSuchAlgorithmException |
+                                         InvalidKeySpecException ex) {
                                     pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 }
                             }

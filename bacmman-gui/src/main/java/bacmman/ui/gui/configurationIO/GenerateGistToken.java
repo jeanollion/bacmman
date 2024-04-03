@@ -133,7 +133,8 @@ public class GenerateGistToken extends JDialog {
             updateEnableButtons();
 
         } catch (Exception ex) {
-            if (bacmmanLogger != null) bacmmanLogger.setMessage("An error occurred while trying to authorize app: " + ex.getMessage());
+            if (bacmmanLogger != null)
+                bacmmanLogger.setMessage("An error occurred while trying to authorize app: " + ex.getMessage());
             logger.error("Error @ github auth step 1", ex);
         }
     }
@@ -158,7 +159,8 @@ public class GenerateGistToken extends JDialog {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Token stored successfully");
                 result = new Pair<>(this.username.getText(), this.password.getPassword());
                 dispose();
-            } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | InvalidKeySpecException | BadPaddingException | InvalidKeyException t) {
+            } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException |
+                     InvalidKeySpecException | BadPaddingException | InvalidKeyException t) {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Could not store token");
                 logger.error("could not store token", t);
             }
@@ -236,5 +238,4 @@ public class GenerateGistToken extends JDialog {
     public JComponent $$$getRootComponent$$$() {
         return contentPane;
     }
-
 }

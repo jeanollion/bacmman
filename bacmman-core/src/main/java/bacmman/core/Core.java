@@ -68,8 +68,6 @@ public class Core {
     public String tfVisibleDeviceList="";
     public boolean tfSetAllowGrowth=false;
     public double tfPerProcessGpuMemoryFraction=1;
-    public int[] dockerGPUs=new int[0];
-    public int dockerShmMb=2000;
     final List<Runnable> toFront = new ArrayList<>();
     final List<DiskBackedImageManager> diskBackedImageManagers = new ArrayList<>();
     protected Consumer<String> closePosition;

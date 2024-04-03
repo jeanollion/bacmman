@@ -399,7 +399,7 @@ public class ConfigurationTreeGenerator {
     }
 
     public void xpChanged() {
-        xpIsValidCallBack.accept(rootParameter.isValid());
+        if (xpIsValidCallBack!=null) xpIsValidCallBack.accept(rootParameter.isValid());
     }
     public void setCompareTree(JTree otherTree, boolean useTemplateForPreProcessingChains) {
         this.useTemplateForPreProcessingChains=useTemplateForPreProcessingChains;

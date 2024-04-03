@@ -79,9 +79,20 @@ public class NewDatasetFromGithub extends JDialog {
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
-            @Override public void removeUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
-            @Override public void changedUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
         };
         username.getDocument().addDocumentListener(dl.apply(false));
         password.getDocument().addDocumentListener(dl.apply(true));
@@ -265,5 +276,4 @@ public class NewDatasetFromGithub extends JDialog {
     public JComponent $$$getRootComponent$$$() {
         return contentPane;
     }
-
 }

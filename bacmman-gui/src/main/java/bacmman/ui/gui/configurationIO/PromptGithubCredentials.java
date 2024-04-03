@@ -45,9 +45,20 @@ public class PromptGithubCredentials extends JDialog {
             username.setText(gateway.getUsername());
         updateEnableButtons(false);
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent documentEvent) { updateEnableButtons(p); }
-            @Override public void removeUpdate(DocumentEvent documentEvent) { updateEnableButtons(p); }
-            @Override public void changedUpdate(DocumentEvent documentEvent) { updateEnableButtons(p); }
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+                updateEnableButtons(p);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+                updateEnableButtons(p);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+                updateEnableButtons(p);
+            }
         };
         username.getDocument().addDocumentListener(dl.apply(false));
         password.getDocument().addDocumentListener(dl.apply(true));
@@ -89,6 +100,25 @@ public class PromptGithubCredentials extends JDialog {
         }
         boolean enableLoad = u.length() != 0 && p.length != 0;
         connect.setEnabled(enableLoad);
+    }
+
+
+    private void onOK() {
+        if (storeToGateway) gateway.setCredentials(username.getText(), password.getPassword());
+        credentials = new Pair<>(username.getText(), password.getPassword());
+        dispose();
+    }
+
+    private void onCancel() {
+        credentials = null;
+        dispose();
+    }
+
+    public static Pair<String, char[]> promptCredentials(GithubGateway gateway, String message) {
+        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, message, false);
+        dialog.pack();
+        dialog.setVisible(true);
+        return dialog.credentials;
     }
 
     {
@@ -139,24 +169,5 @@ public class PromptGithubCredentials extends JDialog {
      */
     public JComponent $$$getRootComponent$$$() {
         return contentPane;
-    }
-
-
-    private void onOK() {
-        if (storeToGateway) gateway.setCredentials(username.getText(), password.getPassword());
-        credentials = new Pair<>(username.getText(), password.getPassword());
-        dispose();
-    }
-
-    private void onCancel() {
-        credentials = null;
-        dispose();
-    }
-
-    public static Pair<String, char[]> promptCredentials(GithubGateway gateway, String message) {
-        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, message, false);
-        dialog.pack();
-        dialog.setVisible(true);
-        return dialog.credentials;
     }
 }

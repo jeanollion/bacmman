@@ -5,9 +5,22 @@ import org.json.simple.JSONObject;
 
 public class ActiveLearningParameter extends ConditionalParameterAbstract<Boolean, ActiveLearningParameter> implements PythonConfiguration, Hint {
 
-    IntervalParameter quantiles = new IntervalParameter("Loss Percentiles", 5, 0, 100, 0.1, 99.9).addRightBound(0, 49).addLeftBound(1, 51).setHint("Loss min and max quantiles. ");
-    BoundedNumberParameter enrichFactor = new BoundedNumberParameter("Enrich Factor", 5, 100, 1, null).setHint("Sample with loss value greater than maximum quantile will have a probability to be drawn multiplied by this factor. Samples with loss located in the interval [quantile min, quantile max] will have an enriched probability that depend on the loss value");
+    IntervalParameter quantiles = new IntervalParameter("Loss Percentiles", 5, 0, 100, 0.1, 99.9)
+            .addRightBound(0, 49).addLeftBound(1, 51).setHint("Loss min and max quantiles. <br/>Must verify: 1 - percentile_max / 100 > 1 / enrich factor").addValidationFunction(q -> {
+                BoundedNumberParameter ef = ParameterUtils.getParameterFromSiblings(BoundedNumberParameter.class, q, null);
+                return isValid(ef.getDoubleValue(), q.getValuesAsDouble()[1]/100.);
+            });
+    BoundedNumberParameter enrichFactor = new BoundedNumberParameter("Enrich Factor", 5, 100, 1, null)
+            .addValidationFunction(ef -> {
+                IntervalParameter q = ParameterUtils.getParameterFromSiblings(IntervalParameter.class, ef, null);
+                return isValid(ef.getDoubleValue(), q.getValuesAsDouble()[1]/100.);
+            })
+            .setHint("Sample with loss value greater than maximum quantile will have a probability to be drawn multiplied by this factor. Samples with loss located in the interval [quantile min, quantile max] will have an enriched probability that depend on the loss value. <br/>Must verify: 1 - percentile_max / 100 > 1 / enrich factor");
     IntegerParameter period = new IntegerParameter("Period", 100).setLowerBound(1).setHint("Sample probability will be updated every N epochs. This operation can be time consuming especially on large datasets as it needs a prediction on each sample of the dataset");
+
+    private static boolean isValid(double enrichFactor, double quantile) {
+        return 1 - quantile < 1./enrichFactor;
+    }
 
     public ActiveLearningParameter(String name) {
         this(name, false);

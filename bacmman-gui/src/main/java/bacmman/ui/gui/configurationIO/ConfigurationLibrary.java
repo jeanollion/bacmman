@@ -416,7 +416,8 @@ public class ConfigurationLibrary {
                                         remoteSelector.addGist(toSave);
                                         remoteSelector.setSelectedGist(toSave, -1);
                                     }
-                                } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                                } catch (IllegalArgumentException | NoSuchAlgorithmException |
+                                         InvalidKeySpecException ex) {
                                     bacmmanLogger.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 }
                             }

@@ -85,6 +85,7 @@ public class SaveDLModelGist {
             logger.error("Error storing model file", ex);
         }
     }
+
     public void promptDeleteExisting(UserAuth auth) {
         if (!url.getText().isEmpty()) {
             if (Utils.promptBoolean("A model file is already linked to this configuration, remove it from server ?", dia)) {
@@ -92,6 +93,7 @@ public class SaveDLModelGist {
             }
         }
     }
+
     public boolean deleteFile(UserAuth auth) {
         String url = BASE_URL + "/gists/" + id();
         boolean del = JSONQuery.delete(url, auth);
@@ -244,7 +246,8 @@ public class SaveDLModelGist {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                         promptDeleteExisting(auth2);
                                         uploadFile.accept(auth2);
-                                    } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                                    } catch (IllegalArgumentException | NoSuchAlgorithmException |
+                                             InvalidKeySpecException ex) {
                                         if (pcb != null)
                                             pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                     }
@@ -272,7 +275,8 @@ public class SaveDLModelGist {
                                     try {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                         deleteFile(auth2);
-                                    } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                                    } catch (IllegalArgumentException | NoSuchAlgorithmException |
+                                             InvalidKeySpecException ex) {
                                         if (pcb != null)
                                             pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                     }
@@ -409,6 +413,7 @@ public class SaveDLModelGist {
     public String url() {
         return url.getText();
     }
+
     public String id() {
         String url = url();
         return url.replace(GIST_BASE_URL, "");

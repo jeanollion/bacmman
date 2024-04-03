@@ -155,7 +155,8 @@ public class ImportFromOmero extends JFrame {
             StoreOmeroPassword.storeOmeroPassword(hostname.getText(), username.getText(), savedPassword, su -> {
                 hostname.setText(su.key);
                 username.setText(su.value);
-                if (savedPassword.containsKey(getPWKey())) password.setText(String.valueOf(savedPassword.get(getPWKey())));
+                if (savedPassword.containsKey(getPWKey()))
+                    password.setText(String.valueOf(savedPassword.get(getPWKey())));
             }, this);
         });
     }
@@ -299,5 +300,4 @@ public class ImportFromOmero extends JFrame {
     public JComponent $$$getRootComponent$$$() {
         return contentPane;
     }
-
 }

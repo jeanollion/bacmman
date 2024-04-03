@@ -223,6 +223,15 @@ public class JSONUtils {
             return null;
         }
     }
+    public static JSONAware parseJSON(String s) {
+        try {
+            Object res= new JSONParser().parse(s);
+            return (JSONAware)res;
+        } catch (ParseException ex) {
+            logger.trace("Could not parse: "+s, ex);
+            return null;
+        }
+    }
     public static <T extends JSONSerializable> T parse(Class<T> clazz, String s) {
         if (Measurements.class.equals(clazz)) {
             throw new IllegalArgumentException("Cannot create measurement only from JSON need position name");

@@ -20,6 +20,7 @@ import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import ij.ImagePlus;
 import org.apache.commons.io.FileUtils;
+import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
@@ -79,13 +80,16 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JButton moveModelButton;
     private JLabel timeLabel;
     private JLabel learningRateLabel;
+    private JPanel dockerOptionPanel;
+    private JScrollPane dockerOptionJSP;
     private JComboBox dockerImageJCB;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
     static String MD_ID = "docker_training_move_dir";
     private static final Logger logger = LoggerFactory.getLogger(DockerTrainingWindow.class);
     final protected DockerGateway dockerGateway;
-    protected ConfigurationTreeGenerator config, configRef, extractConfig;
+    protected ConfigurationTreeGenerator config, configRef, extractConfig, dockerOptions, dockerOptionsRef;
+
     protected String currentWorkingDirectory;
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
             .setNewInstanceConfiguration(i -> {
@@ -96,16 +100,19 @@ public class DockerTrainingWindow implements ProgressLogger {
                 updateDisplayRelatedToWorkingDir();
             });
 
+    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
+    protected IntegerParameter dockerShmSizeMb = new IntegerParameter("Shared Memory Size", 2000).setHint("Shared Memory Size (MB)");
+
     protected PluginParameter<DockerDLTrainer> trainerParameterRef = trainerParameter.duplicate();
     protected final Color textFG;
-    protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig;
+    protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig, dockerConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
     final protected ActionListener workingDirPersistence, moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
     protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
-    protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps=Double.NaN;
+    protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps = Double.NaN;
 
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
 
@@ -121,6 +128,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         config.setCompareTree(configRef.getTree(), false);
         config.expandAll();
         configurationJSP.setViewportView(config.getTree());
+        PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
+        PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_MB);
+        updateDockerOptions();
         textFG = new Color(workingDirectoryTextField.getForeground().getRGB());
         workingDirectoryTextField.getDocument().addDocumentListener(getDocumentListener(this::updateDisplayRelatedToWorkingDir));
         datasetNameTextField.getDocument().addDocumentListener(getDocumentListener(this::updateExtractDisplay));
@@ -150,7 +160,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             currentProgressBar = trainingProgressBar;
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
-            if (GUI.hasInstance() && GUI.getDBConnection()!=null) {
+            if (GUI.hasInstance() && GUI.getDBConnection() != null) {
                 GUI.getDBConnection().getExperiment().getDLengineProvider().closeAllEngines();
             }
             runLater(() -> {
@@ -390,6 +400,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             updateTrainingDisplay();
         });
+
     }
 
     protected void promptSaveConfig() {
@@ -482,7 +493,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) { //TODO add docker menu parameter
                     dataTemp = Paths.get("/dev/shm");
                 } else {
-                    dataTemp = Paths.get(currentWorkingDirectory, "dataTemp");
+                    dataTemp = Paths.get(currentWorkingDirectory, "dockerData");
                     if (!Files.exists(dataTemp)) {
                         try {
                             Files.createDirectories(dataTemp);
@@ -494,7 +505,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            return dockerGateway.createContainer(image, Core.getCore().dockerShmMb, Core.getCore().dockerGPUs, mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeMb.getIntValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             setMessage("Error trying to start container");
             setMessage(e.getMessage());
@@ -616,7 +627,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                 int[] prog = parseProgress(message);
                 setProgress(stepProgressBar, prog[0], prog[1]);
                 displayTime(true);
-                if (!currentProgressBar.isIndeterminate()) displayLoss(message, prog[0] == prog[1]); // epoch bar = indeterminate -> first epoch has not started (active learning phase..)
+                if (!currentProgressBar.isIndeterminate())
+                    displayLoss(message, prog[0] == prog[1]); // epoch bar = indeterminate -> first epoch has not started (active learning phase..)
 
             } else { //Epoch 00002: loss improved from 0.78463 to 0.54376, saving model to /data/test.h5
                 m = epochEndPattern.matcher(message);
@@ -716,6 +728,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     String[] ignoreError = new String[]{"TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
     String[] isInfo = new String[]{"Created device"};
+
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
         for (String ignore : ignoreError) if (message.contains(ignore)) return;
@@ -749,6 +762,19 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
+    protected void updateDockerOptions() {
+        GroupParameter grp = new GroupParameter("DockerOptions", dockerVisibleGPUList, dockerShmSizeMb);
+        dockerOptions = new ConfigurationTreeGenerator(null, grp, null, (s, l) -> {
+        }, s -> {
+        }, null, null).rootVisible(false);
+        dockerOptionsRef = new ConfigurationTreeGenerator(null, grp.duplicate(), null, (s, l) -> {
+        }, s -> {
+        }, null, null).rootVisible(false);
+        dockerOptions.setCompareTree(dockerOptionsRef.getTree(), false);
+        dockerOptions.expandAll();
+        dockerOptionJSP.setViewportView(dockerOptions.getTree());
+    }
+
     protected void setWorkingDirectory() {
         currentWorkingDirectory = workingDirectoryTextField.getText();
         if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
@@ -779,6 +805,8 @@ public class DockerTrainingWindow implements ProgressLogger {
         javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, Utils.isUnix());
         Path jExtractConfigPath = Paths.get(currentWorkingDirectory, "extract_jconfiguration.json");
         javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, Utils.isUnix());
+        Path dockerConfigPath = Paths.get(currentWorkingDirectory, "docker_options.json");
+        dockerConfig = new FileIO.TextFile(dockerConfigPath.toString(), true, Utils.isUnix());
         if (load && canLoad) {
             loadConfigFile(false);
             loadExtractConfig();
@@ -802,8 +830,16 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
                     updateExtractDatasetConfiguration();
                 }
-
             }
+        }
+        String configDockerS = dockerConfig.read();
+        if (!configS.isEmpty()) {
+            JSONAware dockerConf = JSONUtils.parseJSON(configDockerS);
+            if (!refOnly) {
+                dockerOptions.getRoot().initFromJSONEntry(dockerConf);
+                dockerOptions.getTree().updateUI();
+            }
+            dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
         }
     }
 
@@ -832,6 +868,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             javaConfig.write(config.toJSONString(), false);
             config = JSONUtils.parse(javaConfig.read());
             trainerParameterRef.initFromJSONEntry(config);
+        }
+        if (javaTrain || pythonTrain) { // docker options
+            JSONAware dockerConf = (JSONAware) dockerOptions.getRoot().toJSONEntry();
+            dockerConfig.write(dockerConf.toJSONString(), false);
+            dockerConf = JSONUtils.parseJSON(dockerConfig.read());
+            dockerOptions.getRoot().initFromJSONEntry(dockerConf);
+            dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
         }
         if (pythonTrain)
             pythonConfig.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);
@@ -1019,7 +1062,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractProgressBar.setStringPainted(true);
         datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
-        trainingPanel.setLayout(new GridLayoutManager(5, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.setLayout(new GridLayoutManager(6, 2, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
         trainingPanel.setBorder(BorderFactory.createTitledBorder(null, "Training", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         trainingCommandPanel = new JPanel();
@@ -1083,6 +1126,12 @@ public class DockerTrainingWindow implements ProgressLogger {
         learningRateLabel = new JLabel();
         learningRateLabel.setText("                          ");
         trainingPanel.add(learningRateLabel, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(-1, 20), null, null, 0, false));
+        dockerOptionPanel = new JPanel();
+        dockerOptionPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.add(dockerOptionPanel, new GridConstraints(5, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        dockerOptionPanel.setBorder(BorderFactory.createTitledBorder(null, "Docker Options", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        dockerOptionJSP = new JScrollPane();
+        dockerOptionPanel.add(dockerOptionJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
     }
 
     /**
@@ -1137,6 +1186,10 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (javaConfig != null) {
             javaConfig.close();
             javaConfig = null;
+        }
+        if (dockerConfig != null ) {
+            dockerConfig.close();
+            dockerConfig = null;
         }
         if (pythonConfig != null) {
             pythonConfig.close();
