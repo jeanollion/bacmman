@@ -102,6 +102,9 @@ public class FileIO {
         return converter.apply(line);
     }
     public static <T> List<T> readFromFile(String path, Function<String, T> converter, Consumer<String> runWhenConversionError) {
+        return readFromFile(path, converter, null, null, runWhenConversionError);
+    }
+    public static <T> List<T> readFromFile(String path, Function<String, T> converter, String[] headerContainer, Predicate<String> isHeader, Consumer<String> runWhenConversionError) {
         FileReader input = null;
         List<String> resS = new ArrayList<>();
         try {
@@ -116,14 +119,24 @@ public class FileIO {
                 if (input!=null) input.close();
             } catch (IOException ex) { }
         }
-        if (runWhenConversionError==null) return resS.stream().map(converter).collect(Collectors.toList()); // throws error
+        if (runWhenConversionError==null) return resS.stream().map(s -> {
+            if (headerContainer!=null && headerContainer[0]==null && (isHeader == null || isHeader.test(s))) {
+                headerContainer[0] = s;
+                return null;
+            } else return converter.apply(s);
+        }).filter(Objects::nonNull).collect(Collectors.toList()); // throws error
         else {
             return resS.stream().map(s -> {
-                try {
-                    return converter.apply(s);
-                } catch (Throwable e) {
-                    runWhenConversionError.accept(s);
+                if (headerContainer!=null && headerContainer[0]==null && (isHeader == null || isHeader.test(s))) {
+                    headerContainer[0] = s;
                     return null;
+                } else {
+                    try {
+                        return converter.apply(s);
+                    } catch (Throwable e) {
+                        runWhenConversionError.accept(s);
+                        return null;
+                    }
                 }
             }).filter(Objects::nonNull).collect(Collectors.toList());
         }

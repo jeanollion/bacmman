@@ -2,7 +2,10 @@ package bacmman.configuration.parameters;
 
 public class FloatParameter extends NumberParameter<FloatParameter>{
     public FloatParameter(String name) {
-        super(name, 5, 0);
+        this(name, 0);
+    }
+    public FloatParameter(String name, double defaultValue) {
+        super(name, 5, defaultValue);
     }
     @Override
     public FloatParameter duplicate() {

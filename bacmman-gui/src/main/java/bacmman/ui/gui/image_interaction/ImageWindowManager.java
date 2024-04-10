@@ -742,7 +742,8 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         if (minFrame > -1) {
             if (hyperStack) {
                 int curFrame = ((HyperStack)i).parentIdxMapFrame.get(displayer.getFrame(image));
-                if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
+                if (curFrame < minFrame) displayer.setFrame(minFrame, image);
+                else if (curFrame > maxFrame) displayer.setFrame(maxFrame, image);
             } else {
                 Kymograph k = (Kymograph) i;
                 int minSlice = k.getSlice(minFrame).mapToInt(ii->ii).min().orElse(-1);
@@ -750,7 +751,8 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
                 int maxSlice = k.getSlice(maxFrame).mapToInt(ii->ii).max().orElse(-1);
                 if (maxSlice<0) return;
                 int currentSlice = displayer.getFrame(image);
-                if (currentSlice < minSlice || currentSlice > maxSlice) displayer.setFrame(minSlice, image);
+                if (currentSlice < minSlice) displayer.setFrame(minSlice, image);
+                else if (currentSlice > maxSlice) displayer.setFrame(maxSlice, image);
             }
         }
         updateImageRoiDisplay(image);

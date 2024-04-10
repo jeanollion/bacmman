@@ -353,6 +353,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
             ListParameter otherLP = (ListParameter)other;
             if (otherLP.getChildCount()==this.getChildCount()) {
                 for (int i = 0; i<getChildCount(); i++) {
+                    if (isDeactivatable() && ((Deactivatable)this.getChildAt(i)).isActivated() != ((Deactivatable)otherLP.getChildAt(i)).isActivated() ) return false;
                     if (!(this.getChildAt(i)).sameContent((Parameter)otherLP.getChildAt(i))) {
                         logger.trace("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), (otherLP.getChildAt(i)).toString());
                         return false;

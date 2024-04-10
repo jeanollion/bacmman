@@ -518,6 +518,11 @@ public class ArrayUtil {
         if (stopExcl<start) return new int[0];
         return IntStream.range(start, stopExcl).toArray();
     }
+    public static int[] generateIntegerArray(int start, int stopExcl, int size) {
+        if (stopExcl<start || size==0) return new int[0];
+        double factor = (stopExcl - start) / (float)size;
+        return IntStream.range(0, size).map(i -> (int)Math.round(i * factor) + start).toArray();
+    }
     public static float[] generateFloatArray(int start, int stopExcl) {
         if (stopExcl<start) return new float[0];
         float[] res = new float[stopExcl-start];

@@ -42,6 +42,9 @@ import java.util.stream.IntStream;
 
 import bacmman.utils.FileIO;
 import bacmman.utils.Utils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONAware;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,14 +92,9 @@ public class ImageFieldFactory {
         return res;
     }
 
-    private static void writeMetadata(Path xpPath, String fileName, Map<String, Object> metadata) {
+    private static void appendMetadata(JSONObject jsonObject, Map<String, Object> metadata) {
         if (metadata==null || metadata.isEmpty()) return;
-        File dir = Paths.get(xpPath.toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
-        if (!dir.exists()) dir.mkdirs(); // for image metadata
-        String outputFile = Paths.get(dir.getAbsolutePath(), fileName+".txt").toAbsolutePath().toString();
-        List<Map.Entry<String, Object>> entries = new ArrayList<>(metadata.entrySet());
-        entries.sort(Entry.comparingByKey());
-        FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+e.getValue().toString());
+        metadata.forEach((k, v)->jsonObject.put(k, v.toString()));
     }
     protected static void importImagesSingleFile(File f, Experiment xp, ArrayList<MultipleImageContainer> containersTC, boolean importMetadata, ProgressCallback pcb) {
         if (f.isDirectory()) {
@@ -159,7 +157,12 @@ public class ImageFieldFactory {
                 containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
                 if (importMetadata) {
                     Map<String, Object> metadata = reader.getSeriesMetadata(s);
-                    writeMetadata(xp.getPath(), c.getName(), metadata);
+                    JSONObject metaJSON = new JSONObject();
+                    appendMetadata(metaJSON, metadata);
+                    File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                    if (!dir.exists()) dir.mkdirs();
+                    String path = Paths.get(dir.getAbsolutePath()).resolve(c.getName()+".json").toAbsolutePath().toString();
+                    FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
                 }
                 logger.info("image {} imported successfully", image.getAbsolutePath());
             } else {
@@ -170,7 +173,14 @@ public class ImageFieldFactory {
         }
         if (importMetadata) {
             Map<String, Object> metadata = reader.getMetadata();
-            if (metadata != null) writeMetadata(xp.getPath(), Utils.removeExtension(image.getName()), metadata);
+            if (metadata != null) {
+                JSONObject metaJSON = new JSONObject();
+                appendMetadata(metaJSON, metadata);
+                File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                if (!dir.exists()) dir.mkdirs();
+                String path = Paths.get(dir.getAbsolutePath()).resolve(Utils.removeExtension(image.getName())+".json").toAbsolutePath().toString();
+                FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
+            }
         }
         reader.closeReader();
         long t3 = System.currentTimeMillis();
@@ -232,6 +242,7 @@ public class ImageFieldFactory {
         Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
         List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
         boolean[] invertZTbyC = new boolean[imageC.length];
+        JSONObject metaJSON = new JSONObject();
         for (int c = 0; c< imageC.length; ++c) {
             Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(c).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(c);
             ImageReaderFile reader = null;
@@ -296,10 +307,21 @@ public class ImageFieldFactory {
                 }
                 if (importMetadata) {
                     Map<String, Object> metadata = reader.getMetadata();
-                    writeMetadata(xp.getPath(), fieldName + "_c" + c, metadata);
+                    if (metadata != null) {
+                        JSONObject metaJSONC = new JSONObject();
+                        metaJSON.put("channel_" + c, metaJSONC);
+                        appendMetadata(metaJSONC, metadata);
+                    }
                 }
             }
         }
+        if (importMetadata) {
+            File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+            if (!dir.exists()) dir.mkdirs();
+            String path = Paths.get(dir.getAbsolutePath()).resolve(fieldName+".json").toAbsolutePath().toString();
+            FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
+        }
+
         if (timePointNumber>0) {
             List<ImageIOCoordinates.RGB> rgbC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList());
             MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ(), invertZTbyC, rgbC);
@@ -463,14 +485,25 @@ public class ImageFieldFactory {
                     }
                     logger.debug("container created");
                     if (importMetadata) {
+                        JSONObject metaJSON = new JSONObject();
                         for (int c = 0; c<channelKeywords.length; ++c) {
-                            int cc = c;
+                            //int cc = c;
+                            JSONArray metaJSONC = new JSONArray();
+                            metaJSON.put("channel_"+c, metaJSONC);
                             fileByChannelAndTimePoint.get(channelKeywords[c]).forEach((t, f) -> {
                                 ImageReaderFile reader = new ImageReaderFile(f.getPath());
                                 Map<String, Object> metadata = reader.getMetadata();
-                                if (metadata!=null) writeMetadata(xp.getPath(), positionFiles.getKey() + "_c" + cc + "_t"+t, metadata);
+                                if (metadata!=null) {
+                                    JSONObject metaJSONT = new JSONObject();
+                                    metaJSONC.add(metaJSONT);
+                                    appendMetadata(metaJSONT, metadata); //, positionFiles.getKey() + "_c" + cc + "_t"+t
+                                }
                             });
                         }
+                        File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                        if (!dir.exists()) dir.mkdirs();
+                        String path = Paths.get(dir.getAbsolutePath()).resolve(positionFiles.getKey()+".json").toAbsolutePath().toString();
+                        FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
                     }
                 }
                 

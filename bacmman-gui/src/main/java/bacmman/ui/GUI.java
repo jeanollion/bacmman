@@ -3650,6 +3650,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     private boolean createEmptyDataset() {//GEN-FIRST:event_newXPMenuItemActionPerformed
         Triplet<String, String, File> relPath = promptNewDatasetPath();
+        logger.debug("new dataset : {}", relPath);
         if (relPath==null) return false;
         else {
             String adress = createSubdir(relPath.v3, relPath.v1);
@@ -4323,7 +4324,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                             db.getSelectionDAO().store(s);
                             selectedSelections = Collections.singletonList(s.getName());
                         }
-                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, 1, 1, getExtractedDSCompressionFactor());
+                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, 1, 1, 1, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {

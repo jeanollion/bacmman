@@ -38,7 +38,8 @@ public class ExtractDataset extends JDialog {
     private final ConfigurationTreeGenerator outputConfigTree;
     private final SimpleListParameter<GroupParameter> outputFeatureList;
     SimpleListParameter<ObjectClassParameter> eraseTouchingContours;
-    IntegerParameter subsamplingFactor, downsamplingFactor;
+    IntegerParameter subsamplingFactor, subsamplingNumber, downsamplingFactor;
+    BooleanParameter trackingDataset;
     private final ArrayNumberParameter outputShape;
     private final GroupParameter container;
     private final FileChooser outputFile;
@@ -102,9 +103,17 @@ public class ExtractDataset extends JDialog {
         outputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, null)
                 .setMaxChildCount(2)
                 .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions. Set [0, 0] to keep original image size");
-        subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract 2 version of the dataset with one fame out of two");
+        subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract N € [1, 2] versions of the dataset with one fame out of two");
+        subsamplingNumber = new IntegerParameter("Frame subsampling number", 1).setLowerBound(1)
+                .addValidationFunction(n -> {
+                    IntegerParameter sf = ParameterUtils.getParameterFromSiblings(IntegerParameter.class, n, p -> p.getName().equals("Frame subsampling factor"));
+                    return n.getIntValue() <= sf.getIntValue();
+                })
+                .setHint("Number of subsampled version extracted.");
+
         downsamplingFactor = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
-        container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours, subsamplingFactor, downsamplingFactor);
+        trackingDataset = new BooleanParameter("Tracking Dataset", false).setHint("If true, dataset will be split by parent trackhead");
+        container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours, trackingDataset, subsamplingFactor, downsamplingFactor);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v ->
                 setEnableOk(), (s, l) -> {
@@ -202,7 +211,7 @@ public class ExtractDataset extends JDialog {
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
         int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
-        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC, downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 

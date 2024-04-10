@@ -47,7 +47,8 @@ public class ExperimentSearchUtils {
         }
     }
     public static String removePrefix(String name, String prefix) {
-        while (name.startsWith(prefix)) name= name.substring(prefix.length(), name.length());
+        if (prefix == null || prefix.isEmpty()) return name;
+        while (name.startsWith(prefix)) name= name.substring(prefix.length());
         return name;
     }
     public static String addPrefix(String name, String prefix) {

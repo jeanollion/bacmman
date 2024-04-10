@@ -153,7 +153,8 @@ public class HyperStack extends TimeLapseInteractiveImage {
 
     @Override
     public Stream<SegmentedObject> getObjectsAtFrame(int objectClassIdx, int frame) {
-        int parentIdx = frameMapParentIdx.get(frame);
+        Integer parentIdx = frameMapParentIdx.get(frame);
+        if (parentIdx==null) return Stream.empty();
         return getObjects(objectClassIdx, parentIdx);
     }
 

@@ -6,13 +6,17 @@ import bacmman.core.Task;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 
+import java.util.List;
+
 public interface DockerDLTrainer extends Plugin {
     TrainingConfigurationParameter getConfiguration();
     Parameter[] getDatasetExtractionParameters();
 
-    Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile);
+    Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer);
 
     DLModelMetadata getDLModelMetadata();
 
     enum SELECTION_MODE {NEW, EXISTING}
+
+    interface ComputeMetrics {}
 }

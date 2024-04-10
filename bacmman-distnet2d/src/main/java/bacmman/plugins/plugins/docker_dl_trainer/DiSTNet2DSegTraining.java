@@ -12,6 +12,7 @@ import bacmman.py_dataset.ExtractDatasetUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
@@ -73,7 +74,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     }
 
     @Override
-    public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile) {
+    public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
         int selOC = objectClass.getSelectedClassIdx();
         int parentOC = parentObjectClass.getSelectedClassIdx();
         int frameInterval = this.frameInteval.getIntValue();
@@ -102,6 +103,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
                 break;
             }
         }
+        if (selectionContainer != null) selectionContainer.add(selection);
         return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, outputFile, spatialDownsampling.getIntValue(), 0);
     }
 

@@ -51,7 +51,7 @@ public class PixMClass implements DockerDLTrainer {
     }
 
     @Override
-    public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile) {
+    public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
         int[] selOC = extractClasses.getSelectedIndices();
         List<String> selections;
         switch (selMode.getSelectedEnum()) {
@@ -71,6 +71,7 @@ public class PixMClass implements DockerDLTrainer {
                 break;
             }
         }
+        if (selectionContainer != null) selectionContainer.addAll(selections);
         return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, selections, outputFile, 0);
     }
 

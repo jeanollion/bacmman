@@ -3,6 +3,10 @@ package bacmman.ui.gui;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.core.*;
+import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.Selection;
+import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
@@ -37,11 +41,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 import static bacmman.utils.Utils.format;
@@ -82,6 +88,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JLabel learningRateLabel;
     private JPanel dockerOptionPanel;
     private JScrollPane dockerOptionJSP;
+    private JButton computeMetricsButton;
     private JComboBox dockerImageJCB;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
@@ -149,12 +156,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             config.getTree().updateUI();
         });
         extractButton.addActionListener(ae -> {
-            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-            ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
-            String extractFileName = datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5";
-            currentProgressBar = extractProgressBar;
-            Task t = trainer.getDatasetExtractionTask(GUI.getDBConnection(), Paths.get(currentWorkingDirectory, extractFileName).toString());
-            Task.executeTask(t, this, 1);
+            extractCurrentDataset(Paths.get(currentWorkingDirectory), null, true);
         });
         startTrainingButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
@@ -190,6 +192,108 @@ public class DockerTrainingWindow implements ProgressLogger {
                 currentContainer = null;
             }
             updateTrainingDisplay();
+        });
+        computeMetricsButton.addActionListener(ae -> {
+            // extract current dataset to temp file
+            // set temps dataset to python config
+            // compute loss
+            // erase temp dataset
+            String tempDatasetName = "temp_dataset.h5";
+            Path datasetDir = getTempDirectory(); // Paths.get(currentWorkingDirectory)
+            File tempDatasetFile = datasetDir.resolve(tempDatasetName).toFile();
+            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+            SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
+            if (dsList.getChildCount() > 1) {
+                for (int i = dsList.getChildCount() - 1; i > 0; --i) dsList.remove(i);
+            }
+            TrainingConfigurationParameter.DatasetParameter dataset = dsList.getChildAt(0);
+            dataset.setActivated(true);
+            //dataset.setRefPath(Paths.get("/dataTemp"));
+            dataset.setRefPath(null); // absolute
+            dataset.setFilePath("/dataTemp/temp_dataset.h5");
+            //dataset.setFilePath(tempDatasetFile.getAbsolutePath());
+
+            pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
+            currentProgressBar = extractProgressBar;
+            runLater(() -> {
+                if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
+                List<String> selections = extractCurrentDataset(datasetDir, tempDatasetName, false);
+                if (selections.isEmpty() || !tempDatasetFile.isFile()) {
+                    logger.error("no dataset could be extracted");
+                    return;
+                }
+                if (selections.size() > 1) {
+                    logger.debug("Only one selection allowed");
+                    return;
+                }
+
+                String[] dataTemp = new String[1];
+                currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
+                File outputFile = Paths.get(dataTemp[0], "metrics.csv").toFile();
+                if (currentContainer != null) {
+                    try {
+                        if (outputFile.exists()) outputFile.delete();
+                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, false, "python", "train.py", "/data", "--compute_metrics");
+                        logger.debug("metrics file found: {}", outputFile.isFile());
+                        if (outputFile.exists()) { // read metrics and set metrics as measurement
+                            String[] header = new String[1];
+                            List<double[]> metrics = FileIO.readFromFile(outputFile.getAbsolutePath(), s -> Arrays.stream(s.split(";")).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
+                            String[] metricsNames = header[0] != null ? header[0].replace("# ", "").split(";") : (metrics.isEmpty() ? new String[0] : IntStream.range(0, metrics.get(0).length).mapToObj(i -> "metric_" + i).toArray(String[]::new));
+                            logger.debug("found metrics: {} for : {} samples", metricsNames, metrics.size());
+                            SelectionDAO selDAO = GUI.getDBConnection().getSelectionDAO();
+                            Selection sel = selDAO.getOrCreate(selections.get(0), false);
+                            logger.debug("selection has: {} samples", sel.count());
+                            if (sel.count() == metrics.size()) { // assign metrics values to samples
+                                int[] counter = new int[1];
+                                sel.getAllPositions().stream().sorted().forEach(p -> {
+                                    Set<SegmentedObject> elems = sel.getElements(p);
+                                    new TreeMap<>(SegmentedObjectUtils.splitByTrackHead(elems)).values().forEach(track -> {
+                                        logger.debug("assigning values for track: {} (size: {})", track.get(0).getTrackHead(), track.size());
+                                        track.stream().sorted().forEach(o -> {
+                                            double[] values = metrics.get(counter[0]++);
+                                            for (int i = 0; i < values.length; ++i) {
+                                                o.getMeasurements().setValue(metricsNames[i], values[i]);
+                                            }
+                                        });
+                                    });
+                                    logger.debug("storing: {} measurements at position: {}", elems.size(), p);
+                                    GUI.getDBConnection().getDao(p).store(elems);
+                                });
+                                HardSampleMiningParameter p = trainer.getConfiguration().getTrainingParameters().getParameter(HardSampleMiningParameter.class, null);
+                                if (p != null) {
+                                    double minQuantile = p.getMinQuantile();
+                                    // create selections of hard samples
+                                    List<SegmentedObject> allObjects = new ArrayList<>();
+                                    for (int i = 0; i < metricsNames.length; ++i) {
+                                        int ii = i;
+                                        Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples_" + metricsNames[i], true);
+                                        double[] values = metrics.stream().mapToDouble(v -> v[ii]).toArray();
+                                        double threshold = ArrayUtil.quantiles(values, minQuantile)[0];
+                                        logger.debug("metric: {} threshold: {} quantile: {}", metricsNames[i], threshold, minQuantile);
+                                        List<SegmentedObject> objects = sel.getAllElementsAsStream().filter(o -> ((Number) o.getMeasurements().getValue(metricsNames[ii])).doubleValue() <= threshold).collect(Collectors.toList());
+                                        selHS.addElements(objects);
+                                        selDAO.store(selHS);
+                                        allObjects.addAll(objects);
+                                    }
+                                    Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples", true);
+                                    selHS.addElements(allObjects);
+                                    selDAO.store(selHS);
+                                    GUI.getInstance().populateSelections();
+                                } else logger.debug("no HardSamplingParameter found");
+                            }
+                        }
+                    } catch (InterruptedException ignored) { //InterruptedException
+
+                    } catch (Exception e) {
+                        logger.debug("error computing hard samples", e);
+                    } finally {
+                        tempDatasetFile.delete();
+                        outputFile.delete();
+                        dockerGateway.stopContainer(currentContainer);
+                        currentContainer = null;
+                    }
+                }
+            });
         });
         testAugButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
@@ -403,6 +507,18 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     }
 
+    protected List<String> extractCurrentDataset(Path dir, String fileName, boolean background) {
+        DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+        ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
+        String extractFileName = fileName == null ? datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5" : fileName;
+        currentProgressBar = extractProgressBar;
+        List<String> sel = new ArrayList<>();
+        Task t = trainer.getDatasetExtractionTask(GUI.getDBConnection(), dir.resolve(extractFileName).toString(), sel);
+        if (background) Task.executeTask(t, this, 1);
+        else Task.executeTaskInForeground(t, this, 1);
+        return sel;
+    }
+
     protected void promptSaveConfig() {
         loadConfigFile(true);
         config.getTree().updateUI();
@@ -482,6 +598,22 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else return currentImage.getTag();
     }
 
+    protected Path getTempDirectory() {
+        if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) { //TODO add docker menu parameter
+            return Paths.get("/dev/shm");
+        } else {
+            Path dataTemp = Paths.get(currentWorkingDirectory, "dockerData");
+            if (!Files.exists(dataTemp)) {
+                try {
+                    Files.createDirectories(dataTemp);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return dataTemp;
+        }
+    }
+
     protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount, boolean export) {
         String image = ensureImage(trainer, dockerGateway, export);
         logger.debug("docker image: {}", image);
@@ -489,19 +621,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             List<UnaryPair<String>> mounts = new ArrayList<>();
             mounts.add(new UnaryPair<>(currentWorkingDirectory, "/data"));
             if (mountTempData) {
-                Path dataTemp;
-                if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) { //TODO add docker menu parameter
-                    dataTemp = Paths.get("/dev/shm");
-                } else {
-                    dataTemp = Paths.get(currentWorkingDirectory, "dockerData");
-                    if (!Files.exists(dataTemp)) {
-                        try {
-                            Files.createDirectories(dataTemp);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
+                Path dataTemp = getTempDirectory();
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
@@ -647,13 +767,16 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected synchronized void displayTime(boolean isStep) {
-        int currentEpoch = currentProgressBar.isIndeterminate() ? 1 : currentProgressBar.getValue();
+        int currentEpoch = currentProgressBar.isIndeterminate() ? 0 : currentProgressBar.getValue();
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
         int maxStep = stepProgressBar.getMaximum();
         if (currentStep <= 1 && currentEpoch <= 1) trainTime = System.currentTimeMillis();
         if (!isStep) {
-            if (currentEpoch <= 1) lastEpochTime = System.currentTimeMillis();
+            if (currentEpoch <= 1) {
+                lastEpochTime = System.currentTimeMillis();
+                elapsedSteps = 0;
+            }
             else {
                 long currentEpochTime = System.currentTimeMillis();
                 double diff = currentEpochTime - lastEpochTime;
@@ -680,7 +803,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else {
             stepTime = "     /step";
         }
-        if (!currentProgressBar.isIndeterminate() && (!Double.isNaN(epochDuration) || (!Double.isNaN(stepDuration) && !Double.isNaN(elapsedSteps)))) {
+        if (currentEpoch >= 1 && !currentProgressBar.isIndeterminate() && (!Double.isNaN(epochDuration) || (!Double.isNaN(stepDuration) && !Double.isNaN(elapsedSteps)))) {
             double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - 1);
             long avgEpochTimeMSL = (long) avgEpochTimeMS;
             long elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
@@ -910,6 +1033,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (enable && name.isEmpty()) enable = false;
         if (enable && (extractConfig == null || !extractConfig.getRoot().isValid())) enable = false;
         extractButton.setEnabled(enable);
+        computeMetricsButton.setEnabled(enable && startTrainingButton.isEnabled() && DockerDLTrainer.ComputeMetrics.class.isAssignableFrom(trainerParameter.getSelectedPluginClass()));
         datasetNameTextField.setForeground(containsIllegalCharacters(name) ? Color.red : textFG);
     }
 
@@ -920,6 +1044,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void updateTrainingDisplay(boolean configIsValid) {
         boolean enable = configIsValid && currentWorkingDirectory != null;
         startTrainingButton.setEnabled(enable && runner == null);
+        computeMetricsButton.setEnabled(enable && runner == null && extractButton.isEnabled() && DockerDLTrainer.ComputeMetrics.class.isAssignableFrom(trainerParameter.getSelectedPluginClass()));
         testAugButton.setEnabled(enable && runner == null);
         //taskButton.setEnabled(enable && runner == null);
         stopTrainingButton.setEnabled(runner != null);
@@ -1043,12 +1168,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         setWriteButton.setToolTipText("Set working directory, and write current configuration to file (will overwrite configuration in file if existing)");
         panel1.add(setWriteButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         datasetPanel = new JPanel();
-        datasetPanel.setLayout(new GridLayoutManager(3, 2, new Insets(0, 0, 0, 0), -1, -1));
+        datasetPanel.setLayout(new GridLayoutManager(3, 3, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(datasetPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         datasetPanel.setBorder(BorderFactory.createTitledBorder(null, "Extract Dataset", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        extractButton = new JButton();
-        extractButton.setText("Extract");
-        datasetPanel.add(extractButton, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         extractDSNamePanel = new JPanel();
         extractDSNamePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         datasetPanel.add(extractDSNamePanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -1057,10 +1179,19 @@ public class DockerTrainingWindow implements ProgressLogger {
         datasetNameTextField.setToolTipText("Name of the extracted dataset file");
         extractDSNamePanel.add(datasetNameTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         extractDatasetConfigurationJSP = new JScrollPane();
-        datasetPanel.add(extractDatasetConfigurationJSP, new GridConstraints(0, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 70), new Dimension(-1, 90), null, 0, false));
+        datasetPanel.add(extractDatasetConfigurationJSP, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 70), new Dimension(-1, 90), null, 0, false));
         extractProgressBar = new JProgressBar();
         extractProgressBar.setStringPainted(true);
-        datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel2 = new JPanel();
+        panel2.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        datasetPanel.add(panel2, new GridConstraints(1, 1, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        extractButton = new JButton();
+        extractButton.setText("Extract");
+        panel2.add(extractButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        computeMetricsButton = new JButton();
+        computeMetricsButton.setText("Compute Hard Samples");
+        panel2.add(computeMetricsButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
         trainingPanel.setLayout(new GridLayoutManager(6, 2, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
@@ -1088,38 +1219,38 @@ public class DockerTrainingWindow implements ProgressLogger {
         testAugButton.setText("Test Data Aug");
         testAugButton.setToolTipText("Generates samples of augmented images");
         trainingCommandPanel.add(testAugButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JPanel panel2 = new JPanel();
-        panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(panel2, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         final JPanel panel3 = new JPanel();
-        panel3.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panel2.add(panel3, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, 1, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        epochLabel = new JLabel();
-        epochLabel.setText("Epoch:");
-        panel3.add(epochLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        stepLabel = new JLabel();
-        stepLabel.setText("Step:");
-        panel3.add(stepLabel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel3.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.add(panel3, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         final JPanel panel4 = new JPanel();
         panel4.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panel2.add(panel4, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panel3.add(panel4, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, 1, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        epochLabel = new JLabel();
+        epochLabel.setText("Epoch:");
+        panel4.add(epochLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        stepLabel = new JLabel();
+        stepLabel.setText("Step:");
+        panel4.add(stepLabel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel5 = new JPanel();
+        panel5.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        panel3.add(panel5, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         trainingProgressBar = new JProgressBar();
         trainingProgressBar.setStringPainted(true);
-        panel4.add(trainingProgressBar, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel5.add(trainingProgressBar, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         stepProgressBar = new JProgressBar();
         stepProgressBar.setStringPainted(true);
-        panel4.add(stepProgressBar, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel5.add(stepProgressBar, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         lossJLabel = new JLabel();
         lossJLabel.setText("                                                                   ");
         trainingPanel.add(lossJLabel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(70, 20), null, null, 0, false));
-        final JPanel panel5 = new JPanel();
-        panel5.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(panel5, new GridConstraints(4, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        final JPanel panel6 = new JPanel();
+        panel6.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.add(panel6, new GridConstraints(4, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         modelDestinationTextField = new JTextField();
-        panel5.add(modelDestinationTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        panel6.add(modelDestinationTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         moveModelButton = new JButton();
         moveModelButton.setText("Move Model");
-        panel5.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel6.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         timeLabel = new JLabel();
         timeLabel.setText("                                                                                   ");
         trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(-1, 20), null, null, 0, false));
@@ -1187,7 +1318,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             javaConfig.close();
             javaConfig = null;
         }
-        if (dockerConfig != null ) {
+        if (dockerConfig != null) {
             dockerConfig.close();
             dockerConfig = null;
         }

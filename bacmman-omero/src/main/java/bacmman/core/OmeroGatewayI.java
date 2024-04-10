@@ -13,6 +13,7 @@ import bacmman.image.io.ImageReaderOmero;
 import bacmman.omero.OmeroAquisitionMetadata;
 import bacmman.ui.gui.ImportFromOmero;
 import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.FileIO;
 import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
 import omero.ServerError;
@@ -26,6 +27,9 @@ import omero.gateway.facility.BrowseFacility;
 import omero.gateway.model.ExperimenterData;
 import omero.gateway.model.ImageData;
 import omero.gateway.model.PixelsData;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONAware;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -245,35 +249,41 @@ public class OmeroGatewayI implements OmeroGateway {
                         Runnable metadataCB = () -> {
                             logger.debug("writing metadata...");
                             // write metadata files to SourceImageMetadata folder
-                            File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
-                            if (!dir.exists()) dir.mkdirs();
                             Consumer<MultipleImageContainer> writeMetadata = m -> {
+                                JSONObject metaJSON = new JSONObject();
                                 if (m instanceof MultipleImageContainerSingleFile) {
                                     OmeroAquisitionMetadata metadata = metadataMap.get(((MultipleImageContainerSingleFile)m).getOmeroID());
                                     if (metadata != null) {
-                                        String path = Paths.get(dir.getAbsolutePath(), m.getName() + ".txt").toAbsolutePath().toString();
-                                        metadata.writeToFile(path);
+                                        metadata.append(metaJSON);
                                     }
                                 } else if ( m instanceof MultipleImageContainerChannelSerie) {
                                     for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
                                         OmeroAquisitionMetadata metadata = metadataMap.get(((MultipleImageContainerChannelSerie)m).getOmeroID(cIdx));
                                         if (metadata != null) {
-                                            String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + ".txt").toAbsolutePath().toString();
-                                            metadata.writeToFile(path);
+                                            JSONObject metaJSONC = new JSONObject();
+                                            metaJSON.put("channel_" + cIdx, metaJSONC);
+                                            metadata.append(metaJSONC);
                                         }
                                     }
                                 } else if ( m instanceof MultipleImageContainerPositionChannelFrame) {
                                     for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
+                                        JSONArray metaJSONC = new JSONArray();
+                                        metaJSON.put("channel_" + cIdx, metaJSONC);
                                         int frameNumber = m.singleFrame(cIdx) ? 1 : m.getFrameNumber();
                                         for (int t = 0; t < frameNumber; ++t) {
                                             OmeroAquisitionMetadata metadata = metadataMap.get(((MultipleImageContainerPositionChannelFrame)m).getImageID(cIdx, t));
                                             if (metadata != null) {
-                                                String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + "_t" + t + ".txt").toAbsolutePath().toString();
-                                                metadata.writeToFile(path);
+                                                JSONObject metaJSONT = new JSONObject();
+                                                metaJSONC.add(metaJSONT);
+                                                metadata.append(metaJSONT);
                                             }
                                         }
                                     }
                                 }
+                                File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                                if (!dir.exists()) dir.mkdirs();
+                                String path = Paths.get(dir.getAbsolutePath()).resolve(m.getName() + ".json").toAbsolutePath().toString();
+                                FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
                             };
                             images.forEach(writeMetadata);
                         };

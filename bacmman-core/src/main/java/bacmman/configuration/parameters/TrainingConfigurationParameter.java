@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static bacmman.configuration.parameters.PythonConfiguration.toSnakeCase;
 public class TrainingConfigurationParameter extends GroupParameterAbstract<TrainingConfigurationParameter> implements PythonConfiguration {
@@ -304,6 +305,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             }
             return res;
         }
+
+        public <T extends Parameter> T getParameter(Class<T> clazz, String name) {
+            List<T> res = children.stream().filter(p -> clazz.isAssignableFrom(p.getClass())).filter(name==null ? p -> true : p -> p.getName().equals(name)).map(p -> (T)p).collect(Collectors.toList());
+            if (res.size() == 1) return res.get(0);
+            else return null;
+        }
+
         public String getModelWeightFileName() {
             String file = modelName.getValue();
             if (!file.contains(".")) return file + ".h5";
@@ -387,6 +395,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             this.path.setRefPath(path);
         }
 
+        public DatasetParameter setFilePath(String path) {
+            this.path.setSelectedFilePath(path);
+            return this;
+        }
+
         public List<Parameter> getDataAugmentationParameters() {
             return Collections.unmodifiableList(dataAug.children);
         }
@@ -401,7 +414,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         @Override
         public JSONObject getPythonConfiguration() {
             JSONObject res = new JSONObject();
-            if (path.selectedFiles.length>0) res.put("path", path.selectedFiles[0]);
+            if (path.selectedFiles.length>0) res.put("path", path.selectedFiles[0]); // relative path if possible
             res.put("channel_name", multipleChannel ? channels.toJSONEntry() : channel.toJSONEntry());
             res.put("keyword", keyword.toJSONEntry());
             res.put("concat_proportion", concatProp.toJSONEntry());

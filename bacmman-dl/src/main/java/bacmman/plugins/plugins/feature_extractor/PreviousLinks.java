@@ -27,11 +27,15 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
         if (maxLinkNumber <0) throw new RuntimeException("Feature not configured");
         int[] idx = new int[1];
         ImageShort res=new ImageShort("linksPrev", 2, maxLinkNumber, 1);
-        parent.getChildren(objectClassIdx).sorted().forEach(c -> SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).sorted().forEach(p -> {
-            if (p.getFrame() != c.getFrame() - subsamplingFactor) throw new RuntimeException("ERROR GET PREVIOUS: "+c+ " has prev: "+p+" sub factor:"+subsamplingFactor);
-            res.setPixel(0, idx[0], 0, c.getIdx()+1);
-            res.setPixel(1, idx[0]++, 0, p.getIdx()+1);
-        }));
+        parent.getChildren(objectClassIdx).sorted().forEach(c -> {
+            int count = idx[0];
+            SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).sorted().forEach(p -> {
+                if (p.getFrame() != c.getFrame() - subsamplingFactor) throw new RuntimeException("ERROR GET PREVIOUS: " + c + " has prev: " + p + " sub factor:" + subsamplingFactor);
+                res.setPixel(0, idx[0], 0, c.getIdx() + 1);
+                res.setPixel(1, idx[0]++, 0, p.getIdx() + 1);
+            });
+            if (idx[0]==count) res.setPixel(0, idx[0]++, 0, c.getIdx() + 1); // no previous was found : set a null link
+        });
         return res;
     }
 

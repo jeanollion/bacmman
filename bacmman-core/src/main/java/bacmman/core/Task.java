@@ -88,7 +88,9 @@ public class Task implements ProgressCallback {
         List<String> extractDSSelections;
         int[] extractDSDimensions;
         int[] extractDSEraseTouchingContoursOC;
+        boolean extractDSTracking;
         int extractDSSubsamplingFactor=1;
+        int extractDSSubsamplingNumber=0;
         int extractDSSpatialDownsamplingFactor =1;
         SimpleBoundingBox extractDSRawBounds;
         Map<String, List<Integer>> extractDSRawPositionMapFrames;
@@ -400,7 +402,7 @@ public class Task implements ProgressCallback {
     public int[] getExtractDSEraseTouchingContoursOC() {
         return extractDSEraseTouchingContoursOC;
     }
-
+    public boolean isExtractDSTracking() {return extractDSTracking;}
     public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
     public ExtractZAxis getExtractRawZAxis() {return extractZAxis; }
     public int getExtractRawZAxisPlaneIdx() {return extractZAxisPlaneIdx; }
@@ -410,6 +412,9 @@ public class Task implements ProgressCallback {
 
     public int getExtractDSSubsamplingFactor() {
         return extractDSSubsamplingFactor;
+    }
+    public int getExtractDSSubsamplingNumber() {
+        return extractDSSubsamplingNumber<=0 ? extractDSSubsamplingFactor : extractDSSubsamplingNumber;
     }
     public int getExtractDSSpatialDownsamplingFactor() {
         return extractDSSpatialDownsamplingFactor;
@@ -458,7 +463,7 @@ public class Task implements ProgressCallback {
         this.generateTrackImages=generateTrackImages;
         return this;
     }
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, int spatialDownSamplingFactor, int subsamplingFactor, int compression) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, boolean tracking, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
@@ -466,7 +471,9 @@ public class Task implements ProgressCallback {
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         this.extractDSSpatialDownsamplingFactor = spatialDownSamplingFactor;
         this.extractDSSubsamplingFactor = subsamplingFactor;
+        this.extractDSSubsamplingNumber = subsamplingNumber;
         this.extractDSCompression = compression;
+        this.extractDSTracking = tracking;
         return this;
     }
     public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames, int compression) {
@@ -676,6 +683,7 @@ public class Task implements ProgressCallback {
         return errors.isEmpty();
     }
     private void checkArray(int[] array, int minValueIncl, int maxValueExcl, String message) {
+        if (array.length==0) return;
         if (array[ArrayUtil.max(array)]>=maxValueExcl) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValueExcl)));
         if (array[ArrayUtil.min(array)]<minValueIncl) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
     }
@@ -1158,7 +1166,43 @@ public class Task implements ProgressCallback {
     public void log(String message) {
         publish(message);
     }
-    
+
+    public static void executeTasksInForeground(List<Task> tasks, ProgressLogger ui, double preProcessingMemoryThreshold) {
+        int totalSubtasks = 0;
+        for (Task t : tasks) {
+            logger.debug("checking task: {}", t);
+            if (!t.isValid()) {
+                if (ui!=null) ui.setMessage("Invalid task: "+t.toString());
+                return;
+            }
+            logger.debug("task valid. keep db: {}, readonly?: {}", t.keepDB, t.db==null ? "null" : t.db.isConfigurationReadOnly());
+            t.setUI(ui);
+            totalSubtasks+=t.countSubtasks();
+        }
+        if (ui!=null) ui.setMessage("Total subTasks: "+totalSubtasks);
+        int[] taskCounter = new int[]{0, totalSubtasks};
+        for (Task t : tasks) t.setSubtaskNumber(taskCounter);
+        for (int i = 0; i<tasks.size(); ++i) {
+            //if (ui!=null && i==0) ui.setRunning(true);
+            tasks.get(i).initDB();
+            final int ii = i;
+            Consumer<FileProgressLogger> setLF = l->{if (l.getLogFile()==null) l.setLogFile(Paths.get(tasks.get(ii).getDir(),"Log.txt").toString());};
+            Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
+            if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
+            else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
+            tasks.get(i).runTask(preProcessingMemoryThreshold); // clears cache +  unlock if !keepdb
+            tasks.get(i).done();
+            if (tasks.get(i).db!=null && !tasks.get(i).keepDB) tasks.get(i).db=null;
+            if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(unsetLF);
+            else if (ui instanceof FileProgressLogger) unsetLF.accept((FileProgressLogger)ui);
+
+            if (ui!=null && i==tasks.size()-1) {
+                if (tasks.size()>1) {
+                    for (Task t : tasks) t.publishErrors();
+                }
+            }
+        }
+    }
     public static void executeTasks(List<Task> tasks, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
         int totalSubtasks = 0;
         for (Task t : tasks) {
@@ -1196,6 +1240,9 @@ public class Task implements ProgressCallback {
             return "";
         }, tasks.size()).setEndOfWork(
                 ()->{for (Runnable r : endOfWork) r.run();});
+    }
+    public static void executeTaskInForeground(Task t, ProgressLogger ui, double preProcessingMemoryThreshold) {
+        executeTasksInForeground(new ArrayList<Task>(1){{add(t);}}, ui, preProcessingMemoryThreshold);
     }
     public static void executeTask(Task t, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
         executeTasks(new ArrayList<Task>(1){{add(t);}}, ui, preProcessingMemoryThreshold, endOfWork);

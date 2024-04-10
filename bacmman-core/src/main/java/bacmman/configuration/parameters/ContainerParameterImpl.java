@@ -170,6 +170,9 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     
     @Override
     public boolean sameContent(Parameter other) {
+        if (this instanceof Deactivatable && other instanceof Deactivatable) {
+            if (((Deactivatable)this).isActivated() != ((Deactivatable)other).isActivated()) return false;
+        }
         if (other instanceof ContainerParameter) {
             ContainerParameter otherLP = (ContainerParameter)other;
             if (otherLP.getChildCount()==this.getChildCount()) {

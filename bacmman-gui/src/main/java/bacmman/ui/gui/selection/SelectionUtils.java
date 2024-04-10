@@ -18,10 +18,7 @@
  */
 package bacmman.ui.gui.selection;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.MeasurementFilterParameter;
-import bacmman.configuration.parameters.SimpleListParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.image.Image;
@@ -41,6 +38,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.DoublePredicate;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.*;

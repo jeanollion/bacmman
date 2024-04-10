@@ -5,6 +5,7 @@ import bacmman.utils.FileIO;
 import omero.RLong;
 import omero.RType;
 import omero.cmd.*;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +34,9 @@ public class OmeroAquisitionMetadata {
         List<Map.Entry<String, RType>> entries = new ArrayList<>(globalMetadata.entrySet());
         Collections.sort(entries, Comparator.comparing(Map.Entry::getKey));
         FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+ TypeConverter.convert(e.getValue()));
+    }
+    public void append(JSONObject jsonObject) {
+        globalMetadata.forEach((k, v)->jsonObject.put(k, TypeConverter.convert(v)));
     }
     public List<Long> extractTimepoints(boolean relative) {
         List<Date> dates = globalMetadata.entrySet().stream()
