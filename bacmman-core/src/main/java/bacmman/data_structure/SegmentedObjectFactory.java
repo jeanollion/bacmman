@@ -97,8 +97,13 @@ public class SegmentedObjectFactory {
         if (object.getStructureIdx()!=editableObjectClassIdx) throw new IllegalArgumentException("Object is not editable");
         object.setIdx(idx);
     }
-    public SegmentedObject split(Image input, SegmentedObject object, ObjectSplitter splitter) {
-        return object.split(input, splitter);
+    public SegmentedObject splitInTwo(Image input, SegmentedObject object, ObjectSplitter splitter, Collection<SegmentedObject> modifiedObjects) {
+        return object.splitInTwo(input, splitter, modifiedObjects);
+    }
+
+    public List<SegmentedObject> split(SegmentedObject object, RegionPopulation pop, Collection<SegmentedObject> modifiedObjects) {
+        if (!object.getBounds().sameDimensions(pop.getImageProperties())) throw new IllegalArgumentException("Population must have same bounds as object");
+        return object.split(pop, modifiedObjects);
     }
 
     public synchronized void removeFromParent(SegmentedObject... objects) {

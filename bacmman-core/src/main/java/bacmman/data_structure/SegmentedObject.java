@@ -799,7 +799,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
     }
 
-    SegmentedObject split(Image input, ObjectSplitter splitter) { // in 2 objects
+    SegmentedObject splitInTwo(Image input, ObjectSplitter splitter, Collection<SegmentedObject> modifiedObjects) { // in 2 objects
         // get cropped image
         if (input==null) input = getParent().getPreFilteredImage(structureIdx);
         RegionPopulation pop = splitter.splitObject(input, getParent(), structureIdx, getRegion());
@@ -807,39 +807,67 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             logger.debug("could not split: {} number of segments: {}", this, pop==null?"null" : pop.getRegions().size());
             return null;
         }
+        if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()), true);
+        return split(pop, modifiedObjects).get(0);
+    }
+
+    List<SegmentedObject> split(RegionPopulation pop, Collection<SegmentedObject> modifiedObjects) {
+        if (isRoot()) throw new RuntimeException("Cannot split root object");
+        if (pop.getRegions().size() <= 1) return Collections.emptyList();
         pop.getRegions().forEach(r -> r.regionModified = true);
         // set landmark
         if (!pop.isAbsoluteLandmark()) {
             pop.translate(getParent().getBounds(), true);
-            logger.debug("offsets: {}", Utils.toStringList(pop.getRegions(), r -> new SimpleOffset(r.getBounds())));
+            //logger.debug("offsets: {}", Utils.toStringList(pop.getRegions(), r -> new SimpleOffset(r.getBounds())));
         }
-        // first object returned by splitter is updated to current structureObject
+        // first object is updated to current structureObject
         this.region =pop.getRegions().get(0).setLabel(idx+1);
         regionContainer = null;
-        flushImages();
-        // second object is added to parent and returned
-        if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()), true);
-        int[] otherIdxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(getParent().getDirectChildren(structureIdx));
-        SegmentedObject res = new SegmentedObject(timePoint, structureIdx, otherIdxAndIP[0], pop.getRegions().get(1), getParent());
-        if (otherIdxAndIP[1]>=0) getParent().getDirectChildren(structureIdx).add(otherIdxAndIP[1], res);
-        else getParent().getDirectChildren(structureIdx).add(res);
         setAttribute(EDITED_SEGMENTATION, true);
-        res.setAttribute(EDITED_SEGMENTATION, true);
+        flushImages();
+        // other objects are added to parent and returned
+        List<SegmentedObject> res = IntStream.range(1, pop.getRegions().size()).mapToObj(i -> {
+            int[] otherIdxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(getParent().getDirectChildren(structureIdx));
+            SegmentedObject o = new SegmentedObject(timePoint, structureIdx, otherIdxAndIP[0], pop.getRegions().get(1), getParent());
+            if (otherIdxAndIP[1]>=0) getParent().getDirectChildren(structureIdx).add(otherIdxAndIP[1], o);
+            else getParent().getDirectChildren(structureIdx).add(o);
+            o.setAttribute(EDITED_SEGMENTATION, true);
+            return o;
+        }).collect(Collectors.toList());
+
         // re-assign childen
-        for (int cOCIdx : getExperimentStructure().getAllDirectChildStructuresAsArray(structureIdx)) {
-            if (childrenSM.has(cOCIdx) && !childrenSM.get(cOCIdx).isEmpty()) {
-                List<Region> parents = Arrays.asList(this.region, res.region);
-                List<SegmentedObject> children = childrenSM.get(cOCIdx);
-                List<SegmentedObject> resChildren = children.stream().filter(c -> c.getRegion().getMostOverlappingRegion(parents, null, null).equals(res.region)).collect(Collectors.toList());
-                if (!resChildren.isEmpty()) {
-                    children.removeAll(resChildren);
-                    res.setChildren(resChildren, cOCIdx);
+        int[] directChildrenOCIdx = getExperimentStructure().getAllDirectChildStructuresAsArray(structureIdx);
+        if (directChildrenOCIdx.length>0) {
+            List<Region> parentRegions = StreamConcatenation.concat(Stream.of(this.region), res.stream().map(SegmentedObject::getRegion)).collect(Collectors.toList());
+            Map<Region, SegmentedObject> rMapSo = res.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o->o));
+            for (int cOCIdx : directChildrenOCIdx) {
+                if (childrenSM.has(cOCIdx) && !childrenSM.get(cOCIdx).isEmpty()) {
+                    List<SegmentedObject> children = childrenSM.get(cOCIdx);
+                    List<SegmentedObject> toRemove = null;
+                    Set<SegmentedObject> toRelabel = null;
+                    for (SegmentedObject c : children) {
+                        Region p = c.getRegion().getMostOverlappingRegion(parentRegions, null, null);
+                        if (!p.equals(region)) {
+                            if (toRemove == null) toRemove = new ArrayList<>();
+                            toRemove.add(c); // remove from current object
+                            rMapSo.get(p).addChild(c, cOCIdx);
+                            if (toRelabel == null) toRelabel = new HashSet<>();
+                            toRelabel.add(rMapSo.get(p));
+                            if (modifiedObjects != null) modifiedObjects.add(c);
+                        }
+                    }
+                    if (toRemove != null) {
+                        children.removeAll(toRemove);
+                        relabelChildren(cOCIdx, modifiedObjects);
+                    }
+                    if (toRelabel != null) toRelabel.forEach(p -> p.relabelChildren(cOCIdx, modifiedObjects));
                 }
             }
         }
         //logger.debug("split object: {}({}) -> {} c={} & {}({}) -> {} c={}", this, getId(), this.getBounds(), this.region.getCenterOrGeomCenter(), res, res.getId(), res.getBounds(), res.region.getCenterOrGeomCenter());
         return res;
     }
+
     public boolean hasRegion() {return region !=null;}
     // object- and image-related methods
 

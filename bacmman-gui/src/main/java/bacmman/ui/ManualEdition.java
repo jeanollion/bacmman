@@ -32,7 +32,6 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentationAndTrackingProcessingPipeline;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.UnaryPair;
 import bacmman.utils.geom.Point;
 
 import java.awt.Color;
@@ -631,7 +630,7 @@ public class ManualEdition {
                 track.parallelStream().forEach( objectToSplit -> { // create split object
                     if (test_) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                     else {
-                        SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
+                        SegmentedObject newObject = factory.splitInTwo(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter, objectsToStore_);
                         if (newObject != null) {
                             objectMapNew.put(objectToSplit, newObject);
                             newObjects_.add(newObject);

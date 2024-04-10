@@ -25,6 +25,7 @@ import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.data_structure.region_container.roi.IJTrackRoi;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
+import bacmman.processing.ImageLabeller;
 import bacmman.ui.GUI;
 import bacmman.ui.ManualEdition;
 import bacmman.utils.*;
@@ -254,12 +255,16 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                         Rectangle rect = r.getBounds();
                         MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x + rect.width, rect.y, rect.y + rect.height, ip.getZ() - 1, ip.getZ());
                         i.addObjectsWithinBounds(selection, parentObjectClass, sliceIdx, selectedParentObjects);
-                        if (selectedParentObjects.size() > 1) {
-                            Utils.displayTemporaryMessage("selection is over several parents: "+selectedParentObjects.size(), 3000);
-                            return;
-                        } else if (selectedParentObjects.isEmpty()) {
+                        if (selectedParentObjects.isEmpty()) {
                             Utils.displayTemporaryMessage("No parent touched", 3000);
                             return;
+                        } else if (selectedParentObjects.size() > 1) {
+                            FloatPolygon fPoly = r.getInterpolatedPolygon();
+                            selectedParentObjects.removeIf(p -> !intersect(p.object, p.offset, fPoly, ip.getZ()-1));
+                            if (selectedParentObjects.size()>1) {
+                                Utils.displayTemporaryMessage("selection is over several parents: " + selectedParentObjects.size(), 3000);
+                                return;
+                            }
                         }
                         SegmentedObject parent = selectedParentObjects.get(0).object;
                         Offset parentOffset = new SimpleOffset(selectedParentObjects.get(0).offset);
@@ -282,15 +287,29 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                 region.setIsAbsoluteLandmark(true);
                                 seg = null;
                                 List<SegmentedObject> modified = new ArrayList<>();
-                                Collection<SegmentedObject> toErase = parent.getChildren(getInteractiveObjectClass())
+                                Collection<SegmentedObject> toDelete = parent.getChildren(getInteractiveObjectClass())
                                         .filter(o -> o.getRegion().intersect(region))
                                         .peek(o -> o.getRegion().remove(region))
                                         .peek(modified::add)
                                         .filter(o -> o.getRegion().size() == 0)
                                         .collect(Collectors.toList());
-                                GUI.getDBConnection().getDao(parent.getPositionName()).delete(toErase, true, true, GUI.getInstance().getManualEditionRelabel());
-                                modified.removeAll(toErase);
-                                store.accept(modified);
+                                GUI.getDBConnection().getDao(parent.getPositionName()).delete(toDelete, true, true, GUI.getInstance().getManualEditionRelabel());
+                                modified.removeAll(toDelete);
+                                // remaining modified objects: check if split into two objects
+                                if (!modified.isEmpty()) {
+                                    List<SegmentedObject> splitAndModifiedChildren = new ArrayList<>();
+                                    SegmentedObjectFactory factory = getFactory(modified.get(0).getStructureIdx());
+                                    for (SegmentedObject o : modified) {
+                                        List<Region> regions = ImageLabeller.labelImageList(o.getMask());
+                                        if (regions.size() > 1) { // erasing has generated several objects
+                                            RegionPopulation splitPop = new RegionPopulation(regions, new SimpleImageProperties(o.getMask()).resetOffset());
+                                            splitPop.translate(o.getBounds(), true);
+                                            splitAndModifiedChildren.addAll(factory.split(o, splitPop, splitAndModifiedChildren));
+                                        }
+                                    }
+                                    modified.addAll(splitAndModifiedChildren);
+                                    store.accept(modified);
+                                }
                                 if (!displayObjectClasses) {
                                     resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
                                     displayObjects(image, i.toObjectDisplay(modified, sliceIdx), Color.orange, false, true, false);
@@ -927,5 +946,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         return res;
     }
 
-    
+    private static SegmentedObjectFactory getFactory(int objectClassIdx) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
+    }
 }
