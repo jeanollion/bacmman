@@ -847,7 +847,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                     Set<SegmentedObject> toRelabel = null;
                     for (SegmentedObject c : children) {
                         Region p = c.getRegion().getMostOverlappingRegion(parentRegions, null, null);
-                        if (!p.equals(region)) {
+                        if (p!=null && !p.equals(region)) {
                             if (toRemove == null) toRemove = new ArrayList<>();
                             toRemove.add(c); // remove from current object
                             rMapSo.get(p).addChild(c, cOCIdx);

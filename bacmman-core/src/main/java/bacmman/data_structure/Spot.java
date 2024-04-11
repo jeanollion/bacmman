@@ -240,7 +240,7 @@ public class Spot extends Region implements Analytical {
         throw new RuntimeException("Cannot perform operation on spot");
     }
     @Override
-    public boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
+    protected boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
         throw new RuntimeException("Cannot perform operation on spot");
     }
     @Override

@@ -262,7 +262,7 @@ public class Ellipse2D extends Region implements Analytical {
         throw new RuntimeException("Cannot perform operation on ellipse");
     }
     @Override
-    public boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
+    protected boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
         throw new RuntimeException("Cannot perform operation on ellipse");
     }
     @Override

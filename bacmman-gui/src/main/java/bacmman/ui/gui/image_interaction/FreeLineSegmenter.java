@@ -1,5 +1,6 @@
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.image.*;
 import bacmman.processing.FillHoles2D;
@@ -58,33 +59,42 @@ public class FreeLineSegmenter {
             boolean is2D = pop.getRegions().isEmpty() ? parent.is2D() : pop.getRegions().get(0).is2D();
             if (is2D) voxels.forEach(v -> v.z = 0);
             Region r = new Region(voxels, pop.getRegions().size() + 1, is2D, pop.getImageProperties().getScaleXY(), pop.getImageProperties().getScaleZ());
-            FillHoles2D.fillHoles(r.getMaskAsImageInteger(), 2);
-            //Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
+            r.ensureMaskIsImageInteger();
             r.clearVoxels();
-            //logger.debug("region size {}", r.size());
+            ImageInteger mask = r.getMaskAsImageInteger();
+            FillHoles2D.fillHoles(mask, 2);
+            //Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
+            //logger.debug("region size {} bb: {}", r.size(), r.getBounds());
             ImageMask parentMask = parent.getMask();
-            r.removeVoxels(r.getVoxels().stream().filter(v -> !parentMask.contains(v.x, v.y, v.z) || !parentMask.insideMask(v.x, v.y, v.z)).collect(Collectors.toList()));
-            //logger.debug("region size after overlap with parent {}", r.size());
-            r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z)).collect(Collectors.toList())); // remove points already segmented
+            ImageInteger previousLabels = pop.getLabelMap();
+            r.loop((x, y, zz) -> {
+                if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || previousLabels.insideMask(x, y, zz)) mask.setPixelWithOffset(x, y, zz, 0);
+            });
+            r.clearMask();
             //logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
             return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         } else { // close the object using border of touching object
             Region rOld = pop.getRegions().stream().filter(rr->rr.getLabel()==modifyObjectLabel).findAny().get();
+            if (rOld.is2D()) voxels.forEach(v -> v.z = 0);
+            ImageInteger previousLabels = pop.getLabelMap();
             Region r = rOld.duplicate();
+            //logger.debug("region is 2D: {} original: {}", r.is2D(), rOld.is2D());
             r.translate(new SimpleOffset(parent.getBounds()).reverseOffset()); // working in relative landmark
             r.setIsAbsoluteLandmark(false);
-            //logger.debug("region size before modify {}, bb: {}", r.size(), r.getBounds());
+            //logger.debug("region size before modify {}, bb: {} original bb: {}", r.size(), r.getBounds(), rOld.getBounds());
             r.addVoxels(voxels);
-            FillHoles2D.fillHoles(r.getMaskAsImageInteger(), 2);
-            Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
-            //logger.debug("region size after modify {}, bb: {}", r.size(), r.getBounds());
-            r.clearVoxels(); // update voxels because mask has changed
+            r.ensureMaskIsImageInteger();
+            ImageInteger mask = r.getMaskAsImageInteger();
+            r.clearVoxels();
+            FillHoles2D.fillHoles(mask, 2);
+            //logger.debug("region size after add voxels {}, bb: {}", r.size(), r.getBounds());
             ImageMask parentMask = parent.getMask();
-            r.removeVoxels(r.getVoxels().stream().filter(v -> !parentMask.contains(v.x, v.y, v.z) || !parentMask.insideMask(v.x, v.y, v.z)).collect(Collectors.toList()));
-            //logger.debug("region size after overlap with parent {}, bounds: {}", r.size(), r.getBounds());
-            r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z) && pop.getLabelMap().getPixelInt(v.x, v.y, v.z)!=0).collect(Collectors.toList()));
-            //logger.debug("region size after erase overlap {}, bounds: {}", r.size(), r.getBounds());
+            r.loop((x, y, zz) -> {
+                if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || previousLabels.insideMask(x, y, zz)) mask.setPixelWithOffset(x, y, zz, 0);
+            });
+            r.clearMask();
+            //logger.debug("region size after modify {}, bb: {}", r.size(), r.getBounds());
             return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         }
     }

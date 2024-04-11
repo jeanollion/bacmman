@@ -382,11 +382,23 @@ public class Region {
     }
     
     public synchronized void addVoxels(Collection<Voxel> voxelsToAdd) {
+        boolean withinMaskTested = false;
+        if (voxels == null && mask == null) {
+            boolean within = true;
+            ImageMask mask_ = new BlankMask(new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
+            for (Voxel v : voxelsToAdd) {if (!mask_.containsWithOffset(v.x, v.y, v.z)); within=false; break;}
+            if (within) {
+                getMask();
+                withinMaskTested = true;
+            } else getVoxels();
+        }
         if (voxels!=null) voxels.addAll(voxelsToAdd);
         if (mask!=null) {
             // check if all voxels are within mask
             boolean within = true;
-            for (Voxel v : voxelsToAdd) {if (!mask.containsWithOffset(v.x, v.y, v.z)); within=false; break;}
+            if (!withinMaskTested) {
+                for (Voxel v : voxelsToAdd) {if (!mask.containsWithOffset(v.x, v.y, v.z)); within=false; break;}
+            }
             if (!within) {
                 if (voxels==null) getVoxels().addAll(voxelsToAdd);
                 mask = null;
@@ -396,7 +408,7 @@ public class Region {
                 for (Voxel v : voxelsToAdd) mask.setPixelWithOffset(v.x, v.y, v.z, 1);
             }
         }
-        this.roi = null;
+        this.roi=null;
         this.bounds=null;
         this.center = null;
         regionModified=true;
@@ -418,6 +430,7 @@ public class Region {
         regionModified=true;
     }
     public synchronized void removeVoxels(Collection<Voxel> voxelsToRemove) {
+        if (voxels == null && mask == null) getMask();
         if (voxels!=null) voxels.removeAll(voxelsToRemove);
         if (mask!=null) {
             ensureMaskIsImageInteger();
@@ -430,11 +443,12 @@ public class Region {
         regionModified=true;
     }
     public synchronized void retainVoxels(Collection<Voxel> voxelsToRetain) {
+        if (voxels == null && mask == null) getVoxels();
         if (voxels!=null) this.voxels.retainAll(voxelsToRetain);
-        else {
+        else if (mask != null) {
             Set<Voxel> newVoxels = new HashSet<>();
             for (Voxel v : voxelsToRetain) {
-                if (mask.insideMaskWithOffset(v.x, v.y, v.z)) newVoxels.add(v.duplicate());
+                if (mask.containsWithOffset(v.x, v.y, v.z) && mask.insideMaskWithOffset(v.x, v.y, v.z)) newVoxels.add(v.duplicate());
             }
             this.voxels = newVoxels;
         }
@@ -445,7 +459,6 @@ public class Region {
         regionModified=true;
     }
     public synchronized void andNot(ImageMask otherMask) {
-        getMask();
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
         LoopFunction function = (x, y, z)-> {
@@ -461,7 +474,6 @@ public class Region {
         regionModified=true;
     }
     public synchronized void and(ImageMask otherMask) {
-        getMask();
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
         LoopFunction function = (x, y, z)-> {
@@ -504,13 +516,17 @@ public class Region {
         return contains(p.asVoxel());
     }
     public synchronized void clearVoxels() {
-        if (roi == null && mask==null) getMask();
+        if (roi == null && mask==null) createMask();
         voxels = null;
     }
     public synchronized void clearMask() {
         if (voxels==null && roi == null) createRoi();
         mask = null;
         if (roi==null) this.bounds=null;
+    }
+    public synchronized void clearRoi() {
+        if (voxels==null && mask == null) createMask();
+        roi = null;
     }
     public synchronized void createRoi() {
         roi = bacmman.data_structure.region_container.RegionContainerIjRoi.createRoi(getMask(), getBounds(), !is2D());
@@ -566,7 +582,7 @@ public class Region {
      * @return an image containing only the object: its bounds are the one of the object and pixel values >0 where the objects has a voxel. The offset of the image is this offset of the object.
      */
     public ImageMask<? extends ImageMask> getMask() {
-        if (mask==null && (voxels!=null || roi!=null) ) {
+        if (mask==null) {
             synchronized(this) {
                 if (mask==null) {
                     createMask();
@@ -806,7 +822,7 @@ public class Region {
         }
         return changes;
     }
-    public boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
+    protected boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
         boolean changes = false;
         TreeSet<Voxel> heap = new TreeSet<>(Voxel.getComparator());
         Image distanceMap = EDT.transform(getMask(), true, scaleXY, scaleZ, false);
