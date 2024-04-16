@@ -23,10 +23,7 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -93,6 +90,16 @@ public class SelectionParameter extends AbstractChoiceParameterMultiple<String, 
         Supplier<Stream<Selection>> selectionSupp = getSelectionSupplier();
         if (selectionSupp == null) return new String[0];
         else return selectionSupp.get().filter(selectionFilter==null ? s->true:selectionFilter).map(Selection::getName).toArray(String[]::new);
+    }
+
+    @Override
+    public boolean isValid() {
+        if (!super.isValid()) return false;
+        List<String> choice = Arrays.asList(getChoiceList());
+        for (String s : getSelectedItems()) {
+            if (!choice.contains(s)) return false;
+        }
+        return true;
     }
 
     protected Experiment getXP() {

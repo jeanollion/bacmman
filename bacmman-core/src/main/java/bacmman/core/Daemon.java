@@ -147,8 +147,11 @@ public class Daemon {
                     if (t.isValid()) {
                         jobQueue.add(t);
                         taskFileNameMap.put(t, f);
+                    } else {
+                        error=true;
+                        ui.setMessage("Invalid task: "+f);
+                        t.printErrorsTo(ui);
                     }
-                    else error=true;
                 }
                 fileNameErrorMap.put(f, error);
             }

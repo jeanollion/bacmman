@@ -114,6 +114,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
             p.getChildren(objectClassIdx).filter(c -> c.is2D() ? !BoundingBox.isIncluded2D(c.getBounds(), pBounds) : !BoundingBox.isIncluded(c.getBounds(), p.getBounds()))
                 .forEach(c -> {
                     BoundingBox inter = c.is2D() ? BoundingBox.getIntersection2D(c.getBounds(), pBounds) : BoundingBox.getIntersection(c.getBounds(), pBounds);
+                    if (inter.sizeX()<=0 || inter.sizeY()<=0 || inter.sizeZ()<=0) logger.error("Error trim: parent: {} object : {} bounds: {} parent bounds: {} inter: {}", p, c, c.getBounds(), pBounds, inter);
                     c.getRegion().setMask(c.getRegion().getMaskAsImageInteger().cropWithOffset(inter));
                 });
         });

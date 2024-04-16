@@ -567,7 +567,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         // docker
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
-        PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_MB);
+        PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_GB);
         ConfigurationTreeGenerator.addToMenu(dockerVisibleGPUList, dockerMenu);
         ConfigurationTreeGenerator.addToMenu(dockerShmSizeMb, dockerMenu);
 
@@ -3932,6 +3932,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         }
         if (!t.isValid()) {
             log("invalid task");
+            t.printErrorsTo(this);
             return;
         }
         Task.executeTask(t, getUserInterface(), getPreProcessingMemoryThreshold(), () -> {

@@ -1252,7 +1252,7 @@ public class Utils {
 
     public static String formatDuration(long s) {
         if (s>=86400000) {
-            return String.format("%dd%02dh%02d:%02d", s / 86400000, (s % 86400000) / 3600000, (s % 3600000) / 60000, (s % 60000) / 1000);
+            return String.format("%dd %02dh%02d:%02d", s / 86400000, (s % 86400000) / 3600000, (s % 3600000) / 60000, (s % 60000) / 1000);
         } else if (s>=3600000){
             return String.format("%dh%02d:%02d", s / 3600000, (s % 3600000) / 60000, (s % 60000) / 1000);
         } else if (s>=60000) {

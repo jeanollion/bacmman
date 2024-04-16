@@ -17,7 +17,7 @@ public interface DockerGateway {
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     Stream<UnaryPair<String>> listContainers();
     Stream<UnaryPair<String>> listContainers(String imageId);
-    String createContainer(String image, int shmSizeMb, int[] gpuIds, UnaryPair<String>... mountDirs);
+    String createContainer(String image, double shmSizeGb, double memoryGb, int[] gpuIds, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
     void stopContainer(String containerId);
     void authenticate(String user, String token);

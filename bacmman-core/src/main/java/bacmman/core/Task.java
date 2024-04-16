@@ -622,7 +622,7 @@ public class Task implements ProgressCallback {
             }
         }
         if (measurements) {
-            if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
+            if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair<>(dbName, new Exception("Configuration error @ Measurements: ")));
         }
         for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
 
@@ -631,23 +631,23 @@ public class Task implements ProgressCallback {
             if (extractDSDimensions==null || extractDSDimensions.length!=2) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
             }
-            if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair(dbName, "No features to extract"));
-            if (extractDSFeatures.stream().anyMatch(f->f.getName()==null || f.getName().length()==0)) errors.addExceptions(new Pair(dbName, "Invalid features names"));
-            if (extractDSFeatures.stream().anyMatch(f->f.getObjectClass()<0)) errors.addExceptions(new Pair(dbName, "Invalid features object class"));
-            if (extractDSFeatures.stream().anyMatch(f->f.getFeatureExtractor()==null)) errors.addExceptions(new Pair(dbName, "Invalid features type"));
-            if (extractDSFeatures.stream().map(FeatureExtractor.Feature::getName).count()<extractDSFeatures.size()) errors.addExceptions(new Pair(dbName, "Duplicate feature name"));
-            if (extractDSSelections==null || extractDSSelections.isEmpty()) errors.addExceptions(new Pair(dbName, "No selection to extract from"));
-            if (extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).isEmpty())) errors.addExceptions(new Pair(dbName, "One or several selection is empty or absent"));
+            if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("No features to extract")));
+            if (extractDSFeatures.stream().anyMatch(f->f.getName()==null || f.getName().isEmpty())) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid features names")));
+            if (extractDSFeatures.stream().anyMatch(f->f.getObjectClass()<0)) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid features object class")));
+            if (extractDSFeatures.stream().anyMatch(f->f.getFeatureExtractor()==null)) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid features type")));
+            if (extractDSFeatures.stream().map(FeatureExtractor.Feature::getName).distinct().count()<extractDSFeatures.size()) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Duplicate feature name")));
+            if (extractDSSelections==null || extractDSSelections.isEmpty()) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("No selection to extract from")));
+            if (extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).isEmpty())) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("One or several selection is empty or absent")));
         }
         // raw dataset extraction
         if (extractRawDSFile!=null || extractDSRawChannels!=null || extractDSRawPositionMapFrames!=null ) {
-            if (extractDSRawPositionMapFrames.isEmpty() || extractDSRawPositionMapFrames.values().iterator().next().isEmpty()) errors.addExceptions(new Pair(dbName, "No frames to extract"));
+            if (extractDSRawPositionMapFrames.isEmpty() || extractDSRawPositionMapFrames.values().iterator().next().isEmpty()) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("No frames to extract")));
             int nChannels = db.getExperiment().getChannelImageCount(false);
-            if (extractDSRawChannels == null || extractDSRawChannels.length==0) errors.addExceptions(new Pair(dbName, "No channel images to extract"));
+            if (extractDSRawChannels == null || extractDSRawChannels.length==0) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("No channel images to extract")));
             else {
-                for (int c=0;c<extractDSRawChannels.length; ++c) if (extractDSRawChannels[c]>=nChannels) errors.addExceptions(new Pair(dbName, "Invalid channel"));
+                for (int c=0;c<extractDSRawChannels.length; ++c) if (extractDSRawChannels[c]>=nChannels) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid channel")));
             }
-            if (extractDSRawBounds!=null && (extractDSRawBounds.xMin()<0 || extractDSRawBounds.yMin()<0 || extractDSRawBounds.zMin()<0) ) errors.addExceptions(new Pair(dbName, "Invalid bounds for raw dataset extraction"));
+            if (extractDSRawBounds!=null && (extractDSRawBounds.xMin()<0 || extractDSRawBounds.yMin()<0 || extractDSRawBounds.zMin()<0) ) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid bounds for raw dataset extraction")));
         }
         if (!dlModelToDownload.isEmpty()) {
             StringBuilder question = new StringBuilder();
@@ -684,17 +684,24 @@ public class Task implements ProgressCallback {
     }
     private void checkArray(int[] array, int minValueIncl, int maxValueExcl, String message) {
         if (array.length==0) return;
-        if (array[ArrayUtil.max(array)]>=maxValueExcl) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValueExcl)));
-        if (array[ArrayUtil.min(array)]<minValueIncl) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
+        if (array[ArrayUtil.max(array)]>=maxValueExcl) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValueExcl)));
+        if (array[ArrayUtil.min(array)]<minValueIncl) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + array[ArrayUtil.min(array)]+ " not found")));
     }
     private void checkArray(List<Integer> array, int maxValue, String message) {
-        if (array==null || array.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception(message)));
-        if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.max(array)+ " not found, max value: "+maxValue)));
-        if (Collections.min(array)<0) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.min(array)+ " not found")));
+        if (array==null || array.isEmpty()) {
+            errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message)));
+            return;
+        }
+        if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + Collections.max(array)+ " not found, max value: "+maxValue)));
+        if (Collections.min(array)<0) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + Collections.min(array)+ " not found")));
     }
     public void printErrors() {
         if (!errors.isEmpty()) logger.error("Errors for Task: {}", toString());
         for (Pair<String, ? extends Throwable> e : errors.getExceptions()) logger.error(e.key, e.value);
+    }
+    public void printErrorsTo(ProgressLogger ui) {
+        if (!errors.isEmpty()) ui.setMessage("Errors for Task: " + this);
+        for (Pair<String, ? extends Throwable> e : errors.getExceptions()) ui.setMessage(e.key + ": " + e.value);
     }
     public int countSubtasks() {
         initDB();
@@ -1173,6 +1180,7 @@ public class Task implements ProgressCallback {
             logger.debug("checking task: {}", t);
             if (!t.isValid()) {
                 if (ui!=null) ui.setMessage("Invalid task: "+t.toString());
+                t.printErrorsTo(ui);
                 return;
             }
             logger.debug("task valid. keep db: {}, readonly?: {}", t.keepDB, t.db==null ? "null" : t.db.isConfigurationReadOnly());
@@ -1209,6 +1217,7 @@ public class Task implements ProgressCallback {
             logger.debug("checking task: {}", t);
             if (!t.isValid()) {
                 if (ui!=null) ui.setMessage("Invalid task: "+t.toString());
+                t.printErrorsTo(ui);
                 return;
             }
             logger.debug("task valid. keep db: {}, readonly?: {}", t.keepDB, t.db==null ? "null" : t.db.isConfigurationReadOnly());

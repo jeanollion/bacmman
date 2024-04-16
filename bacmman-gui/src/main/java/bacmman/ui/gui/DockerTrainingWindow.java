@@ -107,8 +107,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                 updateDisplayRelatedToWorkingDir();
             });
 
-    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
-    protected IntegerParameter dockerShmSizeMb = new IntegerParameter("Shared Memory Size", 2000).setHint("Shared Memory Size (MB)");
+    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.");
+    protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 8).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB)");
+    protected FloatParameter dockerMemorySizeGb = new FloatParameter("Memory Limit", 0).setLowerBound(0).setHint("Memory Limit (GB). Set zero to set no limit");
 
     protected PluginParameter<DockerDLTrainer> trainerParameterRef = trainerParameter.duplicate();
     protected final Color textFG;
@@ -136,7 +137,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         config.expandAll();
         configurationJSP.setViewportView(config.getTree());
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
-        PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_MB);
+        PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
+        PropertyUtils.setPersistent(dockerMemorySizeGb, PropertyUtils.DOCKER_MEM_GB);
+
         updateDockerOptions();
         textFG = new Color(workingDirectoryTextField.getForeground().getRGB());
         workingDirectoryTextField.getDocument().addDocumentListener(getDocumentListener(this::updateDisplayRelatedToWorkingDir));
@@ -156,6 +159,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             config.getTree().updateUI();
         });
         extractButton.addActionListener(ae -> {
+            updateExtractDisplay(); // in case dataset has be closed
+            if (!extractButton.isEnabled()) return;
             extractCurrentDataset(Paths.get(currentWorkingDirectory), null, true);
         });
         startTrainingButton.addActionListener(ae -> {
@@ -194,6 +199,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             updateTrainingDisplay();
         });
         computeMetricsButton.addActionListener(ae -> {
+            updateExtractDisplay(); // in case dataset has be closed
+            if (!computeMetricsButton.isEnabled()) return;
             // extract current dataset to temp file
             // set temps dataset to python config
             // compute loss
@@ -504,7 +511,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             updateTrainingDisplay();
         });
-
+        this.focusGained();
     }
 
     protected List<String> extractCurrentDataset(Path dir, String fileName, boolean background) {
@@ -625,7 +632,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            return dockerGateway.createContainer(image, dockerShmSizeMb.getIntValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), dockerMemorySizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             setMessage("Error trying to start container");
             setMessage(e.getMessage());
@@ -748,7 +755,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setProgress(stepProgressBar, prog[0], prog[1]);
                 displayTime(true);
                 if (!currentProgressBar.isIndeterminate())
-                    displayLoss(message, prog[0] == prog[1]); // epoch bar = indeterminate -> first epoch has not started (active learning phase..)
+                    displayLoss(message, prog[0] == prog[1]); // epoch bar = indeterminate -> first epoch has not started (hard sample mining phase..)
 
             } else { //Epoch 00002: loss improved from 0.78463 to 0.54376, saving model to /data/test.h5
                 m = epochEndPattern.matcher(message);
@@ -771,13 +778,15 @@ public class DockerTrainingWindow implements ProgressLogger {
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
         int maxStep = stepProgressBar.getMaximum();
-        if (currentStep <= 1 && currentEpoch <= 1) trainTime = System.currentTimeMillis();
+        if (currentStep <= 1 && currentEpoch == 1) {
+            trainTime = System.currentTimeMillis();
+            elapsedSteps = Double.NaN;
+            stepDuration = Double.NaN;
+        }
         if (!isStep) {
-            if (currentEpoch <= 1) {
+            if (currentEpoch == 1) {
                 lastEpochTime = System.currentTimeMillis();
-                elapsedSteps = 0;
-            }
-            else {
+            } else if (currentEpoch > 1) {
                 long currentEpochTime = System.currentTimeMillis();
                 double diff = currentEpochTime - lastEpochTime;
                 if (Double.isNaN(epochDuration)) epochDuration = diff;
@@ -870,7 +879,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (!trainerParameter.isOnePluginSet() || currentXP == null) {
             extractConfig = null;
             extractDatasetConfigurationJSP.setViewportView(null);
-            extractButton.setEnabled(false);
+            updateExtractDisplay();
         } else {
             logger.debug("creating extract config with experiment = {}", currentXP == null ? "false" : "true");
             GroupParameter grp = new GroupParameter("Configuration", trainerParameter.instantiatePlugin().getDatasetExtractionParameters());
@@ -886,7 +895,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void updateDockerOptions() {
-        GroupParameter grp = new GroupParameter("DockerOptions", dockerVisibleGPUList, dockerShmSizeMb);
+        GroupParameter grp = new GroupParameter("DockerOptions", dockerVisibleGPUList, dockerShmSizeGb, dockerMemorySizeGb);
         dockerOptions = new ConfigurationTreeGenerator(null, grp, null, (s, l) -> {
         }, s -> {
         }, null, null).rootVisible(false);
@@ -1106,15 +1115,16 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     public void focusGained() {
         Experiment currentXP = GUI.getDBConnection() == null ? null : GUI.getDBConnection().getExperiment();
-        if (extractConfig != null) { // xp may have changed
+        if (extractConfig != null && currentXP != null) { // xp may have changed
             if (extractConfig.getExperiment() == null || !extractConfig.getExperiment().equals(currentXP)) {
                 extractConfig.unRegister();
                 extractConfig.setExperiment(currentXP);
                 extractConfig.getRoot().setParent(currentXP);
-                logger.debug("xp changed, setting new xp to extract module with xp: {}", currentXP != null);
+                logger.debug("xp changed, setting new xp to extract module");
             }
             extractConfig.getTree().updateUI();
-        } else if (currentXP != null) updateExtractDatasetConfiguration();
+            updateExtractDisplay();
+        } else updateExtractDatasetConfiguration();
     }
 
     {
@@ -1191,6 +1201,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         panel2.add(extractButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         computeMetricsButton = new JButton();
         computeMetricsButton.setText("Compute Hard Samples");
+        computeMetricsButton.setToolTipText("Compute metrics on all samples of the current dataset, stores them as measurements and generates selection of the hardest samples (with lowest metrics values). Use this command to inspect samples that are not well processed by the current model. It is critical to curate hardest samples when using Hard Sample Mining during training. This option is only available on methods that can compute metrics. ");
         panel2.add(computeMetricsButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
         trainingPanel.setLayout(new GridLayoutManager(6, 2, new Insets(0, 0, 0, 0), -1, -1));
@@ -1262,7 +1273,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         trainingPanel.add(dockerOptionPanel, new GridConstraints(5, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         dockerOptionPanel.setBorder(BorderFactory.createTitledBorder(null, "Docker Options", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         dockerOptionJSP = new JScrollPane();
-        dockerOptionPanel.add(dockerOptionJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        dockerOptionPanel.add(dockerOptionJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 40), new Dimension(-1, 70), null, 0, false));
     }
 
     /**

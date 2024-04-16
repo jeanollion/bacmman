@@ -62,12 +62,13 @@ public class ExtractDatasetUtil {
             List<Selection> trackSels;
             if (trackingDataset) { // split selection by parent trackHead
                 Set<String> allPos = mainSel.getAllPositions();
-                if (allPos.size() == 1 && mainSel.getAllElementsAsStream().map(so -> so.getParent().getTrackHead()).distinct().count()==1) {
+                if (allPos.size() == 1 && (mainSel.getStructureIdx()==-1 || mainSel.getAllElementsAsStream().map(so -> so.getParent().getTrackHead()).distinct().count()==1)) {
                     trackSels = Collections.singletonList(mainSel);
                 } else {
                     trackSels = new ArrayList<>();
                     for (String pos : mainSel.getAllPositions()) {
-                        SegmentedObjectUtils.splitByParentTrackHead(mainSel.getElements(pos)).forEach( (pth, els) -> {
+                        Map<SegmentedObject, List<SegmentedObject>> tracks = mainSel.getStructureIdx()>=0 ? SegmentedObjectUtils.splitByParentTrackHead(mainSel.getElements(pos)) : SegmentedObjectUtils.splitByTrackHead(mainSel.getElements(pos));
+                        tracks.forEach( (pth, els) -> {
                             Selection subSel = new Selection(mainSel.getName()+"_"+pth.toStringShort(), mainSel.getStructureIdx(), mainSel.getMasterDAO());
                             subSel.addElements(els);
                             trackSels.add(subSel);
