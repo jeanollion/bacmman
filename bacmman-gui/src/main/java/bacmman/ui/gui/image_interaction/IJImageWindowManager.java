@@ -24,7 +24,6 @@ import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.data_structure.region_container.roi.IJTrackRoi;
 import bacmman.image.*;
-import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.processing.ImageLabeller;
 import bacmman.ui.GUI;
 import bacmman.ui.ManualEdition;
@@ -40,7 +39,6 @@ import java.awt.Component;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.event.*;
-import java.awt.image.IndexColorModel;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -50,7 +48,6 @@ import javax.swing.SwingUtilities;
 import bacmman.plugins.ObjectSplitter;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
-import ij.process.ImageProcessor;
 
 import java.awt.KeyboardFocusManager;
 import java.util.function.*;
@@ -157,7 +154,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             HyperStack.generateHyperstack(i.getParents(), view, i.channelNumber, i.getMaxSizeZ(), i.imageSupplier);
                     int channelIdx = ip.getC()-1;
                     Image imageView = interactiveImageView.generateImage().setPosition(0, channelIdx);
-                    addImage(imageView, interactiveImageView, true);
+                    addInteractiveImage(imageView, interactiveImageView, true);
                     syncView(image, interactiveImageView, imageView);
                     return;
                 }

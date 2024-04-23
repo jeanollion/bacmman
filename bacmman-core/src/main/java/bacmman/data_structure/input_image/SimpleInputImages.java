@@ -7,6 +7,12 @@ public class SimpleInputImages implements InputImages {
     public SimpleInputImages(Image[]... imagesCT) {
         this.imagesCT = imagesCT;
     }
+
+    @Override
+    public boolean sourceImagesLinked() {
+        return true;
+    }
+
     @Override
     public Image getImage(int channelIdx, int timePoint) {
         return imagesCT[channelIdx][timePoint];

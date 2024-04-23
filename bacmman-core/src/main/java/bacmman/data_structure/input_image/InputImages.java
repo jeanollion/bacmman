@@ -28,7 +28,6 @@ import bacmman.processing.ImageOperations;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -49,6 +48,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public interface InputImages {
+    boolean sourceImagesLinked();
     public static Image getImage(InputImages images , int channelIdx, int timePoint, IOException[] exceptionContainer) {
         try {
             return images.getImage(channelIdx, timePoint);

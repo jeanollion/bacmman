@@ -56,6 +56,10 @@ public class InputImagesImpl implements InputImages {
         }
         autofocusPlanes = new Integer[frameNumber];
     }
+    @Override
+    public boolean sourceImagesLinked() {
+        return !imageCT[0][0].imageSources.isEmpty();
+    }
     public void setDefaultTimePoint(int defaultTimePoint) {
         this.defaultTimePoint=defaultTimePoint;
     }

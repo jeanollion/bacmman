@@ -38,8 +38,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.DoublePredicate;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.*;
@@ -221,7 +219,7 @@ public class SelectionUtils {
         Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
         if (iiType==null) iiType = TimeLapseInteractiveImage.getBestDisplayType(parentList.get(0).getBounds());
         InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(parentList, iiType, true);
-        ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, displayChannelIdx), i, true);
+        ImageWindowManagerFactory.getImageManager().addInteractiveImage(i.generateImage().setPosition(0, displayChannelIdx), i, true);
     }
         
     public static void setMouseAdapter(final JList list) {

@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionEvent;
-import java.io.IOException;
 import java.util.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
@@ -254,7 +253,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         }
         if (rootTrack != null) {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, HyperStack.class, true);
-            ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
+            ImageWindowManagerFactory.getImageManager().addInteractiveImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
         }
     }
     public void openKymograph(int defaultChannelIdx) {
@@ -264,7 +263,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         } catch (Exception e) { }
         if (rootTrack!=null) {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, Kymograph.class, true);
-            ImageWindowManagerFactory.getImageManager().addImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
+            ImageWindowManagerFactory.getImageManager().addInteractiveImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);
         }
     }
 

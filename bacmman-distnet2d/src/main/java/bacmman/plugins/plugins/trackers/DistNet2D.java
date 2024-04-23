@@ -1579,10 +1579,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, Image> dyBWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.dyBW[i]));
         Map<SegmentedObject, Image> dxBWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.dxBW[i]));
 
-        Map<SegmentedObject, Image> dyFWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.dyFW[i]));
-        Map<SegmentedObject, Image> dxFWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.dxFW[i]));
-        Map<SegmentedObject, Image> multipleLinkFWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.multipleLinkFW[i]));
-        Map<SegmentedObject, Image> noLinkFWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.noLinkFW[i]));
+        Map<SegmentedObject, Image> dyFWM = IntStream.range(0, parentTrack.size()).boxed().filter(i->parentTrack.get(i).getPrevious()!=null).collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.dyFW[i]));
+        Map<SegmentedObject, Image> dxFWM = IntStream.range(0, parentTrack.size()).boxed().filter(i->parentTrack.get(i).getPrevious()!=null).collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.dxFW[i]));
+        Map<SegmentedObject, Image> multipleLinkFWM = IntStream.range(0, parentTrack.size()).boxed().filter(i->parentTrack.get(i).getPrevious()!=null).collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.multipleLinkFW[i]));
+        Map<SegmentedObject, Image> noLinkFWM = IntStream.range(0, parentTrack.size()).boxed().filter(i->parentTrack.get(i).getPrevious()!=null).collect(Collectors.toMap(i -> parentTrack.get(i).getPrevious(), i -> pred.noLinkFW[i]));
 
         edmM.entrySet().forEach( e-> {resample.accept(e); setCalibration.accept(e);});
         gcdmM.entrySet().forEach( e-> {resample.accept(e); setCalibration.accept(e);});

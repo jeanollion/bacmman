@@ -121,8 +121,8 @@ public class DockerGatewayImpl implements DockerGateway {
             if (gpuIds.length>0) dr = dr.withDeviceIds(Arrays.stream(gpuIds).boxed().map(s->""+s).collect(Collectors.toList()));
             hostConfig = hostConfig.withDeviceRequests(Collections.singletonList(dr));//.withRuntime("nvidia"); // not working under windows ?
         }
-        hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * 1000 * 1048576)).withMemorySwappiness(0L); //.withBlkioWeight(1000);
-        if (memoryGb>0) hostConfig = hostConfig.withMemory(Math.round(memoryGb * 1000 * 1048576)).withMemorySwap(Math.round(memoryGb * 1000 * 1048576));
+        hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * 1000 * 1048576)); //.withMemorySwappiness(0L); //.withBlkioWeight(1000);
+        if (memoryGb>0) hostConfig = hostConfig.withMemory(Math.round(memoryGb * 1000 * 1048576)); //.withMemorySwap(Math.round(memoryGb * 1000 * 1048576));
         if (mountDirs!=null && mountDirs.length>0) {
             //List<Mount> mounts = Arrays.stream(mountDirs).map(p -> new Mount().withSource(p.key).withTarget(p.value).withType(MountType.BIND)).collect(Collectors.toList());
             //hostConfig = hostConfig.withMounts(mounts);

@@ -197,13 +197,17 @@ public class TrackTreeController {
         for (TrackTreeGenerator t : this.displayedGeneratorS.values()) if (t.tree!=null) SwingUtilities.invokeLater(() -> t.tree.updateUI());
     }
     public String getSelectedPosition() {
-        if (displayedGeneratorS.isEmpty()) return null;
+        if (displayedGeneratorS.isEmpty()) return null; // || !displayedGeneratorS.containsKey(0)
         int count = displayedGeneratorS.get(0).tree.getSelectionCount();
         if (count!=1) return null;
         return displayedGeneratorS.get(0).getSelectedPosition();
     }
     protected List<String> getSelectedPositions() {
         if (displayedGeneratorS.isEmpty()) return Collections.EMPTY_LIST;
+        if (displayedGeneratorS.get(0) == null) {
+            logger.warn("ERROR: generator list not empty but first one is null contained ? {}", displayedGeneratorS.containsKey(0));
+            return Collections.EMPTY_LIST;
+        }
         return displayedGeneratorS.get(0).getSelectedPositions();
     }
     public void selectPosition(String position, int childObjectClassIdx) {

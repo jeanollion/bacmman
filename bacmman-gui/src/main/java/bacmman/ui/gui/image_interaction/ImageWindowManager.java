@@ -105,6 +105,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     protected final LinkedHashMap<String, Image> displayedRawInputImages = new LinkedHashMap<>();
     protected final LinkedHashMap<String, Image> displayedPrePocessedImages = new LinkedHashMap<>();
     protected final LinkedList<Image> displayedInteractiveImages = new LinkedList<>();
+    protected final LinkedList<String> activePositions = new LinkedList<>();
 
     // displayed objects 
     protected final Map<String, Map<ObjectDisplay, O>> objectRoiCache = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>());
@@ -162,6 +163,72 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             im.stopAllRunningWorkers();
         }
     }
+
+    public List<String> limitActivePositions(int limit) {
+        if (activePositions.size() > limit) {
+            List<String> positionToFlush = activePositions.subList(0, activePositions.size()-limit);
+            for (String p : positionToFlush) flush(p);
+            return positionToFlush;
+        } else return Collections.emptyList();
+    }
+
+    public void closeInteractiveImages(int numberOfKeptImages) {
+        logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
+        if (numberOfKeptImages<=0) return;
+        if (displayedInteractiveImages.size()>numberOfKeptImages) {
+            Iterator<Image> it = displayedInteractiveImages.iterator();
+            while(displayedInteractiveImages.size()>numberOfKeptImages && it.hasNext()) {
+                Image next = it.next();
+                it.remove();
+                displayer.close(next);
+            }
+        }
+    }
+
+    public void closeInputImages(int numberOfKeptImages) {
+        //logger.debug("close input images: raw: {} pp: {} limit: {}", displayedRawInputFrames.size(), displayedPrePocessedFrames.size(), numberOfKeptImages);
+        if (numberOfKeptImages<=0) return;
+        if (displayedRawInputImages.size()>numberOfKeptImages) {
+            Iterator<String> it = displayedRawInputImages.keySet().iterator();
+            while(displayedRawInputImages.size()>numberOfKeptImages && it.hasNext()) {
+                String i = it.next();
+                Image im = displayedRawInputImages.get(i);
+                it.remove();
+                displayer.close(im);
+            }
+        }
+        if (displayedPrePocessedImages.size()>numberOfKeptImages) {
+            Iterator<String> it = displayedPrePocessedImages.keySet().iterator();
+            while(displayedPrePocessedImages.size()>numberOfKeptImages && it.hasNext()) {
+                String i = it.next();
+                Image im = displayedPrePocessedImages.get(i);
+                it.remove();
+                displayer.close(im);
+            }
+        }
+    }
+
+    public void flush(String position) {
+        List<InteractiveImage> iis = new ArrayList<>(interactiveImageMapImages.keySet());
+        for (InteractiveImage ii : iis) {
+            if (ii.getParent().getPositionName().equals(position)) {
+                Set<Image> images = interactiveImageMapImages.get(ii);
+                images.forEach(displayer::close);
+                // no need to remove from interactiveImageMapImages : this is taken cared by window closed event, as well as running workers, rois...
+            }
+        }
+        activePositions.remove(position);
+        persistentObjectRoiCache.remove(position);
+        hyperstackTrackRoiCache.remove(position);
+        kymographTrackRoiCache.remove(position);
+        objectRoiCache.remove(position);
+        Image im = displayedPrePocessedImages.remove(position);
+        if (im!=null) displayer.close(im);
+        im = displayedRawInputImages.remove(position);
+        if (im!=null) displayer.close(im);
+        trackColor.entrySet().removeIf(e -> e.getKey().getPositionName().equals(position));
+    }
+
     public void flush() {
         stopAllRunningWorkers();
         if (!objectRoiCache.isEmpty()) logger.debug("flush: will remove {} rois", objectRoiCache.size());
@@ -185,7 +252,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     }
 
     public void closeNonInteractiveWindows() {
-        closeLastInputImages(0);
+        closeInputImages(0);
     }
     public ImageDisplayer<I> getDisplayer() {return displayer;}
     
@@ -199,23 +266,57 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         return interactiveObjectClassIdx;
     }
     
-    public void setActive(Image image) {
+    public void setActive(Image image) { // overriden function will actually set to front the window
         InteractiveImage i = getInteractiveImage(image);
         boolean b = displayedInteractiveImages.remove(image);
-        if (b && i!=null) displayedInteractiveImages.add(image);
+        if (b && i!=null) {
+            displayedInteractiveImages.add(image);
+            activePositions.remove(i.getParent().getPositionName());
+            activePositions.add(i.getParent().getPositionName());
+        }
         if (!displayer.isDisplayed(image)) {
-            if (i != null) displayImage(image, i);
+            if (i != null) displayInteractiveImage(image, i);
             else displayer.displayImage(image);
         }
     }
 
-    public void displayInputImage(Experiment xp, String position, boolean preProcessed) {
+    public List<String> displayInputImage(Experiment xp, String position, boolean preProcessed) {
+        activePositions.remove(position);
+        activePositions.add(position);
+        if (preProcessed) {
+            if (displayedPrePocessedImages.containsKey(position)) {
+                Image im = displayedPrePocessedImages.remove(position);
+                displayedPrePocessedImages.put(position, im); // put last
+                setActive(im);
+                return Collections.emptyList();
+            }
+        } else {
+            if (displayedRawInputImages.containsKey(position)) {
+                Image im = displayedRawInputImages.remove(position);
+                displayedRawInputImages.put(position, im); // put last
+                setActive(im);
+                return Collections.emptyList();
+            }
+        }
         Position f = xp.getPosition(position);
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
         String title = (preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex();
         ImageDAO imageDAO = preProcessed ? f.getImageDAO() : null;
         InputImages inputImages = !preProcessed ? f.getInputImages() : null;
+        logger.debug("testing if image is present");
+        if (preProcessed) {
+            if (imageDAO.isEmpty()) {
+                Utils.displayTemporaryMessage("Position " + position + " has not been pre-processed yet ", 5000);
+                return Collections.emptyList();
+            }
+        } else {
+            if (!inputImages.sourceImagesLinked()) {
+                Utils.displayTemporaryMessage("Images of Position " + position + " not found", 5000);
+                return Collections.emptyList();
+            }
+        }
+        logger.debug("image is present");
         IntUnaryOperator getSizeZC = preProcessed ? c -> {
             try {
                 return imageDAO.getPreProcessedImageProperties(c).sizeZ();
@@ -258,7 +359,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         });
         if (!preProcessed) displayedRawInputImages.put(position, source);
         else displayedPrePocessedImages.put(position,  source);
-        closeLastInputImages(displayedImageNumber);
+        activePositions.remove(position);
+        activePositions.add(position);
+        closeInputImages(displayedImageNumber);
+        return limitActivePositions(displayedImageNumber);
     }
 
     public String getPositionOfInputImage(Image image) {
@@ -267,43 +371,28 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         return Utils.getOneKey(displayedPrePocessedImages, image);
     }
 
-    public void closeLastInputImages(int numberOfKeptImages) {
-        //logger.debug("close input images: raw: {} pp: {} limit: {}", displayedRawInputFrames.size(), displayedPrePocessedFrames.size(), numberOfKeptImages);
-        if (numberOfKeptImages<=0) return;
-        if (displayedRawInputImages.size()>numberOfKeptImages) {
-            Iterator<String> it = displayedRawInputImages.keySet().iterator();
-            while(displayedRawInputImages.size()>numberOfKeptImages && it.hasNext()) {
-                String i = it.next();
-                Image im = displayedRawInputImages.get(i);
-                it.remove();
-                displayer.close(im);
-            }
-        }
-        if (displayedPrePocessedImages.size()>numberOfKeptImages) {
-            Iterator<String> it = displayedPrePocessedImages.keySet().iterator();
-            while(displayedPrePocessedImages.size()>numberOfKeptImages && it.hasNext()) {
-                String i = it.next();
-                Image im = displayedPrePocessedImages.get(i);
-                it.remove();
-                displayer.close(im);
-            }
-        }
-    }
-
-    public void addImage(Image image, InteractiveImage i, boolean displayImage) {
-        if (image==null) return;
+    public List<String> addInteractiveImage(Image image, InteractiveImage i, boolean displayImage) {
+        if (image==null) return Collections.emptyList();
         logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i, imageMapInteractiveImage.containsKey(i));
         interactiveImageMapImages.get(i).add(image);
         imageMapInteractiveImage.put(image, i);
         i.setGUIMode(GUI.hasInstance());
-        if (displayImage) displayImage(image, i);
+        if (displayImage) {
+            return displayInteractiveImage(image, i);
+        } else {
+            activePositions.remove(i.getParent().getPositionName());
+            activePositions.add(i.getParent().getPositionName());
+            return limitActivePositions(displayedImageNumber);
+        }
     }
 
-    protected void displayImage(Image image, InteractiveImage i) {
+    protected List<String> displayInteractiveImage(Image image, InteractiveImage i) {
         long t0 = System.currentTimeMillis();
         displayer.displayImage(image);
         long t1 = System.currentTimeMillis();
         displayedInteractiveImages.add(image);
+        activePositions.remove(i.getParent().getPositionName());
+        activePositions.add(i.getParent().getPositionName());
         addMouseListener(image);
         addWindowClosedListener(image, ()-> {
             interactiveImageMapImages.get(i).remove(image);
@@ -314,6 +403,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             imageMapInteractiveImage.remove(image);
             displayedInteractiveImages.remove(image);
             displayMode.remove(image);
+            testData.remove(image);
             displayer.removeImage(image);
             displayedLabileObjectRois.remove(image);
             displayedObjectRois.remove(image);
@@ -323,41 +413,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         long t2 = System.currentTimeMillis();
         GUI.updateRoiDisplayForSelections(image, i);
         long t3 = System.currentTimeMillis();
-        closeLastActiveImages(displayedImageNumber);
+        closeInteractiveImages(displayedImageNumber);
         long t4 = System.currentTimeMillis();
         logger.debug("display image: show: {} ms, add list: {}, update ROI: {}, close last active image: {}", t1-t0, t2-t1, t3-t2, t4-t3);
-    }
-
-    public void closeLastActiveImages(int numberOfKeptImages) {
-        logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
-        if (numberOfKeptImages<=0) return;
-        if (displayedInteractiveImages.size()>numberOfKeptImages) {
-            Iterator<Image> it = displayedInteractiveImages.iterator();
-            while(displayedInteractiveImages.size()>numberOfKeptImages && it.hasNext()) {
-                Image next = it.next();
-                it.remove();
-                displayer.close(next);
-            }
-        }
-    }
-
-    public void closeResourcesFromPosition(String position) {
-        List<InteractiveImage> iis = new ArrayList<>(interactiveImageMapImages.keySet());
-        for (InteractiveImage ii : iis) {
-            if (ii.getParent().getPositionName().equals(position)) {
-                Set<Image> images = interactiveImageMapImages.get(ii);
-                images.forEach(displayer::close);
-                // no need to remove from interactiveImageMapImages : this is taken cared by window closed event
-            }
-        }
-        persistentObjectRoiCache.remove(position);
-        hyperstackTrackRoiCache.remove(position);
-        kymographTrackRoiCache.remove(position);
-        objectRoiCache.remove(position);
-        Image im = displayedPrePocessedImages.remove(position);
-        if (im!=null) displayer.close(im);
-        im = displayedRawInputImages.remove(position);
-        if (im!=null) displayer.close(im);
+        return limitActivePositions(displayedImageNumber);
     }
 
     public <II extends InteractiveImage> II getInteractiveImage(List<SegmentedObject> parentTrack, Class<II> interactiveImageClass, boolean createIfNotExisting) {

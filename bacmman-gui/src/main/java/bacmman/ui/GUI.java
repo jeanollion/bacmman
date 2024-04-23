@@ -3334,8 +3334,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 }
                 String nextPosition = db.getExperiment().getPosition(nIdx).getName();
                 boolean pp = ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType);
-                db.getExperiment().flushImages(true, true, nextPosition);
-                iwm.displayInputImage(db.getExperiment(), nextPosition, pp);
+                List<String> flushedPositions = iwm.displayInputImage(db.getExperiment(), nextPosition, pp);
+                for (String p : flushedPositions) {
+                    db.getExperiment().flushImages(true, true, p);
+                }
             }
         } else  { // interactive: if IOI found
             final InteractiveImage i = iwm.getInteractiveImage(activeImage);
@@ -3382,7 +3384,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 LazyImage5D nextIm = nextII.generateImage();
                 int c = iwm.getDisplayer().getChannel(activeImage);
                 if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
-                iwm.addImage(nextIm, nextII, true);
+                List<String> flushedPositions = iwm.addInteractiveImage(nextIm, nextII, true);
+                for (String p : flushedPositions) {
+                    db.getExperiment().flushImages(true, true, p);
+                }
             } else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
@@ -3510,7 +3515,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     if (currentImage != null) c = iwm.getDisplayer().getChannel(currentImage);
                     else if (displayObjectClassIdx>=0) c = db.getExperiment().experimentStructure.getChannelIdx(displayObjectClassIdx);
                     if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
-                    iwm.addImage(nextIm, nextI, true);
+                    iwm.addInteractiveImage(nextIm, nextI, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {

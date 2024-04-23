@@ -422,7 +422,7 @@ public class PluginConfigurationUtils {
         getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), iiList.size()+1));
         Map<InteractiveImage, Image> dispImages = iiList.stream().collect(Collectors.toMap(ii -> ii, ii -> {
             Image image = ii.generateImage();
-            iwm.addImage(image, ii, true);
+            iwm.addInteractiveImage(image, ii, true);
             iwm.addTestData(image, stores.values());
             return image;
         }));

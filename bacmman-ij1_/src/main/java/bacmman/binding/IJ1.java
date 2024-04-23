@@ -142,7 +142,7 @@ public class IJ1 implements PlugIn {
                     }
                     Core.getCore().addToFront(ij::toFront);
                     Core.getCore().setClosePosition(position -> {
-                        ImageWindowManagerFactory.getImageManager().closeResourcesFromPosition(position);
+                        ImageWindowManagerFactory.getImageManager().flush(position);
                         if (GUI.hasInstance()) {
                             GUI.getInstance().closeResourceFromPosition(position);
                         }
