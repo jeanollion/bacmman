@@ -147,8 +147,8 @@ public class DockerTrainingWindow implements ProgressLogger {
         modelDestinationTextField.getDocument().addDocumentListener(getDocumentListener(this::updateTrainingDisplay));
 
         setLoadButton.addActionListener(ae -> {
-            setWorkingDirectory();
             setConfigurationFile(true);
+            setWorkingDirectory();
             updateDisplayRelatedToWorkingDir();
         });
         setWriteButton.addActionListener(ae -> {

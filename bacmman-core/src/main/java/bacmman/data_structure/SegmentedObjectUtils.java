@@ -332,6 +332,31 @@ public class SegmentedObjectUtils {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
         return list.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
     }
+
+    public static Map<SegmentedObject, List<SegmentedObject>> splitByContiguousTrackSegment(Collection<? extends SegmentedObject> list) {
+        if (list.isEmpty()) return Collections.EMPTY_MAP;
+        Map<SegmentedObject, List<SegmentedObject>> res = new HashMap<>();
+        Map<SegmentedObject, List<SegmentedObject>> tracks = list.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+        tracks.forEach( (th, track) -> {
+            Collections.sort(track);
+            SegmentedObject currentPrev = track.get(0);
+            List<SegmentedObject> currentSegment = new ArrayList<>();
+            currentSegment.add(currentPrev);
+            res.put(currentPrev, currentSegment);
+            for (int i = 1; i<track.size(); ++i) {
+                if (track.get(i).getPrevious().equals(currentPrev)) {
+                    currentPrev = track.get(i);
+                    currentSegment.add(currentPrev);
+                } else { // create new segment
+                    currentPrev = track.get(i);
+                    currentSegment = new ArrayList<>();
+                    currentSegment.add(currentPrev);
+                    res.put(currentPrev, currentSegment);
+                }
+            }
+        } );
+        return res;
+    }
     
     public static Map<Integer, List<SegmentedObject>> splitByStructureIdx(Collection<SegmentedObject> list, boolean distinct) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;

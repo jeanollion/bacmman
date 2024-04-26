@@ -60,22 +60,17 @@ public class ExtractDatasetUtil {
             logger.debug("Selection: {}", selName);
             Selection mainSel = mDAO.getSelectionDAO().getOrCreate(selName, false);
             List<Selection> trackSels;
-            if (trackingDataset) { // split selection by parent trackHead
-                Set<String> allPos = mainSel.getAllPositions();
-                if (allPos.size() == 1 && (mainSel.getStructureIdx()==-1 || mainSel.getAllElementsAsStream().map(so -> so.getParent().getTrackHead()).distinct().count()==1)) {
-                    trackSels = Collections.singletonList(mainSel);
-                } else {
-                    trackSels = new ArrayList<>();
-                    for (String pos : mainSel.getAllPositions()) {
-                        Map<SegmentedObject, List<SegmentedObject>> tracks = mainSel.getStructureIdx()>=0 ? SegmentedObjectUtils.splitByParentTrackHead(mainSel.getElements(pos)) : SegmentedObjectUtils.splitByTrackHead(mainSel.getElements(pos));
-                        tracks.forEach( (pth, els) -> {
-                            Selection subSel = new Selection(mainSel.getName()+"_"+pth.toStringShort(), mainSel.getStructureIdx(), mainSel.getMasterDAO());
-                            subSel.addElements(els);
-                            trackSels.add(subSel);
-                        } );
-                    }
+            if (trackingDataset) { // split selection by contiguous track segment
+                trackSels = new ArrayList<>();
+                for (String pos : mainSel.getAllPositions()) {
+                    Map<SegmentedObject, List<SegmentedObject>> tracks = SegmentedObjectUtils.splitByContiguousTrackSegment(mainSel.getElements(pos));
+                    tracks.forEach( (th, els) -> {
+                        Selection subSel = new Selection(mainSel.getName()+"/"+th.toStringShort(), mainSel.getStructureIdx(), mainSel.getMasterDAO());
+                        subSel.addElements(els);
+                        trackSels.add(subSel);
+                    } );
                 }
-
+                if (trackSels.size() > 1) t.incrementTaskNumber(trackSels.size() * features.size() - mainSel.getAllPositions().size() * features.size());
             } else trackSels = Collections.singletonList(mainSel);
             for (Selection sel : trackSels) {
                 if (test) {
@@ -94,8 +89,16 @@ public class ExtractDatasetUtil {
                         RegionPopulation pop = parent.getChildRegionPopulation(oc, false);
                         return resamplePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(oc));
                     }));
-                    String baseOutputName = (!selName.isEmpty() ? selName + "/" : "") + ds + "/" + position + "/";
-                    boolean saveLabels = false; // HAS BEEN DISABLED
+                    String curSelName = sel.getName();
+                    String thName = null;
+                    if (curSelName.contains("/")) {
+                        String[] split = curSelName.split("/");
+                        curSelName = split[0];
+                        thName = split[1];
+                    }
+                    String baseOutputName = (!curSelName.isEmpty() ? curSelName + "/" : "") + ds + "/" + position + "/";
+                    if (thName != null) baseOutputName += thName + "/";
+                    boolean saveLabels = subsamplingFactor==1; // HAS BEEN DISABLED
                     boolean filterParentSelection = Utils.objectsAllHaveSameProperty(features, FeatureExtractor.Feature::getSelectionFilter);
                     for (FeatureExtractor.Feature feature : features) {
                         boolean oneEntryPerInstance = feature.getFeatureExtractor() instanceof FeatureExtractorOneEntryPerInstance;
