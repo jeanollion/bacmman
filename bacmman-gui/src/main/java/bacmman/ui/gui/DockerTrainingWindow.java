@@ -672,6 +672,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             stepProgressBar.setString("");
             stepProgressBar.setValue(stepProgressBar.getMinimum());
             currentProgressBar.setValue(currentProgressBar.getMinimum());
+        } else {
+            learningRateLabel.setText("LR: "); // reset learning rate display
         }
         currentProgressBar.setIndeterminate(running);
         this.directoryPanel.setEnabled(!running);
