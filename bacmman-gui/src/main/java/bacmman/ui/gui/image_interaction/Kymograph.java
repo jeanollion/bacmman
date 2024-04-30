@@ -4,6 +4,7 @@ import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.image.*;
+import bacmman.image.Image;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.UnaryPair;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -239,7 +241,10 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
             updateImage(displayImage, fc[1], fc[0]);
             return displayImage;
         };
-        return new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
+        LazyImage5D image = new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
+        image.setChannelNames(parent.getExperimentStructure().getChannelNames());
+        image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        return image;
     }
 
     public Set<SegmentedObject> getNextTracks(int objectClassIdx, int sliceIdx, List<SegmentedObject> currentTracks, boolean next) {

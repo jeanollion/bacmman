@@ -586,7 +586,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
         if (image.getNSlices()>1 && roi.is2D()) {
             roi.duplicateROIUntilZ(image.getNSlices());
         }
-        if (!image.isDisplayedHyperStack()) {
+        if (!image.isDisplayedHyperStack() && !(image instanceof sc.fiji.i5d.Image5D)) {
             if (image.getNSlices()>1) roi.setZToPosition();
             else if (image.getNFrames()>1) roi.setTToPosition();
         } else roi.setHyperstackPosition();

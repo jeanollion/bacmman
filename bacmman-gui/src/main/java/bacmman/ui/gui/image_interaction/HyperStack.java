@@ -21,11 +21,11 @@ package bacmman.ui.gui.image_interaction;
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
+import bacmman.image.Image;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.processing.Resize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -181,7 +181,10 @@ public class HyperStack extends TimeLapseInteractiveImage {
         int frames = getParents().size();
         int[] fczSize = new int[]{frames, channelNumber, data.maxSizeZ};
         Function<int[], Image> imageOpenerCT  = (fcz) -> getPlane(fcz[2], fcz[1], fcz[0], Resize.EXPAND_MODE.BORDER);
-        return new LazyImage5DPlane(getImageTitle(), homogenizeType(channelNumber, imageOpenerCT), fczSize);
+        LazyImage5D image = new LazyImage5DPlane(getImageTitle(), homogenizeType(channelNumber, imageOpenerCT), fczSize);
+        image.setChannelNames(parent.getExperimentStructure().getChannelNames());
+        image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        return image;
     }
 
     @Override 

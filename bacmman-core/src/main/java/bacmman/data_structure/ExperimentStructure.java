@@ -212,6 +212,10 @@ public class ExperimentStructure {
     public Stream<Color> getChannelColors() {
         return xp.getChannelColors(true);
     }
+    public String[] getChannelColorNames() {
+        return xp.getChannelColorAsString(true).toArray(String[]::new);
+    }
+
     public Stream<Color> getObjectColors() {
         return xp.getObjectColors();
     }

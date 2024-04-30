@@ -130,11 +130,11 @@ public class IJVirtualStack extends VirtualStack {
                 i5d.setChannelColorModel(cidx + 1, cm);
             }
         }
-        setMinAndMax(i5d);
         i5d.setDisplayMode(2);
         if (source.sizeZ()>1) i5d.setSlice(source.sizeZ()/2+1);
         if (source instanceof LazyImage5D) i5d.setChannel(((LazyImage5D)source).getChannel());
         this.imp = i5d;
+        setMinAndMax(i5d);
         setCalibration();
     }
 
@@ -251,18 +251,19 @@ public class IJVirtualStack extends VirtualStack {
     }
     public static boolean OpenAsImage5D = false;
 
-    private static void setMinAndMax(Image5D i5d) {
-        for (int i = 0; i < i5d.getNChannels(); ++i) {
+    private void setMinAndMax(Image5D i5d) {
+        for (int c = 0; c < sizeC; ++c) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
-            for(int slice = 1; slice <= i5d.getNSlices(); ++slice) {
-                i5d.setSlice(slice);
-                ImagePlus chan = i5d.getChannelImagePlus(i + 1);
-                ImageStatistics is = chan.getStatistics();
+            int sliceMin = source.sizeZ()/2;
+            int sliceMax = sliceMin;
+            for(int slice = sliceMin; slice <= sliceMax; ++slice) {
+                ImageProcessor imp = getProcessor(new ImageCoordinate(0, c, slice));
+                ImageStatistics is = imp.getStatistics();
                 if (is.min < min) min = is.min;
                 if (is.max > max) max = is.max;
             }
-            i5d.setChannelMinMax(i + 1, min, max);
+            i5d.setChannelMinMax(c + 1, min, max);
         }
     }
 }
