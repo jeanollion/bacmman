@@ -235,11 +235,15 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new BoundedNumberParameter("Patience", 0, defaultValue, 1, null);
     }
     public static BoundedNumberParameter getMinLearningRateParameter(double defaultValue) {
-        return new BoundedNumberParameter("Min Learning Rate", 8, defaultValue, 10e-8, null);
+        return new BoundedNumberParameter("Min Learning Rate", 8, defaultValue, Math.min(10e-8, defaultValue), null);
     }
 
     public static IntervalParameter getEpsilonRangeParameter(double defaultMaxValue, double defaultMinValue) {
-        return new IntervalParameter("Epsilon Range", 8, 10e-8, null, defaultMinValue, defaultMaxValue).setHint("Epsilon parameter used by optimiser (such as Adam). Default is usually a low value such as 1e-7 but values close to 1 can improve training efficiency in some cases. If a range is given, epsilon will start at the maximal value and end at the lower value.");
+        return new IntervalParameter("Epsilon Range", 8, Math.min(10e-8, defaultMinValue), null, defaultMinValue, defaultMaxValue).setHint("Epsilon parameter used by optimiser (such as Adam). Default is usually a low value such as 1e-7 but values close to 1 can improve training efficiency in some cases. If a range is given, epsilon will start at the maximal value and end at the lower value.");
+    }
+
+    public static IntervalParameter getLossWeightRangeParameter(double defaultMaxValue, double defaultMinValue) {
+        return new IntervalParameter("Loss Weight Range", 8, Math.min(10e-8, defaultMinValue), null, defaultMinValue, defaultMaxValue).setHint("Category imbalance is corrected by loss weights that correspond to inverse class frequency. This parameter limits weigh values.");
     }
 
     public static BooleanParameter getUseSharedMemParameter(boolean defaultValue) {
@@ -357,6 +361,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(true))
                 .setNewInstanceNameFunction((l, i) -> "Channel "+i).setChildrenNumber(1);
         BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch. <br /> e.g.: 0.5 means a batch has twice less chances to be picked from this dataset compared to 1.");
+        BooleanParameter loadInSharedMemory = new BooleanParameter("Load in shared memory", true).setHint("If true, the whole dataset will be loaded in shared memory, to improve access and memory management when using multiprocessing. <br/>Disable this option for large datasets that do not fit in shared memory. <br/>Amount of shared memory is set in the docker options. ");
 
         final boolean multipleChannel;
         final GroupParameter dataAug;
@@ -372,6 +377,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             else children.add(channel);
             children.add(keyword);
             children.add(concatProp);
+            children.add(loadInSharedMemory);
             if (multipleChannel) children.add(scalers);
             else children.add(scaler);
             children.addAll(Arrays.asList(this.otherParameters));
@@ -418,6 +424,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             res.put("channel_name", multipleChannel ? channels.toJSONEntry() : channel.toJSONEntry());
             res.put("keyword", keyword.toJSONEntry());
             res.put("concat_proportion", concatProp.toJSONEntry());
+            res.put("shared_memory", loadInSharedMemory.toJSONEntry());
             PythonConfiguration.putParameters(this.otherParameters, res);
             JSONObject dataAug = new JSONObject();
             res.put("data_augmentation", dataAug);
