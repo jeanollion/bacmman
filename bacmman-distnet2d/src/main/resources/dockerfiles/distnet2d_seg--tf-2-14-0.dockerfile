@@ -1,5 +1,4 @@
 FROM jeanollion/training_dnn:tf-2.14.0
-RUN pip install psutil
 RUN pip install --upgrade h5py==3.9.0
 RUN pip install DiSTNet2D==0.1.4
 RUN wget https://gist.githubusercontent.com/jeanollion/4aea9bef9c4b98aa5f8084e1be5ed6ee/raw/training_core.py -O training_core.py

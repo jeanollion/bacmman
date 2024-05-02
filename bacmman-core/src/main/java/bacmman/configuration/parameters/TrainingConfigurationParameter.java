@@ -361,7 +361,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(true))
                 .setNewInstanceNameFunction((l, i) -> "Channel "+i).setChildrenNumber(1);
         BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch. <br /> e.g.: 0.5 means a batch has twice less chances to be picked from this dataset compared to 1.");
-        BooleanParameter loadInSharedMemory = new BooleanParameter("Load in shared memory", true).setHint("If true, the whole dataset will be loaded in shared memory, to improve access and memory management when using multiprocessing. <br/>Disable this option for large datasets that do not fit in shared memory. <br/>Amount of shared memory is set in the docker options. ");
+        ChoiceParameter loadInSharedMemory = new ChoiceParameter("Load in shared memory", new String[]{"true", "auto", "false"}, "auto", false).setHint("If true, the whole dataset will be loaded in shared memory, to improve access and memory management when using multiprocessing. <br/>Disable this option for large datasets that do not fit in shared memory. <br/>Amount of shared memory is set in the docker options. <br/> In auto mode, dataset is loaded only if Gb of shared memory for files smaller than 16Gb. When several datasets are concatenated, this test is performed independently for each dataset, so shared memory can be filled");
 
         final boolean multipleChannel;
         final GroupParameter dataAug;
