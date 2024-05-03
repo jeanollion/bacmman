@@ -5,4 +5,5 @@ import java.net.HttpURLConnection;
 
 public interface UserAuth {
     void authenticate(HttpURLConnection connection);
+    String getAccount();
 }

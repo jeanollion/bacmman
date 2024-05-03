@@ -8,8 +8,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
-public class IntervalParameter extends ParameterImpl<IntervalParameter> implements Listenable<IntervalParameter> {
+public class IntervalParameter extends ParameterImpl<IntervalParameter> implements Listenable<IntervalParameter>, ParameterWithLegacyInitialization<IntervalParameter, double[]> {
     private Number lowerBound, upperBound;
     private Number[] values;
     private int decimalPlaces;
@@ -110,7 +111,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> implemen
             JSONArray list = (JSONArray) jsonEntry;
             values = new Number[list.size()];
             for (int i = 0; i < values.length; ++i) values[i] = (Number) list.get(i);
-        } else logger.error("Could not initialize parameter: {}", toString());
+        } else throw new IllegalArgumentException("Could not initialize parameter");
     }
 
     public int getDecimalPlaces() {
@@ -171,5 +172,38 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> implemen
 
     public static int compare(Number a, Number b){
         return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
+    }
+
+    // legacy initialization
+
+    @Override
+    public void legacyInit() {
+        if (legacyInitValues != null) {
+            for (int i = 0; i<values.length; ++i) {
+                if (!Double.isNaN(legacyInitValues[i])) this.values[i]=legacyInitValues[i];
+            }
+        }
+        if (setValue != null && legacyParams != null) setValue.accept(legacyParams, this);
+    }
+
+    @Override
+    public Parameter[] getLegacyParameters() {
+        return legacyParams;
+    }
+    Parameter[] legacyParams;
+    BiConsumer<Parameter[], IntervalParameter> setValue;
+    double[] legacyInitValues;
+    @Override
+    public IntervalParameter setLegacyParameter(BiConsumer<Parameter[], IntervalParameter> setValue, Parameter... p) {
+        this.legacyParams = p;
+        this.setValue = setValue;
+        return this;
+    }
+
+    @Override
+    public IntervalParameter setLegacyInitializationValue(double[] values) {
+        if (values.length != this.values.length) throw new IllegalArgumentException("provide as many init values as interval values. provide NaN to skip init one value");
+        this.legacyInitValues = values;
+        return this;
     }
 }

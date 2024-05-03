@@ -371,8 +371,9 @@ public class GistConfiguration implements Hint {
     }
 
     public static List<GistConfiguration> getConfigurations(UserAuth auth, ProgressLogger pcb) {
+        String url = auth.getAccount() == null ? BASE_URL+"/gists" : BASE_URL + "/users/" + auth.getAccount() + "/gists";
         try {
-            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
+            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(url, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
             return gists.stream().map(GistConfiguration::new).filter(gc -> gc.type != null).collect(Collectors.toList());
         } catch (IOException | ParseException e) {
             logger.error("Error getting configurations", e);

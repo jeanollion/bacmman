@@ -14,4 +14,7 @@ public class BasicAuth implements UserAuth {
         String basicAuthPayload = "Basic " + Base64.getEncoder().encodeToString(usernameColonPassword.getBytes());
         urlConnection.addRequestProperty("Authorization", basicAuthPayload);
     }
+    public String getAccount() {
+        return username;
+    }
 }

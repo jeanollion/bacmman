@@ -37,7 +37,7 @@ public class MemoryImageContainer extends MultipleImageContainer {
 
     @Override
     public boolean isEmpty() {
-        return imageCT.length!=0 && imageCT[0].length!=0 && imageCT[0][0]!=null;
+        return imageCT.length==0 || imageCT[0].length==0 || imageCT[0][0]==null;
     }
 
     @Override

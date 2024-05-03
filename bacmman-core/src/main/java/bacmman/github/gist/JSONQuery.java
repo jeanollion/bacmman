@@ -27,7 +27,7 @@ public class JSONQuery {
     public static String REQUEST_PROPERTY_DEFAULT = "application/json; charset=UTF-8";
     public static String REQUEST_PROPERTY_GITHUB_BASE64 = "application/vnd.github.v3.base64";
     public static String REQUEST_PROPERTY_GITHUB_JSON= "application/vnd.github+json";
-    public static int MAX_PER_PAGE = 100;
+    public static int MAX_PER_PAGE = 50;
     public static int MAX_TRYOUTS = 50;
     public static int TRYOUT_SLEEP = 7500; //ms
     public static int TRYOUT_SLEEP_INC = 100;
@@ -202,7 +202,7 @@ public class JSONQuery {
         int currentPage = 1;
         List<JSONObject> currentPageResult = fetchAndParse(() -> queryPerPage.apply(1), MAX_TRYOUTS);
         List<JSONObject> res = new ArrayList<>(currentPageResult);
-        while(currentPageResult.size()==MAX_PER_PAGE) {
+        while(currentPageResult.size()==MAX_PER_PAGE) { // there may be other pages
             int cp = ++currentPage;
             currentPageResult = fetchAndParse(() -> queryPerPage.apply(cp), MAX_TRYOUTS);
             res.addAll(currentPageResult);

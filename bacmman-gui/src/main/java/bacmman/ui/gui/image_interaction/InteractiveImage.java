@@ -50,6 +50,7 @@ public abstract class InteractiveImage {
     protected abstract void stopAllRunningWorkers();
     protected final BiFunction<SegmentedObject, Integer, Image> imageSupplier;
     protected final int channelNumber;
+    protected final boolean defaultImageSupplier;
     public InteractiveImage(SegmentedObject parent) {
         this.parent = parent;
         parentStructureIdx = parent.getStructureIdx();
@@ -58,12 +59,14 @@ public abstract class InteractiveImage {
             int objectClassIdx = o.getExperimentStructure().getObjectClassIdx(channelIdx);
             return o.getRawImage(objectClassIdx);
         };
+        defaultImageSupplier = true;
     }
     public InteractiveImage(SegmentedObject parent, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier) {
         this.parent = parent;
         parentStructureIdx = parent.getStructureIdx();
         this.channelNumber = channelNumber;
         this.imageSupplier = imageSupplier;
+        defaultImageSupplier = false;
     }
     public void setName(String name) {
         this.name = name;

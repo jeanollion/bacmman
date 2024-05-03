@@ -182,8 +182,10 @@ public class HyperStack extends TimeLapseInteractiveImage {
         int[] fczSize = new int[]{frames, channelNumber, data.maxSizeZ};
         Function<int[], Image> imageOpenerCT  = (fcz) -> getPlane(fcz[2], fcz[1], fcz[0], Resize.EXPAND_MODE.BORDER);
         LazyImage5D image = new LazyImage5DPlane(getImageTitle(), homogenizeType(channelNumber, imageOpenerCT), fczSize);
-        image.setChannelNames(parent.getExperimentStructure().getChannelNames());
-        image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        if (defaultImageSupplier) {
+            image.setChannelNames(parent.getExperimentStructure().getChannelNames());
+            image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        }
         return image;
     }
 

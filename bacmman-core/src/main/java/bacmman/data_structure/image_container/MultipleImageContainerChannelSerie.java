@@ -27,6 +27,8 @@ import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -339,8 +341,11 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     @Override
     public boolean isEmpty() {
         try {
-            if (fromOmero() && !omeroGateway.isConnected()) return false; // do not try to connect
-            return !getReader(0).imageExists();
+            if (fromOmero()) {
+                if (!omeroGateway.isConnected()) return false; // do not try to connect
+                return !getReader(0).imageExists(); // if omero gateway is connected check if file exists
+            }
+            else return !Files.exists(Paths.get(filePathC[0])); // just check if file exists, do not open reader as this can take time
         } catch (IOException e) {
             return true;
         }

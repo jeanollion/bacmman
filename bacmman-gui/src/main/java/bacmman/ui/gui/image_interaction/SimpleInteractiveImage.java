@@ -208,7 +208,12 @@ public class SimpleInteractiveImage extends InteractiveImage {
     @Override
     public LazyImage5D generateImage() {
         Function<int[], Image> generator = fc -> imageSupplier.apply(parent, fc[1]);
-        return new LazyImage5DStack("", generator, new int[]{1, channelNumber});
+        LazyImage5D image = new LazyImage5DStack("", generator, new int[]{1, channelNumber});
+        if (defaultImageSupplier) {
+            image.setChannelNames(parent.getExperimentStructure().getChannelNames());
+            image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        }
+        return image;
     }
 
     @Override

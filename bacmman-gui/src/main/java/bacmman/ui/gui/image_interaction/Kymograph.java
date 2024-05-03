@@ -242,8 +242,10 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
             return displayImage;
         };
         LazyImage5D image = new LazyImage5DStack(getImageTitle(), props, im.getImageType(), generator, new int[]{data.nSlices, channelNumber});
-        image.setChannelNames(parent.getExperimentStructure().getChannelNames());
-        image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        if (defaultImageSupplier) {
+            image.setChannelNames(parent.getExperimentStructure().getChannelNames());
+            image.setChannelColors(parent.getExperimentStructure().getChannelColorNames());
+        }
         return image;
     }
 

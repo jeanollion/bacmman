@@ -45,9 +45,9 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple {
+public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegmenterRS3D>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple {
     public static boolean debug = false;
-    public final static Logger logger = LoggerFactory.getLogger(SpotDetector.class);
+    public final static Logger logger = LoggerFactory.getLogger(SpotSegmenterRS3D.class);
     // scales
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth globalScale", 1, 1.5, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null);
@@ -56,18 +56,23 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 1.5, 1.5, false).setNumberParameters(1, null, 1, true, true).setHint("Radius of local maxima filter for seed detection step. Increasing the value will decrease false positive spots but decrease the capacity to segment close spots");
     enum NORMALIZATION_MODE {NO_NORM, GLOBAL, PER_CELL}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.GLOBAL).setHint("Normalization of the input intensity, will influence the values of <em>Radial Symmetry Threshold</em> and <em>Seed Threshold</em>");
-    NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null).setHint("Spot with a sigma value (from the gaussian fit) superior to this value will be erased.");
-    NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 0.3).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
-    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
+    NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null);
+    IntervalParameter sigmaRange = new IntervalParameter("Sigma Filter", 3, 0, null, 1, 5)
+            .setLegacyParameter((p, i)->i.setValue(((NumberParameter)p[0]).getDoubleValue(), 1), maxSigma)
+            .setHint("Spot with a sigma value (from the gaussian fit) outside this range will be erased.");
+
+    NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 5).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
+    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 5).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide a bacteria, the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
 
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, maxLocalRadius, typicalSigma, maxSigma, minOverlap};
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected by performing a gaussian fit on raw intensity at the location of <em>seeds</em>, defined as the regional maxima of the Radial Symmetry transform, within the mask of the segmentation parent. Selected seeds have a Radial Symmetry value larger than <em>Radial Symmetry Seed Threshold</em> and a Gaussian value superior to <em>Seed Threshold</em></li>"
-            + "<li>A quality parameter defined as √(Radial Symmetry x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
-            "<br />In order to increase robustness to variations in the background fluorescence in bacteria, the input image is first normalized by subtracting the mean value and dividing by the standard-deviation value of the background signal within the cell. Radial Symmetry & Gaussian transforms are then computed on the normalized image.";
+            +"<li>A Gaussian Fit is performed on each spot: see <em>Typical Sigma</em> parameter. Segmented spots can be Filtered according to their radii: see <em>Sigma Filter</em> parameter</li>"
+            + "<li>A quality parameter defined as √(Radial Symmetry x Gaussian) at the center of the spot is computed (e.g. used in <em>NestedSpotTracker</em>)</li></ul>" +
+            "<br />In order to increase robustness to variations in the background fluorescence in bacteria, the input image can be first normalized by subtracting the mean value and dividing by the standard-deviation value of the background signal within the cell. See <em>Intensity normalization parameter</em><br/>Radial Symmetry & Gaussian transforms are then computed on the normalized image.";
     protected static String toolTipDispImage = "<br /><br />Images displayed in test mode:" +
             "<ul><li><em>Gaussian</em>: Gaussian transform applied to the normalized input image.<br />This image can be used to tune the <em>Seed Threshold</em> parameter, which should be lower than the intensity of the center of the spots and larger than the background intracellular fluorescence on the <em>Gaussian</em> transformed image.</li>" +
             "<li><em>Radial Symmetry</em>: Radial Symmetry transform applied to the normalized input image.<br />This image can be used to tune the <em>Radial Symmetry Seed Threshold</em> parameter, which should be lower than the intensity of the center of the spots and larger than the background intracellular fluorescence on the <em>Radial Symmetry</em> transformed image.<br />This image can also be used to tune the <em>Propagation Threshold</em> parameter, which value should be lower than the intensity inside the spots and larger than the background intracellular fluorescence on the <em>Radial Symmetry</em> transformed image</li>";
@@ -86,19 +91,19 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         return toolTipSimple + toolTipDispImage+ "</ul>";
     }
 
-    public SpotDetector() {}
+    public SpotSegmenterRS3D() {}
 
-    public SpotDetector(double thresholdSeeds, double thresholdPropagation, double thresholdIntensity) {
+    public SpotSegmenterRS3D(double thresholdSeeds, double thresholdPropagation, double thresholdIntensity) {
         this.intensityThreshold.setValue(thresholdIntensity);
         this.symmetryThreshold.setValue(thresholdSeeds);
     }
     
-    public SpotDetector setThresholdSeeds(double threshold) {
+    public SpotSegmenterRS3D setThresholdSeeds(double threshold) {
         this.symmetryThreshold.setValue(threshold);
         return this;
     }
     
-    public SpotDetector setIntensityThreshold(double threshold) {
+    public SpotSegmenterRS3D setIntensityThreshold(double threshold) {
         this.intensityThreshold.setValue(threshold);
         return this;
     }
@@ -237,7 +242,8 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             });
         }
         // filter by radius
-        segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
+        double[] sigmaRange = this.sigmaRange.getValuesAsDouble();
+        segmentedSpots.removeIf(s->s.getRadius()>sigmaRange[1] || s.getRadius()<sigmaRange[0]);
 
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
@@ -356,7 +362,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
      * @return 
      */
     @Override
-    public TrackConfigurer<SpotDetector> run(int structureIdx, List<SegmentedObject> parentTrack) {
+    public TrackConfigurer<SpotSegmenterRS3D> run(int structureIdx, List<SegmentedObject> parentTrack) {
         if (parentTrack.isEmpty()) return (p, s) -> {};
         Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));

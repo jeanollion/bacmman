@@ -6,4 +6,8 @@ public class NoAuth implements UserAuth {
     @Override
     public void authenticate(HttpURLConnection urlConnection) {
     }
+    @Override
+    public String getAccount() {
+        return null;
+    }
 }
