@@ -33,6 +33,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
 import org.mapdb.DB;
 import org.mapdb.DBException;
 import org.mapdb.HTreeMap;
@@ -220,7 +221,13 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
                     Map<String, SegmentedObject> objectMap = cache.get(key);
                     Map<String, SegmentedObject> objectMapToAdd = MapDBUtils.getEntrySet(dbm).parallelStream()
                             .filter((e) -> (!objectMap.containsKey(e.getKey())))
-                            .map((e) -> accessor.createFromJSON(e.getValue(), this))
+                            .map((e) -> {
+                                try {
+                                    return accessor.createFromJSON(e.getValue(), this);
+                                } catch (ParseException ex) {
+                                    return null;
+                                }
+                            })
                             .filter(Objects::nonNull)
                             .collect(Collectors.toMap(o->(String)o.getId(), o->o));
                     objectMap.putAll(objectMapToAdd);
@@ -232,7 +239,13 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
                         Collection<String> allStrings = MapDBUtils.getValues(dbm);
                         long t1 = System.currentTimeMillis();
                         Map<String, SegmentedObject> objectMap = allStrings.parallelStream()
-                                .map(o -> accessor.createFromJSON(o, this))
+                                .map(o -> {
+                                    try {
+                                        return accessor.createFromJSON(o, this);
+                                    } catch (ParseException e) {
+                                        return null;
+                                    }
+                                })
                                 .collect(Collectors.toMap(o->(String)o.getId(), o->o));
                         cache.put(key, objectMap);
                         long t2 = System.currentTimeMillis();
@@ -325,8 +338,12 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
                 if (dbm ==null ) return null;
                 String json = dbm.get(id);
                 if (json==null) return null;
-                SegmentedObject o = accessor.createFromJSON(json, this);
-                if (o==null) return null;
+                SegmentedObject o = null;
+                try {
+                    o = accessor.createFromJSON(json, this);
+                } catch (ParseException e) {
+                    return null;
+                }
                 accessor.setDAO(o, this);
                 cache.put(id, o);
                 return o;
@@ -386,8 +403,14 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             Map<String, SegmentedObject> objectMap = cache.getAndCreateIfNecessary(key);
             SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
             Map<String, SegmentedObject> children = idxs.parallelStream()
-                    .map(k -> objectMap.containsKey(k) ? objectMap.get(k) : accessor.createFromJSON(dbm.get(k), this))
-                    //.filter(Objects::nonNull)
+                    .map(k -> {
+                        try {
+                            return objectMap.containsKey(k) ? objectMap.get(k) : accessor.createFromJSON(dbm.get(k), this);
+                        } catch (ParseException e) {
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
                     .peek(o -> accessor.setDAO(o,this))
                     .peek(o -> o.setParent(parent))
                     .collect(Collectors.toMap(o->(String)o.getId(), o->o));
@@ -840,7 +863,13 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     public List<Measurements> getMeasurements(int structureIdx, String... measurements) {
         Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(structureIdx);
         if (mDB==null) return Collections.emptyList();
-        return MapDBUtils.getValues(mDB.value).stream().map((s) -> new Measurements(JSONUtils.parse(s), this.positionName)).collect(Collectors.toList());
+        return MapDBUtils.getValues(mDB.value).stream().map((s) -> {
+            try {
+                return new Measurements(JSONUtils.parse(s), this.positionName);
+            } catch (ParseException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
     @Override
     public Measurements getMeasurements(SegmentedObject o) {
@@ -849,9 +878,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         try {
             String mS = mDB.value.get(o.getId());
             if (mS==null) return null;
-            Measurements m = new Measurements(JSONUtils.parse(mS), this.positionName);
-            return m;
-        } catch (IOError e) {
+            return new Measurements(JSONUtils.parse(mS), this.positionName);
+        } catch (IOError | ParseException e) {
             logger.error("Error while fetching measurement", e);
         }
         return null;
@@ -868,7 +896,13 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
                 .filter(o->!o.hasMeasurements()) // only objects without measurements
                 .forEach(o->{
                     String mS = mDB.value.get(o.getId());
-                    if (mS!=null) accessor.setMeasurements(o, new Measurements(JSONUtils.parse(mS), this.positionName));
+                    if (mS!=null) {
+                        try {
+                            accessor.setMeasurements(o, new Measurements(JSONUtils.parse(mS), this.positionName));
+                        } catch (ParseException e) {
+
+                        }
+                    }
                 });
         }
     }

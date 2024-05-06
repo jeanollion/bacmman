@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,10 +136,32 @@ public class ImportExportJSON {
     }*/
     public static <ID> void importObjects(FileIO.ZipReader reader, ObjectDAO<ID> dao) {
         logger.debug("reading objects..");
-        List<SegmentedObject> allObjects = reader.readObjects(dao.getPositionName()+"/objects.txt", o->parse(SegmentedObject.class, o));
-        logger.debug("{} objets read", allObjects.size());
-        List<Measurements> allMeas = reader.readObjects(dao.getPositionName()+"/measurements.txt", o->new Measurements(parse(o), dao.getPositionName()));
+        List<String> objParseError = new ArrayList<>();
+        List<SegmentedObject> allObjects = reader.readObjects(dao.getPositionName()+"/objects.txt", o-> {
+            try {
+                return parse(SegmentedObject.class, o);
+            } catch (ParseException e) {
+                objParseError.add(o);
+                return null;
+            }
+        });
+        logger.debug("{} objects read", allObjects.size());
+        if (!objParseError.isEmpty()) {
+            logger.error("{} objects could not be read: {}", objParseError.size(), objParseError);
+        }
+        objParseError.clear();
+        List<Measurements> allMeas = reader.readObjects(dao.getPositionName()+"/measurements.txt", o-> {
+            try {
+                return new Measurements(parse(o), dao.getPositionName());
+            } catch (ParseException e) {
+                objParseError.add(o);
+                return null;
+            }
+        });
         logger.debug("{} measurements read", allObjects.size());
+        if (!objParseError.isEmpty()) {
+            logger.error("{} measurements could not be read: {}", objParseError.size(), objParseError);
+        }
         Map<ID, SegmentedObject> objectsById = new HashMap<>(allObjects.size());
         
         List<SegmentedObject> roots = new ArrayList<>();
@@ -168,7 +191,18 @@ public class ImportExportJSON {
     }
     
     public static <T extends JSONSerializable> List<T> readObjects(String path, Class<T> clazz) {
-        return FileIO.readFromFile(path, s-> parse(clazz, s), null);
+        List<String> notConverted = new ArrayList<>();
+        List<T> res = FileIO.readFromFile(path, s-> {
+            try {
+                return parse(clazz, s);
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
+            }
+        }, notConverted::add);
+        if (!notConverted.isEmpty()) {
+            logger.error("{} object could not be parsed: {}", notConverted.size(), notConverted);
+        }
+        return res;
     }
     
     /*public static void exportPositions(FileIO.ZipWriter w, MasterDAO dao, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {exportPositions(w, dao, objects, preProcessedImages, trackImages, null, pcb);}
@@ -209,14 +243,31 @@ public class ImportExportJSON {
         if (!w.isValid()) return;
         if (dao.getSelectionDAO()!=null) w.write("selections.json", dao.getSelectionDAO().getSelections(), JSONUtils::serialize);
     }
-    public static Experiment readConfig(File f) {
+    public static Experiment readConfig(File f) throws ParseException{
+        ParseException[] ex = new ParseException[1];
         if (f.getName().endsWith(".json")||f.getName().endsWith(".txt")) {
-            List<Experiment> xp = FileIO.readFromFile(f.getAbsolutePath(), o->JSONUtils.parse(Experiment.class, o), null);
+            List<Experiment> xp = FileIO.readFromFile(f.getAbsolutePath(), o-> {
+                try {
+                    return JSONUtils.parse(Experiment.class, o);
+                } catch (ParseException e) {
+                    ex[0] = e;
+                    return null;
+                }
+            }, null);
+            if (ex[0] != null) throw ex[0];
             if (xp.size()==1) return xp.get(0);
         } else if (f.getName().endsWith(".zip")) {
             FileIO.ZipReader r = new FileIO.ZipReader(f.getAbsolutePath());
             if (r.valid()) {
-                List<Experiment> xp = r.readObjects("config.json", o->JSONUtils.parse(Experiment.class, o));
+                List<Experiment> xp = r.readObjects("config.json", o-> {
+                    try {
+                        return JSONUtils.parse(Experiment.class, o);
+                    } catch (ParseException e) {
+                        ex[0] = e;
+                        return null;
+                    }
+                });
+                if (ex[0] != null) throw ex[0];
                 if (xp.size()==1) return xp.get(0);
             }
         }

@@ -28,6 +28,7 @@ import bacmman.utils.Utils;
 import io.objectbox.Box;
 import io.objectbox.BoxStore;
 import io.objectbox.BoxStoreBuilder;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,7 +129,14 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
         File dirFile = dir.toFile();
         List<SelectionBox> toStore = new ArrayList<>();
         for (File f : dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"))) {
-            List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s), s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
+            List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> {
+                try {
+                    return JSONUtils.parse(Selection.class, s);
+                } catch (ParseException e) {
+                    logger.error("Error parsing selection: {}", e.toString());
+                    throw new RuntimeException(e);
+                }
+            }, s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
             sels.stream().map(s -> {
                 s.setMasterDAO(mDAO);
                 SelectionBox sb;

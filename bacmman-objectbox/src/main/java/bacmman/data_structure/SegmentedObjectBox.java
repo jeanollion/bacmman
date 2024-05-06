@@ -6,6 +6,7 @@ import bacmman.utils.CompressionUtils;
 import bacmman.utils.JSONUtils;
 import io.objectbox.annotation.*;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,11 +132,17 @@ public class SegmentedObjectBox {
                     try {
                         String jsonRegionS = CompressionUtils.decompressToString(jsonRegion, true);
                         object.initRegionFromJSONEntry(JSONUtils.parse(jsonRegionS));
-                    } catch (IOException e) {
+                    } catch (IOException | ParseException e) {
                         throw new RuntimeException(e);
                     }
                     //object.initRegionFromJSONEntry(JSONUtils.parse(jsonRegion));
-                    if (jsonAttributes != null) object.attributes = (Map<String, Object>)JSONUtils.parse(jsonAttributes);
+                    if (jsonAttributes != null) {
+                        try {
+                            object.attributes = (Map<String, Object>)JSONUtils.parse(jsonAttributes);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
                     object.trackHeadId = trackHeadId == 0 ? id : trackHeadId;
                     object.previousId = previousId==0 ? null : previousId;
                     object.nextId = nextId == 0 ? null : nextId;

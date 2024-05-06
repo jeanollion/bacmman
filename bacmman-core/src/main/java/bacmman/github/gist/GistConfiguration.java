@@ -116,7 +116,7 @@ public class GistConfiguration implements Hint {
                                         }
                                     }
                                 } catch (ParseException e) {
-                                    logger.debug("error parsing multi-thumbnail file", e);
+                                    logger.debug("error parsing multi-thumbnail file: error = {}", e.toString());
                                 }
                             }
                         }
@@ -178,12 +178,14 @@ public class GistConfiguration implements Hint {
         gist.put("description", description);
         gist.put("public", visible);
         String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
-        JSONObject json = JSONUtils.parse(res);
-        if (json!=null) {
+        JSONObject json = null;
+        try {
+            json = JSONUtils.parse(res);
             id = (String)json.get("id");
             if (thumbnailModified) uploadThumbnail(auth);
+        } catch (ParseException e) {
+            logger.error("Error parsing configuration file: {}: content: {}", e.toString(), res);
         }
-        else logger.error("Could not create configuration file");
     }
     public void delete(UserAuth auth) {
         new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetchSilently();
@@ -216,7 +218,11 @@ public class GistConfiguration implements Hint {
         if (jsonContent==null) {
             if (contentRetriever == null) throw new RuntimeException("No query");
             String content = contentRetriever.get();
-            jsonContent = JSONUtils.parse(content);
+            try {
+                jsonContent = JSONUtils.parse(content);
+            } catch (ParseException e) {
+                logger.error("Error parsing content. Error: {} content: {}", e.toString(), content);
+            }
         }
         return jsonContent;
     }
@@ -394,13 +400,14 @@ public class GistConfiguration implements Hint {
                 if (gc.type!=null) res.add(gc);
             }
         } catch (ParseException e) {
-
+            logger.error("Error parsing gist. Error: {} content: {}", e.toString(), response);
         }
         return res;
     }
     public Experiment getExperiment() {
         if (xp==null) {
-            xp = getExperiment(getContent(), type);
+            JSONObject content = getContent();
+            if (content != null) xp = getExperiment(content, type);
         }
         return xp;
     }

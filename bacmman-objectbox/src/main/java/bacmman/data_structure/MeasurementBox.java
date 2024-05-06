@@ -4,6 +4,7 @@ import bacmman.data_structure.dao.ObjectBoxDAO;
 import bacmman.utils.CompressionUtils;
 import bacmman.utils.JSONUtils;
 import io.objectbox.annotation.*;
+import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
 
@@ -70,7 +71,7 @@ public class MeasurementBox {
                     try {
                         jsonMapS = CompressionUtils.decompressToString(jsonMap, true);
                         measurement = new Measurements(JSONUtils.parse(jsonMapS), positionName);
-                    } catch (IOException e) {
+                    } catch (IOException | ParseException e) {
                         throw new RuntimeException(e);
                     }
                     //measurement = new Measurements(JSONUtils.parse(jsonMap), positionName);

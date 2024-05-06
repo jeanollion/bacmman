@@ -214,25 +214,15 @@ public class JSONUtils {
         if (entry instanceof JSONAware) return ((JSONAware)entry).toJSONString();
         else return entry.toString();
     }
-    public static JSONObject parse(String s) {
-        try {
-            Object res= new JSONParser().parse(s);
-            return (JSONObject)res;
-        } catch (ParseException ex) {
-            logger.trace("Could not parse: "+s, ex);
-            return null;
-        }
+    public static JSONObject parse(String s) throws ParseException {
+        Object res= new JSONParser().parse(s);
+        return (JSONObject)res;
     }
-    public static JSONAware parseJSON(String s) {
-        try {
-            Object res= new JSONParser().parse(s);
-            return (JSONAware)res;
-        } catch (ParseException ex) {
-            logger.trace("Could not parse: "+s, ex);
-            return null;
-        }
+    public static JSONAware parseJSON(String s) throws ParseException {
+        Object res= new JSONParser().parse(s);
+        return (JSONAware)res;
     }
-    public static <T extends JSONSerializable> T parse(Class<T> clazz, String s) {
+    public static <T extends JSONSerializable> T parse(Class<T> clazz, String s) throws ParseException {
         if (Measurements.class.equals(clazz)) {
             throw new IllegalArgumentException("Cannot create measurement only from JSON need position name");
         } else if (Experiment.class.equals(clazz)) {

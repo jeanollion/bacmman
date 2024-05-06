@@ -38,6 +38,7 @@ import java.util.Set;
 import org.json.simple.JSONObject;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
+import org.json.simple.parser.ParseException;
 
 /**
  *
@@ -137,12 +138,9 @@ public class Daemon {
             List<String> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->s, s->ui.setMessage("Error while reading file: "+f));
             boolean error= false;
             for (String s : jobs) {
-                JSONObject o = JSONUtils.parse(s);
-                if (o==null) {
-                    ui.setMessage("Error: could not parse task: "+s);
-                    error = true;
-                }
-                else {
+                JSONObject o = null;
+                try {
+                    o = JSONUtils.parse(s);
                     Task t = new Task().fromJSON(o).setUI(ui);
                     if (t.isValid()) {
                         jobQueue.add(t);
@@ -152,6 +150,9 @@ public class Daemon {
                         ui.setMessage("Invalid task: "+f);
                         t.printErrorsTo(ui);
                     }
+                } catch (ParseException e) {
+                    ui.setMessage("Error: could not parse task: "+ e.toString());
+                    error = true;
                 }
                 fileNameErrorMap.put(f, error);
             }

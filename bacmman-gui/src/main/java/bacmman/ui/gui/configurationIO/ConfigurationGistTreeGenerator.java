@@ -94,13 +94,15 @@ public class ConfigurationGistTreeGenerator {
                     if (!n.gist.type.equals(GistConfiguration.TYPE.WHOLE)) treeModel.nodeChanged(n);
                 }
                 if (n.gist.type.equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
-                    for (int oc = 0; oc<n.gist.getExperiment().getStructureCount(); ++oc) {
-                        if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
-                            iconsByOC.get(new Pair<>(n.gist, oc));
-                            modified = true;
+                    if (n.gist.getExperiment() != null) {
+                        for (int oc = 0; oc < n.gist.getExperiment().getStructureCount(); ++oc) {
+                            if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
+                                iconsByOC.get(new Pair<>(n.gist, oc));
+                                modified = true;
+                            }
                         }
+                        if (modified) treeModel.nodeChanged(n);
                     }
-                    if (modified) treeModel.nodeChanged(n);
                 }
             }
             return "";
@@ -250,10 +252,12 @@ public class ConfigurationGistTreeGenerator {
     }
     private void addGistToFolder(FolderNode f, GistConfiguration g, boolean sorted) {
         if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.type.equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
-            for (int oIdx = 0; oIdx<g.getExperiment().getStructureCount(); ++oIdx) {
-                GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
-                if (sorted) insertSorted(f, n);
-                else f.add(n);
+            if (g.getExperiment() != null) {
+                for (int oIdx = 0; oIdx<g.getExperiment().getStructureCount(); ++oIdx) {
+                    GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
+                    if (sorted) insertSorted(f, n);
+                    else f.add(n);
+                }
             }
         } else {
             GistTreeNode n = new GistTreeNode(g);
@@ -408,7 +412,7 @@ public class ConfigurationGistTreeGenerator {
         @Override
         public String toString() {
             String res = gist.name;
-            if (objectClassIdx>=0) res+=" ["+gist.getExperiment().getStructure(objectClassIdx).getName()+"]";
+            if (objectClassIdx>=0 && gist.getExperiment()!=null) res+=" ["+gist.getExperiment().getStructure(objectClassIdx).getName()+"]";
             return res;
         }
 
@@ -431,9 +435,11 @@ public class ConfigurationGistTreeGenerator {
             } else {
                 List<BufferedImage> images = new ArrayList<>();
                 if (icons.getOrDefault(gist, null)!=null) images.addAll(icons.get(gist));
-                for (int i = 0; i<gist.getExperiment().getStructureCount(); ++i) {
-                    Pair<GistConfiguration, Integer> key = new Pair<>(gist, i);
-                    if (iconsByOC.getOrDefault(key, null)!=null) images.addAll(iconsByOC.get(key));
+                if (gist.getExperiment() != null) {
+                    for (int i = 0; i < gist.getExperiment().getStructureCount(); ++i) {
+                        Pair<GistConfiguration, Integer> key = new Pair<>(gist, i);
+                        if (iconsByOC.getOrDefault(key, null) != null) images.addAll(iconsByOC.get(key));
+                    }
                 }
                 images.removeIf(Objects::isNull);
                 if (images.isEmpty()) return null;

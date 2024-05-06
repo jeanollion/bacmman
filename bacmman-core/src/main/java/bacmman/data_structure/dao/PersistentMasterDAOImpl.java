@@ -7,6 +7,7 @@ import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -181,7 +182,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                         openDAOs.remove(toClose);
                         clearSelectionCache(toClose.getPositionName());
                     }
-                    res = factory.makeDAO(this, positionName, op, positionLock.contains(positionName)?false:readOnly);
+                    res = factory.makeDAO(this, positionName, op, !positionLock.contains(positionName) && readOnly);
                     res.setSafeMode(safeMode);
                     //logger.debug("creating DAO: {} po
                     // position lock: {}, read only: {}", positionName, positionLock.contains(positionName), res.isReadOnly());
@@ -373,7 +374,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         return xp;
     }
 
-    private Experiment getXPFromFile() {
+    private Experiment getXPFromFile()  {
         if (cfg==null) return null;
         String xpString;
         try {
@@ -385,7 +386,13 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         }
         if (xpString==null || xpString.isEmpty()) return null;
         Experiment xp = new Experiment(dbName).setPath(datasetDir);
-        xp.initFromJSONEntry(JSONUtils.parse(xpString));
+        try {
+            xp.initFromJSONEntry(JSONUtils.parse(xpString));
+        } catch (ParseException e) {
+            logger.error("Error parsing configuration file: {}", e.toString());
+            if (getLogger()!=null) getLogger().setMessage("Error parsing configuration file: "+ e);
+            return null;
+        }
         return xp;
     }
 
@@ -400,7 +407,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             if (out.isDirectory()) {
                 if (image) xp.setOutputImageDirectory(out.getAbsolutePath());
                 else xp.setOutputDirectory(out.getAbsolutePath());
-                logger.info("Output {} directory was: {} is now : {}", image? "Image" : "",  outS, out.getAbsolutePath());
+                logger.info("Output {} directory was: {} is now : {}", image? "Image" : "",  outS, out.getAbsolutePath());
                 return true;
             }
             logger.debug("default output dir: {}, exists: {}, is Dir: {}", out.getAbsolutePath(), out.exists(), out.isDirectory());

@@ -3831,7 +3831,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
         File f = Utils.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.isFile()) return;
-        Experiment sourceXP = ImportExportJSON.readConfig(f);
+        Experiment sourceXP = null;
+        try {
+            sourceXP = ImportExportJSON.readConfig(f);
+        } catch (ParseException e) {
+            setMessage("Error parsing Selected configuration file: "+ e);
+            logger.error("Error parsing Selected configuration file. {}, content: {}", e.toString(), f);
+            return;
+        }
         if (sourceXP==null) {
             setMessage("Selected configuration file could not be read");
             return;
@@ -3852,7 +3859,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         }
         File f = Utils.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.isFile()) return;
-        Experiment sourceXP = ImportExportJSON.readConfig(f);
+        Experiment sourceXP = null;
+        try {
+            sourceXP = ImportExportJSON.readConfig(f);
+        } catch (ParseException e) {
+            setMessage("Configuration file could not be read: "+e.toString());
+            return;
+        }
         if (sourceXP==null) {
             setMessage("Configuration file could not be read");
             return;
@@ -4526,9 +4539,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     if (f!=null && f.exists()) {
                         PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, f.getParent());
                         List<Task> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
-                            JSONObject o = JSONUtils.parse(s);
-                            if (o!=null) return new Task().fromJSON(o);
-                            else return null;
+                            try {
+                                JSONObject o = JSONUtils.parse(s);
+                                return new Task().fromJSON(o);
+                            } catch (ParseException ex) {
+                                logger.error("Error reading task file: {} content: {}", ex.toString(), s);
+                                throw new RuntimeException(ex);
+                            }
+
                         }, s->setMessage("Error while reading task file: "+f));
                         for (Task j : jobs) actionPoolListModel.addElement(j);
                     }
@@ -4662,7 +4680,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             log("Config file should en in .zip, .json or .txt");
             return;
         }
-        Experiment xp = FileIO.readFisrtFromFile(config, s->JSONUtils.parse(Experiment.class, s));
+        Experiment xp = FileIO.readFisrtFromFile(config, s-> {
+            try {
+                return JSONUtils.parse(Experiment.class, s);
+            } catch (ParseException e) {
+                setMessage("Template could not be parsed: "+e.toString());
+                logger.error("Error parsing template: error: {} template: {}", e.toString(), s);
+                return null;
+            }
+        });
         if (xp==null) return;
         if (!createEmptyDataset()) return;
 

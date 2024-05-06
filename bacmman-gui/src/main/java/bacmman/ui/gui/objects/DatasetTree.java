@@ -25,6 +25,7 @@ import bacmman.ui.gui.configuration.TransparentTreeCellRenderer;
 import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,10 +116,13 @@ public class DatasetTree {
                                 RandomAccessFile raf = new RandomAccessFile(dir, "r");
                                 String xpString = raf.readLine();
                                 raf.close();
-                                JSONObject json = xpString==null ? null : JSONUtils.parse(xpString);
+                                JSONObject json = xpString==null || xpString.isEmpty() ? null : JSONUtils.parse(xpString);
                                 String note = json==null ? "" : (json.get("note")==null? "" : (String) json.get("note"));
                                 if (note.length() == 0) tree.setToolTipText(null);
                                 else tree.setToolTipText(Hint.formatHint(note, true));
+                            } catch (ParseException ex) {
+                                tree.setToolTipText(null);
+                                // do nothing
                             } catch (Exception ex) {
                                 tree.setToolTipText(null);
                                 logger.debug("error reading dataset note for file: " + dir, ex);

@@ -164,7 +164,7 @@ public class GistDLModel implements Hint {
         return thumbnail;
     }
 
-    public void createNewGist(UserAuth auth) {
+    public void createNewGist(UserAuth auth) throws IOException {
         JSONObject files = new JSONObject();
         JSONObject file = new JSONObject();
         files.put(getFileName(), file);
@@ -174,7 +174,13 @@ public class GistDLModel implements Hint {
         gist.put("description", description);
         gist.put("public", visible);
         String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
-        JSONObject json = JSONUtils.parse(res);
+        JSONObject json = null;
+        try {
+            json = JSONUtils.parse(res);
+        } catch (ParseException e) {
+            logger.error("Error parsing response. Error: {} response: {}", e, res);
+            throw new IOException(e);
+        }
         if (json!=null) id = (String)json.get("id");
         else logger.error("Could not create configuration file");
         if (getThumbnail()!=null) uploadThumbnail(auth);
@@ -239,7 +245,11 @@ public class GistDLModel implements Hint {
         if (jsonContent==null) {
             if (contentRetriever == null) throw new RuntimeException("No query");
             String content = contentRetriever.get();
-            jsonContent = JSONUtils.parse(content);
+            try {
+                jsonContent = JSONUtils.parse(content);
+            } catch (ParseException e) {
+                logger.error("Error parsing response @ gistDLModel getContent. Error: {} response: {}", e, content);
+            }
         }
         return jsonContent;
     }
@@ -290,7 +300,7 @@ public class GistDLModel implements Hint {
             setGistData((JSONObject) json);
             return true;
         } catch (ParseException e) {
-            logger.debug("error while updating content after upload", e);
+            logger.debug("error while updating content after upload. Error: {} response: {}", e, response);
             return false;
         }
     }

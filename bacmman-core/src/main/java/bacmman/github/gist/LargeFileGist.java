@@ -50,6 +50,7 @@ public class LargeFileGist {
                     Object json = new JSONParser().parse(response);
                     setGistData((JSONObject)json, auth);
                 } catch (ParseException e) {
+                    logger.error("Error parsing response (LargeFileGist creation). Error: {} response: {}", e, response);
                     throw new IOException(e);
                 }
             } else throw new RuntimeException("Could not retrieve Large File Gist");
@@ -95,6 +96,7 @@ public class LargeFileGist {
                     });
                 }
             } catch (ParseException e) {
+                logger.error("Error parsing response @download. Error: {} response: {}", e, response);
                 throw new IOException(e);
             }
         } else throw new IOException("GIST not found");
@@ -117,7 +119,13 @@ public class LargeFileGist {
                 String masterFileContent;
                 if (master.containsKey("content") && !(Boolean)master.getOrDefault("truncated", false)) masterFileContent =  (String)master.get("content");
                 else masterFileContent = new JSONQuery(masterFileUrl, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetchSilently();
-                JSONObject masterFileJSON = JSONUtils.parse(masterFileContent);
+                JSONObject masterFileJSON = null;
+                try {
+                    masterFileJSON = JSONUtils.parse(masterFileContent);
+                } catch (ParseException e) {
+                    logger.error("Error parsing masterfileContent @setFistData. Error: {} response: {}", e, masterFileContent);
+                    throw new IOException(e);
+                }
                 nChunks = ((Number) masterFileJSON.get("n_chunks")).intValue();
                 nChunksPerSubFile = ((Number) masterFileJSON.getOrDefault("n_chunks_per_subfile", MAX_CHUNKS_PER_SUBFILE)).intValue();
                 if (masterFileJSON.containsKey("size_mb")) sizeMb = ((Number) masterFileJSON.get("size_mb")).doubleValue();
@@ -296,7 +304,13 @@ public class LargeFileGist {
         gist.put("public", visible);
         logger.debug("uploading master file {}", gist.toJSONString());
         String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
-        JSONObject json = JSONUtils.parse(res);
+        JSONObject json = null;
+        try {
+            json = JSONUtils.parse(res);
+        } catch (ParseException e) {
+            logger.error("Error parsing response @LargeFileGist store file. Error: {} response: {}", e, res);
+            throw new IOException(e);
+        }
         if (json!=null) {
             fileIds.add(0, (String) json.get("id"));
             if (pcb!=null) pcb.setMessage("storing file: size: "+String.format("%.2f", size)+"Mb # chunks: "+chunks.size() +" #n subfiles: "+nSubFiles);
@@ -318,7 +332,7 @@ public class LargeFileGist {
             }
         } else return null;
     }
-    protected static String storeSubFile(String name, int idx, List<String> md5, boolean visible, String description, UserAuth auth) {
+    protected static String storeSubFile(String name, int idx, List<String> md5, boolean visible, String description, UserAuth auth) throws IOException {
         JSONObject jsonContent = new JSONObject();
         jsonContent.put("n_chunks", md5.size());
         jsonContent.put("n_chunks_per_subfile", MAX_CHUNKS_PER_SUBFILE);
@@ -333,7 +347,13 @@ public class LargeFileGist {
         gist.put("public", visible);
         logger.debug("uploading master file {}", gist.toJSONString());
         String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
-        JSONObject json = JSONUtils.parse(res);
+        JSONObject json = null;
+        try {
+            json = JSONUtils.parse(res);
+        } catch (ParseException e) {
+            logger.error("Error parsing response @LargeFilGist store subFile. Error: {} response: {}", e, res);
+            throw new IOException(e);
+        }
         return (String) json.get("id");
     }
     public static boolean chunkUploaded(String id, String chunkName, UserAuth auth) {

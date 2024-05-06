@@ -320,7 +320,7 @@ public class PropertyUtils {
                     Object o = new JSONParser().parse(jsonString);
                     jp.initFromJSONEntry(o);
                 } catch (ParseException ex) {
-                    logger.info("Persistence error for " + key + ": could not parse: " + jsonString, ex);
+                    logger.info("Persistence error for {}: could not parse: {} Error: {}", key, jsonString, ex.toString());
                 }
             }
             consumer = p -> PropertyUtils.set(key, jp.toJSONEntry().toString()); // here we want the consumer to be applied on jp and not on sub parameters

@@ -3,6 +3,7 @@ package bacmman.data_structure;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.utils.JSONUtils;
 import io.objectbox.annotation.*;
+import org.json.simple.parser.ParseException;
 
 @Entity
 @Uid(1000)
@@ -58,8 +59,13 @@ public class SelectionBox {
                 if (selection == null) {
                     if (jsonContent == null) selection = new Selection(name, mDAO);
                     else {
-                        selection = JSONUtils.parse(Selection.class, jsonContent);
-                        selection.setMasterDAO(mDAO);
+                        try {
+                            selection = JSONUtils.parse(Selection.class, jsonContent);
+                            selection.setMasterDAO(mDAO);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
+
                     }
                 }
             }

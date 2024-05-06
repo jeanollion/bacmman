@@ -23,6 +23,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
@@ -131,10 +132,16 @@ public class DLModelsLibrary {
                 return;
             }
             GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-            toSave.createNewGist(getAuth());
-            gists.add(toSave);
-            updateGistDisplay();
-            tree.setSelectedGist(toSave);
+            try {
+                toSave.createNewGist(getAuth());
+                gists.add(toSave);
+                updateGistDisplay();
+                tree.setSelectedGist(toSave);
+            } catch (IOException ex) {
+                if (pcb!=null) pcb.setMessage("Error saving gist: " + ex.getMessage());
+                logger.error("Error saving gist", ex);
+            }
+
         });
 
         deleteButton.addActionListener(e -> {
@@ -207,10 +214,15 @@ public class DLModelsLibrary {
             GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             List<BufferedImage> otherThumb = gist.getThumbnail();
             if (otherThumb != null) for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
-            toSave.createNewGist(getAuth());
-            gists.add(toSave);
-            updateGistDisplay();
-            tree.setSelectedGist(toSave);
+            try {
+                toSave.createNewGist(getAuth());
+                gists.add(toSave);
+                updateGistDisplay();
+                tree.setSelectedGist(toSave);
+            } catch (IOException ex) {
+                if (pcb!=null) pcb.setMessage("Error saving gist: " + ex.getMessage());
+                logger.error("Error saving gist", ex);
+            }
         });
         duplicateButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -272,6 +284,9 @@ public class DLModelsLibrary {
                                 } catch (IllegalArgumentException | NoSuchAlgorithmException |
                                          InvalidKeySpecException ex) {
                                     pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                                } catch (IOException ex) {
+                                    if (pcb!=null) pcb.setMessage("Error saving gist" + ex.getMessage());
+                                    logger.error("Error saving gist", ex);
                                 }
                             }
                         }
@@ -428,10 +443,16 @@ public class DLModelsLibrary {
                 return;
             }
             gist = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-            gist.createNewGist(getAuth());
-            gists.add(gist);
-            updateGistDisplay();
-            tree.setSelectedGist(gist);
+            try {
+                gist.createNewGist(getAuth());
+                gists.add(gist);
+                updateGistDisplay();
+                tree.setSelectedGist(gist);
+            } catch (IOException e) {
+                if (pcb!=null) pcb.setMessage("Error saving gist: " + e.getMessage());
+                logger.error("Error saving gist", e);
+            }
+
         } else {
             gist.setDescription(form.description());
             gist.setContent(form.url(), form.metadata());

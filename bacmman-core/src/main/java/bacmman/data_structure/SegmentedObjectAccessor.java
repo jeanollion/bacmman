@@ -10,6 +10,7 @@ import bacmman.image.Image;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONObject;
 
+import java.text.ParseException;
 import java.util.Collection;
 import java.util.List;
 
@@ -20,7 +21,7 @@ public class SegmentedObjectAccessor {
 
     // constructor
 
-    public SegmentedObject createFromJSON(String s, ObjectDAO dao) {
+    public SegmentedObject createFromJSON(String s, ObjectDAO dao) throws org.json.simple.parser.ParseException {
         JSONObject jo = JSONUtils.parse(s);
         return new SegmentedObject(jo, dao);
     }

@@ -30,6 +30,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.json.simple.parser.ParseException;
 import org.mapdb.DB;
 import org.mapdb.HTreeMap;
 import bacmman.utils.FileIO;
@@ -92,16 +94,28 @@ public class MapDBSelectionDAO implements SelectionDAO {
         idCache.clear();
         if (db==null || db.isClosed()) makeDB();
         for (String s : MapDBUtils.getValues(dbMap)) {
-            Selection sel = JSONUtils.parse(Selection.class, s);
-            sel.setMasterDAO(mDAO);
-            idCache.put(sel.getName(), sel);
+            Selection sel = null;
+            try {
+                sel = JSONUtils.parse(Selection.class, s);
+                sel.setMasterDAO(mDAO);
+                idCache.put(sel.getName(), sel);
+            } catch (ParseException e) {
+                logger.error("Error parsing selection: {} content: {}", e.toString(), s);
+            }
         }
         // local files
         File dirFile = dir.toFile();
         File[] files = dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"));
         if (files != null) {
             for (File f : files) {
-                List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s), s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
+                List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> {
+                    try {
+                        return JSONUtils.parse(Selection.class, s);
+                    } catch (ParseException e) {
+                        logger.error("Error parsing selection: {}", e.toString());
+                        throw new RuntimeException(e);
+                    }
+                }, s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
                 for (Selection s : sels) {
                     s.setMasterDAO(mDAO);
                     if (idCache.containsKey(s.getName())) {

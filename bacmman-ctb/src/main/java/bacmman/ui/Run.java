@@ -10,6 +10,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
+import org.json.simple.parser.ParseException;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,7 +44,11 @@ public class Run {
         MasterDAO db = MasterDAOFactory.getDAO(parent.getName(), dsFolder.getAbsolutePath());
         db.setConfigurationReadOnly(false);
         Experiment xp = new Experiment(parent.getName());
-        xp.initFromJSONEntry(JSONUtils.parse(jsonConfig));
+        try {
+            xp.initFromJSONEntry(JSONUtils.parse(jsonConfig));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
         db.setExperiment(xp);
         xp.setOutputDirectory("Output");
 

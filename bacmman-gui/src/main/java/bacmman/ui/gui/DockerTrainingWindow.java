@@ -27,6 +27,7 @@ import org.apache.commons.io.FileUtils;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -953,7 +954,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         String configS = javaConfig.read();
         logger.debug("loaded config locked: {} file = {} -> {}", javaConfig.locked(), javaConfig.getFile().toString(), javaConfig.readLines());
         if (!configS.isEmpty()) {
-            JSONObject config = JSONUtils.parse(configS);
+            JSONObject config = null;
+            try {
+                config = JSONUtils.parse(configS);
+            } catch (ParseException e) {
+                setMessage("Error parsing java configuration file:" + e.toString() + " content: " + configS);
+                return;
+            }
             trainerParameterRef.initFromJSONEntry(config);
             setWorkingDirectory(refPath, trainerParameterRef);
             if (!refOnly) {
@@ -968,12 +975,19 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
         String configDockerS = dockerConfig.read();
         if (!configS.isEmpty()) {
-            JSONAware dockerConf = JSONUtils.parseJSON(configDockerS);
-            if (!refOnly) {
-                dockerOptions.getRoot().initFromJSONEntry(dockerConf);
-                dockerOptions.getTree().updateUI();
+            JSONAware dockerConf = null;
+            try {
+                dockerConf = JSONUtils.parseJSON(configDockerS);
+                if (!refOnly) {
+                    dockerOptions.getRoot().initFromJSONEntry(dockerConf);
+                    dockerOptions.getTree().updateUI();
+                }
+                dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
+            } catch (ParseException e) {
+                setMessage("Error parsing docker configuration file:" + e.toString() + " content: " + configDockerS);
+                dockerConfig.clear();
             }
-            dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
+
         }
     }
 
@@ -1000,15 +1014,23 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (javaTrain) {
             JSONObject config = trainerParameter.toJSONEntry();
             javaConfig.write(config.toJSONString(), false);
-            config = JSONUtils.parse(javaConfig.read());
-            trainerParameterRef.initFromJSONEntry(config);
+            try {
+                config = JSONUtils.parse(javaConfig.read());
+                trainerParameterRef.initFromJSONEntry(config);
+            } catch (ParseException e) {
+                setMessage("Error writing java configuration: " + e.toString() + "content: " + javaConfig.read());
+            }
         }
         if (javaTrain || pythonTrain) { // docker options
             JSONAware dockerConf = (JSONAware) dockerOptions.getRoot().toJSONEntry();
             dockerConfig.write(dockerConf.toJSONString(), false);
-            dockerConf = JSONUtils.parseJSON(dockerConfig.read());
-            dockerOptions.getRoot().initFromJSONEntry(dockerConf);
-            dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
+            try {
+                dockerConf = JSONUtils.parseJSON(dockerConfig.read());
+                dockerOptions.getRoot().initFromJSONEntry(dockerConf);
+                dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
+            } catch (ParseException e) {
+                setMessage("Error writing docker options: " + e.toString() + " content: " + dockerConfig.read());
+            }
         }
         if (pythonTrain)
             pythonConfig.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);

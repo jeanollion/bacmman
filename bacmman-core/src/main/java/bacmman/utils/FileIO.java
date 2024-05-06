@@ -153,9 +153,9 @@ public class FileIO {
                 while ( (myLine = bufRead.readLine()) != null) resS.add(myLine);
             }
         } catch (IOException ex) {
-            logger.debug("an error occured trying read file: {}, {}", relativePath, ex);
+            logger.debug("an error occured trying read file: "+relativePath, ex);
         }
-        return resS.stream().parallel().map(converter).collect(Collectors.toList());
+        return resS.stream().parallel().map(converter).filter(Objects::nonNull).collect(Collectors.toList());
     }
     public static <T> T readFirstFromZip(ZipFile file, String relativePath, Function<String, T> converter) {
         try {
