@@ -288,7 +288,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         double sizeMinFactor = 0.5;
         double sizeMaxFactor = 2;
         double minOverlapProportion = 0.25;
-        Image centerLap = ImageFeatures.getLaplacian(centerI, sigma, true, false);
+        Image centerLap = ImageDerivatives.getLaplacian(centerI, new double[]{sigma, sigma}, true, true, true, false); // change 10/05/24 : laplacian is scaled by sigma**2
         ImageMask LMMask = PredicateMask.and(insideCellsM, new PredicateMask(centerLap, lapThld, true, true));
         if (stores!=null) stores.get(parent).addIntermediateImage("Center Laplacian", centerLap);
         ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, 0, centerI));
