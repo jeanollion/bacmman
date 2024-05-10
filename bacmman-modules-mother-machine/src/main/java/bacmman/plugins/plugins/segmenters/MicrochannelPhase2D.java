@@ -167,7 +167,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
         double derScale = 2;
         int[] yStartStop = new int[]{0, image.sizeY()-1};
         Image imCrop = (image instanceof ImageFloat ? image.duplicate() : image);
-        Image[] imDer = ImageDerivatives.getGradient(imCrop, derScale, parallel, 0, 1);
+        Image[] imDer = ImageDerivatives.getGradient(imCrop, derScale, false, parallel, 0, 1);
         // get global closed-end Y coordinate
         Image imDerY = imDer[1];
         float[] yProj = openEnd?null: ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);

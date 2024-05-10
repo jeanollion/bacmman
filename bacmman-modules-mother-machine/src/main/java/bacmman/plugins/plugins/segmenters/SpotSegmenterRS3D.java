@@ -261,6 +261,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
 
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
+
         return pop;
     }
     public static void removeCloseSpots(List<Region> regions, double minDist) {

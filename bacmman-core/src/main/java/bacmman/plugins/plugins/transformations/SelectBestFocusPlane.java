@@ -119,7 +119,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
     }
     public static double evalPlane(Image plane, double scale, ImageMask mask) {
         if (scale>0) plane = ImageDerivatives.gaussianSmooth(plane, scale, true);
-        Image gradient = ImageDerivatives.getGradientMagnitude(plane, 0, true, 0, 1);
+        Image gradient = ImageDerivatives.getGradientMagnitude(plane, 0, false, true, 0, 1);
         //Image gradient = ImageFeatures.getGradientMagnitude(plane, scale, false);
         return ImageOperations.getMeanAndSigma(gradient, mask, null)[0];
         /*Neighborhood n = Filters.getNeighborhood(Math.max(1.5, scale), plane);

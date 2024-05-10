@@ -58,7 +58,7 @@ public class FastRadialSymmetryTransformUtil {
         double ratioZ = (scaleZ / gradientScale[0]);
         double[] gradScale = input.sizeZ()>1 ? new double[]{gradientScale[0], gradientScale[0], gradientScale[0] * ratioZ} : new double[]{gradientScale[0], gradientScale[0]};
         int[] axis = input.sizeZ()>1 ? new int[]{0, 1, 2} : new int[]{0, 1};
-        ImageFloat[] grad = ImageDerivatives.getGradient(input, gradScale, parallel, axis);
+        ImageFloat[] grad = ImageDerivatives.getGradient(input, gradScale, true, parallel, axis);
         Image gradX = grad[0];
         Image gradY = grad[1];
         Image gradZ = grad.length>2 ? grad[2] : null;
@@ -207,7 +207,7 @@ public class FastRadialSymmetryTransformUtil {
     }
 
     private static double[] computeOrientationMaps(Image input, double[] radii, boolean parallel) {
-        ImageFloat[] grad = ImageDerivatives.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), parallel);
+        ImageFloat[] grad = ImageDerivatives.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), true, parallel);
         Image gradX = grad[0];
         Image gradY = grad[1];
         Image gradZ = grad.length>2 ? null : grad[2];

@@ -18,10 +18,12 @@
  */
 package bacmman.image;
 
+import bacmman.processing.ImageDerivatives;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
-
-import static bacmman.utils.Utils.parallel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -32,6 +34,7 @@ import java.util.stream.Stream;
  * @param <T>
  */
 public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
+    Logger logger = LoggerFactory.getLogger(BoundingBox.class);
     int xMax();
     int yMax();
     int zMax();
@@ -229,36 +232,88 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         return false;
     }
 
-    public static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate, boolean parallele) {
-        if (!parallele) {
+    static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate, boolean parallel) {
+        if (!parallel) {
             loop(bb, function, predicate);
             return;
         }
         if (predicate==null) {
-            loop(bb, function, parallele);
+            loop(bb, function, parallel);
             return;
         }
-        int sXY = bb.sizeX() * bb.sizeY();
-        int sX = bb.sizeX();
-        IntStream.range(0, sXY*bb.sizeZ()).parallel().forEach(i-> {
-            int xy = i%sXY;
-            int z = i/sXY;
-            int x = xy%sX;
-            int y = xy/sX;
-            if (predicate.test(x, y, z)) function.loop(x, y, z);
-        });
+        int parallelAxis = chooseParallelAxis(bb);
+        if (parallelAxis == 2) {
+            IntStream.rangeClosed(bb.zMin(), bb.zMax()).parallel().forEach(z -> {
+                for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
+                    for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                        if (predicate.test(x, y, z)) function.loop(x, y, z);
+                    }
+                }
+            });
+        } else if (parallelAxis == 1) {
+            IntStream.rangeClosed(bb.yMin(), bb.yMax()).parallel().forEach(y -> {
+                for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+                    for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                        if (predicate.test(x, y, z)) function.loop(x, y, z);
+                    }
+                }
+            });
+        } else {
+            IntStream.rangeClosed(bb.xMin(), bb.xMax()).parallel().forEach(x -> {
+                for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+                    for (int y=bb.yMin(); y<=bb.yMax(); ++y) {
+                        if (predicate.test(x, y, z)) function.loop(x, y, z);
+                    }
+                }
+            });
+        }
     }
-    public static void loop(BoundingBox bb, LoopFunction function, boolean parallele) {
-        if (!parallele) {
+    static void loop(BoundingBox bb, LoopFunction function, boolean parallel) {
+        if (!parallel) {
             loop(bb, function);
             return;
         }
-        int sXY = bb.sizeX() * bb.sizeY();
-        int sX = bb.sizeX();
-        Utils.parallel(IntStream.range(0, sXY*bb.sizeZ()), parallele).forEach(i-> {
-            int xy = i%sXY;
-            function.loop(xy%sX, xy/sX, i/sXY);
-        });
+        int parallelAxis = chooseParallelAxis(bb);
+        if (parallelAxis == 2) {
+            IntStream.rangeClosed(bb.zMin(), bb.zMax()).parallel().forEach(z -> {
+                for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
+                    for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                        function.loop(x, y, z);
+                    }
+                }
+            });
+        } else if (parallelAxis == 1) {
+            IntStream.rangeClosed(bb.yMin(), bb.yMax()).parallel().forEach(y -> {
+                for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+                    for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                        function.loop(x, y, z);
+                    }
+                }
+            });
+        } else {
+            IntStream.rangeClosed(bb.xMin(), bb.xMax()).parallel().forEach(x -> {
+                for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+                    for (int y=bb.yMin(); y<=bb.yMax(); ++y) {
+                        function.loop(x, y, z);
+                    }
+                }
+            });
+        }
+    }
+
+    static int chooseParallelAxis(BoundingBox bb) {
+        int[] dimensions = new int[]{bb.sizeX(), bb.sizeY(), bb.sizeZ()};
+        int maxDim = ArrayUtil.max(dimensions); // avoid looping on that one
+        int minDim = ArrayUtil.min(dimensions); // avoid looping on that one if too small
+        int middleDim = IntStream.range(0, 3).filter(a -> a != maxDim && a != minDim).findFirst().getAsInt();
+        if (dimensions[minDim] == 1) {
+            if (dimensions[middleDim] == 1) return maxDim; // otherDims are 1
+            else return middleDim;
+        } else {
+            int nCPUs = Runtime.getRuntime().availableProcessors();
+            if (dimensions[minDim] < nCPUs) return middleDim;
+            else return minDim;
+        }
     }
     
     static void loop(BoundingBox bb, LoopFunction function) {
