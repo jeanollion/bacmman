@@ -60,7 +60,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
 
     //segmentation-related attributes (kept for split and merge methods)
     protected EdgeDetector edgeDetector;
-
+    boolean parallel; // TODO
     public BacteriaIntensitySegmenter() {
     }
 
@@ -184,7 +184,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
             }
         });
 
-        ImageInteger seedMap = Filters.localExtrema(wsMap, null, false, segmentationMask, Filters.getNeighborhood(1.5, input));
+        ImageInteger seedMap = Filters.localExtrema(wsMap, null, false, segmentationMask, Filters.getNeighborhood(1.5, input), parallel);
         RegionPopulation watershedSeeds = new RegionPopulation(seedMap, false);
         // TODO optional: replace seeds with the nearest seed with highest intensity -> match algorithm.
 

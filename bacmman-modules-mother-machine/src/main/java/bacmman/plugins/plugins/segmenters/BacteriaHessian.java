@@ -75,7 +75,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
 
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
     EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
-
+    boolean parallel; // TODO
     // attributes parametrized during track parametrization
     double filterThld=Double.NaN;
     final String operationSequenceHint = "<ol><li>Partitioning of the whole microchannel using seeded watershed algorithm on maximal hessian eigenvalue transform</li>"
@@ -271,7 +271,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
             }
         });
 
-        ImageInteger seedMap = Filters.localExtrema(wsMap, null, false, segmentationMask, Filters.getNeighborhood(1.5, input));
+        ImageInteger seedMap = Filters.localExtrema(wsMap, null, false, segmentationMask, Filters.getNeighborhood(1.5, input), parallel);
         RegionPopulation watershedSeeds = new RegionPopulation(seedMap, false);
         // TODO optional: replace seeds with the nearest seed with highest intensity -> match algorithm.
 

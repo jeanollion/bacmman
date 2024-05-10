@@ -421,7 +421,7 @@ public class Processor {
         else {
             try {
                 ps.segmentAndTrack(structureIdx, parentTrack, new SegmentedObjectFactory(structureIdx), new TrackLinkEditor(structureIdx));
-                logger.info("processing pipeline {} executed on track: {}, structure: {}", ps.getClass(), parentTrack.get(0), structureIdx);
+                logger.debug("processing pipeline {} executed on track: {}, structure: {}", ps.getClass(), parentTrack.get(0), structureIdx);
             } catch(Throwable e) {
                 parentTrack.forEach(p -> p.setChildren(Collections.EMPTY_LIST, structureIdx)); // remove segmented objects if present to avoid saving them in DAO
                 throw e;

@@ -107,7 +107,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
             values[zz] = evalPlane(plane, scale, mask);
         }
         ImageDouble im = new ImageDouble("", values.length, values);
-        if (smoothScale>=1) im = (ImageDouble)ImageDerivatives.gaussianSmooth(im, smoothScale);
+        if (smoothScale>=1) im = (ImageDouble)ImageDerivatives.gaussianSmooth(im, smoothScale, true);
         if (precisionFactor>1) {
             ImageDouble imResample = Resize.resample(im, ImgLib2ImageWrapper.INTERPOLATION.LANCZOS5, values.length * precisionFactor);
             logger.debug("max:{} max resample: {} values: {} resample: {}", ArrayUtil.max(values), ArrayUtil.max(imResample.getPixelArray()[0]) / (double)precisionFactor, values, imResample.getPixelArray()[0]);
@@ -118,8 +118,8 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
         }
     }
     public static double evalPlane(Image plane, double scale, ImageMask mask) {
-        if (scale>0) plane = ImageDerivatives.gaussianSmooth(plane, scale);
-        Image gradient = ImageDerivatives.getGradientMagnitude(plane, 0, 0, 1);
+        if (scale>0) plane = ImageDerivatives.gaussianSmooth(plane, scale, true);
+        Image gradient = ImageDerivatives.getGradientMagnitude(plane, 0, true, 0, 1);
         //Image gradient = ImageFeatures.getGradientMagnitude(plane, scale, false);
         return ImageOperations.getMeanAndSigma(gradient, mask, null)[0];
         /*Neighborhood n = Filters.getNeighborhood(Math.max(1.5, scale), plane);

@@ -76,7 +76,7 @@ public class WatershedSegmenter implements Segmenter, SegmenterSplitAndMerge, Ob
     // store here images for use in split  / compute merge cost methods
     Map<SegmentedObject, Image> edgeMap = new HashMap<>();
     Map<SegmentedObject, Image> watershedMap = new HashMap<>();
-
+    boolean parallel; // TODO
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         // perform watershed on all local extrema
@@ -84,7 +84,7 @@ public class WatershedSegmenter implements Segmenter, SegmenterSplitAndMerge, Ob
         this.watershedMap.put(parent, watershedMap);
         double radXY = localExtremaRadius.getScaleXY();
         double radZ = localExtremaRadius.getScaleZ(watershedMap.getScaleXY(), watershedMap.getScaleZ());
-        ImageByte localExtrema = Filters.localExtrema(watershedMap, null, decreasePropagation.getSelected(), parent.getMask(), Filters.getNeighborhood(radXY, radZ, watershedMap));
+        ImageByte localExtrema = Filters.localExtrema(watershedMap, null, decreasePropagation.getSelected(), parent.getMask(), Filters.getNeighborhood(radXY, radZ, watershedMap), parallel);
         FOREGROUND_SELECTION_METHOD method = foregroundSelMethod.getSelectedEnum();
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(decreasePropagation.getSelected());
         if (method.equals(FOREGROUND_SELECTION_METHOD.SEED_AND_PROPAGATION_THRESHOLDS)) {

@@ -113,7 +113,9 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         this.laplacianThld.setValue(thresholdSeeds);
         this.propagationThld.setValue(thresholdPropagation);
     }
-    
+
+    boolean parallel; // TODO : implement multithread
+
     public SpotSegmenter setThresholdSeeds(double threshold) {
         this.laplacianThld.setValue(threshold);
         return this;
@@ -477,11 +479,12 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         return pop;
     }
 
+
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         ImageFloat wsMap = this.pv!=null && this.pv.lap!=null ? pv.lap[0] : ImageFeatures.getLaplacian(input, DoubleStream.of(scale.getArrayDouble()).min().orElse(1.5), true, false);
         wsMap = object.isAbsoluteLandMark() ? wsMap.cropWithOffset(object.getBounds()) : wsMap.crop(object.getBounds());
-        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, false, manualSplitVerbose);
+        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, false, manualSplitVerbose, parallel);
         res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }

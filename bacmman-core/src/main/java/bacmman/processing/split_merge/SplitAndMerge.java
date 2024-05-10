@@ -60,6 +60,13 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     protected Consumer<Region> regionChanged;
     protected double seedThreshold = Double.NaN;
     protected List<FusionCriterion<Region, I>> fusionCriteria = new ArrayList<>();
+    protected boolean parallel;
+
+    public SplitAndMerge<I> setParallel(boolean parallel) {
+        this.parallel=parallel;
+        return this;
+    }
+
     public SplitAndMerge<I> setSeedThrehsold(double seedThrehsold) {
         this.seedThreshold=seedThrehsold;
         return this;
@@ -207,8 +214,8 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         return split(segmentationMask, minSizePropagation, seedRadius, 1);
     }
     public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation, double seedRadius, double seedRadiusZ) {
-        ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(seedRadius, seedRadiusZ, getSeedCreationMap())) :
-                Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(seedRadius, seedRadiusZ, getSeedCreationMap()));
+        ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(seedRadius, seedRadiusZ, getSeedCreationMap()), parallel) :
+                Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(seedRadius, seedRadiusZ, getSeedCreationMap()), parallel);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!increasingPropagation);
         if (minSizePropagation>1) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
         RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);

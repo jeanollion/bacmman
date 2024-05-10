@@ -25,10 +25,7 @@ import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.image.Image;
-import bacmman.plugins.Hint;
-import bacmman.plugins.ProcessingPipeline;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.TrackPreFilter;
+import bacmman.plugins.*;
 import bacmman.utils.ThreadRunner;
 
 import static bacmman.utils.Utils.parallel;
@@ -70,6 +67,9 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
             SegmentedObject o = track.get(i);
             bacmman.plugins.PreFilter instance = filter.instantiatePlugin();
             if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
+            if (instance instanceof MultiThreaded && track.size() < Runtime.getRuntime().availableProcessors()) {
+                ((MultiThreaded)instance).setMultiThread(true);
+            }
             Image source = preFilteredImages.get(o);
             Image filtered = instance.runPreFilter(source, o.getMask(), preFilteredImages.allowInplaceModification());
             preFilteredImages.set(o, filtered);

@@ -138,7 +138,7 @@ public class DLModelsLibrary {
                 updateGistDisplay();
                 tree.setSelectedGist(toSave);
             } catch (IOException ex) {
-                if (pcb!=null) pcb.setMessage("Error saving gist: " + ex.getMessage());
+                if (pcb != null) pcb.setMessage("Error saving gist: " + ex.getMessage());
                 logger.error("Error saving gist", ex);
             }
 
@@ -220,7 +220,7 @@ public class DLModelsLibrary {
                 updateGistDisplay();
                 tree.setSelectedGist(toSave);
             } catch (IOException ex) {
-                if (pcb!=null) pcb.setMessage("Error saving gist: " + ex.getMessage());
+                if (pcb != null) pcb.setMessage("Error saving gist: " + ex.getMessage());
                 logger.error("Error saving gist", ex);
             }
         });
@@ -285,7 +285,7 @@ public class DLModelsLibrary {
                                          InvalidKeySpecException ex) {
                                     pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 } catch (IOException ex) {
-                                    if (pcb!=null) pcb.setMessage("Error saving gist" + ex.getMessage());
+                                    if (pcb != null) pcb.setMessage("Error saving gist" + ex.getMessage());
                                     logger.error("Error saving gist", ex);
                                 }
                             }
@@ -449,7 +449,7 @@ public class DLModelsLibrary {
                 updateGistDisplay();
                 tree.setSelectedGist(gist);
             } catch (IOException e) {
-                if (pcb!=null) pcb.setMessage("Error saving gist: " + e.getMessage());
+                if (pcb != null) pcb.setMessage("Error saving gist: " + e.getMessage());
                 logger.error("Error saving gist", e);
             }
 

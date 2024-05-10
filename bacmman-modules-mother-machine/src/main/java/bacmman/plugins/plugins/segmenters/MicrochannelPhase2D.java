@@ -49,7 +49,7 @@ import static bacmman.plugins.plugins.segmenters.MicrochannelPhase2D.X_DER_METHO
  *
  * @author Jean Ollion
  */
-public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProcessingPlugin, Hint, HintSimple, TrackConfigurable<MicrochannelPhase2D> {
+public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded, TestableProcessingPlugin, Hint, HintSimple, TrackConfigurable<MicrochannelPhase2D> {
 
     
     public enum X_DER_METHOD {CONSTANT, RELATIVE_TO_INTENSITY_RANGE}
@@ -100,6 +100,12 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     }
 
     public MicrochannelPhase2D() {}
+
+    boolean parallel;
+    @Override
+    public void setMultiThread(boolean parallel) {
+        this.parallel = parallel;
+    }
 
     // testable
     Map<SegmentedObject, TestDataStore> stores;
@@ -161,7 +167,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
         double derScale = 2;
         int[] yStartStop = new int[]{0, image.sizeY()-1};
         Image imCrop = (image instanceof ImageFloat ? image.duplicate() : image);
-        Image[] imDer = ImageDerivatives.getGradient(imCrop, derScale, 0, 1);
+        Image[] imDer = ImageDerivatives.getGradient(imCrop, derScale, parallel, 0, 1);
         // get global closed-end Y coordinate
         Image imDerY = imDer[1];
         float[] yProj = openEnd?null: ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);

@@ -2,6 +2,7 @@ package bacmman.processing.gaussian_fit;
 
 import bacmman.utils.ArrayUtil;
 import net.imglib2.algorithm.localization.Gaussian;
+import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,25 +25,31 @@ public class GaussianCustomTrain extends Gaussian implements FitFunctionUntraina
 
     @Override
     public void scaleIntensity(double[] parameters, double center, double scale, boolean normalize) {
+        scaleIntensity(parameters, center, scale, normalize, backgroundIsFitApart, parameters.length - 2 );
+    }
+
+    public static void scaleIntensity(double[] parameters, double center, double scale, boolean normalize, boolean backgroundIsFitApart, int intensityIdx) {
         if (backgroundIsFitApart) {
             if (normalize) {
-                parameters[parameters.length - 2] = (parameters[parameters.length - 2]) / scale;
+                parameters[intensityIdx] = (parameters[intensityIdx]) / scale;
             } else {
-                parameters[parameters.length - 2] = parameters[parameters.length - 2] * scale;
+                parameters[intensityIdx] = parameters[intensityIdx] * scale;
             }
         } else {
             if (normalize) {
-                parameters[parameters.length - 2] = (parameters[parameters.length - 2] - center) / scale;
+                parameters[intensityIdx] = (parameters[intensityIdx] - center) / scale;
             } else {
-                parameters[parameters.length - 2] = parameters[parameters.length - 2] * scale + center;
+                parameters[intensityIdx] = parameters[intensityIdx] * scale + center;
             }
         }
     }
+
     @Override
     public int getNParameters(int nDims) {
         if (nDims!=2) throw new IllegalArgumentException("Only valid in 2D");
         return nDims + 2;
     }
+
     @Override
     public boolean isValid(double[] initialParameters, double[] a) {
         if (centerRange!=null) {
@@ -55,11 +62,13 @@ public class GaussianCustomTrain extends Gaussian implements FitFunctionUntraina
         }
         return true;
     }
+
     double[] centerRange;
     public GaussianCustomTrain setPositionLimit(double[] centerRange) {
         this.centerRange = centerRange;
         return this;
     }
+
     double radLimit = Double.NaN;
     public GaussianCustomTrain setSizeLimit(double sizeLimit) {
         this.radLimit = sizeLimit;

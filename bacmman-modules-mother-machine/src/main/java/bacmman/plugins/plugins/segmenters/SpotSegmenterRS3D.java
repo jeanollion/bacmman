@@ -45,7 +45,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegmenterRS3D>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple {
+public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegmenterRS3D>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple, MultiThreaded {
     public static boolean debug = false;
     public final static Logger logger = LoggerFactory.getLogger(SpotSegmenterRS3D.class);
     // scales
@@ -53,19 +53,22 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null);
     ArrayNumberParameter radii = new ArrayNumberParameter("Radial Symmetry Radii", 0, radius).setSorted(true).setValue(1, 2, 3, 4).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
-    ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 1.5, 1.5, false).setNumberParameters(1, null, 1, true, true).setHint("Radius of local maxima filter for seed detection step. Increasing the value will decrease false positive spots but decrease the capacity to segment close spots");
+    ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 1.5, 1.5 * 3, false).setNumberParameters(1, null, 1, true, true).setHint("Radius of local maxima filter for seed detection step. Increasing the value will decrease false positive spots but decrease the capacity to segment close spots. <br/> This parameter also defines the z-anisotropy ratio used for gaussian fit and gaussian and radial symmetry transform");
     enum NORMALIZATION_MODE {NO_NORM, GLOBAL, PER_CELL}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.GLOBAL).setHint("Normalization of the input intensity, will influence the values of <em>Radial Symmetry Threshold</em> and <em>Seed Threshold</em>");
     NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null);
     IntervalParameter sigmaRange = new IntervalParameter("Sigma Filter", 3, 0, null, 1, 5)
             .setLegacyParameter((p, i)->i.setValue(((NumberParameter)p[0]).getDoubleValue(), 1), maxSigma)
             .setHint("Spot with a sigma value (from the gaussian fit) outside this range will be erased.");
+    enum LOCAL_MAX_MODE {RadialSymetry, Gaussian}
+
+    public EnumChoiceParameter<LOCAL_MAX_MODE> localMaxMode = new EnumChoiceParameter<>("Local Max Image", LOCAL_MAX_MODE.values(), LOCAL_MAX_MODE.RadialSymetry).setHint("On which image local max filter will be run to detects seeds");
 
     NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 5).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 5).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide a bacteria, the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
+    NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide the parent object class (e.g. bacteria), the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
 
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, localMaxMode, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
@@ -186,18 +189,27 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         if (this.parentSegTHMapmeanAndSigma!=null) pv.ms = parentSegTHMapmeanAndSigma.get((parent).getTrackHead());
         this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
         if (pv.smooth==null || pv.getRadialSymmetryMap()==null) throw new RuntimeException("Mutation Segmenter not parametrized");//setMaps(computeMaps(input, input));
-        
+        //logger.debug("get maps..");
         Image smooth = pv.getSmoothedMap();
         Image radSym = pv.getRadialSymmetryMap();
+        //logger.debug("local max...");
         Neighborhood n = Filters.getNeighborhood(maxLocalRadius.getScaleXY(), maxLocalRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), radSym);
-        ImageByte seedMap = Filters.localExtrema(radSym, null, true, parentMask, n); // TODO from radialSymetry map of smoothed image ? parameter ?
-
+        final ImageByte seedMap;
+        switch (localMaxMode.getSelectedEnum()) {
+            case RadialSymetry:
+            default:
+                seedMap = Filters.localExtrema(radSym, null, true, parentMask, n, parallel); // TODO from radialSymetry map of smoothed image ? parameter ?
+                break;
+            case Gaussian:
+                seedMap = Filters.localExtrema(smooth, null, true, parentMask, n, parallel); // TODO from radialSymetry map of smoothed image ? parameter ?
+        }
+        //logger.debug("get seeds...");
         List<Point> seeds = new ArrayList<>();
         BoundingBox.loop(new SimpleBoundingBox(seedMap).resetOffset(),
                 (x, y, z)->seeds.add(new Point(x, y, z)),
-                (x, y, z)->seedMap.insideMask(x, y, z) && smooth.getPixel(x, y, z)>=intensityThreshold && radSym.getPixel(x, y, z)>=thresholdSeeds);
+                (x, y, z)->seedMap.insideMask(x, y, z) && smooth.getPixel(x, y, z)>=intensityThreshold && radSym.getPixel(x, y, z)>=thresholdSeeds, parallel);
 
-
+        //logger.debug("get seeds done (parallel: {})", parallel);
         if (stores!=null) {
             ImageOperations.fill(seedMap, 0, null);
             seeds.forEach(p -> seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1));
@@ -214,20 +226,22 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
             spots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq || Double.isNaN(e.getValue()) || Double.isInfinite(e.getValue()) ).map(e->e.getKey()).collect(Collectors.toList()));
         };
 
-        if (seedMap.sizeZ()>1) { // fit 3D not taking into account anisotropy
+        if (planeByPlane && seedMap.sizeZ()>1) {
             segmentedSpots = new ArrayList<>();
             List<Image> fitImagePlanes = fitImage.splitZPlanes();
             List<Image> smoothPlanes = smooth.splitZPlanes();
             List<Image> radSymPlanes = radSym.splitZPlanes();
             IntStream.range(0, fitImagePlanes.size()).forEachOrdered(z -> {
                 List<Point> seedsZ = seeds.stream().filter(p -> p.get(2)==z).collect(Collectors.toList());
-                List<Spot> segmentedSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getValue().doubleValue());
+                List<Spot> segmentedSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
                 removeSpotsFarFromSeeds.accept(segmentedSpotsZ, seedsZ);
                 segmentedSpots.addAll(segmentedSpotsZ);
             });
             segmentedSpots.forEach(s->s.setIs2D(false));
         } else {
-            segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getValue().doubleValue());
+            logger.debug("gaussian fit...");
+            segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
+            logger.debug("gaussian fit done.");
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
         // remove spots with center outside mask
@@ -266,13 +280,15 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
             }
         }
     }
-    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma) {
+    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma, double typicalSigmaZ, boolean parallel) {
         if (seedsToSpots.isEmpty()) return Collections.emptyList();
         Offset off = !fitImage.sameDimensions(radSym) ? new SimpleOffset(radSym).translate(fitImage.getBoundingBox().reverseOffset()) : null;
         if (off!=null) allSeeds.forEach(p->p.translate(off)); // translate point to fitImages bounds
         long t0 = System.currentTimeMillis();
-        GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalSigma, false, true).setMaxCenterDisplacement(Math.max(1.5, typicalSigma/2)).setFittingBoxRadius((int)Math.ceil(4*typicalSigma+1)).setCoFitDistance(4*typicalSigma+1);
-        Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, config, null, false);
+        GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(typicalSigma, typicalSigmaZ, true).setMaxCenterDisplacement(Math.max(1.5, typicalSigma/2))
+                .setFittingBoxRadius((int)Math.ceil(2*typicalSigma+1))
+                .setCoFitDistance(2*typicalSigma+1);
+        Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, config, null, parallel);
          long t1 = System.currentTimeMillis();
         //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
         List<Spot> res = seedsToSpots.stream().map(fit::get).filter(Objects::nonNull).map(d -> GaussianFit.spotMapper.apply(d, false, fitImage))
@@ -325,7 +341,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
                 .collect(Collectors.toList());
 
         allObjects.addAll(seedObjects);
-        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getValue().doubleValue());
+        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (verboseManualSeg) {
@@ -338,11 +354,15 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         return pop;
     }
 
+    protected double getAnisotropyRatio(Image input) {
+        return maxLocalRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()) / maxLocalRadius.getScaleXY();
+    }
+
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        Image wsMap = FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 1.5, 1, 0);
+        Image wsMap = FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 1.5, 1, 0, parallel, 1.5, 1.5 * getAnisotropyRatio(input));
         wsMap = object.isAbsoluteLandMark() ? wsMap.cropWithOffset(object.getBounds()) : wsMap.crop(object.getBounds());
-        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, true, manualSplitVerbose);
+        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, true, manualSplitVerbose, parallel);
         res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }
@@ -377,9 +397,9 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
         double smoothScale = this.smoothScale.getValue().doubleValue();
         Image[] maps = new Image[2];
-        Function<Image, Image> gaussF = f->ImageFeatures.gaussianSmooth(f, smoothScale, false).setName("gaussian: "+smoothScale);
+        Function<Image, Image> gaussF = f->ImageDerivatives.gaussianSmooth(f, smoothScale, smoothScale * getAnisotropyRatio(rawSource), parallel).setName("gaussian: "+smoothScale);
         maps[0] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
-        Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 0.5,1, 0, 1.5);
+        Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 0.5,1, 0, parallel, 1.5, 1.5 * getAnisotropyRatio(rawSource));
         maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);
         return maps;
     }
@@ -412,5 +432,11 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         this.pv.radialSymmetry=maps[1];
         this.pv.globalScale = scale;
     }
-    
+
+    boolean parallel = false;
+
+    @Override
+    public void setMultiThread(boolean parallel) {
+        this.parallel = parallel;
+    }
 }

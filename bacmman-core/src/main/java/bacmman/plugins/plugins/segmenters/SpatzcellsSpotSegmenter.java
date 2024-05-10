@@ -67,6 +67,8 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
     BoundedNumberParameter minIntensity = new BoundedNumberParameter("Minimum Peak Height", 3, 0, 0, null).setEmphasized(true).setHint("Spots with Intensity lower than this value will be erased. If 0: not taken into account");
     GroupParameter filters = new GroupParameter("Filters", maxMajor, minMinor, minIntensity).setEmphasized(true).setHint("Filters to erase outliers spots");
 
+    boolean parallel; // TODO
+
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{rawOC, localMaximaThreshold, localMaximaRadius, maxSpotXYDistance, minZSliceNumber, fittingBox, clusterDist, spotRadiusEstimationCond, fitCenterAndAxesOnFilteredImage, fitParameters, filters};
@@ -92,7 +94,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
         if (rawOC>=0) assert raw.sizeZ() == input.sizeZ() : "Slice number of raw object class do not match with current object class";
         Image fitImage = this.fitCenterAndAxesOnFilteredImage.getSelected() ? input : raw;
         // get 2D local maxima
-        Function<Image, Image> lmFun = im ->  Filters.localExtrema(im, null, true, null, Filters.getNeighborhood(localMaximaRadius.getDoubleValue(), 1, im)); // no mask is given here so that a given local maxima is not found in two neighboring cells
+        Function<Image, Image> lmFun = im ->  Filters.localExtrema(im, null, true, null, Filters.getNeighborhood(localMaximaRadius.getDoubleValue(), 1, im), parallel); // no mask is given here so that a given local maxima is not found in two neighboring cells
         Image localMaxima = ImageOperations.applyPlaneByPlane(input, lmFun);
         // remove lm under threshold & outside mask
         double threshold = localMaximaThreshold.instantiatePlugin().runThresholder(input, parent);

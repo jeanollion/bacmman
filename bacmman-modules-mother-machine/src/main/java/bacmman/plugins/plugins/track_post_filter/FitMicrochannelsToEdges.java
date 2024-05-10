@@ -63,7 +63,7 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
     public static boolean debug = false;
     public static int debugLabel =0;
     public boolean verbose = false;
-    
+    boolean parallel; // TODO
     @Override
     public String getHintText() {
         return "Fits a segmented microchannel to its edges (edges are defined in the parameter <em>Watershed Map</em> (available in advanced mode)"
@@ -91,7 +91,7 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
             BoundingBox cropBB = new SimpleBoundingBox(b.xMin()-marginL, b.xMax()+marginR, b.yMin()-marginUp, b.yMax(), b.zMin(), b.zMax());
             Image crop = pf.crop(cropBB);
             Image edge = watershedMap.filter(crop, new BlankMask(crop));
-            fit(crop, edge, new int[]{marginL, marginR, marginUp}, mc.getRegion(), this.morphoRadius.getValue().doubleValue(), this.trimUpperPixels.getValue().intValue(), this.resetBounds.getSelected(), debug);
+            fit(crop, edge, new int[]{marginL, marginR, marginUp}, mc.getRegion(), this.morphoRadius.getValue().doubleValue(), this.trimUpperPixels.getValue().intValue(), this.resetBounds.getSelected(), parallel, debug);
         });
     }
 
@@ -106,7 +106,7 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
     }
     
     
-    private static void fit(Image inputLocal, Image edgeMapLocal, int[] marginLRUp, Region object, double morphoRadius, int trimUpperPixelRadius, boolean resetMask, boolean verbose) {
+    private static void fit(Image inputLocal, Image edgeMapLocal, int[] marginLRUp, Region object, double morphoRadius, int trimUpperPixelRadius, boolean resetMask, boolean parallel, boolean verbose) {
         double innerMaskSlope = 0;
         boolean seedsInMaskAreForeground = false; // parameter ? 
         BoundingBox b = object.getBounds();
@@ -158,7 +158,7 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
         }
         if (verbose && object.getLabel()==debugLabel) Core.showImage(mask.duplicate("innnerMask"));
         
-        ImageByte maxL = Filters.localExtrema(edgeMapLocal, null, false, null, Filters.getNeighborhood(1, 1, edgeMapLocal)).resetOffset();
+        ImageByte maxL = Filters.localExtrema(edgeMapLocal, null, false, null, Filters.getNeighborhood(1, 1, edgeMapLocal), parallel).resetOffset();
         List<Region> allSeeds= ImageLabeller.labelImageList(maxL);
         Set<Voxel> foregroundVox = new HashSet<>();
         Iterator<Region> it = allSeeds.iterator();

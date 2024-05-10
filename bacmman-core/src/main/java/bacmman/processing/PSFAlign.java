@@ -86,7 +86,7 @@ public class PSFAlign {
             if (!e.getValue().isEmpty()) {
                 // filter image to have zero-min // TODO parametrize this step ?
                 Image input = e.getKey().getRawImage(ocIdx);
-                input = IJSubtractBackground.filter(input, output.sizeX(), false, false, true, false);
+                input = IJSubtractBackground.filter(input, output.sizeX(), false, false, true, false, true);
                 //Image input  = Filters.tophat(p.getRawImage(ocIdx), null, n, false);
                 RealRandomAccessible image = getRRA(input, interpolation);
                 e.getValue().forEach( s -> {

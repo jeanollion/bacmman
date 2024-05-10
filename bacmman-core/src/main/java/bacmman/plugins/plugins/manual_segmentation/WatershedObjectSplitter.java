@@ -26,6 +26,7 @@ import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
+import bacmman.plugins.MultiThreaded;
 import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 
@@ -44,7 +45,7 @@ import bacmman.processing.watershed.WatershedTransform;
  *
  * @author Jean Ollion
  */
-public class WatershedObjectSplitter implements ObjectSplitter {
+public class WatershedObjectSplitter implements ObjectSplitter, MultiThreaded {
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth Scale (0=no smooth)", 1, 2, 0, null);
     BooleanParameter decreasingPropagation = new BooleanParameter("Decreasing propagation", true).setHint("True if foreground has higher values than background").setEmphasized(true);
     Parameter[] parameters = new Parameter[]{smoothScale, decreasingPropagation};
@@ -54,6 +55,11 @@ public class WatershedObjectSplitter implements ObjectSplitter {
     public WatershedObjectSplitter(double smoothScale, boolean decreasingPropagation) {
         this.smoothScale.setValue(smoothScale);
         this.decreasingPropagation.setSelected(decreasingPropagation);
+    }
+    boolean parallel;
+    @Override
+    public void setMultiThread(boolean parallel) {
+        this.parallel = parallel;
     }
 
     public void setSplitVerboseMode(boolean verbose) {
@@ -78,8 +84,8 @@ public class WatershedObjectSplitter implements ObjectSplitter {
     }
 
     // selects two highest seeds and perform watershed
-    public static RegionPopulation splitInTwoSeedSelect(Image watershedMap, ImageMask mask, final boolean decreasingPropagation, boolean keepOnlyTwoSeeds, boolean verbose) {
-        ImageByte localMax = Filters.localExtrema(watershedMap, null, decreasingPropagation, mask, Filters.getNeighborhood(1, 1, watershedMap)).setName("Split seeds");
+    public static RegionPopulation splitInTwoSeedSelect(Image watershedMap, ImageMask mask, final boolean decreasingPropagation, boolean keepOnlyTwoSeeds, boolean verbose, boolean parallel) {
+        ImageByte localMax = Filters.localExtrema(watershedMap, null, decreasingPropagation, mask, Filters.getNeighborhood(1, 1, watershedMap), parallel).setName("Split seeds");
         List<Region> seeds = Arrays.asList(ImageLabeller.labelImage(localMax));
         if (seeds.size()<2) {
             //logger.warn("Object splitter : less than 2 seeds found");

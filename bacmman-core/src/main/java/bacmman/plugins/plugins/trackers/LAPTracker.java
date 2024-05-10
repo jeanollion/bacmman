@@ -49,6 +49,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         return "Distance-based Object Tracking based on LAP algorithm by Jaqaman et al. implementation by Jean-Yves Tinevez.<br>If you use this method for your research please cite: Jaqaman et al., “Robust single-particle tracking in live-cell time-lapse sequences”, Nat Methods. 2008 as well as Tinevez, J.-Y., Perry, N., Schindelin, J., Hoopes, G. M., Reynolds, G. D., Laplantine, E., … Eliceiri, K. W. (2017). TrackMate: An open and extensible platform for single-particle tracking. Methods, 115, 80–90";
     }
     Map<SegmentedObject, TestDataStore> stores;
+    boolean parallel; // TODO
     @Override
     public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores = stores;
@@ -227,7 +228,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             List<Voxel> skeletonPoints = new ArrayList<>();
             if (distanceMap==null) distanceMap = EDT.transform(r.getMask(), true, r.getScaleXY(), r.getScaleZ(), false);
             if (n == null) n = Filters.getNeighborhood(1.5, 1, distanceMap);
-            ImageMask lm = Filters.localExtrema(distanceMap, null, true, r.getMask(), n);
+            ImageMask lm = Filters.localExtrema(distanceMap, null, true, r.getMask(), n, false);
             ImageMask.loopWithOffset(lm, (x, y, z) -> skeletonPoints.add(new Voxel(x, y, z)));
             SparseSkeleton<Voxel> res = new SparseSkeleton<Voxel>(skeletonPoints);
             if (addPoles) res.addBacteriaPoles(r.getContour());

@@ -624,7 +624,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
             } else {
                 //logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
                 r = new IJRoi3D((int)Math.ceil(rad * 2)+1).setIs2D(false);
-                double scaleR = ((Spot)object.object.getRegion()).getzAspectRatio();
+                double scaleR = ((Spot)object.object.getRegion()).getAspectRatioZ();
                 double radZ = rad * scaleR;
                 for (int zz = (int)Math.max(Math.ceil(z-radZ), 0); zz<=(int)Math.ceil(z+radZ); ++zz) {
                     double curRad = Math.sqrt(rad*rad - Math.pow((z-zz)/scaleR, 2)) ; // in order to take into anisotropy into account.

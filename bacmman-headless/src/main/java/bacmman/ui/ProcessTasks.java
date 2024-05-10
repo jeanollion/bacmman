@@ -33,6 +33,8 @@ import ch.qos.logback.classic.Logger;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.function.Function;
+
+import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -64,7 +66,13 @@ public class ProcessTasks {
         }
         ui.setRunning(true);
         //ui.setMessage("BACMMAN version: "+Utils.getVersion(ui));
-        Function<String, Task> parser = s->new Task().setUI(ui).fromJSON(JSONUtils.parse(s));
+        Function<String, Task> parser = s-> {
+            try {
+                return new Task().setUI(ui).fromJSON(JSONUtils.parse(s));
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
+            }
+        };
         List<Task> jobs = FileIO.readFromFile(args[0], parser, s->ui.setMessage("Error while parsing task file: "+args[0]));
         ui.setMessage(jobs.size()+" jobs found in file: "+args[0]);
         if (jobs.isEmpty()) return;

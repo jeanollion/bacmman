@@ -34,12 +34,15 @@ import java.util.Arrays;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.HashMapGetCreate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class Filters {
+    public final static Logger logger = LoggerFactory.getLogger(Filters.class);
     public static DisplacementNeighborhood getNeighborhood(double radiusXY, ImageProperties image) {return image.sizeZ()>1 ?getNeighborhood(radiusXY, image.getScaleXY()/image.getScaleZ(), image) : getNeighborhood(radiusXY, 1, image);}
     public static DisplacementNeighborhood getNeighborhood(double radiusXY, double radiusZ, ImageProperties image) {return image.sizeZ()>1 ? new EllipsoidalNeighborhood(radiusXY, radiusZ, false) : new EllipsoidalNeighborhood(radiusXY, false);}
       
@@ -139,13 +142,13 @@ public class Filters {
      * @param neighborhood 2D/3D neighborhood in which the local extrema is computed
      * @return an image of same type as output (that can be output). Each pixel value is 0 if the current pixel is not an extrema, or has the value of the original image if it is an extrema
      */
-    public static ImageByte localExtrema(Image image, ImageByte output, boolean maxLocal, ImageMask mask, Neighborhood neighborhood) {
+    public static ImageByte localExtrema(Image image, ImageByte output, boolean maxLocal, ImageMask mask, Neighborhood neighborhood, boolean parallel) {
         ImageByte res;
         String name = maxLocal?"MaxLocal of: "+image.getName():"MinLocal of: "+image.getName();
         if (output==null || !output.sameDimensions(image) || output==image) res = new ImageByte(name, image);
         else res = (ImageByte)output.setName(name);
         Filter filter = maxLocal?new LocalMax(mask):new LocalMin(mask);
-        return applyFilter(image, res, filter, neighborhood);
+        return applyFilter(image, res, filter, neighborhood, parallel);
     }
         /**
      * ATTENTION: bug en dimension 1 !!
@@ -156,19 +159,18 @@ public class Filters {
      * @param neighborhood 2D/3D neighborhood in which the local extrema is computed
      * @return an image of same type as output (that can be output). Each pixel value is 0 if the current pixel is not an extrema, or has the value of the original image if it is an extrema
      */
-    public static ImageByte localExtrema(Image image, ImageByte output, boolean maxLocal, double threshold, ImageMask mask, Neighborhood neighborhood) {
+    public static ImageByte localExtrema(Image image, ImageByte output, boolean maxLocal, double threshold, ImageMask mask, Neighborhood neighborhood, boolean parallel) {
         ImageByte res;
         String name = maxLocal?"MaxLocal of: "+image.getName():"MinLocal of: "+image.getName();
         if (output==null || !output.sameDimensions(image) || output==image) res = new ImageByte(name, image);
         else res = (ImageByte)output.setName(name);
         Filter filter = maxLocal?new LocalMaxThreshold(threshold, mask):new LocalMinThreshold(threshold, mask);
-        return applyFilter(image, res, filter, neighborhood);
+        return applyFilter(image, res, filter, neighborhood, parallel);
     }
     public static <T extends Image<T>, F extends Filter> T applyFilter(Image image, T output, F filter, Neighborhood neighborhood) {
         return applyFilter(image, output, filter, neighborhood, false);
     }
     public static <T extends Image<T>, F extends Filter> T applyFilter(Image image, T output, F filter, Neighborhood neighborhood, boolean parallele) {
-        // TODO TEST parallele -> hashmapgetCreate<Thread, Neighborhood> + loop parallele
         if (filter==null) throw new IllegalArgumentException("Apply Filter Error: Filter cannot be null");
         //if (neighborhood==null) throw new IllegalArgumentException("Apply Filter ("+filter.getClass().getSimpleName()+") Error: Neighborhood cannot be null");
         T res;
@@ -178,9 +180,6 @@ public class Filters {
         else res = (T)output.setName(name);
         double round=res instanceof ImageFloat ? 0: 0.5d;
         
-        
-        //if (Context.getThreadNumber(true)>1) BoundingBox.loopParallele(res.getBoundingBox().resetOffset(), loopFunc); // neiborhood is not thread safe. Todo: use reusable queue with copies of neighborhood
-        //else BoundingBox.loop(res.getBoundingBox().resetOffset(), loopFunc);
         if (parallele && Runtime.getRuntime().availableProcessors()>1) {
             HashMapGetCreate<Thread, Filter> nMap = new HashMapGetCreate<>(t -> {
                 Filter f = filter.duplicate();

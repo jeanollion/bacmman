@@ -67,14 +67,14 @@ public class HessianWatershedSegmenter implements Segmenter, TestableProcessingP
     NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 5, -1, 0, null).setEmphasized(true).setHint("Lower this value to reduce merging. Set this value according to the test image called <em>edge values</em>");
     BooleanParameter normalizeEdgeValues = new BooleanParameter("Normalize Edge Values", true).setEmphasized(true).setHint("If true, the mean hessian values is divided by the mean intensity value (influences the <em>Merge Threshold</em> parameter)");
     ConditionalParameter<Boolean> mergeCond = new ConditionalParameter<>(mergeConnectedRegions).setActionParameters(true, mergeThreshold, normalizeEdgeValues);
-
+    boolean parallel; //TODO
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         // perform watershed on all local extrema
         Image watershedMap = ImageFeatures.getHessian(input, hessianScale.getScaleXY(), hessianScale.getScaleZ(input.getScaleXY(), input.getScaleZ()), false)[0];
         double radXY = localExtremaRadius.getScaleXY();
         double radZ = localExtremaRadius.getScaleZ(watershedMap.getScaleXY(), watershedMap.getScaleZ());
-        ImageByte localExtrema = Filters.localExtrema(watershedMap, null, false, parent.getMask(), Filters.getNeighborhood(radXY, radZ, watershedMap));
+        ImageByte localExtrema = Filters.localExtrema(watershedMap, null, false, parent.getMask(), Filters.getNeighborhood(radXY, radZ, watershedMap), parallel);
         FOREGROUND_SELECTION_METHOD method = foregroundSelMethod.getSelectedEnum();
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(false);
         // erase seed depending on threshold

@@ -9,6 +9,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <properties>
+        <!--javacpp.platform>macosx-arm64</javacpp.platform-->
         <!--javacpp.platform>macosx-x86_64</javacpp.platform-->
         <!--javacpp.platform>windows-x86_64</javacpp.platform-->
         <javacpp.platform>linux-x86_64</javacpp.platform>
@@ -51,6 +52,17 @@
             <version>0.4.2</version>
             <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency>
+        <!--dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow-core-platform</artifactId>
+            <version>0.5.0</version>
+        </dependency-->
+        <!--dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow-core-native</artifactId>
+            <version>0.5.0</version>
+            <classifier>macosx-arm64</classifier>
+        </dependency-->
         <!--dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>

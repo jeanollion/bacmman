@@ -86,6 +86,7 @@ public class EdgeDetector implements DevPlugin, Segmenter, Hint, TestableProcess
     Image wsMap;
     ImageInteger seedMap;
     Image watershedPriorityMap;
+    boolean parallel; //TODO
     String toolTip = "Segment region at maximal values of the watershed map; <br />"
             + "1) Partition of the whole image using classical watershed seeded on all regional minima of the watershed map. <br />"
             + "2) Suppression of background regions depending on the selected method; <br />";
@@ -107,7 +108,7 @@ public class EdgeDetector implements DevPlugin, Segmenter, Hint, TestableProcess
     }
 
     public ImageInteger getSeedMap(Image input,  ImageMask mask) {
-        if (seedMap==null) seedMap = Filters.localExtrema(getWsMap(input, mask), null, false, mask, Filters.getNeighborhood(seedRadius.getValue().doubleValue(), getWsMap(input, mask)));
+        if (seedMap==null) seedMap = Filters.localExtrema(getWsMap(input, mask), null, false, mask, Filters.getNeighborhood(seedRadius.getValue().doubleValue(), getWsMap(input, mask)), parallel);
         return seedMap;
     }
     public EdgeDetector setSeedRadius(double radius) {

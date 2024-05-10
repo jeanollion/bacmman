@@ -248,7 +248,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         // 1) Perform segmentation on EDM : watershed seeded with EDM local maxima
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
-        ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, gcdmI));
+        ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, gcdmI), true);
         //if (stores != null) stores.get(p).addIntermediateImage("EDM Seeds", localExtremaEDM);
         RegionPopulation pop = WatershedTransform.watershed(edmI, insideCellsM, localExtremaEDM, config);
         if (stores!=null) {
@@ -341,7 +341,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         //Map<Region, Set<Region>> regionMapCenters = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory<>());
         //centerMapRegion.forEach((c, r) -> regionMapCenters.get(r).add(c));
 
-        ImageFloat[] gdcmGrad = useGDCMgradient ? ImageDerivatives.getGradient(gcdmI, sigma) : new ImageFloat[2];
+        ImageFloat[] gdcmGrad = useGDCMgradient ? ImageDerivatives.getGradient(gcdmI, sigma, true) : new ImageFloat[2];
         if (useGDCMgradient && TestableProcessingPlugin.isExpertMode(stores)) {
             stores.get(parent).addIntermediateImage("dGDCM/dX", gdcmGrad[0]);
             stores.get(parent).addIntermediateImage("dGDCM/dY", gdcmGrad[1]);
@@ -409,7 +409,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
                     else sel = sel.stream().filter(o->o.getParent()==p).collect(Collectors.toList());
                     Image gdcm = prediction.gdcm.get(p);
-                    ImageFloat[] gdcmGrad = ImageDerivatives.getGradient(gdcm, computeSigma(this.objectThickness.getDoubleValue()));
+                    ImageFloat[] gdcmGrad = ImageDerivatives.getGradient(gdcm, computeSigma(this.objectThickness.getDoubleValue()), true);
                     OverlayDisplayer disp = stores.get(p).overlayDisplayer;
                     if (disp != null) {
                         sel.forEach(o -> {

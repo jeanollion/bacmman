@@ -97,19 +97,27 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
         boolean relabel = !SegmenterNoRelabel.class.isAssignableFrom(segmenter.getSelectedPluginClass());
         logger.debug("RELABEL: {} class assignable {} class: {}, instanceof {}", relabel, SegmenterNoRelabel.class.isAssignableFrom(segmenter.getPluginType()), segmenter.getPluginType(), segmenter.instantiatePlugin() instanceof SegmenterNoRelabel);
-        boolean parallel = !(segmenter.instantiatePlugin() instanceof DisableParallelExecution); // TODO why this does not work ? !DisableParallelExecution.class.isAssignableFrom(segmenter.getPluginType());
+        boolean parallel = !DisableParallelExecution.class.isAssignableFrom(segmenter.getSelectedPluginClass());
+        boolean multithread = MultiThreaded.class.isAssignableFrom(segmenter.getSelectedPluginClass()); //
+
         //logger.debug("PARALLEL EXECUTION: {}, seg type: {}, segName {}, instance of disable: {}", parallel, segmenter.getPluginType(), segmenter.getPluginName(), segmenter.instantiatePlugin() instanceof DisableParallelExecution);
         // segment in direct parents
         List<SegmentedObject> allParents = singleFrame ? SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream().limit(1), segParentStructureIdx).collect(Collectors.toList()) : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segParentStructureIdx).collect(Collectors.toList());
+        if (multithread && parallel) {
+            if (allParents.size() < Runtime.getRuntime().availableProcessors()) parallel = false;
+            else multithread = false;
+        }
         logger.debug("single frame: {} parent track size: {}", singleFrame, allParents.size());
         if (parallel) Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
         final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getRawImage(structureIdx).sizeZ()>1;
         long t0 = System.currentTimeMillis();
         List<RegionPopulation> pops;
         try {
+            boolean multithreadF = multithread;
             pops = safeMap(Utils.parallel(allParents.stream(), parallel), subParent -> {
                 SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
                 Segmenter seg = segmenter.instantiatePlugin();
+                if (multithreadF) ((MultiThreaded)seg).setMultiThread(true);
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
                 Image input = globalParent.getPreFilteredImage(structureIdx);
                 if (subSegmentation) input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());

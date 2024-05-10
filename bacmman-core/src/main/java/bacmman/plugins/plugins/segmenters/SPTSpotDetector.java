@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
+public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin, MultiThreaded {
     public final static Logger logger = LoggerFactory.getLogger(SPTSpotDetector.class);
 
     PluginParameter<Thresholder> thld = new PluginParameter<>("Threshold Method", Thresholder.class, new FactorOfMean().setFactor(6), false);
@@ -48,6 +48,11 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
     public Parameter[] getParameters() {
         return new Parameter[]{thld, localMaxRadius, minLMDistance, lmSmooth, fitParameters, filters};
     }
+    boolean parallel;
+    @Override
+    public void setMultiThread(boolean parallel) {
+        this.parallel=parallel;
+    }
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -58,7 +63,7 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
         logger.debug("thld : {}", thld);
         // get local maxima
         Image inputLM = lmSmooth.getDoubleValue()>0 ? ImageFeatures.gaussianSmooth(input, lmSmooth.getDoubleValue(), 0, false) : input;
-        ImageByte lm = Filters.localExtrema(inputLM, null, true, thld, null, Filters.getNeighborhood(localMaxRadius.getDoubleValue(), 1, input));
+        ImageByte lm = Filters.localExtrema(inputLM, null, true, thld, null, Filters.getNeighborhood(localMaxRadius.getDoubleValue(), 1, input), parallel);
         if (stores!=null && stores.get(parent).isExpertMode()) {
             if (lmSmooth.getDoubleValue()>0) stores.get(parent).addIntermediateImage("Local Maxima Input", inputLM);
             stores.get(parent).addIntermediateImage("Local Maxima", lm);
@@ -84,7 +89,7 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
                 .setFittingBoxRadius(fittingBox.getValue().intValue())
                 .setCoFitDistance(clusterDist.getValue().intValue())
                 .setBackgroundPlane(fitBackgroundPlane.getSelected()).setMaxIter(maxIterations.getValue().intValue()).setLambda(lambda.getValue().doubleValue()).setTermEpsilon(termEpsilon.getValue().doubleValue());
-        Map<Point, double[]> fit = GaussianFit.run(input, centers, config, null, false);
+        Map<Point, double[]> fit = GaussianFit.run(input, centers, config, null, parallel);
 
         List<Region> regions;
         if (fitEllipse.getSelected()) regions = fit.entrySet().stream().map(e -> GaussianFit.ellipse2DMapper.apply(e.getValue(), fitBackgroundPlane.getSelected(),input)).peek(e -> e.setQuality(e.getIntensity())).collect(Collectors.toList());

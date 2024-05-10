@@ -302,9 +302,9 @@ public class RegionPopulation {
         return false;
     }
 
-    public void fitToEdges(Image edgeMap, ImageMask mask) {
+    protected void fitToEdges(Image edgeMap, ImageMask mask, boolean parallel) {
         // get seeds outside label image
-        ImageInteger seedMap = Filters.localExtrema(edgeMap, null, false, null, Filters.getNeighborhood(1.5, 1.5, edgeMap));
+        ImageInteger seedMap = Filters.localExtrema(edgeMap, null, false, null, Filters.getNeighborhood(1.5, 1.5, edgeMap), parallel);
         this.getLabelMap(); //creates the labelImage        
         // merge background seeds && foreground seeds : background = 1, foreground = label+1
         for (int z = 0; z < seedMap.sizeZ(); z++) {

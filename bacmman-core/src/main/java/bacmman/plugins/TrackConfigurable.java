@@ -27,6 +27,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.image.TypeConverter;
+import net.imglib2.type.operators.Mul;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,7 @@ public interface TrackConfigurable<P extends Plugin> {
     ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode();
     // + static helpers methods
     static <P extends Plugin> TrackConfigurer<P> getTrackConfigurer(int structureIdx, List<SegmentedObject> parentTrack, P plugin) {
+        if (plugin instanceof MultiThreaded) ((MultiThreaded)plugin).setMultiThread(true);
         if (plugin instanceof TrackConfigurable) {
             TrackConfigurable<P> tp = (TrackConfigurable<P>)plugin;
             return tp.run(structureIdx, parentTrack);

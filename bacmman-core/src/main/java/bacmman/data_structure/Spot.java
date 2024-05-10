@@ -15,14 +15,14 @@ import java.util.function.Predicate;
 import java.util.stream.DoubleStream;
 
 public class Spot extends Region implements Analytical {
-    double radius, radiusSq, intensity, zAspectRatio;
-    public Spot(Point center, double radius, double zAspectRatio, double intensity, int label, boolean is2D, double scaleXY, double scaleZ) {
-        super(null, label, getBounds(center, radius, zAspectRatio, is2D), is2D, scaleXY, scaleZ);
+    double radius, radiusSq, intensity, aspectRatioZ;
+    public Spot(Point center, double radius, double aspectRatioZ, double intensity, int label, boolean is2D, double scaleXY, double scaleZ) {
+        super(null, label, getBounds(center, radius, aspectRatioZ, is2D), is2D, scaleXY, scaleZ);
         this.center = center;
         this.radius = radius;
         this.radiusSq = radius * radius;
         this.intensity = intensity;
-        this.zAspectRatio=zAspectRatio;
+        this.aspectRatioZ =aspectRatioZ;
     }
 
     public void setIntensity(double intensity) {
@@ -32,7 +32,7 @@ public class Spot extends Region implements Analytical {
     @Override
     public Spot setIs2D(boolean is2D) {
         if (is2D!=this.is2D) {
-            bounds=getBounds(center, radius, zAspectRatio, is2D);
+            bounds=getBounds(center, radius, aspectRatioZ, is2D);
             this.is2D = is2D;
             regionModified=true;
         }
@@ -52,7 +52,7 @@ public class Spot extends Region implements Analytical {
     public double getRadius() {
         return radius;
     }
-    public double getzAspectRatio() {return zAspectRatio;}
+    public double getAspectRatioZ() {return aspectRatioZ;}
     public double getIntensity() {
         return intensity;
     }
@@ -105,8 +105,8 @@ public class Spot extends Region implements Analytical {
     }
     // TODO: display ROI, invalidate methods that modify mask or voxels, generate spots from post-filter / spot detector ?
 
-    public static Spot fromRegion(Region r, double radius, double zAspectRatio, double intensity) {
-        Spot res =  new Spot(r.getCenter(), radius, zAspectRatio, intensity, r.getLabel(), r.is2D(), r.getScaleXY(), r.getScaleZ());
+    public static Spot fromRegion(Region r, double radius, double aspectRatioZ, double intensity) {
+        Spot res =  new Spot(r.getCenter(), radius, aspectRatioZ, intensity, r.getLabel(), r.is2D(), r.getScaleXY(), r.getScaleZ());
         res.setQuality(r.quality);
         res.setIsAbsoluteLandmark(r.absoluteLandmark);
         return res;
@@ -116,11 +116,11 @@ public class Spot extends Region implements Analytical {
         double dy = y - center.get(1);
         if (is2D()) return (dx*dx + dy*dy)/radiusSq;
         double dz = z - center.get(2);
-        if (zAspectRatio==0) {
+        if (aspectRatioZ ==0) {
             if (dz!=0) return Double.POSITIVE_INFINITY;
             else return (dx*dx + dy*dy)/radiusSq;
         }
-        return (dx*dx + dy*dy)/radiusSq + dz*dz/(zAspectRatio*zAspectRatio*radiusSq);
+        return (dx*dx + dy*dy)/radiusSq + dz*dz/(aspectRatioZ * aspectRatioZ *radiusSq);
     }
 
     @Override
@@ -162,7 +162,7 @@ public class Spot extends Region implements Analytical {
 
     @Override
     public Spot duplicate(boolean duplicateVoxels) {
-        Spot res = new Spot(center.duplicate(), radius, zAspectRatio, intensity, label, is2D, scaleXY, scaleZ);
+        Spot res = new Spot(center.duplicate(), radius, aspectRatioZ, intensity, label, is2D, scaleXY, scaleZ);
         res.setQuality(quality);
         res.setIsAbsoluteLandmark(absoluteLandmark);
         return res;
@@ -170,7 +170,7 @@ public class Spot extends Region implements Analytical {
 
     @Override
     public double size() {
-        return is2D() ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3) * zAspectRatio ;
+        return is2D() ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3) * aspectRatioZ;
     }
 
     @Override
@@ -251,14 +251,14 @@ public class Spot extends Region implements Analytical {
     protected void createBoundsFromVoxels() {
 
     }
-    private static BoundingBox getBounds(Point center, double radius, double zAspectRatio, boolean is2D) {
-        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.getWithDimCheck(2)-(is2D?0:radius*zAspectRatio)), (int)Math.ceil(center.getWithDimCheck(2)+(is2D?0:radius*zAspectRatio)));
+    private static BoundingBox getBounds(Point center, double radius, double aspectRatioZ, boolean is2D) {
+        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.getWithDimCheck(2)-(is2D?0:radius*aspectRatioZ)), (int)Math.ceil(center.getWithDimCheck(2)+(is2D?0:radius*aspectRatioZ)));
     }
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {
         if (bounds==null) {
             synchronized(this) { // "Double-Checked Locking"
                 if (bounds==null) {
-                    bounds = getBounds(center, radius, zAspectRatio, is2D);
+                    bounds = getBounds(center, radius, aspectRatioZ, is2D);
                 }
             }
         }

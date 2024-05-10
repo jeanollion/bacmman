@@ -109,7 +109,7 @@ public class WatershedTransform {
         return res;
     }
     public static RegionPopulation watershed(Image watershedMap, ImageMask mask, WatershedConfiguration config) {
-        ImageByte seeds = Filters.localExtrema(watershedMap, null, config.decreasingPropagation, mask, Filters.getNeighborhood(1.5, 1.5, watershedMap));
+        ImageByte seeds = Filters.localExtrema(watershedMap, null, config.decreasingPropagation, mask, Filters.getNeighborhood(1.5, 1.5, watershedMap), false);
         //new IJImageDisplayer().showImage(seeds.setName("seeds"));
         return watershed(watershedMap, mask, seeds, config);
     }

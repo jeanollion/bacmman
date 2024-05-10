@@ -1,5 +1,6 @@
 package bacmman.processing;
 
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.PrimitiveType;
@@ -11,6 +12,7 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellImgFactory;
+import net.imglib2.parallel.Parallelization;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
@@ -28,85 +30,96 @@ import java.util.stream.IntStream;
 
 public class ImageDerivatives {
     static Logger logger = LoggerFactory.getLogger(ImageDerivatives.class);
+
     public static <T extends NumericType<T>&NativeType<T>> T getOptimalType(Image image) {
         if (image instanceof PrimitiveType.ByteType || image instanceof PrimitiveType.ShortType || image instanceof PrimitiveType.IntType || image instanceof PrimitiveType.FloatType) return (T)new FloatType();
         else return (T)new DoubleType();
     }
-    public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image image, double scale) {
-        Img input = ImgLib2ImageWrapper.getImage(image);
-        RandomAccessible<S> inputRA = Views.extendBorder(input);
-        T type = getOptimalType(image);
-        Img<T> smooth = ImgLib2ImageWrapper.createImage(type, image.dimensions());
-        Gauss3.gauss(scale, inputRA, smooth);
-        return ImgLib2ImageWrapper.wrap(smooth);
+
+    public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image image, double scale, boolean parallel) {
+        return gaussianSmooth(image, scale, scale, parallel);
     }
 
-    public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image<? extends Image<?>> image, double[] scale) {
+    public static Image gaussianSmooth(Image<? extends Image<?>> image, double scaleXY, double scaleZ, boolean parallel) {
+        double[] scaleA = image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY};
+        return gaussianSmooth(image, scaleA, parallel);
+    }
+
+    public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image<? extends Image<?>> image, double[] scale, boolean parallel) {
         int numDims = image.dimensions().length;
         if (scale.length>numDims) throw new IllegalArgumentException("More scale provided than dimensions");
         if (scale.length<numDims) {
             if (numDims == 3) { // plane by plane
-                List<Image> smoothed = image.splitZPlanes().stream().map(i -> gaussianSmooth(i, scale)).collect(Collectors.toList());
+                List<Image> smoothed = image.splitZPlanes().stream().map(i -> gaussianSmooth(i, scale, parallel)).collect(Collectors.toList());
                 return Image.mergeZPlanes(smoothed);
             } else { // only 1 sigma for a 1D / 2D image
-                return gaussianSmooth(image, scale[0]);
+                return gaussianSmooth(image, scale[0], parallel);
             }
         }
         Img input = ImgLib2ImageWrapper.getImage(image);
         RandomAccessible<S> inputRA = Views.extendBorder(input);
         T type = getOptimalType(image);
         Img<T> smooth = ImgLib2ImageWrapper.createImage(type, image.dimensions());
-        Gauss3.gauss(scale, inputRA, smooth);
+        Runnable r = () -> Gauss3.gauss(scale, inputRA, smooth);
+        if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
+        else r.run();
         return ImgLib2ImageWrapper.wrap(smooth);
     }
 
-    public static ImageFloat getGradientMagnitude(Image image, double scale, int... axis) {
-        ImageFloat[] grad = getGradient(image,scale, axis);
+    public static ImageFloat getGradientMagnitude(Image image, double scale, boolean parallel, int... axis) {
+        return getGradientMagnitude(image, scale, scale, parallel, axis);
+    }
+
+    public static ImageFloat getGradientMagnitude(Image image, double scaleXY, double scaleZ, boolean parallel, int... axis) {
+        double[] scaleA = image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY};
+        return getGradientMagnitude(image, scaleA, parallel, axis);
+    }
+
+    public static ImageFloat getGradientMagnitude(Image image, double[] scale, boolean parallel, int... axis) {
+        ImageFloat[] grad = getGradient(image, scale, parallel, axis);
         ImageFloat res = new ImageFloat(image.getName() + ":gradientMagnitude", image);
-        final float[][] pixels = res.getPixelArray();
         if (grad.length == 3) {
-            final int sizeX = image.sizeX();
-            final float[][] grad0 = grad[0].getPixelArray();
-            final float[][] grad1 = grad[1].getPixelArray();
-            final float[][] grad2 = grad[2].getPixelArray();
-            int offY, off;
-            for (int z = 0; z< image.sizeZ(); ++z) {
-                for (int y = 0; y< image.sizeY(); ++y) {
-                    offY = y * sizeX;
-                    for (int x = 0; x< sizeX; ++x) {
-                        off = x + offY;
-                        pixels[z][off] = (float) Math.sqrt(grad0[z][off] * grad0[z][off] + grad1[z][off] * grad1[z][off] + grad2[z][off] * grad2[z][off]);
-                    }
-                }
-            }
+            BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> {
+                res.setPixel(x, y, z, (float) Math.sqrt(Math.pow(grad[0].getPixel(x, y, z), 2) + Math.pow(grad[1].getPixel(x, y, z), 2) + Math.pow(grad[2].getPixel(x, y, z), 2) ));
+            }, parallel);
+
         } else {
-            final int sizeX = image.sizeX();
-            final float[][] grad0 = grad[0].getPixelArray();
-            final float[][] grad1 = grad[1].getPixelArray();
-            int offY, off;
-            for (int y = 0; y< image.sizeY(); ++y) {
-                offY = y * sizeX;
-                for (int x = 0; x< sizeX; ++x) {
-                    off = x + offY;
-                    pixels[0][off] = (float) Math.sqrt(grad0[0][off] * grad0[0][off] + grad1[0][off] * grad1[0][off]);
-                }
-            }
+            BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> {
+                res.setPixel(x, y, z, (float) Math.sqrt(Math.pow(grad[0].getPixel(x, y, z), 2) + Math.pow(grad[1].getPixel(x, y, z), 2) ));
+            }, parallel);
         }
         return res;
     }
-    public static ImageFloat[] getGradient(Image image, double scale, int... axis) {
+
+    public static ImageFloat[] getGradient(Image image, double scale, boolean parallel, int... axis) {
+        double[] scaleA = scale>0 ? IntStream.range(0, image.dimensions().length).mapToDouble(i->scale).toArray(): new double[0];
+        return getGradient(image, scaleA, parallel, axis);
+    }
+
+    public static ImageFloat[] getGradient(Image image, double scaleXY, double scaleZ, boolean parallel, int... axis) {
+        double[] scaleA = scaleXY>0 || scaleZ>0 ? image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY} : new double[0];
+        return getGradient(image, scaleA, parallel, axis);
+    }
+
+    public static ImageFloat[] getGradient(Image image, double[] scale, boolean parallel, int... axis) {
         Img input = ImgLib2ImageWrapper.getImage(image);
         if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
         ImageFloat[] res = new ImageFloat[axis.length];
         RandomAccessible inputRA = Views.extendBorder(input);
-        if (scale>0) {
+        if (scale.length>0) {
             Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
-            Gauss3.gauss(scale, inputRA, smooth);
+            RandomAccessible inputG = inputRA;
+            Runnable r = () -> Gauss3.gauss(scale, inputG, smooth);
+            if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
+            else r.run();
             inputRA = Views.extendBorder(smooth);
         }
         for (int d : axis) {
             Img<FloatType> der = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
-            PartialDerivative.gradientCentralDifference(inputRA, der, d);
+            RandomAccessible inputD = inputRA;
+            Runnable r = () -> PartialDerivative.gradientCentralDifference(inputD, der, d);
+            if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
+            else r.run();
             res[d] = (ImageFloat)ImgLib2ImageWrapper.wrap(der);
         }
         return res;

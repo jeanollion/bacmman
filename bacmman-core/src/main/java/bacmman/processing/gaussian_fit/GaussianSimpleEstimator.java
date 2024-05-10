@@ -37,7 +37,7 @@ public class GaussianSimpleEstimator implements StartPointEstimator {
         this.radius= typicalRadius;
         this.nDims=nDims;
         this.span = new long[nDims];
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < nDims; i++) {
             span[i] = (long) Math.ceil(2 * radius) + 1;
         }
     }
@@ -65,7 +65,7 @@ public class GaussianSimpleEstimator implements StartPointEstimator {
         return start_param;
     }
     
-    private static double getValue(Localizable point, Observation data) {
+    static double getValue(Localizable point, Observation data) {
         double d = Double.MAX_VALUE;
         double res = Double.NaN;
         for (int i =0 ; i<data.I.length; ++i) {
@@ -78,7 +78,7 @@ public class GaussianSimpleEstimator implements StartPointEstimator {
         return res;
     }
     
-    private static double distSq(double[] p1, Localizable point) {
+    static double distSq(double[] p1, Localizable point) {
         double  d = 0;
         for (int i = 0; i<p1.length; ++i) d+=Math.pow(p1[i]-point.getDoublePosition(i), 2);
         return d;

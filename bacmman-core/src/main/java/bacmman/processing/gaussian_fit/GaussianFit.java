@@ -194,18 +194,13 @@ public class GaussianFit {
         logger.debug("run peak cluster: {}", peaks);
         if (config.fitEllipse && img.numDimensions()!=2) throw new IllegalArgumentException("fit ellipse is only supported in 2D");
         int fitRad =  (config.fittingBoxRadius<=config.typicalRadius) ? (int)Math.ceil(2 * config.typicalRadius) + 1 : config.fittingBoxRadius;
-        StartPointEstimator peakEstimator = config.fitEllipse ? new EllipticGaussian2DSimpleEstimator(config.typicalRadius, fitRad) : new GaussianSimpleEstimator(config.typicalRadius, nDims, fitRad);
+        StartPointEstimator peakEstimator = config.getStartPointEstimator(nDims);
         if (preInitParameters!=null) {
-            int[] paramIndices = config.fitEllipse ? new int[]{5} : new int[]{nDims}; // only intensity parameter is re-computed
-            if (config.fitEllipse) preInitParameters = trimParameterArray(preInitParameters, 6);
-            else preInitParameters = trimParameterArray(preInitParameters, nDims+2);
+            int[] paramIndices = new int[]{config.getIntensityParameterIdx(nDims)}; // only intensity parameter is re-computed
+            preInitParameters = trimParameterArray(preInitParameters, config.getParameterCount(nDims));
             peakEstimator = new PreInitializedEstimator(config.typicalRadius, nDims, preInitParameters, peakEstimator, paramIndices);
         }
-        FitFunctionCustom peakFunction = config.fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
-        if (config.maxCenterDisplacement>0) {
-            peakFunction.setPositionLimit(IntStream.range(0, nDims).mapToDouble(i -> config.maxCenterDisplacement).toArray());
-        }
-        peakFunction.setSizeLimit(fitRad);
+        FitFunctionCustom peakFunction = config.getFitFunction(nDims);
         MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks, peakEstimator, config.backgroundPlane ? new PlaneEstimator(fitRad, img.numDimensions()) : new ConstantEstimator(fitRad, img.numDimensions()));
         MultipleIdenticalFitFunction fitFunction = MultipleIdenticalFitFunction.get(img.numDimensions(), closePeaks.size(), peakFunction, config.backgroundPlane ? new Plane() : new Constant(), config.fitBackground, false);
         int[] untrainableIndices=fitFunction.getUntrainableIndices(nDims, config.fitCenter, config.fitAxis);
@@ -241,21 +236,15 @@ public class GaussianFit {
     }
     private static <L extends Localizable> Map<L, double[]> runPeaks(Img img, Collection<L> peaks, GaussianFitConfig config, Map<L, double[]> preInitParameters, boolean parallel) {
         if (config.fitEllipse && img.numDimensions()!=2) throw new IllegalArgumentException("fit ellipse is only supported in 2D");
-        int fitRad =  (config.fittingBoxRadius<=config.typicalRadius) ? (int)Math.ceil(2 * config.typicalRadius) + 1 : config.fittingBoxRadius;
         int nDims = img.numDimensions();
-        StartPointEstimator peakEstimator = config.fitEllipse ? new EllipticGaussian2DSimpleEstimator(config.typicalRadius, fitRad) : new GaussianSimpleEstimator(config.typicalRadius, nDims, fitRad);
+        StartPointEstimator peakEstimator = config.getStartPointEstimator(nDims);
         if (preInitParameters!=null) {
-            int[] paramIndices = config.fitEllipse ? new int[]{5} : new int[]{nDims}; // only intensity parameter is re-computed
-            if (config.fitEllipse) preInitParameters = trimParameterArray(preInitParameters, 6);
-            else preInitParameters = trimParameterArray(preInitParameters, nDims+2);
+            int[] paramIndices = new int[]{config.getIntensityParameterIdx(nDims)}; // only intensity parameter is re-computed
+            preInitParameters = trimParameterArray(preInitParameters, config.getParameterCount(nDims));
             peakEstimator = new PreInitializedEstimator(config.typicalRadius, nDims, preInitParameters, peakEstimator, paramIndices);
         }
         EstimatorPlusBackground estimator = new EstimatorPlusBackground(peakEstimator, config.backgroundPlane ? new PlaneEstimator((int)Math.ceil(2*config.typicalRadius+1), nDims) : new ConstantEstimator((int)Math.ceil(2*config.typicalRadius+1), nDims));
-        FitFunctionCustom peakFunction = config.fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
-        if (config.maxCenterDisplacement>0) {
-            peakFunction.setPositionLimit(IntStream.range(0, nDims).mapToDouble(i -> config.maxCenterDisplacement).toArray());
-        }
-        peakFunction.setSizeLimit(fitRad);
+        FitFunctionCustom peakFunction = config.getFitFunction(nDims);
         MultipleIdenticalFitFunction fitFunction = MultipleIdenticalFitFunction.get( nDims, 1, peakFunction, config.backgroundPlane ? new Plane() : new Constant(), config.fitBackground, parallel);
         int[] untrainableIndices=fitFunction.getUntrainableIndices(nDims, config.fitCenter, config.fitAxis);
         FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, config.maxIter, config.lambda, config.termEpsilon);
@@ -304,18 +293,18 @@ public class GaussianFit {
 
     public static class FitParameter {
         final double[] parameters;
-        final boolean ellipse, plane;
+        final boolean ellipse, backgroundPlane;
         final int nDims;
-        public FitParameter(double[] parameters, int nDims, boolean ellipse, boolean plane) {
+        public FitParameter(double[] parameters, int nDims, boolean ellipse, boolean backgroundPlane) {
             this.parameters=parameters;
             this.ellipse = ellipse;
-            this.plane = plane;
+            this.backgroundPlane = backgroundPlane;
             this.nDims = nDims;
         }
         public double[] getEllipseParameters() {
             if (ellipse) return parameters;
             else {
-                double[] params = new double[5 + (plane ? 3 : 1)];
+                double[] params = new double[5 + (backgroundPlane ? 3 : 1)];
                 params[0] = parameters[0];
                 params[1] = parameters[1];
                 double ab = 1/Math.pow(getRadius(), 2);
@@ -323,7 +312,8 @@ public class GaussianFit {
                 params[3] = ab;
                 params[4] = 0;
                 params[5] = parameters[nDims];
-                for (int i = 0; i<(plane?3:1); ++i) params[5+i] = parameters[nDims+2+i]; // background
+                int nparams = is3DAniso() ? 6 : nDims + 2;
+                for (int i = 0; i<(backgroundPlane ?3:1); ++i) params[5+i] = parameters[nparams+i]; // background
                 return params;
             }
         }
@@ -347,6 +337,16 @@ public class GaussianFit {
                 return new Point(coords);
             }
         }
+        public Point getCenter() {
+            if (ellipse) {
+                return new Point((float)parameters[0], (float)parameters[1], 0);
+            } else {
+                float[] coords=  new float[3];
+                for (int i = 0; i<nDims; ++i) coords[i] = (float)parameters[i];
+                if (nDims==2) coords[2] = 0;
+                return new Point(coords);
+            }
+        }
         public double getConstant() {
             return parameters[parameters.length-1];
         }
@@ -356,6 +356,13 @@ public class GaussianFit {
             } else {
                 return 1 / Math.sqrt(parameters[nDims + 1]);
             }
+        }
+        public double getRadiusZ() {
+            if (ellipse) {
+                return 1;
+            } else if (is3DAniso()) {
+                return 1 / Math.sqrt(parameters[nDims + 2]);
+            } else return getRadius();
         }
         public double getAxis(boolean major) {
             if (ellipse) {
@@ -383,7 +390,9 @@ public class GaussianFit {
                 return Math.PI / Math.sqrt(a * b  - c * c ); // == PI * M/2 * m/2
             } else {
                 if (nDims==2) return Math.PI * Math.pow(getRadius(), 2);
-                else return Math.pow(Math.PI, 3./2) * Math.pow(getRadius(), 3);
+                else if (is3DAniso()) return Math.pow(Math.PI, 3./2) * Math.pow(getRadius(), 2) * getRadiusZ();
+                else if (nDims == 3) return Math.pow(Math.PI, 3./2) * Math.pow(getRadius(), 3);
+                else throw new IllegalArgumentException("Unsupported dimension number");
             }
         }
         public double getTheta() {
@@ -400,23 +409,27 @@ public class GaussianFit {
                 return theta;
             } else return 0;
         }
+        protected boolean is3DAniso() {
+            return nDims == 3 && parameters.length == 6 + (backgroundPlane ? 3 : 1);
+        }
         public Spot getSpot(ImageProperties props) {
-            return new Spot(getCenter(props.zMin(), props.zMax()), getRadius(), 1, getPeakIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
+            return new Spot(getCenter(props.zMin(), props.zMax()), getRadius(), getRadiusZ()/getRadius(), getPeakIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
         }
         public Ellipse2D getEllipse2D(ImageProperties props) {
             return new Ellipse2D(getCenter(props.zMin(), props.zMax()), getAxis(true), getAxis(false), getTheta(), getPeakIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
         }
         public String toString() {
-            if (ellipse) return "Ellipse: C="+getCenter(0, 0)+" M="+getAxis(true)+" m="+getAxis(false)+" Theta="+getTheta() + " I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
-            else return "Spot: C="+getCenter(0, 0) + " R="+getRadius()+" I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
+            if (ellipse) return "Ellipse: C="+getCenter()+" M="+getAxis(true)+" m="+getAxis(false)+" Theta="+getTheta() + " I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
+            else if (is3DAniso()) return "Spot: C="+getCenter() + " R="+getRadius() + " Rz="+getRadiusZ()+" I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
+            else return "Spot: C="+getCenter() + " R="+getRadius()+" I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
         }
     }
 
     public static class GaussianFitConfig {
-        public double typicalRadius;
+        public double typicalRadius, typicalRadiusZ;
         public boolean fitEllipse, fitBackground;
         public double maxCenterDisplacement = 0;
-        public int fittingBoxRadius;
+        public int fittingBoxRadius, fittingBoxRadiusZ;
         public double coFitDistance = 0;
         public boolean backgroundPlane=false;
         public boolean  fitCenter=true;
@@ -442,14 +455,26 @@ public class GaussianFit {
          */
         public GaussianFitConfig(double typicalRadius, boolean fitEllipse, boolean fitBackground) {
             this.typicalRadius = typicalRadius;
+            this.typicalRadiusZ = Double.NaN;
             this.fittingBoxRadius = (int)Math.ceil(2 * typicalRadius) + 1;
             this.coFitDistance = fittingBoxRadius;
             this.fitEllipse = fitEllipse;
             this.fitBackground = fitBackground;
         }
 
+        public GaussianFitConfig(double typicalRadius, double typicalRadiusZ, boolean fitBackground) {
+            this.typicalRadius = typicalRadius;
+            this.typicalRadiusZ = typicalRadiusZ;
+            this.fittingBoxRadius = (int)Math.ceil(2 * typicalRadius) + 1;
+            this.fittingBoxRadiusZ = (int)Math.ceil(2 * typicalRadiusZ) + 1;
+            this.coFitDistance = fittingBoxRadius;
+            this.fitEllipse = false;
+            this.fitBackground = fitBackground;
+        }
+
         public GaussianFitConfig duplicate() {
-            return new GaussianFitConfig(typicalRadius, fitEllipse, fitBackground)
+            GaussianFitConfig conf = Double.isNaN(typicalRadiusZ) ? new GaussianFitConfig(typicalRadius, fitEllipse, fitBackground) : new GaussianFitConfig(typicalRadius, typicalRadiusZ, fitBackground);
+            return conf
                     .setMaxCenterDisplacement(maxCenterDisplacement)
                     .setFittingBoxRadius(fittingBoxRadius)
                     .setCoFitDistance(coFitDistance)
@@ -523,6 +548,47 @@ public class GaussianFit {
         public GaussianFitConfig setTermEpsilon(double termEpsilon) {
             this.termEpsilon = termEpsilon;
             return this;
+        }
+
+        public int getIntensityParameterIdx(int nDims) {
+            if (fitEllipse) return 5;
+            else return nDims;
+        }
+
+        public int getParameterCount(int nDims) {
+            if (fitEllipse) return 6;
+            else if (Double.isNaN(typicalRadiusZ) || nDims<3) return nDims + 2;
+            else return 6;
+        }
+
+        public StartPointEstimator getStartPointEstimator(int nDims) {
+            int fitRad =  (fittingBoxRadius<=typicalRadius) ? (int)Math.ceil(2 * typicalRadius) + 1 : fittingBoxRadius;
+            if (fitEllipse) {
+                if (nDims != 2) throw new IllegalArgumentException("Ellipse only implemented in 2D");
+                return new EllipticGaussian2DSimpleEstimator(typicalRadius, fitRad);
+            } else if (Double.isNaN(typicalRadiusZ) || nDims<3) {
+                return new GaussianSimpleEstimator(typicalRadius, nDims, fitRad);
+            } else {
+                if (nDims != 3) throw new IllegalArgumentException("3D required");
+                return new GaussianSimpleEstimatorZAniso(typicalRadius, typicalRadiusZ, fitRad);
+            }
+        }
+
+        public FitFunctionCustom getFitFunction(int nDims) {
+            FitFunctionCustom fun;
+            if (fitEllipse) {
+                fun = new EllipticGaussian2D(true);
+            } else if (Double.isNaN(typicalRadiusZ) || nDims<3) {
+                fun = new GaussianCustomTrain(true);
+            } else {
+                fun = new GaussianCustomTrainZAniso(true, typicalRadiusZ / typicalRadius);
+            }
+            double[] centerRange = IntStream.range(0, nDims).mapToDouble(i -> maxCenterDisplacement).toArray();
+            if (!Double.isNaN(typicalRadiusZ) && nDims==3) centerRange[2] = centerRange[2] * typicalRadiusZ / typicalRadius;
+            fun.setPositionLimit(centerRange);
+            int fitRad =  (fittingBoxRadius<=typicalRadius) ? (int)Math.ceil(2 * typicalRadius) + 1 : fittingBoxRadius;
+            fun.setSizeLimit(fitRad);
+            return fun;
         }
     }
 }

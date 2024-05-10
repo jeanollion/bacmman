@@ -922,7 +922,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             if (region instanceof Spot) {
                 setAttribute("Radius", ((Spot) region).getRadius());
                 setAttribute("Intensity", ((Spot) region).getIntensity());
-                setAttribute("AspectRatio", ((Spot) region).getzAspectRatio());
+                setAttribute("AspectRatioZ", ((Spot) region).getAspectRatioZ());
             } else if (region instanceof Ellipse2D) {
                 setAttribute("MajorAxis", ((Ellipse2D) region).getMajor());
                 setAttribute("MinorAxis", ((Ellipse2D) region).getMinor());
