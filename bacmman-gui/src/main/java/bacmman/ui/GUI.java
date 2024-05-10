@@ -3335,9 +3335,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 String nextPosition = db.getExperiment().getPosition(nIdx).getName();
                 boolean pp = ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType);
                 List<String> flushedPositions = iwm.displayInputImage(db.getExperiment(), nextPosition, pp);
-                for (String p : flushedPositions) {
-                    db.getExperiment().flushImages(true, true, p);
-                }
+                logger.debug("opened position: {} positions to flush after open image: {}", nextPosition, flushedPositions);
+                db.getExperiment().flushImages(true, true, flushedPositions, nextPosition);
             }
         } else  { // interactive: if IOI found
             final InteractiveImage i = iwm.getInteractiveImage(activeImage);
@@ -3385,9 +3384,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 int c = iwm.getDisplayer().getChannel(activeImage);
                 if (c>=0) nextIm.setPosition(0, c); // virtual stack will open at this channel
                 List<String> flushedPositions = iwm.addInteractiveImage(nextIm, nextII, true);
-                for (String p : flushedPositions) {
-                    db.getExperiment().flushImages(true, true, p);
-                }
+                db.getExperiment().flushImages(true, true, flushedPositions, nextII.getParent().getPositionName());
             } else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
@@ -4082,7 +4079,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private static void clearMemory(MasterDAO db, String... excludedPositions) {
         db.getSelectionDAO().clearCache();
         ImageWindowManagerFactory.getImageManager().flush();
-        db.getExperiment().flushImages(true, true, excludedPositions);
+        db.getExperiment().flushImages(true, true, db.getExperiment().getAllPositionsExcept(excludedPositions), excludedPositions);
         db.getExperiment().getDLengineProvider().closeAllEngines();
         Core.clearDiskBackedImageManagers();
         List<String> positions = new ArrayList<>(Arrays.asList(db.getExperiment().getPositionsAsString()));
@@ -4730,9 +4727,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action openRaw = new AbstractAction("Open Input Images") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    db.getExperiment().flushImages(true, true, position);
                     try {
-                        ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, false);
+                        List<String>  toFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, false);
+                        db.getExperiment().flushImages(true, true, toFlush, position);
                     } catch(Throwable t) {
 
                         setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command. If image are on Omero server: connect to server");
@@ -4745,9 +4742,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action openPP = new AbstractAction("Open Pre-Processed Images") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    db.getExperiment().flushImages(true, true, position);
                     try {
-                        ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, true);
+                        List<String>  toFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, true);
+                        db.getExperiment().flushImages(true, true, toFlush, position);
                     } catch(Throwable t) {
                         setMessage("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
                         logger.debug("error while trying to open pre-processed images", t);

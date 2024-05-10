@@ -31,12 +31,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 
 import bacmman.plugins.ParameterChangeCallback;
@@ -49,8 +45,7 @@ import bacmman.plugins.Measurement;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import com.google.common.collect.Sets;
-import java.util.HashSet;
-import java.util.Set;
+
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -285,11 +280,16 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         if (this.bestFocusPlaneChannel.getSelectedIndex()<0 || !autofocus.isOnePluginSet()) return null;
         return new Pair<>(this.bestFocusPlaneChannel.getSelectedIndex(), this.autofocus.instantiatePlugin());
     }
-    
-    public void flushImages(boolean raw, boolean preProcessed, String... excludePositions) {
+
+    public List<String> getAllPositionsExcept(String... excludePositions) {
         List<String> pos = new ArrayList<>(Arrays.asList(getPositionsAsString()));
         pos.removeAll(Arrays.asList(excludePositions));
-        for (String p : pos)  getPosition(p).flushImages(raw, preProcessed);
+        return pos;
+    }
+
+    public void flushImages(boolean raw, boolean preProcessed, Collection<String> positionsToFlush, String... avoidFlush) {
+        Position[] avoidFlushP = avoidFlush == null ? new Position[0] : Stream.of(avoidFlush).map(this::getPosition).toArray(Position[]::new);
+        for (String p : positionsToFlush)  getPosition(p).flushImages(raw, preProcessed, avoidFlushP);
     }
    
     public SimpleListParameter<ChannelImage> getChannelImages() {

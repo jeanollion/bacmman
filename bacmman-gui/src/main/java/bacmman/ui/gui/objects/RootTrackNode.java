@@ -286,9 +286,10 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             openRawAllFrames.setAction(new AbstractAction(openRawAllFrames.getActionCommand()) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
-                    generator.db.getExperiment().flushImages(true, true, position);
+
                     try {
-                        ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, false);
+                        List<String> toFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, false);
+                        generator.db.getExperiment().flushImages(true, true, toFlush, position);
                     } catch(Throwable t) {
                         generator.pcb.log("Could not open input images for position: "+position+". If their location moved, used the re-link command");
                         logger.debug("Error while opening file position", t);
@@ -304,9 +305,9 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             openPreprocessedAllFrames.setAction(new AbstractAction(openPreprocessedAllFrames.getActionCommand()) {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
-                        generator.db.getExperiment().flushImages(true, true, position);
                         try {
-                            ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, true);
+                            List<String> toFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, true);
+                            generator.db.getExperiment().flushImages(true, true, toFlush, position);
                         } catch(Throwable t) {
                             generator.pcb.log("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
                             logger.debug("error while trying to open pre-processed images: ", t);

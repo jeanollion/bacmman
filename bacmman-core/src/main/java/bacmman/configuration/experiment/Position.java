@@ -40,6 +40,8 @@ import org.json.simple.JSONObject;
 
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  *
@@ -216,12 +218,15 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         return inputImages;
     }
     
-    public void flushImages(boolean raw, boolean preProcessed) {
+    public void flushImages(boolean raw, boolean preProcessed, Position... avoidFlush) {
         if (preProcessed && inputImages !=null) {
             inputImages.flush();
             inputImages = null;
         }
-        if (raw && sourceImages!=null) sourceImages.flush();
+        if (raw && sourceImages!=null) {
+            if (avoidFlush==null || avoidFlush.length==0 || Stream.of(avoidFlush).allMatch(p -> sourceImages!=p.sourceImages)) sourceImages.flush();
+            else logger.debug("avoided clear shared sourceImage: {} with {}", getName(), Stream.of(avoidFlush).map(Position::getName).collect(Collectors.toList()));
+        }
         if (imageDAO!=null) {
             imageDAO.flush();
             imageDAO=null;

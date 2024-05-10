@@ -3,14 +3,13 @@ package bacmman.configuration.parameters.ui;
 import bacmman.configuration.experiment.Position;
 import bacmman.core.DefaultWorker;
 import bacmman.core.ProgressCallback;
-import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
-import java.io.IOException;
+import java.util.List;
 
 public class PositionUI implements ParameterUI {
     public static final Logger logger = LoggerFactory.getLogger(PositionUI.class);
@@ -27,9 +26,9 @@ public class PositionUI implements ParameterUI {
         openRawAllFrames.setAction(new AbstractAction(openRawAllFrames.getActionCommand()) {
             @Override
             public void actionPerformed(ActionEvent ae) {
-               p.getExperiment().flushImages(true, true, p.getName());
                try {
-                   ImageWindowManagerFactory.getImageManager().displayInputImage(p.getExperiment(), p.getName(), false);
+                   List<String> posToFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(p.getExperiment(), p.getName(), false);
+                   p.getExperiment().flushImages(true, true, posToFlush, p.getName());
                } catch(Throwable t) {
                    if (pcb!=null) pcb.log("Could no open input images for position: "+p.getName()+". If their location moved, used the re-link command");
                    logger.debug("Error while opening raw position", t);
@@ -45,9 +44,9 @@ public class PositionUI implements ParameterUI {
         openPreprocessedAllFrames.setAction(new AbstractAction(openPreprocessedAllFrames.getActionCommand()) {
             @Override
             public void actionPerformed(ActionEvent ae) {
-                p.getExperiment().flushImages(true, true, p.getName());
                 try {
-                    ImageWindowManagerFactory.getImageManager().displayInputImage(p.getExperiment(), p.getName(), true);
+                    List<String> posToFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(p.getExperiment(), p.getName(), true);
+                    p.getExperiment().flushImages(true, true, posToFlush, p.getName());
                 } catch(Throwable t) {
                     pcb.log("Could not open pre-processed images for position: "+p.getName()+". Pre-processing already performed?");
                     logger.debug("Error while opening pp position", t);
