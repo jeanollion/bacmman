@@ -112,7 +112,13 @@ public class PythonGateway {
             // get relative path:
             String workingDir = GUI.getInstance().getWorkingDirectory();
             String dbPathCorr = dbPath == null ? workingDir : dbPath;
-            String dbRelPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbPathCorr, workingDir);
+            String dbRelPath;
+            try {
+                dbRelPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbPathCorr, workingDir);
+            } catch (RuntimeException e) {
+                logger.error("Error saving selection", e);
+                return;
+            }
             boolean dbOpen;
             if (GUI.getDBConnection() != null) {
                 String curDBRelPath = DatasetTree.getRelPathFromNameAndDir(GUI.getDBConnection().getDBName(), GUI.getDBConnection().getDatasetDir().toString(), workingDir);
@@ -121,16 +127,22 @@ public class PythonGateway {
             if (GUI.getDBConnection() == null) {
                 logger.info("Opening dataset {}....", dbRelPath);
                 GUI.getInstance().openDataset(dbRelPath, null, false);
-                dbOpen = true;
-                try {
-                    logger.info("Selection tab....");
-                    GUI.getInstance().setSelectedTab(3);
-                    logger.info("Tab selected");
-                } catch (Exception e) {
+                if (GUI.getDBConnection() != null) {
+                    dbOpen = true;
+                    try {
+                        logger.info("Selection tab....");
+                        GUI.getInstance().setSelectedTab(3);
+                        logger.info("Tab selected");
+                    } catch (Exception e) {
 
+                    }
                 }
             }
             MasterDAO db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(dbName, dbPathCorr);
+            if (db == null) {
+                logger.error("Could not find dataset: {} in {}", dbName, dbPathCorr);
+                return;
+            }
             db.setConfigurationReadOnly(false);
             if (db.isConfigurationReadOnly()) {
                 String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
