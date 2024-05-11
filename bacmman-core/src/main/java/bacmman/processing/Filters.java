@@ -170,7 +170,7 @@ public class Filters {
     public static <T extends Image<T>, F extends Filter> T applyFilter(Image image, T output, F filter, Neighborhood neighborhood) {
         return applyFilter(image, output, filter, neighborhood, false);
     }
-    public static <T extends Image<T>, F extends Filter> T applyFilter(Image image, T output, F filter, Neighborhood neighborhood, boolean parallele) {
+    public static <T extends Image<T>, F extends Filter> T applyFilter(Image image, T output, F filter, Neighborhood neighborhood, boolean parallel) {
         if (filter==null) throw new IllegalArgumentException("Apply Filter Error: Filter cannot be null");
         //if (neighborhood==null) throw new IllegalArgumentException("Apply Filter ("+filter.getClass().getSimpleName()+") Error: Neighborhood cannot be null");
         T res;
@@ -180,14 +180,14 @@ public class Filters {
         else res = (T)output.setName(name);
         double round=res instanceof ImageFloat ? 0: 0.5d;
         
-        if (parallele && Runtime.getRuntime().availableProcessors()>1) {
+        if (parallel && Runtime.getRuntime().availableProcessors()>1) {
             HashMapGetCreate<Thread, Filter> nMap = new HashMapGetCreate<>(t -> {
                 Filter f = filter.duplicate();
                 f.setUp(image, neighborhood.duplicate());
                 return f;
             });
             BoundingBox.LoopFunction loopFunc = (x, y, z)->res.setPixel(x, y, z, nMap.getAndCreateIfNecessarySyncOnKey(Thread.currentThread()).applyFilter(x, y, z)+round);
-            BoundingBox.loop(res, loopFunc, parallele);
+            BoundingBox.loop(res.getBoundingBox().resetOffset(), loopFunc, parallel);
         } else  {
             filter.setUp(image, neighborhood);
             BoundingBox.LoopFunction loopFunc = (x, y, z)->res.setPixel(x, y, z, filter.applyFilter(x, y, z)+round);

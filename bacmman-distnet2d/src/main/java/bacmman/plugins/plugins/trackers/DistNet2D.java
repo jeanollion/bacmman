@@ -248,7 +248,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         // 1) Perform segmentation on EDM : watershed seeded with EDM local maxima
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
-        ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, gcdmI), true);
+        ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, gcdmI), false);
         //if (stores != null) stores.get(p).addIntermediateImage("EDM Seeds", localExtremaEDM);
         RegionPopulation pop = WatershedTransform.watershed(edmI, insideCellsM, localExtremaEDM, config);
         if (stores!=null) {
@@ -364,6 +364,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         });
         return pop;
     }
+
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores != null);
         if (stores != null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("edm", prediction.edm.get(o)));
