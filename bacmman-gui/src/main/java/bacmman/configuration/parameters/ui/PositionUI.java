@@ -30,7 +30,7 @@ public class PositionUI implements ParameterUI {
                    List<String> posToFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(p.getExperiment(), p.getName(), false);
                    p.getExperiment().flushImages(true, true, posToFlush, p.getName());
                } catch(Throwable t) {
-                   if (pcb!=null) pcb.log("Could no open input images for position: "+p.getName()+". If their location moved, used the re-link command");
+                   if (pcb!=null) pcb.log("Could no open input images for position: "+p.getName()+". If their location has moved, use the re-link command");
                    logger.debug("Error while opening raw position", t);
                }
             }

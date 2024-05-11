@@ -100,12 +100,14 @@ public class IJVirtualStack extends VirtualStack {
         if (targetZ>1 || targetC>1) {
             if (!imp.isHyperStack()) {  // TODO bug when not displayed as hyperstack, slider is not updated
                 //imp.setSlice(targetZ > 1 ? targetZ : targetC);
+                logger.debug("could not set target Z {} or target C: {}", targetZ-1, targetC-1);
             } else {
                 logger.debug("virtual stack creation: set Z: {} set C: {}", targetZ-1, targetC-1);
                 imp.setPosition(targetC, targetZ, 1);
             }
         } else getProcessor(imp.getCurrentSlice());
         setCalibration();
+        logger.debug("ip generated for virtual stack: {}", source.getName());
     }
 
     public void generateImage5D() {

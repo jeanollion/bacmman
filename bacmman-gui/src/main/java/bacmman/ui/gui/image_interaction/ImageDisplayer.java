@@ -76,6 +76,7 @@ public interface ImageDisplayer<T> {
         }
         return resTC;
     }
+
     static double[] getDisplayRange(Image im, ImageMask mask) {
         Histogram hist = HistogramFactory.getHistogram(()->im.stream(mask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
         int minIdx = hist.getMinNonNullIdx();

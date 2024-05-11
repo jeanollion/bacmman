@@ -4729,10 +4729,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 public void actionPerformed(ActionEvent e) {
                     try {
                         List<String>  toFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(db.getExperiment(), position, false);
+                        logger.debug("image of position: {} displayed; positions to flush: {}", position, toFlush);
                         db.getExperiment().flushImages(true, true, toFlush, position);
                     } catch(Throwable t) {
-
-                        setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command. If image are on Omero server: connect to server");
+                        setMessage("Could not open input images for position: "+position+". If their location has moved, use the re-link command. If image are on Omero server: connect to server");
                         logger.debug("Error while opening file position", t);
                     }
                 }

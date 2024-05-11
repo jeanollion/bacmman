@@ -63,7 +63,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             displayedImages.remove(image);
         }
         ImagePlus ip = getImage(image);
-        if (!(image instanceof LazyImage5D && displayRange.length==0)) {
+        if (!(image instanceof LazyImage5D)) {
+            logger.debug("getting display range...");
             if (displayRange.length == 0) displayRange = ImageDisplayer.getDisplayRange(image, null);
             else if (displayRange.length == 1) {
                 double[] dispRange = ImageDisplayer.getDisplayRange(image, null);
@@ -77,10 +78,13 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             }
             ip.setDisplayRange(displayRange[0], displayRange[1]);
         }
+
         //logger.debug("show image:w={}, h={}, disp: {}", ip.getWidth(), ip.getHeight(), displayRange);
         if (!ip.isVisible()) {
             ip.show();
+            logger.debug("show ok");
             InteractiveImage im = ImageWindowManagerFactory.getImageManager().getInteractiveImage(image);
+            logger.debug("interactive image ok");
             if (im != null) {
                 TimeLapseInteractiveImageFactory.DIRECTION dir = getDirection(im);
                 ToIntBiFunction<Integer, Boolean> nextPos = getNextPosFunction(im);

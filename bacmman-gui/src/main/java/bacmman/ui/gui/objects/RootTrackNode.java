@@ -291,7 +291,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         List<String> toFlush = ImageWindowManagerFactory.getImageManager().displayInputImage(generator.getExperiment(), position, false);
                         generator.db.getExperiment().flushImages(true, true, toFlush, position);
                     } catch(Throwable t) {
-                        generator.pcb.log("Could not open input images for position: "+position+". If their location moved, used the re-link command");
+                        generator.pcb.log("Could not open input images for position: "+position+". If their location has moved, use the re-link command");
                         logger.debug("Error while opening file position", t);
                     }
                 }
