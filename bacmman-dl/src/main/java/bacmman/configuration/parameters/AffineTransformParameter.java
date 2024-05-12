@@ -5,9 +5,16 @@ import org.json.simple.JSONObject;
 public class AffineTransformParameter extends ConditionalParameterAbstract<Boolean, AffineTransformParameter> implements PythonConfiguration {
 
     BoundedNumberParameter theta = new BoundedNumberParameter("Rotation Range", 0, 0, 0, 90).setHint("Degree range for random rotations");
-    BoundedNumberParameter tx = new BoundedNumberParameter("Width Shift Range", 0, 0, 0, null).setHint(" Width shift range is (-range, +range) ");
-    BoundedNumberParameter ty = new BoundedNumberParameter("Height Shift Range", 0, 0, 0, null).setHint(" Height shift range is (-range, +range) ");
-    BoundedNumberParameter shear = new BoundedNumberParameter("Shear Range", 5, 0, 0, 30).setHint("Shear angle in degrees.");
+    BoundedNumberParameter tx_ = new BoundedNumberParameter("Width Shift Range", 0, 0, 0, null).setHint(" Width shift range is (-range, +range) ");
+    IntervalParameter tx = new IntervalParameter("Width Shift Range", 5, null, null, 0, 0).setLegacyParameter((l, p) -> {
+        double v = ((NumberParameter)l[0]).getDoubleValue();
+        p.setValues(-v, v);
+    }, tx_);
+    BoundedNumberParameter ty_ = new BoundedNumberParameter("Height Shift Range", 0, 0, 0, null).setHint(" Height shift range is (-range, +range) ");
+    IntervalParameter ty = new IntervalParameter("Height Shift Range", 5, null, null, 0, 0).setLegacyParameter((l, p) -> {
+        double v = ((NumberParameter)l[0]).getDoubleValue();
+        p.setValues(-v, v);
+    }, ty_);BoundedNumberParameter shear = new BoundedNumberParameter("Shear Range", 5, 0, 0, 30).setHint("Shear angle in degrees.");
     IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 2, 0.1, 10, 1, 1);
     BooleanParameter flipVertical = new BooleanParameter("Flip Vertical", true).setHint("Randomly flip inputs vertically");
     BooleanParameter flipHorizontal = new BooleanParameter("Flip Horizontal", true).setHint("Randomly flip inputs horizontally");

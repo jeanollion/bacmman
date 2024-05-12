@@ -89,6 +89,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         return this;
     }
     public boolean isRelativePath() {return this.relativePath;}
+
     public FileChooser setRefPath(Path refPath) {
         String[] sel = getSelectedFilePath();
         this.refPath = refPath;
@@ -268,6 +269,11 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         else if (getRefPathFunction != null) return getRefPathFunction.get();
         else return null;
     }
+    public FileChooser setRefPathFunction(Supplier<Path> refPathFun) {
+        this.getRefPathFunction = refPathFun;
+        return this;
+    }
+
     public FileChooser setGetRefPathFunction(Function<Parameter, Path> getRefPathFunction) {
         this.getRefPathFunction = () -> getRefPathFunction.apply(this);
         return this;

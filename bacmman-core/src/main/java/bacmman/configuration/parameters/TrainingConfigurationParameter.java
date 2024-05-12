@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static bacmman.configuration.parameters.PythonConfiguration.toSnakeCase;
@@ -22,7 +23,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     ArrayNumberParameter testInputShape;
     GroupParameter testDataAug;
     Parameter[] otherParameters;
-    Path refPath;
+    Supplier<Path> refPathFun;
     public TrainingConfigurationParameter(String name, boolean multipleInputChannels, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         super(name);
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);
@@ -30,8 +31,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             TrainingParameter tp = (TrainingParameter) lmn.getParent();
             String file = tp.getLoadModelWeightRelativePath();
             if (file==null) return true;
-            else if (refPath==null) return true;
-            return Paths.get(refPath.toString(), file).toFile().exists();
+            else if (refPathFun==null) return true;
+            Path p = refPathFun.get();
+            if (p==null) return true;
+            return p.resolve(file).toFile().exists();
         });
         this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
         this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, dataAugmentationParameters, otherDatasetParameters))
@@ -112,10 +115,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         initChildList();
     }
 
-    public TrainingConfigurationParameter setReferencePath(Path refPath) {
-        this.refPath = refPath;
-        datasetList.getChildren().forEach(c -> c.path.setRefPath(refPath));
-        trainingParameters.refPath = refPath;
+    public TrainingConfigurationParameter setReferencePathFunction(Supplier<Path> refPathFun) {
+        this.refPathFun = refPathFun;
+        datasetList.getChildren().forEach(c -> c.setRefPathFun(refPathFun));
+        trainingParameters.setRefPathFun(refPathFun);
         return this;
     }
 
@@ -260,11 +263,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter workers = new BoundedNumberParameter("Multiprocessing Workers", 0, 8, 1, null).setHint("Number of CPU threads at training. Can increase training speed when mini-batch generation is time-consuming");
         TextParameter weightDir = new TextParameter("Weight Dir", "", false, true).setHint("Relative path to directory where weights will be stored (created if not existing)");
         TextParameter logDir = new TextParameter("Log Dir", "", false, true).setHint("Relative path to directory where training logs will be stored (created if not existing)");
-        Path refPath;
+        Supplier<Path> refPathFun;
         MLModelFileParameter loadModelName = new MLModelFileParameter("Load Model")
                 .setFileChooserOption(FileChooser.FileChooserOption.FILE_OR_DIRECTORY)
                 .setSelectedFilePath(null)
-                .setGetRefPathFunction(p -> refPath==null ? null : refPath.resolve(weightDir.getValue()))
+                .setGetRefPathFunction(p -> getWeigthRefPath())
                 .allowNoSelection(true)
                 .setHint("Saved model weights that will be loaded before training (optional)")
                 .setFileChooserHint("Saved model weight, relative to <em>Weight Dir</em>");
@@ -283,6 +286,18 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             children.add(weightDir);
             children.add(logDir);
             initChildList();
+        }
+
+        protected Path getWeigthRefPath() {
+            if (refPathFun == null) return null;
+            Path p = refPathFun.get();
+            if (p==null) return null;
+            return p.resolve(weightDir.getValue());
+        }
+
+        public TrainingParameter setRefPathFun(Supplier<Path> refPathFun) {
+            this.refPathFun = refPathFun;
+            return this;
         }
 
         public int getStepNumber() {
@@ -368,7 +383,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         final Parameter[] otherParameters;
         protected DatasetParameter(String name, boolean multipleChannel, Parameter[] dataAugParameters, Parameter[] otherParameters){
             super(name);
-            if (refPath!=null) path.setRefPath(refPath);
+            path.setGetRefPathFunction(p -> refPathFun == null ? null : refPathFun.get());
             this.multipleChannel=multipleChannel;
             this.otherParameters= otherParameters!=null ? otherParameters : new Parameter[0];
             this.children = new ArrayList<>();
@@ -397,8 +412,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             else return scaler;
         }
 
-        public void setRefPath(Path path) {
-            this.path.setRefPath(path);
+        public void setRefPathFun(Supplier<Path> refPathFun) {
+            this.path.setRefPathFunction(refPathFun);
         }
 
         public DatasetParameter setFilePath(String path) {

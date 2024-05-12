@@ -102,7 +102,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
             .setNewInstanceConfiguration(i -> {
                 if (currentWorkingDirectory != null)
-                    i.getConfiguration().setReferencePath(Paths.get(currentWorkingDirectory));
+                    i.getConfiguration().setReferencePathFunction(() -> Paths.get(currentWorkingDirectory));
             }).addListener(tp -> {
                 updateExtractDatasetConfiguration();
                 updateDisplayRelatedToWorkingDir();
@@ -148,6 +148,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         modelDestinationTextField.getDocument().addDocumentListener(getDocumentListener(this::updateTrainingDisplay));
 
         setLoadButton.addActionListener(ae -> {
+            setWorkingDirectory();
             setConfigurationFile(true);
             setWorkingDirectory();
             updateDisplayRelatedToWorkingDir();
@@ -155,6 +156,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         setWriteButton.addActionListener(ae -> {
             setWorkingDirectory();
             setConfigurationFile(false);
+            setWorkingDirectory();
             writeConfigFile(true, true, true, true);
             updateDisplayRelatedToWorkingDir();
             config.getTree().updateUI();
@@ -217,7 +219,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             TrainingConfigurationParameter.DatasetParameter dataset = dsList.getChildAt(0);
             dataset.setActivated(true);
             //dataset.setRefPath(Paths.get("/dataTemp"));
-            dataset.setRefPath(null); // absolute
+            dataset.setRefPathFun(() -> null); // absolute
             dataset.setFilePath("/dataTemp/temp_dataset.h5");
             //dataset.setFilePath(tempDatasetFile.getAbsolutePath());
 
@@ -461,11 +463,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
         workingDirectoryTextField.addActionListener(ae -> {
-            if (workingDirectoryIsValid()) {
-                setWorkingDirectory();
-                setConfigurationFile(false);
-                updateDisplayRelatedToWorkingDir();
-            }
+            updateDisplayRelatedToWorkingDir();
         });
         Action chooseFile = new AbstractAction("Choose local data folder") {
             @Override
@@ -480,6 +478,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         };
         workingDirPersistence = PropertyUtils.setPersistent(workingDirectoryTextField, WD_ID, defWD, true, chooseFile);
         if (workingDirectoryIsValid()) {
+            setWorkingDirectory();
             setConfigurationFile(true);
             updateDisplayRelatedToWorkingDir();
         }
@@ -913,22 +912,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void setWorkingDirectory() {
         currentWorkingDirectory = workingDirectoryTextField.getText();
         if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
-        Path refPath = Paths.get(currentWorkingDirectory);
-        setWorkingDirectory(refPath, trainerParameter);
-        setWorkingDirectory(refPath, trainerParameterRef);
-    }
-
-    protected void setWorkingDirectory(Path refPath, PluginParameter<DockerDLTrainer> pp) {
-        if (!pp.isOnePluginSet()) return;
-        for (Parameter p : pp.getParameters()) {
-            if (p instanceof TrainingConfigurationParameter)
-                ((TrainingConfigurationParameter) p).setReferencePath(refPath);
-            else if (p instanceof SimpleListParameter && p.getName().equals("Dataset List")) {
-                ((SimpleListParameter) p).getChildren().forEach(c -> {
-                    ((TrainingConfigurationParameter.DatasetParameter) c).setRefPath(refPath);
-                });
-            }
-        }
     }
 
     protected void setConfigurationFile(boolean load) {
@@ -949,7 +932,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void loadConfigFile(boolean refOnly) {
-        Path refPath = Paths.get(currentWorkingDirectory);
         if (javaConfig == null) throw new RuntimeException("Load file first");
         String configS = javaConfig.read();
         logger.debug("loaded config locked: {} file = {} -> {}", javaConfig.locked(), javaConfig.getFile().toString(), javaConfig.readLines());
@@ -962,11 +944,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                 return;
             }
             trainerParameterRef.initFromJSONEntry(config);
-            setWorkingDirectory(refPath, trainerParameterRef);
             if (!refOnly) {
                 Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
                 trainerParameter.initFromJSONEntry(config);
-                setWorkingDirectory(refPath, trainerParameter);
                 this.config.expandAll(3);
                 if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
                     updateExtractDatasetConfiguration();
