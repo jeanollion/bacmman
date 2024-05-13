@@ -74,7 +74,7 @@ public class TrackTreeGenerator {
         if (treeModel == null) return;
         TreeNode root = (TreeNode)treeModel.getRoot();
         if (root instanceof TrackExperimentNode) {
-            Stream<RootTrackNode> allRoots = EnumerationUtils.toStream(root.children());
+            Stream<RootTrackNode> allRoots = (Stream<RootTrackNode>)EnumerationUtils.toStream(root.children());
             RootTrackNode r = allRoots.filter(o -> o.position.equals(position)).findAny().orElse(null);
             if (r != null) r.flush();
         } else if (root instanceof RootTrackNode) {

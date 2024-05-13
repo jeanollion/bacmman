@@ -166,7 +166,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
 
     public List<String> limitActivePositions(int limit) {
         if (activePositions.size() > limit) {
-            List<String> positionToFlush = activePositions.subList(0, activePositions.size()-limit);
+            List<String> positionToFlush = new ArrayList<>(activePositions.subList(0, activePositions.size()-limit));
             for (String p : positionToFlush) flush(p);
             return positionToFlush;
         } else return Collections.emptyList();

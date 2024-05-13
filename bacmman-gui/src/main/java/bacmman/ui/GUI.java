@@ -3335,7 +3335,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 String nextPosition = db.getExperiment().getPosition(nIdx).getName();
                 boolean pp = ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType);
                 List<String> flushedPositions = iwm.displayInputImage(db.getExperiment(), nextPosition, pp);
-                logger.debug("opened position: {} positions to flush after open image: {}", nextPosition, flushedPositions);
+                logger.debug("opened position: {} positions to flush after open image: {}", nextPosition, new ArrayList<>(flushedPositions));
                 db.getExperiment().flushImages(true, true, flushedPositions, nextPosition);
             }
         } else  { // interactive: if IOI found
