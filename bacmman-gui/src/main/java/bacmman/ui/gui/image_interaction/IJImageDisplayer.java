@@ -502,12 +502,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     public void displayContours(Region region, int frame, double strokeWidth, int smoothRadius, Color color, boolean dashed) {
         Image im = getCurrentImage();
         if (im == null) return;
-        int slice = getFrame(im);
+        int displayedSlice = getFrame(im);
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, displayedSlice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
         if (smoothRadius<=0) smoothRadius = ImageWindowManagerFactory.getImageManager().ROI_SMOOTH_RADIUS;
         IJRoi3D roi = region.getRoi();
@@ -517,7 +517,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         }
         roi = roi.duplicate().smooth(smoothRadius);
         if (additionalOffset != null) roi.translate(additionalOffset);
-        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentDisplayedImage());
+        setFrameAndZ(roi, displayedSlice, getCurrentDisplayedImage());
         for (Roi r : roi.values()) {
             r.setStrokeWidth(strokeWidth); // also sets scaleStrokeWidth = True
             if (dashed) {
@@ -534,20 +534,20 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     public void displayRegion(Region region, int frame, Color color) {
         Image im = getCurrentImage();
         if (im == null) return;
-        int slice = getFrame(im);
+        int displayedSlice = getFrame(im);
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
         IJRoi3D roi = region.getRoi();
         if (roi == null) {
             region.createRoi();
             roi = region.getRoi();
         }
         roi = roi.duplicate();
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, displayedSlice) : null;
         if (additionalOffset != null) roi.translate(additionalOffset);
-        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentDisplayedImage());
+        setFrameAndZ(roi, displayedSlice, getCurrentDisplayedImage());
         for (Roi r : roi.values()) {
             r.setFillColor(color);
             o.add(r);
@@ -558,12 +558,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     public void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
         Image im = getCurrentImage();
         if (im == null) return;
-        int slice = getFrame(im);
+        int displayedSlice = getFrame(im);
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, slice) : null;
+        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, displayedSlice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().TRACK_ARROW_STROKE_WIDTH;
         if (additionalOffset != null) start = start.duplicate().translate(additionalOffset);
         Point end = start.duplicate().translate(direction);
@@ -588,7 +588,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             roi.put(0, arrow);
             roi.setIs2D(true);
         }
-        setFrameAndZ(roi, TimeLapseInteractiveImage.isKymograph(ii) ? 0 : frame, getCurrentDisplayedImage());
+        setFrameAndZ(roi, displayedSlice, getCurrentDisplayedImage());
         for (Roi r : roi.values()) o.add(r);
     }
     @Override
@@ -596,7 +596,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         ImagePlus ip = getCurrentDisplayedImage();
         if (ip!=null) {
             ip.draw();
-            logger.debug("updating display for image: {}", ip.getTitle());
+            //logger.debug("updating display for image: {}", ip.getTitle());
         }
     }
 

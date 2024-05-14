@@ -145,7 +145,11 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     public static <T extends Image<T>> T copyType(Image<T> imageType) {
         return imageType.newImage("", new SimpleImageProperties("", new SimpleBoundingBox(0, -1, 0, -1, 0, -1), imageType.getScaleXY(), imageType.getScaleZ()));
     }
-    
+
+    public I getImageType() {
+        return copyType(this);
+    }
+
     public static Image createImageFrom2DPixelArray(String name, Object pixelArray, int sizeX) {
         if (pixelArray instanceof byte[]) return new ImageByte(name, sizeX, (byte[])pixelArray);
         else if (pixelArray instanceof short[]) return new ImageShort(name, sizeX, (short[])pixelArray);

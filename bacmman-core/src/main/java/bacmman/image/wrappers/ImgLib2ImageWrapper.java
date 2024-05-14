@@ -26,11 +26,8 @@ import static bacmman.image.wrappers.IJImageWrapper.getImagePlus;
 
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
-import net.imglib2.FinalInterval;
-import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.converter.Converter;
-import net.imglib2.display.projector.AbstractProjector2D;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgFactory;
@@ -165,59 +162,59 @@ public class ImgLib2ImageWrapper {
     
     public static <T extends RealType<T>> Img<T> getImage(Image image) {
         if (image.dimensions().length<=2) {
-            if (image instanceof PrimitiveType.ByteType) {
+            if (image.getImageType() instanceof PrimitiveType.ByteType) {
                 ArrayImg<UnsignedByteType, ByteArray> res = new ArrayImg<>(new ByteArray((byte[])image.getPixelArray()[0]), ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new UnsignedByteType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.ShortType) {
+            } else if (image.getImageType() instanceof PrimitiveType.ShortType) {
                 ArrayImg<UnsignedShortType, ShortArray> res = new ArrayImg<>(new ShortArray((short[])image.getPixelArray()[0]), ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new UnsignedShortType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.IntType) {
+            } else if (image.getImageType() instanceof PrimitiveType.IntType) {
                 ArrayImg<IntType, IntArray> res = new ArrayImg<>(new IntArray((int[])image.getPixelArray()[0]), ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new IntType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.FloatType) {
+            } else if (image.getImageType() instanceof PrimitiveType.FloatType) {
                 ArrayImg<FloatType, FloatArray> res = new ArrayImg<>(new FloatArray((float[])image.getPixelArray()[0]), ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new FloatType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.DoubleType) {
+            } else if (image.getImageType() instanceof PrimitiveType.DoubleType) {
                 ArrayImg<DoubleType, DoubleArray> res = new ArrayImg<>(new DoubleArray((double[])image.getPixelArray()[0]), ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new DoubleType( res ) );
                 return (Img<T>)res;
-            } else throw new IllegalArgumentException("Unsupported type");
+            } else throw new IllegalArgumentException("Unsupported type: "+image.getImageType());
         } else {
-            if (image instanceof PrimitiveType.ByteType) {
+            if (image.getImageType() instanceof PrimitiveType.ByteType) {
                 byte[][] pixelArray = (byte[][])image.getPixelArray();
                 List<ByteArray> data = IntStream.range(0, image.sizeZ()).mapToObj(z -> new ByteArray(pixelArray[z])).collect(Collectors.toList());
                 PlanarImg<UnsignedByteType, ByteArray> res = new PlanarImg<>(data, ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType(new UnsignedByteType(res));
                 return (Img<T>) res;
-            } else if (image instanceof PrimitiveType.ShortType) {
+            } else if (image.getImageType() instanceof PrimitiveType.ShortType) {
                 short[][] pixelArray = (short[][])image.getPixelArray();
                 List<ShortArray> data = IntStream.range(0, image.sizeZ()).mapToObj(z -> new ShortArray(pixelArray[z])).collect(Collectors.toList());
                 PlanarImg<UnsignedShortType, ShortArray> res = new PlanarImg<>(data, ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new UnsignedShortType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.IntType) {
+            } else if (image.getImageType() instanceof PrimitiveType.IntType) {
                 int[][] pixelArray = (int[][])image.getPixelArray();
                 List<IntArray> data = IntStream.range(0, image.sizeZ()).mapToObj(z -> new IntArray(pixelArray[z])).collect(Collectors.toList());
                 PlanarImg<IntType, IntArray> res = new PlanarImg<>(data, ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new IntType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.FloatType) {
+            } else if (image.getImageType() instanceof PrimitiveType.FloatType) {
                 float[][] pixelArray = (float[][])image.getPixelArray();
                 List<FloatArray> data = IntStream.range(0, image.sizeZ()).mapToObj(z -> new FloatArray(pixelArray[z])).collect(Collectors.toList());
                 PlanarImg<FloatType, FloatArray> res = new PlanarImg<>(data, ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new FloatType( res ) );
                 return (Img<T>)res;
-            } else if (image instanceof PrimitiveType.DoubleType) {
+            } else if (image.getImageType() instanceof PrimitiveType.DoubleType) {
                 double[][] pixelArray = (double[][])image.getPixelArray();
                 List<DoubleArray> data = IntStream.range(0, image.sizeZ()).mapToObj(z -> new DoubleArray(pixelArray[z])).collect(Collectors.toList());
                 PlanarImg<DoubleType, DoubleArray> res = new PlanarImg<>(data, ArrayUtil.toLong(image.dimensions()), new Fraction());
                 res.setLinkedType( new DoubleType( res ) );
                 return (Img<T>)res;
-            } else throw new IllegalArgumentException("Unsupported type");
+            } else throw new IllegalArgumentException("Unsupported type: "+image.getImageType());
         }
         //return ImagePlusAdapter.wrapReal(IJImageWrapper.getImagePlus(image));
     }
