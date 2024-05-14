@@ -147,6 +147,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
             }
         }
     }
+
     private static void ensureOutOfBound(MutableBoundingBox bb, BoundingBox parentBB, int axis, OUT_OF_BOUNDS_CONDITION oob) {
         int minLimit = getBound(parentBB, axis, true);
         int vmin = getBound(bb, axis, true);
@@ -159,9 +160,16 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
                 return;
             }
             case KEEP_SIZE:
-                if (vmin<minLimit && vmax>maxLimit) throw new RuntimeException("Modified bounds could not fit into parent bound on "+"XYZ".charAt(axis)+" axis");
-                if (vmin < minLimit) translate(bb, minLimit - vmin, axis);
-                if (vmax > maxLimit) translate(bb, maxLimit - vmax, axis);
+                if (vmin < minLimit && vmax > maxLimit) { // trim anyway
+                    setBound(bb, minLimit, axis, true);
+                    setBound(bb, maxLimit, axis, false);
+                } else if (vmin < minLimit) {
+                    translate(bb, minLimit - vmin, axis);
+                    if (getBound(bb, axis, false) > maxLimit) setBound(bb, maxLimit, axis, false);
+                } else if (vmax > maxLimit) {
+                    translate(bb, maxLimit - vmax, axis);
+                    if (getBound(bb, axis, true) < minLimit) setBound(bb, minLimit, axis, true);
+                }
                 break;
             case KEEP_CENTER:
                 if (vmin < minLimit) {
