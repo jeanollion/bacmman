@@ -346,13 +346,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         //Map<Region, Set<Region>> regionMapCenters = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory<>());
         //centerMapRegion.forEach((c, r) -> regionMapCenters.get(r).add(c));
 
-        ImageFloat[] gdcmGrad = useGDCMgradient ? ImageDerivatives.getGradient(gcdmI, sigma, false, true) : new ImageFloat[2];
+        List<ImageFloat> gdcmGrad = useGDCMgradient ? ImageDerivatives.getGradient(gcdmI, sigma, false, true) : new ArrayList<ImageFloat>(){{add(null); add(null);}};
         if (useGDCMgradient && TestableProcessingPlugin.isExpertMode(stores)) {
-            stores.get(parent).addIntermediateImage("dGDCM/dX", gdcmGrad[0]);
-            stores.get(parent).addIntermediateImage("dGDCM/dY", gdcmGrad[1]);
+            stores.get(parent).addIntermediateImage("dGDCM/dX", gdcmGrad.get(0));
+            stores.get(parent).addIntermediateImage("dGDCM/dY", gdcmGrad.get(1));
         }
 
-        RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, minMaxEDMThreshold > edmThreshold ? minMaxEDMThreshold : 0, minSize, gdcmGrad[0], gdcmGrad[1], mergeCriterion));
+        RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, minMaxEDMThreshold > edmThreshold ? minMaxEDMThreshold : 0, minSize, gdcmGrad.get(0), gdcmGrad.get(1), mergeCriterion));
 
         // 4) Post-filtering (honor minSize + user-defined post-filters)
         if (minSize>0) {
@@ -415,7 +415,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
                     else sel = sel.stream().filter(o->o.getParent()==p).collect(Collectors.toList());
                     Image gdcm = prediction.gdcm.get(p);
-                    ImageFloat[] gdcmGrad = ImageDerivatives.getGradient(gdcm, computeSigma(this.objectThickness.getDoubleValue()), false, true);
+                    List<ImageFloat> gdcmGrad = ImageDerivatives.getGradient(gdcm, computeSigma(this.objectThickness.getDoubleValue()), false, true);
                     OverlayDisplayer disp = stores.get(p).overlayDisplayer;
                     if (disp != null) {
                         disp.hideLabileObjects();
@@ -437,8 +437,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             }
                             v1Max.translate(off);
                             v2Max.translate(off);
-                            Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad[0]), avgHalf(center, v1Max, o.getRegion(), gdcmGrad[1])).reverse();
-                            Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad[0]), avgHalf(center, v2Max, o.getRegion(), gdcmGrad[1])).reverse();
+                            Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(0)), avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(1))).reverse();
+                            Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(0)), avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(1))).reverse();
                             logger.debug("Gradient vector: o={} center: {} p1={} grad={}, norm={} p2={} grad={}, norm={}", o, center, v1Max, v1, v1.norm(), v2Max, v2, v2.norm());
                             disp.displayArrow(Point.asPoint((Offset)v1Max), v1.normalize().multiply(10), o.getFrame() - refFrame, false, true, 0, colorMap.get(o));
                             disp.displayArrow(Point.asPoint((Offset)v2Max), v2.normalize().multiply(10), o.getFrame() - refFrame, false, true, 0, colorMap.get(o));

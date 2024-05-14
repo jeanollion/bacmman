@@ -26,7 +26,6 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.processing.ImageDerivatives;
-import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.utils.ArrayUtil;
@@ -167,9 +166,9 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
         double derScale = 2;
         int[] yStartStop = new int[]{0, image.sizeY()-1};
         Image imCrop = (image instanceof ImageFloat ? image.duplicate() : image);
-        Image[] imDer = ImageDerivatives.getGradient(imCrop, derScale, false, parallel, 0, 1);
+        List<ImageFloat> imDer = ImageDerivatives.getGradient(imCrop, derScale, false, parallel, 0, 1);
         // get global closed-end Y coordinate
-        Image imDerY = imDer[1];
+        Image imDerY = imDer.get(1);
         float[] yProj = openEnd?null: ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
         int closedEndY = openEnd?yStartStop[0] : ArrayUtil.max(yProj, 0, yProj.length-minLength.getIntValue()) + yStartStop[0];
 
@@ -186,8 +185,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
         if (end<xProj.length-1) Arrays.fill(xProj, end+1, xProj.length, xProj[end]);
         //derivate
         ArrayUtil.gaussianSmooth(xProj, 1); // derScale
-        if (closedEndY!=0) imDer[0] = imDer[0].crop(bds);
-        Image imDerX = imDer[0];
+        if (closedEndY!=0) imDer.set(0, imDer.get(0).crop(bds));
+        Image imDerX = imDer.get(0);
         float[] xProjDer = ImageOperations.meanProjection(imDerX, ImageOperations.Axis.X, null);
         
         if (stores!=null) {

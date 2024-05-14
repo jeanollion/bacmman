@@ -57,11 +57,10 @@ public class FastRadialSymmetryTransformUtil {
         double scaleZ = gradientScale.length>1?gradientScale[1]:gradientScale[0]*input.getScaleXY()/input.getScaleZ();
         double ratioZ = (scaleZ / gradientScale[0]);
         double[] gradScale = input.sizeZ()>1 ? new double[]{gradientScale[0], gradientScale[0], gradientScale[0] * ratioZ} : new double[]{gradientScale[0], gradientScale[0]};
-        int[] axis = input.sizeZ()>1 ? new int[]{0, 1, 2} : new int[]{0, 1};
-        ImageFloat[] grad = ImageDerivatives.getGradient(input, gradScale, true, parallel, axis);
-        Image gradX = grad[0];
-        Image gradY = grad[1];
-        Image gradZ = grad.length>2 ? grad[2] : null;
+        List<ImageFloat> grad = ImageDerivatives.getGradient(input, gradScale, true, parallel);
+        Image gradX = grad.get(0);
+        Image gradY = grad.get(1);
+        Image gradZ = grad.size()>2 ? grad.get(2) : null;
         Image gradM = new ImageFloat("", input).resetOffset();
 
         if (gradZ==null) BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2)))), parallel); // computes gradient magnitude
@@ -207,10 +206,10 @@ public class FastRadialSymmetryTransformUtil {
     }
 
     private static double[] computeOrientationMaps(Image input, double[] radii, boolean parallel) {
-        ImageFloat[] grad = ImageDerivatives.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), true, parallel);
-        Image gradX = grad[0];
-        Image gradY = grad[1];
-        Image gradZ = grad.length>2 ? null : grad[2];
+        List<ImageFloat> grad = ImageDerivatives.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), true, parallel);
+        Image gradX = grad.get(0);
+        Image gradY = grad.get(1);
+        Image gradZ = grad.size()>2 ? grad.get(2) : null;
         Image gradM = new ImageFloat("", input).resetOffset();
 
         BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2)))), parallel); // computes gradient magnitude

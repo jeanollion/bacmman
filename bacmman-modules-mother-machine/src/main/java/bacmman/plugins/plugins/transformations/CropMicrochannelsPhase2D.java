@@ -27,7 +27,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.TestableOperation;
-import bacmman.processing.ImageFeatures;
+import bacmman.processing.ImageDerivatives;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.Plugin;
 import bacmman.utils.ArrayUtil;
@@ -122,7 +122,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         if (testMode.testSimple()) logger.debug("non null bounds: {}", nonNullBound);
         if (!twoPeaks.getSelected()) {
             Image imCrop = image.crop(nonNullBound);
-            Image imDerY = ImageFeatures.getDerivative(imCrop, 2, 0, 1, 0, true);
+            Image imDerY = ImageDerivatives.getGradient(imCrop, 2, false, true, 1).get(0);
             float[] yProj = ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
             if (testMode.testExpert()) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check

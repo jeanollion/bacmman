@@ -77,37 +77,46 @@ public class ImageDerivatives {
     }
 
     public static ImageFloat getGradientMagnitude(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
-        ImageFloat[] grad = getGradient(image, scale, scaled, parallel, axis);
+        List<ImageFloat> grad = getGradient(image, scale, scaled, parallel, axis);
         ImageFloat res = new ImageFloat(image.getName() + ":gradientMagnitude", image);
-        if (grad.length == 3) {
+        ImageFloat g0 = grad.get(0);
+        if (grad.size() == 3) {
+            ImageFloat g1 = grad.get(1);
+            ImageFloat g2 = grad.get(2);
             BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> {
-                res.setPixel(x, y, z, (float) Math.sqrt(Math.pow(grad[0].getPixel(x, y, z), 2) + Math.pow(grad[1].getPixel(x, y, z), 2) + Math.pow(grad[2].getPixel(x, y, z), 2) ));
+                res.setPixel(x, y, z, (float) Math.sqrt(Math.pow(g0.getPixel(x, y, z), 2) + Math.pow(g1.getPixel(x, y, z), 2) + Math.pow(g2.getPixel(x, y, z), 2) ));
             }, parallel);
-
-        } else {
+        } else if (grad.size() == 2) {
+            ImageFloat g1 = grad.get(1);
             BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> {
-                res.setPixel(x, y, z, (float) Math.sqrt(Math.pow(grad[0].getPixel(x, y, z), 2) + Math.pow(grad[1].getPixel(x, y, z), 2) ));
+                res.setPixel(x, y, z, (float) Math.sqrt(Math.pow(g0.getPixel(x, y, z), 2) + Math.pow(g1.getPixel(x, y, z), 2) ));
+            }, parallel);
+        } else if (grad.size() == 1) {
+            BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> {
+                res.setPixel(x, y, z, (float) Math.abs(g0.getPixel(x, y, z) ));
             }, parallel);
         }
         return res;
     }
 
-    public static ImageFloat[] getGradient(Image image, double scale, boolean scaled, boolean parallel, int... axis) {
+    public static List<ImageFloat> getGradient(Image image, double scale, boolean scaled, boolean parallel, int... axis) {
         double[] scaleA = scale>0 ? IntStream.range(0, image.dimensions().length).mapToDouble(i->scale).toArray(): new double[0];
         return getGradient(image, scaleA, scaled, parallel, axis);
     }
 
-    public static ImageFloat[] getGradient(Image image, double scaleXY, double scaleZ, boolean performScaling, boolean parallel, int... axis) {
+    public static List<ImageFloat> getGradient(Image image, double scaleXY, double scaleZ, boolean performScaling, boolean parallel, int... axis) {
         double[] scaleA = scaleXY>0 || scaleZ>0 ? image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY} : new double[0];
         return getGradient(image, scaleA, performScaling, parallel, axis);
     }
 
-    public static ImageFloat[] getGradient(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
+    public static List<ImageFloat> getGradient(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
         Img input = ImgLib2ImageWrapper.getImage(image);
         if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
-        ImageFloat[] res = new ImageFloat[axis.length];
+        for (int ax : axis) if (ax >= input.numDimensions()) throw new IllegalArgumentException("Invalid axis provided: "+ax+" Image has "+input.numDimensions() + " dimensions");
+        if ((scaled || scale.length>0) && scale.length != input.numDimensions()) throw new IllegalArgumentException("Image has "+input.numDimensions() + " dimensions and "+scale.length+" scales are provided");
+        List<ImageFloat> res = new ArrayList<>(axis.length);
         RandomAccessible inputRA = Views.extendBorder(input);
-        if (scale.length > 0) {
+        if (scale.length > 0 && DoubleStream.of(scale).anyMatch(s->s>0)) {
             Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             RandomAccessible inputG = inputRA;
             Runnable r = () -> Gauss3.gauss(scale, inputG, smooth);
@@ -119,14 +128,14 @@ public class ImageDerivatives {
         IntConsumer compute = d -> {
             Img<FloatType> der = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             PartialDerivative.gradientCentralDifference(inputD, der, d);
-            res[d] = (ImageFloat) ImgLib2ImageWrapper.wrap(der);
+            res.add( (ImageFloat) ImgLib2ImageWrapper.wrap(der));
 
         };
         Utils.parallel(IntStream.of(axis), parallel).forEach(compute);
         if (scaled) {
-            for (int d : axis) {
-                Image im = res[d];
-                double s = scale[d];
+            for (int i = 0; i<axis.length; ++i) {
+                Image im = res.get(i);
+                double s = scale[axis[i]];
                 BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> im.setPixel(x, y, z, im.getPixel(x, y, z) / s), parallel);
             }
         }
