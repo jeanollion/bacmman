@@ -71,8 +71,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             stores.get(parent).addIntermediateImage("EDM", edm);
             stores.get(parent).addIntermediateImage("GCDM", gcdm);
         }
-        int refFrame = stores == null ? parent.getFrame() : stores.keySet().stream().mapToInt(SegmentedObject::getFrame).min().orElse(parent.getFrame());
-        return DistNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), null, stores, refFrame);
+        return DistNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), null, stores);
     }
 
     private UnaryPair<Image> getSegmentationProxies(Image input, int objectClassIdx, SegmentedObject parent) {

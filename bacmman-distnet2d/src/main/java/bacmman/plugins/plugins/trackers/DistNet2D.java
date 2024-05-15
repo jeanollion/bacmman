@@ -138,7 +138,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         boolean testMode = stores != null;
         boolean segment = factory != null;
         if (factory==null) factory = getFactory(objectClassIdx); // in case called from track only method -> for post-processing
-        int refFrame = parentTrack.get(0).getFrame();
         PredictionResults prevPrediction = null;
         TRACK_POST_PROCESSING_WINDOW_MODE ppMode = trackPPRange.getSelectedEnum();
         Set<UnaryPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
@@ -165,7 +164,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             if (i>0) subParentTrack = parentTrack.subList(i-1, maxIdx); // add last frame of previous window for tracking (in order to have overlap)
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            Set<UnaryPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, linkMultiplicityMapContainer, refFrame);
+            Set<UnaryPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, linkMultiplicityMapContainer);
             if (lwFW==null || TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT.equals(ppMode)) lwFW = linkMultiplicityMapContainer[0];
             else lwFW.putAll(linkMultiplicityMapContainer[0]);
             if (lmBW==null || TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT.equals(ppMode)) lmBW = linkMultiplicityMapContainer[1];
@@ -239,7 +238,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     protected static double computeSigma(double thickness) {
         return Math.max(1, thickness / 4);
     }
-    public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double mergeCriterion, boolean useGDCMgradient, int minSize, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores, int refFrame) {
+    public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double mergeCriterion, boolean useGDCMgradient, int minSize, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
         double sigma = computeSigma(thickness);
         double C = 1/(Math.sqrt(2 * Math.PI) * sigma);
         double seedRad = Math.max(2, thickness/2 - 1);
@@ -265,7 +264,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         rDup.removeIf(r -> r.getMostOverlappingRegion(otherRegions, null, offR) == null);
                     } else rDup = regions;
                     disp.hideLabileObjects();
-                    rDup.forEach(r -> disp.displayContours(r.duplicate(), parent.getFrame() - refFrame, 0, 0, null, false));
+                    logger.debug("display frame: {} ref frame: {}", parent.getFrame());
+                    rDup.forEach(r -> disp.displayContours(r.duplicate(), parent.getFrame(), 0, 0, null, false));
                     disp.updateDisplay();
                 }
             });
@@ -327,7 +327,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         rDup.removeIf(r -> r.getMostOverlappingRegion(otherRegions, null, off) == null);
                     } else rDup = regions;
                     disp.hideLabileObjects();
-                    rDup.forEach(r -> disp.displayContours(r, parent.getFrame() - refFrame, 0, 0, null, false));
+                    rDup.forEach(r -> disp.displayContours(r, parent.getFrame(), 0, 0, null, false));
                     disp.updateDisplay();
                 }
             });
@@ -375,12 +375,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (stores != null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("edm", prediction.edm.get(o)));
         if (TestableProcessingPlugin.isExpertMode(stores) && prediction.gdcm != null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("GCDM", prediction.gdcm.get(o)));
         if (new HashSet<>(parentTrack).size()<parentTrack.size()) throw new IllegalArgumentException("Duplicate Objects in parent track");
-        int refFrame = stores==null?0:Math.min(parentTrack.get(0).getFrame(), stores.keySet().stream().mapToInt(SegmentedObject::getFrame).min().orElse(parentTrack.get(0).getFrame()));
 
         ThreadRunner.ThreadAction<SegmentedObject> ta = (p,idx) -> {
             Image edmI = prediction.edm.get(p);
             Image gcdmI = prediction.gdcm.get(p);
-            RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), postFilters, stores, refFrame);
+            RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), postFilters, stores);
             factory.setChildObjects(p, pop);
             logger.debug("parent: {} segmented!", p);
         };
@@ -396,7 +395,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         sel.forEach(r -> {
                             Spot center = new Spot(r.getRegion().getCenterOrGeomCenter().duplicate(), computeSigma(objectThickness.getDoubleValue()), 1, 1, r.getRegion().getLabel(), true, r.getScaleXY(), r.getScaleZ());
                             //disp.displayRegion(center, r.getFrame() - parentTrack.get(0).getFrame(), colorMap.get(r));
-                            disp.displayContours(center.translate(off), r.getFrame() - refFrame, 0, 0, colorMap.get(r), false);
+                            disp.displayContours(center.translate(off), r.getFrame(), 0, 0, colorMap.get(r), false);
                         });
                         disp.updateDisplay();
                     }
@@ -407,7 +406,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     OverlayDisplayer disp = stores.get(p).overlayDisplayer;
                     if (disp != null) {
                         disp.hideLabileObjects();
-                        sel.forEach(r -> disp.displayContours(r.getRegion().duplicate().translate(off), r.getFrame() - refFrame, 0, 0, colorMap.get(r), true));
+                        sel.forEach(r -> disp.displayContours(r.getRegion().duplicate().translate(off), r.getFrame(), 0, 0, colorMap.get(r), true));
                         disp.updateDisplay();
                     }
                 });
@@ -440,8 +439,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(0)), avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(1))).reverse();
                             Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(0)), avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(1))).reverse();
                             logger.debug("Gradient vector: o={} center: {} p1={} grad={}, norm={} p2={} grad={}, norm={}", o, center, v1Max, v1, v1.norm(), v2Max, v2, v2.norm());
-                            disp.displayArrow(Point.asPoint((Offset)v1Max), v1.normalize().multiply(10), o.getFrame() - refFrame, false, true, 0, colorMap.get(o));
-                            disp.displayArrow(Point.asPoint((Offset)v2Max), v2.normalize().multiply(10), o.getFrame() - refFrame, false, true, 0, colorMap.get(o));
+                            disp.displayArrow(Point.asPoint((Offset)v1Max), v1.multiply(1), o.getFrame(), false, true, 0, colorMap.get(o));
+                            disp.displayArrow(Point.asPoint((Offset)v2Max), v2.multiply(1), o.getFrame(), false, true, 0, colorMap.get(o));
                         });
                         disp.updateDisplay();
                     }
@@ -644,7 +643,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     public enum LINK_MULTIPLICITY {SINGLE, NULL, MULTIPLE}
-    protected Set<UnaryPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, Map<SegmentedObject, LINK_MULTIPLICITY>[] linkMultiplicityMapContainer, int refFrame) {
+    protected Set<UnaryPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, Map<SegmentedObject, LINK_MULTIPLICITY>[] linkMultiplicityMapContainer) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy bw", prediction.dyBW.get(o)));
@@ -768,7 +767,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         disp.hideLabileObjects();
                         sel.forEach( o -> {
                             SegmentedObjectEditor.getPrevious(o)
-                                .forEach(prev -> disp.displayContours(prev.getRegion().duplicate().translate(prev.getParent().getBounds().duplicate().reverseOffset()), o.getFrame() - refFrame, 0, 0, prevMapNext.containsKey(p) ? colorMap.get(p) : colorMap.get(o), false));
+                                .forEach(prev -> disp.displayContours(prev.getRegion().duplicate().translate(prev.getParent().getBounds().duplicate().reverseOffset()), o.getFrame(), 0, 0, prevMapNext.containsKey(p) ? colorMap.get(p) : colorMap.get(o), false));
                         });
                         disp.updateDisplay();
                     }
@@ -785,7 +784,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         disp.hideLabileObjects();
                         sel.forEach( o -> {
                             SegmentedObjectEditor.getNext(o)
-                                    .forEach(next -> disp.displayContours(next.getRegion().duplicate().translate(next.getParent().getBounds().duplicate().reverseOffset()), o.getFrame() - refFrame, 0, 0, nextMapPrev.containsKey(p) ? colorMap.get(p) : colorMap.get(o), false));
+                                    .forEach(next -> disp.displayContours(next.getRegion().duplicate().translate(next.getParent().getBounds().duplicate().reverseOffset()), o.getFrame(), 0, 0, nextMapPrev.containsKey(p) ? colorMap.get(p) : colorMap.get(o), false));
                         });
                         disp.updateDisplay();
                     }
@@ -800,7 +799,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             Offset off = o.getParent().getBounds().duplicate().reverseOffset();
                             Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translate(off);
                             Vector vector = new Vector(dxBWMap.get(o), dyBWMap.get(o)).reverse();
-                            disp.displayArrow(start, vector, o.getFrame() - refFrame, false, true, 0, colorMap.get(o));
+                            disp.displayArrow(start, vector, o.getFrame(), false, true, 0, colorMap.get(o));
                         });
                         disp.updateDisplay();
                     }
@@ -815,7 +814,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             Offset off = o.getParent().getBounds().duplicate().reverseOffset();
                             Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translate(off);
                             Vector vector = new Vector(dxFWMap.get(o), dyFWMap.get(o)).reverse();
-                            disp.displayArrow(start, vector, o.getFrame() - refFrame, false, true, 0, colorMap.get(o));
+                            disp.displayArrow(start, vector, o.getFrame(), false, true, 0, colorMap.get(o));
                         });
                         disp.updateDisplay();
                     }
