@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -114,7 +115,6 @@ public class ImageDerivatives {
         if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
         for (int ax : axis) if (ax >= input.numDimensions()) throw new IllegalArgumentException("Invalid axis provided: "+ax+" Image has "+input.numDimensions() + " dimensions");
         if ((scaled || scale.length>0) && scale.length != input.numDimensions()) throw new IllegalArgumentException("Image has "+input.numDimensions() + " dimensions and "+scale.length+" scales are provided");
-        List<ImageFloat> res = new ArrayList<>(axis.length);
         RandomAccessible inputRA = Views.extendBorder(input);
         if (scale.length > 0 && DoubleStream.of(scale).anyMatch(s->s>0)) {
             Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
@@ -125,13 +125,12 @@ public class ImageDerivatives {
             inputRA = Views.extendBorder(smooth);
         }
         RandomAccessible inputD = inputRA;
-        IntConsumer compute = d -> {
+        IntFunction<ImageFloat> compute = d -> {
             Img<FloatType> der = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             PartialDerivative.gradientCentralDifference(inputD, der, d);
-            res.add( (ImageFloat) ImgLib2ImageWrapper.wrap(der));
-
+            return (ImageFloat) ImgLib2ImageWrapper.wrap(der);
         };
-        Utils.parallel(IntStream.of(axis), parallel).forEach(compute);
+        List<ImageFloat> res = Utils.parallel(IntStream.of(axis), parallel).mapToObj(compute).collect(Collectors.toList());
         if (scaled) {
             for (int i = 0; i<axis.length; ++i) {
                 Image im = res.get(i);
