@@ -113,7 +113,7 @@ public abstract class TimeLapseInteractiveImage extends InteractiveImage {
 
     protected int getOffsetIdx(int frame, int slice) {
         SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
-        int idx = frame-trackObjects[0].parent.getFrame();
+        int idx = frame-parent.getFrame();
         if (idx<trackObjects.length && idx>0 && trackObjects[idx].parent.getFrame()==frame) return idx;
         else return ArrayUtil.binarySearchKey(trackObjects, frame, ii->ii.parent.getFrame()); // case of discontinuous tracks -> search whole track
     }

@@ -157,6 +157,12 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         }
         return v;
     }
+
+    public double getValueAsDouble(String name) {
+        Object v = values.get(name);
+        if (v == null) return Double.NaN;
+        else return ((Number)v).doubleValue();
+    }
     
     public String getValueAsString(String name) {
         Object o = values.get(name);

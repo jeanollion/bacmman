@@ -247,7 +247,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                         logger.debug("metrics file found: {}", outputFile.isFile());
                         if (outputFile.exists()) { // read metrics and set metrics as measurement
                             String[] header = new String[1];
-                            List<double[]> metrics = FileIO.readFromFile(outputFile.getAbsolutePath(), s -> Arrays.stream(s.split(";")).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
+                            List<double[]> metrics = FileIO.readFromFile(outputFile.getAbsolutePath(), s -> Arrays.stream(s.split(";")).map(str -> str.equalsIgnoreCase("nan") ? "NaN" : str).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
                             String[] metricsNames = header[0] != null ? header[0].replace("# ", "").split(";") : (metrics.isEmpty() ? new String[0] : IntStream.range(0, metrics.get(0).length).mapToObj(i -> "metric_" + i).toArray(String[]::new));
                             logger.debug("found metrics: {} for : {} samples", metricsNames, metrics.size());
                             SelectionDAO selDAO = GUI.getDBConnection().getSelectionDAO();
@@ -280,10 +280,12 @@ public class DockerTrainingWindow implements ProgressLogger {
                                         double[] values = metrics.stream().mapToDouble(v -> v[ii]).toArray();
                                         double threshold = ArrayUtil.quantiles(values, minQuantile)[0];
                                         logger.debug("metric: {} threshold: {} quantile: {}", metricsNames[i], threshold, minQuantile);
-                                        List<SegmentedObject> objects = sel.getAllElementsAsStream().filter(o -> ((Number) o.getMeasurements().getValue(metricsNames[ii])).doubleValue() <= threshold).collect(Collectors.toList());
-                                        selHS.addElements(objects);
-                                        selDAO.store(selHS);
-                                        allObjects.addAll(objects);
+                                        if (!Double.isNaN(threshold)) {
+                                            List<SegmentedObject> objects = sel.getAllElementsAsStream().filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
+                                            selHS.addElements(objects);
+                                            selDAO.store(selHS);
+                                            allObjects.addAll(objects);
+                                        }
                                     }
                                     Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples", true);
                                     selHS.addElements(allObjects);
@@ -731,7 +733,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void displayLoss(String message, boolean minMax) {
         String loss = parseLoss(message);
         if (loss == null) return;
-        double value = Double.parseDouble(loss);
+        double value = loss.equalsIgnoreCase("nan") ? Double.NaN : Double.parseDouble(loss);
         if (minMax) {
             if (value < minLoss) minLoss = value;
             if (value > maxLoss) maxLoss = value;

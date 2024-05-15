@@ -196,7 +196,8 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
 
     @Override
     public Stream<SegmentedObject> getObjectsAtFrame(int objectClassIdx, int frame) {
-        int sliceIdx = getSlice(frame).mapToInt(i->i).max().getAsInt();
+        int sliceIdx = getSlice(frame).mapToInt(i->i).max().orElse(-1);
+        if (sliceIdx==-1) return Stream.empty();
         SimpleInteractiveImage[] trackObjects = this.trackObjects.get(sliceIdx);
         for (SimpleInteractiveImage i : trackObjects) {
             if (i.parent.getFrame() == frame) return i.getAllObjects(objectClassIdx);
