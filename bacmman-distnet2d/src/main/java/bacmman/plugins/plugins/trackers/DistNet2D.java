@@ -906,14 +906,16 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).forEach(o -> {
             List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o).collect(Collectors.toList());
-            if ((!allowMerge && prevs.size()>1) || (!linkMultiplicityValid(lmBW.get(o), prevs.size()))) {
+            boolean linkErrorPrev = !allowMerge && prevs.size()>1;
+            if (linkErrorPrev || (!linkMultiplicityValid(lmBW.get(o), prevs.size()))) {
                 o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
-                prevs.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
+                if (linkErrorPrev) prevs.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
             }
             List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o).collect(Collectors.toList());
-            if ( (!allowSplit && nexts.size()>1) || (allowSplit && nexts.size()>2) || (!linkMultiplicityValid(lmFW.get(o), nexts.size()))) {
+            boolean linkErrorNext = (!allowSplit && nexts.size()>1) || (allowSplit && nexts.size()>2);
+            if ( linkErrorNext || (!linkMultiplicityValid(lmFW.get(o), nexts.size()))) {
                 o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
-                nexts.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
+                if (linkErrorNext) nexts.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
             }
             if (!prevs.isEmpty()) {
                 double growthrate;

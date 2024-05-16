@@ -247,7 +247,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                         logger.debug("metrics file found: {}", outputFile.isFile());
                         if (outputFile.exists()) { // read metrics and set metrics as measurement
                             String[] header = new String[1];
-                            List<double[]> metrics = FileIO.readFromFile(outputFile.getAbsolutePath(), s -> Arrays.stream(s.split(";")).map(str -> str.equalsIgnoreCase("nan") ? "NaN" : str).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
+                            List<double[]> metrics = FileIO.readFromFile(outputFile.getAbsolutePath(), s -> Arrays.stream(s.split(";"))
+                                    .map(DockerTrainingWindow::pythonToJavaDouble).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
                             String[] metricsNames = header[0] != null ? header[0].replace("# ", "").split(";") : (metrics.isEmpty() ? new String[0] : IntStream.range(0, metrics.get(0).length).mapToObj(i -> "metric_" + i).toArray(String[]::new));
                             logger.debug("found metrics: {} for : {} samples", metricsNames, metrics.size());
                             SelectionDAO selDAO = GUI.getDBConnection().getSelectionDAO();
@@ -1398,5 +1399,13 @@ public class DockerTrainingWindow implements ProgressLogger {
                 .appendEndOfWork(() -> runner = null)
                 .appendEndOfWork(() -> setRunning(false));
         runner.execute();
+    }
+
+    public static String pythonToJavaDouble(String s) {
+        if (s.equalsIgnoreCase("nan")) return "Nan";
+        else if (s.toLowerCase().contains("inf")) {
+            if (s.contains("-")) return "-Infinity";
+            else return "Infinity";
+        } else return s;
     }
 }
