@@ -30,11 +30,11 @@
             <artifactId>bacmman-dl</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
-        <dependency>
+        <!--dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>ndarray</artifactId>
             <version>0.3.3</version>
-        </dependency>
+        </dependency-->
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
@@ -49,6 +49,7 @@
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
+            <!--artifactId>tensorflow-core-native</artifactId-->
             <version>0.4.2</version>
             <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency>

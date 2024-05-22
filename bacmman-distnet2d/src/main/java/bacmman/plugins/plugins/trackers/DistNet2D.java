@@ -63,15 +63,18 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> is greater than 1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1)");
     // segmentation
-    BoundedNumberParameter gcdmSmoothRad = new BoundedNumberParameter("GCDM Smooth", 5, 0, 0, null).setEmphasized(false).setHint("Smooth radius for GCDM image. Set 0 to skip this step, or a radius in pixel (typically 2) if predicted GCDM image is not smooth a too many centers are detected");
-
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas");
     BoundedNumberParameter minMaxEDM = new BoundedNumberParameter("Min Max EDM Threshold", 5, 1, 0, null).setEmphasized(false).setHint("Segmented Object with maximal EDM value lower than this threshold are merged or filtered out");
-
+    BoundedNumberParameter gcdmSmoothRad = new BoundedNumberParameter("GCDM Smooth", 5, 0, 0, null).setEmphasized(false).setHint("Smooth radius for GCDM image. Set 0 to skip this step, or a radius in pixel (typically 2) if predicted GCDM image is not smooth a too many centers are detected");
+    BoundedNumberParameter centerLapThld = new BoundedNumberParameter("Laplacian Threshold", 8, 1e-4, 1e-8, null).setEmphasized(true).setHint("Seed threshold for center segmentation on Laplacian");
+    IntervalParameter centerSizeFactor = new IntervalParameter("Size Factor", 3, 0, null, 0.25, 2).setHint("Segmented center with size outside the range (multiplied by the expected size) will be filtered out");
+    GroupParameter centerParameters = new GroupParameter("Center Segmentation", gcdmSmoothRad, centerLapThld, centerSizeFactor).setEmphasized(true).setHint("Parameters controlling center segmentation");
     BoundedNumberParameter objectThickness = new BoundedNumberParameter("Object Thickness", 5, 6, 3, null).setEmphasized(true).setHint("Minimal thickness of objects to segment. Increase this parameter to reduce over-segmentation and false positives");
     BoundedNumberParameter mergeCriterion = new BoundedNumberParameter("Merge Criterion", 5, 0.001, 1e-5, 1).setEmphasized(false).setHint("Increase to reduce over-segmentation.  <br />When two objects are in contact, the intensity of their center is compared. If the ratio (max/min) is below this threshold, objects are merged.");
     BooleanParameter useGDCMGradientCriterion = new BooleanParameter("Use GDCM Gradient", false).setHint("If True, an additional constraint based on GDCM gradient is added to merge segmented regions. <br/> It can avoid under-segmentation when when DNN misses some centers (which happens for instance when the DNN hesitates on which frame a cell divides). <br/>When two segmented regions are in contact, if both or one of them do not contain a segmented center, they are merged only if the GDCM gradient of the region that do not contain a center points towards the interface between the two region. GDCM gradient is computed in the area between the interface and the center of the segmented region.");
-    BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
+    BoundedNumberParameter minObjectSizeGDCMGradient = new BoundedNumberParameter("Min Object Size", 1, 100, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
+    ConditionalParameter<Boolean> useGDCMGradientCriterionCond = new ConditionalParameter<>(useGDCMGradientCriterion).setActionParameters(true, minObjectSizeGDCMGradient);
+    BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(true).setHint("GDCM gradient constraint do not apply to objects below this size (in pixels)");
     // tracking
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter linkDistanceTolerance = new BoundedNumberParameter("Link Distance Tolerance", 0, 3, 0, null).setEmphasized(true).setHint("Two objects are linked if the center of one object translated by the predicted displacement falls into an object at the previous frame. This parameter allows a tolerance (in pixel units) in case the center do not fall into any object at the previous frame");
@@ -112,7 +115,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     // misc
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling).setEmphasized(true);
-    GroupParameter segmentation = new GroupParameter("Segmentation", gcdmSmoothRad, edmThreshold, minMaxEDM, objectThickness, minObjectSize, mergeCriterion, useGDCMGradientCriterion, manualCurationMargin).setEmphasized(true);
+    GroupParameter segmentation = new GroupParameter("Segmentation", edmThreshold, minMaxEDM, objectThickness, minObjectSize, centerParameters, mergeCriterion, useGDCMGradientCriterionCond, manualCurationMargin).setEmphasized(true);
     GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, trackPostProcessingCond, growthRateRange).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
@@ -238,7 +241,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     protected static double computeSigma(double thickness) {
         return Math.max(1, thickness / 4);
     }
-    public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double mergeCriterion, boolean useGDCMgradient, int minSize, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
+    public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double centerLapThld, double[] centerSizeFactorRange, double mergeCriterion, boolean useGDCMgradient, int minSize, int minSizeGCDM, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
         double sigma = computeSigma(thickness);
         double C = 1/(Math.sqrt(2 * Math.PI) * sigma);
         double seedRad = Math.max(2, thickness/2 - 1);
@@ -248,7 +251,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         // 1) Perform segmentation on EDM : watershed seeded with EDM local maxima
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
         ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, gcdmI), false);
-        //if (stores != null) stores.get(p).addIntermediateImage("EDM Seeds", localExtremaEDM);
+        //if (stores != null) stores.get(parent).addIntermediateImage("EDM Seeds", localExtremaEDM);
         RegionPopulation pop = WatershedTransform.watershed(edmI, insideCellsM, localExtremaEDM, config);
         if (stores!=null) {
             Offset offR = parent.getBounds().duplicate().reverseOffset();
@@ -283,16 +286,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (stores != null) stores.get(parent).addIntermediateImage("Center", centerI.duplicate());
         // 2.1) Watershed segmentation on laplacian
         // Very permissive parameters are set here to segment most center candidates. Merge parameter (user-defined) is the parameter that allows to discriminate between true and false positive centers
-        double lapThld = 1e-3; // center of centers must have a laplacian value over this value
         double maxEccentricity = 0.9; // filter out non-round centers
-        double sizeMinFactor = 0.5; // filter out small centers
-        double sizeMaxFactor = 2; // filter out big centers
-        double minOverlapProportion = 0.25; // filter out centers
+        double minOverlapProportion = 0.25; // filter out centers outside bacteria
         Image centerLap = ImageDerivatives.getLaplacian(centerI, new double[]{sigma, sigma}, true, false, true, false); // change 10/05/24 : use imglib2 instead of imagescience
-        ImageMask LMMask = PredicateMask.and(insideCellsM, new PredicateMask(centerLap, lapThld, true, true));
+        ImageMask LMMask = PredicateMask.and(insideCellsM, new PredicateMask(centerLap, centerLapThld, true, true));
         if (stores!=null) stores.get(parent).addIntermediateImage("Center Laplacian", centerLap);
         ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, 0, centerI));
-        WatershedTransform.WatershedConfiguration centerConfig = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(lapThld));
+        WatershedTransform.WatershedConfiguration centerConfig = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(centerLapThld));
         RegionPopulation centerPop = WatershedTransform.watershed(centerLap, insideCellsM, localExtremaCenter, centerConfig);
 
         // 2.2) Filter out centers by size and eccentricity
@@ -300,9 +300,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         BoundingBox parentRelBB = parent.getBounds().duplicate(); parentRelBB.resetOffset();
         centerPop.filter(object -> {
             double size = object.size();
-            if (size > theoreticalSize * sizeMaxFactor) return false;
+            if (size > theoreticalSize * centerSizeFactorRange[1]) return false;
             boolean touchEdge = BoundingBox.touchEdges2D(parentRelBB, object.getBounds());
-            if (!touchEdge && size < theoreticalSize * sizeMinFactor || size < theoreticalSize * sizeMinFactor * 0.5) return false;
+            if (!touchEdge && size < theoreticalSize * centerSizeFactorRange[0] || size < theoreticalSize * centerSizeFactorRange[0] * 0.5) return false;
             //if (touchEdge) return true; // eccentricity criterion not applicable
             FitEllipseShape.Ellipse ellipse = FitEllipseShape.fitShape(object);
             return ellipse.getEccentricity() < maxEccentricity;
@@ -339,20 +339,20 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         regionMapCenters.values().forEach(unallocatedCenters::removeAll);
         unallocatedCenters.forEach(c -> {
             Region r = c.getMostOverlappingRegion(pop.getRegions(), null, null);
-            regionMapCenters.get(r).add(c);
+            if (r!=null) regionMapCenters.get(r).add(c);
         });
         // previous center allocation : to max overlapping
         //Map<Region, Region> centerMapRegion = Utils.toMapWithNullValues(centers.stream(), c->c, c->c.getMostOverlappingRegion(pop.getRegions(), null, null), false);
         //Map<Region, Set<Region>> regionMapCenters = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory<>());
         //centerMapRegion.forEach((c, r) -> regionMapCenters.get(r).add(c));
 
-        List<ImageFloat> gdcmGrad = useGDCMgradient ? ImageDerivatives.getGradient(gcdmI, sigma, false, true) : new ArrayList<ImageFloat>(){{add(null); add(null);}};
+        List<ImageFloat> gdcmGrad = useGDCMgradient ? ImageDerivatives.getGradient(gcdmI, Math.max(1, sigma/2), false, true) : new ArrayList<ImageFloat>(){{add(null); add(null);}};
         if (useGDCMgradient && TestableProcessingPlugin.isExpertMode(stores)) {
             stores.get(parent).addIntermediateImage("dGDCM/dX", gdcmGrad.get(0));
             stores.get(parent).addIntermediateImage("dGDCM/dY", gdcmGrad.get(1));
         }
 
-        RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, minMaxEDMThreshold > edmThreshold ? minMaxEDMThreshold : 0, minSize, gdcmGrad.get(0), gdcmGrad.get(1), mergeCriterion));
+        RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, minMaxEDMThreshold > edmThreshold ? minMaxEDMThreshold : 0, minSize, minSizeGCDM, gdcmGrad.get(0), gdcmGrad.get(1), mergeCriterion));
 
         // 4) Post-filtering (honor minSize + user-defined post-filters)
         if (minSize>0) {
@@ -379,7 +379,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         ThreadRunner.ThreadAction<SegmentedObject> ta = (p,idx) -> {
             Image edmI = prediction.edm.get(p);
             Image gcdmI = prediction.gdcm.get(p);
-            RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), postFilters, stores);
+            RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), postFilters, stores);
             factory.setChildObjects(p, pop);
             logger.debug("parent: {} segmented!", p);
         };
@@ -466,14 +466,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         double value = Double.NaN;
         final Set<Voxel> voxels;
         final Image edm;
-        final double minMaxEDM, minSize, fusionCriterion;
+        final double minMaxEDM, minSize, fusionCriterion, minSizeGCDM;
         final Map<Region, Set<Region>> regionMapCenter;
         // gdcm-gradient related parameters
         final Image gdcmDerX, gdcmDerY;
         Voxel interfaceCenter;
         Point center1, center2;
         Vector gdcmDir1, gdcmDir2;
-        public Interface(Region e1, Region e2, Map<Region, Set<Region>> regionMapCenter, Image edm, double minMaxEdm, double minSize, Image gdcmdX, Image gdcmdY, double fusionCriterion) {
+        public Interface(Region e1, Region e2, Map<Region, Set<Region>> regionMapCenter, Image edm, double minMaxEdm, double minSize, double minSizeGCDM, Image gdcmdX, Image gdcmdY, double fusionCriterion) {
             super(e1, e2);
             voxels = new HashSet<>();
             this.regionMapCenter = regionMapCenter;
@@ -481,6 +481,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.gdcmDerX = gdcmdX;
             this.gdcmDerY = gdcmdY;
             this.minSize = minSize;
+            this.minSizeGCDM = minSizeGCDM;
             this.minMaxEDM = minMaxEdm;
             this.fusionCriterion = fusionCriterion;
         }
@@ -561,6 +562,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         protected boolean checkFusionGrad(boolean first, boolean second) {
             if (gdcmDerX ==null && gdcmDerY ==null) return true;
+            if (e1.size() < minSizeGCDM || e2.size() < minSizeGCDM) return true;
             double normThld = 0.33; // invalid gradient : norm < 0.33
             double distSqThld = 2*2; // flat object = distance between center & interface < 2 pixels
             if (!first && !second) throw new IllegalArgumentException("Choose first or second");
@@ -919,9 +921,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             if (!prevs.isEmpty()) {
                 double growthrate;
+                List<SegmentedObject> prevsNext;
                 if (prevs.size() == 1) {
                     SegmentedObject prev = prevs.get(0);
-                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prev).collect(Collectors.toList());
+                    prevsNext = SegmentedObjectEditor.getNext(prev).collect(Collectors.toList());
                     if (prevsNext.size()>1) { // compute size of all next objects
                         growthrate = prevsNext.stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(o)) {
@@ -931,12 +934,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     }
                 } else {
                     growthrate = sizeMap.get(o) / prevs.stream().mapToDouble(sizeMap::get).sum();
+                    prevsNext = Collections.singletonList(o);
                 }
                 if (!Double.isNaN(growthrate) && (growthrate < growthRateRange[0] || growthrate > growthRateRange[1])) {
-                    o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
+                    prevsNext.forEach(n -> n.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
                     prevs.forEach(p -> p.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
                     prevs.forEach(p -> p.setAttribute("GrowthRateNext", growthrate));
-                    o.setAttribute("GrowthRatePrev", growthrate);
+                    prevsNext.forEach(n -> n.setAttribute("GrowthRatePrev", growthrate));
                 }
             }
         });

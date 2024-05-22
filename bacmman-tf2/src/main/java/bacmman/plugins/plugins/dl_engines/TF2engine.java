@@ -16,6 +16,8 @@ import org.tensorflow.*;
 import org.tensorflow.ndarray.buffer.DataBuffer;
 import org.tensorflow.proto.framework.ConfigProto;
 import org.tensorflow.proto.framework.GPUOptions;
+//import org.tensorflow.proto.ConfigProto;
+//import org.tensorflow.proto.GPUOptions;
 import org.tensorflow.types.TFloat32;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -268,6 +270,9 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         Map<String, Tensor> output = model.call(inputMap);
         for (Tensor t : input) t.close();
         return Arrays.stream(outputNames).map(output::get).toArray(TFloat32[]::new);
+        //Result output = model.call(inputMap);
+        //for (Tensor t : input) t.close();
+        //return Arrays.stream(outputNames).map(n -> output.get(n).get()).toArray(TFloat32[]::new);
     }
 
     static class DataBufferContainer {
