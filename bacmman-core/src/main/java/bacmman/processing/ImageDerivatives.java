@@ -43,8 +43,7 @@ public class ImageDerivatives {
     }
 
     public static Image gaussianSmooth(Image<? extends Image<?>> image, double scaleXY, double scaleZ, boolean parallel) {
-        double[] scaleA = image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY};
-        return gaussianSmooth(image, scaleA, parallel);
+        return gaussianSmooth(image, getScaleArray(scaleXY, scaleZ, image), parallel);
     }
 
     public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image<? extends Image<?>> image, double[] scale, boolean parallel) {
@@ -73,8 +72,7 @@ public class ImageDerivatives {
     }
 
     public static ImageFloat getGradientMagnitude(Image image, double scaleXY, double scaleZ, boolean scaled, boolean parallel, int... axis) {
-        double[] scaleA = image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY};
-        return getGradientMagnitude(image, scaleA, scaled, parallel, axis);
+        return getGradientMagnitude(image, getScaleArray(scaleXY, scaleZ, image), scaled, parallel, axis);
     }
 
     public static ImageFloat getGradientMagnitude(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
@@ -101,13 +99,11 @@ public class ImageDerivatives {
     }
 
     public static List<ImageFloat> getGradient(Image image, double scale, boolean scaled, boolean parallel, int... axis) {
-        double[] scaleA = scale>0 ? IntStream.range(0, image.dimensions().length).mapToDouble(i->scale).toArray(): new double[0];
-        return getGradient(image, scaleA, scaled, parallel, axis);
+        return getGradient(image, getScaleArray(scale, image), scaled, parallel, axis);
     }
 
     public static List<ImageFloat> getGradient(Image image, double scaleXY, double scaleZ, boolean performScaling, boolean parallel, int... axis) {
-        double[] scaleA = scaleXY>0 || scaleZ>0 ? image.dimensions().length==3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY} : new double[0];
-        return getGradient(image, scaleA, performScaling, parallel, axis);
+        return getGradient(image, getScaleArray(scaleXY, scaleZ, image), performScaling, parallel, axis);
     }
 
     public static List<ImageFloat> getGradient(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
@@ -314,5 +310,13 @@ public class ImageDerivatives {
         System.arraycopy(dims, 0, res, 0, dims.length);
         res[dims.length] = n;
         return res;
+    }
+
+    public static double[] getScaleArray(double scale, Image image) {
+        return scale>0 ? IntStream.range(0, image.dimensions().length).mapToDouble(i->scale).toArray(): new double[0];
+    }
+    public static double[] getScaleArray(double scaleXY, double scaleZ, Image image) {
+        if (scaleXY==0 && scaleZ == 0) return new double[0];
+        return image.dimensions().length == 3 ? new double[]{scaleXY, scaleXY, scaleZ} : new double[]{scaleXY, scaleXY};
     }
 }

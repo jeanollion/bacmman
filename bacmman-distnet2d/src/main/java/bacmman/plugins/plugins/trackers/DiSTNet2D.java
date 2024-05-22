@@ -278,6 +278,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Image gcdmSmoothI = centerSmoothRad==0 ? gcdmI : Filters.applyFilter(gcdmI, null, new Filters.Mean(insideCells), Filters.getNeighborhood(centerSmoothRad, 0, gcdmI), false);
         if (stores != null && centerSmoothRad>0 && stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("GCDM Smooth", gcdmSmoothI);
         Image centerI = new ImageFloat("Center", gcdmSmoothI);
+        //Image gcdmSub = IJSubtractBackground.filter(gcdmSmoothI, thickness * 2, false, false, true, true, false);
+        //Image hess = ImageDerivatives.getHessianEigenValues(gcdmSmoothI, ImageDerivatives.getScaleArray(sigma, gcdmSmoothI), true, true, false)[1];
+        //if (stores != null) stores.get(parent).addIntermediateImage("Hess", hess);
+        //Image lap = ImageDerivatives.getLaplacian(gcdmSmoothI, ImageDerivatives.getScaleArray(sigma, gcdmSmoothI), false, true, false, false);
+        //if (stores != null) stores.get(parent).addIntermediateImage("Lap", lap);
         BoundingBox.loop(gcdmSmoothI.getBoundingBox().resetOffset(), (x, y, z)->{
             if (insideCellsM.insideMask(x, y, z)) {
                 centerI.setPixel(x, y, z, C * Math.exp(-0.5 * Math.pow(gcdmSmoothI.getPixel(x, y, z)/sigma, 2)) );
@@ -288,7 +293,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         // Very permissive parameters are set here to segment most center candidates. Merge parameter (user-defined) is the parameter that allows to discriminate between true and false positive centers
         double maxEccentricity = 0.9; // filter out non-round centers
         double minOverlapProportion = 0.25; // filter out centers outside bacteria
-        Image centerLap = ImageDerivatives.getLaplacian(centerI, new double[]{sigma, sigma}, true, false, true, false); // change 10/05/24 : use imglib2 instead of imagescience
+        Image centerLap = ImageDerivatives.getLaplacian(centerI, ImageDerivatives.getScaleArray(sigma, centerI), true, false, true, false); // change 10/05/24 : use imglib2 instead of imagescience
         ImageMask LMMask = PredicateMask.and(insideCellsM, new PredicateMask(centerLap, centerLapThld, true, true));
         if (stores!=null) stores.get(parent).addIntermediateImage("Center Laplacian", centerLap);
         ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, 0, centerI));
@@ -436,11 +441,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             }
                             v1Max.translate(off);
                             v2Max.translate(off);
-                            Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(0)), avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(1))).reverse();
-                            Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(0)), avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(1))).reverse();
+                            Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(0), off), avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(1), off)).reverse();
+                            Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(0), off), avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(1), off)).reverse();
                             logger.debug("Gradient vector: o={} center: {} p1={} grad={}, norm={} p2={} grad={}, norm={}", o, center, v1Max, v1, v1.norm(), v2Max, v2, v2.norm());
-                            disp.displayArrow(Point.asPoint((Offset)v1Max), v1.multiply(1), o.getFrame(), false, true, 0, colorMap.get(o));
-                            disp.displayArrow(Point.asPoint((Offset)v2Max), v2.multiply(1), o.getFrame(), false, true, 0, colorMap.get(o));
+                            disp.displayArrow(Point.asPoint((Offset)v1Max), v1, o.getFrame(), false, true, 0, colorMap.get(o));
+                            disp.displayArrow(Point.asPoint((Offset)v2Max), v2, o.getFrame(), false, true, 0, colorMap.get(o));
                         });
                         disp.updateDisplay();
                     }
@@ -571,13 +576,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (first) {
                 if (center1 == null) center1 = Medoid.computeMedoid(e1);
                 if (center1.distSq((Offset)interfaceCenter)<=distSqThld) return true; // center is too close to interface -> flat region
-                if (gdcmDir1 == null) gdcmDir1 = new Vector(avgHalf(center1, interfaceCenter, e1, gdcmDerX), avgHalf(center1, interfaceCenter, e1, gdcmDerY)).reverse();
+                if (gdcmDir1 == null) gdcmDir1 = new Vector(avgHalf(center1, interfaceCenter, e1, gdcmDerX, null), avgHalf(center1, interfaceCenter, e1, gdcmDerY, null)).reverse();
                 dir1IsValid = gdcmDir1.norm() >= normThld;
             }
             if (second) {
                 if (center2 == null ) center2 = Medoid.computeMedoid(e2);
                 if (center2.distSq((Offset)interfaceCenter)<=distSqThld) return true; // center is too close to interface -> flat region
-                if (gdcmDir2 == null) gdcmDir2 = new Vector(avgHalf(center2, interfaceCenter, e2, gdcmDerX), avgHalf(center2, interfaceCenter, e2, gdcmDerY)).reverse();
+                if (gdcmDir2 == null) gdcmDir2 = new Vector(avgHalf(center2, interfaceCenter, e2, gdcmDerX, null), avgHalf(center2, interfaceCenter, e2, gdcmDerY, null)).reverse();
                 dir2IsValid = gdcmDir2.norm() >= normThld;
             }
             if (first && second) {
@@ -616,15 +621,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
     static double rightAngle = Math.PI / 2;
-    protected static double avgHalf(RealLocalizable center, RealLocalizable referencePoint, Region region, Image image) {
+    protected static double avgHalf(RealLocalizable center, RealLocalizable referencePoint, Region region, Image image, Offset off) {
         double[] res = new double[2];
         Vector refDir = Vector.vector2D(center, referencePoint);
         region.loop((x, y, z) -> {
             if (refDir.angleXY180(new Vector(x - center.getDoublePosition(0), y - center.getDoublePosition(1))) < rightAngle && refDir.angleXY180(new Vector(x - referencePoint.getDoublePosition(0), y - referencePoint.getDoublePosition(1)))>rightAngle) { // only pixels between center and reference point
-                res[0]+= image.getPixel(x, y, z);
+                res[0] += image.getPixel(x, y, z);
                 ++res[1];
             }
-        });
+        }, off);
         if (res[1]==0) return 0;
         return res[0]/res[1];
     }
@@ -633,6 +638,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (!(seed instanceof Analytical)) return seed.getQuality();
         return (seed instanceof Ellipse2D) ? ((Ellipse2D)seed).getIntensity() : ((Spot)seed).getIntensity();
     }
+
     @Override
     public void configureFromMetadata(DLModelMetadata metadata) {
         BooleanParameter metaNext = metadata.getOtherParameter(BooleanParameter.class, "Predict Next", "Next");
