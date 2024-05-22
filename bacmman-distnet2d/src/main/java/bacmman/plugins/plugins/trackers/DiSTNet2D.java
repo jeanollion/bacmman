@@ -44,11 +44,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static bacmman.plugins.plugins.trackers.DistNet2D.LINK_MULTIPLICITY.*;
+import static bacmman.plugins.plugins.trackers.DiSTNet2D.LINK_MULTIPLICITY.*;
 import static bacmman.processing.track_post_processing.Track.getTrack;
 
-public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
-    public final static Logger logger = LoggerFactory.getLogger(DistNet2D.class);
+public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
+    public final static Logger logger = LoggerFactory.getLogger(DiSTNet2D.class);
     // prediction
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
@@ -532,21 +532,21 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (centers1.isEmpty() && centers2.isEmpty()) return checkFusionGrad(true, true);
             else if (centers1.isEmpty()) return checkFusionGrad(true, false);
             else if (centers2.isEmpty()) return checkFusionGrad(false, true);
-            double I1 = centers1.stream().mapToDouble(DistNet2D::getCenterIntensity).max().getAsDouble();
-            double I2 = centers2.stream().mapToDouble(DistNet2D::getCenterIntensity).max().getAsDouble();
+            double I1 = centers1.stream().mapToDouble(DiSTNet2D::getCenterIntensity).max().getAsDouble();
+            double I2 = centers2.stream().mapToDouble(DiSTNet2D::getCenterIntensity).max().getAsDouble();
             double ratio = getRatio(I1, I2);
             if (ratio < fusionCriterion) {
                 //logger.debug("fusion of {} + {} centers: {} + {} intensity: {} + {}", e1.getBounds(), e2.getBounds(), Utils.toStringList(centers1, Region::getCenter), Utils.toStringList(centers2, Region::getCenter), I1, I2);
                 return checkFusionGrad(I1<I2, I1>=I2);
             }
             // case: one center in shared
-            Region inter = centers1.stream().filter(centers2::contains).max(Comparator.comparingDouble(DistNet2D::getCenterIntensity)).orElse(null);
+            Region inter = centers1.stream().filter(centers2::contains).max(Comparator.comparingDouble(DiSTNet2D::getCenterIntensity)).orElse(null);
             //logger.debug("check fusion: {} + {} center {} (n={}) + {} (n={}) inter: {}", e1.getBounds(), e2.getBounds(), I1, centers1.size(), I2, centers2.size(), inter==null ? "null" : inter.getBounds());
             if (inter!=null) { // when center is shared -> merge, except if intersection is not significant compared to two different seeds
                 //logger.debug("Interface: {}+{} shared spot: {} intensity: {}, I1: {}, I2: {}", e1.getBounds(), e2.getBounds(), inter.getCenterOrGeomCenter(), getCenterIntensity(inter), I1, I2);
-                Region c1 = centers1.stream().max(Comparator.comparingDouble(DistNet2D::getCenterIntensity)).get();
+                Region c1 = centers1.stream().max(Comparator.comparingDouble(DiSTNet2D::getCenterIntensity)).get();
                 if (c1.equals(inter)) return true;
-                Region c2 = centers2.stream().max(Comparator.comparingDouble(DistNet2D::getCenterIntensity)).get();
+                Region c2 = centers2.stream().max(Comparator.comparingDouble(DiSTNet2D::getCenterIntensity)).get();
                 if (c2.equals(inter)) return true;
                 double II = getCenterIntensity(inter);
                 return !((II / I1 < fusionCriterion) && (II / I2 < fusionCriterion));

@@ -12,7 +12,7 @@ import bacmman.image.ImageMask;
 import bacmman.image.MutableBoundingBox;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.PercentileScaler;
-import bacmman.plugins.plugins.trackers.DistNet2D;
+import bacmman.plugins.plugins.trackers.DiSTNet2D;
 import bacmman.processing.split_merge.SplitAndMerge;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.UnaryPair;
@@ -74,7 +74,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             stores.get(parent).addIntermediateImage("EDM", edm);
             stores.get(parent).addIntermediateImage("GCDM", gcdm);
         }
-        return DistNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), null, stores);
+        return DiSTNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), null, stores);
     }
 
     private UnaryPair<Image> getSegmentationProxies(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -139,7 +139,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         int increment = (int)Math.ceil( interval / Math.ceil( interval /batchSize.getIntValue() ) );
         for (int idx = 0; idx < allFrames.length; idx += increment ) {
             int idxMax = Math.min(idx + increment, allFrames.length);
-            Image[][] input = DistNet2D.getInputs(inputMap, allFrames, Arrays.copyOfRange(allFrames, idx, idxMax), nFrames.getIntValue(), true, frameSubSampling.getIntValue());
+            Image[][] input = DiSTNet2D.getInputs(inputMap, allFrames, Arrays.copyOfRange(allFrames, idx, idxMax), nFrames.getIntValue(), true, frameSubSampling.getIntValue());
             logger.debug("input: [{}; {}) / [{}; {})", idx, idxMax, allFrames[0], allFrames[allFrames.length-1]);
             Image[][][] predictionONC = dlResizeAndScale.predict(engine, input); // 0=edm, 1=gcdm
             for (int i = idx; i<idxMax; ++i) {
@@ -188,14 +188,14 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     public ObjectSplitter getObjectSplitter() {
         Segmenter seg = getSegmenter();
         if (seg instanceof ObjectSplitter) { // Predict EDM and delegate method to segmenter
-            return new DistNet2D.DNManualSegmenterSplitter(seg, 0, 0, manualCurationMargin.getIntValue(), dlResizeAndScale::getOptimalPredictionBoundingBox, this::predictEDM);
+            return new DiSTNet2D.DNManualSegmenterSplitter(seg, 0, 0, manualCurationMargin.getIntValue(), dlResizeAndScale::getOptimalPredictionBoundingBox, this::predictEDM);
         } else return null;
     }
 
     public ManualSegmenter getManualSegmenter() {
         Segmenter seg = getSegmenter();
         if (seg instanceof ManualSegmenter) {
-            return new DistNet2D.DNManualSegmenterSplitter(seg, 0, 0, manualCurationMargin.getIntValue(), dlResizeAndScale::getOptimalPredictionBoundingBox, this::predictEDM);
+            return new DiSTNet2D.DNManualSegmenterSplitter(seg, 0, 0, manualCurationMargin.getIntValue(), dlResizeAndScale::getOptimalPredictionBoundingBox, this::predictEDM);
         } else return null;
     }
     // flaw : input image is not used -> prefiltered image is used instead, which is usually equivalent
