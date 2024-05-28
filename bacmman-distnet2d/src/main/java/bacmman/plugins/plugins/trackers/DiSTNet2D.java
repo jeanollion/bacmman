@@ -278,11 +278,17 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Image gcdmSmoothI = centerSmoothRad==0 ? gcdmI : Filters.applyFilter(gcdmI, null, new Filters.Mean(insideCells), Filters.getNeighborhood(centerSmoothRad, 0, gcdmI), false);
         if (stores != null && centerSmoothRad>0 && stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("GCDM Smooth", gcdmSmoothI);
         Image centerI = new ImageFloat("Center", gcdmSmoothI);
-        //Image gcdmSub = IJSubtractBackground.filter(gcdmSmoothI, thickness * 2, false, false, true, true, false);
-        //Image hess = ImageDerivatives.getHessianEigenValues(gcdmSmoothI, ImageDerivatives.getScaleArray(sigma, gcdmSmoothI), true, true, false)[1];
-        //if (stores != null) stores.get(parent).addIntermediateImage("Hess", hess);
-        //Image lap = ImageDerivatives.getLaplacian(gcdmSmoothI, ImageDerivatives.getScaleArray(sigma, gcdmSmoothI), false, true, false, false);
-        //if (stores != null) stores.get(parent).addIntermediateImage("Lap", lap);
+        BiConsumer<String, Image> dispDer = (name, im) -> {
+            Image gdcmGrad = ImageDerivatives.getGradientMagnitude(im, 0, false, true);
+            stores.get(parent).addIntermediateImage(name+"Grad", gdcmGrad);
+            List<ImageFloat> gdcmDer = ImageDerivatives.getGradient(im, 0, false, true);
+            stores.get(parent).addIntermediateImage(name+"DerX", gdcmDer.get(0));
+            stores.get(parent).addIntermediateImage(name+"DerY", gdcmDer.get(1));
+            Image gcdmLap = ImageDerivatives.getLaplacian(im, ImageDerivatives.getScaleArray(sigma, im), false, true, false, false);
+            stores.get(parent).addIntermediateImage(name+"Lap", gcdmLap);
+        };
+        //if (stores != null) dispDer.accept("GCDM", gcdmSmoothI);
+        //if (stores != null) dispDer.accept("EDM", edmI);
         BoundingBox.loop(gcdmSmoothI.getBoundingBox().resetOffset(), (x, y, z)->{
             if (insideCellsM.insideMask(x, y, z)) {
                 centerI.setPixel(x, y, z, C * Math.exp(-0.5 * Math.pow(gcdmSmoothI.getPixel(x, y, z)/sigma, 2)) );
@@ -1523,7 +1529,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 int idxMax = Math.min(i + increment, framesToPredict.length);
                 Image[][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval);
                 logger.debug("input: [{}; {}) / [{}; {})", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
-                Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
+                Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
                 appendPrediction(predictions, i);
             }
         }

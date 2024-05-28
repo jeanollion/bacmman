@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class DistNet2DTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, Hint {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), new HardSampleMiningParameter("Hard Sample Mining", new FloatParameter("Center Scale", 4))};
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), new HardSampleMiningParameter("Hard Sample Mining", new FloatParameter("Center Scale", 4))};
     Parameter[] datasetParameters = new Parameter[0];
     BoundedNumberParameter frameSubSampling = new BoundedNumberParameter("Frame Subsampling", 0, 15, 1, null).setHint("Time Subsampling of dataset to increase displacement range<br>Extent E of the frame window <em>seen</em> by the neural network is drawn randomly in interval [0, FRAME_SUBSAMLPING). if neural network inputs previous and next frames, final seen frame window is W = 2 x E + 1 otherwise W = E + 1. If W is greater than the input window of the neural network, gaps between frame are introduced, except between central frame and first adjacent frame");
     BoundedNumberParameter eraseEdgeCellSize = new BoundedNumberParameter("Erase Edge Cell Size", 0, 50, 0, null).setHint("Size (in pixels) of cells touching edges that should be erased");
@@ -27,7 +27,7 @@ public class DistNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, eraseEdgeCellSize, staticProba, new AffineTransformParameter("Affine Transform"), new ElasticDeformParameter("Elastic Deform"), new Swim1DParameter("Swim 1D"), new IlluminationParameter("Illumination Transform", true)};
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
-    enum CENTER_MODE {MEDOID, GEOMETRICAL}
+    enum CENTER_MODE {MEDOID, GEOMETRICAL, SKELETON, EDM_MAX}
     EnumChoiceParameter<CENTER_MODE> center = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID);
     GroupParameter datasetFeatures = new GroupParameter("Dataset Features", center).setHint("MEDOID: ");
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE), datasetFeatures};
