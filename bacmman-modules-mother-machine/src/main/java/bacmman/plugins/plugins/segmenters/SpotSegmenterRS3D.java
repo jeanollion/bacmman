@@ -398,7 +398,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
         double smoothScale = this.smoothScale.getValue().doubleValue();
         Image[] maps = new Image[2];
-        Function<Image, Image> gaussF = f->ImageDerivatives.gaussianSmooth(f, smoothScale, smoothScale * getAnisotropyRatio(rawSource), parallel).setName("gaussian: "+smoothScale);
+        Function<Image, Image> gaussF = f->ImageDerivatives.gaussianSmooth(f, ImageDerivatives.getScaleArray(smoothScale, smoothScale * getAnisotropyRatio(rawSource), rawSource), parallel).setName("gaussian: "+smoothScale);
         maps[0] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
         Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 0.5,1, 0, parallel, 1.5, 1.5 * getAnisotropyRatio(rawSource));
         maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);

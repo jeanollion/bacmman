@@ -54,9 +54,10 @@ public class FastRadialSymmetryTransformUtil {
      * @return
      */
     public static Image runTransform(Image input, double[] radii, Kappa kappaFunction, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double smoothFactor, double alpha, double smallGradientThreshold, boolean parallel, double... gradientScale){
+        if (gradientScale.length==0) gradientScale = new double[]{1.5};
         double scaleZ = gradientScale.length>1?gradientScale[1]:gradientScale[0]*input.getScaleXY()/input.getScaleZ();
         double ratioZ = (scaleZ / gradientScale[0]);
-        double[] gradScale = input.sizeZ()>1 ? new double[]{gradientScale[0], gradientScale[0], gradientScale[0] * ratioZ} : new double[]{gradientScale[0], gradientScale[0]};
+        double[] gradScale = ImageDerivatives.getScaleArray(gradientScale[0], gradientScale[0] * ratioZ, input);
         List<ImageFloat> grad = ImageDerivatives.getGradient(input, gradScale, true, parallel);
         Image gradX = grad.get(0);
         Image gradY = grad.get(1);
@@ -85,7 +86,7 @@ public class FastRadialSymmetryTransformUtil {
             // symmetry measure at this radius value (not smoothed)
             if (Mmap==null) BoundingBox.loop(gradM, (x, y, z) -> F.setPixel(x, y, z, Math.signum(Omap.getPixel(x, y, z)) * Math.pow(Math.abs(Omap.getPixel(x, y, z)/kappa),alpha)), parallel);
             else BoundingBox.loop(gradM, (x, y, z) -> F.setPixel(x, y, z, (float)((Mmap.getPixel(x, y, z)/kappa) * Math.pow(Math.abs(Omap.getPixel(x, y, z)/kappa),alpha))), parallel);
-            Image smoothed = ImageDerivatives.gaussianSmooth(F, smoothFactor*radius, smoothFactor*radius * ratioZ, parallel);
+            Image smoothed = ImageDerivatives.gaussianSmooth(F, ImageDerivatives.getScaleArray(smoothFactor*radius, smoothFactor*radius * ratioZ, F), parallel);
 
             ImageOperations.addImage(output, smoothed, output, radius); // multiplied by radius so that sum of all elements of the kernel is radius
         }
@@ -190,10 +191,11 @@ public class FastRadialSymmetryTransformUtil {
     }
 
     // methods used to calibrate kappa(radius)
-    public static double[][] getKappaAVG_STD_MAX(Stream<Image> images, double[] radii, boolean parallel) {
+    public static double[][] getKappaAVG_STD_MAX(Stream<Image> images, double[] radii, boolean parallel, double... gradientScale) {
+
         List<double[]> max = images
                 .parallel()
-                .map(im ->  computeOrientationMaps(im, radii, parallel))
+                .map(im ->  computeOrientationMaps(im, radii, parallel, gradientScale))
                 .collect(Collectors.toList());
         List<double[]> stat = IntStream.range(0, radii.length).mapToObj(i -> {
             DoubleStatistics stats = DoubleStatistics.getStats(max.stream().mapToDouble(d->d[i]));
@@ -205,8 +207,13 @@ public class FastRadialSymmetryTransformUtil {
         return new double[][]{AVG, STD, MAX};
     }
 
-    private static double[] computeOrientationMaps(Image input, double[] radii, boolean parallel) {
-        List<ImageFloat> grad = ImageDerivatives.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), true, parallel);
+    private static double[] computeOrientationMaps(Image input, double[] radii, boolean parallel, double... gradientScale) {
+        if (gradientScale.length==0) gradientScale = new double[]{1.5};
+        double scaleZ = gradientScale.length>1?gradientScale[1]:gradientScale[0]*input.getScaleXY()/input.getScaleZ();
+        double ratioZ = (scaleZ / gradientScale[0]);
+        double[] gradScale = ImageDerivatives.getScaleArray(gradientScale[0], gradientScale[0] * ratioZ, input);
+
+        List<ImageFloat> grad = ImageDerivatives.getGradient(input, gradScale, true, parallel);
         Image gradX = grad.get(0);
         Image gradY = grad.get(1);
         Image gradZ = grad.size()>2 ? grad.get(2) : null;

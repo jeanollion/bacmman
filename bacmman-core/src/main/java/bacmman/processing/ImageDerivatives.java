@@ -39,11 +39,7 @@ public class ImageDerivatives {
     }
 
     public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image image, double scale, boolean parallel) {
-        return gaussianSmooth(image, scale, scale, parallel);
-    }
-
-    public static Image gaussianSmooth(Image<? extends Image<?>> image, double scaleXY, double scaleZ, boolean parallel) {
-        return gaussianSmooth(image, getScaleArray(scaleXY, scaleZ, image), parallel);
+        return gaussianSmooth(image, getScaleArray(scale, image), parallel);
     }
 
     public static <S extends NumericType<S>&NativeType<S>, T extends NumericType<T>&NativeType<T>> Image gaussianSmooth(Image<? extends Image<?>> image, double[] scale, boolean parallel) {
@@ -68,11 +64,7 @@ public class ImageDerivatives {
     }
 
     public static ImageFloat getGradientMagnitude(Image image, double scale, boolean scaled, boolean parallel, int... axis) {
-        return getGradientMagnitude(image, scale, scale, scaled, parallel, axis);
-    }
-
-    public static ImageFloat getGradientMagnitude(Image image, double scaleXY, double scaleZ, boolean scaled, boolean parallel, int... axis) {
-        return getGradientMagnitude(image, getScaleArray(scaleXY, scaleZ, image), scaled, parallel, axis);
+        return getGradientMagnitude(image, getScaleArray(scale, image), scaled, parallel, axis);
     }
 
     public static ImageFloat getGradientMagnitude(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
@@ -100,10 +92,6 @@ public class ImageDerivatives {
 
     public static List<ImageFloat> getGradient(Image image, double scale, boolean scaled, boolean parallel, int... axis) {
         return getGradient(image, getScaleArray(scale, image), scaled, parallel, axis);
-    }
-
-    public static List<ImageFloat> getGradient(Image image, double scaleXY, double scaleZ, boolean performScaling, boolean parallel, int... axis) {
-        return getGradient(image, getScaleArray(scaleXY, scaleZ, image), performScaling, parallel, axis);
     }
 
     public static List<ImageFloat> getGradient(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
