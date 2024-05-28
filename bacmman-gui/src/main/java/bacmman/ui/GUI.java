@@ -4277,6 +4277,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         DefaultWorker.execute(t, 1);   */
     }//GEN-LAST:event_importDataMenuItemActionPerformed
 
+    public void appendTask(Task t) {
+        actionPoolListModel.addElement(t);
+    }
+
     private void actionPoolListMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_actionPoolListMousePressed
         if (this.running) return;
         if (SwingUtilities.isRightMouseButton(evt)) {

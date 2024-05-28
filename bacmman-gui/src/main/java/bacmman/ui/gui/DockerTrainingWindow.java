@@ -9,6 +9,7 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
+import bacmman.github.gist.TokenAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.HDF5IO;
@@ -16,6 +17,7 @@ import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
+import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
@@ -42,6 +44,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -165,6 +169,23 @@ public class DockerTrainingWindow implements ProgressLogger {
             updateExtractDisplay(); // in case dataset has be closed
             if (!extractButton.isEnabled()) return;
             extractCurrentDataset(Paths.get(currentWorkingDirectory), null, true);
+        });
+        extractButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action appendTask = new AbstractAction("Append extraction task") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            Task t = getDatasetExtractionTask(Paths.get(currentWorkingDirectory), null, new ArrayList<>());
+                            GUI.getInstance().appendTask(t);
+                        }
+                    };
+                    menu.add(appendTask);
+                    menu.show(extractButton, evt.getX(), evt.getY());
+                }
+            }
         });
         startTrainingButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
@@ -517,13 +538,17 @@ public class DockerTrainingWindow implements ProgressLogger {
         this.focusGained();
     }
 
-    protected List<String> extractCurrentDataset(Path dir, String fileName, boolean background) {
+    protected Task getDatasetExtractionTask(Path dir, String fileName, List<String> selectionList) {
         DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
         ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
         String extractFileName = fileName == null ? datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5" : fileName;
+        return trainer.getDatasetExtractionTask(GUI.getDBConnection(), dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
+    }
+
+    protected List<String> extractCurrentDataset(Path dir, String fileName, boolean background) {
         currentProgressBar = extractProgressBar;
         List<String> sel = new ArrayList<>();
-        Task t = trainer.getDatasetExtractionTask(GUI.getDBConnection(), dir.resolve(extractFileName).toString(), sel);
+        Task t = getDatasetExtractionTask(dir, fileName, sel);
         if (background) Task.executeTask(t, this, 1);
         else Task.executeTaskInForeground(t, this, 1);
         return sel;

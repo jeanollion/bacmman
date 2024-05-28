@@ -148,6 +148,10 @@ public class Task implements ProgressCallback {
                 }
                 extractDS.put("features", extractDSFeats);
                 if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) extractDS.put("eraseTouchingContoursOC", JSONUtils.toJSONArray(extractDSEraseTouchingContoursOC));
+                if (extractDSSubsamplingFactor>1) extractDS.put("extractDSSubsamplingFactor", extractDSSubsamplingFactor);
+                if (extractDSSubsamplingNumber>1) extractDS.put("extractDSSubsamplingNumber", extractDSSubsamplingNumber);
+                if (extractDSSpatialDownsamplingFactor>1) extractDS.put("extractDSSpatialDownsamplingFactor", extractDSSpatialDownsamplingFactor);
+                extractDS.put("extractDSTracking", extractDSTracking);
                 res.put("extractDataset", extractDS);
             }
             if (extractRawDSFile!=null && extractDSRawPositionMapFrames!=null && !extractDSRawPositionMapFrames.isEmpty() && extractDSRawChannels!=null) {
@@ -222,6 +226,10 @@ public class Task implements ProgressCallback {
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
                 else extractDSEraseTouchingContoursOC = new int[0];
+                if (extractDS.containsKey("extractDSSubsamplingFactor")) extractDSSubsamplingFactor = ((Number)extractDS.get("extractDSSubsamplingFactor")).intValue();
+                if (extractDS.containsKey("extractDSSubsamplingNumber")) extractDSSubsamplingNumber = ((Number)extractDS.get("extractDSSubsamplingNumber")).intValue();
+                if (extractDS.containsKey("extractDSSpatialDownsamplingFactor")) extractDSSpatialDownsamplingFactor = ((Number)extractDS.get("extractDSSpatialDownsamplingFactor")).intValue();
+                if (extractDS.containsKey("extractDSTracking")) extractDSTracking = ((Boolean)extractDS.get("extractDSTracking"));
             }
             if (data.containsKey("extractRawDataset")) {
                 JSONObject extractRawDS = (JSONObject)data.get("extractRawDataset");
@@ -486,6 +494,11 @@ public class Task implements ProgressCallback {
         this.extractDSCompression = compression;
         return this;
     }
+    public Task setExtractDSCompression(int compression) {
+        this.extractDSCompression = compression;
+        return this;
+    }
+
     /*public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
         this.exportPreProcessedImages=preProcessedImages;
         this.exportTrackImages=trackImages;
@@ -1043,6 +1056,22 @@ public class Task implements ProgressCallback {
         if (extractDSFile!=null) {
             addSep.run();
             sb.append("ExtractDSFile:").append(extractDSFile);
+            if (extractDSTracking) {
+                addSep.run();
+                sb.append("ExtractDSTracking:").append(extractDSTracking);
+            }
+            if (extractDSSpatialDownsamplingFactor>1) {
+                addSep.run();
+                sb.append("ExtractDSSpatialDownsamplingFactor:").append(this.extractDSSpatialDownsamplingFactor);
+            }
+            if (extractDSSubsamplingFactor>1) {
+                addSep.run();
+                sb.append("ExtractDSSubsamplingFactor:").append(this.extractDSSubsamplingFactor);
+                addSep.run();
+                sb.append("ExtractDSSubsamplingNumber:").append(this.extractDSSubsamplingNumber);
+            }
+            addSep.run();
+            sb.append("ExtractDSCompression:").append(this.extractDSCompression);
         }
         if (extractDSSelections!=null) {
             addSep.run();

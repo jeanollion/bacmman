@@ -120,9 +120,8 @@ public class ManualEdition {
             iwm.resetObjectsAndTracksRoi();
             if (!trackToDisp.isEmpty()) {
                 iwm.displayTracks(null, null, trackToDisp, null, true, false);
-                //GUI.updateRoiDisplayForSelections();
             }
-
+            GUI.updateRoiDisplayForSelections();
         }
     }
 
@@ -167,9 +166,8 @@ public class ManualEdition {
             iwm.resetObjectsAndTracksRoi();
             if (!trackToDisp.isEmpty()) {
                 iwm.displayTracks(null, null, trackToDisp, null, true, false);
-                //GUI.updateRoiDisplayForSelections();
             }
-
+            GUI.updateRoiDisplayForSelections();
         }
     }
     public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean forceDoubleLink, boolean allowMerge, boolean allowSplit, Set<SegmentedObject> modifiedObjects) {
@@ -330,8 +328,8 @@ public class ManualEdition {
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 if (!trackToDisp.isEmpty()) {
                     iwm.displayTracks(null, null, trackToDisp, null, true, false);
-                    //GUI.updateRoiDisplayForSelections();
                 }
+                GUI.updateRoiDisplayForSelections();
             }
         }
     }
@@ -395,8 +393,8 @@ public class ManualEdition {
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
             if (!trackToDisp.isEmpty()) {
                 iwm.displayTracks(null, null, trackToDisp, null, true, false);
-                GUI.updateRoiDisplayForSelections();
             }
+            GUI.updateRoiDisplayForSelections();
         }
     }
 
