@@ -210,6 +210,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             Core.freeMemory();
         };
         ThreadRunner.parallelExecutionBySegments(exe, 0, parentTrack.size(), 200, endOfSegment);
+        if (applyToSegmenter !=null) applyToSegmenter.close();
         Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i->boundingBoxes[i]));
 
         // tracking

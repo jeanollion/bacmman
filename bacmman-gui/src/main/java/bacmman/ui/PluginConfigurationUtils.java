@@ -141,9 +141,16 @@ public class PluginConfigurationUtils {
                 parentTrackDup.forEach(p->accessor.getDirectChildren(p, segParentStrutureIdx).removeIf(c->!selectedObjects.contains(c)));
                 logger.debug("remaining segmentation parents: {}", Utils.toStringList(parentTrackDup, p->p.getChildren(segParentStrutureIdx)));
             }
-            TrackConfigurer  apply = (p, s)-> {
-                if (!pf && s instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)s).setTestDataStore(stores);
-                if (applyToSeg!=null) applyToSeg.apply(p, s); 
+            TrackConfigurer apply = new TrackConfigurer() {
+                @Override
+                public void apply(SegmentedObject parent, Object plugin) {
+                    if (!pf && plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
+                    if (applyToSeg!=null) applyToSeg.apply(parent, plugin);
+                }
+                @Override
+                public void close() {
+                    applyToSeg.close();
+                }
             };
             so.segmentAndTrack(structureIdx, parentTrackDup, apply, getFactory(structureIdx)); // won't run pre-filters
 

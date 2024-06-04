@@ -521,6 +521,7 @@ public class ManualEdition {
                     //ImageWindowManagerFactory.getImageManager().reloadObjects(e.getKey(), structureIdx, false);
                 }
             }
+            parentThMapParam.values().forEach(TrackConfigurer::close);
             iwm.resetObjects(positions[0], structureIdx);
             // selected newly segmented objects on image
             InteractiveImage i = iwm.getInteractiveImage(image);

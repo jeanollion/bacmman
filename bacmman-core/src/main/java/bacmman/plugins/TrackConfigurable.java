@@ -46,7 +46,7 @@ public interface TrackConfigurable<P extends Plugin> {
      * Interface Allowing to configure a plugin using information from whole parent track
      * @param <P> type of plugin to be configured
      */
-    @FunctionalInterface interface TrackConfigurer<P> {
+    interface TrackConfigurer<P> {
         /**
          * Parametrizes the {@param segmenter}
          * This method may be called asynchronously with different pairs of {@param parent}/{@param segmenter}
@@ -54,6 +54,7 @@ public interface TrackConfigurable<P extends Plugin> {
          * @param plugin Segmenter instance that will be configured, prior to call the method {@link Segmenter#runSegmenter(Image, int, SegmentedObject) }
          */
         void apply(SegmentedObject parent, P plugin);
+        default void close() {};
     }
     /**
      * 

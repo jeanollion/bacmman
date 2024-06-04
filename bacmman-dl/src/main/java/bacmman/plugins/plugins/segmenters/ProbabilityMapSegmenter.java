@@ -1,10 +1,12 @@
 package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
@@ -14,6 +16,7 @@ import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.json.simple.JSONArray;
@@ -21,10 +24,7 @@ import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
     public final static Logger logger = LoggerFactory.getLogger(ProbabilityMapSegmenter.class);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
+    BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Limit the number of frames predicted at once");
     BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 5, 0.99, 0.00001, 2 ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Decrease to reduce over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 5, 0.75, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
@@ -42,7 +43,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
 
     BooleanParameter predict = new BooleanParameter("Predict Probability", true).setHint("If true probability map will be computed otherwise prefiltered images will be considered as probability map.");
     ConditionalParameter<Boolean> predictCond = new ConditionalParameter<>(predict).setEmphasized(true)
-            .setActionParameters(true, dlEngine, dlResample, channel);
+            .setActionParameters(true, dlEngine, dlResample, channel, frameWindow);
 
     Parameter[] parameters = new Parameter[]{predictCond, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
     @Override
@@ -89,7 +90,15 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
 
     private Image getSegmentedImage(Image input, int objectClassIdx, SegmentedObject parent) {
         if (segmentedImageMap!=null) {
-            if (segmentedImageMap.containsKey(parent)) return segmentedImageMap.get(parent);
+            if (segmentedImageMap.containsKey(parent)) {
+                Image res = segmentedImageMap.get(parent);
+                if (res instanceof SimpleDiskBackedImage) {
+                    SimpleDiskBackedImage sdbi = ((SimpleDiskBackedImage) res);
+                    res = sdbi.getImage();
+
+                }
+                return res;
+            }
             else { // test if segmentation parent differs
                 ExperimentStructure xp = parent.getExperimentStructure();
                 if (xp.getSegmentationParentObjectClassIdx(objectClassIdx) != xp.getParentObjectClassIdx(objectClassIdx)) {
@@ -116,16 +125,34 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
     Map<SegmentedObject, Image> segmentedImageMap;
     @Override
     public TrackConfigurer<ProbabilityMapSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
+        if (parentTrack.isEmpty()) return (p, probabilityMapSegmenter) -> probabilityMapSegmenter.segmentedImageMap = Collections.EMPTY_MAP;
+        if (!predict.getSelected()) return (p, probabilityMapSegmenter) -> probabilityMapSegmenter.segmentedImageMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> parent.getPreFilteredImage(structureIdx));
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx);
-        Image[] in = parentTrack.stream().limit(singleFrame?1:parentTrack.size()).map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
-        Image[] out;
-        if (!predict.getSelected()) out = in;
-        else {
+        DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
+        Map<SegmentedObject, Image> segM = new HashMap<>(singleFrame ? 1 : parentTrack.size());
+        int increment = frameWindow.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / frameWindow.getIntValue()) );
+        for (int i = 0; i<parentTrack.size(); i+=increment) {
+            int maxIdx = Math.min(parentTrack.size(), i+increment);
+            List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
+            Image[] in = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
+            Image[] out;
             if (Utils.objectsAllHaveSameProperty(Arrays.asList(in), Image::sameDimensions)) out = predict(in);
-            else out = Arrays.stream(in).map(this::predict).map(i -> i[0]).toArray(Image[]::new);
+            else out = Arrays.stream(in).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
+            for (int ii = 0; ii<subParentTrack.size(); ++ii) segM.put(subParentTrack.get(ii), imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(out[ii], null), false, false));
+            if (singleFrame) break;
         }
-        Map<SegmentedObject, Image> segM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, singleFrame? i -> out[0] : i -> out[i]));
-        return (p, probabilityMapSegmenter) -> probabilityMapSegmenter.segmentedImageMap = segM;
+        return new TrackConfigurer<ProbabilityMapSegmenter>() {
+            @Override public void apply(SegmentedObject parent, ProbabilityMapSegmenter plugin) {plugin.segmentedImageMap = segM;}
+            @Override public void close() {
+                if (segM.isEmpty()) return;
+                SegmentedObject parent = segM.keySet().iterator().next();
+                DiskBackedImageManager sdbi = Core.getDiskBackedManager(parent);
+                for (Image im : segM.values()) {
+                    if (im instanceof DiskBackedImage) sdbi.detach((DiskBackedImage) im, true);
+                }
+                segM.clear();
+            }
+        };
     }
 
     @Override

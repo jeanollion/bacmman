@@ -236,7 +236,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
             so.getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
             applyToSegmenter=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
             so.segmentAndTrack(structureIdx, parentTrack, applyToSegmenter, factory);
-            inputImages=parentTrack.stream().collect(Collectors.toMap(p->p.getFrame(), p->p.getPreFilteredImage(structureIdx))); // record prefiltered images
+            inputImages=parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p.getPreFilteredImage(structureIdx))); // record prefiltered images
         } else so.segmentAndTrack(structureIdx, parentTrack, factory, editor);
         // trim empty frames @ start & end. Limit to first continuous segment ?
         while (minF<maxFExcluded && getObjects(minF).isEmpty()) ++minF;

@@ -189,6 +189,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             postFilters.filter(pop, objectClassIdx, p);
             factory.setChildObjects(p, pop);
         });
+        if (applyToSegmenter != null) applyToSegmenter.close();
     }
 
     @Override
