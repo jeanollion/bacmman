@@ -53,6 +53,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 import static bacmman.utils.Utils.format;
@@ -168,7 +169,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractButton.addActionListener(ae -> {
             updateExtractDisplay(); // in case dataset has be closed
             if (!extractButton.isEnabled()) return;
-            extractCurrentDataset(Paths.get(currentWorkingDirectory), null, true);
+            extractCurrentDataset(Paths.get(currentWorkingDirectory), null, true, null);
         });
         extractButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -248,7 +249,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             currentProgressBar = extractProgressBar;
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
-                List<String> selections = extractCurrentDataset(datasetDir, tempDatasetName, false);
+                List<String> selections = new ArrayList<>();
+                boolean trackingDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
                 if (selections.isEmpty() || !tempDatasetFile.isFile()) {
                     logger.error("no dataset could be extracted");
                     return;
@@ -278,9 +280,15 @@ public class DockerTrainingWindow implements ProgressLogger {
                             if (sel.count() == metrics.size()) { // assign metrics values to samples
                                 int[] counter = new int[1];
                                 sel.getAllPositions().stream().sorted().forEach(p -> {
-                                    Set<SegmentedObject> elems = sel.getElements(p);
-                                    new TreeMap<>(SegmentedObjectUtils.splitByTrackHead(elems)).values().forEach(track -> {
-                                        logger.debug("assigning values for track: {} (size: {})", track.get(0).getTrackHead(), track.size());
+                                    List<SegmentedObject> elems = sel.getElements(p);
+                                    Stream<List<SegmentedObject>> sortedElems;
+                                    if (trackingDataset) {
+                                        Map<SegmentedObject, List<SegmentedObject>> sortedMap = new TreeMap<>(Comparator.comparing(SegmentedObject::toStringShort)); // alphabetical ordering
+                                        sortedMap.putAll(SegmentedObjectUtils.splitByContiguousTrackSegment(elems));
+                                        sortedElems = sortedMap.values().stream();
+                                    } else sortedElems = Stream.of(elems);
+                                    sortedElems.forEach(track -> {
+                                        logger.debug("assigning values for track: {} (size: {})", track.get(0), track.size());
                                         track.stream().sorted().forEach(o -> {
                                             double[] values = metrics.get(counter[0]++);
                                             for (int i = 0; i < values.length; ++i) {
@@ -406,6 +414,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         saveModelButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
             promptSaveConfig();
+            writeConfigFile(false, true, false, false);
             if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
             runLater(() -> {
@@ -545,13 +554,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         return trainer.getDatasetExtractionTask(GUI.getDBConnection(), dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
     }
 
-    protected List<String> extractCurrentDataset(Path dir, String fileName, boolean background) {
+    protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel) {
         currentProgressBar = extractProgressBar;
-        List<String> sel = new ArrayList<>();
+        if (sel == null) sel = new ArrayList<>();
         Task t = getDatasetExtractionTask(dir, fileName, sel);
         if (background) Task.executeTask(t, this, 1);
         else Task.executeTaskInForeground(t, this, 1);
-        return sel;
+        return t.getExtractDSTracking();
     }
 
     protected void promptSaveConfig() {

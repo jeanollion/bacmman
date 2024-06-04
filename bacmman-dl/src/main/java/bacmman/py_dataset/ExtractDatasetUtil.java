@@ -110,7 +110,7 @@ public class ExtractDatasetUtil {
                         Map<Integer, Map<SegmentedObject, RegionPopulation>> curResamplePops;
                         Selection selFilter = feature.getSelectionFilter() == null ? null : mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilter(), false);
                         if (selFilter != null) {
-                            Set<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptySet();
+                            List<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptyList();
                             Map<SegmentedObject, RegionPopulation> resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                                 List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).equals(parent)).map(SegmentedObject::getRegion).collect(Collectors.toList());
                                 logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel() - 1).toArray());
@@ -123,7 +123,7 @@ public class ExtractDatasetUtil {
                             });
                             if (filterParentSelection) {
                                 if (oneEntryPerInstance) {
-                                    Set<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptySet();
+                                    List<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptyList();
                                     int parentSO = sel.getStructureIdx();
                                     parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
                                         put(position, allElements.stream().filter(o -> allParents.contains(o.getParent(parentSO))).collect(Collectors.toList()));

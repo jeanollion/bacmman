@@ -669,6 +669,25 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx fw", prediction.dxFW.get(o)));
         boolean verbose = stores != null;
         logger.debug("track: length: {}, container length: {}, prediction null ?: {}", parentTrack.size(), linkMultiplicityMapContainer.length, prediction ==null);
+        if (verbose && false) {
+            for (SegmentedObject p : parentTrack) {
+                Image fwMul = prediction.multipleLinkFW.get(p);
+                Image fwNull = prediction.noLinkFW.get(p);
+                if (fwNull==null) continue;
+                ImageByte im = new ImageByte("", fwMul);
+                BoundingBox.loop(im.getBoundingBox().resetOffset(), (x, y, z)->{
+                    double pMul = fwMul.getPixel(x, y, z);
+                    double pNul = fwNull.getPixel(x, y, z);
+                    double pSingle = 1 - pMul - pNul;
+                    if (pSingle >= pMul && pSingle >= pNul) im.setPixel(x, y, z, 1);
+                    else if (pMul >= pNul) im.setPixel(x, y, z, 2);
+                    else im.setPixel(x, y, z, 3);
+                });
+                stores.get(p).addIntermediateImage("FW Cat", im);
+                stores.get(p).addIntermediateImage("FW Mul", fwMul);
+                stores.get(p).addIntermediateImage("FW Null", fwNull);
+            }
+        }
         Map<SegmentedObject, LINK_MULTIPLICITY> lmFW = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
                 prediction==null ? o->SINGLE : o -> {
@@ -1543,12 +1562,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.arraycopy(ResizeUtils.getChannel(predictions[3], 0), 0, this.dxBW, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[2], 1), 0, this.dyFW, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[3], 1), 0, this.dxFW, idx, n);
-            int inc = predictions[4][0].length == 4 ? 1 : 0;
-            System.arraycopy(ResizeUtils.getChannel(predictions[4], 1+inc), 0, this.multipleLinkBW, idx, n);
-            System.arraycopy(ResizeUtils.getChannel(predictions[4], 2+inc), 0, this.noLinkBW, idx, n);
-            inc += predictions[4][0].length/2;
-            System.arraycopy(ResizeUtils.getChannel(predictions[4], 1 + inc), 0, this.multipleLinkFW, idx, n);
-            System.arraycopy(ResizeUtils.getChannel(predictions[4], 2 + inc), 0, this.noLinkFW, idx, n);
+
+            System.arraycopy(ResizeUtils.getChannel(predictions[4], 1), 0, this.multipleLinkBW, idx, n);
+            System.arraycopy(ResizeUtils.getChannel(predictions[4], 2), 0, this.noLinkBW, idx, n);
+            int nChanCat = predictions[4][0].length;
+            System.arraycopy(ResizeUtils.getChannel(predictions[4], 1 + nChanCat/2), 0, this.multipleLinkFW, idx, n);
+            System.arraycopy(ResizeUtils.getChannel(predictions[4], 2 + nChanCat/2), 0, this.noLinkFW, idx, n);
         }
 
         void decreaseBitDepth() {

@@ -290,7 +290,7 @@ public class Processor {
             ProcessingPipeline.PARENT_TRACK_MODE mode = parentTrackMode(ps);
             switch (mode) {
                 case MULTIPLE_INTERVALS: {
-                    Set<SegmentedObject> sel = selection.getElements(position);
+                    Collection<SegmentedObject> sel = selection.getElements(position);
                     Map<SegmentedObject, List<SegmentedObject>> selByTh = sel.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
                     allParentTracks.forEach((th, t)-> {
                         if (selByTh.containsKey(th)) t.retainAll(selByTh.get(th));
@@ -300,7 +300,7 @@ public class Processor {
                 }
                 case SINGLE_INTERVAL: {
                     // get first-last element for each track are remove all others
-                    Set<SegmentedObject> sel = selection.getElements(position);
+                    Collection<SegmentedObject> sel = selection.getElements(position);
                     Map<SegmentedObject, List<SegmentedObject>> selByTh = sel.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
                     allParentTracks.forEach((th, t)-> { // TODO or split in continuous intervals ?
                         if (selByTh.containsKey(th)) {

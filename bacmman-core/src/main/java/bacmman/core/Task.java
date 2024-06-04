@@ -484,6 +484,11 @@ public class Task implements ProgressCallback {
         this.extractDSTracking = tracking;
         return this;
     }
+
+    public boolean getExtractDSTracking() {
+            return extractDSTracking;
+    }
+
     public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames, int compression) {
         this.extractRawDSFile = extractDSFile;
         this.extractDSRawPositionMapFrames = positionMapFrames;

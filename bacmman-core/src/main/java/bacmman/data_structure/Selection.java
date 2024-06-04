@@ -93,7 +93,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         addObjects = other.addObjects;
     }
     public final static String indexSeparator ="-";
-    Map<String, Set<SegmentedObject>> retrievedElements= new HashMap<>();
+    Map<String, List<SegmentedObject>> retrievedElements= new HashMap<>();
     MasterDAO mDAO;
     
     public Selection(String name, MasterDAO mDAO) {
@@ -222,8 +222,8 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         return getElementsAsStream(elements.keySet().stream());
     }
     
-    public Set<SegmentedObject> getElements(String position) {
-        Set<SegmentedObject> res =  retrievedElements.get(position);
+    public List<SegmentedObject> getElements(String position) {
+        List<SegmentedObject> res = retrievedElements.get(position);
         if (res==null && elements.containsKey(position)) {
             synchronized(retrievedElements) {
                 res =  retrievedElements.get(position);
@@ -270,16 +270,16 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         }
         return (Collection<String>)indiciesList;
     }
-    protected synchronized Set<SegmentedObject> retrieveElements(String position) {
+    protected synchronized List<SegmentedObject> retrieveElements(String position) {
         if (position==null) throw new IllegalArgumentException("Position cannot be null");
         Collection<String> indiciesList = get(position, false);
         if (indiciesList==null) {
             SegmentedObject.logger.debug("position: {} absent from sel: {}", position, name);
-            return Collections.EMPTY_SET;
+            return Collections.EMPTY_LIST;
         }
         ObjectDAO dao = mDAO.getDao(position);
         int[] pathToRoot = mDAO.getExperiment().experimentStructure.getPathToRoot(objectClassIdx);
-        Set<SegmentedObject> res = new HashSet<>(indiciesList.size());
+        List<SegmentedObject> res = new ArrayList<>(indiciesList.size());
         retrievedElements.put(position, res);
         List<SegmentedObject> roots = dao.getRoots();
         long t0 = System.currentTimeMillis();
@@ -372,14 +372,14 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         return Utils.toStringArray(indicies, "", "", indexSeparator).toString();
     }
     
-    public synchronized void updateElementList(String fieldName) {
-        if (fieldName==null) throw new IllegalArgumentException("FieldName cannot be null");
-        Set<SegmentedObject> objectList = retrievedElements.get(fieldName);
+    public synchronized void updateElementList(String position) {
+        if (position==null) throw new IllegalArgumentException("FieldName cannot be null");
+        List<SegmentedObject> objectList = retrievedElements.get(position);
         if (objectList==null) {
-            elements.remove(fieldName);
+            elements.remove(position);
             return;
         }
-        Collection<String> indiciesList = get(fieldName, true);
+        Collection<String> indiciesList = get(position, true);
         indiciesList.clear();
         for (SegmentedObject o : objectList) indiciesList.add(indicesString(o));
     }
@@ -388,7 +388,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         if (this.objectClassIdx==-2) objectClassIdx=elementToAdd.getStructureIdx();
         else if (objectClassIdx!=elementToAdd.getStructureIdx()) return;
         if (this.retrievedElements.containsKey(elementToAdd.getPositionName())) {
-            Set<SegmentedObject> list = getElements(elementToAdd.getPositionName());
+            List<SegmentedObject> list = getElements(elementToAdd.getPositionName());
             if (!list.contains(elementToAdd)) {
                 list.add(elementToAdd);
                 // update DB refs
@@ -441,7 +441,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     }    
   
     public boolean removeElement(SegmentedObject elementToRemove) {
-        Set<SegmentedObject> list = getElements(elementToRemove.getPositionName());
+        List<SegmentedObject> list = getElements(elementToRemove.getPositionName());
         if (list!=null) {
             boolean remove = list.remove(elementToRemove);
             if (remove) {
