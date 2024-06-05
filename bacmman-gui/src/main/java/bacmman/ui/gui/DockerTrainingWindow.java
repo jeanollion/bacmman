@@ -627,7 +627,14 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setMessage("Building docker image: " + tag);
                 return dockerGateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, this::printError, this::setStepProgress);
             } catch (IOException e) {
+                setMessage("Could not build docker image");
                 logger.error("Error while extracting resources", e);
+                return null;
+            } catch (RuntimeException e) {
+                if (e.getMessage().toLowerCase().contains("permission denied")) {
+                    setMessage("Could not build docker image: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
+                    logger.error("Error connecting with Docker: Permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock", e);
+                }
                 return null;
             } finally {
                 if (dockerFilePath != null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();
@@ -671,8 +678,14 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), dockerMemorySizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
-            setMessage("Error trying to start container");
-            setMessage(e.getMessage());
+            if (e.getMessage().toLowerCase().contains("permission denied")) {
+                setMessage("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
+                logger.error("Error trying to start container: Permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock", e);
+            } else {
+                setMessage("Error trying to start container");
+                setMessage(e.getMessage());
+                logger.error("Error trying to start container", e);
+            }
             return null;
         }
     }
