@@ -240,7 +240,7 @@ public class IJVirtualStack extends VirtualStack {
             if (lastChannel>=0) displayRange.put(lastChannel, new double[]{imp.getDisplayRangeMin(), imp.getDisplayRangeMax()}); // record display for last channel
             if (!displayRange.containsKey(nextChannel)) {
                 if (nextImage == null) return;
-                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.00001, 0.99999);
+                double[] minAndMax = ImageDisplayer.getDisplayRange(nextImage, null);
                 //logger.debug("getting display range for channel {} -> {}", nextChannel, minAndMax);
                 displayRange.put(nextChannel, minAndMax);
             }

@@ -85,13 +85,13 @@ public interface ImageDisplayer<T> {
         double maxValue = hist.getValueFromIdx(maxIdx);
         if (hist.getData().length==2 || minIdx==maxIdx+1 || minIdx==maxIdx) return new double[]{minValue, minValue+hist.getBinSize()}; // binary image
         //hist.removeSaturatingValue(5, true);
-        hist.removeSaturatingValue(5, false);
-        double[] per =  hist.getQuantiles(0, 1);
+        if (minValue == 0)  hist.removeSaturatingValue(5, false); // zeros can be introduced in kymographs with parent object of varying size
+        double[] per =  hist.getQuantiles(0.00001, 0.99999);
         if (per[0]==per[1]) {
             per[0] = minValue;
             per[1] = maxValue;
         }
-        if (per[0]>0 &&  im instanceof ImageInteger) per[0] -= 1; // possibly a label image
+        if (per[0]>0 && !im.floatingPoint()) per[0] -= 1; // possibly a label image
         return per;
     }
 }
