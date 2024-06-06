@@ -125,7 +125,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 if (subSegmentation && pop != null) pop.translate(subParent.getBounds(), true);
                 return pop;
             }).collect(Collectors.toList());
-            applyToSegmenter.close();
+            if (applyToSegmenter != null) applyToSegmenter.close();
         } catch (ThreadRunner.TR_RuntimeException ex) {
             if (ex.getCause() instanceof RuntimeException) throw (RuntimeException)ex.getCause();
             else throw ex;
