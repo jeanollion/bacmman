@@ -76,7 +76,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
                 EnumChoiceParameter<CONSTANT_SIZE_CONDITION> constantSizeCondition = (EnumChoiceParameter<CONSTANT_SIZE_CONDITION>) parameters.get(2);
                 int newSize = size.getValue().intValue();
                 int deltaSize = newSize - getDim(toModify, axisNumber);
-                logger.trace("modifiy axis: {}, oob: {}, cond: {}, target: {}, delta: {}", axisNumber, outOfBound.getSelectedEnum(), constantSizeCondition.getSelectedEnum(), newSize, deltaSize);
+                //logger.debug("modifiy axis: {}, oob: {}, cond: {}, target: {}, delta: {}", axisNumber, outOfBound.getSelectedEnum(), constantSizeCondition.getSelectedEnum(), newSize, deltaSize);
                 if (deltaSize == 0 ) return;
                 switch (constantSizeCondition.getSelectedEnum()) {
                     case TARGET_SIZE_IS_LARGER:
@@ -106,7 +106,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
                 setBound(toModify, vMin, axisNumber, true);
                 setBound(toModify, vMax, axisNumber, false);
                 ensureOutOfBound(toModify, parentBounds, axisNumber,  outOfBound.getSelectedEnum());
-                logger.trace("new vmin: {}, new vmax: {}", getBound(toModify, axisNumber, true), getBound(toModify, axisNumber, false));
+                //logger.debug("new vmin: {}, new vmax: {}", getBound(toModify, axisNumber, true), getBound(toModify, axisNumber, false));
                 return;
             }
             case EXTEND_ON_SIDES: {
