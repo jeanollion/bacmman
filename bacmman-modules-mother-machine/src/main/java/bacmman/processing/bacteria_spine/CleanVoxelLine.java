@@ -25,6 +25,7 @@ import bacmman.processing.ImageOperations;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
+import bacmman.processing.bacteria_spine.BacteriaSpineFactory.InvalidObjectException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static bacmman.utils.Utils.applyREx;
 
 /**
  *
@@ -60,12 +62,13 @@ public class CleanVoxelLine {
     int maxLabel = 0;
     public Consumer<Image> imageDisp;
     BoundingBox displayBounds;
+
     /**
      * Ensures {@param contour} is only composed of 2-connected voxels
      * @param contour set of contour voxel of an object, ie voxel from the object in contact with the background
      * @return cleaned contour, same instance as {@param contour} for convinience 
      */
-    public static Set<Voxel> cleanContour(Set<Voxel> contour) {
+    public static Set<Voxel> cleanContour(Set<Voxel> contour) throws InvalidObjectException {
         return new CleanVoxelLine(contour, null).cleanContour();
     }
     /**
@@ -74,13 +77,13 @@ public class CleanVoxelLine {
      * @param imageDisp to display intermediate states for debugging
      * @return 
      */
-    public static Set<Voxel> cleanContour(Set<Voxel> contour, Consumer<Image> imageDisp) {
+    public static Set<Voxel> cleanContour(Set<Voxel> contour, Consumer<Image> imageDisp) throws InvalidObjectException {
         return new CleanVoxelLine(contour, imageDisp).cleanContour();
     }
-    public static List<Voxel> cleanSkeleton(Set<Voxel> skeleton) {
+    public static List<Voxel> cleanSkeleton(Set<Voxel> skeleton) throws InvalidObjectException {
         return cleanSkeleton(skeleton, null, null);
     }
-    public static List<Voxel> cleanSkeleton(Set<Voxel> skeleton, Consumer<Image> imageDisp, BoundingBox displayBounds) {
+    public static List<Voxel> cleanSkeleton(Set<Voxel> skeleton, Consumer<Image> imageDisp, BoundingBox displayBounds) throws InvalidObjectException {
         Comparator<Voxel> comp = Comparator.comparingInt(v -> v.x + v.y);
         if (skeleton.size()>2) {
             CleanVoxelLine cl = new CleanVoxelLine(skeleton, imageDisp);
@@ -118,30 +121,31 @@ public class CleanVoxelLine {
         voxMapNeighAndLabels.entrySet().stream().forEach(e->map.setPixelWithOffset(e.getKey().x, e.getKey().y, e.getKey().z, e.getValue()[neigh?0:1]));
         return map;
     }
-    private void keepOnlyLargestCluster() {
-        if (segments.size()<=1) return;
+    private boolean keepOnlyLargestCluster() {
+        if (segments.size()<=1) return false;
         List<Set<Segment>> clusters = getAllSegmentClusters();
         if (clusters.size()>1) { 
             if (imageDisp!=null) logger.debug("clean contour: {} independent contours found! ", clusters.size());
             Function<Set<Segment>, Integer> clusterSize = s->s.stream().mapToInt(seg->seg.voxels.size()).sum();
-            Set<Segment> max = clusters.stream().max((c1, c2)->Integer.compare(clusterSize.apply(c1), clusterSize.apply(c2))).get();
+            Set<Segment> max = clusters.stream().max(Comparator.comparingInt(clusterSize::apply)).get();
             clusters.remove(max);
             clusters.stream().forEach(s->s.stream().forEach(seg->seg.remove(true, false)));
             if (imageDisp!=null) imageDisp.accept(draw(true).setName("neighbors keep largest cluster"));
             if (imageDisp!=null) imageDisp.accept(draw(false).setName("labels keep largest cluster"));
-        }
+            return true;
+        } else return false;
     }
-    public Set<Voxel> cleanContour() {
+    public Set<Voxel> cleanContour() throws InvalidObjectException {
         keepOnlyLargestCluster(); // if there are several distinct objects OR holes inside : keep only largest contour -> erase all others
-        if (segments.values().stream().filter(s->s.isJunction()).findAny().orElse(null)==null) return lines;
+        if (segments.values().stream().filter(Segment::isJunction).findAny().orElse(null)==null) return lines;
         if (imageDisp!=null) logger.debug("clean contour: {} segments", segments.size());
         // erase all branch segments that are conected to only one junction
         while (segments.size()>1) {
             // start by removing end-branches ie connected to only one junction by only one pixel
             if (segments.size()>2) { // do not remove end-branch if there is only one branch & one junction
-                Edge endBranch = segments.values().stream().filter(s->s.isEndBranch()).map(s->(Edge)s).min(Edge::compareTo).orElse(null);
+                Edge endBranch = segments.values().stream().filter(Segment::isEndBranch).map(s->(Edge)s).min(Edge::compareTo).orElse(null);
                 if (endBranch!=null) {
-                    if (endBranch.voxels.size()==1 || segments.values().stream().filter(s->s.isEndBranch()).count()>1) { // if only one end-branch -> it could be the main cycle
+                    if (endBranch.voxels.size()==1 || segments.values().stream().filter(Segment::isEndBranch).count()>1) { // if only one end-branch -> it could be the main cycle
                         endBranch.remove(true, true);
                         Vertex junction  = (endBranch).connectedSegments.stream().findAny().orElse(null); // end branch has only one junction
                         junction.relabel();
@@ -150,9 +154,10 @@ public class CleanVoxelLine {
                 }
             }
              // if no change -> it means the junction wasn't removed by removing end branches ->  there is a weird structure in the junction / or loop structure involving several junction -> try to clean it. start by solving simplest junctions
-            Vertex junction = segments.values().stream().filter(s->s.isJunction()).map(s->(Vertex)s).min((j1, j2)->Integer.compare(j1.connectedSegments.size(), j2.connectedSegments.size())).orElse(null);
+            Vertex junction = segments.values().stream().filter(Segment::isJunction).map(s->(Vertex)s).min(Comparator.comparingInt(j -> j.connectedSegments.size())).orElse(null);
             if (junction==null) { // semgents were islated by previous process
-                keepOnlyLargestCluster();
+                boolean clusterRemoved = keepOnlyLargestCluster();
+                if (!clusterRemoved) throw new InvalidObjectException("Unable to clean contour");
             } else {
                 if (imageDisp!=null) {
                     imageDisp.accept(draw(true).setName("neighbors before clean junction:"+junction.label));
@@ -164,7 +169,7 @@ public class CleanVoxelLine {
                     imageDisp.accept(draw(false).setName("labels after clean junction"));
                 }
                 if (!cleanPerformed) {
-                    throw new RuntimeException("Unable to clean junction");
+                    throw new InvalidObjectException("Unable to clean junction");
                     //break;
                 }
             }
@@ -176,7 +181,7 @@ public class CleanVoxelLine {
         }
         return lines;
     }
-    public Set<Voxel> cleanSkeleton() {
+    public Set<Voxel> cleanSkeleton() throws InvalidObjectException {
         if (imageDisp!=null) {
             imageDisp.accept(draw(true).setName("clean skeleton start"));
             imageDisp.accept(draw(false).setName("clean skeleton start"));
@@ -184,7 +189,7 @@ public class CleanVoxelLine {
         keepOnlyLargestCluster(); 
         // remove all end branch of size 1
         while (segments.size()>1) {
-            Edge endBranch = segments.values().stream().filter(s->s.isEndBranch()).filter(s->s.voxels.size()==1).map(s->(Edge)s).findAny().orElse(null);
+            Edge endBranch = segments.values().stream().filter(Segment::isEndBranch).filter(s->s.voxels.size()==1).map(s->(Edge)s).findAny().orElse(null);
             if (endBranch!=null) {
                 endBranch.remove(true, true);
                 Vertex junction  = (endBranch).connectedSegments.stream().findAny().orElse(null); // end branch has only one junction
@@ -193,10 +198,15 @@ public class CleanVoxelLine {
         }
         // trim redondent junctions
         while (segments.size()>1) {
-            Vertex junction = segments.values().stream().filter(v->v.isJunction()).map(v->(Vertex)v).filter(v->v.countNonEndEdges()>1).findAny().orElse(null);
+            Vertex junction = segments.values().stream().filter(Segment::isJunction).map(v->(Vertex)v).filter(v->v.countNonEndEdges()>1).findAny().orElse(null);
             if (junction==null) break;
-            Map<Edge, Vertex> connectedVertices = junction.connectedSegments.stream().filter(e->!e.isEndBranch()).collect(Collectors.toMap(e->e, e->e.getOtherJunction(junction)));
-            Entry<Edge, Vertex> toRemove = connectedVertices.entrySet().stream().filter(e -> Collections.frequency(connectedVertices.values(), e.getValue())>1).min((e1, e2)->e1.getKey().compareTo(e2.getKey())).orElse(null);
+            Map<Edge, Vertex> connectedVertices;
+            try {
+                connectedVertices = junction.connectedSegments.stream().filter(e -> !e.isEndBranch()).collect(Collectors.toMap(e -> e, applyREx(e -> e.getOtherJunction(junction))));
+            } catch (RuntimeException ex) {
+                throw (InvalidObjectException)ex.getCause();
+            }
+            Entry<Edge, Vertex> toRemove = connectedVertices.entrySet().stream().filter(e -> Collections.frequency(connectedVertices.values(), e.getValue())>1).min(Entry.comparingByKey()).orElse(null);
             if (toRemove!=null) {
                 toRemove.getKey().remove(true, true);
                 toRemove.getValue().relabel();
@@ -292,12 +302,12 @@ public class CleanVoxelLine {
             segments.put(currentLabel, createSegment(currentLabel, v));
         }
     }
-    private boolean cleanContourJunction(Vertex junction) {
+    private boolean cleanContourJunction(Vertex junction) throws InvalidObjectException {
         // get branch pixels that are connected to junction
         Voxel[] branchEnds;
         switch (junction.connectedSegments.size()) {
             case 1: {
-                branchEnds = junction.connectedSegments.iterator().next().getTouchingVoxels(junction).toArray(s->new Voxel[s]);
+                branchEnds = junction.connectedSegments.iterator().next().getTouchingVoxels(junction).toArray(Voxel[]::new);
                 if (branchEnds.length==1) {
                     if (imageDisp!=null) {
                         imageDisp.accept(draw(true).setName("clean junction: only one branch voxel connected to junction #"+junction.label));
@@ -305,15 +315,15 @@ public class CleanVoxelLine {
                     }
                     junction.remove(true, true); // junction is weird structure at the end of branch -> erase it
                     return true;
-                } else if (branchEnds.length>2) throw new RuntimeException("clean junction: more than 2 branch voxels connected to junction");
+                } else if (branchEnds.length>2) throw new InvalidObjectException("clean junction: more than 2 branch voxels connected to junction");
                 break;
             }
             case 2: {
                 Iterator<Edge> it = junction.connectedSegments.iterator();
                 Edge b1 = it.next();
                 Edge b2 = it.next();
-                Voxel[] bEnds1 = b1.getTouchingVoxels(junction).toArray(s->new Voxel[s]);
-                Voxel[] bEnds2 = b2.getTouchingVoxels(junction).toArray(s->new Voxel[s]);
+                Voxel[] bEnds1 = b1.getTouchingVoxels(junction).toArray(Voxel[]::new);
+                Voxel[] bEnds2 = b2.getTouchingVoxels(junction).toArray(Voxel[]::new);
                 if (bEnds1.length==1 && bEnds2.length==1) {
                     branchEnds = new Voxel[]{bEnds1[0], bEnds2[0]};
                     break; // there are only 2 connected ends go to the proper clean branch section 
@@ -333,8 +343,13 @@ public class CleanVoxelLine {
             default: { 
                 // remove duplicated redondent edges: remove smallest. 
                 // At this stage end-branches have been removed, if one remains it is the only one in the cluster
-                Map<Edge, Vertex> connectedVertices = junction.connectedSegments.stream().filter(e->!e.isEndBranch()).collect(Collectors.toMap(e->e, e->e.getOtherJunction(junction)));
-                Entry<Edge, Vertex> toRemove = connectedVertices.entrySet().stream().filter(e -> Collections.frequency(connectedVertices.values(), e.getValue())>1).min((e1, e2)->e1.getKey().compareTo(e2.getKey())).orElse(null);
+                Map<Edge, Vertex> connectedVertices;
+                try {
+                    connectedVertices = junction.connectedSegments.stream().filter(e -> !e.isEndBranch()).collect(Collectors.toMap(e -> e, applyREx(e -> e.getOtherJunction(junction))));
+                } catch (RuntimeException ex) {
+                    throw (InvalidObjectException) ex.getCause();
+                }
+                Entry<Edge, Vertex> toRemove = connectedVertices.entrySet().stream().filter(e -> Collections.frequency(connectedVertices.values(), e.getValue())>1).min(Entry.comparingByKey()).orElse(null);
                 if (toRemove!=null) {
                     toRemove.getKey().remove(true, true);
                     toRemove.getValue().relabel();
@@ -342,24 +357,21 @@ public class CleanVoxelLine {
                     return true;
                 }
                 // more than 2 branches: erase all edges that are not implicated in the largest loop in which the vertex is implicated
-                //String dbName = "MutH_140115";
-                //int postition= 14, frame=886, mc=10, b=1;
-                //imageDisp!=null = true;
                 if (imageDisp!=null) {
                     logger.debug("will run shortest path algorithm for junction: {}", junction.label);
                     imageDisp.accept(draw(true).setName("neigh for clean junction: >2 branch connected to junction #"+junction.label));
                     imageDisp.accept(draw(false).setName("labels for clean junction: >2 branch connected to junction #"+junction.label));
                 }
                 List<Vertex> largestShortestLoop = getLargestShortestLoop(junction);
-                if (largestShortestLoop.isEmpty()) throw new RuntimeException("Unable to clean junction : no loop");
+                if (largestShortestLoop.isEmpty()) throw new InvalidObjectException("Unable to clean junction : no loop");
                 // keep only first edge & last edge of largest loop (redondent edges have been removed so path is larger that 2)
                 Set<Edge> toKeep = new HashSet<>(2);
                 toKeep.add(junction.connectedSegments.stream().filter(e->e.connectedSegments.contains(largestShortestLoop.get(1))).max(Edge::compareTo).get());
                 toKeep.add(junction.connectedSegments.stream().filter(e->e.connectedSegments.contains(largestShortestLoop.get(largestShortestLoop.size()-1))).max(Edge::compareTo).get());
-                junction.connectedSegments.stream().filter(e->!toKeep.contains(e)).collect(Collectors.toList()).forEach(s->{
+                for (Edge s : junction.connectedSegments.stream().filter(e->!toKeep.contains(e)).collect(Collectors.toList())) {
                     s.remove(true, true);
                     if (s.connectedSegments.size()>1) s.getOtherJunction(junction).relabel();
-                });
+                }
                 junction.relabel();
                 if (imageDisp!=null) {
                     imageDisp.accept(draw(true).setName("neigh after clean junction: >2 branch connected to junction #"+junction.label));
@@ -375,7 +387,7 @@ public class CleanVoxelLine {
         Set<Voxel> pool = new HashSet<>(junction.voxels); //remaining junction voxels
         propagate(branchEnds, endsPropagation, pool);
         while(!endsPropagation[0].equals(endsPropagation[1]) && !isTouching(endsPropagation[0], endsPropagation[1])) {
-            if (pool.isEmpty()) throw new IllegalArgumentException("could not clean junction");
+            if (pool.isEmpty()) throw new InvalidObjectException("could not clean junction: empty pool");
             propagate(branchEnds, endsPropagation, pool);
         }
         // remove all other voxels
@@ -514,7 +526,7 @@ public class CleanVoxelLine {
                 v.value = n;
                 voxMapNeighAndLabels.get(v)[0] = n;
             });
-            voxels.forEach(v->label(v));
+            voxels.forEach(CleanVoxelLine.this::label);
         }
         /**
          * 
@@ -540,7 +552,7 @@ public class CleanVoxelLine {
         public Vertex(int label, Voxel v) {
             super(label, v);
         }
-        public Set<Vertex> getFirstNeighbors() {
+        public Set<Vertex> getFirstNeighbors() throws InvalidObjectException {
             if (this.connectedSegments.isEmpty()) return Collections.EMPTY_SET;
             Set<Vertex> res = new HashSet<>();
             for (Edge e : connectedSegments) {
@@ -568,15 +580,15 @@ public class CleanVoxelLine {
         public Edge(int label, Voxel v) {
             super(label, v);
         }
-        public Vertex getOtherJunction(Vertex junction1) {
-            if (connectedSegments.size()>2) throw new RuntimeException("invalid edge");
+        public Vertex getOtherJunction(Vertex junction1) throws InvalidObjectException {
+            if (connectedSegments.size()>2) throw new InvalidObjectException("invalid edge");
             if (connectedSegments.size()==1) return null;
             Iterator<Vertex> vIt = connectedSegments.iterator();
             Vertex n1 = vIt.next();
             Vertex n2 = vIt.next();
             if (n1.equals(junction1)) return n2;
             else if (n2.equals(junction1)) return n1;
-            throw new IllegalArgumentException("junction not linked to edge");
+            throw new InvalidObjectException("junction not linked to edge");
         }
         public void setEndPointsAsVertex() {
             voxels.stream().filter(v->voxMapNeighAndLabels.get(v)[0]==1).collect(Collectors.toList()).forEach(v->{
@@ -628,11 +640,11 @@ public class CleanVoxelLine {
     }
     
     private Vertex[] initVertices() {
-        Vertex[] vertices = this.segments.values().stream().filter(v->v.isJunction()).toArray(s->new Vertex[s]);
+        Vertex[] vertices = this.segments.values().stream().filter(Segment::isJunction).toArray(Vertex[]::new);
         for (int i = 0; i<vertices.length; ++i) vertices[i].idx = i;
         return vertices;
     }
-    private List<Vertex> getLargestShortestLoop(Vertex v) {
+    private List<Vertex> getLargestShortestLoop(Vertex v) throws InvalidObjectException {
         Set<Vertex> firstNeigh = v.getFirstNeighbors();
         if (firstNeigh.isEmpty()) return Collections.EMPTY_LIST;
         Vertex[] vertices = initVertices();
@@ -646,15 +658,17 @@ public class CleanVoxelLine {
             u.connectedSegments.remove(e);
             floydWarshall(vertices, next, dist);
             List<Vertex> path = path(v, u, next); // compute shortest path between u & v without e 
-            int length = (int)dist[v.idx][u.idx] + e.voxels.size();
-            shortestPaths.add(new Pair(path, length));
+            if (!path.isEmpty()) {
+                int length = (int) dist[v.idx][u.idx] + e.voxels.size();
+                shortestPaths.add(new Pair<>(path, length));
+                path.forEach(firstNeigh::remove); // remove visited first neighbors from candidates to avoid compute 2 times the same path
+            } else firstNeigh.remove(u);
             v.connectedSegments.add(e);
             u.connectedSegments.add(e);
-            firstNeigh.removeAll(path); // remove visited first neighbors from candidates to avoid compute 2 times the same path
         }
-        return shortestPaths.stream().max((p1, p2)->Integer.compare(p1.value, p2.value)).orElse(new Pair<List<Vertex>, Integer>(Collections.EMPTY_LIST, 0)).key;
+        return shortestPaths.stream().max(Comparator.comparingInt(p -> p.value)).orElse(new Pair<List<Vertex>, Integer>(Collections.EMPTY_LIST, 0)).key;
     }
-    private List<Vertex> getLargestShortestPath() {
+    private List<Vertex> getLargestShortestPath() throws InvalidObjectException {
         Vertex[] vertices = initVertices();
         Vertex[][] next = new Vertex[vertices.length][vertices.length];
         float[][] dist = new float[vertices.length][vertices.length];
@@ -687,7 +701,7 @@ public class CleanVoxelLine {
         return path;
     }
     
-    private static void floydWarshall(Vertex[] allVertices, Vertex[][] next, float[][] dist) {
+    private static void floydWarshall(Vertex[] allVertices, Vertex[][] next, float[][] dist) throws InvalidObjectException {
         init(allVertices, next, dist);
         for (int k = 0; k<allVertices.length; ++k) {
             for (int i = 0; i<allVertices.length; ++i) {
@@ -700,7 +714,7 @@ public class CleanVoxelLine {
             }
         }
     }
-    private static void init(Vertex[] allVertices, Vertex[][] next, float[][] dist) {
+    private static void init(Vertex[] allVertices, Vertex[][] next, float[][] dist) throws InvalidObjectException {
         for (int i = 0; i<next.length; ++i) {
             for (int j = 0; j<next.length; ++j) {
                 next[i][j]=null;

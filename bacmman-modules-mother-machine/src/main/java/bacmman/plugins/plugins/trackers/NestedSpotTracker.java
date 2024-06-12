@@ -29,7 +29,6 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.processing.bacteria_spine.SpineOverlayDrawer;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 
@@ -44,7 +43,6 @@ import bacmman.plugins.plugins.trackers.nested_spot_tracker.DistanceComputationP
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.NestedSpot;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing.MutationTrackPostProcessing;
 import bacmman.processing.matching.LAPLinker;
-import bacmman.processing.matching.LAPLinker.SpotFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,6 +76,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             "Algorithm allowing tracking spots located within bacteria. This algorithm provides a correction for bacteria motion and growth." +
             "<br />This algorithm can perform gap-closing, i.e. a spot at frame n can be linked to a spot at frame n+2 (or n+3…) without being linked at any spot at frame n+1. The maximum size of the allowed gap can be set in the <em>Maximum Frame Gap</em> parameter." +
             "<br />This algorithm also allows minimizing false positive spot detection events by removing some spots based on their computed quality parameter (see help of the <em>SpotSegmenter</em> module in advanced mode). The spots are divided into two categories of high quality or low quality (depending on the value of the <em>Spot quality Threshold</em> parameter). Frame-to-frame linking is first performed only with high quality spots. Low quality spots are then kept only if they can be linked to a high quality spot." +
+            "<br />It is important that bacteria (or container) objects are regular (absence of holes, thickness of more than 2 pixels) otherwise results are not defined. If needed use regularization such as binary close and fill holes." +
             calibrationTT;
     static String toolTip = "<br />";
     static String corrDesc = "<br /><br />Details of the method for correction of bacteria motion and growth: <br />Between two successive frames, a spot is subject to 3 sources of motion : <ol><li>its intrinsic motion within the cell</li><li>the motion of the cell containing the spot, when it swims within the microchannel or when it is pushed by growing cells that are closer to the dead-end</li><li>the growth of the cell containing the spot</li></ol>In order to remove sources 2 and 3, the position of the spot is expressed in an appropriate coordinate system, described below. <br />We define the <em>spine</em> of the bacterium as the central line crossing it from one pole to the other. Each point of the spine is equidistant from the two closest points of the contour located on each side of the spine. The distance between the two poles along the spine is referred to as spine length, and is larger than the euclidean distance if the cell is not straight. The spine coordinate system is composed of the curvilinear distance along the spine and the distance from the spine in the direction perpendicular to the spine, referred to as radial distance. This coordinate system allows suppressing the source 2) of motion. To compute the distance between a spot (S<sub>F</sub>) contained in a cell (C<sub>F</sub>) at frame F and a spot (S<sub>F+1</sub>) contained in a cell  at frame F+1 (C<sub>F+1</sub>), SF is projected in C<sub>F+1</sub> and the euclidean distance between S<sub>F+1</sub> and the projection of S<sub>F</sub> is computed. To project S<sub>F</sub> in C<sub>F+1</sub>, we assume homogeneous growth and calculate the curvilinear coordinate as the curvilinear coordinate of S<sub>F</sub> multiplied by the ratio of spine lengths of the two cells C<sub>F</sub> and C<sub>F+1</sub>. In case of division, the spine length at F+1 is the sum of the spine lengths of the two daughter cells.";
@@ -209,34 +208,23 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         });
         //Map<SegmentedObject, BacteriaSpineLocalizer> lMap = parallele(parentWithSpine.stream(), true).collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()))); // spine are long to compute: better performance when computed all at once
         MultipleException me = new MultipleException();
-        Map<SegmentedObject, BacteriaSpineLocalizer> lMap = Utils.toMapWithNullValues(Utils.parallel(parentWithSpine.stream(), true), b->b, b->new BacteriaSpineLocalizer(b.getRegion()), true, me);  // spine are long to compute: better performances when computed all at once
-        final HashMapGetCreate<SegmentedObject, BacteriaSpineLocalizer> localizerMap = HashMapGetCreate.getRedirectedMap((SegmentedObject s) -> {
-            try {
-                return new BacteriaSpineLocalizer(s.getRegion());
-            } catch(Throwable t) {
-                me.addExceptions(new Pair<>(s.toString(), t));
-                return null;
-            }
-        }, HashMapGetCreate.Syncronization.SYNC_ON_KEY);
+        Map<SegmentedObject, BacteriaSpineLocalizer> lMap = Utils.toMapWithNullValues(Utils.parallel(parentWithSpine.stream(), true), b->b, Utils.applyREx(b-> new BacteriaSpineLocalizer(b.getRegion())), true, me);  // spine are long to compute: better performances when computed all at once
+        final HashMapGetCreate<SegmentedObject, BacteriaSpineLocalizer> localizerMap = HashMapGetCreate.getRedirectedMap(Utils.applyCollectEx((SegmentedObject s) -> new BacteriaSpineLocalizer(s.getRegion()), me), HashMapGetCreate.Syncronization.SYNC_ON_KEY);
         localizerMap.putAll(lMap);
         
-        LAPLinker<NestedSpot> tmi = new LAPLinker<>(new SpotFactory<NestedSpot>() {
-            @Override
-            public NestedSpot toSpot(Region o, int frame) {
-                SegmentedObject b = mutationMapParentBacteria.get(o);
-                if (b==null) {
-                    // if exception is thrown -> all objects are removed...
-                    //me.addExceptions(new Pair<>(parentTrack.stream().filter(p->p.getFrame()==frame).findAny().get()+"-spot#"+o.getLabel(), new RuntimeException("Mutation's parent bacteria not found")));
-                    return null;
-                }
-                if (localizerMap.get(b)==null) {
-                    //me.addExceptions(new Pair<>(b.toString(), new RuntimeException("Mutation's parent bacteria spine could not be computed")));
-                    return null;
-                }
-                if (o.getCenter()==null) o.setCenter(o.getGeomCenter(false));
-                return new NestedSpot(o, b, localizerMap, distParams);
+        LAPLinker<NestedSpot> tmi = new LAPLinker<>((o, frame) -> {
+            SegmentedObject b = mutationMapParentBacteria.get(o);
+            if (b==null) {
+                // if exception is thrown -> all objects are removed...
+                //me.addExceptions(new Pair<>(parentTrack.stream().filter(p->p.getFrame()==frame).findAny().get()+"-spot#"+o.getLabel(), new RuntimeException("Mutation's parent bacteria not found")));
+                return null;
             }
-
+            if (localizerMap.get(b)==null) {
+                //me.addExceptions(new Pair<>(b.toString(), new RuntimeException("Mutation's parent bacteria spine could not be computed")));
+                return null;
+            }
+            if (o.getCenter()==null) o.setCenter(o.getGeomCenter(false));
+            return new NestedSpot(o, b, localizerMap, distParams);
         });
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         long t0 = System.currentTimeMillis();

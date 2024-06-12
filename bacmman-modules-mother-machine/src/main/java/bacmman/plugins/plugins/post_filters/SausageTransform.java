@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineWidth.validTT;
+
 /**
  *
  * @author Jean Ollion
@@ -51,7 +53,7 @@ public class SausageTransform implements PostFilter, Hint {
         childPopulation.getRegions().forEach(r -> {
             try {
                 transform(r, parent.getBounds());
-            } catch (Throwable t) {
+            } catch (BacteriaSpineFactory.InvalidObjectException t) {
                 me.addExceptions(new Pair<>(parent.toString(), t));
                 error.add(r);
             }
@@ -61,7 +63,7 @@ public class SausageTransform implements PostFilter, Hint {
         return childPopulation;
     }
 
-    public static void transform(Region r, BoundingBox parentBounds) {
+    public static void transform(Region r, BoundingBox parentBounds) throws BacteriaSpineFactory.InvalidObjectException {
         BacteriaSpineFactory.SpineResult sr = BacteriaSpineFactory.createSpine(r, 1);
         //logger.debug("spine ok");
         SausageContourFactory.toSausage(sr, 0.5); // resample to be able to fill
@@ -82,7 +84,7 @@ public class SausageTransform implements PostFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "Modifies the contour of segmented objects so that it has the shape of a sausage (potentially bent rod): constant width in the middle with hemicircular caps.";
+        return "Modifies the contour of segmented objects so that it has the shape of a sausage (potentially bent rod): constant width in the middle with hemicircular caps. <br />" + validTT;
     }
     
 }

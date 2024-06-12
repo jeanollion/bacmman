@@ -58,6 +58,7 @@ public class ResizeUtils {
 
     public static Image[] getChannel(Image[][] imageNC, int channelIdx) {
         int cIdx = channelIdx>=0 ? channelIdx : imageNC[0].length + channelIdx;
+        if (cIdx >= imageNC[0].length) throw new IllegalArgumentException("Requested Channel is "+cIdx+" but image set contains only "+imageNC[0].length +" channels");
         return Arrays.stream(imageNC).map(a -> a[cIdx]).toArray(Image[]::new);
     }
 

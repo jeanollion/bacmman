@@ -30,6 +30,7 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.MultiThreaded;
 import bacmman.plugins.Hint;
+import bacmman.utils.MultipleException;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 
@@ -38,12 +39,10 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineLength.SPINE_DEF;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -64,7 +63,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     }
     @Override
     public String getHintText() {
-        return "Computes the spine coordinates (see spine definition below) of a spot (of class defined in the <em>Spot</em> parameter) in a bacteria (of class defined in the <em>Bacteria</em> parameter). <ul><li><em>SpineCurvilinearCoord</em> is the coordinate along the bacteria longitudinal axis</li><li><em>SpineRadialCoord is the coordinate perpendicular to the longitudinal axis (negative on the left side)</em></li><li><em>SpineLength is the total spine length between the two pole</em></li><li><em>SpineRadius is the width of the bacteria at the position of the spot</em></li></ul><br />The center of the Spot object is by default the center defined by the segmenter, if no center was defined, the mass center will used<br />The object class defined in the <em>Bacteria</em> parameter must correspond to rod-shaped objects<br /><br />"+SPINE_DEF;
+        return "Computes the spine coordinates (see spine definition below) of a spot (of class defined in the <em>Spot</em> parameter) in a bacteria (of class defined in the <em>Bacteria</em> parameter). <ul><li><em>SpineCurvilinearCoord</em> is the coordinate along the bacteria longitudinal axis</li><li><em>SpineRadialCoord is the coordinate perpendicular to the longitudinal axis (negative on the left side)</em></li><li><em>SpineLength is the total spine length between the two pole</em></li><li><em>SpineRadius is the width of the bacteria at the position of the spot</em></li></ul><br />The center of the Spot object is by default the center defined by the segmenter, if no center was defined, the mass center will used<br />The object class defined in the <em>Bacteria</em> parameter must correspond to regular rod-shaped objects. If objects are not regular (presence of holes, thickness of less than 3 pixels) results are not defined. If needed use regularization such as binary close and fill holes. <br /><br />"+SPINE_DEF;
     }
     public SpineCoordinates setScaled(boolean scaled) {
         this.scaled.setSelected(scaled);
@@ -101,7 +100,8 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
             Map<SegmentedObject, SegmentedObject> sMb = Utils.toMapWithNullValues(stream, Function.identity(), oo -> getContainer(oo.getRegion(), parent.getChildren(bacteria.getSelectedClassIdx()), null), false);
             if (sMb!=null) spotMapBacteria.putAll(sMb);
         });
-        Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = new HashSet<>(spotMapBacteria.values()).parallelStream().collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()) ));
+        MultipleException me = new MultipleException();
+        Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = Utils.toMapWithNullValues(Utils.parallel(spotMapBacteria.values().stream(), true), b->b, Utils.applyREx(b-> new BacteriaSpineLocalizer(b.getRegion())), true, me);
         Utils.parallel(spotMapBacteria.entrySet().stream(), parallel).forEach(e-> {
             Point center = e.getKey().getRegion().getCenter();
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
@@ -120,6 +120,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
                 e.getKey().getMeasurements().setValue("SpineRadius", coord.spineRadius()*scale); // radius at spot position
             }
         });
+        if (!me.isEmpty()) throw me;
     }
 
     @Override
