@@ -64,7 +64,7 @@ public class CircularContourFactory {
      * @param contour
      * @return positively XY-oriented  contour
      */
-    public static CircularNode<Voxel> getCircularContour(Set<Voxel> contour) {
+    public static CircularNode<Voxel> getCircularContour(Set<Voxel> contour) throws BacteriaSpineFactory.InvalidObjectException {
         Set<Voxel> contourVisited = new HashSet<>(contour.size());
         EllipsoidalNeighborhood neigh = new EllipsoidalNeighborhood(1.5, true);
         CircularNode<Voxel> circContour = new CircularNode<>(contour.stream().min(Comparator.comparingInt((Voxel v) -> v.x + v.y)).get()); // circContour with upper-leftmost voxel
@@ -80,12 +80,12 @@ public class CircularContourFactory {
             if (contour.contains(next)) crossPMap.put(next.duplicate(), (double)(neigh.dx[i]-neigh.dy[i]));
         }
         if (crossPMap.isEmpty()) {
-            logger.warn("Error circular contour: no first neighbor found. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
-            throw new RuntimeException("circular contour: no first neighbor found");
+            //logger.warn("Error circular contour: no first neighbor found. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
+            throw new BacteriaSpineFactory.InvalidObjectException("circular contour: no first neighbor found");
         }
         if (crossPMap.size() == 1) {
-            logger.warn("X circular contour: first point is end point. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
-            throw new RuntimeException("circular contour: first point is end point");
+            //logger.warn("X circular contour: first point is end point. Contour size: {} first point: {}, contour: {}", contour.size(), circContour.element, contour);
+            throw new BacteriaSpineFactory.InvalidObjectException("circular contour: first point is end point");
         }
         current = circContour.setNext(crossPMap.entrySet().stream().max(Comparator.comparingDouble(Map.Entry::getValue)).get().getKey());
         circContour.setPrev(crossPMap.entrySet().stream().min(Comparator.comparingDouble(Map.Entry::getValue)).get().getKey());
@@ -144,7 +144,7 @@ public class CircularContourFactory {
                 currentNext = null;
             } else if (count < contourSize && lastIntersection != null) {
                 // got stuck by weird contour structure -> go back to previous voxel with several solutions?
-                throw new RuntimeException("dead-end: unable to close contour");
+                throw new BacteriaSpineFactory.InvalidObjectException("dead-end: unable to close contour");
             } else {
                 break;
             }

@@ -53,7 +53,7 @@ public class BacteriaSpineLocalizer {
     double length;
     public static double precision = 1E-2;
     public static double OUT_OF_BOUND_TOLERANCE=3; 
-    public BacteriaSpineLocalizer(Region bacteria) {
+    public BacteriaSpineLocalizer(Region bacteria) throws BacteriaSpineFactory.InvalidObjectException {
         this.bacteria=bacteria;
         //long t0 = System.currentTimeMillis();
         spine = BacteriaSpineFactory.createSpine(bacteria);

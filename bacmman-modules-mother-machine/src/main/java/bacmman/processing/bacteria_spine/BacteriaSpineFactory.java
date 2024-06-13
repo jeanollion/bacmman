@@ -65,7 +65,11 @@ public class BacteriaSpineFactory {
     public static final Logger logger = LoggerFactory.getLogger(BacteriaSpineFactory.class);
     public static Consumer<Image> imageDisp = null;
     public static int verboseZoomFactor = 13;
-
+    public static class InvalidObjectException extends Exception {
+        public InvalidObjectException(String message) {
+            super(message);
+        }
+    }
     public static class SpineResult {
         public PointContainer2<Vector, Double>[] spine;
         public BoundingBox bounds;
@@ -118,11 +122,11 @@ public class BacteriaSpineFactory {
             return BacteriaSpineFactory.drawSpine(bounds, spine, circContour, zoomFactor, drawDistances).setName("skeleton");
         }
     }
-    public static SpineResult createSpine(Region bacteria) {
+    public static SpineResult createSpine(Region bacteria) throws InvalidObjectException {
         return createSpine(bacteria, 2);
     }
-    public static SpineResult createSpine(Region bacteria, double contourSmoothSigma) {
-        if (!bacteria.is2D()) throw new IllegalArgumentException("Only works on 2D regions");
+    public static SpineResult createSpine(Region bacteria, double contourSmoothSigma) throws InvalidObjectException {
+        if (!bacteria.is2D()) throw new InvalidObjectException("Only works on 2D regions");
         SpineResult res = new SpineResult();
         res.bounds = new SimpleBoundingBox(bacteria.getBounds());
         long t0 = System.currentTimeMillis();
@@ -175,7 +179,7 @@ public class BacteriaSpineFactory {
      * @param mask mask contaiing foreground. WARNING: will be modified
      * @return list of skeleton voxels, ordered from upper-left end
      */
-    public static List<Voxel> getSkeleton(ImageByte mask) {
+    public static List<Voxel> getSkeleton(ImageByte mask) throws InvalidObjectException {
         Skeletonize3D_ skProc = new Skeletonize3D_();
         ImagePlus imp = IJImageWrapper.getImagePlus(mask);
         skProc.setup("", imp);
@@ -186,7 +190,7 @@ public class BacteriaSpineFactory {
         return CleanVoxelLine.cleanSkeleton(sk, imageDisp, mask);
     }
     
-    public static <T extends Localizable> PointContainer2<Vector, Double>[] createSpineFromSkeleton(ImageMask mask, List<Voxel> skeleton, Set<T> contour, CircularNode<T> circContour) {
+    public static <T extends Localizable> PointContainer2<Vector, Double>[] createSpineFromSkeleton(ImageMask mask, List<Voxel> skeleton, Set<T> contour, CircularNode<T> circContour) throws InvalidObjectException {
         if (imageDisp!=null) imageDisp.accept(new SpineResult().setBounds(mask).setCircContour(circContour).setSkeleton(skeleton).drawSkeleton(verboseZoomFactor, true).setName("skeleton"));
         // 1) getSum contour pair for each skeleton point
         Offset logOff = new SimpleOffset(mask).reverseOffset();
@@ -194,7 +198,7 @@ public class BacteriaSpineFactory {
         if (contourPairs.stream().anyMatch(cp->cp.key==null||cp.value==null)) {
             logger.error("Error contour skeleton size: {} contour size: {}", skeleton, contour);
             if (imageDisp!=null) imageDisp.accept(new SpineResult().setBounds(mask).setCircContour(circContour).drawSpine(verboseZoomFactor, false).setName("Error init contour pairs"));
-            throw new RuntimeException("Spine could not be created (invalid contour)");
+            throw new InvalidObjectException("Spine could not be created (invalid contour)");
         }
         List<PointContainer2<Vector, Double>> spListSk = contourPairs.stream().map(v -> PointContainer2.fromPoint(Point.middle2D(v.key.element, v.value.element), Vector.vector2D(v.key.element, v.value.element), 0d)).collect(Collectors.toList());
         // 2) smooth direction vectors in order to limit brutal direction change

@@ -99,6 +99,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     EnumChoiceParameter<TRACK_POST_PROCESSING_WINDOW_MODE> trackPPRange = new EnumChoiceParameter<>("Range", TRACK_POST_PROCESSING_WINDOW_MODE.values(), TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE).setHint("WHOLE: post-processing is performed on the whole video. <br/>INCREMENTAL: post-processing is performed after each frame segment is processed, from the first processed frame to the last processed frame. <br/>PER_SEGMENT: post-processing is performed per window");
     BooleanParameter solveSplit = new BooleanParameter("Solve Split events", true).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
     BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
+    IntegerParameter maxTrackLength = new IntegerParameter("Max Track Length", 0).setLowerBound(0).setEmphasized(true).setHint("Limit correction to small tracks under this limit. Set 0 for no limit.");
     BooleanParameter mergeContact = new BooleanParameter("Merge tracks in contact", false).setEmphasized(false).setHint("If true: merge tracks whose objects are in contact from one end of the movie to the end of both tracks");
 
     enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
@@ -110,7 +111,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     GroupParameter splitParameters = new GroupParameter("Split Parameters", splitMode).setHint("Parameters related to object splitting. ");
 
     ConditionalParameter<TRACK_POST_PROCESSING> trackPostProcessingCond = new ConditionalParameter<>(trackPostProcessing).setEmphasized(true)
-            .setActionParameters(TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE, solveMerge, solveSplit, mergeContact, splitParameters, trackPPRange);
+            .setActionParameters(TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE, solveMerge, solveSplit, maxTrackLength, mergeContact, splitParameters, trackPPRange);
 
     // misc
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
@@ -1395,13 +1396,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             case SOLVE_SPLIT_MERGE: {
                 boolean solveSplit = this.solveSplit.getSelected();
                 boolean solveMerge= this.solveMerge.getSelected();
+                int maxTrackLength = this.maxTrackLength.getIntValue();
                 boolean mergeContact = this.mergeContact.getSelected();
                 boolean perSegment = trackPPRange.getSelectedEnum().equals(TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT);
                 if (!solveSplit && !solveMerge && !mergeContact) return;
                 TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, perSegment);
                 BiPredicate<Track, Track> gap = gapBetweenTracks();
-                if (solveMerge) trackPop.solveMergeEvents(gap, merging, false, splitter, assigner, factory, editor);
-                if (solveSplit) trackPop.solveSplitEvents(gap, dividing, false, splitter, assigner, factory, editor);
+                if (maxTrackLength>0) gap = (t1, t2) -> t1.length() > maxTrackLength || t2.length() > maxTrackLength || gapBetweenTracks().test(t1, t2);
+                Predicate<Track> forbidSplit = maxTrackLength>0 ? t -> t.length() > maxTrackLength : t -> false;
+                if (solveMerge) trackPop.solveMergeEvents(gap, forbidSplit, merging, false, splitter, assigner, factory, editor);
+                if (solveSplit) trackPop.solveSplitEvents(gap, forbidSplit, dividing, false, splitter, assigner, factory, editor);
                 //trackPop.solveSupernumeraryMergeEvents(gap, false, splitter, assigner, factory, editor);
                 //trackPop.solveSupernumerarySplitEvents(gap, false, splitter, assigner, factory, editor);
                 if (fullParentTrack && mergeContact) {

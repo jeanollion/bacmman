@@ -139,6 +139,32 @@ public class Utils {
         if (iterator instanceof Spliterator) return StreamSupport.stream((Spliterator<T>)iterator, parallel);
         return StreamSupport.stream( Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), parallel);
     }
+    @FunctionalInterface
+    public interface CheckedFunction<T,R> {
+        R apply(T t) throws Exception;
+    }
+    public static <T,R> Function<T,R> applyREx(CheckedFunction<T,R> checkedFunction) {
+        return t -> {
+            try {
+                return checkedFunction.apply(t);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+    public static <T,R> Function<T,R> applyCollectEx(CheckedFunction<T,R> checkedFunction, MultipleException me) {
+        return applyCollectEx(checkedFunction, me, T::toString);
+    }
+    public static <T,R> Function<T,R> applyCollectEx(CheckedFunction<T,R> checkedFunction, MultipleException me, Function<T, String> toString) {
+        return t -> {
+            try {
+                return checkedFunction.apply(t);
+            } catch (Exception e) {
+                me.addExceptions(new Pair<>(toString.apply(t), e));
+                return null;
+            }
+        };
+    }
     public static <K extends Comparable<? super K>,V extends Comparable<? super V>> SortedSet<Map.Entry<K,V>> entriesSortedByValues(Map<K,V> map, boolean descending) {
         SortedSet<Map.Entry<K,V>> sortedEntries;
         if (descending) {
