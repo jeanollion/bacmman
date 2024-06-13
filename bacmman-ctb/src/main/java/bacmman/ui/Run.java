@@ -61,6 +61,7 @@ public class Run {
         if (!t.isValid()) throw new RuntimeException("Invalid Task");
         t.runTask(0.5);
         t.done();
+        t.flush(false);
         int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;
         ExportCellTrackingBenchmark.exportPositions(db, parent.getAbsolutePath(), 0, null, margin, CTB_IO_MODE.RESULTS, false, 1);
 

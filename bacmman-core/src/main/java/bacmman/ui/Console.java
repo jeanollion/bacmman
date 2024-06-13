@@ -91,6 +91,7 @@ public class Console implements PlugIn {
         for (Task t : jobs) {
             ui.setMessage("Running: "+t.toString());
             t.runTask(0.5);
+            t.flush(false);
         }
         int errorCount = 0;
         for (Task t: jobs) errorCount+=t.getErrors().size();

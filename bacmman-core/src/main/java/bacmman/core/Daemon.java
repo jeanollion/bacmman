@@ -107,6 +107,7 @@ public class Daemon {
                         t.runTask(0.5);
                         t.publishErrors();
                         if (!t.errors.isEmpty()) fileNameErrorMap.put(taskFileNameMap.get(t), true);
+                        t.flush(true);
                         logUI.setLogFile(null);
                         oneJobHasBeenRun.add(taskFileNameMap.get(t));
                         taskFileNameMap.remove(t);

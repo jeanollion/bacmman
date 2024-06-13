@@ -814,8 +814,7 @@ public class Task implements ProgressCallback {
                         db.getExperiment().getDLengineProvider().closeAllEngines();
                         Core.clearDiskBackedImageManagers();
                         db.clearCache(position);
-                        if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
-                            db.getSelectionDAO().clearCache();
+                        if (db.getSelectionDAO() != null) db.getSelectionDAO().clearCache();
                         Core.freeDisplayMemory();
                         System.gc();
                         publishMemoryUsage("After clearing cache");
@@ -866,7 +865,10 @@ public class Task implements ProgressCallback {
             }
         }
         logger.debug("unlocking positions...");
-        if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
+        if (!keepDB) {
+            db.unlockPositions(positionsToProcess.toArray(new String[0]));
+            db.clearCache(true, true, true);
+        }
         else {
             logger.debug("clearing cache...");
             for (String position:positionsToProcess) db.clearCache(position);
