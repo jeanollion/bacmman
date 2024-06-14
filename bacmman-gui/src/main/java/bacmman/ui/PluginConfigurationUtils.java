@@ -533,7 +533,7 @@ public class PluginConfigurationUtils {
         SegmentedObjectUtils.ensureContinuousTrack(parents);
         Map<String, BiFunction<SegmentedObject, Integer, Image>> imageSuppliers = allImageNames.stream().collect(Collectors.toMap(s->s, name -> {
             Image type = stores.stream().filter(s -> s.images.containsKey(name)).map(s -> s.images.get(name)).max(PrimitiveType.typeComparator()).get();
-            Image type_ = TypeConverter.toCommonImageType(Image.copyType(type));
+            Image type_ = TypeConverter.castToIJ1ImageType(Image.copyType(type));
             int maxZ = stores.stream().filter(s -> s.images.containsKey(name)).mapToInt(s -> s.images.get(name).sizeZ()).max().getAsInt();
             return (p, channel) -> {
                 List<TestDataStore> currentStores = stores.stream().filter(s -> s.images.containsKey(name)).filter(s -> s.parent.getParent(parentOCIdx).equals(p)).collect(Collectors.toList());

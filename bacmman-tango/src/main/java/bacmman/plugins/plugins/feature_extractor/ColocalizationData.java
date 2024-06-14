@@ -7,13 +7,11 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
 import bacmman.image.*;
-import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.Hint;
 import bacmman.processing.Resize;
 import net.imglib2.interpolation.InterpolatorFactory;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
@@ -46,7 +44,7 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
         for (EVFParameter p : evfList.getActivatedChildren()) {
             images.add(p.computeEVF(parent));
         }
-        Image type = TypeConverter.toCommonImageType(Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get()));
+        Image type = TypeConverter.castToIJ1ImageType(Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get()));
         int count = parentMask.count();
         Image res = Image.createEmptyImage(Selection.indicesToString(SegmentedObjectUtils.getIndexTree(parent)), type, new SimpleImageProperties(count, images.size(), 1, 1, 1));
         int[] idx = new int[1];

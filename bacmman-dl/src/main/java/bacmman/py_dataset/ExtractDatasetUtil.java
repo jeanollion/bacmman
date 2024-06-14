@@ -303,7 +303,7 @@ public class ExtractDatasetUtil {
     }
     public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, int compression) {
         Image type = Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get());
-        int originalBitDepth = TypeConverter.toCommonImageType(type).byteCount() * 8;
+        int originalBitDepth = TypeConverter.castToIJ1ImageType(type).byteCount() * 8;
         boolean originalIsFloat = type.floatingPoint();
         if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same type
             if (images.stream().anyMatch(i->!type.getClass().equals(i.getClass()))) { // if there are different types -> need to convert

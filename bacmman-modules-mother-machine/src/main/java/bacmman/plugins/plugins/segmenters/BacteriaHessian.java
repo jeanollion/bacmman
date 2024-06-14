@@ -298,7 +298,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
             Core.showImage(watershedSeeds.getLabelMap().setName("Watershed Seeds (background + manual)"));
             Core.showImage(wsMap.setName("Watershed Map"));
 
-            Core.showImage(TypeConverter.toCommonImageType(segmentationMask).setName("Mask"));
+            Core.showImage(TypeConverter.castToIJ1ImageType(segmentationMask).setName("Mask"));
             Core.showImage(pop.getLabelMap().setName("segmented from: "+input.getName()));
         }
 

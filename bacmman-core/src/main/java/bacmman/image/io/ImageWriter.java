@@ -81,7 +81,7 @@ public class ImageWriter {
     public static void writeToFile(Image image, String path, String fileName, ImageFormat extension) {
         if (fileName==null) fileName=image.getName();
         new File(path).mkdirs();
-        image = TypeConverter.toCommonImageType(image);
+        image = TypeConverter.castToIJ1ImageType(image);
         if (image instanceof ImageFloat && extension.equals(ImageFormat.PNG)) throw new IllegalArgumentException("Float image cannot be written as PNG");
         File f = Paths.get(path, fileName+extension.getExtension()).toFile();
         String fullPath = f.toString();

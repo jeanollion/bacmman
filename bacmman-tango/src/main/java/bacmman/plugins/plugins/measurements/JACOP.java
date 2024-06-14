@@ -101,7 +101,7 @@ public class JACOP implements Measurement, Hint {
 
     @Override
     public void performMeasurement(SegmentedObject object) {
-        Image mask = TypeConverter.toCommonImageType(object.getMask());
+        Image mask = TypeConverter.castToIJ1ImageType(object.getMask());
         Image signal1 = object.getRawImage(this.signal1.getSelectedClassIdx());
         Image signal2 = object.getRawImage(this.signal2.getSelectedClassIdx());
         int thld1 = this.thld1.isOnePluginSet() ? (int)this.thld1.instantiatePlugin().runThresholder(signal1, object) : Integer.MIN_VALUE;

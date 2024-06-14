@@ -1,13 +1,10 @@
 package bacmman.image;
 
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
 import bacmman.utils.Triplet;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
@@ -87,7 +84,7 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
             imageC[c] = generatorFC.apply(new int[]{0, c});
             sizeZ[c] = imageC[c].sizeZ();
         }
-        I type = (I)TypeConverter.getDisplayType(Arrays.stream(imageC));
+        I type = (I)TypeConverter.getIJ1DisplayType(Arrays.stream(imageC));
         int maxZIdx = ArrayUtil.max(sizeZ);
         Function<int[], I> gen = fc -> {
             Image plane = (fc[0]==0) ? imageC[fc[1]] : generatorFC.apply(fc);

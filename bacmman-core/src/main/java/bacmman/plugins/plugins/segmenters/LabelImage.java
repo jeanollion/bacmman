@@ -9,7 +9,6 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Segmenter;
-import bacmman.plugins.plugins.DisableParallelExecution;
 
 import java.util.List;
 import java.util.function.IntPredicate;
@@ -27,7 +26,7 @@ public class LabelImage implements Segmenter, Hint {
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         List<int[]> excludeIntervals = excludeLabelsList.getActivatedChildren().stream().map(IntervalParameter::getValuesAsInt).collect(Collectors.toList());
         IntPredicate isExcluded = excludeIntervals.isEmpty() ? i -> false : i -> excludeIntervals.stream().anyMatch(inter -> inter[0]<=i && inter[1]>=i);
-        ImageInteger labels = TypeConverter.toImageInteger(input, null);
+        ImageInteger labels = TypeConverter.asImageInteger(input, null);
         BoundingBox.loop(new SimpleBoundingBox(labels).resetOffset(), (x, y, z)->{
             if (isExcluded.test(labels.getPixelInt(x, y, z))) labels.setPixel(x, y, z, 0);
         });

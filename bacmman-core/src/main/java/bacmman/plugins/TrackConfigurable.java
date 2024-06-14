@@ -27,7 +27,6 @@ import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.image.TypeConverter;
-import net.imglib2.type.operators.Mul;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,7 +82,7 @@ public interface TrackConfigurable<P extends Plugin> {
             Supplier<Pair<List<Image>, List<ImageInteger>>> supplier = ()->new Pair<>(new ArrayList<>(), new ArrayList<>());
             BiConsumer<Pair<List<Image>, List<ImageInteger>>, Map.Entry<Image, ImageMask>> accumulator =  (p, e)->{
                 p.key.add(e.getKey());
-                if (!(e.getValue() instanceof BlankMask)) p.value.add((ImageInteger)TypeConverter.toCommonImageType(e.getValue()));
+                if (!(e.getValue() instanceof BlankMask)) p.value.add((ImageInteger)TypeConverter.castToIJ1ImageType(e.getValue()));
             };
             BiConsumer<Pair<List<Image>, List<ImageInteger>>, Pair<List<Image>, List<ImageInteger>>> combiner = (p1, p2) -> {p1.key.addAll(p2.key);p1.value.addAll(p2.value);};
             Pair<List<Image>, List<ImageInteger>> globalImagesList = maskMap.entrySet().stream().collect( supplier,  accumulator,  combiner);

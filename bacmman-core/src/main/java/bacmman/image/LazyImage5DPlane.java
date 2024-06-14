@@ -52,7 +52,7 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
         for (int c = 0; c<sizeC; ++c) {
             imageC[c] = generatorFCZ.apply(new int[]{0, c, 0});
         }
-        Image type = TypeConverter.getDisplayType(Arrays.stream(imageC));
+        Image type = TypeConverter.getIJ1DisplayType(Arrays.stream(imageC));
         return fcz -> {
             Image plane = (fcz[0]==0 && fcz[2]==0) ? imageC[fcz[1]] : generatorFCZ.apply(fcz);
             if (!plane.getClass().equals(type.getClass())) {

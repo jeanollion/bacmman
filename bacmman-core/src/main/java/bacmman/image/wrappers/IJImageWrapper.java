@@ -145,7 +145,7 @@ public class IJImageWrapper {
     }
 
     public static ImagePlus getImagePlus(Image[][] imageTC, double frameInterval) {
-        TypeConverter.homogenizeBitDepth(imageTC);
+        TypeConverter.castToIJ1DisplayType(imageTC);
         int sizeT = imageTC.length;
         int sizeC = imageTC[0].length;
         int sizeZ = IntStream.range(0, sizeC).map(c -> imageTC[0][c].sizeZ()).max().getAsInt();

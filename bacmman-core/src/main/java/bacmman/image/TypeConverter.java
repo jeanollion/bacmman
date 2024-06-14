@@ -21,7 +21,6 @@ package bacmman.image;
 import bacmman.processing.ImageOperations;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.DoubleToIntFunction;
 import java.util.stream.Stream;
 
@@ -112,10 +111,7 @@ public class TypeConverter {
         }
         return output;
     }
-    public static ImageInt toShort(Image image, ImageInt output, boolean forceCopy) {
-        if (forceCopy || !(image instanceof ImageInt)) return toInt(image, output);
-        else return (ImageInt)image;
-    }
+
     public static ImageShort toShort(Image image, ImageShort output, boolean forceCopy) {
         if (forceCopy || !(image instanceof ImageShort)) return toShort(image, output);
         else return (ImageShort)image;
@@ -223,13 +219,13 @@ public class TypeConverter {
     }
 
     /**
-     * Converts {@param image} to an image of integer type (byte short or int).
+     * Converts {@param image} to an image of integer type (byte short or int). Only casts if already image integer
      * If {@param image} has negative values, its mean value will be added to the whole image (so it is modified)
      * @param image image to convert
      * @param output
      * @return
      */
-    public static ImageInteger toImageInteger(Image image, ImageInteger output) {
+    public static ImageInteger asImageInteger(Image image, ImageInteger output) {
         if (image instanceof ImageInteger) return (ImageInteger)image;
         else {
             // check max & min values
@@ -274,31 +270,12 @@ public class TypeConverter {
         }
         return output;
     }
-    public static boolean isCommonImageType(ImageProperties image) {
-        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat);
-    }
-    public static boolean isNumeric(ImageProperties image) {
-        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat || image instanceof ImageInt || image instanceof ImageFloat8Scale || image instanceof ImageFloat16Scale);
-    }
-    /**
-     * 
-     * @param image input image
-     * @return an image of type ImageByte, ImageShort or ImageFloat. If {@param image} is of type ImageByte, ImageShort or ImageFloat {@Return}={@param image}. If {@param image} is of type ImageInt, it is cast as a ShortImage {@link TypeConverter#toShort(Image, ImageShort)}  } if its maximum value is inferior to 65535 or a FloatImage {@link TypeConverter#toFloat(Image, ImageFloat)}  }. If {@param image} is a mask if will be converted to a mask: {@link TypeConverter#toByteMask(ImageMask, ImageByte, int)}  }
-     */
-    public static Image toCommonImageType(ImageProperties image) {
-        if (isCommonImageType(image)) return (Image)image;
-        else if (image instanceof ImageInt) {
-            double[] mm = ((Image)image).getMinAndMax(null);
-            if (mm[1]>(65535)) return toFloat((Image)image, null);
-            else return toShort((Image)image, null);
-        }
-        else if (image instanceof ImageMask) return toByteMask((ImageMask)image, null, 1);
-        else return toFloat((Image)image, null);
-    }
+
     public static <T extends Image<T>> T convert(Image source, T output, boolean forceCopy) {
         if (forceCopy && source.getClass().equals(output.getClass())) return ((T)source.duplicate(source.getName()));
         else return cast(source, output);
     }
+
     public static <T extends Image<T>> T cast(Image source, T output) {
         if (output instanceof ImageByte) {
             if (source instanceof ImageByte) return (T)source;
@@ -324,38 +301,67 @@ public class TypeConverter {
         } else throw new IllegalArgumentException("Unsupported Image Type: {}"+ output.getClass().getSimpleName());
     }
 
-    public static Image getDisplayType(Stream<Image> images) {
-        int byteCount = images.mapToInt(Image::byteCount).max().getAsInt();
+    public static Image getIJ1DisplayType(Stream<Image> images) {
+        boolean[] imFloat = new boolean[1];
+        int byteCount = images.peek(i -> {if (i.floatingPoint()) imFloat[0]=true;}).mapToInt(Image::byteCount).max().getAsInt();
+        if (imFloat[0]) return new ImageFloat("", 0, 0, 0);
         if (byteCount == 1) return new ImageByte("", 0, 0, 0);
         else if (byteCount == 2) return new ImageShort("", 0, 0, 0);
         else return new ImageFloat("", 0, 0, 0);
     }
 
-    public static void homogenizeBitDepth(Image[][] images) {
+    public static boolean isIJ1ImageType(ImageProperties image) {
+        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat);
+    }
+
+    /**
+     *
+     * @param image input image
+     * @return an image of type ImageByte, ImageShort or ImageFloat. If {@param image} is of type ImageByte, ImageShort or ImageFloat {@Return}={@param image}. If {@param image} is of type ImageInt, it is cast as a ShortImage {@link TypeConverter#toShort(Image, ImageShort)}  } if its maximum value is inferior to 65535 or a FloatImage {@link TypeConverter#toFloat(Image, ImageFloat)}  }. If {@param image} is a mask if will be converted to a mask: {@link TypeConverter#toByteMask(ImageMask, ImageByte, int)}  }
+     */
+    public static Image castToIJ1ImageType(ImageProperties image) {
+        if (isIJ1ImageType(image)) return (Image)image;
+        else if (image instanceof PrimitiveType) {
+            PrimitiveType t = (PrimitiveType)image;
+            if (t.floatingPoint()) return toFloat((Image)image, null);
+            else { // int image
+                double[] mm = ((Image) image).getMinAndMax(null);
+                if (mm[1] > (65535)) return toFloat((Image) image, null);
+                else if (mm[1] < 256) return toByte((Image) image, null);
+                else return toShort((Image) image, null);
+            }
+        } else if (image instanceof ImageMask) return toByteMask((ImageMask)image, null, 1);
+        else return toFloat((Image)image, null);
+    }
+
+    public static void castToIJ1DisplayType(Image[][] images) {
+        boolean intIm = false;
         boolean shortIm = false;
         boolean floatIm = false;
         for (Image[] im : images) {
             for (Image i : im) {
-                if (i instanceof ImageShort) {
-                    shortIm = true;
-                } else if (i instanceof ImageFloat) {
-                    floatIm = true;
-                }
+                if (i.floatingPoint()) floatIm = true;
+                else if (i instanceof ImageShort) shortIm = true;
+                else if (i instanceof ImageInt) intIm = true;
             }
         }
-        if (floatIm) {
+        if (floatIm || intIm) {
             for (int i = 0; i < images.length; i++) {
                 for (int j = 0; j < images[i].length; j++) {
-                    if (images[i][j] instanceof ImageByte || images[i][j] instanceof ImageShort) {
-                        images[i][j] = TypeConverter.toFloat(images[i][j], null);
-                    }
+                    images[i][j] = TypeConverter.toFloat(images[i][j], null, false);
                 }
             }
         } else if (shortIm) {
             for (int i = 0; i < images.length; i++) {
                 for (int j = 0; j < images[i].length; j++) {
+                    images[i][j] = TypeConverter.toShort(images[i][j], null, false);
+                }
+            }
+        } else {
+            for (int i = 0; i < images.length; i++) {
+                for (int j = 0; j < images[i].length; j++) {
                     if (images[i][j] instanceof ImageByte) {
-                        images[i][j] = TypeConverter.toShort(images[i][j], null);
+                        images[i][j] = TypeConverter.toByte(images[i][j], null, false);
                     }
                 }
             }
