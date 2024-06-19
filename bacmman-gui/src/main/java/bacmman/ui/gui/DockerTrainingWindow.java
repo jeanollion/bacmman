@@ -966,6 +966,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected void setConfigurationFile(boolean load) {
         if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
+        closeFiles();
         pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, Utils.isUnix());
         pythonConfigTest = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "test_configuration.json").toString(), true, Utils.isUnix());
         Path jConfigPath = Paths.get(currentWorkingDirectory, "training_jconfiguration.json");
@@ -1378,23 +1379,36 @@ public class DockerTrainingWindow implements ProgressLogger {
         dia.setVisible(true);
     }
 
-    public void close() {
+    protected void closeFiles() {
         if (javaConfig != null) {
-            javaConfig.close();
+            if (javaConfig.isEmpty()) javaConfig.delete();
+            else javaConfig.close();
             javaConfig = null;
         }
+        if (javaExtractConfig != null) {
+            if (javaExtractConfig.isEmpty()) javaExtractConfig.delete();
+            else javaExtractConfig.close();
+            javaExtractConfig = null;
+        }
         if (dockerConfig != null) {
-            dockerConfig.close();
+            if (dockerConfig.isEmpty()) dockerConfig.delete();
+            else dockerConfig.close();
             dockerConfig = null;
         }
         if (pythonConfig != null) {
-            pythonConfig.close();
+            if (pythonConfig.isEmpty()) pythonConfig.delete();
+            else pythonConfig.close();
             pythonConfig = null;
         }
         if (pythonConfigTest != null) {
-            pythonConfigTest.close();
+            if (pythonConfigTest.isEmpty()) pythonConfigTest.delete();
+            else pythonConfigTest.close();
             pythonConfigTest = null;
         }
+    }
+
+    public void close() {
+        closeFiles();
         if (extractConfig != null) extractConfig.unRegister();
         if (dia != null) dia.dispose();
         if (runner != null) runner.cancelSilently();

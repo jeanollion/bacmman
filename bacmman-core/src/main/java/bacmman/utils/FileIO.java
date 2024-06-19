@@ -31,6 +31,8 @@ import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.io.Reader;
 import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -277,7 +279,22 @@ public class FileIO {
                 }
             }
         }
-
+        public boolean isEmpty() {
+            try {
+                return raf.length() == 0;
+            } catch (IOException e) {
+                return false;
+            }
+        }
+        public boolean delete() {
+            close();
+            try {
+                Files.delete(Paths.get(f.getAbsolutePath()));
+                return true;
+            } catch (IOException e) {
+                return false;
+            }
+        }
         public File getFile() {
             return f;
         }
