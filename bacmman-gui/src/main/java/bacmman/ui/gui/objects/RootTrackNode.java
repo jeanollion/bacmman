@@ -19,6 +19,7 @@
 package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Position;
+import bacmman.core.Core;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
@@ -250,6 +251,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
             logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
         } catch (Exception e) {
+            Core.userLog("Could not open root track. Has pre-processed been performed @position: "+position+" ?");
         }
         if (rootTrack != null) {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, HyperStack.class, true);
@@ -260,7 +262,9 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         List<SegmentedObject> rootTrack=null;
         try {
             rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-        } catch (Exception e) { }
+        } catch (Exception e) {
+            Core.userLog("Could not open root track. Has pre-processed been performed @position: "+position+" ?");
+        }
         if (rootTrack!=null) {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, Kymograph.class, true);
             ImageWindowManagerFactory.getImageManager().addInteractiveImage(i.generateImage().setPosition(0, defaultChannelIdx), i, true);

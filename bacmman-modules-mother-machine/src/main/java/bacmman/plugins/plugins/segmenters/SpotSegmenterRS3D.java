@@ -25,6 +25,7 @@ import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
+import bacmman.plugins.plugins.thresholders.ConstantValue;
 import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.*;
 import bacmman.processing.gaussian_fit.GaussianFit;
@@ -64,8 +65,9 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
 
     public EnumChoiceParameter<LOCAL_MAX_MODE> localMaxMode = new EnumChoiceParameter<>("Local Max Image", LOCAL_MAX_MODE.values(), LOCAL_MAX_MODE.RadialSymetry).setHint("On which image local max filter will be run to detects seeds");
 
-    NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 5).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
-    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 5).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
+    //NumberParameter symmetryThresholdLegacy = new NumberParameter<>("Radial Symmetry Threshold", 2, 5).setEmphasized(true) // was 2.25
+    PluginParameter<Thresholder> symmetryThreshold = new PluginParameter<>("Radial Symmetry Threshold", Thresholder.class, new BackgroundThresholder(3, 3, 2), false).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode");
+    PluginParameter<Thresholder> intensityThreshold = new PluginParameter<>("Seed Threshold", Thresholder.class, new BackgroundThresholder(3, 3, 2), false).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide the parent object class (e.g. bacteria), the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
 
     Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, localMaxMode, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
@@ -96,23 +98,9 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
 
     public SpotSegmenterRS3D() {}
 
-    public SpotSegmenterRS3D(double thresholdSeeds, double thresholdPropagation, double thresholdIntensity) {
-        this.intensityThreshold.setValue(thresholdIntensity);
-        this.symmetryThreshold.setValue(thresholdSeeds);
-    }
-    
-    public SpotSegmenterRS3D setThresholdSeeds(double threshold) {
-        this.symmetryThreshold.setValue(threshold);
-        return this;
-    }
-    
-    public SpotSegmenterRS3D setIntensityThreshold(double threshold) {
-        this.intensityThreshold.setValue(threshold);
-        return this;
-    }
 
     /**
-     * See {@link #run(Image, int, SegmentedObject, double, double)}
+     * See {@link #run(Image, int, SegmentedObject, ThresholderHisto, ThresholderHisto)}
      * @param input
      * @param objectClassIdx
      * @param parent
@@ -120,7 +108,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
      */
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        return run(input, objectClassIdx, parent, symmetryThreshold.getValue().doubleValue(), intensityThreshold.getValue().doubleValue());
+        return run(input, objectClassIdx, parent, symmetryThreshold.instantiatePlugin(), intensityThreshold.instantiatePlugin());
     }
     // testable
     Map<SegmentedObject, TestDataStore> stores;
@@ -180,18 +168,27 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
      * A quality parameter in computed as √(radial symmetry x gaussian) at the center of the spot
      * @param input pre-filtered image from which spots will be detected
      * @param parent segmentation parent
-     * @param thresholdSeeds minimal laplacian value to segment a spot
-     * @param intensityThreshold minimal gaussian value to segment a spot
+     * @param thresholderSeeds minimal laplacian value to segment a spot
+     * @param intensityThresholder minimal gaussian value to segment a spot
      * @return segmented spots
      */
-    public RegionPopulation run(Image input, int objectClassIdx, SegmentedObject parent, double thresholdSeeds, double intensityThreshold) {
+    public RegionPopulation run(Image input, int objectClassIdx, SegmentedObject parent, Thresholder thresholderSeeds, Thresholder intensityThresholder) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
         if (this.parentSegTHMapmeanAndSigma!=null) pv.ms = parentSegTHMapmeanAndSigma.get((parent).getTrackHead());
         this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
-        if (pv.smooth==null || pv.getRadialSymmetryMap()==null) throw new RuntimeException("Mutation Segmenter not parametrized");//setMaps(computeMaps(input, input));
+        if (pv.smooth==null || pv.getRadialSymmetryMap()==null) throw new RuntimeException("Spot Segmenter not parametrized");//setMaps(computeMaps(input, input));
         //logger.debug("get maps..");
         Image smooth = pv.getSmoothedMap();
         Image radSym = pv.getRadialSymmetryMap();
+
+        double thresholdSeeds = thresholderSeeds.runThresholder(radSym, parent);
+        double intensityThreshold = intensityThresholder.runThresholder(smooth, parent);
+
+        if (stores!=null) {
+            Core.userLog("Radial Symmetry Threshold: "+thresholdSeeds);
+            Core.userLog("Intensity Threshold: "+intensityThreshold);
+        }
+
         //logger.debug("local max...");
         Neighborhood n = Filters.getNeighborhood(maxLocalRadius.getScaleXY(), maxLocalRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), radSym);
         final ImageByte seedMap;

@@ -249,7 +249,7 @@ public class Region {
         return this;
     }
     public double[] getSecondCentralMoments2D(Point center) {
-        center = center==null ? (getCenter()==null ? getGeomCenter(false) : getCenter()) : center;
+        center = center==null ? (this.center==null ? getGeomCenter(false) : this.center) : center;
         double cx = center.get(0);
         double cy = center.get(1);
         double[] buffer = new double[4];
@@ -270,16 +270,19 @@ public class Region {
     }
 
     public Point getCenter() {
-        return center;
+        if (center!=null) return center.duplicate();
+        else return null;
     }
+
     public Point getCenterOrGeomCenter() {
         Point center = getCenter();
         if (center!=null) return center;
         return getGeomCenter(false);
     }
+
     public static Point getGeomCenter(boolean scaled, Region... regions) {
         double[] center = new double[3];
-        long[] size = new long[1];
+        double[] size = new double[1];
         for (Region r : regions) {
             if (r.mask instanceof BlankMask) {
                 int s = r.mask.sizeXYZ();
@@ -287,20 +290,21 @@ public class Region {
                 center[0] += (r.mask).xMean() * s;
                 center[1] += (r.mask).yMean() * s;
                 center[2] += (r.mask).zMean() * s;
-            } else if (r.voxels != null) {
-                for (Voxel v : r.voxels) {
-                    center[0] += v.x;
-                    center[1] += v.y;
-                    center[2] += v.z;
-                }
-                size[0] += r.voxels.size();
+            } else if (r instanceof Analytical) {
+                double s = r.size();
+                size[0] += s;
+                Point c = r.getCenter();
+                center[0] += c.get(0) * s;
+                center[1] += c.get(1) * s;
+                center[2] += c.getWithDimCheck(2) * s;
             } else {
-                ImageMask.loopWithOffset(r.getMask(), (x, y, z) -> {
+                LoopFunction fun = (x, y, z) -> {
                     center[0] += x;
                     center[1] += y;
                     center[2] += z;
                     ++size[0];
-                });
+                };
+                r.loop(fun);
             }
         }
         center[0] /= size[0];
@@ -313,66 +317,35 @@ public class Region {
         }
         return new Point(center);
     }
+
     public Point getGeomCenter(boolean scaled) {
         return getGeomCenter(scaled, this);
     }
+
     public Point getMassCenter(Image image, boolean scaled) {
         return getMassCenter(image, scaled, null);
     }
-     public Point getMassCenter(Image image, boolean scaled, DoublePredicate useValue) {
+
+    public Point getMassCenter(Image image, boolean scaled, DoublePredicate useValue) {
         double[] center = new double[3];
         double[] count = new double[1];
-         DoublePredicate f = useValue==null? v->true:useValue;
-        if (voxels!=null) {
-            synchronized(voxels) { // sync because voxel value is modified
-                if (voxels.size()==1) {
-                    Voxel v = voxels.iterator().next();
-                    return new Point(v.x, v.y, v.z);
-                }
-                if (absoluteLandmark) {
-                    for (Voxel v : voxels) {
-                        if (image.containsWithOffset(v.x, v.y, v.z)) {
-                            v.value=image.getPixelWithOffset(v.x, v.y, v.z);
-                        } else v.value = Double.NaN;
-                    } 
-                } else {
-                    for (Voxel v : voxels) {
-                        if (image.contains(v.x, v.y, v.z)) {
-                            v.value=image.getPixel(v.x, v.y, v.z);
-                        } else v.value = Double.NaN;
-                    } 
-                }
-                Voxel minValue = Collections.min(voxels, Comparator.comparingDouble(v -> v.value));
-                for (Voxel v : voxels) {
-                    if (!Double.isNaN(v.value) && f.test(v.value)) {
-                        v.value-=minValue.value;
-                        center[0] += v.x * v.value;
-                        center[1] += v.y * v.value;
-                        center[2] += v.z * v.value;
-                        count[0]+=v.value;
-                    }
-                }
+        DoublePredicate f = useValue==null? v->true:useValue;
+        double minValue = BasicMeasurements.getMinValue(this, image);
+        LoopFunction fun = (x, y, z)-> {
+            double value = absoluteLandmark ? image.getPixelWithOffset(x, y, z) : image.getPixel(x, y, z);
+            if (f.test(value)) {
+                value -= minValue;
+                center[0] += x * value;
+                center[1] += y * value;
+                center[2] += z * value;
+                count[0] += value;
             }
-        } else {
-            getMask();
-            double minValue = BasicMeasurements.getMinValue(this, image);
-            ImageMask.loopWithOffset(mask, (x, y, z)-> {
-                double value = image.getPixel(x, y, z);
-                if (f.test(value)) {
-                    value -= minValue;
-                    center[0] += x * value;
-                    center[1] += y * value;
-                    center[2] += z * value;
-                    count[0] += value;
-                }
-            });
-        }
+        };
+        loop(fun, image);
         if (count[0]==0) return getGeomCenter(scaled); // all values == minimal value
-
         center[0]/=count[0];
         center[1]/=count[0];
         center[2]/=count[0];
-
         if (scaled) {
             center[0] *=this.getScaleXY();
             center[1] *=this.getScaleXY();
@@ -413,22 +386,26 @@ public class Region {
         this.center = null;
         regionModified=true;
     }
+
     public synchronized void add(Region r) {
         if (r.voxels!=null) addVoxels(r.voxels);
         else add(r.getMask());
         regionModified=true;
     }
+
     public synchronized void remove(Region r) {
         if (this.mask!=null && r.mask!=null) andNot(r.mask);
         else if (this.voxels!=null && r.voxels!=null) removeVoxels(r.voxels);
         else andNot(r.getMask());
         regionModified=true;
     }
+
     public synchronized void and(Region r) {
         if (r.voxels!=null) retainVoxels(r.voxels);
         else and(r.getMask());
         regionModified=true;
     }
+
     public synchronized void removeVoxels(Collection<Voxel> voxelsToRemove) {
         if (voxels == null && mask == null) getMask();
         if (voxels!=null) voxels.removeAll(voxelsToRemove);
@@ -442,6 +419,7 @@ public class Region {
         this.center = null;
         regionModified=true;
     }
+
     public synchronized void retainVoxels(Collection<Voxel> voxelsToRetain) {
         if (voxels == null && mask == null) getVoxels();
         if (voxels!=null) this.voxels.retainAll(voxelsToRetain);
@@ -458,6 +436,7 @@ public class Region {
         this.bounds=null;
         regionModified=true;
     }
+
     public synchronized void andNot(ImageMask otherMask) {
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
@@ -473,6 +452,7 @@ public class Region {
         resetMask();
         regionModified=true;
     }
+
     public synchronized void and(ImageMask otherMask) {
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
@@ -488,6 +468,7 @@ public class Region {
         resetMask();
         regionModified=true;
     }
+
     public synchronized void add(ImageMask otherMask) {
         getMask();
         ensureMaskIsImageInteger();
@@ -508,29 +489,36 @@ public class Region {
         this.center = null;
         regionModified=true;
     }
+
     public boolean contains(Voxel v) {
         if (voxels!=null) return voxels.contains(v);
         else return getMask().containsWithOffset(v.x, v.y, v.z) && mask.insideMaskWithOffset(v.x, v.y, v.z);
     }
+
     public boolean contains(Point p) {
         return contains(p.asVoxel());
     }
+
     public synchronized void clearVoxels() {
         if (roi == null && mask==null) createMask();
         voxels = null;
     }
+
     public synchronized void clearMask() {
         if (voxels==null && roi == null) createRoi();
         mask = null;
         if (roi==null) this.bounds=null;
     }
+
     public synchronized void clearRoi() {
         if (voxels==null && mask == null) createMask();
         roi = null;
     }
+
     public synchronized void createRoi() {
         roi = bacmman.data_structure.region_container.RegionContainerIjRoi.createRoi(getMask(), getBounds(), !is2D());
     }
+
     public synchronized void resetMask() {
         if (mask!=null) { // do it from mask
             if (mask instanceof BlankMask) return;
@@ -546,6 +534,7 @@ public class Region {
             mask = roi.toMask(bounds, scaleXY, scaleZ);
         }
     }
+
     protected void createMask() {
         if (!this.getBounds().isValid()) throw new RuntimeException("Invalid bounds: cannot create mask");
         if (voxels!=null) {
@@ -577,6 +566,7 @@ public class Region {
         if (mask!=null) return new SimpleImageProperties(mask, scaleXY, scaleZ);
         return new SimpleImageProperties(getBounds(), scaleXY, scaleZ);
     }
+
     /**
      * 
      * @return an image containing only the object: its bounds are the one of the object and pixel values >0 where the objects has a voxel. The offset of the image is this offset of the object.
@@ -591,9 +581,11 @@ public class Region {
         }
         return mask;
     }
+
     public ImageInteger<? extends ImageInteger> getMaskAsImageInteger() {
         return TypeConverter.maskToImageInteger(getMask(), null);
     }
+
     public void ensureMaskIsImageInteger() {
         if (!(getMask() instanceof ImageInteger)) {
             synchronized(this) {
@@ -628,6 +620,28 @@ public class Region {
         CoordCollection coll = CoordCollection.create(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
         loop((x, y, z) -> coll.add(coll.toCoord(x, y, z)));
         return coll;
+    }
+
+    public void loop(LoopFunction fun, BoundingBox area) {
+        if (area == null) {
+            loop(fun);
+            return;
+        }
+        if (voxelsCreated()) {
+            if (absoluteLandmark) {
+                for (Voxel v : voxels) {
+                    if (area.containsWithOffset(v.x, v.y, v.z)) fun.loop(v.x, v.y, v.z);
+                }
+            } else {
+                for (Voxel v : voxels) {
+                    if (area.contains(v.x, v.y, v.z)) fun.loop(v.x, v.y, v.z);
+                }
+            }
+        } else {
+            ImageMask mask = getMask();
+            BoundingBox inter = BoundingBox.getIntersection(mask, absoluteLandmark ? area : new SimpleBoundingBox(area).resetOffset());
+            BoundingBox.loop(inter, fun, mask::insideMaskWithOffset);
+        }
     }
 
     public void loop(LoopFunction fun) {

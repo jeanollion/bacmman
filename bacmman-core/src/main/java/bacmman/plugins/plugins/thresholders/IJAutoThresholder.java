@@ -55,11 +55,6 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, H
     public double runSimpleThresholder(Image input, ImageMask mask) {
         return runThresholder(input, mask, Method.valueOf(method.getSelectedItem()));
     }
-    @Override
-    public double runThresholder(Image input, SegmentedObject structureObject) {
-        ImageMask mask = structureObject!=null?structureObject.getMask():new BlankMask(input);
-        return runSimpleThresholder(input, mask);
-    }
     
     public static double runThresholder(Image input, ImageMask mask, Method method) {
         return runThresholder(input, mask, null, method);

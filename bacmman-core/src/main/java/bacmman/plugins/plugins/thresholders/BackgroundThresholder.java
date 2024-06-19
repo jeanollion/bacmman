@@ -90,12 +90,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
         return runThresholder(input, mask, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, null);
         
     }
-    @Override
-    public double runThresholder(Image input, SegmentedObject structureObject) {
-        ImageMask mask = structureObject!=null?structureObject.getMask():null;
-        //return BackgroundThresholder.runSimpleThresholder(input, mask, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), null);
-        return runSimpleThresholder(input , mask);
-    }
+
     // slower, more precise
     public static double runThresholder(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue) {
         return runThresholder(input,mask, sigmaFactor, lastSigmaFactor, iterations, firstValue, null);

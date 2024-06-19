@@ -180,19 +180,15 @@ public class Processor {
     }
     // processing-related methods
     
-    public static List<SegmentedObject> getOrCreateRootTrack(ObjectDAO dao) {
+    public static List<SegmentedObject> getOrCreateRootTrack(ObjectDAO dao) throws IOException {
         List<SegmentedObject> res = dao.getRoots();
         if (res==null || res.isEmpty()) {
-            try {
-                res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
             if (res!=null && !res.isEmpty()) {
                 dao.setRoots(res); // also stores
             }
         } else dao.getExperiment().getPosition(dao.getPositionName()).setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
-        if (res==null || res.isEmpty()) throw new RuntimeException("no pre-processed image found");
+        if (res==null || res.isEmpty()) throw new IOException("no pre-processed image found");
         return res;
     }
     
@@ -248,14 +244,18 @@ public class Processor {
     public static void processAndTrackStructures(ObjectDAO dao, boolean deleteObjects, boolean trackOnly, int... structures) {
         Experiment xp = dao.getExperiment();
         if (deleteObjects) deleteObjects(dao, structures);
-        List<SegmentedObject> root = getOrCreateRootTrack(dao);
-
-        if (structures.length==0) structures=xp.experimentStructure.getStructuresInHierarchicalOrderAsArray();
-        for (int s: structures) {
-            if (!trackOnly) logger.info("Segmentation & Tracking: Position: {}, Structure: {} available mem: {}/{}GB", dao.getPositionName(), s, (Runtime.getRuntime().freeMemory()/1000000)/1000d, (Runtime.getRuntime().totalMemory()/1000000)/1000d);
-            else logger.info("Tracking: Position: {}, Structure: {}", dao.getPositionName(), s);
-            executeProcessingScheme(root, s, trackOnly, false, null, null);
-            System.gc();
+        try {
+            List<SegmentedObject> root = getOrCreateRootTrack(dao);
+            if (structures.length == 0) structures = xp.experimentStructure.getStructuresInHierarchicalOrderAsArray();
+            for (int s : structures) {
+                if (!trackOnly)
+                    logger.info("Segmentation & Tracking: Position: {}, Structure: {} available mem: {}/{}GB", dao.getPositionName(), s, (Runtime.getRuntime().freeMemory() / 1000000) / 1000d, (Runtime.getRuntime().totalMemory() / 1000000) / 1000d);
+                else logger.info("Tracking: Position: {}, Structure: {}", dao.getPositionName(), s);
+                executeProcessingScheme(root, s, trackOnly, false, null, null);
+                System.gc();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
     @SuppressWarnings("unchecked")

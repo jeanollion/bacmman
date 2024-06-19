@@ -18,12 +18,25 @@
  */
 package bacmman.plugins;
 
-import bacmman.image.Histogram;
+import bacmman.data_structure.SegmentedObject;
+import bacmman.image.*;
+import bacmman.utils.Utils;
 
 /**
  *
  * @author Jean Ollion
  */
-public interface ThresholderHisto extends Plugin {
-    public double runThresholderHisto(Histogram histogram);
+public interface ThresholderHisto extends SimpleThresholder {
+    double runThresholderHisto(Histogram histogram);
+
+    default double runThresholder(Image input, SegmentedObject structureObject) {
+        ImageMask mask = structureObject!=null?structureObject.getMask():new BlankMask(input);
+        return runSimpleThresholder(input, mask);
+    }
+
+    default double runSimpleThresholder(Image image, ImageMask mask) {
+        Histogram histo = HistogramFactory.getHistogram(()-> image.stream(mask, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        histo.removeSaturatingValue(4, true);
+        return runThresholderHisto(histo);
+    }
 }

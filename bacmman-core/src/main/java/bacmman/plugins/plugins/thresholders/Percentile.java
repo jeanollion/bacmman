@@ -33,10 +33,4 @@ public class Percentile implements SimpleThresholder, ThresholderHisto {
         histo.removeSaturatingValue(4, true);
         return runThresholderHisto(histo);
     }
-
-    @Override
-    public double runThresholder(Image input, SegmentedObject structureObject) {
-        ImageMask mask = structureObject!=null?structureObject.getMask():new BlankMask(input);
-        return runSimpleThresholder(input, mask);
-    }
 }

@@ -5286,9 +5286,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         } else {
             if (this.testParentTrackJCB.getSelectedIndex()>=0) {
                 // set trim frame lower and upper bounds
-                SegmentedObject trackHead = getTestTrackHead();
+                SegmentedObject trackHead = null;
+                try {
+                    trackHead = getTestTrackHead();
+                } catch (IOException e) {
+
+                }
                 ObjectDAO dao = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex());
-                if (dao!=null) {
+                if (dao!=null && trackHead != null) {
                     List<SegmentedObject> parentTrack = dao.getTrack(trackHead);
                     this.testFrameRange.setLowerBound(trackHead.getFrame());
                     this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size() - 1).getFrame());
@@ -5362,18 +5367,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
             try {
                 if (parentObjectClassIdx<0) Processor.getOrCreateRootTrack(db.getDao(position)); // ensures root track is created
-                logger.debug("parent track: {}", Processor.getOrCreateRootTrack(db.getDao(position)).size());
-            } catch (Exception e) {}
-            SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(so -> so.isTrackHead()).map(o->Selection.indicesString(o)).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
-            /*if (parentObjectClassIdx<0) {
-                testParentTrackJCB.addItem(position);
-            } else { // get list of all trackHeads in position
-                
-            }*/
-            if (sel !=null) testParentTrackJCB.setSelectedItem(sel);
+                SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(SegmentedObject::isTrackHead).map(Selection::indicesString).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
+                if (sel !=null) testParentTrackJCB.setSelectedItem(sel);
+                //logger.debug("parent track: {}", Processor.getOrCreateRootTrack(db.getDao(position)).size());
+            } catch (IOException e) {}
             setTestParentTHTitle(parentObjectClassIdx>=0 ? db.getExperiment().getStructure(parentObjectClassIdx).getName() : "Viewfield");
             //testParentTrackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Parent Track"));
-
         } else setTestParentTHTitle("Viewfield");
         freezeTestParentTHListener = false;
         if (sel==null == testParentTrackJCB.getSelectedIndex()<0) this.testParentTrackJCBItemStateChanged(null);
@@ -5384,7 +5383,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         testParentTrackPanel.updateUI();
     }
     
-    private SegmentedObject getTestTrackHead() {
+    private SegmentedObject getTestTrackHead() throws IOException {
         if (db==null) return null;
         int positionIdx = testPositionJCB.getSelectedIndex();
         int testObjectClassIdx = this.testObjectClassJCB.getSelectedIndex();
@@ -5395,7 +5394,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         String sel = Utils.getSelectedString(testParentTrackJCB);
         return Selection.getObject(Selection.parseIndices(sel), path, Processor.getOrCreateRootTrack(db.getDao(position)));
     }
-    public List<SegmentedObject> getTestParents() {
+    public List<SegmentedObject> getTestParents() throws IOException {
         if (db==null) return null;
         if (testConfigurationTreeGenerator==null) return null;
         if (!testConfigurationTreeGenerator.getRoot().isValid()) {

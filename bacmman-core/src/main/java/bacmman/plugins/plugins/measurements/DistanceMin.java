@@ -40,14 +40,15 @@ public class DistanceMin implements Measurement, Hint {
             this.name = name;
         }
     }
-    BooleanParameter massCenterSource = new BooleanParameter("Center (source)", "Mass", "Geometrical", false).setHint("If Mass is selected center is weighted by intensity, otherwise center is geometrical center");
+    public enum CENTER {MASS, GEOMETRICAL, FROM_SEGMENTATION}
+    EnumChoiceParameter<CENTER> sourceCenterMode = new EnumChoiceParameter<>("Center (source)", CENTER.values(), CENTER.FROM_SEGMENTATION).setHint("If Mass is selected center is weighted by intensity, otherwise center is geometrical center");
     ObjectClassParameter intensitySource = new ObjectClassParameter("Intensity");
-    BooleanParameter massCenterTarget = new BooleanParameter("Center (target)", "Mass", "Geometrical", false).setHint("If Mass is selected center is weighted by intensity, otherwise center is geometrical center");
+    EnumChoiceParameter<CENTER> targetCenterMode = new EnumChoiceParameter<>("Center (target)", CENTER.values(), CENTER.FROM_SEGMENTATION).setHint("If Mass is selected center is weighted by intensity, otherwise center is geometrical center");
     ObjectClassParameter intensityTarget = new ObjectClassParameter("Intensity");
     ObjectClassParameter ocSource = new ObjectClassParameter("Segmented Objects (source)").addListener(oc -> intensitySource.setSelectedIndex(oc.getSelectedIndex()));
     ObjectClassParameter ocTarget = new ObjectClassParameter("Segmented Objects (target)").addListener(oc -> intensityTarget.setSelectedIndex(oc.getSelectedIndex()));;
-    ConditionalParameter<Boolean> massCenterSourceCond = new ConditionalParameter<>(massCenterSource).setActionParameters(true, intensitySource);
-    ConditionalParameter<Boolean> massCenterTargetCond = new ConditionalParameter<>(massCenterTarget).setActionParameters(true, intensityTarget);
+    ConditionalParameter<CENTER> massCenterSourceCond = new ConditionalParameter<>(sourceCenterMode).setActionParameters(CENTER.MASS, intensitySource);
+    ConditionalParameter<CENTER> massCenterTargetCond = new ConditionalParameter<>(targetCenterMode).setActionParameters(CENTER.MASS, intensityTarget);
     MultipleEnumChoiceParameter<DISTANCE_MODE> distanceMode = new MultipleEnumChoiceParameter<>("Distance Type", DISTANCE_MODE.values(), null, true);
     BooleanParameter scaled = new BooleanParameter("Scaled", true).setHint("If false, distance is expressed in pixels");
     BooleanParameter returnVector = new BooleanParameter("Return Distance Vector", false).setHint("If true, distance vector towards the closest object will be returned. <br>Note that if dZ is returned, and <em>Scaled</em> is set to false and image is anisotropic, dZ is not expressed in plane number but in XY pixels size");
@@ -124,17 +125,17 @@ public class DistanceMin implements Measurement, Hint {
     public List<BiFunction<Region, Region, Vector>> getDistanceFunctions(List<DISTANCE_MODE> modes, SegmentedObject parent, List<SegmentedObject> source, List<SegmentedObject> target) {
         double scaleXY = scaled.getSelected() ? parent.getScaleXY() : 1;
         double scaleZ = scaled.getSelected() ? parent.getScaleZ() : parent.getScaleZ()/parent.getScaleXY();
-        double scaleCorr = scaled.getSelected() ? 1 : 1/parent.getScaleXY();
+
         Comparator<Vector> comp = Vector.comparator();
         Map<Region, Point> sourceCenters;
         if (modes.contains(DISTANCE_MODE.CENTER_CENTER) || modes.contains(DISTANCE_MODE.CENTER_EDGE)) {
-            Image intensity = massCenterSource.getSelected() ? parent.getRawImage(intensitySource.getSelectedClassIdx()) : null;
-            sourceCenters = source.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o -> intensity==null ? o.getRegion().getGeomCenter(true).multiply(scaleCorr) : o.getRegion().getMassCenter(intensity, true).multiply(scaleCorr)));
+            Image intensity = sourceCenterMode.getSelectedEnum().equals(CENTER.MASS) ? parent.getRawImage(intensitySource.getSelectedClassIdx()) : null;
+            sourceCenters = source.stream().collect(Collectors.toMap(SegmentedObject::getRegion,  getCenterFun(sourceCenterMode.getSelectedEnum(), intensity, scaleXY, scaleZ) ));
         } else sourceCenters = null;
         Map<Region, Point> targetCenters;
         if (modes.contains(DISTANCE_MODE.CENTER_CENTER) || modes.contains(DISTANCE_MODE.EDGE_CENTER)) {
-            Image intensity = massCenterTarget.getSelected() ? parent.getRawImage(intensityTarget.getSelectedClassIdx()) : null;
-            targetCenters = target.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o -> intensity==null ? o.getRegion().getGeomCenter(true).multiply(scaleCorr) : o.getRegion().getMassCenter(intensity, true).multiply(scaleCorr)));
+            Image intensity = targetCenterMode.getSelectedEnum().equals(CENTER.MASS) ? parent.getRawImage(intensityTarget.getSelectedClassIdx()) : null;
+            targetCenters = target.stream().collect(Collectors.toMap(SegmentedObject::getRegion, getCenterFun(targetCenterMode.getSelectedEnum(), intensity, scaleXY, scaleZ) ));
         } else targetCenters = null;
         Function<DISTANCE_MODE, BiFunction<Region, Region, Vector>> getDistanceFunction = mode -> {
             switch (mode) {
@@ -161,6 +162,28 @@ public class DistanceMin implements Measurement, Hint {
             }
         };
         return modes.stream().map(getDistanceFunction).collect(Collectors.toList());
+    }
+
+    private static Function<SegmentedObject, Point> getCenterFun(CENTER mode, Image intensity, double scaleXY, double scaleZ) {
+        switch (mode) {
+            case GEOMETRICAL: {
+                return o -> scale(o.getRegion().getGeomCenter(false), scaleXY, scaleZ);
+            }
+            case MASS: {
+                return o -> scale(o.getRegion().getMassCenter(intensity, false), scaleXY, scaleZ);
+            }
+            case FROM_SEGMENTATION:
+            default : {
+                return o ->  scale(o.getRegion().getCenterOrGeomCenter(), scaleXY, scaleZ);
+            }
+        }
+    }
+
+    private static Point scale(Point p, double scaleXY, double scaleZ) {
+        p.multiplyDim(scaleXY, 0);
+        p.multiplyDim(scaleXY, 1);
+        if (p.numDimensions()>2) p.multiplyDim(scaleZ, 2);
+        return p;
     }
 
     @Override

@@ -327,7 +327,12 @@ public class PluginConfigurationUtils {
         Consumer<Boolean> performTest = b-> {
             List<SegmentedObject> sel;
             if (GUI.hasInstance()) {
-                sel = GUI.getInstance().getTestParents();
+                try {
+                    sel = GUI.getInstance().getTestParents();
+                } catch (IOException e) {
+                    Core.userLog("Could not fined parents. Have pre-processing been performed?");
+                    sel = null;
+                }
                 if ((sel == null || sel.isEmpty()) ) return;
             } else sel = getImageManager().getSelectedLabileObjects(null);
             if ((sel == null || sel.isEmpty()) ) {

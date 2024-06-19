@@ -497,6 +497,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BooleanParameter randomStride = new BooleanParameter("Random Stride", true).setHint("Random spacing between tiles");
         BooleanParameter performAug = new BooleanParameter("Perform Augmentation", true).setHint("Tiles are randomly flipped and 90° rotated");
         BooleanParameter augRotate = new BooleanParameter("Augmentation Rotate", true).setHint("If false, tiles are only flipped during random rotate");
+        ConditionalParameter<Boolean> performAugCond = new ConditionalParameter<>(performAug).setActionParameters(true, augRotate);
         BoundedNumberParameter interpolationOrder = new BoundedNumberParameter("Interpolation Order", 0, 1, 0, 5).setHint("The order of the spline interpolation for zoom in / zoom out");
 
         public RandomTilingParameter(String name) {
@@ -509,8 +510,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             children.clear();
             if (constant) {
                 children.add(tileNumberModeCond);
-                children.add(performAug);
-                children.add(augRotate);
+                children.add(performAugCond);
                 zoomRange.setValues(1, 1);
                 aspectRatioRange.setValues(1, 1);
                 jitter.setValue(0, 0);
@@ -524,8 +524,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 children.add(aspectRatioRange);
                 children.add(zoomProba);
                 children.add(jitter);
-                children.add(performAug);
-                children.add(augRotate);
+                children.add(performAugCond);
                 children.add(randomStride);
                 children.add(interpolationOrder);
             }

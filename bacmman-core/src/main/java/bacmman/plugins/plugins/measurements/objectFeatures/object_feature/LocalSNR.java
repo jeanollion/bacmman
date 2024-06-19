@@ -65,7 +65,7 @@ public class LocalSNR extends SNR {
         localBackgroundMask.translate(offset); // so that local background mask is in absolute landmark
         localBackgroundMask = Filters.binaryMax(localBackgroundMask, null, Filters.getNeighborhood(localBackgroundRadius.getValue().doubleValue(), localBackgroundMask), true, false);
         ImageOperations.andWithOffset(localBackgroundMask, backgroundObject.getMask(), localBackgroundMask); // do not dilate outside background mask
-        Region bck = new Region(localBackgroundMask, 1, true).setIsAbsoluteLandmark(true);
+        Region bck = new Region(localBackgroundMask, 1, object.is2D()).setIsAbsoluteLandmark(true);
         IntensityMeasurementCore.IntensityMeasurements fore = super.core.getIntensityMeasurements(object);
         IntensityMeasurementCore.IntensityMeasurements back = super.core.getIntensityMeasurements(bck);
         double d = getValue(getForeValue(fore), getBackValue(back), back.sd);

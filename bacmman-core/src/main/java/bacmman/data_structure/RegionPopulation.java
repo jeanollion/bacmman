@@ -944,8 +944,9 @@ public class RegionPopulation {
         int contactLimit;
         ImageProperties imageProperties;
         Border border;
-        int tolerance;
+        int tolerance, toleranceZ;
         int tolEnd = 1;
+        int tolZEnd = 1;
         public ContactBorder(int contactLimit, ImageProperties imageProperties, Border border) {
             this.contactLimit = contactLimit;
             this.imageProperties = imageProperties;
@@ -961,14 +962,19 @@ public class RegionPopulation {
             this.tolEnd=tolerance+1;
             return this;
         }
+        public ContactBorder setToleranceZ(int tolerance) {
+            if (tolerance<=0) tolerance=0;
+            this.toleranceZ=tolerance;
+            this.tolZEnd=tolerance+1;
+            return this;
+        }
         public boolean contact(Voxel v) {
             if (border.xl && v.x <=tolerance) return true;
             if (border.xr && v.x >= imageProperties.sizeX() - tolEnd) return true;
             if (border.yup && v.y <=tolerance) return true;
             if (border.ydown && v.y >= imageProperties.sizeY() - tolEnd) return true;
-            if (border.zdown && v.z <=tolerance ) return true;
-            if (border.zup && v.z >= imageProperties.sizeZ() - tolEnd) return true;
-
+            if (border.zdown && v.z <=toleranceZ ) return true;
+            if (border.zup && v.z >= imageProperties.sizeZ() - tolZEnd) return true;
             return false;
         }
         public boolean contactWithOffset(Voxel v) {
@@ -976,8 +982,8 @@ public class RegionPopulation {
             if (border.xr && v.x > imageProperties.xMax() - tolEnd) return true;
             if (border.yup && v.y <= imageProperties.yMin() + tolerance) return true;
             if (border.ydown && v.y > imageProperties.yMax() - tolEnd) return true;
-            if (border.zdown && v.z <= imageProperties.zMin() + tolerance ) return true;
-            if (border.zup && v.z > imageProperties.zMax() - tolEnd) return true;
+            if (border.zdown && v.z <= imageProperties.zMin() + toleranceZ ) return true;
+            if (border.zup && v.z > imageProperties.zMax() - tolZEnd) return true;
 
             return false;
         }
@@ -1048,9 +1054,8 @@ public class RegionPopulation {
             if (border.xr && bounds.xMax() >= imageProperties.sizeX() - tolEnd) return true;
             if (border.yup && bounds.yMin() <=tolerance) return true;
             if (border.ydown && bounds.yMax() >= imageProperties.sizeY() - tolEnd) return true;
-            if (border.zdown && bounds.zMin() <=tolerance) return true;
-            if (border.zup && bounds.zMax() >= imageProperties.sizeZ() - tolEnd) return true;
-
+            if (border.zdown && bounds.zMin() <=toleranceZ) return true;
+            if (border.zup && bounds.zMax() >= imageProperties.sizeZ() - tolZEnd) return true;
             return false;
         }
         public boolean intersectWithOffset(BoundingBox bounds) {
@@ -1058,9 +1063,8 @@ public class RegionPopulation {
             if (border.xr && bounds.xMax() > imageProperties.xMax() - tolEnd) return true;
             if (border.yup && bounds.yMin() <= imageProperties.yMin() + tolerance) return true;
             if (border.ydown && bounds.yMax() > imageProperties.yMin() - tolEnd) return true;
-            if (border.zdown && bounds.zMin() <= imageProperties.zMin()+tolerance ) return true;
-            if (border.zup && bounds.zMax() > imageProperties.zMax() - tolEnd) return true;
-
+            if (border.zdown && bounds.zMin() <= imageProperties.zMin() + toleranceZ ) return true;
+            if (border.zup && bounds.zMax() > imageProperties.zMax() - tolZEnd) return true;
             return false;
         }
     }
@@ -1072,6 +1076,10 @@ public class RegionPopulation {
         }
         @Override
         public ContactBorder setTolerance(int tolerance) {
+            throw new UnsupportedOperationException("no tolerance for ContactBorderMask");
+        }
+        @Override
+        public ContactBorder setToleranceZ(int tolerance) {
             throw new UnsupportedOperationException("no tolerance for ContactBorderMask");
         }
         @Override

@@ -3,6 +3,7 @@ package bacmman.ui;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
+import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Processor;
@@ -25,6 +26,7 @@ import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -387,11 +389,11 @@ public class TrackMatePanel {
         this.parentTrackJCB.removeAllItems();
         if (positionIdx >= 0 && parentObjectClassIdx >= -1) {
             String position = db.getExperiment().getPosition(positionIdx).getName();
-
             try {
                 if (parentObjectClassIdx < 0)
                     Processor.getOrCreateRootTrack(db.getDao(position)); // ensures root track is created
-            } catch (Exception e) {
+            } catch (IOException e) {
+                Core.userLog("Pre-processing not performed for position: " + position);
             }
             SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(SegmentedObject::isTrackHead).map(Selection::indicesString).forEachOrdered(idx -> parentTrackJCB.addItem(idx));
             if (sel != null) parentTrackJCB.setSelectedItem(sel);

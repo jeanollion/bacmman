@@ -914,7 +914,12 @@ public class Task implements ProgressCallback {
                 int[] structuresToDelete = IntStream.of(structures).filter(s -> db.getExperiment().getStructure(s).getProcessingPipelineParameter().isOnePluginSet()).toArray();
                 deleteObjects(db.getDao(position), structuresToDelete);
             }
-            List<SegmentedObject> root = getOrCreateRootTrack(db.getDao(position));
+            List<SegmentedObject> root = null;
+            try {
+                root = getOrCreateRootTrack(db.getDao(position));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             for (int s : structures) { // TODO take code from processor
                 publish("Processing structure: "+s);
                 try {

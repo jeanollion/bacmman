@@ -79,10 +79,7 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     public double runSimpleThresholder(Image input, ImageMask mask) {
         return runThresholderHisto(HistogramFactory.getHistogram(()->Utils.parallel(input.stream(mask, true), parallel), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND) );
     }
-    @Override
-    public double runThresholder(Image input, SegmentedObject structureObject) {
-        return runSimpleThresholder(input, structureObject.getMask() );
-    }
+
     public static float[] smooth(long[] data, double scale) {
         ImageFloat image = new ImageFloat("", data.length, 1, 1);
         for (int i = 0; i<data.length; ++i) image.setPixel(i, 0, 0, data[i]);
