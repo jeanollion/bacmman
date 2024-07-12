@@ -983,6 +983,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     protected void storeFrameIndex(Pair<String, Integer> key, Map<Integer, Set<String>> indices, boolean commit, int... frames) {
         logger.debug("storing frame index for {} frames", frames==null || frames.length==0 ? indices.size() : frames.length);
         HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
+        if (dbmap == null) return;
         Map<Integer, Object> toStore;
         if (frames!=null && frames.length>0) toStore = Arrays.stream(frames).boxed().collect(Collectors.toMap(i -> i, i -> indices.get(i).toArray()));
         else toStore= indices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toArray()));
