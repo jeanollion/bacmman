@@ -871,38 +871,75 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             }
             if (noTarget.test(s)) continue;
-            double dy = dyMap.applyAsDouble(s);
-            double dx = dxMap.applyAsDouble(s);
-            Point centerTrans = s.getRegion().getCenterOrGeomCenter().duplicate()
-                    .translateRev(new Vector(dx, dy)) // translate by predicted displacement
-                    .translate(trans); // offset relative to parent
-            Voxel centerTransV = centerTrans.asVoxel();
+            Point centerTrans = getTranslatedCenter(s, dxMap, dyMap, trans);
             if (verbose) {
                 s.setAttribute("Center", s.getRegion().getCenter());
                 s.setAttribute("Center Translated", centerTrans);
             }
             SegmentedObject t;
             if (linkDistTolerance>0) {
-                Map<SegmentedObject, Double> distance = new HashMap<>();
-                t = target.stream()
-                    .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds(), linkDistTolerance))
-                    .filter(o -> {
-                        //int d = getDistanceToObject(centerTrans, o, linkTolerance);
-                        double d = Math.sqrt(contour.get(o).stream().mapToDouble(v -> centerTrans.distSq((RealLocalizable)v)).min().getAsDouble());
-                        if (d<=linkDistTolerance) {
-                            distance.put(o, d);
-                            //logger.debug("assign with link tolerance: {} -> {} dist = {}", s, o, d);
-                            return true;
-                        } else return false;
-                    }).min(Comparator.comparingDouble(distance::get)).orElse(null);
+                t = getTarget(centerTrans, target.stream(), linkDistTolerance, contour).findFirst().orElse(null);
             } else {
-                t = target.stream()
-                    .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds()))
-                    .filter(o -> o.getRegion().contains(centerTransV))
-                    .findAny().orElse(null);
+                t = getTarget(centerTrans, target.stream());
             }
             if (t != null) graph.addEdge(t, s);
         }
+    }
+
+    static void assign_v2(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> linkMultiplicity, Map<SegmentedObject, Set<Voxel>> contour, boolean verbose) {
+        if (target==null || target.isEmpty() || source==null || source.isEmpty()) return;
+        Offset transFW = target.iterator().next().getParent().getBounds().duplicate().translate(source.iterator().next().getParent().getBounds().duplicate().reverseOffset());
+        Offset transBW = source.iterator().next().getParent().getBounds().duplicate().translate(target.iterator().next().getParent().getBounds().duplicate().reverseOffset());
+        Map<LINK_MULTIPLICITY, List<SegmentedObject>> sourceByLM = source.stream().collect(Collectors.groupingBy(linkMultiplicity));
+        Map<LINK_MULTIPLICITY, List<SegmentedObject>> targetByLM = target.stream().collect(Collectors.groupingBy(linkMultiplicity));
+
+        // link single objects
+        if (sourceByLM.containsKey(SINGLE) && targetByLM.containsKey(SINGLE)) {
+            List<SegmentedObject> sS = sourceByLM.get(SINGLE);
+            List<SegmentedObject> tS = targetByLM.get(SINGLE);
+            for (SegmentedObject s : sS) {
+                Point centerS = getTranslatedCenter(s, dxFW, dyFW, transFW);
+                getTarget(centerS, tS.stream(), linkDistTolerance, contour).forEach( t -> {
+                    Point centerT = getTranslatedCenter(s, dxBW, dyBW, transBW);
+                    SegmentedObject s2 = getTarget(centerT, sS.stream(), linkDistTolerance, contour).filter(s::equals).findFirst().orElse(null);
+                    if (s2!=null) {
+                        // TODO create link & remove objects & stop loop !
+                    }
+                });
+            }
+        }
+
+    }
+
+    static Point getTranslatedCenter(SegmentedObject o, ToDoubleFunction<SegmentedObject> dx, ToDoubleFunction<SegmentedObject> dy, Offset trans) {
+        return o.getRegion().getCenterOrGeomCenter().duplicate()
+                .translateRev(new Vector(dx.applyAsDouble(o), dy.applyAsDouble(o))) // translate by predicted displacement
+                .translate(trans);
+    }
+
+    static SegmentedObject getTarget(Point center, Stream<SegmentedObject> candidates) {
+        Voxel centerV = center.asVoxel();
+        return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds()))
+                .filter(o -> o.getRegion().contains(centerV)).findAny().orElse(null);
+    }
+
+    static Stream<SegmentedObject> getTarget(Point center, Stream<SegmentedObject> candidates, int tolerance, Map<SegmentedObject, Set<Voxel>> contour) {
+        if (tolerance == 0) {
+            SegmentedObject target = getTarget(center, candidates);
+            if (target == null) return Stream.empty();
+            else return Stream.of(target);
+        }
+        Map<SegmentedObject, Double> distance = new HashMap<>();
+        return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds(), tolerance))
+            .filter(o -> {
+                //int d = getDistanceToObject(centerTrans, o, linkTolerance);
+                double d = Math.sqrt(contour.get(o).stream().mapToDouble(v -> center.distSq((RealLocalizable)v)).min().getAsDouble());
+                if (d<=tolerance) {
+                    distance.put(o, d);
+                    //logger.debug("assign with link tolerance: {} -> {} dist = {}", s, o, d);
+                    return true;
+                } else return false;
+            }).sorted(Comparator.comparingDouble(distance::get));
     }
 
     // fix links that are only in one way. they come from complex links unsupported by bacmman data structure.
