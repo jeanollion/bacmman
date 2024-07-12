@@ -74,6 +74,17 @@ public class Vector extends Point<Vector> implements Comparable<Vector> {
         return norm;
     }
 
+    public double normSq(double[] scale) {
+        if (numDimensions() > scale.length) throw new IllegalArgumentException("Vector must have dimension number compatible with scale array");
+        double norm = 0;
+        for (int i = 0; i<numDimensions(); ++i) norm+=Math.pow(coords[i] * scale[i], 2);
+        return norm;
+    }
+
+    public double norm(double[] scale) {
+        return Math.sqrt(normSq(scale));
+    }
+
     public Vector normalize() {
         double norm = norm();
         for (int i = 0; i<coords.length; ++i) coords[i]/=norm;
@@ -151,4 +162,16 @@ public class Vector extends Point<Vector> implements Comparable<Vector> {
     public static Comparator<Vector> comparator() {
         return Comparator.comparing(Vector::normSq);
     }
+    public static Comparator<Vector> comparator(double[] scale) {
+        return Comparator.comparing(v -> v.normSq(scale));
+    }
+    public static Comparator<Vector> comparator(double scaleXY, double scaleZ) {
+        return Comparator.comparing(v -> {
+            if (v.numDimensions() > 3) throw new IllegalArgumentException("Vector must have at most 3 dimensions");
+            double norm = 0;
+            for (int i = 0; i<v.numDimensions(); ++i) norm+=Math.pow(v.coords[i] * (i==2 ? scaleZ : scaleXY), 2);
+            return norm;
+        });
+    }
+
 }
