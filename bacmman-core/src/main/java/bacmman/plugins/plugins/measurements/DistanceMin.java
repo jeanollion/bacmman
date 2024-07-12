@@ -12,6 +12,7 @@ import bacmman.plugins.Measurement;
 import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
+import net.imglib2.RealLocalizable;
 
 import java.util.Comparator;
 import java.util.List;
@@ -92,7 +93,9 @@ public class DistanceMin implements Measurement, Hint {
         List<DISTANCE_MODE> distanceModes = distanceMode.getSelectedItems();
         List<BiFunction<Region, Region, Vector>> distFuns = getDistanceFunctions(distanceModes, parent, source, target);
         boolean sourceIsTarget = ocSource.getSelectedClassIdx() == ocTarget.getSelectedClassIdx();
-
+        double scaleXY = scaled.getSelected() ? parent.getScaleXY() : 1;
+        double scaleZ = scaled.getSelected() ? parent.getScaleZ() : 1;
+        double[] scaleA= new double[]{scaleXY, scaleXY, scaled.getSelected() ? parent.getScaleZ() : parent.getScaleZ()/parent.getScaleXY()};
         for (int modeIdx = 0; modeIdx<distanceModes.size(); ++modeIdx) {
             DISTANCE_MODE mode = distanceModes.get(modeIdx);
             String key = getKey(mode);
@@ -101,11 +104,11 @@ public class DistanceMin implements Measurement, Hint {
                 Predicate<SegmentedObject> excludeSame = sourceIsTarget ? t -> !t.equals(s) : t -> true;
                 Pair<Vector, SegmentedObject> closest = target.stream().filter(excludeSame).map(t -> new Pair<>(distFun.apply(s.getRegion(), t.getRegion()), t)).min(Comparator.comparingDouble(p -> p.key.normSq())).orElse(null);
                 if (closest!=null && closest.key!=null) {
-                    s.getMeasurements().setValue(key, closest.key.norm());
+                    s.getMeasurements().setValue(key, closest.key.norm(scaleA));
                     if (returnVector.getSelected()) {
-                        s.getMeasurements().setValue(key+"_dX", closest.key.get(0));
-                        s.getMeasurements().setValue(key+"_dY", closest.key.get(1));
-                        if (returnDZ.getSelected() && closest.key.numDimensions()>2) s.getMeasurements().setValue(key+"_dZ", closest.key.get(2));
+                        s.getMeasurements().setValue(key+"_dX", closest.key.get(0) * scaleXY);
+                        s.getMeasurements().setValue(key+"_dY", closest.key.get(1) * scaleXY);
+                        if (returnDZ.getSelected() && closest.key.numDimensions()>2) s.getMeasurements().setValue(key+"_dZ", closest.key.get(2) * scaleZ);
                         if (returnIndices.getSelected()) s.getMeasurements().setStringValue(key+"_Indices", Selection.indicesString(closest.value));
                     }
                 } else {
@@ -126,16 +129,16 @@ public class DistanceMin implements Measurement, Hint {
         double scaleXY = scaled.getSelected() ? parent.getScaleXY() : 1;
         double scaleZ = scaled.getSelected() ? parent.getScaleZ() : parent.getScaleZ()/parent.getScaleXY();
 
-        Comparator<Vector> comp = Vector.comparator();
+        Comparator<Vector> comp = Vector.comparator(scaleXY, scaleZ);
         Map<Region, Point> sourceCenters;
         if (modes.contains(DISTANCE_MODE.CENTER_CENTER) || modes.contains(DISTANCE_MODE.CENTER_EDGE)) {
             Image intensity = sourceCenterMode.getSelectedEnum().equals(CENTER.MASS) ? parent.getRawImage(intensitySource.getSelectedClassIdx()) : null;
-            sourceCenters = source.stream().collect(Collectors.toMap(SegmentedObject::getRegion,  getCenterFun(sourceCenterMode.getSelectedEnum(), intensity, scaleXY, scaleZ) ));
+            sourceCenters = source.stream().collect(Collectors.toMap(SegmentedObject::getRegion,  getCenterFun(sourceCenterMode.getSelectedEnum(), intensity) ));
         } else sourceCenters = null;
         Map<Region, Point> targetCenters;
         if (modes.contains(DISTANCE_MODE.CENTER_CENTER) || modes.contains(DISTANCE_MODE.EDGE_CENTER)) {
             Image intensity = targetCenterMode.getSelectedEnum().equals(CENTER.MASS) ? parent.getRawImage(intensityTarget.getSelectedClassIdx()) : null;
-            targetCenters = target.stream().collect(Collectors.toMap(SegmentedObject::getRegion, getCenterFun(targetCenterMode.getSelectedEnum(), intensity, scaleXY, scaleZ) ));
+            targetCenters = target.stream().collect(Collectors.toMap(SegmentedObject::getRegion, getCenterFun(targetCenterMode.getSelectedEnum(), intensity) ));
         } else targetCenters = null;
         Function<DISTANCE_MODE, BiFunction<Region, Region, Vector>> getDistanceFunction = mode -> {
             switch (mode) {
@@ -145,17 +148,17 @@ public class DistanceMin implements Measurement, Hint {
                 case CENTER_EDGE:
                     return (rSource, rTarget) -> {
                         Point c = sourceCenters.get(rSource);
-                        return rTarget.getContour().stream().map(v -> Vector.vector(c, asPoint(v, scaleXY, scaleZ))).min(comp).orElse(null);
+                        return rTarget.getContour().stream().map(v -> Vector.vector(c, asPoint((RealLocalizable)v))).min(comp).orElse(null);
                     };
                 case EDGE_CENTER:
                     return (rSource, rTarget) -> {
                         Point c = targetCenters.get(rTarget);
-                        return rSource.getContour().stream().map(v -> Vector.vector(asPoint(v, scaleXY, scaleZ), c)).min(comp).orElse(null);
+                        return rSource.getContour().stream().map(v -> Vector.vector(asPoint((RealLocalizable)v), c)).min(comp).orElse(null);
                     };
                 case EDGE_EDGE:
                     return (rSource, rTarget) -> {
-                        Stream<Point> sContour = rSource.getContour().stream().map(v -> asPoint(v, scaleXY, scaleZ));
-                        List<Point> tContour = rTarget.getContour().stream().map(v -> asPoint(v, scaleXY, scaleZ)).collect(Collectors.toList());
+                        Stream<Point> sContour = rSource.getContour().stream().map(v -> asPoint((RealLocalizable)v));
+                        List<Point> tContour = rTarget.getContour().stream().map(v -> asPoint((RealLocalizable)v)).collect(Collectors.toList());
                         if (tContour.isEmpty()) return null;
                         return sContour.map(s -> tContour.stream().map(t -> Vector.vector(s, t)).min(comp).get()).min(comp).orElse(null);
                     };
@@ -164,26 +167,19 @@ public class DistanceMin implements Measurement, Hint {
         return modes.stream().map(getDistanceFunction).collect(Collectors.toList());
     }
 
-    private static Function<SegmentedObject, Point> getCenterFun(CENTER mode, Image intensity, double scaleXY, double scaleZ) {
+    private static Function<SegmentedObject, Point> getCenterFun(CENTER mode, Image intensity) {
         switch (mode) {
             case GEOMETRICAL: {
-                return o -> scale(o.getRegion().getGeomCenter(false), scaleXY, scaleZ);
+                return o -> o.getRegion().getGeomCenter(false);
             }
             case MASS: {
-                return o -> scale(o.getRegion().getMassCenter(intensity, false), scaleXY, scaleZ);
+                return o -> o.getRegion().getMassCenter(intensity, false);
             }
             case FROM_SEGMENTATION:
             default : {
-                return o ->  scale(o.getRegion().getCenterOrGeomCenter(), scaleXY, scaleZ);
+                return o ->  o.getRegion().getCenterOrGeomCenter();
             }
         }
-    }
-
-    private static Point scale(Point p, double scaleXY, double scaleZ) {
-        p.multiplyDim(scaleXY, 0);
-        p.multiplyDim(scaleXY, 1);
-        if (p.numDimensions()>2) p.multiplyDim(scaleZ, 2);
-        return p;
     }
 
     @Override

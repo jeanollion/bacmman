@@ -42,27 +42,28 @@ public class RelativePosition implements Measurement, Hint {
     public enum REF_POINT {
         MASS_CENTER("Mass Center"), GEOM_CENTER("Geometrical Center"), FROM_SEGMENTATION("From segmentation"), UPPER_LEFT_CORNER("Upper Left Corner");
         public final String name;
-        private REF_POINT(String name) {this.name = name;}
+        REF_POINT(String name) {this.name = name;}
         public static REF_POINT get(String name) {
             return Arrays.stream(REF_POINT.values()).filter(s->s.name.equals(name)).findAny().orElseThrow(()->new RuntimeException("ENUM not found"));
         }
         public static String[] names() {
-            return Arrays.stream(REF_POINT.values()).map(s->s.name).toArray(l->new String[l]);
+            return Arrays.stream(REF_POINT.values()).map(s->s.name).toArray(String[]::new);
         }
     };
+    BooleanParameter scaled = new BooleanParameter("Scaled", true).setHint("If false, position is expressed in pixels otherwise it is expressed in unit");
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setEmphasized(true);
     protected ObjectClassParameter reference = new ObjectClassParameter("Reference Objects", -1, true, false).setEmphasized(true).setHint("If no reference structure is selected the reference point will automatically be the upper left corner of the whole viewfield");
     protected BooleanParameter includeZ = new BooleanParameter("Include Z", true).setHint("If set to false, only X and Y coordinates will be saved");
     private final static String REF_POINT_TT = "<ol>"
-            + "<li>"+REF_POINT.UPPER_LEFT_CORNER.toString()+": Upper left corner of the bounding box of the object</li>"
-            + "<li>"+REF_POINT.GEOM_CENTER.toString()+": Geometrical center of the object</li>"
-            + "<li>"+REF_POINT.MASS_CENTER.toString()+": Intensity barycenter of the object</li>"
-            + "<li>"+REF_POINT.FROM_SEGMENTATION.toString()+": Center defined by segmenter if exists. If not, an error will be thrown</li></ol>";
+            + "<li>"+ REF_POINT.UPPER_LEFT_CORNER +": Upper left corner of the bounding box of the object</li>"
+            + "<li>"+ REF_POINT.GEOM_CENTER +": Geometrical center of the object</li>"
+            + "<li>"+ REF_POINT.MASS_CENTER +": Intensity barycenter of the object</li>"
+            + "<li>"+ REF_POINT.FROM_SEGMENTATION +": Center defined by segmenter if exists. If not, an error will be thrown</li></ol>";
     ChoiceParameter objectCenter= new ChoiceParameter("Object Point", REF_POINT.names(), MASS_CENTER.name, false).setEmphasized(true).setHint("Which point of the object should be used for distance computation?<br />"+REF_POINT_TT);
     ChoiceParameter refPoint = new ChoiceParameter("Reference Point", REF_POINT.names(), MASS_CENTER.name, false).setEmphasized(true).setHint("Which point of the reference object should be used for distance computation?<br />"+REF_POINT_TT);
     TextParameter key = new TextParameter("Column Name", "RelativeCoord", false).setEmphasized(true).setHint("Set here the prefix of the name of the column in the extracted data table. Final column name for each axis is indicated below.");
     //ConditionalParameter refCond = new ConditionalParameter(reference); structure param not actionable...
-    protected Parameter[] parameters = new Parameter[]{objects, reference, objectCenter, refPoint, key, includeZ};
+    protected Parameter[] parameters = new Parameter[]{objects, reference, objectCenter, refPoint, key, includeZ, scaled};
     
     @Override
     public String getHintText() {
@@ -110,6 +111,8 @@ public class RelativePosition implements Measurement, Hint {
 
     @Override
     public void performMeasurement(SegmentedObject object) {
+        double scaleXY = scaled.getSelected() ? object.getScaleXY() : 1;
+        double scaleZ = scaled.getSelected() ? object.getScaleZ() : 1;
         boolean includeZ = this.includeZ.getSelected();
         SegmentedObject refObject=null;
         if (reference.getSelectedClassIdx()>=0) {
@@ -138,9 +141,13 @@ public class RelativePosition implements Measurement, Hint {
                 break;
         }
         if (objectCenter==null) throw new RuntimeException("No center found for object");
-        objectCenter.multiplyDim(object.getRegion().getScaleXY(), 0);
-        objectCenter.multiplyDim(object.getRegion().getScaleXY(), 1);
-        if (includeZ) objectCenter.multiplyDim(object.getRegion().getScaleZ(), 2);
+        if (scaled.getSelected()) {
+            objectCenter = objectCenter.duplicate();
+            objectCenter.multiplyDim(scaleXY, 0);
+            objectCenter.multiplyDim(scaleXY, 1);
+            if (includeZ && objectCenter.numDimensions()>2) objectCenter.multiplyDim(scaleZ, 2);
+        }
+
         Point refPoint=null;
         if (refObject!=null) {
             switch (this.refPoint.getSelectedIndex()) {
@@ -156,13 +163,15 @@ public class RelativePosition implements Measurement, Hint {
             }
         } else refPoint = new Point(0, 0, 0); // absolute
         if (refPoint==null) throw new RuntimeException("No reference point found for ref object");
-        refPoint.multiplyDim(object.getRegion().getScaleXY(), 0);
-        refPoint.multiplyDim(object.getRegion().getScaleXY(), 1);
-        if (includeZ) refPoint.multiplyDim(object.getRegion().getScaleZ(), 2);
+        if (scaled.getSelected()) {
+            refPoint = refPoint.duplicate();
+            refPoint.multiplyDim(scaleXY, 0);
+            refPoint.multiplyDim(scaleXY, 1);
+            if (includeZ && objectCenter.numDimensions()>2) refPoint.multiplyDim(scaleZ, 2);
+        }
         object.getMeasurements().setValue(getKey("X"), (objectCenter.get(0)-refPoint.get(0)));
         object.getMeasurements().setValue(getKey("Y"), (objectCenter.get(1)-refPoint.get(1)));
         if (includeZ && objectCenter.numDimensions()>2) object.getMeasurements().setValue(getKey("Z"), (objectCenter.get(2)-refPoint.getWithDimCheck(2)));
-        
     }
 
     @Override
