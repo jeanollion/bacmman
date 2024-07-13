@@ -772,18 +772,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         long t0 = System.currentTimeMillis();
         ObjectGraph<SegmentedObject> graph = new ObjectGraph<>(new GraphObjectMapper.SegmentedObjectMapper(), true);
         objectsF.values().forEach(l -> l.forEach(o -> graph.graphObjectMapper.add(o.getRegion(), o)));
-        Predicate<SegmentedObject> noNext = s -> !lmFW.get(s).equals(SINGLE);
-        Predicate<SegmentedObject> noPrev = s -> !lmBW.get(s).equals(SINGLE);
         Map<SegmentedObject, Set<Voxel>> contour = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().getContour());
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
             List<SegmentedObject> cur = objectsF.get(f);
-            assign(cur, prev, graph, dxBWMap::get, dyBWMap::get, 0, contour, true, noPrev, false, stores!=null);
-            if (assignNext) assign(prev, cur, graph, dxFWMap::get, dyFWMap::get, 0, contour, false, noNext, true, stores!=null);
-            if (linkDistanceTolerance.getIntValue()>0) {
-                assign(cur, prev, graph, dxBWMap::get, dyBWMap::get, linkDistanceTolerance.getIntValue(), contour, true, noPrev, true, stores != null);
-                if (assignNext) assign(prev, cur, graph, dxFWMap::get, dyFWMap::get, linkDistanceTolerance.getIntValue(), contour, false, noNext, true, stores != null);
-            }
+            assignV2(prev, cur, graph, dxFWMap::get, dxBWMap::get, dyFWMap::get, dyBWMap::get, linkDistanceTolerance.getIntValue(), lmFW::get, lmBW::get, contour, growthRateRange.getValuesAsDouble(), verbose);
             prev.forEach(contour::remove); // save memory
         }
         logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
@@ -886,29 +879,114 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    static void assign_v2(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> linkMultiplicity, Map<SegmentedObject, Set<Voxel>> contour, boolean verbose) {
-        if (target==null || target.isEmpty() || source==null || source.isEmpty()) return;
-        Offset transFW = target.iterator().next().getParent().getBounds().duplicate().translate(source.iterator().next().getParent().getBounds().duplicate().reverseOffset());
-        Offset transBW = source.iterator().next().getParent().getBounds().duplicate().translate(target.iterator().next().getParent().getBounds().duplicate().reverseOffset());
-        Map<LINK_MULTIPLICITY, List<SegmentedObject>> sourceByLM = source.stream().collect(Collectors.groupingBy(linkMultiplicity));
-        Map<LINK_MULTIPLICITY, List<SegmentedObject>> targetByLM = target.stream().collect(Collectors.groupingBy(linkMultiplicity));
+    static void assignV2(Collection<SegmentedObject> prev, Collection<SegmentedObject> next, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange, boolean verbose) {
+        if (next==null || next.isEmpty() || prev==null || prev.isEmpty()) return;
+        Offset transFW = next.iterator().next().getParent().getBounds().duplicate().translate(prev.iterator().next().getParent().getBounds().duplicate().reverseOffset());
+        Offset transBW = prev.iterator().next().getParent().getBounds().duplicate().translate(next.iterator().next().getParent().getBounds().duplicate().reverseOffset());
+        Map<LINK_MULTIPLICITY, List<SegmentedObject>> prevByLM = prev.stream().collect(Collectors.groupingBy(lmFW));
+        Map<LINK_MULTIPLICITY, List<SegmentedObject>> nextByLM = next.stream().collect(Collectors.groupingBy(lmBW));
+        Map<SegmentedObject, Point> prevTranslatedCenter = prev.stream().collect(Collectors.toMap(Function.identity(), o->getTranslatedCenter(o, dxFW, dyFW, transFW)));
+        Map<SegmentedObject, Point> nextTranslatedCenter = next.stream().collect(Collectors.toMap(Function.identity(), o->getTranslatedCenter(o, dxBW, dyBW, transBW)));
 
-        // link single objects
-        if (sourceByLM.containsKey(SINGLE) && targetByLM.containsKey(SINGLE)) {
-            List<SegmentedObject> sS = sourceByLM.get(SINGLE);
-            List<SegmentedObject> tS = targetByLM.get(SINGLE);
-            for (SegmentedObject s : sS) {
-                Point centerS = getTranslatedCenter(s, dxFW, dyFW, transFW);
-                getTarget(centerS, tS.stream(), linkDistTolerance, contour).forEach( t -> {
-                    Point centerT = getTranslatedCenter(s, dxBW, dyBW, transBW);
-                    SegmentedObject s2 = getTarget(centerT, sS.stream(), linkDistTolerance, contour).filter(s::equals).findFirst().orElse(null);
-                    if (s2!=null) {
-                        // TODO create link & remove objects & stop loop !
+        // link single objects that point to each other mutually
+        if (prevByLM.containsKey(SINGLE) && nextByLM.containsKey(SINGLE)) {
+            List<SegmentedObject> prevSingle = prevByLM.get(SINGLE);
+            List<SegmentedObject> nextSingle = nextByLM.get(SINGLE);
+            Iterator<SegmentedObject> it = prevSingle.iterator();
+            L0: while(it.hasNext()) {
+                SegmentedObject p = it.next();
+                Point prevCenter = prevTranslatedCenter.get(p);
+                SegmentedObject n = getTarget(prevCenter, nextSingle.stream());
+                if (n != null) {
+                    it.remove();
+                    nextSingle.remove(n);
+                    graph.addEdge(p, n);
+                } else if (linkDistTolerance>0) {
+                    List<SegmentedObject> nextCandidates = getTarget(prevCenter, nextSingle.stream(), linkDistTolerance, contour).collect(Collectors.toList());
+                    L1: for (SegmentedObject n2 : nextCandidates) {
+                        Point nextCenter = nextTranslatedCenter.get(n2);
+                        SegmentedObject p2 = getTarget(nextCenter, prevSingle.stream());
+                        if (p2 == null) p2 = getTarget(nextCenter, prevSingle.stream(), linkDistTolerance, contour).filter(p::equals).findFirst().orElse(null);
+                        if (p2!=null) {
+                            it.remove();
+                            nextSingle.remove(n2);
+                            graph.addEdge(p, n2);
+                            break L1;
+                        }
                     }
-                });
+                }
+            }
+            if (prevSingle.isEmpty()) prevByLM.remove(SINGLE);
+            if (nextSingle.isEmpty()) nextByLM.remove(SINGLE);
+        }
+        // link source multiple object
+        if (prevByLM.containsKey(MULTIPLE) && nextByLM.containsKey(SINGLE)) {
+            assignOneWay(nextByLM.get(SINGLE), prevByLM.get(MULTIPLE), graph, nextTranslatedCenter, linkDistTolerance, contour, null);
+            if (nextByLM.get(SINGLE).isEmpty()) nextByLM.remove(SINGLE);
+        }
+        // link target multiple object
+        if (prevByLM.containsKey(SINGLE) && nextByLM.containsKey(MULTIPLE)) {
+            assignOneWay(prevByLM.get(SINGLE), nextByLM.get(MULTIPLE), graph, prevTranslatedCenter, linkDistTolerance, contour, null);
+            if (prevByLM.get(SINGLE).isEmpty()) prevByLM.remove(SINGLE);
+        }
+        // following links include inconsistencies: either between FW and BW or between link multiplicity and displacement.
+        // link source SINGLE objects: a target object points to a source object predicted with no link
+        if (prevByLM.containsKey(SINGLE) && nextByLM.containsKey(SINGLE)) {
+            assignOneWay(nextByLM.get(SINGLE), prevByLM.get(SINGLE), graph, nextTranslatedCenter, 0, contour, null);
+            if (nextByLM.get(SINGLE).isEmpty()) nextByLM.remove(SINGLE);
+        }
+        // link target SINGLE objects: a target object points to a source object predicted with no link
+        if (prevByLM.containsKey(SINGLE) && nextByLM.containsKey(SINGLE)) {
+            assignOneWay(prevByLM.get(SINGLE), nextByLM.get(SINGLE), graph, prevTranslatedCenter, 0, contour, null);
+            if (prevByLM.get(SINGLE).isEmpty()) prevByLM.remove(SINGLE);
+        }
+        // link source null object : a target object points to a source object predicted with no link
+        if (prevByLM.containsKey(NULL) && nextByLM.containsKey(SINGLE)) {
+            assignOneWay(nextByLM.get(SINGLE), prevByLM.get(NULL), graph, nextTranslatedCenter, 0, contour, null);
+            if (nextByLM.get(SINGLE).isEmpty()) nextByLM.remove(SINGLE);
+        }
+        // link target null object: a source object points to a target object predicted with no link
+        if (prevByLM.containsKey(SINGLE) && nextByLM.containsKey(NULL)) {
+            assignOneWay(prevByLM.get(SINGLE), nextByLM.get(NULL), graph, prevTranslatedCenter, 0, contour, null);
+            if (prevByLM.get(SINGLE).isEmpty()) prevByLM.remove(SINGLE);
+        }
+        // link remaining single objects with growth rate constraint
+        if (prevByLM.containsKey(SINGLE)) {
+            assignOneWay(prevByLM.get(SINGLE), next, graph, prevTranslatedCenter, 0, contour, growthRateRange);
+            if (prevByLM.get(SINGLE).isEmpty()) prevByLM.remove(SINGLE);
+        }
+        if (nextByLM.containsKey(SINGLE)) {
+            assignOneWay(nextByLM.get(SINGLE), prev, graph, nextTranslatedCenter, 0, contour, growthRateRange);
+            if (nextByLM.get(SINGLE).isEmpty()) nextByLM.remove(SINGLE);
+        }
+    }
+
+    static void assignOneWay(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Point> translatedCenter, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange) {
+        Iterator<SegmentedObject> it = source.iterator();
+        while(it.hasNext()) {
+            SegmentedObject s = it.next();
+            Point centerT = translatedCenter.get(s);
+            SegmentedObject t = getTarget(centerT, target.stream());
+            if (t!=null && !checkGrowthRate(s, t, graph, growthRateRange)) t = null;
+            if (t==null && linkDistTolerance>0) {
+                t = getTarget(centerT, target.stream(), linkDistTolerance, contour).findFirst().orElse(null);
+                if (t!=null && !checkGrowthRate(s, t, graph, growthRateRange)) t = null;
+            }
+            if (t!=null) {
+                it.remove();
+                graph.addEdge(s, t);
             }
         }
+    }
 
+    static boolean checkGrowthRate(SegmentedObject source, SegmentedObject target, ObjectGraph<SegmentedObject> graph, double[] growthRateRange) {
+        if (growthRateRange == null) return true;
+        boolean targetIsNext = source.getFrame() < target.getFrame();
+        List<SegmentedObject> neigh = targetIsNext ? graph.getAllPrevious(target) : graph.getAllNexts(target);
+        double neighSize = target.getRegion().size();
+        double sourceSize = source.getRegion().size() + neigh.stream().mapToDouble(o->o.getRegion().size()).sum();
+        //logger.debug("test growth rate: source={} target={} other source={} : source size={} + other size={} target size={} gr: {} range: {}", source, target, neigh, source.getRegion().size(), neigh.stream().mapToDouble(o->o.getRegion().size()).sum(), target.getRegion().size(), targetIsNext ? neighSize / sourceSize : sourceSize / neighSize, growthRateRange);
+        return targetIsNext ? sourceSize * growthRateRange[0] <= neighSize : neighSize * growthRateRange[1] >= sourceSize;
     }
 
     static Point getTranslatedCenter(SegmentedObject o, ToDoubleFunction<SegmentedObject> dx, ToDoubleFunction<SegmentedObject> dy, Offset trans) {
@@ -916,7 +994,6 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 .translateRev(new Vector(dx.applyAsDouble(o), dy.applyAsDouble(o))) // translate by predicted displacement
                 .translate(trans);
     }
-
     static SegmentedObject getTarget(Point center, Stream<SegmentedObject> candidates) {
         Voxel centerV = center.asVoxel();
         return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds()))
@@ -932,13 +1009,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, Double> distance = new HashMap<>();
         return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds(), tolerance))
             .filter(o -> {
-                //int d = getDistanceToObject(centerTrans, o, linkTolerance);
-                double d = Math.sqrt(contour.get(o).stream().mapToDouble(v -> center.distSq((RealLocalizable)v)).min().getAsDouble());
-                if (d<=tolerance) {
-                    distance.put(o, d);
-                    //logger.debug("assign with link tolerance: {} -> {} dist = {}", s, o, d);
-                    return true;
-                } else return false;
+                double thld = tolerance * tolerance;
+                for (Voxel v : contour.get(o)) {
+                    double d2 = center.distSq((Offset)v);
+                    if (d2 <= thld) {
+                        distance.put(o, Math.sqrt(d2));
+                        return true;
+                    }
+                }
+                return false;
             }).sorted(Comparator.comparingDouble(distance::get));
     }
 
