@@ -55,10 +55,7 @@ public abstract class InteractiveImage {
         this.parent = parent;
         parentStructureIdx = parent.getStructureIdx();
         this.channelNumber = parent.getExperimentStructure().getChannelNumber();
-        this.imageSupplier = (o, channelIdx) -> {
-            int objectClassIdx = o.getExperimentStructure().getObjectClassIdx(channelIdx);
-            return o.getRawImage(objectClassIdx);
-        };
+        this.imageSupplier = SegmentedObject::getRawImageByChannel;
         defaultImageSupplier = true;
     }
     public InteractiveImage(SegmentedObject parent, int channelNumber, BiFunction<SegmentedObject, Integer, Image> imageSupplier) {

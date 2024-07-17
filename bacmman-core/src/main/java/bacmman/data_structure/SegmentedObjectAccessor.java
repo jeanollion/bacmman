@@ -81,9 +81,11 @@ public class SegmentedObjectAccessor {
     public void setTrackHead(SegmentedObject o, SegmentedObject trackHead, boolean resetPrevious, boolean propagate) {
         o.setTrackHead(trackHead, resetPrevious, propagate, null);
     }
-    public void setRawImage(SegmentedObject o, int objectClassIdx, Image image) {
-        o.setRawImage(objectClassIdx, image);
+
+    public void setRawImage(SegmentedObject o, int channelIdx, Image image) {
+        o.setRawImage(channelIdx, image);
     }
+
     public void setPreFilteredImage(SegmentedObject o, int objectClassIdx, Image image) {
         o.setPreFilteredImage(image, objectClassIdx);
     }

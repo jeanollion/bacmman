@@ -971,28 +971,32 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             } else return false;
         }
     }
-    void setRawImage(int structureIdx, Image image) {
-        int channelIdx = getExperiment().getChannelImageIdx(structureIdx);
+
+    void setRawImage(int channelIdx, Image image) {
         rawImagesC.set(image, channelIdx);
     }
-    /**
-     * @param structureIdx
-     * @return raw image of the channel associated to {@param objectClassIdx} cropped to the bounds of this object
-     */
+
     public Image getRawImage(int structureIdx) {
-        int channelIdx = getExperiment().getChannelImageIdx(structureIdx);
+        return getRawImageByChannel(getExperiment().getChannelImageIdx(structureIdx));
+    }
+
+    /**
+     * @param channelIdx
+     * @return raw image of the channel associated to {@param channelIdx} cropped to the bounds of this object
+     */
+    public Image getRawImageByChannel(int channelIdx) {
         if (rawImagesC.get(channelIdx)==null) {
             synchronized(rawImagesC) {
                 if (rawImagesC.get(channelIdx)==null) {
                     if (isRoot()) {
                         if (rawImagesC.getAndExtend(channelIdx)==null) {
-                            if (getPosition().singleFrame(structureIdx) && !isTrackHead() && trackHead!=null) { // getImage from trackHead
-                                trackHead.getRawImage(structureIdx);
+                            if (getPosition().singleFrameChannel(channelIdx) && !isTrackHead() && trackHead!=null) { // getImage from trackHead
+                                trackHead.getRawImageByChannel(channelIdx);
                                 rawImagesC.set(trackHead.rawImagesC.get(channelIdx), channelIdx); // in case of disk backed image
                             } else {
                                 Image im = null;
                                 try {
-                                    im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint);
+                                    im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrameChannel(channelIdx) ? 0 : timePoint);
 
                                 } catch (IOException e) {
 
@@ -1002,14 +1006,14 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                             }
                         }
                     } else { // look in parent
-                        SegmentedObject parentWithImage=getFirstParentWithOpenedRawImage(structureIdx);
+                        SegmentedObject parentWithImage=getFirstParentWithOpenedRawImage(channelIdx);
                         if (parentWithImage!=null) {
                             //logger.debug("object: {}, channel: {}, open from parent with open image: {}", this, channelIdx, parentWithImage);
                             BoundingBox bb=getRelativeBoundingBox(parentWithImage);
                             bb=extendBoundsInZIfNecessary(channelIdx, bb);
-                            rawImagesC.set(parentWithImage.getRawImage(structureIdx).crop(bb), channelIdx);    
+                            rawImagesC.set(parentWithImage.getRawImageByChannel(channelIdx).crop(bb), channelIdx);
                         } else { // check track image
-                            Image trackImage = getTrackImage(structureIdx);
+                            Image trackImage = getTrackImage(channelIdx);
                             if (trackImage!=null) {
                                 //logger.debug("object: {}, channel: {}, open from trackImage: offset:{}", this, channelIdx, offsetInTrackImage);
                                 BoundingBox bb = new SimpleBoundingBox(getBounds()).resetOffset().translate(offsetInTrackImage);
@@ -1018,7 +1022,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                                 image.resetOffset().translate(getBounds());
                                 rawImagesC.set(image, channelIdx);
                             } else { // open root and crop
-                                Image rootImage = getRoot().getRawImage(structureIdx);
+                                Image rootImage = getRoot().getRawImageByChannel(channelIdx);
                                 //logger.debug("object: {}, channel: {}, no trackImage try to open root and crop... null ? {}", this, channelIdx, rootImage==null);
                                 if (rootImage!=null) {
                                     BoundingBox bb = getRelativeBoundingBox(getRoot());
@@ -1027,7 +1031,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                                     rawImagesC.set(image, channelIdx);
                                 } else if (!this.equals(getRoot())) {
                                     // try to open parent image (if trackImage present...)
-                                    Image pImage = this.getParent().getRawImage(structureIdx);
+                                    Image pImage = this.getParent().getRawImageByChannel(channelIdx);
                                     //logger.debug("try to open parent image: null?{}", pImage==null);
                                     if (pImage!=null) {
                                         BoundingBox bb = getRelativeBoundingBox(getParent());
@@ -1041,7 +1045,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                             /*StructureObject root = getRoot();
                             BoundingBox bb=getRelativeBoundingBox(root);
                             bb=extendBoundsInZIfNecessary(channelIdx, bb);
-                            rawImagesC.set(root.openRawImage(structureIdx, bb), channelIdx);*/
+                            rawImagesC.set(root.openRawImageByChannel(channelIdx, bb), channelIdx);*/
                         }
                     }
                     if (rawImagesC.has(channelIdx)) rawImagesC.get(channelIdx).setCalibration(getScaleXY(), getScaleZ());
@@ -1064,6 +1068,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (im instanceof DiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
         else return im;
     }
+
     void setPreFilteredImage(Image image, int structureIdx) {
         if (image!=null) {
             // test same dimension. allow different z for 2D objects only
@@ -1073,12 +1078,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         this.preFilteredImagesS.set(image, structureIdx);
     }
-    Image getTrackImage(int structureIdx) {
+
+    Image getTrackImage(int channelIdx) {
         //logger.debug("get Track image for : {}, id: {}, thId: {}, isTH?: {}, th: {}", this, id, this.trackHeadId, isTrackHead, this.trackHead);
         //logger.debug("get Track Image for: {} th {}", this, getTrackHead());
         // feature temporarily not supported anymore TODO restore
         if (this.isTrackHead()) {
-            int channelIdx = getExperiment().getChannelImageIdx(structureIdx);
             if (this.trackImagesC.get(channelIdx)==null) {
                 synchronized(trackImagesC) {
                     if (trackImagesC.getAndExtend(channelIdx)==null) {
@@ -1098,7 +1103,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             }
             return trackImagesC.get(channelIdx);
         } else {
-            return getTrackHead().getTrackImage(structureIdx);
+            return getTrackHead().getTrackImage(channelIdx);
         }
     }
     
@@ -1126,13 +1131,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     }
 
     
-    private SegmentedObject getFirstParentWithOpenedRawImage(int structureIdx) {
+    private SegmentedObject getFirstParentWithOpenedRawImage(int channelIdx) {
         if (isRoot()) {
-            if (rawImagesC.get(getExperiment().getChannelImageIdx(structureIdx))!=null) return this;
+            if (rawImagesC.get(channelIdx)!=null) return this;
             else return null;
         }
-        if (getParent().rawImagesC.get(getExperiment().getChannelImageIdx(structureIdx))!=null) return parent;
-        else return parent.getFirstParentWithOpenedRawImage(structureIdx);
+        if (getParent().rawImagesC.get(channelIdx)!=null) return parent;
+        else return parent.getFirstParentWithOpenedRawImage(channelIdx);
     }
     
     public <T extends BoundingBox<T>> BoundingBox<T> getRelativeBoundingBox(SegmentedObject stop) throws RuntimeException {

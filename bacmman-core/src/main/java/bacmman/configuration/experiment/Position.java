@@ -258,21 +258,18 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         setTrackLinks(res);
         return res;
     }
+
     public void setOpenedImageToRootTrack(List<SegmentedObject> rootTrack, SegmentedObjectAccessor accessor) {
         if (inputImages ==null) return;
         Map<Integer, List<Integer>> c2s = getExperiment().getChannelToStructureCorrespondance();
         for (int channelIdx = 0; channelIdx<getExperiment().getChannelImageCount(true); ++channelIdx) {
-            List<Integer> structureIndices =c2s.get(channelIdx);
             final int cIdx = channelIdx;
-            if (structureIndices==null) continue; // no structure associated to channel
             rootTrack.stream().filter(root -> inputImages.imageOpened(cIdx, root.getFrame())).forEach(root-> {
-                structureIndices.forEach((s) -> {
-                    try {
-                        accessor.setRawImage(root, s, inputImages.getImage(cIdx, root.getFrame()));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                try {
+                    accessor.setRawImage(root, cIdx, inputImages.getImage(cIdx, root.getFrame()));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             });
         }
     }
