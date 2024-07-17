@@ -803,7 +803,7 @@ public class ConfigurationLibrary {
             for (Structure s : xp.getStructures().getChildren()) localSelectorJCB.addItem(s.getName());
             currentMode = GistConfiguration.TYPE.PROCESSING;
             localSelectorJCB.setSelectedIndex(-1);
-            localSelectorJCB.setSelectedIndex(0);
+            if (localSelectorJCB.getItemCount()>0) localSelectorJCB.setSelectedIndex(0);
             updateRemoteSelector();
             updateEnableButtons();
             ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Object Class");
