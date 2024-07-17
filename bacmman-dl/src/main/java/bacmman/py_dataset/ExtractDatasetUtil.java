@@ -78,7 +78,7 @@ public class ExtractDatasetUtil {
                     Selection selF = sel;
                     String pos = sel.getAllPositions().stream().filter(p -> selF.count(p) > 0).findAny().orElse(null);
                     if (pos == null) continue;
-                    selT.addElements(pos, sel.getElementStrings(pos).stream().limit(display ? 1 : 100).collect(Collectors.toList()));
+                    selT.addElementStrings(pos, sel.getElementStrings(pos).stream().limit(display ? 1 : 100).collect(Collectors.toList()));
                     sel = selT;
                     logger.debug("sel size: {}", sel.count());
                 }

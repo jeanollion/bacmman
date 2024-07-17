@@ -80,7 +80,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
 
     public Selection duplicate(String name) {
         Selection dup = new Selection(name, objectClassIdx, mDAO);
-        elements.forEach(dup::addElements);
+        elements.forEach(dup::addElementStrings);
         return dup;
     }
 
@@ -226,8 +226,14 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         List<SegmentedObject> res = retrievedElements.get(position);
         if (res==null && elements.containsKey(position)) {
             synchronized(retrievedElements) {
-                res =  retrievedElements.get(position);
-                if (res==null) return retrieveElements(position);
+                res = retrievedElements.get(position);
+                if (res==null) {
+                    Collection<String> indices = get(position, false);
+                    if (indices != null) {
+                        res = getObjects(position, indices);
+                        retrievedElements.put(position, res);
+                    } else res = Collections.emptyList();
+                }
                 else return res;
             }
         }
@@ -270,56 +276,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         }
         return (Collection<String>)indiciesList;
     }
-    protected synchronized List<SegmentedObject> retrieveElements(String position) {
-        if (position==null) throw new IllegalArgumentException("Position cannot be null");
-        Collection<String> indiciesList = get(position, false);
-        if (indiciesList==null) {
-            SegmentedObject.logger.debug("position: {} absent from sel: {}", position, name);
-            return Collections.EMPTY_LIST;
-        }
-        ObjectDAO dao = mDAO.getDao(position);
-        int[] pathToRoot = mDAO.getExperiment().experimentStructure.getPathToRoot(objectClassIdx);
-        List<SegmentedObject> res = new ArrayList<>(indiciesList.size());
-        retrievedElements.put(position, res);
-        List<SegmentedObject> roots = dao.getRoots();
-        long t0 = System.currentTimeMillis();
-        List<int[]> notFound = SegmentedObject.logger.isWarnEnabled() ? new ArrayList<>() : null;
-        List<int[]> indices = new ArrayList<>(indiciesList.size());
-        
-        for (String s : indiciesList) {
-            int[] indicies = parseIndices(s);
-            if (indicies.length-1!=pathToRoot.length) {
-                SegmentedObject.logger.warn("Selection: Object: {} has wrong number of indicies (expected: {})", indicies, pathToRoot.length);
-                continue;
-            }
-            SegmentedObject elem = getObject(indicies, pathToRoot, roots);
-            if (elem!=null) res.add(elem);
-            else if (notFound!=null) notFound.add(indicies); 
-            indices.add(indicies);
-        }
-        /*
-        Map<Integer, List<int[]>> iByFrame = indices.stream().collect(Collectors.groupingBy(i -> i[0]));
-        Map<StructureObject, List<int[]>> iByParent = new HashMap<>(iByFrame.size());
-        for (Entry<Integer, List<int[]>> e : iByFrame.entrySet()) {
-            if (roots==null || roots.size()<=e.getKey()) continue;
-            StructureObject root = roots.get(e.getKey());
-            iByParent.put(root, e.getValue());
-        }
-        for (int i = 1; i<pathToRoot.length; i++) iByParent = nextChildren(iByParent, pathToRoot, i);
-        int i = pathToRoot.length;
-        for (Entry<StructureObject, List<int[]>> e : iByParent.entrySet()) {
-            List<StructureObject> candidates = e.getKey().getChildren(pathToRoot[i-1]);
-            for (int[] idx : e.getValue()) {
-                StructureObject o = getChild(candidates, idx[i]);
-                if (o!=null) res.add(o);
-                else if (notFound!=null) notFound.add(idx);
-            }
-        }*/
-        long t2 = System.currentTimeMillis();
-        SegmentedObject.logger.debug("Selection: {}, position: {}, #{} elements retrieved in: {}", this.name, position, res.size(), t2-t0);
-        if (notFound!=null && !notFound.isEmpty()) SegmentedObject.logger.debug("Selection: {} objects not found: {}", getName(), Utils.toStringList(notFound, array -> Utils.toStringArray(array)));
-        return res;
-    }
+
     private static Map<SegmentedObject, List<int[]>> nextChildren(Map<SegmentedObject, List<int[]>> iByParent, int[] pathToRoot, int idx) {
         Map<SegmentedObject, List<int[]>> res = new HashMap<>(iByParent.size());
         for (Entry<SegmentedObject, List<int[]>> e : iByParent.entrySet()) {
@@ -331,9 +288,43 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
             }
         }
         return res;
-        
     }
-    
+
+    protected List<SegmentedObject> getObjects(String position, Collection<String> indiciesList) {
+        if (position==null) throw new IllegalArgumentException("Position cannot be null");
+        if (indiciesList==null)  return Collections.EMPTY_LIST;
+        ObjectDAO<?> dao = mDAO.getDao(position);
+        int[] pathToRoot = mDAO.getExperiment().experimentStructure.getPathToRoot(objectClassIdx);
+        List<SegmentedObject> res = new ArrayList<>(indiciesList.size());
+        List<SegmentedObject> roots = dao.getRoots();
+        long t0 = System.currentTimeMillis();
+        List<int[]> notFound = logger.isWarnEnabled() ? new ArrayList<>() : null;
+        for (String s : indiciesList) {
+            int[] indicies = parseIndices(s);
+            if (indicies.length-1!=pathToRoot.length) {
+                logger.warn("Selection: Object: {} has wrong number of indicies (expected: {})", indicies, pathToRoot.length);
+                continue;
+            }
+            SegmentedObject elem = getObject(indicies, pathToRoot, roots);
+            if (elem!=null) res.add(elem);
+            else if (notFound!=null) notFound.add(indicies);
+        }
+        long t2 = System.currentTimeMillis();
+        logger.debug("Selection: {}, position: {}, #{} elements retrieved in: {}", this.name, position, res.size(), t2-t0);
+        if (notFound!=null && !notFound.isEmpty()) logger.debug("Selection: {} objects not found: {}", getName(), Utils.toStringList(notFound, array -> Utils.toStringArray(array)));
+        return res;
+    }
+
+    protected SegmentedObject getObject(String position, String indices) {
+        if (position==null) throw new IllegalArgumentException("Position cannot be null");
+        ObjectDAO<?> dao = mDAO.getDao(position);
+        int[] pathToRoot = mDAO.getExperiment().experimentStructure.getPathToRoot(objectClassIdx);
+        List<SegmentedObject> roots = dao.getRoots();
+        int[] indicies = parseIndices(indices);
+        if (indicies.length-1!=pathToRoot.length) return null;
+        return getObject(indicies, pathToRoot, roots);
+    }
+
     public static SegmentedObject getObject(int[] indices, int[] pathToRoot, List<SegmentedObject> roots) {
         if (roots==null || roots.size()<=indices[0]) return null;
         SegmentedObject elem = roots.get(indices[0]);
@@ -353,6 +344,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         }
         return elem;
     }
+
     private static SegmentedObject getChild(Stream<SegmentedObject> list, int idx) {
         return list.filter(o->o.getIdx()==idx).findAny().orElse(null);
     }
@@ -372,38 +364,24 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         return Utils.toStringArray(indicies, "", "", indexSeparator).toString();
     }
     
-    public synchronized void updateElementList(String position) {
-        if (position==null) throw new IllegalArgumentException("FieldName cannot be null");
-        List<SegmentedObject> objectList = retrievedElements.get(position);
-        if (objectList==null) {
-            elements.remove(position);
-            return;
-        }
-        Collection<String> indiciesList = get(position, true);
-        indiciesList.clear();
-        for (SegmentedObject o : objectList) indiciesList.add(indicesString(o));
-    }
-    
     public void addElement(SegmentedObject elementToAdd) {
         if (this.objectClassIdx==-2) objectClassIdx=elementToAdd.getStructureIdx();
         else if (objectClassIdx!=elementToAdd.getStructureIdx()) return;
-        if (this.retrievedElements.containsKey(elementToAdd.getPositionName())) {
-            List<SegmentedObject> list = getElements(elementToAdd.getPositionName());
-            if (!list.contains(elementToAdd)) {
-                list.add(elementToAdd);
-                // update DB refs
-                Collection<String> els = get(elementToAdd.getPositionName(), true);
-                els.add(indicesString(elementToAdd));
-                if (false && els.size()!=list.size()) {
-                    SegmentedObject.logger.error("unconsitancy in selection: {}, {} vs: {}", this.toString(), list.size(), els.size());
-                }
-            }
-        } else this.addElement(elementToAdd.getPositionName(), indicesString(elementToAdd));
+        if (!retrievedElements.containsKey(elementToAdd.getPositionName())) retrievedElements.put(elementToAdd.getPositionName(), new ArrayList<>());
+        List<SegmentedObject> list = getElements(elementToAdd.getPositionName());
+        if (!list.contains(elementToAdd)) {
+            list.add(elementToAdd);
+            Collection<String> els = get(elementToAdd.getPositionName(), true);
+            els.add(indicesString(elementToAdd));
+        }
     }
-    public void addElement(String positionName, String el) {
+
+    public void addElementString(String positionName, String el) {
         Collection<String> els = get(positionName, true);
         if (!els.contains(el)) els.add(el);
+        if (this.retrievedElements.containsKey(positionName)) retrievedElements.get(positionName).add(getObject(positionName, el));
     }
+
     public synchronized Selection addElements(Collection<SegmentedObject> elementsToAdd) {
         if (elementsToAdd==null || elementsToAdd.isEmpty()) return this;
         Map<Integer, List<SegmentedObject>> objectBySIdx = SegmentedObjectUtils.splitByStructureIdx(elementsToAdd, true);
@@ -416,13 +394,17 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         } 
         Map<String, List<SegmentedObject>> elByPos = SegmentedObjectUtils.splitByPosition(elementsToAdd);
         for (String pos : elByPos.keySet()) {
-            if (this.retrievedElements.containsKey(pos)) for (SegmentedObject o : elementsToAdd) addElement(o);
-            addElements(pos, Utils.transform(elByPos.get(pos), Selection::indicesString));
+            if (!this.retrievedElements.containsKey(pos)) retrievedElements.put(pos, new ArrayList<>());
+            retrievedElements.get(pos).addAll(elByPos.get(pos));
+            if (elements.containsKey(pos)) {
+                Collection<String> els = elements.get(pos);
+                for (SegmentedObject o : elByPos.get(pos)) els.add(indicesString(o));
+            } else elements.put(pos, Utils.transform(elByPos.get(pos), Selection::indicesString));
         }
         return this;
     }
     
-    public synchronized Selection addElements(String position, Collection<String> elementsToAdd) {
+    public synchronized Selection addElementStrings(String position, Collection<String> elementsToAdd) {
         if (elementsToAdd==null || elementsToAdd.isEmpty()) return this;
         List<String> els = this.elements.get(position);
         if (els==null) elements.put(position, new ArrayList<>(elementsToAdd));
@@ -430,65 +412,81 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
             els.addAll(elementsToAdd);
             Utils.removeDuplicates(els, false);
         }
+        if (retrievedElements.containsKey(position)) retrievedElements.get(position).addAll(getObjects(position, elementsToAdd));
         return this;
     }
     
-    public synchronized Selection removeElements(String position, Collection<String> elementsToRemove) {
+    public synchronized Selection removeElementStrings(String position, Collection<String> elementsToRemove) {
         if (elementsToRemove==null || elementsToRemove.isEmpty()) return this;
         List<String> els = this.elements.get(position);
         if (els!=null) els.removeAll(elementsToRemove);
+        if (retrievedElements.containsKey(position)) retrievedElements.get(position).removeIf(o -> elementsToRemove.contains(indicesString(o)));
         return this;
     }    
   
     public boolean removeElement(SegmentedObject elementToRemove) {
-        List<SegmentedObject> list = getElements(elementToRemove.getPositionName());
-        if (list!=null) {
-            boolean remove = list.remove(elementToRemove);
-            if (remove) {
-                Collection<String> els = get(elementToRemove.getPositionName(), false);
-                if (els != null) els.remove(indicesString(elementToRemove));
-            }
+        String position = elementToRemove.getPositionName();
+        if (elements.containsKey(position)) {
+            boolean rem = elements.get(position).remove(indicesString(elementToRemove));
+            if (rem && retrievedElements.containsKey(position)) retrievedElements.get(position).remove(elementToRemove);
+            return rem;
         }
         return false;
     }
+
     public synchronized void removeElements(Collection<SegmentedObject> elementsToRemove) {
         if (elementsToRemove==null || elementsToRemove.isEmpty()) return;
-        for (SegmentedObject o : elementsToRemove) removeElement(o);
+        Map<String, List<SegmentedObject>> elByPos = SegmentedObjectUtils.splitByPosition(elementsToRemove);
+        elByPos.forEach(this::removeElements);
     }
-    public synchronized void removeChildrenOf(List<SegmentedObject> parents) { // currently supports only direct children
+
+    protected synchronized void removeElements(String position, Collection<SegmentedObject> elementsToRemove) {
+        if (elementsToRemove==null || elementsToRemove.isEmpty()) return;
+        Collection<String> els = get(position, false);
+        List<SegmentedObject> objects = retrievedElements.get(position);
+        if (objects != null ) {
+            for (SegmentedObject o : elementsToRemove) {
+                if (objects.remove(o)) els.remove(indicesString(o));
+            }
+        } else {
+            for (SegmentedObject o : elementsToRemove) els.remove(indicesString(o));
+        }
+    }
+
+    public synchronized void removeChildrenOf(List<SegmentedObject> parents) { 
         if (objectClassIdx==-2) return;
         Map<String, List<SegmentedObject>> parentsByPosition = SegmentedObjectUtils.splitByPosition(parents);
         for (String position : parentsByPosition.keySet()) {
-            Set<String> elements = getElementStrings(position);
-            Map<String, List<String>> parentToChildrenMap = elements.stream().collect(Collectors.groupingBy(Selection::getParent));
-            int parentSIdx = objectClassIdx==-1 ? -1 : this.mDAO.getExperiment().getStructure(objectClassIdx).getParentStructure();
             List<SegmentedObject> posParents = parentsByPosition.get(position);
+            int parentSIdx = objectClassIdx==-1 ? -1 : this.mDAO.getExperiment().getStructure(objectClassIdx).getParentStructure();
             Map<Integer, List<SegmentedObject>> parentsBySIdx = SegmentedObjectUtils.splitByStructureIdx(posParents, true);
-            if (!parentsBySIdx.containsKey(parentSIdx)) continue;
-            Set<String> curParents = new HashSet<>(Utils.transform(parentsBySIdx.get(parentSIdx), Selection::indicesString));
-            curParents.retainAll(parentToChildrenMap.keySet()); // intersection
-            if (curParents.isEmpty()) continue;
-            List<String> toRemove = new ArrayList<>();
-            for (String p : curParents) toRemove.addAll(parentToChildrenMap.get(p));
-            this.removeElements(position, toRemove);
-            SegmentedObject.logger.debug("removed {} children from {} parent in position: {}", toRemove.size(), curParents.size(), position);
+            for (int parentSIdxToRemove : parentsBySIdx.keySet()) {
+                List<SegmentedObject> parentsToRemove = parentsBySIdx.get(parentSIdxToRemove);
+                if (parentSIdxToRemove == parentSIdx) { // direct children, most common case
+                    Set<String> elements = getElementStrings(position);
+                    if (elements.isEmpty()) continue;
+                    Map<String, List<String>> parentToChildrenMap = elements.stream().collect(Collectors.groupingBy(Selection::getParent));
+                    Set<String> curParents = new HashSet<>(Utils.transform(parentsToRemove, Selection::indicesString));
+                    curParents.retainAll(parentToChildrenMap.keySet()); // intersection
+                    if (curParents.isEmpty()) continue;
+                    List<String> toRemove = new ArrayList<>();
+                    for (String p : curParents) toRemove.addAll(parentToChildrenMap.get(p));
+                    this.removeElementStrings(position, toRemove);
+                } else if (parentSIdxToRemove == objectClassIdx) { // same object class
+                    removeElements(parentsToRemove);
+                } else {
+                    Set<SegmentedObject> parentSet = new HashSet<>(parentsToRemove);
+                    removeElements(getElements(position).stream().filter(o -> parentSet.contains(o.getParent(parentSIdxToRemove))).collect(Collectors.toList()));
+                }
+            }
         }
     }
-    /*public synchronized void removeChildrenOf(List<StructureObject> parents) {
-        Map<String, List<StructureObject>> parentsByPosition = StructureObjectUtils.splitByPosition(parents);
-        for (String position : parentsByPosition.keySet()) {
-            Set<StructureObject> allElements = getElements(position);
-            Map<StructureObject, List<StructureObject>> elementsByParent = StructureObjectUtils.splitByParent(allElements);
-            List<StructureObject> toRemove = new ArrayList<>();
-            for (StructureObject parent : parentsByPosition.get(position)) if (elementsByParent.containsKey(parent)) toRemove.addAll(elementsByParent.get(parent));
-            removeElements(toRemove);
-            logger.debug("sel : {} position: {}, remove {}/{} children from {} parents (split by parents: {})", this.name, position, toRemove.size(), allElements.size(), parents.size(), elementsByParent.size());
-        }
-    }*/
+    
     public synchronized void clear() {
         elements.clear();
         if (retrievedElements!=null) retrievedElements.clear();
     }
+
     @Override 
     public String toString() {
         StringBuilder sb = new StringBuilder();

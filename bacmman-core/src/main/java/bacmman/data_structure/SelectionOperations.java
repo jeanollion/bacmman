@@ -23,7 +23,7 @@ public class SelectionOperations {
             for (String pos : sel.getAllPositions()) elByPos.getAndCreateIfNecessary(pos).addAll(sel.getElementStrings(pos));
         }
         Selection res = new Selection(name,model.getStructureIdx(), model.getMasterDAO()); //"union:"+Utils.toStringList(selections, s->s.getName())
-        for (Map.Entry<String, Set<String>> e : elByPos.entrySet()) res.addElements(e.getKey(), e.getValue());
+        for (Map.Entry<String, Set<String>> e : elByPos.entrySet()) res.addElementStrings(e.getKey(), e.getValue());
         return res;
     }
 
@@ -45,7 +45,7 @@ public class SelectionOperations {
             for (String p : allPos) elByPos.get(p).retainAll(s.getElementStrings(p));
         }
         Selection res = new Selection(name,model.getStructureIdx(), model.getMasterDAO()); //"intersection:"+Utils.toStringList(selections, s->s.getName())
-        for (Map.Entry<String, Set<String>> e : elByPos.entrySet()) res.addElements(e.getKey(), e.getValue());
+        for (Map.Entry<String, Set<String>> e : elByPos.entrySet()) res.addElementStrings(e.getKey(), e.getValue());
         return res;
     }
 
