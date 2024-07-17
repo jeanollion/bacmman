@@ -371,6 +371,7 @@ public class SegmentedObjectUtils {
         if (distinct) stream = stream.distinct();
         return splitByStructureIdx(stream);
     }
+
     public static Map<Integer, List<SegmentedObject>> splitByStructureIdx(Stream<? extends SegmentedObject> list) {
         return list.collect(Collectors.groupingBy(SegmentedObject::getStructureIdx));
     }
