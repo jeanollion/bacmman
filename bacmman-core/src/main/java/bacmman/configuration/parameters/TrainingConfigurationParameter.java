@@ -1,5 +1,6 @@
 package bacmman.configuration.parameters;
 
+import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -268,6 +269,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 .setFileChooserOption(FileChooser.FileChooserOption.FILE_OR_DIRECTORY)
                 .setSelectedFilePath(null)
                 .setGetRefPathFunction(p -> getWeigthRefPath())
+                .setValidDirectory(dir -> Paths.get(dir).startsWith(getWeigthRefPath()))
                 .allowNoSelection(true)
                 .setHint("Saved model weights that will be loaded before training (optional)")
                 .setFileChooserHint("Saved model weight, relative to <em>Weight Dir</em>");
