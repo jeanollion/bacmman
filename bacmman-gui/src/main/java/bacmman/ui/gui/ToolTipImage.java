@@ -1,10 +1,15 @@
 package bacmman.ui.gui;
 
+import bacmman.ui.gui.configurationIO.DLModelGistTreeGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
 import java.awt.*;
 
 public class ToolTipImage extends JToolTip {
+    private static final Logger logger = LoggerFactory.getLogger(ToolTipImage.class);
     private Icon image;
     JLabel text;
     JPanel ttPanel;
@@ -29,16 +34,21 @@ public class ToolTipImage extends JToolTip {
             add(ttPanel);
         }
     }
+
     public void stopAnimation() {
         if (image instanceof AnimatedIcon) {
             ((AnimatedIcon)image).stop();
         }
     }
+
     @Override
     public Dimension getPreferredSize() {
-        if (image==null) return new Dimension(text.getWidth()+10, text.getHeight()+15);
-        return new Dimension(image.getIconWidth(), text.getHeight()+5+image.getIconHeight());
+        if (image==null) {
+            Dimension dim = text.getPreferredSize();
+            return new Dimension(dim.width+10, dim.height+15);
+        } else return new Dimension(image.getIconWidth(), text.getPreferredSize().height+5+image.getIconHeight());
     }
+
     @Override
     public void setTipText(String tipText) {
         if (text!=null) text.setText(tipText);

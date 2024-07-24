@@ -169,7 +169,7 @@ public class DLModelGistTreeGenerator {
                             return icon;
                         }
                     };
-                    if (icons.getOrDefault(g.gist, null) == null && g.gist.getHintText().length()==0) return null;
+                    if (icons.getOrDefault(g.gist, null) == null && g.gist.getHintText().isEmpty()) return null;
                     return formatHint(g.gist.getHintText(), currentThumbnail!=null ? (int)(128 * 3 * 0.7): 300); // emprical factor to convert html px to screen dimension. //TOOD use fontMetrics...
                 } else if (curPath.getLastPathComponent() instanceof DefaultMutableTreeNode && (((String)((DefaultMutableTreeNode)curPath.getLastPathComponent()).getUserObject()).startsWith("<html>URL"))) {
                     currentThumbnail = null;
