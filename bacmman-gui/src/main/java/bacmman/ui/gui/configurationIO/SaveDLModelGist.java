@@ -101,6 +101,9 @@ public class SaveDLModelGist {
         if (del) {
             this.url.setText("");
             this.deleteFromServer.setEnabled(false);
+        } else {
+            if (pcb != null) pcb.setMessage("Could not delete model file. If model was stored on another account, use right click to delete the file from this account");
+            logger.info("Could not delete model file. If model was stored on another account, use right click to delete the file from this account");
         }
         return del;
     }

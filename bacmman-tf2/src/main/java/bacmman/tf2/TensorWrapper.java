@@ -19,14 +19,16 @@ import org.tensorflow.types.TInt32;
 import java.util.Arrays;
 import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 public class TensorWrapper {
     public final static Logger logger = LoggerFactory.getLogger(TensorWrapper.class);
 
     public static Tensor fromImagesNC(Image[][] imageNC, int fromIncl, int toExcl, DataBuffer[] bufferContainer, boolean... flipXYZ) {
-        if (imageNC[0][0] instanceof ImageInteger) return fromImagesNCInt32(imageNC, fromIncl, toExcl, bufferContainer, flipXYZ);
-        else return fromImagesNCFloat32(imageNC, fromIncl, toExcl, bufferContainer, flipXYZ);
+        Predicate<Image[]> floating = imA -> Arrays.stream(imA).anyMatch(PrimitiveType::floatingPoint);
+        if (Arrays.stream(imageNC).anyMatch(floating)) return fromImagesNCFloat32(imageNC, fromIncl, toExcl, bufferContainer, flipXYZ);
+        else return fromImagesNCInt32(imageNC, fromIncl, toExcl, bufferContainer, flipXYZ);
     }
 
     public static int[][] getShapes(Image[][] imagesNC) {
@@ -34,7 +36,7 @@ public class TensorWrapper {
         getShape = (im , nC)-> im.sizeZ()>1 ?new int[]{nC, im.sizeZ(), im.sizeY(), im.sizeX()} :  new int[]{nC, im.sizeY(), im.sizeX()};
         int[][] shapes = Arrays.stream(imagesNC).map(im -> getShape.apply(im[0], im.length)).toArray(int[][]::new);
         IntPredicate oneShapeDiffers = idx -> IntStream.range(1, imagesNC[idx].length).anyMatch(i-> !Arrays.equals(getShape.apply(imagesNC[idx][i], imagesNC[idx].length), shapes[idx]));
-        if (IntStream.range(0, imagesNC.length).anyMatch(i->oneShapeDiffers.test(i)))
+        if (IntStream.range(0, imagesNC.length).anyMatch(oneShapeDiffers))
             throw new IllegalArgumentException("at least two channels have different shapes");
         return shapes;
     }
@@ -86,7 +88,7 @@ public class TensorWrapper {
     public static TInt32 fromImagesNCInt32(Image[][] imageNC, int fromIncl, int toExcl, DataBuffer[] bufferContainer, boolean... flipXYZ) {
         if (imageNC==null) return null;
         int[][] shapes = getShapes(imageNC);
-        if (Arrays.stream(shapes).anyMatch(s -> !Arrays.equals(s, shapes[0]))) throw new IllegalArgumentException("at least two images have different dimensiosns");
+        if (Arrays.stream(shapes).anyMatch(s -> !Arrays.equals(s, shapes[0]))) throw new IllegalArgumentException("at least two images have different dimensions");
         int[] shape = shapes[0]; // dim order here is C (Z) Y X
         // dim order should be : N (Z) Y X C
         int nSize = toExcl - fromIncl;

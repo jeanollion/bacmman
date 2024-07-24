@@ -432,12 +432,13 @@ public class PluginConfigurationUtils {
         if (iiType==null) iiType = TimeLapseInteractiveImage.getBestDisplayType(stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds());
         List<InteractiveImage> iiList = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx, iiType.equals(Kymograph.class));
         getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), iiList.size()+1));
-        Map<InteractiveImage, Image> dispImages = iiList.stream().collect(Collectors.toMap(ii -> ii, ii -> {
+        Map<InteractiveImage, Image> dispImages = new HashMap<>();
+        for (InteractiveImage ii : iiList) {
             Image image = ii.generateImage();
             iwm.addInteractiveImage(image, ii, true);
             iwm.addTestData(image, stores.values());
-            return image;
-        }));
+            dispImages.put(ii, image);
+        }
 
         if (!preFilterStep && parentStructureIdx!=segParentStrutureIdx) { // add a selection to display the segmentation parent on the intermediate image
             List<SegmentedObject> parentTrack = stores.values().stream().map(s->((s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());

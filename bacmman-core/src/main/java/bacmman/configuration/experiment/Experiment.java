@@ -413,7 +413,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         return res;
     }
     
-    public int getChannelImageIdx(int structureIdx) {return structureIdx==-1 ? 0 : getStructure(structureIdx).getChannelImage();}
+    public int getChannelImageIdx(int structureIdx) {return structureIdx<0 ? 0 : getStructure(structureIdx).getChannelImage();}
     
     public SimpleListParameter<Structure> getStructures() {return structures;}
     

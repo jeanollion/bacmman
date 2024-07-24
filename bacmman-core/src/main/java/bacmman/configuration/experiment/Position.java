@@ -261,7 +261,6 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
 
     public void setOpenedImageToRootTrack(List<SegmentedObject> rootTrack, SegmentedObjectAccessor accessor) {
         if (inputImages ==null) return;
-        Map<Integer, List<Integer>> c2s = getExperiment().getChannelToStructureCorrespondance();
         for (int channelIdx = 0; channelIdx<getExperiment().getChannelImageCount(true); ++channelIdx) {
             final int cIdx = channelIdx;
             rootTrack.stream().filter(root -> inputImages.imageOpened(cIdx, root.getFrame())).forEach(root-> {

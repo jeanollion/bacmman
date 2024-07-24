@@ -515,7 +515,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndResampleInput(Image[][] inNC, InterpolatorFactory interpolation, Supplier<HistogramScaler> scalerSupplier, int[] targetImageDims, boolean scaleFrameByFrame, boolean returnDimensions) {
         int[][] dims = returnDimensions ? ResizeUtils.getDimensions(inNC) : null;
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], true, false) ));
         Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
         Image[][] inResampledNC = ResizeUtils.resample(inNC, interpolation, new int[][]{targetImageDims});
         if (scalerMap!=null) IntStream.range(0, inResampledNC.length).parallel().forEach(i -> IntStream.range(0, inResampledNC[i].length).forEach(j -> inResampledNC[i][j] = scalerMap.get(i).scale(inResampledNC[i][j]) ));
@@ -540,7 +540,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndPadInput(Image[][] inNC, Resize.EXPAND_MODE mode, Supplier<HistogramScaler> scalerSupplier, int[] targetImageDims, boolean scaleFrameByFrame) {
         int[][] dims = ResizeUtils.getDimensions(inNC);
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], true, false) ));
         Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
         Image[][] inResizedNC = ResizeUtils.pad(inNC, mode, Resize.EXPAND_POSITION.CENTER, new int[][]{targetImageDims});
         if (scalerMap!=null) IntStream.range(0, inResizedNC.length).parallel().forEach(i -> IntStream.range(0, inResizedNC[i].length).forEach(j -> inResizedNC[i][j] = scalerMap.get(i).scale(inResizedNC[i][j]) ));
@@ -564,7 +564,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndTileInput(Image[][] inNC, Resize.EXPAND_MODE padding, Supplier<HistogramScaler> scalerSupplier, int[] targetTileDims, int[] minOverlap, boolean scaleFrameByFrame) {
         int[][] dims = ResizeUtils.getDimensions(inNC);
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], true, false) ));
         Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
         Image[][] tilesNtC = TileUtils.splitTiles(inNC, targetTileDims, minOverlap, padding);
         int nTiles = tilesNtC.length / inNC.length;
