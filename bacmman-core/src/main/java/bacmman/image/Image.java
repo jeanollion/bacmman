@@ -46,7 +46,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
             offset = new MutableBoundingBox(0, 0, 0);
         }
         if (source.sizeX() + offset.xMin() > dest.sizeX() || source.sizeY() + offset.yMin() > dest.sizeY() || source.sizeZ() + offset.zMin() > dest.sizeZ()) {
-            throw new IllegalArgumentException("Paste Image: source (" + source.getBoundingBox().resetOffset() + ") does not fit in destination (" + dest.getBoundingBox().resetOffset() + ") offset: " + offset);
+            throw new IllegalArgumentException("Paste Image: source (" + source.getBoundingBox().resetOffset() + ") does not fit in destination (" + dest.getBoundingBox().resetOffset() + ") offset: " + (offset instanceof BoundingBox ? new SimpleBoundingBox((BoundingBox)offset) : new SimpleOffset(offset)));
         }
         int oX = offset.xMin();
         int oY = offset.yMin();

@@ -552,7 +552,8 @@ public class PluginConfigurationUtils {
                     Image res = Image.createEmptyImage(name, type_, new SimpleImageProperties(props.sizeX(), props.sizeY(), maxZ, props.getScaleXY(), props.getScaleZ()));
                     if (!currentStores.isEmpty()) {
                         for (TestDataStore s : currentStores) {
-                            Image.pasteImage(TypeConverter.cast(s.images.get(name), type_), s.parent.getMask(), res, s.parent.getMask());
+                            Offset off = new SimpleOffset(s.parent.getMask()).translateReverse(props);
+                            Image.pasteImage(TypeConverter.cast(s.images.get(name), type_), s.parent.getMask(), res, off);
                         }
                     }
                     res.translate(props);

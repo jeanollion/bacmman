@@ -32,6 +32,9 @@ public interface Offset<T extends Offset<T>> {
     Offset<T> resetOffset();
     Offset<T> reverseOffset();
     Offset<T> translate(Offset other);
+    default Offset<T> translateReverse(Offset other) {
+        return translate(-other.xMin(), -other.yMin(), -other.zMin());
+    }
     Offset<T> translate(int dX, int dY, int dZ);
     static boolean offsetNull(Offset offset) {
         return offset.xMin()==0 && offset.yMin() == 0 && offset.zMin()==0;
