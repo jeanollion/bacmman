@@ -139,6 +139,11 @@ public class Utils {
         if (iterator instanceof Spliterator) return StreamSupport.stream((Spliterator<T>)iterator, parallel);
         return StreamSupport.stream( Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), parallel);
     }
+
+    public static <T> boolean streamIsNullOrEmpty(Stream<T> stream) {
+        return stream == null || !stream.findAny().isPresent();
+    }
+
     @FunctionalInterface
     public interface CheckedFunction<T,R> {
         R apply(T t) throws Exception;

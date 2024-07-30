@@ -41,12 +41,9 @@ public class FileChooserUI implements ParameterUI {
     ConfigurationTreeModel model;
     public FileChooserUI(FileChooser fc, ConfigurationTreeModel model) {
         this.fcParam=fc;
-        if (fcParam.getRefPath() != null) curDir = fcParam.getRefPath().toString();
-        else {
-            String[] fp = fc.getSelectedFilePath();
-            if (fp != null && fp.length > 0) curDir = new File(fp[0]).getParentFile().toString();
-            if (curDir == null && fc.getRefPath() != null) curDir = fc.getRefPath().toString();
-        }
+        String fp = fc.getFirstSelectedFilePath();
+        if (fp != null) curDir = new File(fp).getParentFile().toString();
+        if (curDir == null && fc.getRefPath() != null) curDir = fc.getRefPath().toString();
         this.model=model;
     }
     @Override

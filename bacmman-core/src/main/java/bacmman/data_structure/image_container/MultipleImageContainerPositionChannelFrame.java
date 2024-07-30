@@ -92,8 +92,10 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             if (fromOmero()) {
                 if (!omeroGateway.isConnected()) return false; // do not try to connect
                 return !getReader(0, 0).imageExists(); // if omero gateway is connected check if file exists
+            } else {
+                List<List<String>> fm = getFileMap();
+                return fm.isEmpty() || fm.get(0).isEmpty() || !Files.exists(Paths.get(fm.get(0).get(0))); // just check if file exists, do not open reader as this can take time
             }
-            else return !Files.exists(Paths.get(getFileMap().get(0).get(0))); // just check if file exists, do not open reader as this can take time
         } catch (IOException e) {
             return true;
         }

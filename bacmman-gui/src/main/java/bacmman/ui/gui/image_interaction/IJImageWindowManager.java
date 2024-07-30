@@ -258,79 +258,91 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                         } else if (selectedParentObjects.size() > 1) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
                             selectedParentObjects.removeIf(p -> !intersect(p.object, p.offset, fPoly, ip.getZ()-1));
-                            if (selectedParentObjects.size()>1) {
+                            if (!freeHandErase && selectedParentObjects.size()>1) {
                                 Utils.displayTemporaryMessage("selection is over several parents: " + selectedParentObjects.size(), 3000);
                                 return;
                             }
                         }
-                        SegmentedObject parent = selectedParentObjects.get(0).object;
-                        Offset parentOffset = new SimpleOffset(selectedParentObjects.get(0).offset);
-                        Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
-                        Collection<SegmentedObject> seg;
-                        if (brush) {
-                            IJRoi3D roi = new IJRoi3D(1);
-                            RegionPopulation pop = parent.getChildRegionPopulation(getInteractiveObjectClass());
-                            boolean is2D = pop.getRegions().isEmpty() ? parent.is2D() : pop.getRegions().get(0).is2D();
-                            roi.setIs2D(is2D);
-                            int z = is2D ? 0 : ip.getZ() - 1;
-                            roi.put(z, r);
-                            Region region = new Region(roi, 1, roi.getBounds(), parent.getScaleXY(), parent.getScaleZ());
-                            Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
-                            region.translate(revOff);
-                            if (!freeHandErase) {
-                                seg = FreeLineSegmenter.createSegmentedObject(region, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
-                            } else { // eraser
-                                region.translate(parent.getBounds());
-                                region.setIsAbsoluteLandmark(true);
-                                seg = null;
-                                List<SegmentedObject> modified = new ArrayList<>();
-                                Collection<SegmentedObject> toDelete = parent.getChildren(getInteractiveObjectClass())
-                                        .filter(o -> o.getRegion().intersect(region))
-                                        .peek(o -> o.getRegion().remove(region))
-                                        .peek(modified::add)
-                                        .filter(o -> o.getRegion().size() == 0)
-                                        .collect(Collectors.toList());
-                                GUI.getDBConnection().getDao(parent.getPositionName()).delete(toDelete, true, true, GUI.getInstance().getManualEditionRelabel());
-                                modified.removeAll(toDelete);
-                                // remaining modified objects: check if split into two objects
-                                if (!modified.isEmpty()) {
-                                    List<SegmentedObject> splitAndModifiedChildren = new ArrayList<>();
-                                    SegmentedObjectFactory factory = getFactory(modified.get(0).getStructureIdx());
-                                    for (SegmentedObject o : modified) {
-                                        List<Region> regions = ImageLabeller.labelImageList(o.getMask());
-                                        if (regions.size() > 1) { // erasing has generated several objects
-                                            RegionPopulation splitPop = new RegionPopulation(regions, new SimpleImageProperties(o.getMask()).resetOffset());
-                                            splitPop.translate(o.getBounds(), true);
-                                            splitAndModifiedChildren.addAll(factory.split(o, splitPop, splitAndModifiedChildren));
+
+                        // convert drawn ROI to IJRoi
+                        IJRoi3D roi = new IJRoi3D(1);
+                        RegionPopulation pop = ObjectDisplay.getObjectList(selectedParentObjects).stream()
+                                .filter(p -> !Utils.streamIsNullOrEmpty(p.getChildren(getInteractiveObjectClass())) )
+                                .map(p -> p.getChildRegionPopulation(getInteractiveObjectClass())).findAny().orElse(null);
+                        boolean is2D = pop == null ? selectedParentObjects.get(0).object.is2D() : pop.getRegions().get(0).is2D();
+                        roi.setIs2D(is2D);
+                        int z = is2D ? 0 : ip.getZ() - 1;
+                        roi.put(z, r);
+
+                        List<SegmentedObject> toDisplay = new ArrayList<>();
+                        for (ObjectDisplay od : selectedParentObjects) {
+                            SegmentedObject parent = od.object;
+                            logger.debug("Parent: {}", parent);
+                            Offset parentOffset = new SimpleOffset(od.offset);
+                            Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
+                            if (brush) {
+                                Region brushRegion = new Region(roi.duplicate(), 1, roi.getBounds().duplicate(), parent.getScaleXY(), parent.getScaleZ());
+                                Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
+                                brushRegion.translate(revOff);
+                                if (!freeHandErase) {
+                                    toDisplay.addAll(FreeLineSegmenter.createSegmentedObject(brushRegion, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store));
+                                } else { // eraser
+                                    brushRegion.translate(parent.getBounds());
+                                    brushRegion.setIsAbsoluteLandmark(true);
+                                    List<SegmentedObject> modified = new ArrayList<>();
+                                    Collection<SegmentedObject> toDelete = parent.getChildren(getInteractiveObjectClass())
+                                            .filter(o -> o.getRegion().intersect(brushRegion))
+                                            .peek(o -> o.getRegion().remove(brushRegion))
+                                            .peek(modified::add)
+                                            .filter(o -> o.getRegion().size() == 0)
+                                            .collect(Collectors.toList());
+                                    GUI.getDBConnection().getDao(parent.getPositionName()).delete(toDelete, true, true, GUI.getInstance().getManualEditionRelabel());
+                                    modified.removeAll(toDelete);
+                                    // remaining modified objects: check if split into two objects
+                                    if (!modified.isEmpty()) {
+                                        List<SegmentedObject> splitAndModifiedChildren = new ArrayList<>();
+                                        SegmentedObjectFactory factory = getFactory(modified.get(0).getStructureIdx());
+                                        for (SegmentedObject o : modified) {
+                                            List<Region> regions = ImageLabeller.labelImageList(o.getMask());
+                                            if (regions.size() > 1) { // erasing has generated several objects
+                                                RegionPopulation splitPop = new RegionPopulation(regions, new SimpleImageProperties(o.getMask()).resetOffset());
+                                                splitPop.translate(o.getBounds(), true);
+                                                splitAndModifiedChildren.addAll(factory.split(o, splitPop, splitAndModifiedChildren));
+                                            }
                                         }
+                                        modified.addAll(splitAndModifiedChildren);
+                                        store.accept(modified);
                                     }
-                                    modified.addAll(splitAndModifiedChildren);
-                                    store.accept(modified);
+                                    toDisplay.addAll(modified);
                                 }
-                                if (!displayObjectClasses) {
-                                    resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
-                                    displayObjects(image, i.toObjectDisplay(modified, sliceIdx), Color.orange, false, true, false);
-                                }
+                            } else {
+                                FloatPolygon p = r.getInterpolatedPolygon(-1, true);
+                                toDisplay.addAll(FreeLineSegmenter.segment(parent, parentOffset, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), ip.getZ() - 1, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store));
+                            }
+
+                        }
+                        if (freeHandErase) {
+                            if (!displayObjectClasses && !toDisplay.isEmpty()) {
+                                resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
+                                displayObjects(image, i.toObjectDisplay(toDisplay, sliceIdx), Color.orange, false, true, false);
+                                logger.debug("modified objects to display: {}", toDisplay);
                             }
                         } else {
-                            FloatPolygon p = r.getInterpolatedPolygon(-1, true);
-                            seg = FreeLineSegmenter.segment(parent, parentOffset, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), ip.getZ() - 1, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
-                        }
-
-                        if (!freeHandErase && !seg.isEmpty()) {
-                            if (freeHandDrawMerge && !selectedObjects.isEmpty()) {
-                                seg.addAll(ObjectDisplay.getObjectList(selectedObjects));
-                                ManualEdition.mergeObjects(GUI.getDBConnection(), seg, !GUI.hasInstance() || GUI.getInstance().getManualEditionRelabel(), true); // !(drawBrush && displayObjectClasses)
-                                if (drawBrush && displayObjectClasses) removeObjects(seg, true);
-                            } else if (!(drawBrush && displayObjectClasses)) {
-                                removeObjects(seg, true);
-                                resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
-                                hideLabileObjects(image, false);
-                                displayObjects(image, i.toObjectDisplay(seg, sliceIdx), Color.orange, false, true, false);
-                                displayObjects(image, selectedObjects, null, false, true, false);
+                            if (!toDisplay.isEmpty()) {
+                                if (freeHandDrawMerge && !selectedObjects.isEmpty()) {
+                                    toDisplay.addAll(ObjectDisplay.getObjectList(selectedObjects));
+                                    ManualEdition.mergeObjects(GUI.getDBConnection(), toDisplay, !GUI.hasInstance() || GUI.getInstance().getManualEditionRelabel(), true); // !(drawBrush && displayObjectClasses)
+                                    if (drawBrush && displayObjectClasses) removeObjects(toDisplay, true);
+                                } else if (!(drawBrush && displayObjectClasses)) {
+                                    removeObjects(toDisplay, true);
+                                    resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
+                                    hideLabileObjects(image, false);
+                                    displayObjects(image, i.toObjectDisplay(toDisplay, sliceIdx), Color.orange, false, true, false);
+                                    displayObjects(image, selectedObjects, null, false, true, false);
+                                }
+                            } else {
+                                Utils.displayTemporaryMessage("No object could be segmented", 3000);
                             }
-                        } else if (!freeHandErase) {
-                            Utils.displayTemporaryMessage("No object could be segmented", 3000);
                         }
                     }
                     if (drawBrush && displayObjectClasses) {

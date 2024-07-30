@@ -115,7 +115,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.");
     protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 8).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB)");
-    protected FloatParameter dockerMemorySizeGb = new FloatParameter("Memory Limit", 0).setLowerBound(0).setHint("Memory Limit (GB). Set zero to set no limit");
+    //protected FloatParameter dockerMemorySizeGb = new FloatParameter("Memory Limit", 0).setLowerBound(0).setHint("Memory Limit (GB). Set zero to set no limit");
 
     protected PluginParameter<DockerDLTrainer> trainerParameterRef = trainerParameter.duplicate();
     protected final Color textFG;
@@ -144,7 +144,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         configurationJSP.setViewportView(config.getTree());
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
         PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
-        PropertyUtils.setPersistent(dockerMemorySizeGb, PropertyUtils.DOCKER_MEM_GB);
+        //PropertyUtils.setPersistent(dockerMemorySizeGb, PropertyUtils.DOCKER_MEM_GB);
 
         updateDockerOptions();
         textFG = new Color(workingDirectoryTextField.getForeground().getRGB());
@@ -676,7 +676,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), dockerMemorySizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), 0, DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
                 setMessage("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
@@ -947,7 +947,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void updateDockerOptions() {
-        GroupParameter grp = new GroupParameter("DockerOptions", dockerVisibleGPUList, dockerShmSizeGb, dockerMemorySizeGb);
+        GroupParameter grp = new GroupParameter("DockerOptions", dockerVisibleGPUList, dockerShmSizeGb);
         dockerOptions = new ConfigurationTreeGenerator(null, grp, null, (s, l) -> {
         }, s -> {
         }, null, null).rootVisible(false);
@@ -1015,7 +1015,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
                 dockerOptionsRef.getRoot().initFromJSONEntry(dockerConf);
             } catch (ParseException e) {
-                setMessage("Error parsing docker configuration file:" + e.toString() + " content: " + configDockerS);
+                setMessage("Error parsing docker configuration file: " + e.toString() + " content: " + configDockerS);
                 dockerConfig.clear();
             }
 
