@@ -93,14 +93,16 @@ public class ObjectGraph<S extends GraphObject<S>> {
         };
     }
     public Set<UnaryPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
-        return setTrackLinks(objectsF, editor, true, true);
+        return setTrackLinks(objectsF, editor, true, true, true);
     }
-    public Set<UnaryPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean setTrackHead, boolean propagateTrackHead) {
+    public Set<UnaryPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean setTrackHead, boolean propagateTrackHead, boolean resetExistingLinks) {
         if (objectsF==null || objectsF.isEmpty()) return Collections.emptySet();
         List<SegmentedObject> objects = Utils.flattenMap(objectsF);
-        int minF = objectsF.keySet().stream().min(Comparator.comparingInt(i -> i)).get();
-        int maxF = objectsF.keySet().stream().max(Comparator.comparingInt(i -> i)).get();
-        for (SegmentedObject o : objects) editor.resetTrackLinks(o, o.getFrame()>minF, o.getFrame()<maxF, propagateTrackHead);
+        if (resetExistingLinks) {
+            int minF = objectsF.keySet().stream().min(Comparator.comparingInt(i -> i)).get();
+            int maxF = objectsF.keySet().stream().max(Comparator.comparingInt(i -> i)).get();
+            for (SegmentedObject o : objects)  editor.resetTrackLinks(o, o.getFrame() > minF, o.getFrame() < maxF, propagateTrackHead);
+        }
         if (graph==null) {
             //logger.error("Graph not initialized!");
             return Collections.emptySet();
@@ -224,7 +226,12 @@ public class ObjectGraph<S extends GraphObject<S>> {
 
     }
     public void addEdge(S s, S t) {
-        //if (graphObjectMapper.getRegion(s)==null || graphObjectMapper.getRegion(t)==null) throw new IllegalArgumentException("Regions were not added");
+        if (!graphObjectMapper.contains(s) || !graphObjectMapper.contains(t)) {
+            if (s instanceof SegmentedObject) {
+                graphObjectMapper.add(((SegmentedObject)s).getRegion(), s);
+                graphObjectMapper.add(((SegmentedObject)t).getRegion(), t);
+            } else throw new IllegalArgumentException("Regions has not been added to graph object mapper");
+        }
         graph.addVertex(s);
         graph.addVertex(t);
         if (s.getFrame()>t.getFrame()) graph.addEdge(t, s);
@@ -291,6 +298,10 @@ public class ObjectGraph<S extends GraphObject<S>> {
         if (!graph.containsVertex(t)) return Stream.empty();
         return graph.edgesOf(t).stream().filter(e->graph.getEdgeTarget(e).equals(t)).map(e->graph.getEdgeSource(e));
     }
+    public boolean hasPrevious(S s) {
+        return getAllPreviousAsStream(s).findAny().isPresent();
+    }
+
     public List<S> getAllNexts(S t) {
         if (!graph.containsVertex(t)) return Collections.emptyList();
         return graph.edgesOf(t).stream().filter(e->graph.getEdgeSource(e).equals(t)).map(e->graph.getEdgeTarget(e)).collect(Collectors.toList());
@@ -304,6 +315,10 @@ public class ObjectGraph<S extends GraphObject<S>> {
         if (nexts.size()==1) return nexts.get(0);
         else return null;
     }
+    public boolean hasNext(S s) {
+        return getAllNextsAsStream(s).findAny().isPresent();
+    }
+
     public S getTrackHead(S e) { // one prev and one next
         if (graph==null) return e;
         S prev = getPrevious(e);

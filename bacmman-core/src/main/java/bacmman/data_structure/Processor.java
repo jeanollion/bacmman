@@ -654,11 +654,11 @@ public class Processor {
         // then if there are unmapped objects -> map by overlap
         if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
             OverlapMatcher<Region> matcher = new OverlapMatcher<>(OverlapMatcher.regionOverlap(null, null));
-            Map<Region, OverlapMatcher<Region>.Overlap> oldMaxOverlap = new HashMap<>();
+            Map<Region, OverlapMatcher.Overlap<Region>> oldMaxOverlap = new HashMap<>();
             List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
             matcher.addMaxOverlap(oldR, newRegions, oldMaxOverlap, null);
             for (SegmentedObject o : children) {
-                OverlapMatcher<Region>.Overlap maxNew = oldMaxOverlap.remove(o.getRegion());
+                OverlapMatcher.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
                 if (maxNew==null) {
                     if (toRemove==null) toRemove= new ArrayList<>();
                     toRemove.add(o);

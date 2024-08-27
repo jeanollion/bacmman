@@ -165,7 +165,21 @@ public class RegionPopulation {
             this.objects.addAll(objects);
             checkObjectValidity();
             if (relabel) relabel(false);
+            else redrawLabelMap(false); // only if label image is not none
         }
+        return this;
+    }
+
+    public RegionPopulation removeObjects(Collection<Region> objects, boolean relabel) {
+        boolean modified = false;
+        for (Region o : objects) {
+            boolean removed = this.objects.remove(o);
+            if (removed) {
+                modified = true;
+                if (labelImage != null) draw(o, 0);
+            }
+        }
+        if (relabel && modified) relabel(false);
         return this;
     }
 
@@ -275,10 +289,11 @@ public class RegionPopulation {
             for (Region o : getRegions()) draw(o, o.getLabel());
         }
     }
-    public void translate(Offset offset, boolean absoluteLandmark) {
+    public RegionPopulation translate(Offset offset, boolean absoluteLandmark) {
         translate(offset, absoluteLandmark, false);
+        return this;
     }
-    public void translate(Offset offset, boolean absoluteLandmark, boolean onlyObjects) {
+    public RegionPopulation translate(Offset offset, boolean absoluteLandmark, boolean onlyObjects) {
         for (Region o : getRegions()) {
             o.translate(offset);
             o.setIsAbsoluteLandmark(absoluteLandmark);
@@ -287,6 +302,7 @@ public class RegionPopulation {
             this.properties = new BlankMask(this.properties).translate(offset);
             if (labelImage != null) labelImage.translate(offset);
         }
+        return this;
     }
 
     public boolean isInContactWithOtherObject(Region o) {

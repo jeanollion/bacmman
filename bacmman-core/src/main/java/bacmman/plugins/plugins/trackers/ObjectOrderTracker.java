@@ -25,6 +25,8 @@ import bacmman.image.BoundingBox;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.Tracker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
 import java.util.List;
@@ -35,7 +37,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class ObjectOrderTracker implements Tracker, Hint {
-
+    final static Logger logger = LoggerFactory.getLogger(ObjectOrderTracker.class);
     @Override
     public String getHintText() {
         return "Link objects according to their index or spatial position";
@@ -57,8 +59,7 @@ public class ObjectOrderTracker implements Tracker, Hint {
                 for (SegmentedObject p : previous) {
                     if (n.getIdx() == p.getIdx()) {
                         editor.setTrackLinks(p, n, true, true, true);
-                        logger.debug("track link {} -> {}", p, n);
-                    } else logger.debug("no track link {} -> {}", p, n);
+                    }
                     //else if (n.getIdx() < p.getIdx()) break;
                 }
             }
@@ -66,7 +67,6 @@ public class ObjectOrderTracker implements Tracker, Hint {
             int lim = Math.min(previous.size(), next.size());
             for (int i = 0; i < lim; ++i) {
                 editor.setTrackLinks(previous.get(i), next.get(i), true, true, true);
-                //Plugin.logger.trace("assign previous {} to next {}", previous.get(i), next.get(i));
             }
             for (int i = lim; i < next.size(); ++i) editor.resetTrackLinks(next.get(i), true, true, true);
         }

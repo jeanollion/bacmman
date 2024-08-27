@@ -115,6 +115,12 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     public void clear(boolean freeMemory) {
         stopDaemon();
         synchronized (queue) {
+            if (freeMemory) {
+                for (DiskBackedImage im : queue) {
+                    im.freeMemory(false);
+                }
+            }
+            openImages.values().forEach(DiskBackedImage::detach); // remove reference to manager
             queue.clear();
             openImages.clear();
             openImagesRev.clear();

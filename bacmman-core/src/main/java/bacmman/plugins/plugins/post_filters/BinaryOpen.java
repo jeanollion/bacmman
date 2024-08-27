@@ -26,10 +26,17 @@ import bacmman.image.ImageInteger;
 import bacmman.image.TypeConverter;
 import bacmman.processing.BinaryMorphoEDT;
 import bacmman.processing.Filters;
+import bacmman.processing.ImageLabeller;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.MultiThreaded;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
+import bacmman.utils.Utils;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  *
@@ -43,25 +50,44 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
     public String getHintText() {
         return "Performs an opening operation on region masks<br />Useful to remove small protuberances<br />When several segmented regions are present, the filter is applied label-wise";
     }
-    
+
+    public BinaryOpen setScaleXY(double scaleXY) {
+        this.scale.setScaleXY(scaleXY);
+        return this;
+    }
+
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         if (childPopulation.getRegions().stream().allMatch(r->r instanceof Analytical)) { // do nothing
             return childPopulation;
         }
         double radius = scale.getScaleXY();
-        double radiusZ = childPopulation.getImageProperties().sizeZ()==1 ? 1 : scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        double radiusZ = childPopulation.getImageProperties().sizeZ()==1 ? 1 : scale.getScaleZ(childPopulation.getImageProperties().getScaleXY(), childPopulation.getImageProperties().getScaleZ());
         boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
 
         Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
         childPopulation.ensureEditableRegions();
+        List<Region> newRegions = new ArrayList<>();
+        List<Region> toRemove = new ArrayList<>();
         for (Region o : childPopulation.getRegions()) {
             ImageInteger open = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), radius, radiusZ, parallel), null)
                     : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallel);
-            o.setMask(open);
-            o.resetMask(); // bounds can differ
+            // check that only one object remains
+            List<Region> regions = ImageLabeller.labelImageList(open);
+            regions.forEach(r -> r.translate(o.getBounds()));
+            if (regions.size() > 1) {
+                regions.sort(Comparator.comparingDouble(Region::size));
+                Region biggest = regions.remove(regions.size()-1);
+                o.setMask(biggest.getMask());
+                o.setBounds(biggest.getBounds());
+                newRegions.addAll(regions);
+            } else if (regions.size() == 1){
+                o.setMask(open);
+                o.resetMask(); // bounds can differ
+            } else toRemove.add(o);
         }
-        childPopulation.filter(new RegionPopulation.Size().setMin(1)); // delete blank objects
+        if (!toRemove.isEmpty()) childPopulation.removeObjects(toRemove, false);
+        if (!newRegions.isEmpty()) childPopulation.addObjects(newRegions, false);
         childPopulation.relabel(true);
         return childPopulation;
     }

@@ -50,7 +50,7 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
     }
     @Override
     public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
-        Histogram histo = HistogramFactory.getHistogram(()->preFilteredImages.streamValues().flatMapToDouble(im -> im.stream()), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram histo = HistogramFactory.getHistogram(()->preFilteredImages.streamImages().flatMapToDouble(im -> im.stream()), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
         double[] minAndMax = new double[2];
         minAndMax[0] = histo.getMinValue();
         if (saturation.getValue().doubleValue()<1) minAndMax[1] = histo.getQuantiles(saturation.getValue().doubleValue())[0];
@@ -65,7 +65,7 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
         double offset_ = offset;
         logger.debug("Normalization: range: [{}-{}] scale: {} off: {}", minAndMax[0], minAndMax[1], scale, offset);
         preFilteredImages.streamKeys().forEach(o -> {
-            Image source = preFilteredImages.get(o);
+            Image source = preFilteredImages.getImage(o);
             Image trans = ImageOperations.affineOperation(source, preFilteredImages.allowInplaceModification()?source:null, scale_, offset_);
             preFilteredImages.set(o, trans);
         });

@@ -19,7 +19,6 @@
 package bacmman.plugins.plugins.measurements;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -37,7 +36,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  *
@@ -136,7 +134,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
         for (int oc : allChildOC) {
             SegmentedObjectImageMap preFiltered = preFilters.filterImages(oc, parentTrack);
             Map<Image, SegmentedObject> rawToObject = preFiltered.streamKeys().collect(Collectors.toMap(o -> o.getRawImage(oc), o->o));
-            preFilterSequenceMapByOC.put(oc, (im, mask)->preFiltered.get(rawToObject.get(im)));
+            preFilterSequenceMapByOC.put(oc, (im, mask)->preFiltered.getImage(rawToObject.get(im)));
         }
         ThreadRunner.executeAndThrowErrors(parentTrack.parallelStream(), parent -> {
             for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {

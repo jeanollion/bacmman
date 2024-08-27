@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.Set;
 
 public interface GraphObjectMapper<S extends GraphObject<S>> {
+    boolean contains(S go);
     S getGraphObject(Region r);
     Region getRegion(S go);
 
@@ -22,6 +23,10 @@ public interface GraphObjectMapper<S extends GraphObject<S>> {
     class GraphObjectMapperImpl<S extends GraphObject<S>> implements GraphObjectMapper<S> {
         public final HashMap<Region, S> regionObjectMap = new HashMap<>();
         public final HashMap<S, Region> objectRegionMap = new HashMap<>();
+        @Override
+        public boolean contains(S go) {
+            return objectRegionMap.containsKey(go);
+        }
         @Override
         public S getGraphObject(Region r) {
             return regionObjectMap.get(r);
@@ -71,6 +76,10 @@ public interface GraphObjectMapper<S extends GraphObject<S>> {
     class SegmentedObjectMapper implements GraphObjectMapper<SegmentedObject> {
         public final HashMap<Region, SegmentedObject> regionObjectMap = new HashMap<>();
 
+        @Override
+        public boolean contains(SegmentedObject go) {
+            return regionObjectMap.containsKey(go.getRegion());
+        }
         @Override
         public SegmentedObject getGraphObject(Region r) {
             return regionObjectMap.get(r);

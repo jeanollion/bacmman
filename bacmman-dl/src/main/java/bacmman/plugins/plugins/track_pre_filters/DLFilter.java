@@ -12,8 +12,6 @@ import bacmman.processing.ResizeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.function.Function;
 
 public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
@@ -51,7 +49,7 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     @Override
     public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
         Image[][][] in = new Image[1+inputs.getChildCount()][][];
-        in[0] = preFilteredImages.streamValues().map(im->new Image[]{im}).toArray(Image[][]::new);
+        in[0] = preFilteredImages.streamImages().map(im->new Image[]{im}).toArray(Image[][]::new);
         for (int i = 1; i<in.length; ++i) in[i] = extractInput(preFilteredImages, inputs.getChildAt(i-1));
         Image[] out = predict(in);
         int[] idx = new int[1];

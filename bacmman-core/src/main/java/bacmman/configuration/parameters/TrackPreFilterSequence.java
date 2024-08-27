@@ -64,7 +64,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         SegmentedObjectImageMap images = filterImages(structureIdx, parentTrack);
         //logger.debug("track pre-filter is empty: {} -> {}", isEmpty(), Utils.toStringList(parentTrack, p->p+" "+images.get(p)));
         SegmentedObjectAccessor accessor = getAccessor();
-        images.streamKeys().forEach(o -> accessor.setPreFilteredImage(o, structureIdx, images.getOriginal(o)));
+        images.streamKeys().forEach(o -> accessor.setPreFilteredImage(o, structureIdx, images.get(o)));
     }
 
     public SegmentedObjectImageMap filterImages(int structureIdx, List<SegmentedObject> parentTrack) {
@@ -80,17 +80,17 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());
         if (scaler != null) {
             if (!scaler.isConfigured()) throw new RuntimeException("Scaler not configured for object class:"+structureIdx);
-            images.streamKeys().forEach(o -> images.set(o, scaler.scale(images.get(o))));
+            images.streamKeys().forEach(o -> images.set(o, scaler.scale(images.getImage(o))));
             images.setAllowInplaceModification(true);  // image can be modified inplace
         }
         double scaleXY = parentTrack.get(0).getScaleXY();
         double scaleZ = parentTrack.get(0).getScaleZ();
         Runnable setScale = () -> images.streamKeys().forEach(o-> {
-            Image im = images.getOriginal(o);
+            Image im = images.get(o);
             im.setCalibration(scaleXY, scaleZ);
             im.resetOffset().translate(o.getBounds());
         });
-        setScale.run();
+        //setScale.run();
         for (TrackPreFilter p : this.get()) {
             p.filter(structureIdx, images);
             setScale.run();

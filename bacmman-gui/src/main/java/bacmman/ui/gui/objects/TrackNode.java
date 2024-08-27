@@ -322,7 +322,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             int objectClassIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             int channelIdx = trackNode.trackHead.getExperimentStructure().getChannelIdx(objectClassIdx);
                             GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
-                            GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                            //GUI.getInstance().setTrackStructureIdx(objectClassIdx);
                             trackNode.openKymograph(channelIdx);
                         }
                     }
@@ -339,7 +339,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                         int objectClassIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                         int channelIdx = trackNode.trackHead.getExperimentStructure().getChannelIdx(objectClassIdx);
                         GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
-                        GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                        //GUI.getInstance().setTrackStructureIdx(objectClassIdx);
                         trackNode.openHyperStack(channelIdx);
                     }
                 }

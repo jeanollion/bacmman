@@ -411,7 +411,10 @@ public class WatershedTransform {
                 return -s.min().orElse(Double.POSITIVE_INFINITY);
             }
         }
-        
+
+        public int size() {
+            return voxels.size();
+        }
     }
     public interface PropagationCriterion {
         public void setUp(WatershedTransform instance);

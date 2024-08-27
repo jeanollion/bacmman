@@ -312,15 +312,15 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             graphG2P = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
             groundTruth.values().stream().flatMap(Collection::stream).forEach(graphG2P::addVertex);
             prediction.values().stream().flatMap(Collection::stream).forEach(graphG2P::addVertex);
-            Consumer<OverlapMatcher<SegmentedObject>.Overlap> storeOverlap = o -> addEdge(o.o1, o.o2, o.overlap);
-            Stream<OverlapMatcher<SegmentedObject>.Overlap> overlaps = Utils.parallel(Stream.concat(groundTruth.keySet().stream(), prediction.keySet().stream()).distinct(), parallel).flatMap(f -> {
+            Consumer<OverlapMatcher.Overlap<SegmentedObject>> storeOverlap = o -> addEdge(o.o1, o.o2, o.overlap);
+            Stream<OverlapMatcher.Overlap<SegmentedObject>> overlaps = Utils.parallel(Stream.concat(groundTruth.keySet().stream(), prediction.keySet().stream()).distinct(), parallel).flatMap(f -> {
                 List<SegmentedObject> G = groundTruth.get(f);
                 List<SegmentedObject> P = prediction.get(f);
                 if (G==null && P==null) return Stream.empty();
                 return matcher.getOverlap(G, P).stream();
             });
             if (parallel) {
-                List<OverlapMatcher<SegmentedObject>.Overlap> oList = overlaps.collect(Collectors.toList());
+                List<OverlapMatcher.Overlap<SegmentedObject>> oList = overlaps.collect(Collectors.toList());
                 oList.forEach(storeOverlap);
             } else overlaps.forEach(storeOverlap);
         }

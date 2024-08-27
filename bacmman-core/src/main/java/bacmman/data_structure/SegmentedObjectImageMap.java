@@ -38,7 +38,7 @@ public class SegmentedObjectImageMap {
     public boolean isEmpty() {
         return track.isEmpty();
     }
-    public Image get(SegmentedObject o) {
+    public Image getImage(SegmentedObject o) {
         Image im = imageMap.get(o);
         if (im instanceof SimpleDiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
         else return im;
@@ -49,11 +49,11 @@ public class SegmentedObjectImageMap {
      * @param o
      * @return image that may be wrapped in a DiskedBackedImage
      */
-    public Image getOriginal(SegmentedObject o) {
+    public Image get(SegmentedObject o) {
         return imageMap.get(o);
     }
-    public Stream<Image> streamValues() {
-        return track.stream().map(this::get);
+    public Stream<Image> streamImages() {
+        return track.stream().map(this::getImage);
     }
     public Stream<SegmentedObject> streamKeys() {
         return track.stream();

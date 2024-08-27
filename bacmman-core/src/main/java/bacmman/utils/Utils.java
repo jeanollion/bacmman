@@ -71,6 +71,11 @@ import java.util.jar.JarFile;
 public class Utils {
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
+    public static <T> List<T> safeCollectToList(Stream<T> stream) {
+        if (stream == null) return Collections.emptyList();
+        else return stream.collect(Collectors.toList());
+    }
+
     public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
         Set<Object> seen = ConcurrentHashMap.newKeySet();
         return t -> seen.add(keyExtractor.apply(t));
@@ -1223,6 +1228,15 @@ public class Utils {
             if (e.getKey().equals(key)) return true;
         }
         return false;
+    }
+    public static <K> K getClosest(K key, NavigableSet<K> set, ToDoubleBiFunction<K, K> distance) {
+        K low = set.floor(key);
+        K high = set.ceiling(key);
+        if (low != null && high != null) {
+            return distance.applyAsDouble(low, key) < distance.applyAsDouble(key, high) ? low : high;
+        } else if (low != null || high != null) {
+            return low != null ? low : high;
+        } else return null;
     }
 
     public static String removeExtension(String s) {

@@ -112,7 +112,7 @@ public class PluginConfigurationUtils {
         List<Map<SegmentedObject, TestDataStore>> storeList = new ArrayList<>(2);
         storeList.add(stores);
         psc.setTestDataStore(stores);
-        logger.debug("test processing: sel {} dup: {}, test parent dao : {}", parentSelection, parentTrackDup, parentTrackDup.get(0).dao.getClass());
+        //logger.debug("test processing: sel {} dup: {}, test parent dao : {}", parentSelection, parentTrackDup, parentTrackDup.get(0).dao.getClass());
         try {
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
             boolean pf = plugin instanceof PostFilter;
@@ -287,11 +287,11 @@ public class PluginConfigurationUtils {
             List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(PluginParameter::isActivated).map(PluginParameter::instantiatePlugin).collect(Collectors.toList());
             TrackPreFilterSequence seqBefore = new TrackPreFilterSequence("Track Pre-filter before").add(before);
             SegmentedObjectImageMap filteredImages = seqBefore.filterImages(structureIdx, parentTrack);
-            if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", filteredImages.get(p).duplicate())); // add images before processing
+            if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", filteredImages.getImage(p).duplicate())); // add images before processing
             TrackPreFilter current = seq.getChildAt(pluginIdx).instantiatePlugin();
             if (current instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)current).setTestDataStore(stores);
             current.filter(structureIdx, filteredImages);
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", filteredImages.get(p))); // add images before processing
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", filteredImages.getImage(p))); // add images before processing
         }
         } catch (Throwable t) {
             GUI.log("An error occurred while testing...");

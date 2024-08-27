@@ -14,10 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -77,7 +74,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
         boolean inputFrameIndex = this.inputFrameIndex.getSelected();
         if (!this.timelapse.getSelected()) {
             Image[][][] in = new Image[inputFrameIndex ? 2 : 1][][];
-            in[0] = preFilteredImages.streamValues().map(im -> new Image[]{im}).toArray(Image[][]::new);
+            in[0] = preFilteredImages.streamImages().map(im -> new Image[]{im}).toArray(Image[][]::new);
             if (inputFrameIndex) in[1] = preFilteredImages.streamKeys().map(p -> new Image[]{asImage(p.getFrame())}).toArray(Image[][]::new);
             out = predict(in);
         } else {
@@ -87,7 +84,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
             for (int i = 1; i < noPrevParent.length; ++i) if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
             ToIntFunction<SegmentedObject> getFrame = testNoFrame ? p->0 : SegmentedObject::getFrame;
             Image[] frames = inputFrameIndex ? preFilteredImages.streamKeys().map(p -> asImage(getFrame.applyAsInt(p))).toArray(Image[]::new) : null;
-            out = predictTimelapse(preFilteredImages.streamValues().toArray(Image[]::new), frames, noPrevParent);
+            out = predictTimelapse(preFilteredImages.streamImages().toArray(Image[]::new), frames, noPrevParent);
         }
         int[] idx = new int[1];
         preFilteredImages.streamKeys().sequential().forEach(o -> preFilteredImages.set(o, out[idx[0]++]));

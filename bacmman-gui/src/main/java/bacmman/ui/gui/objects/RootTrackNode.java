@@ -162,7 +162,9 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             this.insert(newChildren.get(newIdx++), idx);
         }
         remainingTrackHeads = remainingTrackHeadsTemp;
-        for (TrackNode t : children) t.update();
+        logger.debug("update children");
+        for (TrackNode t : children) t.update(); // this can take a long time when many objects are present
+        logger.debug("children updated");
     }
 
     public TrackNode getChild(SegmentedObject trackHead) {
@@ -341,7 +343,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                             int objectClassIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
                             int channelIdx = generator.getExperiment().getChannelImageIdx(objectClassIdx);
                             GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
-                            GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                            //GUI.getInstance().setTrackStructureIdx(objectClassIdx);
                             openKymograph(channelIdx);
                         }
                     }
@@ -359,7 +361,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         int objectClassIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
                         int channelIdx = generator.getExperiment().getChannelImageIdx(objectClassIdx);
                         GUI.getInstance().setInteractiveStructureIdx(objectClassIdx);
-                        GUI.getInstance().setTrackStructureIdx(objectClassIdx);
+                        //GUI.getInstance().setTrackStructureIdx(objectClassIdx);
                         openHyperStack(channelIdx);
                     }
                 });

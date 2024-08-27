@@ -997,7 +997,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                                 Image im = null;
                                 try {
                                     im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrameChannel(channelIdx) ? 0 : timePoint);
-
                                 } catch (IOException e) {
 
                                 }
@@ -1055,8 +1054,19 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             }
         }
         Image im = rawImagesC.get(channelIdx);
-        if (im instanceof DiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
-        else return im;
+        if (im instanceof DiskBackedImage) {
+            if (((DiskBackedImage)im).detached()) {
+                synchronized (rawImagesC) {
+                    im = rawImagesC.get(channelIdx);
+                    if (im instanceof DiskBackedImage) {
+                        if (((DiskBackedImage)im).detached()) { // image has been erased -> set a null value and re-open image.
+                            rawImagesC.set(null, channelIdx);
+                            return getRawImageByChannel(channelIdx);
+                        } else return ((SimpleDiskBackedImage)im).getImage();
+                    } else return im;
+                }
+            } else return ((SimpleDiskBackedImage)im).getImage();
+        } else return im;
     }
     /**
      *

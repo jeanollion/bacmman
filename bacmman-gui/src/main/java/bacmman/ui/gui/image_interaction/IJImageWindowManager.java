@@ -279,7 +279,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             SegmentedObject parent = od.object;
                             logger.debug("Parent: {}", parent);
                             Offset parentOffset = new SimpleOffset(od.offset);
-                            Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
+                            Consumer<Collection<SegmentedObject>> store = l -> parent.dao.store(l);
                             if (brush) {
                                 Region brushRegion = new Region(roi.duplicate(), 1, roi.getBounds().duplicate(), parent.getScaleXY(), parent.getScaleZ());
                                 Offset revOff = new SimpleOffset(parentOffset).reverseOffset();

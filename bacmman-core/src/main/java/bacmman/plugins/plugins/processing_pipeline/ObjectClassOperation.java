@@ -18,15 +18,14 @@
  */
 package bacmman.plugins.plugins.processing_pipeline;
 
-import bacmman.configuration.parameters.EnumChoiceParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.SiblingObjectClassParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.*;
 import com.google.common.collect.Sets;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,10 +37,12 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
     protected PluginParameter<Tracker> tracker = new PluginParameter<>("Tracker", Tracker.class, true);
     SiblingObjectClassParameter oc1 = new SiblingObjectClassParameter("Object Class 1", -1, true, false, true);
     SiblingObjectClassParameter oc2 = new SiblingObjectClassParameter("Object Class 2", -1, true, false, false);
-
+    TrackPostFilterSequence trackPostFilters1 = new TrackPostFilterSequence("Track Post-Filters 1").setHint("Post-Filters performed on first object class before set operation");
+    TrackPostFilterSequence trackPostFilters2 = new TrackPostFilterSequence("Track Post-Filters 2").setHint("Post-Filters performed on second object class before set operation");
     enum OPERATION {DIFFERENCE, INTERSECTION, UNION}
     EnumChoiceParameter<OPERATION> operation = new EnumChoiceParameter<>("Operation", OPERATION.values(), OPERATION.DIFFERENCE);
-    protected Parameter[] parameters = new Parameter[]{oc1, oc2, operation, preFilters, trackPreFilters, tracker, trackPostFilters};
+    protected Parameter[] parameters = new Parameter[]{oc1, oc2, trackPostFilters1, trackPostFilters2, operation, preFilters, trackPreFilters, tracker, trackPostFilters};
+
     public ObjectClassOperation() { // for plugin instanciation
         oc2.addValidationFunction(p->p.getSelectedClassIdx() != oc1.getSelectedClassIdx());
         oc1.addValidationFunction(p->p.getSelectedClassIdx() != oc2.getSelectedClassIdx());
@@ -79,13 +80,14 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
     @Override
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         segmentOnly(structureIdx, parentTrack, factory, editor);
+        getTrackPreFilters(true).filter(structureIdx, parentTrack);
         trackOnly(structureIdx, parentTrack, factory, editor);
         trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
     }
     @Override
     public void trackOnly(final int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (!tracker.isOnePluginSet()) {
-            logger.info("No tracker set for structure: {}", structureIdx);
+            //logger.info("No tracker set for structure: {}", structureIdx);
             return;
         }
         for (SegmentedObject parent : parentTrack) {
@@ -93,12 +95,13 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
         }
         Tracker t = getTracker();
         t.track(structureIdx, parentTrack, editor);
-        
     }
     protected void segmentOnly(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         int parentObjectClassIdx = parentTrack.get(0).getStructureIdx();
         if (oc2.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected object class 2 to duplicate");
+        trackPostFilters1.filter(oc1.getSelectedClassIdx(), parentTrack, factory, editor);
+        trackPostFilters2.filter(oc2.getSelectedClassIdx(), parentTrack, factory, editor);
         Map<SegmentedObject, SegmentedObject> sourceOC1MapParent;
         if (oc1.getSelectedClassIdx()<0) {
             //throw new IllegalArgumentException("No selected object class 1 to duplicate");
@@ -113,16 +116,23 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
         Map<SegmentedObject, SegmentedObject> dupOC2 = Duplicate.duplicate(sourceOC2MapParent.keySet().stream(),  structureIdx, factory, null);
         Map<SegmentedObject, List<SegmentedObject>> dupOC1byParent = dupOC1.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC1MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));
         Map<SegmentedObject, List<SegmentedObject>> dupOC2byParent = dupOC2.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC2MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));;
-        //List<SegmentedObject> toRemove = new ArrayList<>();
         Sets.union(dupOC1byParent.keySet(), dupOC2byParent.keySet()).forEach(p -> {
             List<SegmentedObject> oc1 = dupOC1byParent.get(p);
             List<SegmentedObject> oc2 = dupOC2byParent.get(p);
             List<SegmentedObject> oc = performOperation(oc1, oc2, factory);
             factory.setChildren(p, oc);
         });
-        //if (!toRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor, true);
-        getTrackPreFilters(true).filter(structureIdx, parentTrack);
+        // reset objects modified by post-filters so that they are reloaded from DAO
+        if (!trackPostFilters1.isEmpty()) {
+            SegmentedObjectFactory factory1 = getFactory(oc1.getSelectedClassIdx());
+            parentTrack.forEach(p -> factory1.setChildren(p, null));
+        }
+        if (!trackPostFilters2.isEmpty()) {
+            SegmentedObjectFactory factory2 = getFactory(oc2.getSelectedClassIdx());
+            parentTrack.forEach(p -> factory2.setChildren(p, null));
+        }
     }
+
     private List<SegmentedObject> performOperation(List<SegmentedObject> oc1, List<SegmentedObject> oc2, SegmentedObjectFactory factory) {
         switch (operation.getSelectedEnum()) {
             case DIFFERENCE:
@@ -201,5 +211,15 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
     @Override
     public Parameter[] getParameters() {
         return parameters;
+    }
+
+    private static SegmentedObjectFactory getFactory(int objectClassIdx) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
     }
 }

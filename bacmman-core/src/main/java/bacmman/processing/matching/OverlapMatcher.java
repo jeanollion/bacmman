@@ -17,7 +17,7 @@ import java.util.function.*;
 public class OverlapMatcher<O> {
     public final static Logger logger = LoggerFactory.getLogger(OverlapMatcher.class);
     final ToDoubleBiFunction<O, O> overlapFunction;
-    Predicate<Overlap> filter;
+    Predicate<Overlap<O>> filter;
     /**
      *
      * @param overlapFunction function that computes overlap between two objects
@@ -56,7 +56,7 @@ public class OverlapMatcher<O> {
      * @param filter only overlaps that verify this predicate will be kept
      * @return
      */
-    public OverlapMatcher<O> addFilter(Predicate<Overlap> filter) {
+    public OverlapMatcher<O> addFilter(Predicate<Overlap<O>> filter) {
         if (this.filter==null) this.filter = filter;
         else this.filter = this.filter.and(filter);
         return this;
@@ -68,8 +68,8 @@ public class OverlapMatcher<O> {
      * @param gToS map in which max overlap of each object of {@param gl} to all object of object of {@param sl}
      * @param sToG map in which max overlap of each object of {@param sl} to all object of object of {@param gl}
      */
-    public void addMaxOverlap(List<O> gl, List<O> sl, Map<O, Overlap> gToS, Map<O, Overlap> sToG) {
-        List<Overlap> overlaps = getOverlap(gl, sl);
+    public void addMaxOverlap(List<O> gl, List<O> sl, Map<O, Overlap<O>> gToS, Map<O, Overlap<O>> sToG) {
+        List<Overlap<O>> overlaps = getOverlap(gl, sl);
         if (overlaps.isEmpty()) return;
         if (gToS!=null) {
             // for each g -> max overlap with S
@@ -90,9 +90,9 @@ public class OverlapMatcher<O> {
     }
 
     public void addMaxOverlap(List<O> gl, List<O> sl, SimpleWeightedGraph<O, DefaultWeightedEdge> graph) {
-        List<Overlap> overlaps = getOverlap(gl, sl);
+        List<Overlap<O>> overlaps = getOverlap(gl, sl);
         if (overlaps.isEmpty()) return;
-        Set<Overlap> maxOverlaps = new HashSet<>();
+        Set<Overlap<O>> maxOverlaps = new HashSet<>();
         // for each g-> max overlap with s
         for (O g : gl) {
             overlaps.stream().filter(o -> o.o1.equals(g))
@@ -111,14 +111,14 @@ public class OverlapMatcher<O> {
         });
     }
 
-    public List<Overlap> getOverlap(List<O> gl, List<O> sl) {
+    public List<Overlap<O>> getOverlap(List<O> gl, List<O> sl) {
         if (gl==null || gl.isEmpty() || sl==null || sl.isEmpty()) return Collections.emptyList();
-        List<Overlap> res = new ArrayList<>();
+        List<Overlap<O>> res = new ArrayList<>();
         for (O g : gl) {
             for (O s:sl) {
                 double overlap = this.overlapFunction.applyAsDouble(g, s);
                 if (overlap!=0) {
-                    Overlap o = new Overlap(g, s, overlap);
+                    Overlap<O> o = new Overlap<>(g, s, overlap);
                     if (filter==null || filter.test(o)) res.add(o);
                 }
             }
@@ -126,7 +126,7 @@ public class OverlapMatcher<O> {
         return res;
     }
 
-    public class Overlap implements Comparable<Overlap> {
+    public static class Overlap<O> implements Comparable<Overlap<O>> {
         public final double overlap;
         public final O o1, o2;
         public Overlap(O o1, O o2, double overlap) {

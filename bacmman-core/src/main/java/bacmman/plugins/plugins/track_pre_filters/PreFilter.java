@@ -70,7 +70,7 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
             if (instance instanceof MultiThreaded && track.size() < Runtime.getRuntime().availableProcessors()) {
                 ((MultiThreaded)instance).setMultiThread(true);
             }
-            Image source = preFilteredImages.get(o);
+            Image source = preFilteredImages.getImage(o);
             Image filtered = instance.runPreFilter(source, o.getMask(), preFilteredImages.allowInplaceModification());
             preFilteredImages.set(o, filtered);
         };

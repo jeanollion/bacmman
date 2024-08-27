@@ -122,6 +122,8 @@ public class ImageDerivatives {
                 BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> im.setPixel(x, y, z, im.getPixel(x, y, z) / s), parallel);
             }
         }
+        res.forEach(i -> i.setCalibration(image.getScaleXY(), image.getScaleZ()));
+        res.forEach(i -> i.translate(image));
         return res;
     }
 
@@ -169,6 +171,8 @@ public class ImageDerivatives {
             }
         }
         BoundingBox.loop(image.getBoundingBox().resetOffset(), fun, parallel);
+        res[0].setCalibration(image.getScaleXY(), image.getScaleZ());
+        res[0].translate(image);
         return res[0];
     }
 
@@ -211,6 +215,8 @@ public class ImageDerivatives {
                 Image im = res[t[0]][t[1]];
                 double s = scale[t[0]] * scale[t[1]];
                 BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> im.setPixel(x, y, z, im.getPixel(x, y, z) / s), parallel);
+                im.setCalibration(image.getScaleXY(), image.getScaleZ());
+                im.translate(image);
             }
         }
         return res;

@@ -8,7 +8,7 @@ import java.util.stream.DoubleStream;
 public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implements DiskBackedImage<I> {
     I image;
     final I imageType;
-    final DiskBackedImageManager manager;
+    DiskBackedImageManager manager;
     final boolean writable;
     volatile boolean modified;
     public SimpleDiskBackedImage(String name, ImageProperties props, I imageType, DiskBackedImageManager manager, boolean writable) {
@@ -28,7 +28,7 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
     }
 
     public long heapMemory() {
-        return (long)image.sizeXYZ() * imageType.byteCount();
+        return (long)sizeXYZ() * imageType.byteCount();
     }
     @Override
     public I getImageType() {
@@ -51,6 +51,14 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
                 }
             }
         }
+    }
+    @Override
+    public void detach() {
+        this.manager = null;
+    }
+    @Override
+    public boolean detached() {
+        return this.manager == null;
     }
     @Override
     public boolean isOpen() {

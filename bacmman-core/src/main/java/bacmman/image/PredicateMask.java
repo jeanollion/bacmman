@@ -123,37 +123,118 @@ public class PredicateMask extends SimpleImageProperties<PredicateMask> implemen
         this.insideMaskXY=insideMaskXY;
         this.is2D = is2D;
     }
+
+    /**
+     * logical operator OR applied on two masks. throws IllegalArgumentException if mask do not intersect
+     * @param mask1
+     * @param mask2
+     * @return mask with same bounds as mask1 (except if mask1 and mask2 have same bounds in XY and mask1 is 2D and mask2 is not 2D, then returned bounds of mask2)
+     */
     public static PredicateMask or(ImageMask mask1, ImageMask mask2) {
-        if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
-        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
-        boolean oneImageMask2D = mask1 instanceof ImageMask2D || mask2 instanceof ImageMask2D;
-        if (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
-        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)||mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)||mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
-    }
-    public static PredicateMask and(ImageMask mask1, ImageMask mask2) {
-        if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) {
-            logger.error("Mask dimension differ in XY: {} vs {}", new SimpleBoundingBox(mask1), new SimpleBoundingBox(mask2));
-            throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
+        boolean oneImageMask2D = isMask2D(mask1) || isMask2D(mask2);
+        if (!mask1.sameBounds2D(mask2) || (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ())) { // reference mask is mask1
+            if (oneImageMask2D) {
+                if (!BoundingBox.intersect2D(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            } else {
+                if (!BoundingBox.intersect(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            }
+            Offset off = new SimpleOffset(mask1).translateReverse(mask2);
+            return new PredicateMask(mask1, (x, y, z) -> mask1.insideMask(x, y, z) || (mask2.contains(x+off.xMin(), y+off.yMin(), z+off.zMin()) && mask2.insideMask(x+off.xMin(), y+off.yMin(), z+off.zMin())), (xy, z) -> {
+                if (mask1.insideMask(xy, z)) return true;
+                int y = xy / mask1.sizeX() + off.yMin();
+                int x = xy % mask1.sizeX() + off.xMin();
+                return mask2.contains(x, y, z+off.zMin()) && mask2.insideMask(x, y, z+off.zMin());
+            }, isMask2D(mask1));
+        } else { // same bounds or same bounds in 2D and one mask is 2D
+            return new PredicateMask(isMask2D(mask1) ? mask2 : mask1, (x, y, z) -> mask1.insideMask(x, y, z) || mask2.insideMask(x, y, z), (xy, z) -> mask1.insideMask(xy, z) || mask2.insideMask(xy, z), isMask2D(mask1) && isMask2D(mask2));
         }
-        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
-        boolean oneImageMask2D = mask1 instanceof ImageMask2D || mask2 instanceof ImageMask2D;
-        if (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
-        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)&&mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)&&mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
     }
+
+    /**
+     * logical operator AND applied on two masks. throws IllegalArgumentException if mask do not intersect
+     * @param mask1
+     * @param mask2
+     * @return mask with same bounds as mask1 (except if mask1 and mask2 have same bounds in XY and mask1 is 2D and mask2 is not 2D, then returned bounds of mask2)
+     */
+    public static PredicateMask and(ImageMask mask1, ImageMask mask2) {
+        boolean oneImageMask2D = isMask2D(mask1) || isMask2D(mask2);
+        if (!mask1.sameBounds2D(mask2) || (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ())) { // reference mask is mask1
+            if (oneImageMask2D) {
+                if (!BoundingBox.intersect2D(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            } else {
+                if (!BoundingBox.intersect(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            }
+            Offset off = new SimpleOffset(mask1).translateReverse(mask2);
+            return new PredicateMask(mask1, (x, y, z) -> mask1.insideMask(x, y, z) && (mask2.contains(x+off.xMin(), y+off.yMin(), z+off.zMin()) && mask2.insideMask(x+off.xMin(), y+off.yMin(), z+off.zMin())), (xy, z) -> {
+                if (!mask1.insideMask(xy, z)) return false;
+                int y = xy / mask1.sizeX() + off.yMin();
+                int x = xy % mask1.sizeX() + off.xMin();
+                return mask2.contains(x, y, z+off.zMin()) && mask2.insideMask(x, y, z+off.zMin());
+            }, isMask2D(mask1));
+        } else { // same bounds or same bounds in 2D and one mask is 2D
+            return new PredicateMask(isMask2D(mask1) ? mask2 : mask1, (x, y, z) -> mask1.insideMask(x, y, z) && mask2.insideMask(x, y, z), (xy, z) -> mask1.insideMask(xy, z) && mask2.insideMask(xy, z), isMask2D(mask1) && isMask2D(mask2));
+        }
+    }
+
+    /**
+     * logical operator XOR applied on two masks. throws IllegalArgumentException if mask do not intersect
+     * @param mask1
+     * @param mask2
+     * @return mask with same bounds as mask1 (except if mask1 and mask2 have same bounds in XY and mask1 is 2D and mask2 is not 2D, then returned bounds of mask2)
+     */
     public static PredicateMask xor(ImageMask mask1, ImageMask mask2) {
-        if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
-        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
-        boolean oneImageMask2D = mask1 instanceof ImageMask2D || mask2 instanceof ImageMask2D;
-        if (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
-        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)!=mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)!=mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
+        boolean oneImageMask2D = isMask2D(mask1) || isMask2D(mask2);
+        if (!mask1.sameBounds2D(mask2) || (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ())) { // reference mask is mask1
+            if (oneImageMask2D) {
+                if (!BoundingBox.intersect2D(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            } else {
+                if (!BoundingBox.intersect(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            }
+            Offset off = new SimpleOffset(mask1).translateReverse(mask2);
+            return new PredicateMask(mask1, (x, y, z) -> mask1.insideMask(x, y, z) != (mask2.contains(x+off.xMin(), y+off.yMin(), z+off.zMin()) && mask2.insideMask(x+off.xMin(), y+off.yMin(), z+off.zMin())), (xy, z) -> {
+                int y = xy / mask1.sizeX() + off.yMin();
+                int x = xy % mask1.sizeX() + off.xMin();
+                return mask1.insideMask(xy, z) != mask2.contains(x, y, z+off.zMin()) && mask2.insideMask(x, y, z+off.zMin());
+            }, isMask2D(mask1));
+        } else { // same bounds or same bounds in 2D and one mask is 2D
+            return new PredicateMask(isMask2D(mask1) ? mask2 : mask1, (x, y, z) -> mask1.insideMask(x, y, z) != mask2.insideMask(x, y, z), (xy, z) -> mask1.insideMask(xy, z) != mask2.insideMask(xy, z), isMask2D(mask1) && isMask2D(mask2));
+        }
     }
+
+    /**
+     * logical operator XOR applied on two masks. throws IllegalArgumentException if mask do not intersect
+     * @param mask1
+     * @param mask2
+     * @return mask with same bounds as mask1 (except if mask1 and mask2 have same bounds in XY and mask1 is 2D and mask2 is not 2D, then returned bounds of mask2)
+     */
     public static PredicateMask andNot(ImageMask mask1, ImageMask mask2) {
-        if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
-        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
-        boolean oneImageMask2D = mask1 instanceof ImageMask2D || mask2 instanceof ImageMask2D;
-        if (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
-        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)&&!mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)&&!mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
+        boolean oneImageMask2D = isMask2D(mask1) || isMask2D(mask2);
+        if (!mask1.sameBounds2D(mask2) || (!oneImageMask2D && mask1.sizeZ()!=mask2.sizeZ())) { // reference mask is mask1
+            if (oneImageMask2D) {
+                if (!BoundingBox.intersect2D(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            } else {
+                if (!BoundingBox.intersect(mask1, mask2)) throw new IllegalArgumentException("Masks do not intersect");
+            }
+            Offset off = new SimpleOffset(mask1).translateReverse(mask2);
+            return new PredicateMask(mask1, (x, y, z) -> mask1.insideMask(x, y, z) && !(mask2.contains(x+off.xMin(), y+off.yMin(), z+off.zMin()) && mask2.insideMask(x+off.xMin(), y+off.yMin(), z+off.zMin())), (xy, z) -> {
+                if (!mask1.insideMask(xy, z)) return false;
+                int y = xy / mask1.sizeX() + off.yMin();
+                int x = xy % mask1.sizeX() + off.xMin();
+                return !(mask2.contains(x, y, z+off.zMin()) && mask2.insideMask(x, y, z+off.zMin()));
+            }, isMask2D(mask1));
+        } else { // same bounds or same bounds in 2D and one mask is 2D
+            return new PredicateMask(isMask2D(mask1) ? mask2 : mask1, (x, y, z) -> mask1.insideMask(x, y, z) && !mask2.insideMask(x, y, z), (xy, z) -> mask1.insideMask(xy, z) && !mask2.insideMask(xy, z), isMask2D(mask1) && isMask2D(mask2));
+        }
     }
+
+    public static PredicateMask not(ImageMask mask) {
+        return new PredicateMask(mask, (x, y, z) -> !mask.insideMask(x, y, z), (xy, z) -> !mask.insideMask(xy, z), isMask2D(mask));
+    }
+
+    protected static boolean isMask2D(ImageMask m) {
+        return m instanceof PredicateMask ? ((PredicateMask) m).is2D : m instanceof ImageMask2D;
+    }
+
     @Override
     public boolean insideMask(int x, int y, int z) {
         return insideMask.insideMask(x, y, z);

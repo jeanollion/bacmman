@@ -84,7 +84,7 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         ImageFloat allImagesY = (ImageFloat)tm.generateEmptyImage("sub mc", new ImageFloat("", 0, 0, 0));
         int idx = 0;
         for (SegmentedObject o : tm.parents) {
-            Image im = preFilteredImages.get(o);
+            Image im = preFilteredImages.getImage(o);
             if (!(im instanceof ImageFloat) || !preFilteredImages.allowInplaceModification()) {
                 im = TypeConverter.toFloat(im, null);
                 preFilteredImages.set(o, im);
@@ -112,7 +112,7 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         // recover data
         idx = 0;
         for (SegmentedObject o : tm.parents) {
-            Image dest = preFilteredImages.get(o);
+            Image dest = preFilteredImages.getImage(o);
             if (!preFilteredImages.allowInplaceModification()) dest = Image.createEmptyImage("filtered", allImagesY, dest);
             Image.pasteImageView(allImagesY, dest, null, tm.getObjectOffset(idx++, 1));
             preFilteredImages.set(o, dest);

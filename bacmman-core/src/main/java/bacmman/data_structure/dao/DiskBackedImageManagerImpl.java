@@ -129,6 +129,10 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     }
     @Override
     public <I extends Image<I>> SimpleDiskBackedImage<I> createSimpleDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
+        if (image instanceof SimpleDiskBackedImage ) {
+            if (((SimpleDiskBackedImage)image).getManager().equals(this)) return (SimpleDiskBackedImage<I>)image;
+            else throw new IllegalArgumentException("Image is already disk-backed");
+        } else if (image==null) throw new IllegalArgumentException("Null image");
         SimpleDiskBackedImage<I> res = new SimpleDiskBackedImage<>(image, this, writable);
         res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
         synchronized (queue) {
@@ -153,6 +157,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             rem = queue.remove(image);
             f = files.remove(image);
             if (freeMemory) image.freeMemory(false);
+            image.detach();
         }
         if (f!=null) f.delete();
         return rem;
@@ -169,6 +174,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             for (DiskBackedImage im : queue) {
                 File f = files.remove(im);
                 if (f!=null) f.delete();
+                im.detach();
             }
             queue.clear();
         }
