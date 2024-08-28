@@ -46,7 +46,7 @@ public class ConditionalParameter<V> extends ConditionalParameterAbstract<V, Con
     @Override
     public ConditionalParameter<V> duplicate() {
         ConditionalParameter<V> res = new ConditionalParameter(action.duplicate());
-        parameters.forEach((v, p) -> res.setActionParameters(v, p.stream().map((Function<Parameter, Parameter>) Parameter::duplicate).toArray(Parameter[]::new)));
+        parameters.forEach((v, p) -> res.setActionParameters(v, p.stream().map(Parameter::duplicate).toArray(Parameter[]::new)));
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;

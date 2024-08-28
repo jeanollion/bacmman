@@ -19,15 +19,12 @@
 package bacmman.configuration.parameters;
 
 import bacmman.configuration.experiment.Experiment;
-import bacmman.configuration.experiment.Structure;
-import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
+import bacmman.utils.Utils;
 
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +50,11 @@ public class SelectionParameter extends AbstractChoiceParameterMultiple<String, 
 
     public SelectionParameter setSelectionObjectClass(int oc) {
         this.selectionFilter = s -> s.getStructureIdx() == oc;
+        return this;
+    }
+
+    public SelectionParameter sameObjectClassValidation() {
+        addValidationFunction(selParam -> Utils.objectsAllHaveSameProperty(selParam.getSelectedSelections(), Selection::getStructureIdx));
         return this;
     }
 

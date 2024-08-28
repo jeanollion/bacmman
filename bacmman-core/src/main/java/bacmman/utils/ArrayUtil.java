@@ -515,7 +515,7 @@ public class ArrayUtil {
         */
     }
     public static int[] generateIntegerArray(int start, int stopExcl) {
-        if (stopExcl<start) return new int[0];
+        if (stopExcl<=start) return new int[0];
         return IntStream.range(start, stopExcl).toArray();
     }
     public static int[] generateIntegerArray(int start, int stopExcl, int size) {

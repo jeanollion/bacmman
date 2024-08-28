@@ -85,6 +85,11 @@
             <artifactId>bacmman-distnet2d</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-blissed</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>

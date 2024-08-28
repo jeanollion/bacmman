@@ -8,6 +8,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.ui.PropertyUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,6 +53,7 @@ public class PixMClass implements DockerDLTrainer {
 
     @Override
     public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
+        int compression = PropertyUtils.get("extract_DS_compression", 0);
         int[] selOC = extractClasses.getSelectedIndices();
         List<String> selections;
         switch (selMode.getSelectedEnum()) {
@@ -72,7 +74,7 @@ public class PixMClass implements DockerDLTrainer {
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, selections, outputFile, 0);
+        return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, selections, outputFile, compression);
     }
 
     public String getDockerImageName() {

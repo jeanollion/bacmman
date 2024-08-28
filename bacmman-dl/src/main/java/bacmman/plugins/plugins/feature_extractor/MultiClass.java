@@ -16,15 +16,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static bacmman.plugins.plugins.feature_extractor.RawImage.handleZ;
+import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
 
 public class MultiClass implements FeatureExtractor {
-    EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
-    BoundedNumberParameter plane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
-    ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
-            .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, plane)
-            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
-
+    ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     ObjectClassParameter classes = new ObjectClassParameter("Classes", -1, false, true).setEmphasized(true).setHint("Select class to be extracted. A label will be assigned to each class in the defined order");
 
     public MultiClass() {}
@@ -42,7 +37,7 @@ public class MultiClass implements FeatureExtractor {
             int label = i + 1;
             ImageMask.loop(mask, (x, y, z)->res.setPixel(x, y, z, label));
         }
-        return handleZ(res, extractZ.getSelectedEnum(), plane.getIntValue());
+        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
     }
 
     @Override
@@ -57,11 +52,11 @@ public class MultiClass implements FeatureExtractor {
 
     @Override
     public Task.ExtractZAxis getExtractZDim() {
-        return extractZ.getSelectedEnum();
+        return extractZ.getExtractZDim();
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{classes, extractZCond};
+        return new Parameter[]{classes, extractZ};
     }
 }

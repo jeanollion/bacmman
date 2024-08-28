@@ -20,6 +20,18 @@ public abstract class GroupParameterAbstract<T extends GroupParameterAbstract<T>
         initChildList();
     }
 
+    protected T setChildren(Parameter... parameters) {
+        this.children = Arrays.asList(parameters);
+        initChildList();
+        return (T)this;
+    }
+
+    protected T setChildren(Collection<Parameter> parameters) {
+        this.children = new ArrayList<>(parameters);
+        initChildList();
+        return (T)this;
+    }
+
     protected GroupParameterAbstract(String name) {
         super(name);
     }

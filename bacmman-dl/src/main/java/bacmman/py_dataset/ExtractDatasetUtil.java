@@ -1,5 +1,6 @@
 package bacmman.py_dataset;
 
+import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.core.Core;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
@@ -196,7 +197,7 @@ public class ExtractDatasetUtil {
                 image = image.crop(bds);
                 logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
             }
-            return RawImage.handleZ(image, t.getExtractRawZAxis(), t.getExtractRawZAxisPlaneIdx());
+            return ExtractZAxisParameter.handleZ(image, t.getExtractRawZAxis(), t.getExtractRawZAxisPlaneIdx());
         };
         for (String position : positionMapFrames.keySet()) {
             logger.debug("position: {}", position);

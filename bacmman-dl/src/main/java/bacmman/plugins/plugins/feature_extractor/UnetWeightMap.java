@@ -2,20 +2,18 @@ package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Task;
-import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.Hint;
 import bacmman.processing.EDT;
-import bacmman.py_dataset.ExtractDatasetUtil;
 import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Arrays;
 import java.util.Map;
 
-import static bacmman.plugins.plugins.feature_extractor.RawImage.handleZ;
+import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
 
 public class UnetWeightMap implements FeatureExtractor, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 2, 5, 0.1, null).setHint("Controls the value between segmented regions");
@@ -23,13 +21,7 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
     BooleanParameter eraseConoutrs = new BooleanParameter("Erase contours", false).setHint("Set contours of segmented regions to zero");
     BoundedNumberParameter limitClassFrequencyRatio = new BoundedNumberParameter("Limit class frequency ratio", 1, 0, 0, null).setHint("If a value greater than 0 is set, the class frequency ratio is limited to this ratio");
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
-    EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
-
-    BoundedNumberParameter plane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
-    ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
-            .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, plane)
-            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
-
+    ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     @Override
     public String getHintText() {
         return "Extract a weight map as described in the UNet original publication: a weight that depends on the distance of the neighboring object between objects, and a weight that depend on the proportion of object in the whole image inside the objects";
@@ -74,11 +66,11 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
                 r.getContour().forEach(v -> res.setPixel(v.x, v.y, v.z, 0));
             });
         }
-        return handleZ(res, extractZ.getSelectedEnum(), plane.getIntValue());
+        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
     }
 
     public Task.ExtractZAxis getExtractZDim() {
-        return extractZ.getSelectedEnum();
+        return extractZ.getExtractZDim();
     }
 
     @Override
@@ -88,7 +80,7 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{sigma, wo, eraseConoutrs, limitClassFrequencyRatio, interpolation, extractZCond};
+        return new Parameter[]{sigma, wo, eraseConoutrs, limitClassFrequencyRatio, interpolation, extractZ};
     }
 
     @Override

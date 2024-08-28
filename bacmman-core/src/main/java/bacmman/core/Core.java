@@ -69,7 +69,6 @@ public class Core {
     public boolean tfSetAllowGrowth=false;
     public double tfPerProcessGpuMemoryFraction=1;
     final List<Runnable> toFront = new ArrayList<>();
-    final List<DiskBackedImageManager> diskBackedImageManagers = new ArrayList<>();
     protected Consumer<String> closePosition;
     public static Core getCore() {
         if (core==null) {

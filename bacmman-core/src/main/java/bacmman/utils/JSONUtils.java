@@ -26,9 +26,15 @@ import bacmman.data_structure.Selection;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import bacmman.image.Image;
+import bacmman.image.LazyImage5D;
+import bacmman.image.PrimitiveType;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
@@ -364,5 +370,30 @@ public class JSONUtils {
             if (json.containsKey(k)) return json.get(k);
         }
         return null;
+    }
+    public static JSONArray toJSON(Image image) {
+        if (image instanceof LazyImage5D) throw new IllegalArgumentException("Image5D not supported yet");
+        BiFunction<Integer, Integer, JSONArray> getLine = (y, z) -> {
+            JSONArray res = new JSONArray();
+            for (int x = 0; x<image.sizeX(); ++x) {
+                if (image instanceof PrimitiveType.FloatType) res.add(image.getPixel(x, y, z));
+                else res.add((int)image.getPixel(x, y, z));
+            }
+            return res;
+        };
+        Function<Integer, JSONArray> getPlane = z -> {
+            if (image.sizeY()==1 && image.sizeZ()==1) return getLine.apply(0, z);
+            else {
+                JSONArray res = new JSONArray();
+                for (int y = 0; y<image.sizeY();++y) res.add(getLine.apply(y, z));
+                return res;
+            }
+        };
+        if (image.sizeZ() == 1) return getPlane.apply(0);
+        else {
+            JSONArray res = new JSONArray();
+            for (int z = 0; z<image.sizeZ();++z) res.add(getPlane.apply(z));
+            return res;
+        }
     }
 }

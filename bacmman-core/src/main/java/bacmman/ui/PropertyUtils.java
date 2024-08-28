@@ -119,7 +119,11 @@ public class PropertyUtils {
         return Boolean.parseBoolean(getProps().getProperty(key, Boolean.toString(defaultValue)));
     }
     public static int get(String key, int defaultValue) {
-        return Integer.parseInt(getProps().getProperty(key, Integer.toString(defaultValue)));
+        try {
+            return Integer.parseInt(getProps().getProperty(key, Integer.toString(defaultValue)));
+        } catch (NumberFormatException e) {
+            return (int)get(key, (double)defaultValue);
+        }
     }
     public static double get(String key, double defaultValue) {
         return Double.parseDouble(getProps().getProperty(key, Double.toString(defaultValue)));

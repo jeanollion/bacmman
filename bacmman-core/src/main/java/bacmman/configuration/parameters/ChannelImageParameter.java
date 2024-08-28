@@ -32,6 +32,10 @@ public class ChannelImageParameter extends ObjectClassOrChannelParameter<Channel
     public ChannelImageParameter(String name) {
         this(name, -1);
     }
+
+    public ChannelImageParameter(String name, boolean allowNoSelection, boolean multipleSelection) {
+        super(name, -1, allowNoSelection, multipleSelection);
+    }
     
     public ChannelImageParameter(String name, int selectedChannel) {
         super(name, selectedChannel, false, false);

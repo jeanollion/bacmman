@@ -18,6 +18,12 @@ public class ConstantScaler implements HistogramScaler, Hint {
     NumberParameter center = (NumberParameter)new NumberParameter("Center", 5, 0).setEmphasized(true);
     BooleanParameter saturate = new BooleanParameter("Saturate", false).setEmphasized(false).setHint("If true, values under min percentile and values over max percentile are set to 0 and 1 respectively");
 
+    public ConstantScaler setParameters(double center, double scale) {
+        this.scale.setValue(scale);
+        this.center.setValue(center);
+        return this;
+    }
+
     @Override
     public void setHistogram(Histogram histogram) {
 

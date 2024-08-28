@@ -26,6 +26,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     Parameter[] otherParameters;
     Supplier<Path> refPathFun;
     public TrainingConfigurationParameter(String name, boolean multipleInputChannels, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
+        this(name, multipleInputChannels, true, trainingParameters, globalDatasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testDataAugmentationParameters);
+    }
+    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean scaling, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         super(name);
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);
         this.trainingParameters.loadModelName.addValidationFunction(lmn -> {
@@ -38,7 +41,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             return p.resolve(file).toFile().exists();
         });
         this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
-        this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, dataAugmentationParameters, otherDatasetParameters))
+        this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, scaling, dataAugmentationParameters, otherDatasetParameters))
             .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true)
             .setChildrenNumber(1).addValidationFunction(l -> !l.getActivatedChildren().isEmpty());
         if (otherParameters == null) otherParameters = new Parameter[0];
@@ -81,8 +84,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return this;
     }
 
-    public TrainingConfigurationParameter setConcatBatchSize(int... inputShape) {
+    public TrainingConfigurationParameter setInputShape(int... inputShape) {
         this.globalDatasetParameters.inputShape.setValue(inputShape);
+        return this;
+    }
+
+    public TrainingConfigurationParameter setTestInputShape(int... inputShape) {
+        this.testInputShape.setValue(inputShape);
         return this;
     }
 
@@ -366,12 +374,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public String getPythonConfigurationKey() {return "training_parameters";}
     }
 
-    enum TILE_NUMBER_MODE {CONSTANT, AUTOMATIC}
+    public enum TILE_NUMBER_MODE {CONSTANT, AUTOMATIC}
+    enum DATASET_TYPE {TRAIN, TEST, EVAL}
     public class DatasetParameter extends GroupParameterAbstract<DatasetParameter> implements PythonConfiguration, Deactivatable {
         FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_OR_DIRECTORY,false)
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
         TextParameter channel = new TextParameter("Channel Name", "raw", false, false).setHint("Name of images / movies to consider within the dataset");
+        EnumChoiceParameter<DATASET_TYPE> type = new EnumChoiceParameter<>("Dataset Type", DATASET_TYPE.values(), DATASET_TYPE.TRAIN).setHint("Puropose of dataset: training, test (loss computation during training), evaluation (metric computation)");
         SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", 0, channel).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0);
         DLScalingParameter scaler = new DLScalingParameter("Intensity Scaling");
         SimpleListParameter<DLScalingParameter> scalers = new SimpleListParameter<>("Intensity Scaling", scaler).setHint("Input channel scaling parameter (one per channel or one for all channels)")
@@ -380,10 +390,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch. <br /> e.g.: 0.5 means a batch has twice less chances to be picked from this dataset compared to 1.");
         ChoiceParameter loadInSharedMemory = new ChoiceParameter("Load in shared memory", new String[]{"true", "auto", "false"}, "auto", false).setHint("If true, the whole dataset will be loaded in shared memory, to improve access and memory management when using multiprocessing. <br/>Disable this option for large datasets that do not fit in shared memory. <br/>Amount of shared memory is set in the docker options. <br/> In auto mode, dataset is loaded only if Gb of shared memory for files smaller than 16Gb. When several datasets are concatenated, this test is performed independently for each dataset, so shared memory can be filled");
 
-        final boolean multipleChannel;
+        final boolean multipleChannel, scaling;
         final GroupParameter dataAug;
         final Parameter[] otherParameters;
-        protected DatasetParameter(String name, boolean multipleChannel, Parameter[] dataAugParameters, Parameter[] otherParameters){
+        protected DatasetParameter(String name, boolean multipleChannel, boolean scaling, Parameter[] dataAugParameters, Parameter[] otherParameters){
             super(name);
             path.setGetRefPathFunction(p -> refPathFun == null ? null : refPathFun.get());
             this.multipleChannel=multipleChannel;
@@ -393,10 +403,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             if (multipleChannel) children.add(channels);
             else children.add(channel);
             children.add(keyword);
+            children.add(type);
             children.add(concatProp);
             children.add(loadInSharedMemory);
-            if (multipleChannel) children.add(scalers);
-            else children.add(scaler);
+            this.scaling = scaling;
+            if (scaling) {
+                if (multipleChannel) children.add(scalers);
+                else children.add(scaler);
+            }
             children.addAll(Arrays.asList(this.otherParameters));
             if (dataAugParameters == null) dataAugParameters = new Parameter[0];
             dataAug = new GroupParameter("Data Augmentation", ParameterUtils.duplicateArray(dataAugParameters));
@@ -429,7 +443,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
         @Override
         public DatasetParameter duplicate() {
-            DatasetParameter res = new DatasetParameter(name, multipleChannel, ParameterUtils.duplicateArray(dataAug.children.toArray(new Parameter[0])), ParameterUtils.duplicateArray(otherParameters));
+            DatasetParameter res = new DatasetParameter(name, multipleChannel, scaling, ParameterUtils.duplicateArray(dataAug.children.toArray(new Parameter[0])), ParameterUtils.duplicateArray(otherParameters));
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
@@ -440,15 +454,18 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             if (path.selectedFiles.length>0) res.put("path", path.selectedFiles[0]); // relative path if possible
             res.put("channel_name", multipleChannel ? channels.toJSONEntry() : channel.toJSONEntry());
             res.put("keyword", keyword.toJSONEntry());
+            res.put("type", type.toJSONEntry());
             res.put("concat_proportion", concatProp.toJSONEntry());
             res.put("shared_memory", loadInSharedMemory.toJSONEntry());
             PythonConfiguration.putParameters(this.otherParameters, res);
             JSONObject dataAug = new JSONObject();
             res.put("data_augmentation", dataAug);
-            if (multipleChannel) {
-                dataAug.put(scaler.getPythonConfigurationKey(), scalers.getPythonConfiguration());
-            } else {
-                dataAug.put(scaler.getPythonConfigurationKey(), scaler.getPythonConfiguration());
+            if (scaling) {
+                if (multipleChannel) {
+                    dataAug.put(scaler.getPythonConfigurationKey(), scalers.getPythonConfiguration());
+                } else {
+                    dataAug.put(scaler.getPythonConfigurationKey(), scaler.getPythonConfiguration());
+                }
             }
             PythonConfiguration.putParameters(this.dataAug.children, dataAug);
             return res;
@@ -501,18 +518,21 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BooleanParameter augRotate = new BooleanParameter("Augmentation Rotate", true).setHint("If false, tiles are only flipped during random rotate");
         ConditionalParameter<Boolean> performAugCond = new ConditionalParameter<>(performAug).setActionParameters(true, augRotate);
         BoundedNumberParameter interpolationOrder = new BoundedNumberParameter("Interpolation Order", 0, 1, 0, 5).setHint("The order of the spline interpolation for zoom in / zoom out");
-
+        boolean constant, allowJitter;
         public RandomTilingParameter(String name) {
             super(name);
             this.children = new ArrayList<>();
-            setConstant(false);
+            setConstant(false, true);
         }
 
-        public RandomTilingParameter setConstant(boolean constant) {
+        public RandomTilingParameter setConstant(boolean constant, boolean allowJitter) {
             children.clear();
+            this.constant = constant;
+            this.allowJitter = allowJitter;
             if (constant) {
                 children.add(tileNumberModeCond);
                 children.add(performAugCond);
+                if (allowJitter) children.add(jitter);
                 zoomRange.setValues(1, 1);
                 aspectRatioRange.setValues(1, 1);
                 jitter.setValue(0, 0);
@@ -525,7 +545,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 children.add(zoomRange);
                 children.add(aspectRatioRange);
                 children.add(zoomProba);
-                children.add(jitter);
+                if (allowJitter) children.add(jitter);
                 children.add(performAugCond);
                 children.add(randomStride);
                 children.add(interpolationOrder);
@@ -534,9 +554,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             return this;
         }
 
+        public RandomTilingParameter setTileNumberMode(TILE_NUMBER_MODE mode, int defaultTileNumber, double defaultTileOverlapFraction) {
+            tileNumberMode.setSelectedEnum(mode);
+            nTiles.setValue(defaultTileNumber);
+            this.tileOverlapFraction.setValue(defaultTileOverlapFraction);
+            return this;
+        }
+
         @Override
         public RandomTilingParameter duplicate() {
-            RandomTilingParameter res = new RandomTilingParameter(name);
+            RandomTilingParameter res = new RandomTilingParameter(name).setConstant(constant, allowJitter);
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
@@ -555,9 +582,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 case CONSTANT:
                     json.put("n_tiles", nTiles.getIntValue());
             }
-            json.put("random_channel_jitter_shape", jitter.toJSONEntry());
-            for (Parameter p : new Parameter[]{zoomRange, aspectRatioRange, zoomProba, performAug, augRotate, randomStride, interpolationOrder}) {
-                json.put(toSnakeCase(p.getName()), p.toJSONEntry());
+            if (allowJitter) json.put("random_channel_jitter_shape", jitter.toJSONEntry());
+            json.put(toSnakeCase(performAug.getName()), performAug.toJSONEntry());
+            json.put(toSnakeCase(augRotate.getName()), augRotate.toJSONEntry());
+            if (!constant) {
+                for (Parameter p : new Parameter[]{zoomRange, aspectRatioRange, zoomProba, randomStride, interpolationOrder}) {
+                    json.put(toSnakeCase(p.getName()), p.toJSONEntry());
+                }
             }
             return json;
         }
@@ -565,7 +596,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public enum RESIZE_OPTION {RANDOM_TILING, CONSTANT_SIZE, CONSTANT_TILING} // PAD, RESAMPLE
     public static class InputSizerParameter extends ConditionalParameterAbstract<RESIZE_OPTION, InputSizerParameter> implements PythonConfiguration {
         RandomTilingParameter randomTiling = new RandomTilingParameter("Tiling");
-        RandomTilingParameter constantTiling = new RandomTilingParameter("Tiling").setConstant(true);
+        RandomTilingParameter constantTiling = new RandomTilingParameter("Tiling").setConstant(true, false);
         public InputSizerParameter(String name) {
             this(name, RESIZE_OPTION.CONSTANT_SIZE);
         }

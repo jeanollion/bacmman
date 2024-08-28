@@ -9,6 +9,7 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.ui.PropertyUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -75,6 +76,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
 
     @Override
     public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
+        int compression = PropertyUtils.get("extract_DS_compression", 0);
         int selOC = objectClass.getSelectedClassIdx();
         int parentOC = parentObjectClass.getSelectedClassIdx();
         int frameInterval = this.frameInteval.getIntValue();
@@ -104,7 +106,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             }
         }
         if (selectionContainer != null) selectionContainer.add(selection);
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, outputFile, spatialDownsampling.getIntValue(), 0);
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, outputFile, spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

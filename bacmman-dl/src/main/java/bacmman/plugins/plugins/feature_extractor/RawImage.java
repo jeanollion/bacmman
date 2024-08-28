@@ -7,54 +7,40 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.Hint;
+import ij.plugin.Raw;
 import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Map;
 
 public class RawImage implements FeatureExtractor, Hint {
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
-    EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
-    BoundedNumberParameter plane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
-    ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
-            .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, plane)
-            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
-
+    ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     public Task.ExtractZAxis getExtractZDim() {
-        return this.extractZ.getSelectedEnum();
+        return this.extractZ.getExtractZDim();
     }
 
     public RawImage setExtractZ(Task.ExtractZAxis mode, int planeIdx) {
-        this.plane.setValue(planeIdx);
-        this.extractZ.setSelectedEnum(mode);
+        this.extractZ.setPlaneIdx(planeIdx);
+        this.extractZ.setExtractZDim(mode);
         return this;
     }
 
     public RawImage setExtractZ(Task.ExtractZAxis mode) {
-        this.extractZ.setSelectedEnum(mode);
+        this.extractZ.setExtractZDim(mode);
+        return this;
+    }
+
+    public RawImage setInterpolation(InterpolationParameter.INTERPOLATION interpolation) {
+        this.interpolation.setActionValue(interpolation);
         return this;
     }
 
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res = parent.getRawImage(objectClassIdx);
-        return handleZ(res, extractZ.getSelectedEnum(), plane.getIntValue());
+        return ExtractZAxisParameter.handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
     }
-    public static Image handleZ(Image image, Task.ExtractZAxis extractZ, int zPlane) {
-        switch (extractZ) {
-            case IMAGE3D:
-            case BATCH:
-            default:
-                return image;
-            case SINGLE_PLANE:
-                return image.getZPlane(zPlane);
-            case MIDDLE_PLANE:
-                return image.getZPlane(image.sizeZ()/2);
-            case CHANNEL: // simply transpose dimensions x,y,z -> z,y,x
-                Image im = Image.createEmptyImage(image.getName(), image, image);
-                BoundingBox.loop(image, (x, y, z) -> im.setPixel(z, x, y, image.getPixel(x, y, z)));
-                return im;
-        }
-    }
+
     @Override
     public InterpolatorFactory interpolation() {
         return interpolation.getInterpolation();
@@ -62,7 +48,7 @@ public class RawImage implements FeatureExtractor, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{interpolation, extractZCond};
+        return new Parameter[]{interpolation, extractZ};
     }
 
     @Override

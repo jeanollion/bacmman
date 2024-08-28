@@ -10,6 +10,7 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONObject;
 
@@ -29,7 +30,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
     enum CENTER_MODE {MEDOID, GEOMETRICAL, SKELETON, EDM_MAX}
     EnumChoiceParameter<CENTER_MODE> center = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID);
-    GroupParameter datasetFeatures = new GroupParameter("Dataset Features", center).setHint("MEDOID: ");
+    GroupParameter datasetFeatures = new GroupParameter("Dataset Features", center);
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE), datasetFeatures};
     Parameter[] otherParameters = new Parameter[]{arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
@@ -69,7 +70,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     @Override
     public String getHintText() {
-        return "Training for Distnet2D<br/> If you use this method please cite: Ollion, J., Maliet, M., Giuglaris, C., Vacher, E., & Deforet, M. (2023). DistNet2D: Leveraging long-range temporal information for efficient segmentation and tracking. PRXLife";
+        return "Training for Distnet2D<br/> If you use this method please cite: Ollion, J., Maliet, M., Giuglaris, C., Vacher, E., & Deforet, M. (2024). DistNet2D: Leveraging long-range temporal information for efficient segmentation and tracking. PRXLife";
     }
 
     @Override
@@ -84,6 +85,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     @Override
     public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
+        int compression = PropertyUtils.get("extract_DS_compression", 0);
         int selOC = objectClass.getSelectedClassIdx();
         List<String> selections;
         switch (selMode.getSelectedEnum()) {
@@ -107,7 +109,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), 0);
+        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
 
     }
 
