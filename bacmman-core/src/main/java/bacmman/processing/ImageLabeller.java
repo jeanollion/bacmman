@@ -156,18 +156,18 @@ public class ImageLabeller {
                                 long next = cc.translate(coord, t[0], t[1], t[2]);
                                 int nextLabel = cc.getPixelInt(imLabels, next);
                                 if (nextLabel != 0) {
-                                    if (currentSpot == null) {
+                                    if (currentSpot == null) { // add current voxel to existing spot
                                         currentSpot = spots.get(nextLabel);
                                         currentSpot.addVox(coord);
-                                    } else if (nextLabel != currentSpot.label) {
+                                    } else if (nextLabel != currentSpot.label) { // merge current spot and existing neighboring spot
                                         currentSpot = currentSpot.fusion(spots.get(nextLabel));
-                                        currentSpot.addVox(coord);
                                     }
                                 }
                             }
                         }
-                        if (currentSpot == null) {
-                            spots.put(currentLabel, new Spot(currentLabel++, coord));
+                        if (currentSpot == null) { // no neighboring spot -> create new spot
+                            spots.put(currentLabel, new Spot(currentLabel, coord));
+                            ++currentLabel;
                         }
                     }
                 }
@@ -186,22 +186,22 @@ public class ImageLabeller {
                     if (cc.insideMask(mask, coord)) {
                         Spot currentSpot = null;
                         for (int i = 0; i<n.getValueCount(); ++i) {
-                            int nextLabel = n.getPixelValuesInt()[i]; // double values might not be enough...
+                            int nextLabel = n.getPixelValuesInt()[i];
                             if (nextLabel != 0) {
                                 if (currentSpot == null) {
                                     currentSpot = spots.get(nextLabel);
                                     currentSpot.addVox(coord);
                                 } else if (nextLabel != currentSpot.label) {
-                                    int l = currentSpot.label;
+                                    int oldLabel = currentSpot.label;
                                     currentSpot = currentSpot.fusion(spots.get(nextLabel));
-                                    currentSpot.addVox(coord);
-                                    if (currentSpot.label!=nextLabel) l = nextLabel;
-                                    for (int j = i+1; j<n.getValueCount(); ++j) if (n.getPixelValuesInt()[j]==l) n.getPixelValuesInt()[j] = currentSpot.label;
+                                    if (currentSpot.label==oldLabel) oldLabel = nextLabel;
+                                    for (int j = i+1; j<n.getValueCount(); ++j) if (n.getPixelValuesInt()[j]==oldLabel) n.getPixelValuesInt()[j] = currentSpot.label;
                                 }
                             }
                         }
                         if (currentSpot == null) {
-                            spots.put(currentLabel, new Spot(currentLabel++, coord));
+                            spots.put(currentLabel, new Spot(currentLabel, coord));
+                            ++currentLabel;
                         }
                     }
                 }

@@ -811,24 +811,29 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         return split(pop, modifiedObjects).get(0);
     }
 
+    /**
+     *
+     * @param pop
+     * @param modifiedObjects
+     * @return new objects excluding current object
+     */
     List<SegmentedObject> split(RegionPopulation pop, Collection<SegmentedObject> modifiedObjects) {
         if (isRoot()) throw new RuntimeException("Cannot split root object");
-        if (pop.getRegions().size() <= 1) return Collections.emptyList();
+        if (pop.getRegions().isEmpty()) throw new IllegalArgumentException("Split: no objects");
         pop.getRegions().forEach(r -> r.regionModified = true);
-        // set landmark
-        if (!pop.isAbsoluteLandmark()) {
+        if (!pop.isAbsoluteLandmark()) { // set landmark
             pop.translate(getParent().getBounds(), true);
             //logger.debug("offsets: {}", Utils.toStringList(pop.getRegions(), r -> new SimpleOffset(r.getBounds())));
         }
         // first object is updated to current structureObject
-        this.region =pop.getRegions().get(0).setLabel(idx+1);
+        this.region = pop.getRegions().get(0).setLabel(idx+1);
         regionContainer = null;
         setAttribute(EDITED_SEGMENTATION, true);
         flushImages();
         // other objects are added to parent and returned
-        List<SegmentedObject> res = IntStream.range(1, pop.getRegions().size()).mapToObj(i -> {
+        List<SegmentedObject> res = pop.getRegions().size()==1 ? Collections.emptyList() : IntStream.range(1, pop.getRegions().size()).mapToObj(i -> {
             int[] otherIdxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(getParent().getDirectChildren(structureIdx));
-            SegmentedObject o = new SegmentedObject(timePoint, structureIdx, otherIdxAndIP[0], pop.getRegions().get(1), getParent());
+            SegmentedObject o = new SegmentedObject(timePoint, structureIdx, otherIdxAndIP[0], pop.getRegions().get(i), getParent());
             if (otherIdxAndIP[1]>=0) getParent().getDirectChildren(structureIdx).add(otherIdxAndIP[1], o);
             else getParent().getDirectChildren(structureIdx).add(o);
             o.setAttribute(EDITED_SEGMENTATION, true);

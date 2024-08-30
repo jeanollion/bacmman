@@ -25,9 +25,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     GroupParameter testDataAug;
     Parameter[] otherParameters;
     Supplier<Path> refPathFun;
+
     public TrainingConfigurationParameter(String name, boolean multipleInputChannels, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         this(name, multipleInputChannels, true, trainingParameters, globalDatasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testDataAugmentationParameters);
     }
+    
     public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean scaling, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         super(name);
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);

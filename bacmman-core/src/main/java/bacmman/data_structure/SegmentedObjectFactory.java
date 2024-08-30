@@ -101,6 +101,12 @@ public class SegmentedObjectFactory {
         return object.splitInTwo(input, splitter, modifiedObjects);
     }
 
+    /**
+     *
+     * @param pop
+     * @param modifiedObjects
+     * @return new objects excluding current object
+     */
     public List<SegmentedObject> split(SegmentedObject object, RegionPopulation pop, Collection<SegmentedObject> modifiedObjects) {
         if (!object.getBounds().sameDimensions(pop.getImageProperties())) throw new IllegalArgumentException("Population must have same bounds as object");
         return object.split(pop, modifiedObjects);

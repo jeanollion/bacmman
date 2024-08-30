@@ -279,11 +279,13 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public void delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings) {
         if (readOnly) return;
+        SegmentedObjectAccessor accessor = mDAO.getAccess();
         SegmentedObjectUtils.splitByStructureIdx(list, true).forEach((ocIdx, l) -> {
-            long[] ids = list.stream().mapToLong(o -> (Long)o.getId()).toArray();
-            deleteTransaction(ids, ocIdx, deleteChildren, deleteFromParent);
+            long[] ids = l.stream().mapToLong(o -> (Long)o.getId()).toArray();
+            deleteTransaction(ids, ocIdx, deleteChildren, false);
+            if (deleteFromParent && ocIdx>=0) l.forEach(o -> accessor.getDirectChildren(o.getParent(), o.getStructureIdx()).remove(o)); // safer than from deleteTransaction, in case objects have not been stored
             if (ocIdx>=0 && relabelSiblings) {
-                long[] parentIds = list.stream().mapToLong(o -> (Long)o.getParentId()).distinct().toArray();
+                long[] parentIds = l.stream().mapToLong(o -> (Long)o.getParentId()).distinct().toArray();
                 List<Stream<SegmentedObjectBox>> siblingList = new ArrayList<>();
                 objectStores.get(ocIdx).runInReadTx(() -> {
                     for (long pId : parentIds) {

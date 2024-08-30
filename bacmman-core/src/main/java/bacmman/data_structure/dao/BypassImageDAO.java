@@ -71,7 +71,9 @@ public class BypassImageDAO implements ImageDAO {
 
     @Override
     public BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException {
-        return new BlankMask(openPreProcessedImage(channelImageIdx, 0));
+        Image im = openPreProcessedImage(channelImageIdx, 0);
+        if (im == null) throw new IOException("Could not open mask for channel: "+channelImageIdx);
+        return new BlankMask(im);
     }
 
     @Override

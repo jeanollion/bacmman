@@ -286,7 +286,7 @@ public class Utils {
     }
 
     public static <T, P> boolean twoObjectsHaveSameProperty(Collection<T> objects, Function<T, P> propertyFunction) {
-        if (objects==null || objects.size()<=1) return true;
+        if (objects==null || objects.size()<=1) return false;
         Set<P> allProperties = new HashSet<>(objects.size());
         for (T o: objects) {
             P prop=propertyFunction.apply(o);
@@ -295,6 +295,18 @@ public class Utils {
         }
         return false;
     }
+
+    public static <T> boolean twoObjectsHaveSameProperty(Collection<T> objects, BiPredicate<T, T> equals) {
+        if (objects==null || objects.size()<=1) return false;
+        List<T> objectL = objects instanceof List ? ((List<T>)objects) : new ArrayList<>(objects);
+        for (int i = 1; i<objects.size();++i) {
+            for (int j = 0; j<i; ++j) {
+                if (equals.test(objectL.get(i), objectL.get(j))) return true;
+            }
+        }
+        return false;
+    }
+
     public static <T> T getElementAt(Collection<T> collection, int idx) {
         if (collection.size()<=idx) return null;
         if (collection instanceof List) return ((List<T>)collection).get(idx);
