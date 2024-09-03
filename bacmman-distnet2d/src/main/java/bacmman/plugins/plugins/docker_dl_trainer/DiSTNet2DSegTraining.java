@@ -114,7 +114,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     }
 
     @Override
-    public DLModelMetadata getDLModelMetadata() {
+    public DLModelMetadata getDLModelMetadata(String workingDirectory) {
         ArchitectureParameter archP = (ArchitectureParameter)getConfiguration().getOtherParameters()[0];
         boolean timelapse = archP.timelapse.getSelected();
         int frameWindow = archP.frameWindow.getIntValue();

@@ -118,7 +118,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     }
 
     @Override
-    public DLModelMetadata getDLModelMetadata() {
+    public DLModelMetadata getDLModelMetadata(String workingDirectory) {
         ArchitectureParameter archP = (ArchitectureParameter)getConfiguration().getOtherParameters()[0];
         boolean next = archP.next.getSelected();
         int frameWindow = archP.frameWindow.getIntValue();

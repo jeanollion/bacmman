@@ -451,7 +451,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             else {
                 setMessage("Successfully authenticated to account to store configuration to.");
                 DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
-                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
+                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata(currentWorkingDirectory).setDockerDLTrainer(trainer), getSavedModelPath());
                 // set back properties
                 if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
                 epochLabel.setText("Epoch:");

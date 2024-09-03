@@ -82,7 +82,7 @@ public class PixMClass implements DockerDLTrainer {
     }
 
     @Override
-    public DLModelMetadata getDLModelMetadata() {
+    public DLModelMetadata getDLModelMetadata(String workingDirectory) {
         DLModelMetadata.DLModelInputParameter[] inputs = new DLModelMetadata.DLModelInputParameter[this.configuration.getChannelNumber()];
         for (int i = 0; i<inputs.length; ++i) inputs[i] = new DLModelMetadata.DLModelInputParameter("Input")
             .setChannelNumber(1).setShape(0)
