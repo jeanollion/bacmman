@@ -41,6 +41,7 @@
         <module>bacmman-objectbox</module>
         <module>bacmman-test</module>
         <module>bacmman-mapdb</module>
+        <module>bacmman-blissed</module>
     </modules>
 
     <name>BACMMAN</name>

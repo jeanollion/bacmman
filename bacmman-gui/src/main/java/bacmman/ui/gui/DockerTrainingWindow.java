@@ -702,7 +702,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 String mountParent = dirMapMountDir.get(parentDir);
                 String fileName = path.getFileName().toString();
                 dsParam.setFilePath(mountParent + "/" + fileName);
-                logger.debug("new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
+                //logger.debug("new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
             }
         });
         return dirMapMountDir;
