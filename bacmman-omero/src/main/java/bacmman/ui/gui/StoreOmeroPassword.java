@@ -7,18 +7,12 @@ import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
+import java.security.GeneralSecurityException;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -89,8 +83,7 @@ public class StoreOmeroPassword {
         try {
             OmeroGateway.encryptPassword(hostname.getText(), username.getText(), localPasswordField.getPassword(), remotePasswordField.getPassword());
             saveCurrentConnectionParameters();
-        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException |
-                 InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
+        } catch (GeneralSecurityException e) {
             logger.error("Error while storing password", e);
         }
     }

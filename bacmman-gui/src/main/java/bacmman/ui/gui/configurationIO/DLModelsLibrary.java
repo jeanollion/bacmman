@@ -24,8 +24,7 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
+import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -281,8 +280,7 @@ public class DLModelsLibrary {
                                         updateGistDisplay();
                                         tree.setSelectedGist(toSave);
                                     }
-                                } catch (IllegalArgumentException | NoSuchAlgorithmException |
-                                         InvalidKeySpecException ex) {
+                                } catch (GeneralSecurityException ex) {
                                     pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 } catch (IOException ex) {
                                     if (pcb != null) pcb.setMessage("Error saving gist" + ex.getMessage());

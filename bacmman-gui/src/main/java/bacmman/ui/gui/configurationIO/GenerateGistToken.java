@@ -25,9 +25,7 @@ import java.awt.event.*;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
+import java.security.GeneralSecurityException;
 
 import static bacmman.ui.gui.Utils.addCopyMenu;
 
@@ -159,8 +157,7 @@ public class GenerateGistToken extends JDialog {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Token stored successfully");
                 result = new Pair<>(this.username.getText(), this.password.getPassword());
                 dispose();
-            } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException |
-                     InvalidKeySpecException | BadPaddingException | InvalidKeyException t) {
+            } catch (GeneralSecurityException t) {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Could not store token");
                 logger.error("could not store token", t);
             }

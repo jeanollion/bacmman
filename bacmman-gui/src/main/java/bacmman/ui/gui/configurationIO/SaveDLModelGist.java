@@ -22,8 +22,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
+import java.security.GeneralSecurityException;
 import java.util.function.Consumer;
 
 import static bacmman.github.gist.GistDLModel.BASE_URL;
@@ -249,8 +248,7 @@ public class SaveDLModelGist {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                         promptDeleteExisting(auth2);
                                         uploadFile.accept(auth2);
-                                    } catch (IllegalArgumentException | NoSuchAlgorithmException |
-                                             InvalidKeySpecException ex) {
+                                    } catch (GeneralSecurityException ex) {
                                         if (pcb != null)
                                             pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                     }
@@ -278,8 +276,7 @@ public class SaveDLModelGist {
                                     try {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                         deleteFile(auth2);
-                                    } catch (IllegalArgumentException | NoSuchAlgorithmException |
-                                             InvalidKeySpecException ex) {
+                                    } catch (GeneralSecurityException ex) {
                                         if (pcb != null)
                                             pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                     }

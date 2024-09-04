@@ -29,8 +29,7 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -416,8 +415,7 @@ public class ConfigurationLibrary {
                                         remoteSelector.addGist(toSave);
                                         remoteSelector.setSelectedGist(toSave, -1);
                                     }
-                                } catch (IllegalArgumentException | NoSuchAlgorithmException |
-                                         InvalidKeySpecException ex) {
+                                } catch (GeneralSecurityException ex) {
                                     bacmmanLogger.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 }
                             }
