@@ -9,7 +9,6 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.TokenAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.HDF5IO;
@@ -17,7 +16,6 @@ import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
-import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
@@ -44,8 +42,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -676,6 +672,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
+            Map<String, String> dirMapMountDir = fixDatasetDirectories(trainer);
+            dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), 0, DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
@@ -688,6 +686,26 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             return null;
         }
+    }
+
+    protected Map<String, String> fixDatasetDirectories(DockerDLTrainer trainer) {
+        int[] counter = new int[1];
+        Map<String, String> dirMapMountDir = HashMapGetCreate.getRedirectedMap(dir -> "/data" + counter[0]++, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
+        Path curPath = Paths.get(currentWorkingDirectory).normalize().toAbsolutePath();
+        dsList.getChildren().forEach(dsParam -> {
+            String relPath = dsParam.getFilePath();
+            Path path = curPath.resolve(relPath).normalize().toAbsolutePath();
+            if (!curPath.startsWith(path)) { // currentWorkingDirectory is not parent of this dataset -> generate new mount
+                dsParam.setRefPathFun(() -> null); // absolute
+                String parentDir = path.getParent().toString();
+                String mountParent = dirMapMountDir.get(parentDir);
+                String fileName = path.getFileName().toString();
+                dsParam.setFilePath(mountParent + "/" + fileName);
+                logger.debug("new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
+            }
+        });
+        return dirMapMountDir;
     }
 
     @Override
@@ -1063,10 +1081,16 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setMessage("Error writing docker options: " + e.toString() + " content: " + dockerConfig.read());
             }
         }
-        if (pythonTrain)
-            pythonConfig.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);
-        if (pythonTest)
-            pythonConfigTest.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);
+        if (pythonTrain) {
+            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+            fixDatasetDirectories(trainer);
+            pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
+        }
+        if (pythonTest) {
+            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+            fixDatasetDirectories(trainer);
+            pythonConfigTest.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
+        }
         if (extract) {
             if (extractConfig != null && extractConfig.getRoot().isValid()) {
                 javaExtractConfig.write(JSONUtils.toJSONString(extractConfig.getRoot().toJSONEntry()), false);

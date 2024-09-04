@@ -1,6 +1,5 @@
 package bacmman.configuration.parameters;
 
-import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -351,7 +350,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public String getLoadModelWeightFileName() {
             File f = loadModelName.getModelFile();
             if (f == null) return null;
-            else return f.getName();
+            else { // relative path to weight dir
+                Path wPath = refPathFun.get().resolve(weightDir.getValue());
+                return wPath.relativize(Paths.get(f.getAbsolutePath())).toString();
+                //return f.getName();
+            }
         }
         public String getSavedWeightRelativePath() {
             if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), getModelWeightFileName()).toString();
@@ -437,6 +440,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public DatasetParameter setFilePath(String path) {
             this.path.setSelectedFilePath(path);
             return this;
+        }
+
+        public String getFilePath() {
+            return this.path.getFirstSelectedFilePath();
         }
 
         public List<Parameter> getDataAugmentationParameters() {
