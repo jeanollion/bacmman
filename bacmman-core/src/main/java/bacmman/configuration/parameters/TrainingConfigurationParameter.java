@@ -103,7 +103,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         this.trainingParameters.stepNumber.setValue(value);
         return this;
     }
-    public TrainingConfigurationParameter setLearningRate(int value) {
+    public TrainingConfigurationParameter setLearningRate(double value) {
         this.trainingParameters.learningRate.setValue(value);
         return this;
     }

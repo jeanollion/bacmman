@@ -766,7 +766,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     static Pattern epochEndPattern = Pattern.compile("(\\n*Epoch \\d+):");
     static Pattern stepProgressPattern = Pattern.compile("^(\\n*\\s*\\d+)/(\\d+)");
     static Pattern buildProgressPattern = Pattern.compile("^Step (\\d+)/(\\d+)");
-    static Pattern numberPattern = Pattern.compile("(\\d+\\.\\d+e[+|-]\\d+|\\d+\\.\\d+|\\d+)");
+    static Pattern numberPattern = Pattern.compile("[+-]?\\d+(\\.\\d*)?([eE][+-]?\\d+)?");
 
     protected int[] parseProgress(String message) {
         Matcher m = numberPattern.matcher(message);
@@ -789,6 +789,16 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected String parseLearningRate(String message) {
         if (message == null || message.isEmpty()) return null;
         int i = message.toLowerCase().indexOf("lr: ");
+        if (i >= 0) {
+            Matcher m = numberPattern.matcher(message);
+            if (m.find(i)) return m.group();
+            else return null;
+        } else return null;
+    }
+
+    protected String parseEpsilon(String message) {
+        if (message == null || message.isEmpty()) return null;
+        int i = message.toLowerCase().indexOf("epsilon: ");
         if (i >= 0) {
             Matcher m = numberPattern.matcher(message);
             if (m.find(i)) return m.group();
@@ -835,8 +845,11 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
         }
         String lr = parseLearningRate(message);
-        if (lr != null) learningRateLabel.setText("LR: " + lr);
-
+        if (lr != null) lr = "LR: " + lr;
+        else lr = "";
+        String eps = parseEpsilon(message);
+        if (eps != null) lr += " Ɛ: " + eps;
+        learningRateLabel.setText(lr);
 
         //step:
         //201/201 [==============================] - 89s 425ms/step - loss: 0.5438 - lr: 2.0000e-04
