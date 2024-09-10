@@ -30,7 +30,7 @@ import java.util.stream.IntStream;
 import static bacmman.plugins.plugins.segmenters.SpotProbabilityMapSegmenter.METHOD.GAUSSIAN_FIT_ON_PREDICTION;
 import static bacmman.plugins.plugins.segmenters.SpotProbabilityMapSegmenter.METHOD.THRESHOLD_ON_PREDICTION;
 
-public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable<SpotProbabilityMapSegmenter>, TestableProcessingPlugin, Hint {
+public class SpotProbabilityMapSegmenter implements DevPlugin, Segmenter, TrackConfigurable<SpotProbabilityMapSegmenter>, TestableProcessingPlugin, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     ParentObjectClassParameter bacteriaObjectClass = new ParentObjectClassParameter("Bacteria");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");

@@ -672,7 +672,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            Map<String, String> dirMapMountDir = fixDatasetDirectories(trainer);
+            Map<String, String> dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), 0, DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
@@ -688,7 +688,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    protected Map<String, String> fixDatasetDirectories(DockerDLTrainer trainer) {
+    protected Map<String, String> fixDirectories(DockerDLTrainer trainer) {
         int[] counter = new int[1];
         Map<String, String> dirMapMountDir = HashMapGetCreate.getRedirectedMap(dir -> "/data" + counter[0]++, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
@@ -705,6 +705,18 @@ public class DockerTrainingWindow implements ProgressLogger {
                 //logger.debug("new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
             }
         });
+        MLModelFileParameter loadModel = trainer.getConfiguration().getTrainingParameters().getLoadModelFile();
+        String loadModelFile = loadModel.getSelectedPath();
+        if (loadModelFile != null) {
+            Path path = curPath.resolve(loadModelFile).normalize().toAbsolutePath();
+            if (!curPath.startsWith(path)) {
+                loadModel.setGetRefPathFunction(p -> null); // absolute
+                String parentDir = path.getParent().toString();
+                String mountParent = dirMapMountDir.get(parentDir);
+                String fileName = path.getFileName().toString();
+                loadModel.setSelectedFilePath(mountParent + "/" + fileName);
+            }
+        }
         return dirMapMountDir;
     }
 
@@ -799,6 +811,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected String parseEpsilon(String message) {
         if (message == null || message.isEmpty()) return null;
         int i = message.toLowerCase().indexOf("epsilon: ");
+        if (i < 0) i = message.toLowerCase().indexOf("eps: ");
         if (i >= 0) {
             Matcher m = numberPattern.matcher(message);
             if (m.find(i)) return m.group();
@@ -846,10 +859,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
         String lr = parseLearningRate(message);
         if (lr != null) lr = "LR: " + lr;
-        else lr = "";
         String eps = parseEpsilon(message);
-        if (eps != null) lr += " Ɛ: " + eps;
-        learningRateLabel.setText(lr);
+        if (eps != null) {
+            if (lr != null) lr += " | ";
+            else lr = "";
+            lr += " Ɛ: " + eps;
+        }
+        if (lr != null) learningRateLabel.setText(lr);
 
         //step:
         //201/201 [==============================] - 89s 425ms/step - loss: 0.5438 - lr: 2.0000e-04
@@ -1096,12 +1112,12 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
         if (pythonTrain) {
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-            fixDatasetDirectories(trainer);
+            fixDirectories(trainer);
             pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
         }
         if (pythonTest) {
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-            fixDatasetDirectories(trainer);
+            fixDirectories(trainer);
             pythonConfigTest.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
         }
         if (extract) {
