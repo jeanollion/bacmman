@@ -80,8 +80,11 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     public FileChooser setRelativePath(boolean relativePath) {
         if (this.relativePath==relativePath) return this;
-        if (selectedFiles==null || selectedFiles.length==0) return this;
-        Path refPath = this.refPath!=null ? this.refPath : ParameterUtils.getExperiment(this).getPath();
+        if (selectedFiles==null || selectedFiles.length==0) {
+            this.relativePath=relativePath;
+            return this;
+        }
+        Path refPath = this.refPath!=null ? this.refPath : (getRefPathFunction !=null ? getRefPathFunction.get() : ParameterUtils.getExperiment(this).getPath());
         if (refPath==null) throw new RuntimeException("Cannot change relative state, no path detected");
         if (this.relativePath) selectedFiles = toAbsolutePath(refPath, selectedFiles);
         else selectedFiles = toRelativePath(refPath, selectedFiles);
@@ -101,7 +104,11 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         return this;
     }
     public String[] getSelectedFilePath() {
-        if (relativePath) return toAbsolutePath(getRefPath(), selectedFiles);
+        if (selectedFiles == null || selectedFiles.length==0) return new String[0];
+        if (relativePath) {
+            Path refPath = getRefPath();
+            if (refPath != null) return toAbsolutePath(refPath, selectedFiles);
+        }
         return Arrays.copyOf(selectedFiles, selectedFiles.length);
     }
     
@@ -208,6 +215,8 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override public FileChooser duplicate() {
         FileChooser res = new FileChooser(name, option, allowNoSelection).setRelativePath(relativePath);
         res.selectedFiles = Arrays.copyOf(selectedFiles, selectedFiles.length);
+        res.setRefPathFunction(getRefPathFunction);
+        res.setRefPath(refPath);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         res.setHint(toolTipText);

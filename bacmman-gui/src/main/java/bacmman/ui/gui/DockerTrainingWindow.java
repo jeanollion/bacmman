@@ -82,7 +82,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JLabel epochLabel;
     private JLabel stepLabel;
     private JLabel lossJLabel;
-    private JButton taskButton;
     private JButton testAugButton;
     private JTextField modelDestinationTextField;
     private JButton moveModelButton;
@@ -91,6 +90,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JPanel dockerOptionPanel;
     private JScrollPane dockerOptionJSP;
     private JButton computeMetricsButton;
+    private JButton plotButton;
     private JComboBox dockerImageJCB;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
@@ -486,6 +486,11 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
             }
         });
+        plotButton.addActionListener(e -> {
+            Path p = Paths.get(getSavedWeightFile().getAbsolutePath());
+            GUI.getInstance().displayChartPanel(p.getParent().toString(), Utils.removeExtension(p.getFileName().toString()));
+        });
+
         String defWD;
         if (GUI.hasInstance()) {
             if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
@@ -1330,14 +1335,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         uploadModelButton = new JButton();
         uploadModelButton.setText("Export To Library");
         trainingCommandPanel.add(uploadModelButton, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        taskButton = new JButton();
-        taskButton.setEnabled(false);
-        taskButton.setText("Create Task");
-        trainingCommandPanel.add(taskButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         testAugButton = new JButton();
         testAugButton.setText("Test Data Aug");
         testAugButton.setToolTipText("Generates samples of augmented images");
         trainingCommandPanel.add(testAugButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        plotButton = new JButton();
+        plotButton.setText("Plot");
+        trainingCommandPanel.add(plotButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel3 = new JPanel();
         panel3.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
         trainingPanel.add(panel3, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));

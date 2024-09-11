@@ -40,6 +40,7 @@ import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.gui.DockerTrainingWindow;
 import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.PSFCommand;
+import bacmman.ui.gui.PlotPanel;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
@@ -217,7 +218,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     TrackMatePanel trackMatePanel;
     ConfigurationLibrary configurationLibrary;
     DLModelsLibrary dlModelLibrary;
-    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY}
+    PlotPanel plotPanel;
+    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY, CHART_PANEL}
     List<TAB> tabIndex = new ArrayList<>();
     DockerTrainingWindow dockerTraining;
     /**
@@ -1729,6 +1731,23 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     public int getCurrentTab() {
         return tabs.getSelectedIndex();
+    }
+
+    public PlotPanel displayChartPanel(String workingDirectory, String modelName) {
+        if (plotPanel == null) plotPanel = new PlotPanel(this);
+        if (!tabIndex.contains(TAB.CHART_PANEL)) {
+            tabs.addTab("PLot", plotPanel.getMainPanel());
+            tabIndex.add(TAB.CHART_PANEL);
+            Runnable onClose = () -> {
+                tabIndex.remove(TAB.CHART_PANEL);
+                plotPanel.close();
+                plotPanel = null;
+            };
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.CHART_PANEL), new ClosableTabComponent(tabs, onClose));
+        }
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.CHART_PANEL));
+        plotPanel.addModelFile(workingDirectory, modelName);
+        return plotPanel;
     }
 
     public ConfigurationLibrary displayConfigurationLibrary() {

@@ -221,15 +221,6 @@
                           <text value="Export To Library"/>
                         </properties>
                       </component>
-                      <component id="2ce8e" class="javax.swing.JButton" binding="taskButton">
-                        <constraints>
-                          <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
-                        </constraints>
-                        <properties>
-                          <enabled value="false"/>
-                          <text value="Create Task"/>
-                        </properties>
-                      </component>
                       <component id="50387" class="javax.swing.JButton" binding="testAugButton">
                         <constraints>
                           <grid row="1" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
@@ -237,6 +228,14 @@
                         <properties>
                           <text value="Test Data Aug"/>
                           <toolTipText value="Generates samples of augmented images"/>
+                        </properties>
+                      </component>
+                      <component id="30e9b" class="javax.swing.JButton" binding="plotButton">
+                        <constraints>
+                          <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                        </constraints>
+                        <properties>
+                          <text value="Plot"/>
                         </properties>
                       </component>
                     </children>

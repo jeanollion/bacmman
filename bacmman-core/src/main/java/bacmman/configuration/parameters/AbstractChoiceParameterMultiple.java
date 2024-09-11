@@ -25,6 +25,7 @@ import org.json.simple.JSONArray;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -76,6 +77,14 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
         fireListeners();
         return (P)this;
     }
+
+    public P addSelectedItems(String... selectedItems) {
+        if (selectedItems != null && selectedItems.length>0) {
+            if (this.selectedItems == null || this.selectedItems.length==0) return setSelectedItems(selectedItems);
+            else return setSelectedItems(Stream.concat(Arrays.stream(this.selectedItems), Arrays.stream(selectedItems)).distinct().toArray(String[]::new));
+        } else return (P)this;
+    }
+
     public String getSelectedItem() {
         if (selectedItems.length == 0) return null;
         else return selectedItems[0];
