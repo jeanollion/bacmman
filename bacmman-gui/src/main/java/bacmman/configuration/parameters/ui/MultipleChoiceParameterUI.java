@@ -20,9 +20,11 @@ package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.parameters.ChoosableParameterMultiple;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
-import java.awt.Component;
-import java.awt.Dimension;
+
+import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.font.FontRenderContext;
+import java.awt.geom.AffineTransform;
 import javax.swing.AbstractAction;
 import javax.swing.DefaultListModel;
 import javax.swing.JList;
@@ -52,10 +54,18 @@ public class MultipleChoiceParameterUI implements ParameterUI {
         this.choice = choice_;
         this.model= model;
         listModel = new DefaultListModel();
-        for (String c : choice.getChoiceList()) listModel.addElement(c);
+        int width = 0;
+        FontRenderContext frc = new FontRenderContext(new AffineTransform(),true,true);
         list = new JList(listModel);
+        Font font = list.getFont();
+        for (String c : choice.getChoiceList()) {
+            listModel.addElement(c);
+            width = Math.max(width, (int)(font.getStringBounds(c, frc).getWidth()));
+        }
         listJsp = new JScrollPane(list);
         listJsp.setMinimumSize(new Dimension(100, 300));
+        listJsp.setPreferredSize(new Dimension(Math.min((int)(width + 25), 500), Math.min( 22 * listModel.size(), 500)));
+        listJsp.setMaximumSize(new Dimension(500, Math.min(22 * listModel.size(), 800)));
         updateUIFromParameter();
         menuItems = new JMenuItem[2];
         menuItems[0] = new StayOpenMenuItem("Select All", this::showMenu);

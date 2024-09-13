@@ -218,9 +218,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     TrackMatePanel trackMatePanel;
     ConfigurationLibrary configurationLibrary;
     DLModelsLibrary dlModelLibrary;
-    PlotPanel plotPanel;
-    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY, CHART_PANEL}
-    List<TAB> tabIndex = new ArrayList<>();
+    PlotPanel[] plotPanels = new PlotPanel[100];
+    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY, PLOT_PANEL}
+    List<String> tabIndex = new ArrayList<>();
     DockerTrainingWindow dockerTraining;
     /**
      * Creates new form GUI
@@ -1190,19 +1190,19 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     public void ensureTrainTab() {
         if (dockerTraining == null) dockerTraining = new DockerTrainingWindow(Core.getCore().getDockerGateway());
-        if (!tabIndex.contains(TAB.TRAINING)) {
+        if (!tabIndex.contains(TAB.TRAINING.name())) {
             tabs.addTab("Training", dockerTraining.getMainPanel());
             dockerTraining.setParent(INSTANCE);
-            tabIndex.add(TAB.TRAINING);
-            tabs.setEnabledAt(tabIndex.indexOf(TAB.TRAINING), Core.getCore().getDockerGateway() != null);
+            tabIndex.add(TAB.TRAINING.name());
+            tabs.setEnabledAt(tabIndex.indexOf(TAB.TRAINING.name()), Core.getCore().getDockerGateway() != null);
             Runnable onClose = () -> {
-                tabIndex.remove(TAB.TRAINING);
+                tabIndex.remove(TAB.TRAINING.name());
                 dockerTraining.close();
                 dockerTraining = null;
             };
-            tabs.setTabComponentAt(tabIndex.indexOf(TAB.TRAINING), new ClosableTabComponent(tabs, onClose));
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.TRAINING.name()), new ClosableTabComponent(tabs, onClose));
         }
-        tabs.setSelectedIndex(tabIndex.indexOf(TAB.TRAINING));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.TRAINING.name()));
     }
 
     private void addSampleDataset(JMenu targetMenu, String name, String id, String hint) {
@@ -1262,7 +1262,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (configurationTreeGenerator!=null && configurationTreeGenerator.getTree()!=null) this.configurationTreeGenerator.getTree().setEnabled(!running);
         this.moduleList.setEnabled(!running);
         // config test tab
-        tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION_TEST), !running);
+        tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION_TEST.name()), !running);
         if (testConfigurationTreeGenerator!=null && testConfigurationTreeGenerator.getTree()!=null) this.testConfigurationTreeGenerator.getTree().setEnabled(!running);
         this.testCopyButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
         this.testCopyToTemplateButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
@@ -1270,7 +1270,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         // browsing tab
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);
-        tabs.setEnabledAt(tabIndex.indexOf(TAB.DATA_BROWSING), !running);
+        tabs.setEnabledAt(tabIndex.indexOf(TAB.DATA_BROWSING.name()), !running);
         if (!running) updateDisplayRelatedToXPSet();
     }
 
@@ -1540,7 +1540,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         updateConfigurationTree();
         setTrackTreeStructures();
         loadObjectTrees();
-        tabs.setSelectedIndex(tabIndex.indexOf(TAB.HOME));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.HOME.name()));
         ImageWindowManagerFactory.getImageManager().flush();
         if (xp!=null) setMessage("XP: "+xp+ " closed");
         logger.debug("db {} closed.", xp);
@@ -1563,10 +1563,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         setTitle("**BACMMAN**"+v+xp);
         for (Component c: relatedToXPSet) c.setEnabled(enable);
         runActionAllXPMenuItem.setEnabled(!enable); // only available if no xp is set
-        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION), enable); // configuration
-        this.tabs.getComponentAt(tabIndex.indexOf(TAB.CONFIGURATION)).setForeground(enable ? Color.black : Color.gray);
-        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION_TEST), enable); // test
-        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.DATA_BROWSING), enable); // data browsing
+        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION.name()), enable); // configuration
+        this.tabs.getComponentAt(tabIndex.indexOf(TAB.CONFIGURATION.name())).setForeground(enable ? Color.black : Color.gray);
+        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.CONFIGURATION_TEST.name()), enable); // test
+        this.tabs.setEnabledAt(tabIndex.indexOf(TAB.DATA_BROWSING.name()), enable); // data browsing
         // readOnly
         if (enable) {
             boolean rw = !db.isConfigurationReadOnly();
@@ -1689,11 +1689,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         int currentIdx = tabs.getSelectedIndex();
         if (currentIdx!=tabIndex) {
             tabs.setSelectedIndex(tabIndex);
-            if (dlModelLibrary!=null && this.tabIndex.contains(TAB.MODEL_LIBRARY)) dlModelLibrary.focusLost();
-            if (configurationLibrary!=null && this.tabIndex.contains(TAB.CONFIGURATION_LIBRARY)) configurationLibrary.focusLost();
+            if (dlModelLibrary!=null && this.tabIndex.contains(TAB.MODEL_LIBRARY.name())) dlModelLibrary.focusLost();
+            if (configurationLibrary!=null && this.tabIndex.contains(TAB.CONFIGURATION_LIBRARY.name())) configurationLibrary.focusLost();
 
         }
-        if (lastSelTab==this.tabIndex.indexOf(TAB.CONFIGURATION) && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
+        if (lastSelTab==this.tabIndex.indexOf(TAB.CONFIGURATION.name()) && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
         lastSelTab=tabIndex;
         if (tabs.getSelectedComponent()==dataPanel) {
             if (reloadObjectTrees) {
@@ -1733,21 +1733,59 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         return tabs.getSelectedIndex();
     }
 
-    public PlotPanel displayChartPanel(String workingDirectory, String modelName) {
-        if (plotPanel == null) plotPanel = new PlotPanel(this);
-        if (!tabIndex.contains(TAB.CHART_PANEL)) {
-            tabs.addTab("PLot", plotPanel.getMainPanel());
-            tabIndex.add(TAB.CHART_PANEL);
+    public PlotPanel displayPlotPanel(int plotIdx, int loadPlotIdx, String workingDirectory, String modelName) {
+        if (plotPanels[plotIdx] == null) plotPanels[plotIdx] = new PlotPanel(plotIdx, loadPlotIdx, this);
+        String tabName = TAB.PLOT_PANEL.name()+plotIdx;
+        if (!tabIndex.contains(tabName)) {
+            tabs.addTab(plotPanels[plotIdx].getName() + "(#"+plotIdx+")", plotPanels[plotIdx].getMainPanel());
+            tabIndex.add(tabName);
             Runnable onClose = () -> {
-                tabIndex.remove(TAB.CHART_PANEL);
-                plotPanel.close();
-                plotPanel = null;
+                tabIndex.remove(tabName);
+                plotPanels[plotIdx].close();
+                plotPanels[plotIdx] = null;
             };
-            tabs.setTabComponentAt(tabIndex.indexOf(TAB.CHART_PANEL), new ClosableTabComponent(tabs, onClose));
+            ClosableTabComponent comp = new ClosableTabComponent(tabs, onClose);
+            tabs.setTabComponentAt(tabIndex.indexOf(tabName), comp);
+            comp.label.addMouseListener(new TabMouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent evt) {
+                    if (SwingUtilities.isRightMouseButton(evt)) {
+                        JPopupMenu menu = new JPopupMenu();
+                        Action plot = new AbstractAction("Rename Plot") {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                String name = JOptionPane.showInputDialog("Plot Name", plotPanels[plotIdx].getName());
+                                if (name != null) {
+                                    tabs.setTitleAt(tabIndex.indexOf(tabName), name + "(#"+plotIdx+")");
+                                    tabs.updateUI();
+                                    plotPanels[plotIdx].setName(name);
+                                }
+                            }
+                        };
+                        menu.add(plot);
+                        Action dup = new AbstractAction("Duplicate Plot") {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                int nextVoidIdx = IntStream.range(0, plotPanels.length).filter(i->plotPanels[i]==null).findFirst().orElse(plotPanels.length-1);
+                                String idx = JOptionPane.showInputDialog("Duplicate Plot Idx", nextVoidIdx);
+                                if (idx != null) {
+                                    try {
+                                        int i = Integer.parseInt(idx);
+                                        displayPlotPanel(i, plotIdx, null, null);
+                                    } catch (NumberFormatException ex) {}
+                                }
+                            }
+                        };
+                        menu.add(dup);
+                        menu.show(tabs.getTabComponentAt(tabIndex.indexOf(tabName)), evt.getX(), evt.getY());
+                    } else redispatch(evt);
+                }
+            });
         }
-        tabs.setSelectedIndex(tabIndex.indexOf(TAB.CHART_PANEL));
-        plotPanel.addModelFile(workingDirectory, modelName);
-        return plotPanel;
+
+        tabs.setSelectedIndex(tabIndex.indexOf(tabName));
+        plotPanels[plotIdx].addModelFile(workingDirectory, modelName);
+        return plotPanels[plotIdx];
     }
 
     public ConfigurationLibrary displayConfigurationLibrary() {
@@ -1769,16 +1807,16 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             create lib here
             configurationLibrary.display(this);
         }*/
-        if (!tabIndex.contains(TAB.CONFIGURATION_LIBRARY)) {
+        if (!tabIndex.contains(TAB.CONFIGURATION_LIBRARY.name())) {
             tabs.addTab("Configuration Library", configurationLibrary.getMainPanel());
-            tabIndex.add(TAB.CONFIGURATION_LIBRARY);
+            tabIndex.add(TAB.CONFIGURATION_LIBRARY.name());
             Runnable onClose = () -> {
-                tabIndex.remove(TAB.CONFIGURATION_LIBRARY);
+                tabIndex.remove(TAB.CONFIGURATION_LIBRARY.name());
                 configurationLibrary.close();
             };
-            tabs.setTabComponentAt(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY), new ClosableTabComponent(tabs, onClose));
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY.name()), new ClosableTabComponent(tabs, onClose));
         }
-        tabs.setSelectedIndex(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY.name()));
         return configurationLibrary;
     }
 
@@ -1790,17 +1828,17 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         }
         return dlModelLibrary;*/
         if (dlModelLibrary==null) dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
-        if (!tabIndex.contains(TAB.MODEL_LIBRARY)) {
+        if (!tabIndex.contains(TAB.MODEL_LIBRARY.name())) {
             tabs.addTab("Model Library", dlModelLibrary.getMainPanel());
-            tabIndex.add(TAB.MODEL_LIBRARY);
+            tabIndex.add(TAB.MODEL_LIBRARY.name());
             Runnable onClose = () -> {
-                tabIndex.remove(TAB.MODEL_LIBRARY);
+                tabIndex.remove(TAB.MODEL_LIBRARY.name());
                 dlModelLibrary.close();
                 dlModelLibrary = null;
             };
-            tabs.setTabComponentAt(tabIndex.indexOf(TAB.MODEL_LIBRARY), new ClosableTabComponent(tabs, onClose));
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.MODEL_LIBRARY.name()), new ClosableTabComponent(tabs, onClose));
         }
-        tabs.setSelectedIndex(tabIndex.indexOf(TAB.MODEL_LIBRARY));
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.MODEL_LIBRARY.name()));
         return dlModelLibrary;
     }
     public static boolean hasInstance() {
@@ -2195,7 +2233,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         );
 
         tabs.addTab("Home", actionPanel);
-        tabIndex.add(TAB.HOME);
+        tabIndex.add(TAB.HOME.name());
         configurationSplitPane.setDividerLocation(500);
 
         configurationSplitPaneRight.setDividerLocation(250);
@@ -2234,7 +2272,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         );
 
         tabs.addTab("Configuration", configurationPanel);
-        tabIndex.add(TAB.CONFIGURATION);
+        tabIndex.add(TAB.CONFIGURATION.name());
         testSplitPane.setDividerLocation(500);
 
         testSplitPaneRight.setDividerLocation(250);
@@ -2475,7 +2513,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         );
 
         tabs.addTab("Configuration Test", testPanel);
-        tabIndex.add(TAB.CONFIGURATION_TEST);
+        tabIndex.add(TAB.CONFIGURATION_TEST.name());
         trackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Segmentation & Tracking Results"));
 
         trackSubPanel.setLayout(new javax.swing.BoxLayout(trackSubPanel, javax.swing.BoxLayout.LINE_AXIS));
@@ -2777,7 +2815,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         );
 
         tabs.addTab("Data Browsing", dataPanel);
-        tabIndex.add(TAB.DATA_BROWSING);
+        tabIndex.add(TAB.DATA_BROWSING.name());
 
         homeSplitPane.setLeftComponent(tabs);
 

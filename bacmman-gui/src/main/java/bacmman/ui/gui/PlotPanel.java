@@ -1,23 +1,27 @@
 package bacmman.ui.gui;
 
 import bacmman.configuration.parameters.*;
+import bacmman.ui.GUI;
+import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
-import org.jfree.chart.ChartFactory;
-import org.jfree.chart.ChartPanel;
-import org.jfree.chart.JFreeChart;
+import org.jfree.chart.*;
+import org.jfree.chart.annotations.XYTextAnnotation;
 import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.entity.ChartEntity;
+import org.jfree.chart.entity.XYItemEntity;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.DeviationRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.Range;
-import org.jfree.data.xy.XYSeries;
-import org.jfree.data.xy.XYSeriesCollection;
-import org.json.simple.JSONAware;
+import org.jfree.data.general.Series;
+import org.jfree.data.xy.*;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,12 +29,14 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,12 +48,7 @@ public class PlotPanel {
     private JScrollPane plotJSP;
     ConfigurationTreeGenerator config;
     FileChooser defWD = new FileChooser("Directory", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setRelativePath(false);
-    SimpleListParameter<FileChooser> workingDirs = new SimpleListParameter<>("Working Directories", 0, defWD).addListener(wdl -> {
-        if (wdl.getChildCount() > 0) {
-            String dir = wdl.getChildAt(0).getFirstSelectedFilePath();
-            if (dir != null && Files.exists(Paths.get(dir))) loadConfiguration(dir);
-        }
-    });
+    SimpleListParameter<FileChooser> workingDirs = new SimpleListParameter<>("Working Directories", 0, defWD);
     TextParameter defTxt = new TextParameter("Keyword", "", true);
     SimpleListParameter<TextParameter> fileFilterInclude = new SimpleListParameter<>("File Filter Include", 0, defTxt);
     SimpleListParameter<TextParameter> fileFilterExclude = new SimpleListParameter<>("File Filter Exclude", defTxt);
@@ -58,48 +59,85 @@ public class PlotPanel {
 
     EnumChoiceParameter<CHART_TYPE> chartType = new EnumChoiceParameter<>("Chart Type", CHART_TYPE.values(), CHART_TYPE.LINE);
     ColumnListParameter xColumn = new ColumnListParameter("X-Axis", false);
-    ColumnListParameter yColumns = new ColumnListParameter("Y-Axis", true);
+    ColumnListParameter yColumns = new ColumnListParameter("Y-Axis", true).setExcludeColFun(() -> xColumn.getSelectedItem() != null ? xColumn.getSelectedItems() : new String[0]);
+
     ConditionalParameter<CHART_TYPE> chartTypeCond = new ConditionalParameter<>(chartType).setActionParameters(CHART_TYPE.LINE, xColumn, yColumns, smoothScale);
     GroupParameter root = new GroupParameter("Parameters", workingDirs, fileFilterInclude, fileFilterExclude, selectedFiles, chartTypeCond);
     Color[] colorPalette = new Color[]{new Color(31, 119, 180), new Color(255, 127, 14), new Color(44, 160, 44), new Color(214, 39, 40), new Color(148, 103, 189), new Color(140, 86, 75), new Color(227, 119, 194), new Color(127, 127, 127), new Color(188, 189, 34), new Color(23, 190, 207)};
     ProgressLogger bacmmanLogger;
     JFreeChart lastPlot;
+    int plotIdx;
+    String name;
 
-    public PlotPanel(ProgressLogger bacmmanLogger) {
+    // TODO: add right axis
+    public PlotPanel(int plotIdx, int loadPlotIdx, ProgressLogger bacmmanLogger) {
+        this.plotIdx = plotIdx;
+        this.name = "Plot";
+        if (plotIdx < 0) throw new IllegalArgumentException("Plot idx must be >=0");
         this.bacmmanLogger = bacmmanLogger;
         config = new ConfigurationTreeGenerator(null, root, v -> {
             updateButton.setEnabled(v);
         }, (s, l) -> {
         }, s -> {
-        }, null, null).showRootHandle(false);
+        }, null, null).rootVisible(false);
         parameterJSP.setViewportView(config.getTree());
         TextParameter csv = defTxt.duplicate();
         csv.setValue(".csv");
         fileFilterInclude.insert(csv);
         updateButton.addActionListener(e -> updateChart());
+        if (loadConfiguration(loadPlotIdx) && root.isValid()) updateChart();
     }
 
-    protected String getConfigFile(String dir) {
-        return Paths.get(dir).resolve(".bacmman.plot.json").toString();
+    public void setName(String name) {
+        this.name = name;
+        saveConfiguration();
     }
 
-    public void saveConfiguration(String dir) {
-        FileIO.writeToFile(getConfigFile(dir), Collections.singletonList(root.toJSONEntry()), JSONAware::toJSONString);
+    public String getName() {
+        return name;
     }
 
-    public void loadConfiguration(String dir) {
-        String conf = FileIO.readFisrtFromFile(getConfigFile(dir), s -> s);
-        if (conf != null) {
-            try {
-                root.initFromJSONEntry(JSONUtils.parseJSON(conf));
-            } catch (ParseException e) {
+    public String getConfigDir() {
+        if (GUI.hasInstance()) return GUI.getInstance().getWorkingDirectory();
+        String wd = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH, "");
+        if (wd.isEmpty()) return workingDirs.getChildAt(0).getFirstSelectedFilePath();
+        else return wd;
+    }
 
-            }
+    protected String getConfigFile() {
+        return getConfigFile(plotIdx);
+    }
+
+    protected String getConfigFile(int plotIdx) {
+        return Paths.get(getConfigDir()).resolve(".bacmman.plot" + plotIdx + ".json").toString();
+    }
+
+    public void saveConfiguration() {
+        FileIO.writeToFile(getConfigFile(), Arrays.asList(name, root.toJSONEntry().toJSONString()), s -> s);
+    }
+
+    public void loadConfiguration() {
+        loadConfiguration(plotIdx);
+    }
+
+    public boolean loadConfiguration(int plotIdx) {
+        if (!new File(getConfigFile(plotIdx)).isFile()) return false;
+        List<String> confList = FileIO.readFromFile(getConfigFile(plotIdx), s -> s, s -> {
+        });
+        if (confList.size() != 2) return false;
+        name = confList.get(0);
+        String conf = confList.get(1);
+        try {
+            root.initFromJSONEntry(JSONUtils.parseJSON(conf));
+            return true;
+        } catch (ParseException e) {
+
         }
+        return false;
     }
 
     protected void updateChart() {
-        saveConfiguration(workingDirs.getChildAt(0).getFirstSelectedFilePath());
+        saveConfiguration();
         switch (chartType.getSelectedEnum()) {
             case LINE:
             default: {
@@ -107,7 +145,8 @@ public class PlotPanel {
                 List<String> columns = Arrays.asList(yColumns.getSelectedItems());
                 List<String> allColumns = new ArrayList<>(columns);
                 allColumns.add(xCol);
-                final XYSeriesCollection dataset = new XYSeriesCollection();
+                boolean intervalSeries = smoothScale.getDoubleValue() >= 1;
+                final IntervalXYDataset dataset = intervalSeries ? new YIntervalSeriesCollection() : new XYSeriesCollection();
                 Arrays.stream(selectedFiles.getSelectedItems()).parallel().flatMap(f -> {
                     String name = Utils.removeExtension(Paths.get(f).getFileName().toString());
                     Map<String, double[]> cols = getColumns(f, allColumns);
@@ -115,16 +154,15 @@ public class PlotPanel {
                     if (x != null) {
                         return columns.stream().map(col -> {
                             double[] vals = cols.get(col);
-                            if (vals != null) {
-                                if (smoothScale.getDoubleValue() > 0) {
-                                    double s = Math.min(x.length / 2., smoothScale.getDoubleValue());
-                                    ArrayUtil.gaussianSmooth(vals, s);
-                                }
-                                return getXYSeries(name + ":" + col, x, vals);
-                            } else return null;
+                            if (vals != null)
+                                return getXYSeries(name + ":" + col, x, vals, smoothScale.getDoubleValue());
+                            else return null;
                         }).filter(Objects::nonNull);
                     } else return Stream.empty();
-                }).forEachOrdered(dataset::addSeries);
+                }).forEachOrdered(s -> {
+                    if (intervalSeries) ((YIntervalSeriesCollection) dataset).addSeries((YIntervalSeries) s);
+                    else ((XYSeriesCollection) dataset).addSeries((XYSeries) s);
+                });
                 Range domain = null, range = null;
                 if (this.lastPlot != null) {
                     XYPlot plot = lastPlot.getXYPlot();
@@ -147,12 +185,76 @@ public class PlotPanel {
                 chartPanel.setMinimumDrawWidth(300);
                 chartPanel.setMinimumDrawHeight(300);
                 chartPanel.setPreferredSize(new Dimension(600, 350));
-                XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, false);
+                chartPanel.setHorizontalAxisTrace(true);
+                chartPanel.setVerticalAxisTrace(true);
+                XYLineAndShapeRenderer renderer = intervalSeries ? new DeviationRenderer(true, false) : new XYLineAndShapeRenderer(true, false);
+
                 renderer.setAutoPopulateSeriesStroke(false);
-                renderer.setDefaultStroke(new BasicStroke(2.0f));
-                for (int i = 0; i < dataset.getSeriesCount(); ++i) renderer.setSeriesPaint(i, getColor(i));
-                //renderer.setLegendLine(new BasicStroke(4));
-                //renderer.setSeriesStroke( 0 , new BasicStroke( 4.0f ) );
+                float stokeWidth = 2f;
+                renderer.setDefaultStroke(new BasicStroke(stokeWidth));
+                for (int i = 0; i < dataset.getSeriesCount(); ++i) {
+                    renderer.setSeriesPaint(i, getColor(i));
+                    if (intervalSeries) renderer.setSeriesFillPaint(i, getColor(i));
+                }
+
+                chartPanel.addChartMouseListener(new ChartMouseListener() {
+                    XYTextAnnotation labelX, labelY;
+                    int lastSelectedSeries = -1;
+
+                    @Override
+                    public void chartMouseClicked(ChartMouseEvent event) {
+                        // select series
+                        if (lastSelectedSeries >= 0)
+                            renderer.setSeriesStroke(lastSelectedSeries, new BasicStroke(stokeWidth));
+                        ChartEntity chartentity = event.getEntity();
+                        if (chartentity instanceof XYItemEntity) {
+                            XYItemEntity e = (XYItemEntity) chartentity;
+                            int s = e.getSeriesIndex();
+                            if (lastSelectedSeries != s) {
+                                renderer.setSeriesStroke(s, new BasicStroke(stokeWidth + 2));
+                                lastSelectedSeries = s;
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void chartMouseMoved(ChartMouseEvent event) {
+                        if (labelX != null) renderer.removeAnnotation(labelX);
+                        if (labelY != null) renderer.removeAnnotation(labelY);
+                        ChartEntity chartentity = event.getEntity();
+                        if (chartentity instanceof XYItemEntity) {
+                            XYItemEntity e = (XYItemEntity) chartentity;
+                            XYDataset d = e.getDataset();
+                            Range xRange = plot.getDomainAxis().getRange();
+                            Range yRange = plot.getRangeAxis().getRange();
+                            int s = e.getSeriesIndex();
+                            int i = e.getItem();
+                            double x = d.getXValue(s, i);
+                            boolean xRight = x >= xRange.getCentralValue();
+                            labelX = new XYTextAnnotation(" " + (int) x + " ", x, yRange.getLowerBound());
+                            labelX.setBackgroundPaint(Color.black);
+                            labelX.setOutlinePaint(renderer.getSeriesPaint(s));
+                            labelX.setOutlineStroke(new BasicStroke(stokeWidth + 1));
+                            labelX.setOutlineVisible(true);
+                            labelX.setPaint(Color.white);
+                            labelX.setFont(renderer.getDefaultItemLabelFont().deriveFont(16f));
+                            labelX.setTextAnchor(xRight ? TextAnchor.BOTTOM_RIGHT : TextAnchor.BOTTOM_LEFT);
+                            renderer.addAnnotation(labelX);
+                            double y = d.getYValue(s, i);
+                            boolean yDown = y >= yRange.getLowerBound() + yRange.getLength() * 0.90;
+                            labelY = new XYTextAnnotation(" " + Utils.format(y, 3) + " ", xRange.getLowerBound(), y);
+                            labelY.setBackgroundPaint(Color.black);
+                            labelY.setPaint(Color.white);
+                            labelY.setFont(renderer.getDefaultItemLabelFont().deriveFont(16f));
+                            labelY.setOutlinePaint(renderer.getSeriesPaint(s));
+                            labelY.setOutlineStroke(new BasicStroke(stokeWidth + 1));
+                            labelY.setOutlineVisible(true);
+                            labelY.setTextAnchor(yDown ? TextAnchor.TOP_LEFT : TextAnchor.BOTTOM_LEFT);
+                            renderer.addAnnotation(labelY);
+
+                        }
+                    }
+                });
                 plot.setRenderer(renderer);
                 plotJSP.setViewportView(chartPanel);
                 this.lastPlot = xylineChart;
@@ -164,10 +266,24 @@ public class PlotPanel {
         return colorPalette[idx % colorPalette.length];
     }
 
-    protected XYSeries getXYSeries(String name, double[] x, double[] y) {
-        XYSeries res = new XYSeries(name);
-        for (int i = 0; i < x.length; ++i) res.add(x[i], y[i]);
-        return res;
+    protected Series getXYSeries(String name, double[] x, double[] y, double scale) {
+        if (scale < 1) {
+            XYSeries res = new XYSeries(name);
+            for (int i = 0; i < x.length; ++i) res.add(x[i], y[i]);
+            return res;
+        } else {
+            int sc = (int) (scale + 0.5);
+            double div = Math.sqrt(2 * sc + 1);
+            List<Double> std = SlidingOperator.performSlide(ArrayUtil.toList(y), sc, SlidingOperator.slidingStd());
+            double s = Math.min(x.length / 2., smoothScale.getDoubleValue());
+            ArrayUtil.gaussianSmooth(y, s);
+            YIntervalSeries res = new YIntervalSeries(name);
+            for (int i = 0; i < x.length; ++i) {
+                double range = std.get(i) / div;
+                res.add(x[i], y[i], y[i] - range, y[i] + range);
+            }
+            return res;
+        }
     }
 
     protected Map<String, double[]> getColumns(String file, List<String> columns) {
@@ -243,13 +359,30 @@ public class PlotPanel {
     }
 
     public class ColumnListParameter extends AbstractChoiceParameterMultiple<String, ColumnListParameter> {
+        Set<String> excludeCols;
+        Supplier<String[]> excludeColFun;
+
         public ColumnListParameter(String name, boolean multiple) {
             super(name, s -> s, false, multiple);
         }
 
+        public ColumnListParameter setExcludeColFun(Supplier<String[]> excludeColFun) {
+            this.excludeColFun = excludeColFun;
+            return this;
+        }
+
+        public ColumnListParameter setExcludeColumns(String... excludeCols) {
+            this.excludeCols = new HashSet<>(Arrays.asList(excludeCols));
+            return this;
+        }
+
         @Override
         public String[] getChoiceList() {
-            return Arrays.stream(selectedFiles.getSelectedItems()).map(f -> FileIO.readFisrtFromFile(f, s -> s)).filter(Objects::nonNull).flatMap(header -> Arrays.stream(header.split(getParseRegex()))).distinct().sorted().toArray(String[]::new);
+            if (excludeColFun != null) excludeCols = new HashSet<>(Arrays.asList(excludeColFun.get()));
+            return Arrays.stream(selectedFiles.getSelectedItems()).map(f -> FileIO.readFisrtFromFile(f, s -> s)).filter(Objects::nonNull)
+                    .flatMap(header -> Arrays.stream(header.split(getParseRegex())))
+                    .filter(c -> excludeCols == null || !excludeCols.contains(c))
+                    .distinct().sorted().toArray(String[]::new);
         }
 
         @Override
@@ -280,6 +413,7 @@ public class PlotPanel {
     }
 
     public PlotPanel addWorkingDir(String workingDir) {
+        if (workingDir == null) return this;
         if (workingDirs().noneMatch(wd -> wd.equals(workingDir))) {
             FileChooser fc = defWD.duplicate();
             fc.setSelectedFilePath(workingDir);
@@ -290,6 +424,7 @@ public class PlotPanel {
 
     public PlotPanel addModelFile(String workingDir, String modelName) {
         addWorkingDir(workingDir);
+        if (modelName == null) return this;
         if (filter(true).noneMatch(f -> f.equals(".csv"))) {
             TextParameter filter = defTxt.duplicate();
             filter.setValue(".csv");

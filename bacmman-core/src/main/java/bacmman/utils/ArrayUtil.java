@@ -733,6 +733,9 @@ public class ArrayUtil {
         for (int i = 0; i<res.length; ++i) res[i] = coll.get(i);
         return res;
     }
+    public static List<Double> toList(double[] array) {
+        return Arrays.stream(array).boxed().collect(Collectors.toList());
+    }
     public static long[] toPrimitiveLong(List<Long> coll) {
         long[] res = new long[coll.size()];
         for (int i = 0; i<res.length; ++i) res[i] = coll.get(i);

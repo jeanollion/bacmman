@@ -40,7 +40,7 @@ import java.awt.event.*;
  */
 public class ClosableTabComponent extends JPanel {
     private final JTabbedPane pane;
-
+    public final JLabel label;
     public ClosableTabComponent(final JTabbedPane pane, Runnable onClose) {
         //unset default FlowLayout' gaps
         super(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -51,7 +51,7 @@ public class ClosableTabComponent extends JPanel {
         setOpaque(false);
 
         //make JLabel read titles from JTabbedPane
-        JLabel label = new JLabel() {
+        label = new JLabel() {
             public String getText() {
                 int i = pane.indexOfTabComponent(ClosableTabComponent.this);
                 if (i != -1) {

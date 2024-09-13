@@ -488,9 +488,28 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         plotButton.addActionListener(e -> {
             Path p = Paths.get(getSavedWeightFile().getAbsolutePath());
-            GUI.getInstance().displayChartPanel(p.getParent().toString(), Utils.removeExtension(p.getFileName().toString()));
+            GUI.getInstance().displayPlotPanel(0, 0, p.getParent().toString(), Utils.removeExtension(p.getFileName().toString()));
         });
-
+        plotButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    Path p = Paths.get(getSavedWeightFile().getAbsolutePath());
+                    JPopupMenu menu = new JPopupMenu();
+                    for (int i = 1; i < 10; ++i) {
+                        final int idx = i;
+                        Action plot = new AbstractAction("Add to Plot " + i) {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                GUI.getInstance().displayPlotPanel(idx, idx, p.getParent().toString(), Utils.removeExtension(p.getFileName().toString()));
+                            }
+                        };
+                        menu.add(plot);
+                    }
+                    menu.show(plotButton, evt.getX(), evt.getY());
+                }
+            }
+        });
         String defWD;
         if (GUI.hasInstance()) {
             if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
