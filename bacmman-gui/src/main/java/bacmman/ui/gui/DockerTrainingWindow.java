@@ -154,6 +154,33 @@ public class DockerTrainingWindow implements ProgressLogger {
             setWorkingDirectory();
             updateDisplayRelatedToWorkingDir();
         });
+        setLoadButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    List<Pair<String, Path>> modelConf = listModelTrainingConfigFile();
+                    if (!modelConf.isEmpty()) {
+                        JPopupMenu menu = new JPopupMenu();
+                        for (Pair<String, Path> p : modelConf) {
+                            Action load = new AbstractAction("Load: " + p.key) {
+                                @Override
+                                public void actionPerformed(ActionEvent e) {
+                                    setWorkingDirectory();
+                                    setConfigurationFile(true);
+                                    FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
+                                    loadConfigFile(false, true, f);
+                                    f.close();
+                                    setWorkingDirectory();
+                                    updateDisplayRelatedToWorkingDir();
+                                }
+                            };
+                            menu.add(load);
+                        }
+                        menu.show(setLoadButton, evt.getX(), evt.getY());
+                    }
+                }
+            }
+        });
         setWriteButton.addActionListener(ae -> {
             setWorkingDirectory();
             setConfigurationFile(false);
@@ -161,6 +188,22 @@ public class DockerTrainingWindow implements ProgressLogger {
             writeConfigFile(true, true, true, true);
             updateDisplayRelatedToWorkingDir();
             config.getTree().updateUI();
+        });
+        setWriteButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action write = new AbstractAction("Write current model configuration") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            writeModelTrainConfigFile();
+                        }
+                    };
+                    menu.add(write);
+                    menu.show(setWriteButton, evt.getX(), evt.getY());
+                }
+            }
         });
         extractButton.addActionListener(ae -> {
             updateExtractDisplay(); // in case dataset has be closed
@@ -188,6 +231,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             currentProgressBar = trainingProgressBar;
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
+            writeModelTrainConfigFile();
             if (GUI.hasInstance() && GUI.getDBConnection() != null) {
                 GUI.getDBConnection().getExperiment().getDLengineProvider().closeAllEngines();
             }
@@ -431,7 +475,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         uploadModelButton.addActionListener(ae -> {
             promptSaveConfig();
-            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+            DockerDLTrainer trainer = getTrainerFromTrainingConfig();  // get trainer from config used for training and not current config.
+            if (trainer == null) trainer = trainerParameter.instantiatePlugin();
+            else logger.debug("train config loaded");
             GithubGateway githubGateway = Core.getCore().getGithubGateway();
             if (githubGateway == null) {
                 setMessage("Github not reachable");
@@ -584,7 +630,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void promptSaveConfig() {
-        loadConfigFile(true);
+        loadConfigFile(true, false, javaConfig);
         config.getTree().updateUI();
         if (!config.getRoot().sameContent(configRef.getRoot())) {
             if (promptBoolean("Current configuration has unsaved changes. Save them ?", dia)) {
@@ -1048,12 +1094,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         Path dockerConfigPath = Paths.get(currentWorkingDirectory, "docker_options.json");
         dockerConfig = new FileIO.TextFile(dockerConfigPath.toString(), true, Utils.isUnix());
         if (load && canLoad) {
-            loadConfigFile(false);
+            loadConfigFile(true, true, javaConfig);
             loadExtractConfig();
+            loadDockerConfigFile(false);
         }
     }
 
-    protected void loadConfigFile(boolean refOnly) {
+    protected void loadConfigFile(boolean ref, boolean displayed, FileIO.TextFile javaConfig) {
         if (javaConfig == null) throw new RuntimeException("Load file first");
         String configS = javaConfig.read();
         logger.debug("loaded config locked: {} file = {} -> {}", javaConfig.locked(), javaConfig.getFile().toString(), javaConfig.readLines());
@@ -1065,18 +1112,38 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setMessage("Error parsing java configuration file:" + e.toString() + " content: " + configS);
                 return;
             }
-            trainerParameterRef.initFromJSONEntry(config);
-            if (!refOnly) {
-                Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
+            if (ref) trainerParameterRef.initFromJSONEntry(config);
+            if (displayed) {
                 trainerParameter.initFromJSONEntry(config);
                 this.config.expandAll(3);
+                Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
                 if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
                     updateExtractDatasetConfiguration();
                 }
             }
         }
-        String configDockerS = dockerConfig.read();
+    }
+
+    protected DockerDLTrainer getTrainerFromTrainingConfig() {
+        FileIO.TextFile javaConfig = new FileIO.TextFile(getModelTrainConfigFile(), false, false);
+        String configS = javaConfig.read();
+        javaConfig.close();
         if (!configS.isEmpty()) {
+            JSONObject config = null;
+            try {
+                config = JSONUtils.parse(configS);
+            } catch (ParseException e) {
+                return null;
+            }
+            PluginParameter<DockerDLTrainer> pp = trainerParameter.duplicate();
+            pp.initFromJSONEntry(config);
+            return pp.instantiatePlugin();
+        } else return null;
+    }
+
+    protected void loadDockerConfigFile(boolean refOnly) {
+        String configDockerS = dockerConfig.read();
+        if (!configDockerS.isEmpty()) {
             JSONAware dockerConf = null;
             try {
                 dockerConf = JSONUtils.parseJSON(configDockerS);
@@ -1089,7 +1156,6 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setMessage("Error parsing docker configuration file: " + e.toString() + " content: " + configDockerS);
                 dockerConfig.clear();
             }
-
         }
     }
 
@@ -1108,6 +1174,28 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
             }
         }
+    }
+
+    protected String getModelTrainConfigFile() {
+        return getSavedModelPath().toString() + ".training_jconfiguration.json";
+    }
+
+    protected List<Pair<String, Path>> listModelTrainingConfigFile() {
+        try {
+            return Files.list(Paths.get(workingDirectoryTextField.getText()))
+                    .filter(p -> p.getFileName().toString().endsWith(".training_jconfiguration.json"))
+                    .map(p -> new Pair<>(p.getFileName().toString().replace(".training_jconfiguration.json", ""), p))
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    protected void writeModelTrainConfigFile() {
+        FileIO.TextFile configFile = new FileIO.TextFile(getModelTrainConfigFile(), true, Utils.isUnix());
+        JSONObject config = trainerParameter.toJSONEntry();
+        configFile.write(config.toJSONString(), false);
+        configFile.close();
     }
 
     protected void writeConfigFile(boolean javaTrain, boolean pythonTrain, boolean pythonTest, boolean extract) {
@@ -1232,7 +1320,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected File getSavedModelPath() {
         if (!trainerParameter.isOnePluginSet() || currentWorkingDirectory == null) return null;
-        String relPath = trainerParameter.instantiatePlugin().getConfiguration().getTrainingParameters().getModelWeightRelativePath();
+        String relPath = trainerParameter.instantiatePlugin().getConfiguration().getTrainingParameters().getModelName();
         return Paths.get(currentWorkingDirectory, relPath).toFile();
     }
 

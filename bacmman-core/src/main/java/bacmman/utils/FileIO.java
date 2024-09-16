@@ -204,7 +204,7 @@ public class FileIO {
                 if (!f.exists()) f.createNewFile();
                 raf = new RandomAccessFile(f, write?"rw":"r");
             } catch (IOException ex) {
-                
+                logger.error("error reading file: "+file, ex);
             }
             if (lock) lock();
             toLock = lock;

@@ -347,7 +347,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             else return getModelWeightFileName();
         }
 
-        public String getModelWeightRelativePath() {
+        public String getModelName() {
             return modelName.getValue();
         }
 
