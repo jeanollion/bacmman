@@ -18,15 +18,12 @@
  */
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.TestableOperation;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
@@ -61,7 +58,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setEmphasized(true).setHint(SIZE_TOOL_TIP);
     NumberParameter fillingProportion = new BoundedNumberParameter("Filling proportion of Microchannel", 2, 0.4, 0.05, 1).setEmphasized(true).setHint(FILL_TOOL_TIP);
     PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setEmphasized(true).setHint(THLD_TOOL_TIP);
-    
+
     Parameter[] parameters = new Parameter[]{channelLength, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup};
     double threshold = Double.NaN;
     public CropMicrochannelsFluo2D(int channelHeight, int cropMargin, int minObjectSize, double fillingProportion, int FrameNumber) {
@@ -127,7 +124,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
         Consumer<Image> dispImage = testMode.testSimple() ? i-> Core.showImage(i) : null;
         BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testSimple() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
-        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 20, this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), MicrochannelFluo2D.METHOD.PEAK, dispImage, miscDisp);
+        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 20, this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), 1, MicrochannelFluo2D.METHOD.PEAK, dispImage, miscDisp);
         if (r == null) return null;
         
         int xStart = this.xStart.getValue().intValue();

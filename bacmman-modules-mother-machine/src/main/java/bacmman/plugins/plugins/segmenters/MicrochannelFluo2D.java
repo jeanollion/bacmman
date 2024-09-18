@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -46,6 +43,7 @@ import java.util.*;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -62,7 +60,8 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     NumberParameter fillingProportion = new BoundedNumberParameter("Microchannel filling proportion", 2, 0.3, 0.05, 1).setEmphasized(true).setHint(FILL_TOOL_TIP);
     public final static String SIZE_TOOL_TIP = "After cell segmentation step (see help of the module, step 1), objects whose size in pixels is smaller than <em>Object Size Filter</em> are removed.<br />Configuration Hint: Refer to the <em>Thresholded Bacteria</em> image displayed in test mode in order to estimate the size of bacteria";
     NumberParameter minObjectSize = new BoundedNumberParameter("Min. Object Size", 0, 200, 1, null).setHint(SIZE_TOOL_TIP);
-    Parameter[] parameters = new Parameter[]{channelLength, channelWidth, yShift, threshold, fillingProportion, minObjectSize};
+    FloatParameter peakProportion = new FloatParameter("Peak Proportion", 1).setLowerBound(0.25).setUpperBound(1).setHint("Microchannel Center is defined by as the center of the truncated peak at this proportion of the peak.<br/>Right click on Thresholded Bacteria test images > Display microchannel fill proportion graph");
+    Parameter[] parameters = new Parameter[]{channelLength, channelWidth, yShift, threshold, fillingProportion, minObjectSize, peakProportion};
     public static boolean debug = false;
     public static final String TOOL_TIP = "<ol><li>A rough segmentation of the cells is performed, using the <em>Threshold</em> parameter computed on all frames</li>"
     + "<li>Empty microchannels are discarded: the microchannel is discarded if the length of the segmented objects at step 1 (in Y-direction) is smaller than the product of two user-defined parameters : <em>Microchannel Length</em> x <em>Microchannel Filling proportion</em></li>"
@@ -103,7 +102,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runThresholder(input, parent) : thresholdValue;
         logger.debug("thresholder: {} : {}", threshold.getPluginName(), threshold.getParameters());
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
         if (r==null) return null;
         else return r.getObjectPopulation(input, true);
     }
@@ -111,7 +110,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     @Override
     public Result segment(Image input, int structureIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runSimpleThresholder(input, null) : thresholdValue;
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(),METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
         return r;
     }
     
@@ -150,7 +149,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
      * @param thld optiona lused for image binarization, can be NaN
      * @return 
      */
-    public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double fillingProportion, double thld, int minObjectSize, METHOD method, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer) {
+    public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double fillingProportion, double thld, int minObjectSize, double peakProportion, METHOD method, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer) {
 
         // get thresholded image
         if (Double.isNaN(thld) && thresholdedImage == null) {
@@ -242,6 +241,13 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
                 // get center of microchannel: peaks of xProjection
                 ArrayUtil.gaussianSmooth(xProj, Math.max(2, channelWidth/8));
                 List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth/2, true);
+                if (peakProportion < 1) {
+                    localMax = localMax.stream().map(p -> {
+                        int startOfPeak = ArrayUtil.getFirstOccurence(xProj, p, 0, v->v<xProj[p] * peakProportion);
+                        int endOfPeak = ArrayUtil.getFirstOccurence(xProj, p, xProj.length, v->v<xProj[p] * peakProportion);
+                        return (startOfPeak + endOfPeak) / 2;
+                    }).collect(Collectors.toList());
+                }
                 //logger.debug("channelWidth: {}, peaks: {}", channelWidth, localMax);
                 int leftLimit = channelWidth / 2 + 1;
                 int rightLimit = image.sizeX() - leftLimit;
