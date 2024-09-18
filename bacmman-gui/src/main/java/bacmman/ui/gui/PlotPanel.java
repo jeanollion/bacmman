@@ -10,6 +10,7 @@ import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import org.jfree.chart.*;
+import org.jfree.chart.annotations.XYLineAnnotation;
 import org.jfree.chart.annotations.XYTextAnnotation;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.entity.ChartEntity;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.geom.Line2D;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -199,6 +201,7 @@ public class PlotPanel {
 
                 chartPanel.addChartMouseListener(new ChartMouseListener() {
                     XYTextAnnotation labelX, labelY;
+                    XYLineAnnotation xLine, yLine;
                     int lastSelectedSeries = -1;
 
                     @Override
@@ -219,8 +222,22 @@ public class PlotPanel {
 
                     @Override
                     public void chartMouseMoved(ChartMouseEvent event) {
-                        if (labelX != null) renderer.removeAnnotation(labelX);
-                        if (labelY != null) renderer.removeAnnotation(labelY);
+                        if (labelX != null) {
+                            renderer.removeAnnotation(labelX);
+                            labelX = null;
+                        }
+                        if (labelY != null) {
+                            renderer.removeAnnotation(labelY);
+                            labelY = null;
+                        }
+                        if (xLine != null) {
+                            renderer.removeAnnotation(xLine);
+                            xLine = null;
+                        }
+                        if (yLine != null) {
+                            renderer.removeAnnotation(yLine);
+                            yLine = null;
+                        }
                         ChartEntity chartentity = event.getEntity();
                         if (chartentity instanceof XYItemEntity) {
                             XYItemEntity e = (XYItemEntity) chartentity;
@@ -251,7 +268,10 @@ public class PlotPanel {
                             labelY.setOutlineVisible(true);
                             labelY.setTextAnchor(yDown ? TextAnchor.TOP_LEFT : TextAnchor.BOTTOM_LEFT);
                             renderer.addAnnotation(labelY);
-
+                            xLine = new XYLineAnnotation(xRange.getLowerBound(), y, xRange.getUpperBound(), y, new BasicStroke(1), renderer.getSeriesPaint(s));
+                            renderer.addAnnotation(xLine);
+                            yLine = new XYLineAnnotation(x, yRange.getLowerBound(), x, yRange.getUpperBound(), new BasicStroke(1), renderer.getSeriesPaint(s));
+                            renderer.addAnnotation(yLine);
                         }
                     }
                 });
