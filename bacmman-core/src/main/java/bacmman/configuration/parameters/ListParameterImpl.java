@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.function.BiFunction;
+import java.util.function.*;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import org.json.simple.JSONArray;
@@ -31,9 +31,6 @@ import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 import bacmman.utils.Utils;
 import java.util.Arrays;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -57,6 +54,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     protected int unMutableIndex, maxChildCount;
     protected Boolean isEmphasized;
     protected BiFunction<L, Integer, String> newInstanceNameFunction;
+    protected Utils.TriConsumer<L, Integer, T> newInstanceConfiguration;
     boolean allowMoveChildren = true;
     boolean allowModifications=true;
     protected Predicate<L> additionalValidation = l -> true;
@@ -73,6 +71,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         dest.setUnmutableIndex(source.unMutableIndex);
         dest.setMaxChildCount(source.maxChildCount);
         dest.setNewInstanceNameFunction(source.newInstanceNameFunction);
+        dest.setNewInstanceConfigurationFunction(source.newInstanceConfiguration);
         dest.setHint(source.toolTipText);
         dest.setSimpleHint(source.toolTipTextSimple);
         dest.setListeners(source.listeners);
@@ -245,6 +244,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         if (childInstance == null && getChildClass() != null) {
             try {
                 res = childClass.getDeclaredConstructor(String.class).newInstance(newInstanceNameFunction!=null ? newInstanceNameFunction.apply((L)this, getChildCount()) : "new "+childClass.getSimpleName());
+                if (newInstanceConfiguration!=null) newInstanceConfiguration.accept((L)this, getChildCount(), res);
                 //if (isEmphasized!=null) res.setEmphasized(isEmphasized);
             } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
                 logger.error("duplicate error", ex);
@@ -252,6 +252,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         } else if (childInstance != null) {
             res =  (T)childInstance.duplicate();
             if (newInstanceNameFunction!=null) res.setName(newInstanceNameFunction.apply((L)this, getChildCount()));
+            if (newInstanceConfiguration!=null) newInstanceConfiguration.accept((L)this, getChildCount(), res);
             if (childInstance.isEmphasized()) res.setEmphasized(true); // || Boolean.FALSE.equals(isEmphasized)
         }
         if (res!=null) {
@@ -418,6 +419,10 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     }
     public L setNewInstanceNameFunction(BiFunction<L, Integer, String> nameFunction) {
         this.newInstanceNameFunction = nameFunction;
+        return (L)this;
+    }
+    public L setNewInstanceConfigurationFunction(Utils.TriConsumer<L, Integer, T> function) {
+        this.newInstanceConfiguration = function;
         return (L)this;
     }
     public void resetName(BiFunction<L, Integer, String> nameFunction) {
