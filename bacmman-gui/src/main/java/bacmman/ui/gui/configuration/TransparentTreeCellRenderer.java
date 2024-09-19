@@ -22,10 +22,8 @@ import bacmman.configuration.parameters.Deactivatable;
 import bacmman.configuration.parameters.Parameter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.awt.*;
 import java.awt.font.TextAttribute;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -70,13 +68,11 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
             if (!isValid) ret.setForeground(Color.RED);
             else if (isDifferent.test(((Parameter)value))) ret.setForeground(Color.BLUE);
             boolean bold = isExpertMode.getAsBoolean() && ((Parameter) value).isEmphasized();
-            Font font = ret.getFont();
-            Map attributes = font.getAttributes();
+            Map attributes = ret.getFont().getAttributes();
             if (value instanceof Deactivatable && !((Deactivatable)value).isActivated()) attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
             else attributes.remove(TextAttribute.STRIKETHROUGH);
-            Font newFont = new Font(attributes);
-            newFont.deriveFont(bold ? Font.BOLD : Font.PLAIN);
-            ret.setFont(newFont);
+            attributes.put(TextAttribute.WEIGHT, bold ? TextAttribute.WEIGHT_BOLD : TextAttribute.WEIGHT_REGULAR);
+            ret.setFont(new Font(attributes));
         }
         return ret;
     }
