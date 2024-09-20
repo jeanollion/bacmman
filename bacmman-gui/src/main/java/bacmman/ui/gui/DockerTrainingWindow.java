@@ -241,7 +241,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                 currentContainer = getContainer(trainer, dockerGateway, false, null, false);
                 if (currentContainer != null) {
                     try {
-                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data");
+                        boolean exportModel = trainer.getConfiguration().getSelectedDockerImage(false).equals(trainer.getConfiguration().getSelectedDockerImage(true));
+                        String[] cmds = exportModel ? new String[]{"python", "train.py", "/data"} : new String[]{"python", "train.py", "/data", "--train_only"};
+                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                     } catch (InterruptedException e) {
                         //logger.debug("interrupted exception", e);
                     } finally {
