@@ -294,7 +294,7 @@ public class PlotPanel {
         } else {
             int sc = (int) (scale + 0.5);
             double div = Math.sqrt(2 * sc + 1);
-            List<Double> std = SlidingOperator.performSlide(ArrayUtil.toList(y), sc, SlidingOperator.slidingStd());
+            List<Double> std = SlidingOperator.performSlide(ArrayUtil.toList(y), sc, new SlidingOperator.SlidingStd());
             double s = Math.min(x.length / 2., smoothScale.getDoubleValue());
             ArrayUtil.gaussianSmooth(y, s);
             YIntervalSeries res = new YIntervalSeries(name);

@@ -256,8 +256,8 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
             for (int f = minF+1; f<maxFExcluded; ++f) errorCount.add((double)setAssignmentToTrackAttributes(f, false));
             
             // NO correction where there are no too many errors
-            List<Double> errorCountMean = SlidingOperator.performSlide(errorCount, 3, SlidingOperator.slidingMean());
-            if (debugCorr) Utils.plotProfile("Error Rate per Frame (sliding mean on 7 frames)", errorCountMean.stream().mapToDouble(d->d.doubleValue()).toArray());
+            List<Double> errorCountMean = SlidingOperator.performSlide(errorCount, 3, new SlidingOperator.SlidingMean());
+            if (debugCorr) Utils.plotProfile("Error Rate per Frame (sliding mean on 7 frames)", errorCountMean.stream().mapToDouble(d-> d).toArray());
             int[] lowErrorFrames = IntStream.range(minF+1, maxFExcluded).filter(i -> errorCountMean.get(i)<=maxErrorRate).toArray();
             List<FrameRange> lowErrorRanges = FrameRange.getContinuousRangesFromFrameIndices(lowErrorFrames); // correction is limited to those ranges
             

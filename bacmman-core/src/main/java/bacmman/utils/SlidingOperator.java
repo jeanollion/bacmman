@@ -34,110 +34,132 @@ public interface SlidingOperator<E, A, R> {
     void slide(E removeElement, E addElement, A accumulator);
     R compute(A accumulator);
     
-    static SlidingOperator<Double, double[], Double> slidingMean() {
-        return new SlidingOperator<Double, double[], Double>() {
-            @Override
-            public double[] instanciateAccumulator() {
-                return new double[2];
+    class SlidingMean implements SlidingOperator<Double, double[], Double> {
+        @Override
+        public double[] instanciateAccumulator() {
+            return new double[2];
+        }
+        @Override
+        public void slide(Double removeElement, Double addElement, double[] accumulator) {
+            if (removeElement!=null) {
+                accumulator[0]-=removeElement;
+                --accumulator[1];
             }
-            @Override
-            public void slide(Double removeElement, Double addElement, double[] accumulator) {
-                if (removeElement!=null) {
-                    accumulator[0]-=removeElement;
-                    --accumulator[1];
-                }
-                if (addElement!=null) {
-                    accumulator[0]+=addElement;
-                    ++accumulator[1];
-                }
+            if (addElement!=null) {
+                accumulator[0]+=addElement;
+                ++accumulator[1];
             }
+        }
 
-            @Override
-            public Double compute(double[] accumulator) {
-                return accumulator[0]/accumulator[1];
-            }
-        };
+        @Override
+        public Double compute(double[] accumulator) {
+            return accumulator[0]/accumulator[1];
+        }
     }
 
-    static SlidingOperator<Double, double[], Double> slidingVar() {
-        return new SlidingOperator<Double, double[], Double>() {
-            @Override
-            public double[] instanciateAccumulator() {
-                return new double[3];
+    class slidingVar implements SlidingOperator<Double, double[], Double> {
+        @Override
+        public double[] instanciateAccumulator() {
+            return new double[3];
+        }
+        @Override
+        public void slide(Double removeElement, Double addElement, double[] accumulator) {
+            if (removeElement!=null) {
+                accumulator[0]-=removeElement;
+                accumulator[1]-=removeElement*removeElement;
+                --accumulator[2];
             }
-            @Override
-            public void slide(Double removeElement, Double addElement, double[] accumulator) {
-                if (removeElement!=null) {
-                    accumulator[0]-=removeElement;
-                    accumulator[1]-=removeElement*removeElement;
-                    --accumulator[2];
-                }
-                if (addElement!=null) {
-                    accumulator[0]+=addElement;
-                    accumulator[1]+=addElement*addElement;
-                    ++accumulator[2];
-                }
+            if (addElement!=null) {
+                accumulator[0]+=addElement;
+                accumulator[1]+=addElement*addElement;
+                ++accumulator[2];
             }
+        }
 
-            @Override
-            public Double compute(double[] accumulator) {
-                return accumulator[1] / accumulator[2] - Math.pow(accumulator[0]/accumulator[2], 2);
-            }
-        };
+        @Override
+        public Double compute(double[] accumulator) {
+            return accumulator[1] / accumulator[2] - Math.pow(accumulator[0]/accumulator[2], 2);
+        }
     }
 
-    static SlidingOperator<Double, double[], Double> slidingStd() {
-        return new SlidingOperator<Double, double[], Double>() {
-            @Override
-            public double[] instanciateAccumulator() {
-                return new double[3];
+    class SlidingStd implements SlidingOperator<Double, double[], Double> {
+        @Override
+        public double[] instanciateAccumulator() {
+            return new double[3];
+        }
+        @Override
+        public void slide(Double removeElement, Double addElement, double[] accumulator) {
+            if (removeElement!=null) {
+                accumulator[0]-=removeElement;
+                accumulator[1]-=removeElement*removeElement;
+                --accumulator[2];
             }
-            @Override
-            public void slide(Double removeElement, Double addElement, double[] accumulator) {
-                if (removeElement!=null) {
-                    accumulator[0]-=removeElement;
-                    accumulator[1]-=removeElement*removeElement;
-                    --accumulator[2];
-                }
-                if (addElement!=null) {
-                    accumulator[0]+=addElement;
-                    accumulator[1]+=addElement*addElement;
-                    ++accumulator[2];
-                }
+            if (addElement!=null) {
+                accumulator[0]+=addElement;
+                accumulator[1]+=addElement*addElement;
+                ++accumulator[2];
             }
+        }
 
-            @Override
-            public Double compute(double[] accumulator) {
-                return Math.sqrt(accumulator[1] / accumulator[2] - Math.pow(accumulator[0]/accumulator[2], 2));
+        @Override
+        public Double compute(double[] accumulator) {
+            return Math.sqrt(accumulator[1] / accumulator[2] - Math.pow(accumulator[0]/accumulator[2], 2));
+        }
+    }
+
+
+    class SlidingMeanStd implements SlidingOperator<Double, double[], double[]> {
+        @Override
+        public double[] instanciateAccumulator() {
+            return new double[3];
+        }
+        @Override
+        public void slide(Double removeElement, Double addElement, double[] accumulator) {
+            if (removeElement!=null) {
+                accumulator[0]-=removeElement;
+                accumulator[1]-=removeElement*removeElement;
+                --accumulator[2];
             }
-        };
+            if (addElement!=null) {
+                accumulator[0]+=addElement;
+                accumulator[1]+=addElement*addElement;
+                ++accumulator[2];
+            }
+        }
+
+        @Override
+        public double[] compute(double[] accumulator) {
+            return new double[]{accumulator[0]/accumulator[2], Math.sqrt(accumulator[1] / accumulator[2] - Math.pow(accumulator[0]/accumulator[2], 2))};
+        }
     }
     
-    static SlidingOperator<Double, List<Double>, Double> slidingMedian(final int minSize) {
-        return new SlidingOperator<Double, List<Double>, Double>() {
-            @Override
-            public List<Double> instanciateAccumulator() {
-                return new ArrayList<>();
+    class SlidingMedian implements SlidingOperator<Double, List<Double>, Double> {
+        final int minSize;
+        public SlidingMedian(int minSize) {
+            this.minSize = minSize;
+        }
+        @Override
+        public List<Double> instanciateAccumulator() {
+            return new ArrayList<>();
+        }
+        @Override
+        public void slide(Double removeElement, Double addElement, List<Double> accumulator) {
+            if (removeElement!=null && !Double.isNaN(removeElement)) {
+                int remIdx = Collections.binarySearch(accumulator, removeElement);
+                accumulator.remove(remIdx);
             }
-            @Override
-            public void slide(Double removeElement, Double addElement, List<Double> accumulator) {
-                if (removeElement!=null && !Double.isNaN(removeElement)) {
-                    int remIdx = Collections.binarySearch(accumulator, removeElement);
-                    accumulator.remove(remIdx);
-                }
-                if (addElement!=null && !Double.isNaN(addElement)) {
-                    int addIdx = Collections.binarySearch(accumulator, addElement);
-                    if (addIdx<0) addIdx = -addIdx-1;
-                    accumulator.add(addIdx, addElement);
-                }
+            if (addElement!=null && !Double.isNaN(addElement)) {
+                int addIdx = Collections.binarySearch(accumulator, addElement);
+                if (addIdx<0) addIdx = -addIdx-1;
+                accumulator.add(addIdx, addElement);
             }
+        }
 
-            @Override
-            public Double compute(List<Double> accumulator) {
-                if (accumulator.size()<minSize) return Double.NaN;
-                return ArrayUtil.median(accumulator);
-            }
-        };
+        @Override
+        public Double compute(List<Double> accumulator) {
+            if (accumulator.size()<minSize) return Double.NaN;
+            return ArrayUtil.median(accumulator);
+        }
     }
     
     static <E, A, R> List<R> performSlide(List<E> list, int halfWindow, SlidingOperator<E, A, R> operator) {

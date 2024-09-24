@@ -430,27 +430,69 @@ public class DockerTrainingWindow implements ProgressLogger {
         testAugButton.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    JPopupMenu menu = new JPopupMenu();
-                    Action closeAll = new AbstractAction("Close All Images") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            displayedImages.forEach(il -> il.forEach(ImagePlus::close));
-                            displayedImages.clear();
-                        }
-                    };
-                    menu.add(closeAll);
-                    Action closeLast = new AbstractAction("Close Last Images") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            if (displayedImages.isEmpty()) return;
-                            List<ImagePlus> images = displayedImages.remove(displayedImages.size() - 1);
-                            images.forEach(ImagePlus::close);
-                        }
-                    };
-                    menu.add(closeLast);
-                    menu.show(testAugButton, evt.getX(), evt.getY());
-                }
+            if (SwingUtilities.isRightMouseButton(evt)) {
+                JPopupMenu menu = new JPopupMenu();
+                Action testPredict = new AbstractAction("Test Predict") {
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        currentProgressBar = trainingProgressBar;
+                        writeConfigFile(false, false, true, false); // save only python config in case
+                        runLater(() -> {
+                            if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
+                            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+                            String[] dataTemp = new String[1];
+                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
+                            File outputFile = Paths.get(dataTemp[0], "test_data_augmentation.h5").toFile();
+                            if (currentContainer != null) {
+                                try {
+                                    if (outputFile.exists()) outputFile.delete();
+                                    dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, "python", "train.py", "/data", "--test_predict");
+                                    logger.debug("data aug file found: {}", outputFile.isFile());
+                                    if (outputFile.exists()) {
+                                        List<ImagePlus> images = new ArrayList<>();
+                                        IHDF5Reader reader = HDF5IO.getReader(outputFile);
+                                        for (String s : HDF5IO.getAllDatasets(reader, "/data_aug")) {
+                                            ImagePlus ip = HDF5IO.readDataset(reader, s);
+                                            String[] split = s.split("/");
+                                            ip.setTitle(split[split.length - 1]);
+                                            ip.show();
+                                            images.add(ip);
+                                        }
+                                        displayedImages.add(images);
+                                    }
+                                } catch (InterruptedException ignored) { //InterruptedException
+
+                                } catch (Exception e) {
+                                    logger.debug("error reading augmented data", e);
+                                } finally {
+                                    dockerGateway.stopContainer(currentContainer);
+                                    currentContainer = null;
+                                }
+                            }
+                        });
+                    }
+                };
+                menu.add(testPredict);
+                testPredict.setEnabled(DockerDLTrainer.TestPredict.class.isAssignableFrom(trainerParameter.getSelectedPluginClass()));
+                Action closeAll = new AbstractAction("Close All Images") {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        displayedImages.forEach(il -> il.forEach(ImagePlus::close));
+                        displayedImages.clear();
+                    }
+                };
+                menu.add(closeAll);
+                Action closeLast = new AbstractAction("Close Last Images") {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        if (displayedImages.isEmpty()) return;
+                        List<ImagePlus> images = displayedImages.remove(displayedImages.size() - 1);
+                        images.forEach(ImagePlus::close);
+                    }
+                };
+                menu.add(closeLast);
+                menu.show(testAugButton, evt.getX(), evt.getY());
+            }
             }
         });
         saveModelButton.addActionListener(ae -> {

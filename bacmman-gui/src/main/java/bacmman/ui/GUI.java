@@ -823,14 +823,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         actionMap.put(Shortcuts.ACTION.NAV_PREV, new AbstractAction("Prev") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                previousTrackErrorButtonActionPerformed(e);
+                navigatePrevButtonActionPerformed(e);
             }
         });
         
         actionMap.put(Shortcuts.ACTION.NAV_NEXT, new AbstractAction("Next") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                nextTrackErrorButtonActionPerformed(e);
+                navigateNextButtonActionPerformed(e);
             }
         });
         actionMap.put(Shortcuts.ACTION.OPEN_NEXT, new AbstractAction("Open Next Image") {
@@ -2583,7 +2583,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         nextTrackErrorButton.setText("Navigate Next (X)");
         nextTrackErrorButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                nextTrackErrorButtonActionPerformed(evt);
+                navigateNextButtonActionPerformed(evt);
             }
         });
 
@@ -2604,7 +2604,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         previousTrackErrorButton.setText("Navigate Previous (W)");
         previousTrackErrorButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                previousTrackErrorButtonActionPerformed(evt);
+                navigatePrevButtonActionPerformed(evt);
             }
         });
 
@@ -3468,7 +3468,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 logger.debug("#objects from selection on current image: {} (display sIdx: {}, sel: {})", objects.size(), displayObjectClassIdx, objectClassIdx);
                 move = !objects.isEmpty() && iwm.goToNextObject(null, objects, next, true);
             } else {
-                move = iwm.goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next, true);
+                List<SegmentedObject> selTracks = iwm.getSelectedLabileTrackHeads(null);
+                if (ImageWindowManager.displayTrackMode && !selTracks.isEmpty()) {
+                    if (next) selTracks = selTracks.stream().map(SegmentedObject::getTrackTail).collect(Collectors.toList());
+                    move = iwm.goToNextObject(null, selTracks, next, false);
+                } else {
+                    move = iwm.goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next, true);
+                }
             }
             if (move) navigateCount=0;
             else {
@@ -5019,7 +5025,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         //GUI.updateRoiDisplayForSelections();
     }//GEN-LAST:event_selectAllObjectsButtonActionPerformed
 
-    private void previousTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_previousTrackErrorButtonActionPerformed
+    private void navigatePrevButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_previousTrackErrorButtonActionPerformed
         if (!checkConnection()) return;
         navigateToNextObjects(false, null, false, -1, true);
     }//GEN-LAST:event_previousTrackErrorButtonActionPerformed
@@ -5047,7 +5053,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, relabel.getSelected(), true);
     }//GEN-LAST:event_postFilterActionPerformed
 
-    private void nextTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed
+    private void navigateNextButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed
         if (!checkConnection()) return;
         navigateToNextObjects(true, null, false, -1, true);
     }//GEN-LAST:event_nextTrackErrorButtonActionPerformed

@@ -397,9 +397,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 else children.add(scaler);
             }
             children.addAll(Arrays.asList(this.otherParameters));
-            if (dataAugParameters == null) dataAugParameters = new Parameter[0];
-            dataAug = new GroupParameter("Data Augmentation", ParameterUtils.duplicateArray(dataAugParameters));
-            children.add(dataAug);
+            if (dataAugParameters != null) {
+                dataAug = new GroupParameter("Data Augmentation", ParameterUtils.duplicateArray(dataAugParameters));
+                children.add(dataAug);
+            } else dataAug = null;
             initChildList();
         }
 
@@ -427,12 +428,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         }
 
         public List<Parameter> getDataAugmentationParameters() {
-            return Collections.unmodifiableList(dataAug.children);
+            return dataAug != null ? Collections.unmodifiableList(dataAug.children) : Collections.emptyList();
         }
 
         @Override
         public DatasetParameter duplicate() {
-            DatasetParameter res = new DatasetParameter(name, multipleChannel, scaling, ParameterUtils.duplicateArray(dataAug.children.toArray(new Parameter[0])), ParameterUtils.duplicateArray(otherParameters));
+            DatasetParameter res = new DatasetParameter(name, multipleChannel, scaling, dataAug!=null ? ParameterUtils.duplicateArray(dataAug.children.toArray(new Parameter[0])) : null, ParameterUtils.duplicateArray(otherParameters));
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
@@ -456,7 +457,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                     dataAug.put(scaler.getPythonConfigurationKey(), scaler.getPythonConfiguration());
                 }
             }
-            PythonConfiguration.putParameters(this.dataAug.children, dataAug);
+            if (this.dataAug!=null) PythonConfiguration.putParameters(this.dataAug.children, dataAug);
             return res;
         }
         @Override

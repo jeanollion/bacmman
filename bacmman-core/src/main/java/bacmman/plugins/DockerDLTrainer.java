@@ -19,4 +19,5 @@ public interface DockerDLTrainer extends Plugin {
     enum SELECTION_MODE {NEW, EXISTING}
 
     interface ComputeMetrics {}
+    interface TestPredict {}
 }
