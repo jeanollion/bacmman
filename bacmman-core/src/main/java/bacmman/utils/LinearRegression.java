@@ -75,8 +75,12 @@ public class LinearRegression {
         //"SSR  = " + ssr
                 */
     }
-    public static double[] getResiduals(double[] x, double[] y, double intersect, double slope) {
-        return IntStream.range(0, x.length).mapToDouble(i -> y[i] - (intersect + x[i] * slope)).toArray();
+
+    public static double[] getResiduals(double[] x, double[] y, double[] intersectSlope) {
+        return IntStream.range(0, x.length).mapToDouble(i -> getResidual(x[i], y[i], intersectSlope)).toArray();
     }
 
+    public static double getResidual(double x, double y, double[] intersectSlope) {
+        return y - (intersectSlope[0] + x * intersectSlope[1]);
+    }
 }

@@ -73,6 +73,7 @@ public class FeatureFilter implements PostFilterFeature, Hint {
         childPopulation=childPopulation.filter(new RegionPopulation.Feature(f, threshold.getValue().doubleValue(), keepOverThreshold.getSelected(), strict.getSelected()));
         return childPopulation;
     }
+
     @Override
     public Parameter[] getParameters() {
         return parameters;

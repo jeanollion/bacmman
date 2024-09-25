@@ -11,10 +11,11 @@ import bacmman.data_structure.Spot;
 import bacmman.image.BlankMask;
 import bacmman.image.ImageMask;
 import bacmman.measurement.GeometricalMeasurements;
+import bacmman.plugins.GeometricalFeature;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ObjectFeature;
 
-public class EdgeContact implements ObjectFeature, Hint {
+public class EdgeContact implements GeometricalFeature, Hint {
     BooleanParameter xLbool = new BooleanParameter("X left", true).setEmphasized(true).setHint("Counts contact with left part of the image (X==0)");
     BooleanParameter xHbool = new BooleanParameter("X right", true).setEmphasized(true).setHint("Counts contact with right part of the image (X==Xmax)");
     BooleanParameter yLbool = new BooleanParameter("Y up", true).setEmphasized(true).setHint("Counts contact with upper part of the image (Y==0)");
@@ -25,6 +26,16 @@ public class EdgeContact implements ObjectFeature, Hint {
     EnumChoiceParameter<NORMALIZATION> normalization = new EnumChoiceParameter<>("Normalization", NORMALIZATION.values(), NORMALIZATION.NONE).setHint("Edge contact normalization. NONE: absolute contact (in pixel), FERET_DIAMETER: absolut contact value/ feret diameter, THICKNESS: absolut contact value / thickness (estimated with local max of EDM), DIAMETER: absolut contact value / diameter (estimated with size)");
     BooleanParameter useMask = new BooleanParameter("Contact with mask", false).setEmphasized(true).setHint("If true, counts contact with parent mask edges, otherwise counts contact with image edges.");
     RegionPopulation.ContactBorder contact;
+
+    public EdgeContact set(boolean xStart, boolean xEnd, boolean yStart, boolean yEnd, boolean zStart, boolean zEnd) {
+        this.xLbool.setSelected(xStart);
+        this.xHbool.setSelected(xEnd);
+        this.yLbool.setSelected(yStart);
+        this.yHbool.setSelected(yEnd);
+        this.zLbool.setSelected(zStart);
+        this.zHbool.setSelected(zEnd);
+        return this;
+    }
 
     @Override
     public Parameter[] getParameters() {

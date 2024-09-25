@@ -107,7 +107,9 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
                 if (super.containsKey(key)) return super.get(key);
                 else {
                     V v = factory.apply((K)key);
-                    super.put((K)key, v);
+                    synchronized (this) {
+                        super.put((K)key, v);
+                    }
                     return v;
                 }
             }

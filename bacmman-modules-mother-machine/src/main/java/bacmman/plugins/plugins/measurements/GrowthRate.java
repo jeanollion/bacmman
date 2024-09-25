@@ -19,6 +19,8 @@
 package bacmman.plugins.plugins.measurements;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.Region;
+import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.image.Image;
@@ -27,21 +29,17 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.*;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.plugins.object_feature.ObjectFeatureWithCore;
+import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.EdgeContact;
+import bacmman.plugins.plugins.post_filters.FeatureFilter;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.LinearRegression;
 import bacmman.utils.Utils;
 import bacmman.configuration.parameters.ConditionalParameter;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
+import java.util.*;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size;
-
-import static bacmman.utils.Utils.parallel;
-
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -51,28 +49,33 @@ import java.util.stream.Collectors;
 public class GrowthRate implements Measurement, MultiThreaded, Hint {
     protected ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false).setEmphasized(true).setHint("Select object class corresponding to bacteria");
     protected PluginParameter<GeometricalFeature> feature = new PluginParameter<>("Feature", GeometricalFeature.class, new Size(), false).setHint("Geometrical Feature of object used to estimate the size of a bacterium in order to compute the Growth Rate");
-    protected BooleanParameter wholeCycle = new BooleanParameter("Whole Cycle", true).setHint("If true, growth rate is computed on the whole cycle, otherwise on a sliding window");
-    protected BoundedNumberParameter slidingWindow = new BoundedNumberParameter("Sliding Window", 0, 2, 1, null).setHint("Size of sliding window W: for each cycle in frames [F, F+N] growth rate will be computed at each frame f € [F+W, F+N-W] within the sliding window [f-W, f+W]");
-    protected BooleanParameter fillEdges = new BooleanParameter("Fill Edges", false).setHint("If true, for each cycle, NA values at start and end of cycle are replaced by the nearest non-NA value");
+    protected BooleanParameter wholeCycle = new BooleanParameter("Whole Cycle", true).setHint("If true, growth rate is computed on the whole cycle, otherwise on a sliding window with the cycle");
+    protected BoundedNumberParameter slidingWindow = new BoundedNumberParameter("Sliding Window", 0, 3, 1, null).setHint("Size of sliding window W: for each cycle in frames [F, F+N] growth rate will be computed at each frame f € [F+W, F+N-W] within the sliding window [f-W, f+W]");
+    protected BooleanParameter fillEdges = new BooleanParameter("Fill Edges", true).setHint("If true, for each cycle, NA values at start and end of cycle are replaced by the nearest non-NA value");
     protected BoundedNumberParameter minCells = new BoundedNumberParameter("Minimum cell number", 0, 3, 2, null).setHint("Set here the minimum number of cell per generation to compute growth rate. NA is returned for generations with fewer cells than the value of this parameter");
     protected BooleanParameter saveSizeAtDiv = new BooleanParameter("Save Size at Birth", false).setHint("Whether the estimated size at birth should be saved or not");
 
     protected ConditionalParameter<Boolean> wholeCycleCond = new ConditionalParameter<>(wholeCycle)
-            .setActionParameters(true, minCells, saveSizeAtDiv)
-            .setActionParameters(false, slidingWindow, fillEdges);
+            .setActionParameters(false, slidingWindow);
 
     protected TextParameter suffix = new TextParameter("Suffix", "", false).setHint("Suffix added to measurement name (column name in the extracted table)");
     protected BooleanParameter saveFeature = new BooleanParameter("Save Feature", false);
     protected TextParameter featureKey = new TextParameter("Feature Name", "", false).addValidationFunction((t)->t.getValue().length()>0).setHint("Name given to geometrical feature in measurements");
     protected ConditionalParameter<Boolean> saveFeatureCond = new ConditionalParameter<>(saveFeature).setActionParameters(true, featureKey).setHint("Whether value of geometrical feature (defined in the <em>Feature</em> parameter) should be saved to measurements");
-    protected Parameter[] parameters = new Parameter[]{structure, feature, wholeCycleCond, suffix, saveFeatureCond};
+    protected BooleanParameter saveResiduals = new BooleanParameter("Save Residuals", false);
+    BooleanParameter filterCellsBool = new BooleanParameter("Filter Out Cells", false);
+    FeatureFilter filter = new FeatureFilter(new EdgeContact().set(false, false, false, true, false, false), 2, false, false);
+    ConditionalParameter<Boolean> filterCellsCond = new ConditionalParameter<>(filterCellsBool).setActionParameters(true, filter.getParameters());
+
+
+    protected Parameter[] parameters = new Parameter[]{structure, feature, wholeCycleCond, minCells, saveSizeAtDiv, saveResiduals, saveFeatureCond, suffix, filterCellsCond};
     
     public GrowthRate() {
         feature.addListener( p -> {
-            if (suffix.getValue().length()!=0 && featureKey.getValue().length()!=0) return;
+            if (!suffix.getValue().isEmpty() && !featureKey.getValue().isEmpty()) return;
             String n = feature.instantiatePlugin().getDefaultName();
-            if (suffix.getValue().length()==0) suffix.setValue(n);
-            if (featureKey.getValue().length()==0) featureKey.setValue(n);
+            if (suffix.getValue().isEmpty()) suffix.setValue(n);
+            if (featureKey.getValue().isEmpty()) featureKey.setValue(n);
         });
     }
     
@@ -111,18 +114,26 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
     @Override
     public void performMeasurement(SegmentedObject parentTrackHead) {
         int bIdx = structure.getSelectedIndex();
-        String suffix = this.suffix.getValue();
         String featKey = this.featureKey.getValue();
         boolean saveSizeDiv = saveSizeAtDiv.getSelected();
         boolean feat = saveFeature.getSelected();
         Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
-        HashMapGetCreate<SegmentedObject, ObjectFeature> ofMap = new HashMapGetCreate<>(p -> {
+        HashMapGetCreate<SegmentedObject, ObjectFeature> ofMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> {
             ObjectFeature of = feature.instantiatePlugin().setUp(p, bIdx, p.getChildRegionPopulation(bIdx));
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);
             return of;
         });
         List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
-        parentTrack.forEach(ofMap::getAndCreateIfNecessary);
+        Utils.parallel(parentTrack.stream(), this.parallel).forEach(ofMap::getAndCreateIfNecessary);
+        Map<SegmentedObject, List<SegmentedObject>> parentMapRemovedCells;
+        if (filterCellsBool.getSelected()) {
+            parentMapRemovedCells = Utils.parallel(parentTrack.stream(), this.parallel).collect(Collectors.toMap(p->p, p -> {
+                RegionPopulation pop = p.getChildRegionPopulation(bIdx);
+                pop = filter.runPostFilter(p, bIdx, pop);
+                Set<Region> remaining = new HashSet<>(pop.getRegions());
+                return p.getChildren(bIdx).filter(o -> !remaining.contains(o.getRegion())).collect(Collectors.toList());
+            }));
+        } else parentMapRemovedCells = null;
         long t1 = System.currentTimeMillis();
         logger.trace("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);
         Map<SegmentedObject, Double> logLengthMap = Utils.parallel(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));
@@ -130,9 +141,29 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         Map<SegmentedObject, List<SegmentedObject>> bacteriaTracks = SegmentedObjectUtils.getAllTracks(parentTrack, bIdx);
         long t3 = System.currentTimeMillis();
         boolean wholeCycle = this.wholeCycle.getSelected();
-        int minCells = wholeCycle ? this.minCells.getValue().intValue() : slidingWindow.getIntValue()*2+1;
-        String key = "GrowthRate" + suffix;
-        Utils.parallel(bacteriaTracks.values().stream(), true).forEach(l-> {
+        int minCells = this.minCells.getValue().intValue();
+        String key = key();
+        String sizeAtBirthKey = sizeAtBirthKey();
+        boolean saveResiduals = this.saveResiduals.getSelected();
+        String residualKey = residualKey();
+        int w = slidingWindow.getIntValue();
+        Consumer<SegmentedObject> setNullMeasurements = b -> {
+            b.getMeasurements().setValue(key, null );  // erase values
+            if (saveSizeDiv) b.getMeasurements().setValue(sizeAtBirthKey, null );  // erase values
+            if (saveResiduals) b.getMeasurements().setValue(residualKey, null );  // erase values
+            if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b)));
+        };
+        Utils.parallel(bacteriaTracks.values().stream(), this.parallel).forEach(l-> {
+            List<SegmentedObject> removed;
+            if (parentMapRemovedCells != null) {
+                removed = new ArrayList<>(l.size());
+                l.removeIf(b -> {
+                    if (parentMapRemovedCells.get(b.getParent()).contains(b)) {
+                        removed.add(b);
+                        return true;
+                    } else return false;
+                });
+            } else removed = null;
             if (l.size()>=minCells) {
                 double[] frame = new double[l.size()];
                 double[] length = new double[frame.length];
@@ -142,42 +173,61 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
                     length[idx++] = logLengthMap.get(b);
                 }
                 frame[0] = 0;
-                if (wholeCycle) {
+                if (wholeCycle || l.size()<=w*2+1) {
                     double[] beta = LinearRegression.run(frame, length);
-                    for (SegmentedObject b : l) {
-                        b.getMeasurements().setValue(key, beta[1]);
-                        if (saveSizeDiv) b.getMeasurements().setValue("SizeAtBirth" + suffix, Math.exp(beta[0]));
-                        if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b)));
-                    }
-                } else {
-                    int w = slidingWindow.getIntValue();
+                    double[] residuals = saveResiduals ? LinearRegression.getResiduals(frame, length, beta) : null;
                     for (int i = 0; i<l.size(); ++i) {
                         SegmentedObject b = l.get(i);
+                        b.getMeasurements().setValue(key, beta[1]);
+                        if (saveSizeDiv) b.getMeasurements().setValue(sizeAtBirthKey, Math.exp(beta[0]));
+                        if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b)));
+                        if (saveResiduals) b.getMeasurements().setValue(residualKey, residuals[i]);
+                    }
+                } else {
+                    Map<Integer, Double> sizeAtBirth = saveSizeDiv ? null : new HashMap<>(l.size());
+                    for (int i = 0; i<l.size(); ++i) {
+                        SegmentedObject b = l.get(i);
+                        if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b)));
                         if (i<w || i>=l.size()-w) {
-                            if (!fillEdges.getSelected()) b.getMeasurements().setValue(key, null);
+                            if (!fillEdges.getSelected()) {
+                                b.getMeasurements().setValue(key, null);
+                                if (saveResiduals) b.getMeasurements().setValue(residualKey, null);
+                            }
                         } else {
                             double[] frameSub = ArrayUtil.subset(frame, i-w, i+w+1);
                             double[] lengthSub = ArrayUtil.subset(length, i-w, i+w+1);
                             double[] beta = LinearRegression.run(frameSub, lengthSub);
                             b.getMeasurements().setValue(key, beta[1]);
+                            if (saveSizeDiv) b.getMeasurements().setValue(sizeAtBirthKey, Math.exp(beta[0]));
+                            else sizeAtBirth.put(i, beta[0]);
+                            if (saveResiduals) b.getMeasurements().setValue(residualKey, LinearRegression.getResidual(frame[i], length[i], beta));
                         }
                     }
                     if (fillEdges.getSelected()) {
                         for (int i = 0; i<w; ++i) {
                             l.get(i).getMeasurements().setValue(key, (Number)l.get(w).getMeasurements().getValue(key));
+                            if (saveSizeDiv) l.get(i).getMeasurements().setValue(sizeAtBirthKey, (Number)l.get(w).getMeasurements().getValue(sizeAtBirthKey));
+                            if (saveResiduals) {
+                                double b0 = saveSizeDiv ? Math.log(((Number) l.get(w).getMeasurements().getValue(sizeAtBirthKey)).doubleValue()) : sizeAtBirth.get(w);
+                                double b1 = ((Number) l.get(w).getMeasurements().getValue(key)).doubleValue();
+                                l.get(i).getMeasurements().setValue(residualKey, LinearRegression.getResidual(frame[i], length[i], new double[]{b0, b1}));
+                            }
                         }
                         for (int i = l.size()-w; i<l.size(); ++i) {
                             l.get(i).getMeasurements().setValue(key, (Number)l.get(l.size()-w-1).getMeasurements().getValue(key));
+                            if (saveSizeDiv) l.get(i).getMeasurements().setValue(sizeAtBirthKey, (Number)l.get(l.size()-w-1).getMeasurements().getValue(sizeAtBirthKey));
+                            if (saveResiduals) {
+                                double b0 = saveSizeDiv ? Math.log(((Number) l.get(w).getMeasurements().getValue(sizeAtBirthKey)).doubleValue()) : sizeAtBirth.get(w);
+                                double b1 = ((Number) l.get(w).getMeasurements().getValue(key)).doubleValue();
+                                l.get(i).getMeasurements().setValue(residualKey, LinearRegression.getResidual(frame[i], length[i], new double[]{b0, b1}));
+                            }
                         }
                     }
                 }
             } else {
-                for (SegmentedObject b : l) {
-                    b.getMeasurements().setValue(key, null );  // erase values
-                    if (wholeCycle && saveSizeDiv) b.getMeasurements().setValue("SizeAtBirth"+suffix, null );  // erase values
-                    if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b))); 
-                }
+                for (SegmentedObject b : l) setNullMeasurements.accept(b);
             }
+            if (removed != null) for (SegmentedObject b : removed) setNullMeasurements.accept(b);
         });
         long t4 = System.currentTimeMillis();
         logger.debug("Growth Rate: compute values: {}ms, process: {}ms", t2-t1, t4-t3);
@@ -186,12 +236,24 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
     @Override 
     public ArrayList<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>(3);
-        String suffix = this.suffix.getValue();
-        res.add(new MeasurementKeyObject("GrowthRate"+suffix, structure.getSelectedIndex()));
-        if (wholeCycle.getSelected() && saveSizeAtDiv.getSelected()) res.add(new MeasurementKeyObject("SizeAtBirth"+suffix, structure.getSelectedIndex()));
-        if (this.saveFeature.getSelected()) res.add(new MeasurementKeyObject(featureKey.getValue(), structure.getSelectedIndex()));
+        res.add(new MeasurementKeyObject(key(), structure.getSelectedIndex()));
+        if (saveSizeAtDiv.getSelected()) res.add(new MeasurementKeyObject(sizeAtBirthKey(), structure.getSelectedIndex()));
+        if (saveFeature.getSelected()) res.add(new MeasurementKeyObject(featureKey.getValue(), structure.getSelectedIndex()));
+        if (saveResiduals.getSelected()) res.add(new MeasurementKeyObject(residualKey(), structure.getSelectedIndex()));
         return res;
     }
+
+    protected String key() {
+        return "GrowthRate"+suffix.getValue();
+    }
+    protected String sizeAtBirthKey() {
+        return "SizeAtBirth"+suffix.getValue();
+    }
+    protected String residualKey() {
+        return "GrowthRateResidual"+suffix.getValue();
+    }
+
+
     
     @Override
     public Parameter[] getParameters() {
@@ -219,10 +281,10 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         if (mod>0) return String.valueOf(c)+mod;
         else return String.valueOf(c);
     }
-
+    boolean parallel = true;
     @Override
     public void setMultiThread(boolean parallel) {
-        // always true
+        this.parallel=parallel;
     }
 
     @Override
