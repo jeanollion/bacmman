@@ -67,7 +67,6 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
     FeatureFilter filter = new FeatureFilter(new EdgeContact().set(false, false, false, true, false, false), 2, false, false);
     ConditionalParameter<Boolean> filterCellsCond = new ConditionalParameter<>(filterCellsBool).setActionParameters(true, filter.getParameters());
 
-
     protected Parameter[] parameters = new Parameter[]{structure, feature, wholeCycleCond, minCells, saveSizeAtDiv, saveResiduals, saveFeatureCond, suffix, filterCellsCond};
     
     public GrowthRate() {

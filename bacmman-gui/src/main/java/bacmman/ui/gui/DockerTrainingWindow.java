@@ -1321,7 +1321,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         testAugButton.setEnabled(enable && runner == null);
         //taskButton.setEnabled(enable && runner == null);
         stopTrainingButton.setEnabled(runner != null);
-        boolean saveModelEnable = enable;
+        boolean saveModelEnable = enable && runner == null;
         if (saveModelEnable) {
             File savedWeight = getSavedWeightFile();
             saveModelEnable = savedWeight != null && savedWeight.isFile();
