@@ -4,6 +4,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.image.*;
 import bacmman.processing.Filters;
+import bacmman.processing.ImageDerivatives;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageLabeller;
 import bacmman.utils.geom.Point;
@@ -49,7 +50,7 @@ public class TestGaussianFit {
     }
 
     public static List<Region> fit(Image image, double threshold, boolean ellipses, boolean plane) {
-        Image smoothed =  ImageFeatures.gaussianSmoothScaleIndep(image, 1, 1, false);
+        Image smoothed =  ImageDerivatives.gaussianSmooth(image, 1, false);
         ImageByte localExtrema = Filters.localExtrema(smoothed, null, true, null, Filters.getNeighborhood(1.5, 1.5, image), false);
         BoundingBox.LoopPredicate lp = (x, y, z) -> smoothed.getPixel(x, y, z)<threshold;
         ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), lp);

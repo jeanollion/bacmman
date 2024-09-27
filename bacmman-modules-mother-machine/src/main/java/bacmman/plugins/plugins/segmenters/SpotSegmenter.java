@@ -76,8 +76,10 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     enum WATERSHED_MAP {LAPLACIAN, GAUSSIAN}
     EnumChoiceParameter<WATERSHED_MAP> watershedMap = new EnumChoiceParameter<>("Watershed Map", WATERSHED_MAP.values(), WATERSHED_MAP.LAPLACIAN).setHint("Feature Map to detect seeds and run watershed transform on.");
 
+    BooleanParameter lapPlaneByPlane = new BooleanParameter("Laplacian Plane By Plane", true).setHint("Computes Laplacian plane by plane. This option is relevant when there are too few Z-planes or resolution in z is too low");
+    FloatParameter scaleZRatio = new FloatParameter("Scale Z ratio", 0).setHint("Used to take into account Z-anisotropy for 3D computation of Gaussian and Laplacian: scaleZ = scaleXY x ratio. <br/>Set 0 to use image calibration, otherwise set a value lower than 1 when Z resolution is lower than XY resolution");
     boolean planeByPlane = false;
-    Parameter[] parameters = new Parameter[]{scale, gaussScale, minSpotSize, laplacianThld, propagationThld, gaussianThld, normMode, qualityFormula, watershedMap};
+    Parameter[] parameters = new Parameter[]{scale, gaussScale, scaleZRatio, lapPlaneByPlane, minSpotSize, laplacianThld, propagationThld, gaussianThld, normMode, qualityFormula, watershedMap};
     ProcessingVariables pv = new ProcessingVariables();
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected using a seeded watershed algorithm applied on the Laplacian transform.</li> "
@@ -316,13 +318,14 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
                 if (planeByPlane && primarySPZ.length>1) { // keep track of z coordinate
                     o.setCenter(o.getCenter().duplicate(3)); // adding z dimention
                     o.translate(new SimpleOffset(0, 0, z));
+                    o.setIs2D(false);
                 }  
             }
         }
         RegionPopulation pop = MultiScaleWatershedTransform.combine(pops, input);
         if (stores!=null) {
-            logger.debug("Parent: {}: Quality: {}", parent, Utils.toStringList(pop.getRegions(), o->""+o.getQuality()));
-            logger.debug("Parent: {}: Center: {}", parent ,Utils.toStringList(pop.getRegions(), o->""+o.getCenter()));
+            //logger.debug("Parent: {}: Quality: {}", parent, Utils.toStringList(pop.getRegions(), o->""+o.getQuality()));
+            //logger.debug("Parent: {}: Center: {}", parent ,Utils.toStringList(pop.getRegions(), o->""+o.getCenter()));
         }
         pop.filter(new RegionPopulation.RemoveFlatObjects(false));
         pop.filter(new RegionPopulation.Size().setMin(minSpotSize));
@@ -468,7 +471,10 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        ImageFloat wsMap = this.pv!=null && this.pv.lap!=null ? pv.lap[0] : ImageFeatures.getLaplacian(input, DoubleStream.of(scale.getArrayDouble()).min().orElse(1.5), true, false);
+        double scaleXY = DoubleStream.of(scale.getArrayDouble()).min().orElse(1.5);
+        double scaleZ  = scaleZRatio.getDoubleValue()==0 ? scaleXY*input.getScaleXY()/input.getScaleZ() : scaleXY * scaleZRatio.getDoubleValue();
+        double[] scaleA = ImageDerivatives.getScaleArray(scaleXY, scaleZ, input);
+        ImageFloat wsMap = this.pv!=null && this.pv.lap!=null ? pv.lap[0] : ImageDerivatives.getLaplacian(input, lapPlaneByPlane.getSelected() ? new double[]{scaleXY, scaleXY} : scaleA, true, true, true, false); // ImageFeatures.getLaplacian(input, DoubleStream.of(scale.getArrayDouble()).min().orElse(1.5), true, false);
         wsMap = object.isAbsoluteLandMark() ? wsMap.cropWithOffset(object.getBounds()) : wsMap.crop(object.getBounds());
         RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, false, manualSplitVerbose, parallel);
         res.translate(object.getBounds(), object.isAbsoluteLandMark());
@@ -523,17 +529,27 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         double[] scale = getScale();
         double[] gaussScale = this.getGaussianScale();
         Image[] maps = new Image[scale.length+gaussScale.length];
-
+        ToDoubleFunction<Double> getScale = s -> scaleZRatio.getDoubleValue()==0 ? s*rawSource.getScaleXY()/rawSource.getScaleZ() : s * scaleZRatio.getDoubleValue();
         for (int i = 0; i<gaussScale.length; ++i) {
             final int ii = i;
-            Function<Image, Image> gaussF = f->gaussScale[ii]<0.5 ? TypeConverter.toFloat(f, null) : ImageFeatures.gaussianSmooth(f, gaussScale[ii], false).setName("gaussian: "+gaussScale[ii]);
-            maps[i] = planeByPlane ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource);
+            Function<Image, Image> gaussF = f-> {
+                if (gaussScale[ii]<0.5) return TypeConverter.toFloat(f, null);
+                else return ImageDerivatives.gaussianSmooth(f, ImageDerivatives.getScaleArray(gaussScale[ii], getScale.applyAsDouble(gaussScale[ii]), f), false);
+                //else return ImageFeatures.gaussianSmooth(f, gaussScale[ii], false);
+            };
+
+            maps[i] = gaussF.apply(filteredSource);
             if (maps[i] == null) throw new RuntimeException("Null gaussian: scale: " + gaussScale[ii]);
         }
         for (int i = 0; i<scale.length; ++i) {
             final int ii = i;
-            Function<Image, Image> lapF = f->ImageFeatures.getLaplacian(f, scale[ii], true, false).setName("laplacian: "+scale[ii]);
-            maps[i+gaussScale.length] = ImageOperations.applyPlaneByPlane(filteredSource, lapF); //  : lapF.apply(filteredSource); if too few images laplacian is not relevent in 3D. TODO: put a condition on slice number, and check laplacian values
+            //Function<Image, Image> lapF = f->  ImageFeatures.getLaplacian(f, scale[ii], true, false).setName("laplacian: "+scale[ii]);
+            Function<Image, Image> lapF = f-> {
+                Image res = ImageDerivatives.getLaplacian(f, ImageDerivatives.getScaleArray(scale[ii], getScale.applyAsDouble(scale[ii]), f), true, true, true, false); // scaling = scale**2 * sqrt(2pi) ImageFeatures.getLaplacian(f, scale[ii], true, false).setName("laplacian: "+scale[ii]);
+                ImageOperations.affineOperation(res, res, Math.sqrt(2 * Math.PI), 0); // legacy scaling to get values with same order of magnitude as when computed with ImageScience
+                return res;
+            };
+            maps[i+gaussScale.length] = lapPlaneByPlane.getSelected() ? ImageOperations.applyPlaneByPlane(filteredSource, lapF) : lapF.apply(filteredSource); // if too few images laplacian is not relevent in 3D. TODO: put a condition on slice number, and check laplacian values
         }
         return maps;
     }

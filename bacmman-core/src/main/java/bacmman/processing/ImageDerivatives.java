@@ -60,7 +60,9 @@ public class ImageDerivatives {
         Runnable r = () -> Gauss3.gauss(scale, inputRA, smooth);
         if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
         else r.run();
-        return ImgLib2ImageWrapper.wrap(smooth);
+        Image res = ImgLib2ImageWrapper.wrap(smooth);
+        res.resetOffset().translate(image).setCalibration(image);
+        return res;
     }
 
     public static ImageFloat getGradientMagnitude(Image image, double scale, boolean scaled, boolean parallel, int... axis) {
@@ -123,7 +125,7 @@ public class ImageDerivatives {
             }
         }
         res.forEach(i -> i.setCalibration(image.getScaleXY(), image.getScaleZ()));
-        res.forEach(i -> i.translate(image));
+        res.forEach(i -> i.resetOffset().translate(image));
         return res;
     }
 
@@ -137,6 +139,7 @@ public class ImageDerivatives {
             Runnable r = () -> Gauss3.gauss(scale, inputG, smooth);
             if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
             else r.run();
+            //if (scaled) LoopBuilder.setImages(smooth).forEachPixel(pixel -> pixel.mul(1/scale[0]));
             inputRA = Views.extendBorder(smooth);
         }
         Img<FloatType> grad = ImgLib2ImageWrapper.createImage(new FloatType(), appendDim(image.dimensions(), image.dimensions().length));
@@ -149,17 +152,17 @@ public class ImageDerivatives {
         Utils.parallel(IntStream.range(0, nDim), parallel).forEach(der2);
         ImageFloat[] res = Utils.parallel(IntStream.range(0, nDim), parallel).mapToObj(d -> (ImageFloat)ImgLib2ImageWrapper.wrap(Views.hyperSlice( grad2, nDim, d ))).toArray(ImageFloat[]::new);
         BoundingBox.LoopFunction fun;
-        double[] scale2 = scaled ? DoubleStream.of(scale).map(d -> d*d).toArray() : null;
+        double[] scale2 = scaled? DoubleStream.of(scale).map(d -> d*d).toArray() : null;
         double mul = invert ? -1 : 1;
         if (nDim == 2) {
-            fun = scaled ? (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z)/scale2[0] + res[1].getPixel(x, y, z)/scale2[1])) : (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z) + res[1].getPixel(x, y, z)));
+            fun = scaled ? (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z)*scale2[0] + res[1].getPixel(x, y, z)*scale2[1])) : (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z) + res[1].getPixel(x, y, z)));
         } else if (nDim == 3) {
-            fun = scaled ? (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z)/scale2[0] + res[1].getPixel(x, y, z)/scale2[1] + res[2].getPixel(x, y, z)/scale2[2])) : (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z) + res[1].getPixel(x, y, z) + res[2].getPixel(x, y, z)));
+            fun = scaled ? (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z)*scale2[0] + res[1].getPixel(x, y, z)*scale2[1] + res[2].getPixel(x, y, z)*scale2[2])) : (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z) + res[1].getPixel(x, y, z) + res[2].getPixel(x, y, z)));
         } else {
             if (scaled) {
                 fun = (x, y, z) -> {
                     double v=0;
-                    for (int d = 0 ; d<nDim; ++d) v+=res[d].getPixel(x, y, z)/scale2[d];
+                    for (int d = 0 ; d<nDim; ++d) v+=res[d].getPixel(x, y, z)*scale2[d];
                     res[0].setPixel(x, y, z, mul * v);
                 };
             } else {

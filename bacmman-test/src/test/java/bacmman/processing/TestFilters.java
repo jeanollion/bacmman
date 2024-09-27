@@ -40,26 +40,9 @@ import bacmman.processing.neighborhood.Neighborhood;
  */
 public class TestFilters {
     public static void main(String[] args) {
-        //new TestFilters().testScale();
         new TestFilters().testMedian();
     }
-    
-    public void testScale() {
-        String path = "/home/jollion/Documents/LJP/DataLJP/testsub60/imagesTest.ome.tiff";
-        Image source = ImageReaderFile.openImage(path, new ImageIOCoordinates(0, 0, 0, new MutableBoundingBox(17, 78, 242, 613, 0, 0)));
-        double[] ms = ImageOperations.getMeanAndSigma(source, null, null);
-        double scale = 2.5;
-        //Image smoothThenScale = ImageFeatures.gaussianSmooth(source, scale, scale, false).setName("gaussian then scale");
-        Image lap = ImageFeatures.getLaplacian(source, scale, true, false).setName("laplacian");
-        //ImageOperations.affineOperation2WithOffset(smoothThenScale, smoothThenScale, 1/ms[1], -ms[0]);
-        Image lapThenScale = ImageOperations.affineOperation2WithOffset(lap, null, 1 / ms[1], 0);
 
-        ImageOperations.affineOperation2WithOffset(source, source, 1 / ms[1], -ms[0]);
-        //Image scaleTheSmooth = ImageFeatures.gaussianSmooth(source, scale, scale, false).setName("scale the gaussian");
-        Image scaleThenLap = ImageFeatures.getLaplacian(source, scale, true, false).setName("scale then laplacian");
-
-    }
-    
     @Test
     public void testMean() {
         //logger.info("byte value: 61.4 {} 61.5 {} 61.6 {} 255 {}, 255.5 {}, 256 {}", new Float(61.4).byteValue(), new Float(61.5).byteValue()&0xff, new Float(61.6).byteValue()&0xff, new Float(255).byteValue()&0xff, new Float(255.5).byteValue()&0xff, new Float(256).byteValue()&0xff);
