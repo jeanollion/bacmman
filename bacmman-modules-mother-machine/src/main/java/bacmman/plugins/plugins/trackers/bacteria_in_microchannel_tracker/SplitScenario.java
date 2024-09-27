@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker;
 
 import bacmman.data_structure.Region;
+import bacmman.image.Image;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.utils.Pair;
@@ -45,18 +46,22 @@ public class SplitScenario extends CorrectionScenario {
             super(frame, frame, tracker);
             this.o=o;
             splitObjects= new ArrayList<>();
-            cost = tracker.segmenters.getAndCreateIfNecessary(frame).split(tracker.getParent(frame).getPreFilteredImage(tracker.structureIdx), tracker.getParent(frame), tracker.structureIdx, o, splitObjects);
+            Image input = tracker.getParent(frame).getPreFilteredImage(tracker.structureIdx);
+            if (input.sizeZ()>1 && o.is2D()) input = input.getZPlane(input.sizeZ()/2);
+            cost = tracker.segmenters.getAndCreateIfNecessary(frame).split(input, tracker.getParent(frame), tracker.structureIdx, o, splitObjects);
             idx = tracker.populations.get(frame).indexOf(o);
             if (idx<0) throw new IllegalArgumentException("Error SplitScenario at frame: "+frame+" object with bounds: "+o.getBounds()+ " not found");
             if (debugCorr) Plugin.logger.debug("Split scenario: tp: {}, idx: {}, cost: {} # objects: {}", frame, idx, cost, splitObjects.size());
         }
         
         private TreeMap<Pair<Double, Region>, List<Region>> split(List<Region> objects) {
-            Comparator<Pair<Double, Region>> comp = (k1, k2) -> Double.compare(k1.key, k2.key);
+            Comparator<Pair<Double, Region>> comp = Comparator.comparingDouble(k -> k.key);
             TreeMap<Pair<Double, Region>, List<Region>> res = new TreeMap(comp);
             for (Region oo : objects) {
                 List<Region> so= new ArrayList<>();
-                double c = tracker.segmenters.getAndCreateIfNecessary(frameMin).split(tracker.getParent(frameMin).getPreFilteredImage(tracker.structureIdx), tracker.getParent(frameMin), tracker.structureIdx, oo, so);
+                Image input = tracker.getParent(frameMin).getPreFilteredImage(tracker.structureIdx);
+                if (input.sizeZ()>1 && oo.is2D()) input = input.getZPlane(input.sizeZ()/2);
+                double c = tracker.segmenters.getAndCreateIfNecessary(frameMin).split(input, tracker.getParent(frameMin), tracker.structureIdx, oo, so);
                 if (so.size()>=2 && Double.isFinite(c) && !Double.isNaN(c)) res.put(new Pair(c, oo), so);
             }
             return res;
