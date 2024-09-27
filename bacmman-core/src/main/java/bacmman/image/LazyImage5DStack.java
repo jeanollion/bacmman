@@ -13,8 +13,7 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
     final Function<int[], I> generatorFC;
     // GENERATOR GENERATES 3D IMAGES (or 2D IMAGES IF Z==1)
     public LazyImage5DStack(String name, ImageProperties props, I imageType, Function<int[], Image> generatorFC, int[] sizeFC) {
-        super(name);
-        this.imageType = Image.copyType(imageType);
+        super(name, Image.copyType(imageType));
         this.sizeX = props.sizeX();
         this.sizeY = props.sizeY();
         this.sizeZ = props.sizeZ();
@@ -28,9 +27,8 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
     }
 
     // for duplicate only
-    private LazyImage5DStack(LazyImage5DStack other) {
-        super(other.name);
-        this.imageType = Image.copyType(imageType);
+    private LazyImage5DStack(LazyImage5DStack<I> other) {
+        super(other.name, Image.copyType(other.imageType));
         this.sizeX = other.sizeX();
         this.sizeY = other.sizeY();
         this.sizeZ = other.sizeZ();
@@ -44,9 +42,11 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
     }
 
     public LazyImage5DStack(String name, Function<int[], Image> generatorFC, int[] sizeFC) {
-        super(name);
-        Triplet<Function<int[], I>, ImageProperties, I> genAndProps = homogenizeType(sizeFC[1], generatorFC);
-        this.imageType = genAndProps.v3;
+        this(name, homogenizeType(sizeFC[1], generatorFC), sizeFC);
+    }
+
+    protected LazyImage5DStack(String name, Triplet<Function<int[], I>, ImageProperties, I> genAndProps,  int[] sizeFC) {
+        super(name, genAndProps.v3);
         this.sizeX = genAndProps.v2.sizeX();
         this.sizeY = genAndProps.v2.sizeY();
         this.sizeZ = genAndProps.v2.sizeZ();
@@ -60,14 +60,13 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
     }
 
     public LazyImage5DStack(String name, Image[][] imageFC) {
-        super(name);
+        super(name, (I)Image.copyType(imageFC[0][0]));
         this.sizeX = imageFC[0][0].sizeX;
         this.sizeY = imageFC[0][0].sizeY;
         this.sizeZ = IntStream.range(0, imageFC[0].length).map(c -> imageFC[0][c].sizeZ).max().getAsInt();
         this.sizeXY = sizeX * sizeY;
         this.sizeXYZ = sizeXY * sizeZ;
         this.translate(imageFC[0][0]);
-        this.imageType = (I)Image.copyType(imageFC[0][0]); 
         this.imageFC = ArrayUtil.generateMatrix((Class<I>)imageType.getClass(), imageFC.length, imageFC[0].length);
         for (int f = 0; f<imageFC.length; ++f) {
             for (int c = 0; c<imageFC[0].length; ++c) {

@@ -10,10 +10,11 @@ import java.util.stream.IntStream;
 
 public abstract class LazyImage5D<I extends Image<I>> extends Image<I> {
     String[] channelNames, channelColors;
-    I imageType;
+    final I imageType;
     int f, c;
-    public LazyImage5D(String name) {
+    public LazyImage5D(String name, I imageType) {
         super(name, 0, 0, 0);
+        this.imageType = imageType;
     }
 
     public static <I extends Image<I>> Function<int[], I> homogenizeType(I type, Function<int[], Image> generatorFCZ) {

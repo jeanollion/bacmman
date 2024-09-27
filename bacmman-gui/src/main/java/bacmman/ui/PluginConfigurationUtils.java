@@ -544,7 +544,9 @@ public class PluginConfigurationUtils {
             return (p, channel) -> {
                 List<TestDataStore> currentStores = stores.stream().filter(s -> s.images.containsKey(name)).filter(s -> s.parent.getParent(parentOCIdx).equals(p)).collect(Collectors.toList());
                 if (currentStores.size() == 1 && currentStores.get(0).parent.getStructureIdx() == parentOCIdx) { // same parent
-                    Image res = TypeConverter.cast(currentStores.get(0).images.get(name), type_);
+                    Image source = currentStores.get(0).images.get(name);
+                    if (source instanceof LazyImage5D) ((LazyImage5D)source).setPosition(0, channel);
+                    Image res = TypeConverter.cast(source, type_);
                     if (res.sizeZ() < maxZ) throw new RuntimeException("Should resize in Z");
                     return res;
                 } else { // sub segmentation -> need to paste image
@@ -552,8 +554,14 @@ public class PluginConfigurationUtils {
                     Image res = Image.createEmptyImage(name, type_, new SimpleImageProperties(props.sizeX(), props.sizeY(), maxZ, props.getScaleXY(), props.getScaleZ()));
                     if (!currentStores.isEmpty()) {
                         for (TestDataStore s : currentStores) {
+                            Image source = s.images.get(name);
+                            if (source instanceof LazyImage5D) ((LazyImage5D)source).setPosition(0, channel);
                             Offset off = new SimpleOffset(s.parent.getMask()).translateReverse(props);
-                            Image.pasteImage(TypeConverter.cast(s.images.get(name), type_), s.parent.getMask(), res, off);
+                            ImageMask sourceMask;
+                            if (s.parent.is2D() && s.images.get(name).sizeZ()>1) {
+                                sourceMask = new ImageMask2D(s.parent.getMask()).setZMin(0).setSizeZ(s.images.get(name).sizeZ());
+                            } else sourceMask = s.parent.getMask();
+                            Image.pasteImage(TypeConverter.cast(source, type_), sourceMask, res, off);
                         }
                     }
                     res.translate(props);
@@ -563,7 +571,8 @@ public class PluginConfigurationUtils {
         }));
         List<InteractiveImage> res = imageSuppliers.entrySet().stream().map(e -> {
             int sizeZ = e.getValue().apply(parents.get(0), 0).sizeZ();
-            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, 1, sizeZ, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, 1, sizeZ, e.getValue(), childOCIdx);
+            int sizeC = stores.stream().filter(s -> s.images.containsKey(e.getKey())).map(s -> s.images.get(e.getKey())).mapToInt(im -> (im instanceof LazyImage5D) ? ((LazyImage5D)im).getSizeC() : 1).findAny().orElse(1);
+            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, sizeC, sizeZ, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, sizeC, sizeZ, e.getValue(), childOCIdx);
             ii.setName(e.getKey());
             return ii;
         }).collect(Collectors.toList());

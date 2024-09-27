@@ -51,8 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static bacmman.processing.watershed.WatershedTransform.watershed;
-
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
@@ -332,36 +330,24 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             String name1 = invertedMaps ? "Gaussian" : "Laplacian";
             String name2 = invertedMaps ? "Laplacian" : "Gaussian";
             if (planeByPlane) {
-                if (scale.length>1) {
-                    for (int z = 0; z<seedsSPZ.length; ++z) {
-                        if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds: Scale-space z="+z, seedsSPZ[z]);
-                        stores.get(parent).addIntermediateImage(name1+": Scale-space z="+z, primarySPZ[z]);
-                    }
+                Function<Image[], LazyImage5DPlane> getImage5D = (SPZ) -> new LazyImage5DPlane<>("", fcz->SPZ[fcz[2]].getZPlane(fcz[1]), new int[]{1, SPZ[0].sizeZ(), SPZ.length});
+                if (!invertedMaps && scale.length>1 || invertedMaps && gaussScale.length>1) {
+                    if (stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("Seeds: Scale-space", getImage5D.apply(seedsSPZ));
+                    stores.get(parent).addIntermediateImage(name1+": Scale-space", getImage5D.apply(primarySPZ));
                 } else {
                     if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedsSPZ));
                     stores.get(parent).addIntermediateImage(name1, Image.mergeZPlanes(primarySPZ));
                 }
-                if (gaussScale.length>1 && secondarySPZ.length>0) {
-                    for (int z = 0; z<secondarySPZ.length; ++z) {
-                        stores.get(parent).addIntermediateImage(name2+": Scale-space z="+z, secondarySPZ[z]);
-                    }
+                if (!invertedMaps && gaussScale.length>1 || invertedMaps && scale.length>1) {
+                    stores.get(parent).addIntermediateImage(name2+": Scale-space", getImage5D.apply(secondarySPZ));
                 } else {
                     stores.get(parent).addIntermediateImage(name2, Image.mergeZPlanes(secondarySPZ));
                 }
             } else {
-                if (seedMaps[0].sizeZ()>1) {
-                    for (int sp = 0; sp<wsMap.length; ++sp) {
-                        if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds Scale-space="+sp, seedMaps[sp]);
-                        if (wsMap.length>0) stores.get(parent).addIntermediateImage(name1+" Scale-space="+sp, wsMap[sp]);
-                    }
-                    for (int sp = 0; sp<wsMapGauss.length; ++sp) {
-                        stores.get(parent).addIntermediateImage(name2+" Scale-space="+sp, wsMapGauss[sp]);
-                    }
-                } else {
-                    if (stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedMaps));
-                    if (wsMap.length>0) stores.get(parent).addIntermediateImage(name1, Image.mergeZPlanes(wsMap));
-                    if (wsMapGauss.length>0) stores.get(parent).addIntermediateImage(name2, Image.mergeZPlanes(wsMapGauss));
-                }
+                Function<Image[], LazyImage5DPlane> getImage5D = (ZSP) -> new LazyImage5DPlane<>("", fcz->ZSP[fcz[1]].getZPlane(fcz[2]), new int[]{1, ZSP.length, ZSP[0].sizeZ()});
+                if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds Scale-space", getImage5D.apply(seedMaps));
+                if (wsMap.length>0) stores.get(parent).addIntermediateImage(name1+" Scale-space", getImage5D.apply(wsMap));
+                stores.get(parent).addIntermediateImage(name2+" Scale-space", getImage5D.apply(wsMapGauss));
             }
         }
         return pop;

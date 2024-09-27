@@ -44,6 +44,24 @@ public class ImageMask2D extends SimpleImageProperties<ImageMask2D> implements I
         this.z=z;
     }
 
+    public ImageMask2D setZMin(int zMin) {
+        this.zMin = zMin;
+        this.sizeXYZ = sizeXY * sizeZ();
+        return this;
+    }
+
+    public ImageMask2D setZMax(int zMax) {
+        this.sizeZ = zMax-zMin + 1;
+        this.sizeXYZ = sizeXY * sizeZ();
+        return this;
+    }
+
+    public ImageMask2D setSizeZ(int sizeZ) {
+        this.sizeZ= sizeZ;
+        this.sizeXYZ = sizeXY * sizeZ;
+        return this;
+    }
+
     @Override
     public boolean insideMask(int x, int y, int z) {
         return mask.insideMask(x, y, this.z);

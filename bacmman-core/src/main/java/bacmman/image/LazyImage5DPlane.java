@@ -12,12 +12,10 @@ import java.util.stream.IntStream;
 public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
     I[][][] imageFCZ;
     final Function<int[], I> generatorFCZ;
-    final I imageType;
     // GENERATOR GENERATES 2D IMAGES (EVEN IF Z>1)
     // IN CASE SOME CHANNELS ARE 2D AND OTHER 3D, GENERATOR IS RESPONSIBLE FOR REPEATING SLICE
-    public LazyImage5DPlane(String name, I imageType, Function<int[], Image> generatorFCZ, int[] sizeFCZ) {
-        super(name);
-        this.imageType = Image.copyType(imageType);
+    public LazyImage5DPlane(String name, I targetImageType, Function<int[], Image> generatorFCZ, int[] sizeFCZ) {
+        super(name, Image.copyType(targetImageType));
         Image im = generatorFCZ.apply(new int[]{0, 0, 0});
         this.sizeX = im.sizeX;
         this.sizeY = im.sizeY;
@@ -27,13 +25,15 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
         this.translate(im);
         this.scaleXY = im.getScaleXY();
         this.scaleZ = im.getScaleZ();
-        this.generatorFCZ = homogenizeType(imageType, generatorFCZ);
-        imageFCZ = ArrayUtil.generateTensor3((Class<I>)imageType.getClass(), sizeFCZ[0], sizeFCZ[1], sizeFCZ[2]);
+        this.generatorFCZ = homogenizeType(targetImageType, generatorFCZ);
+        imageFCZ = ArrayUtil.generateTensor3((Class<I>)targetImageType.getClass(), sizeFCZ[0], sizeFCZ[1], sizeFCZ[2]);
     }
     public LazyImage5DPlane(String name, Function<int[], I> generatorFCZ, int[] sizeFCZ) {
-        super(name);
-        I im = generatorFCZ.apply(new int[]{0, 0, 0});
-        this.imageType = Image.copyType(im);
+        this(name, generatorFCZ, sizeFCZ, generatorFCZ.apply(new int[]{0, 0, 0}));
+    }
+
+    protected LazyImage5DPlane(String name, Function<int[], I> generatorFCZ, int[] sizeFCZ, I im) {
+        super(name, Image.copyType(im));
         this.sizeX = im.sizeX;
         this.sizeY = im.sizeY;
         this.sizeZ = sizeFCZ[2];
