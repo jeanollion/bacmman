@@ -35,7 +35,7 @@ public class TimeLapseInteractiveImageFactory {
                 int averageSize = (int)Math.ceil(Arrays.stream(trackOffset).mapToDouble(BoundingBox::sizeX).average().getAsDouble());
                 int avgNFramePerSlice = Math.max(2, (int)Math.ceil((double)size / averageSize));
                 int avgNFrameOverlap = (int)Math.ceil((double)overlap / averageSize);
-                logger.debug("frame number: {} overlap: {} avg size: {} size: {} overlap: {}", avgNFramePerSlice, avgNFrameOverlap, averageSize, size, overlap);
+                logger.debug("frame number: {} overlap: {} avg size: {} size: {} overlap: {} maxsizeZ: {}", avgNFramePerSlice, avgNFrameOverlap, averageSize, size, overlap, maxSizeZ);
                 for (int i = 0; i<parentTrack.size(); ++i) {
                     if (middle) trackOffset[i].translate(new SimpleOffset(currentOffset, (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), 0)); // Y middle of parent track
                     else trackOffset[i].translate(new SimpleOffset(currentOffset, 0, 0)); // Y up of parent track

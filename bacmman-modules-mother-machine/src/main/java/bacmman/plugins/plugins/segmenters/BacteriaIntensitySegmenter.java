@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.segmenters;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.core.Core;
+import bacmman.image.*;
 import bacmman.processing.EDT;
 import bacmman.processing.Filters;
 import bacmman.processing.RegionFactory;
@@ -30,10 +31,6 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Voxel;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
-import bacmman.image.TypeConverter;
 import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Hint;
@@ -97,12 +94,13 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         return seg;
     }
     @Override public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
+        if (input.sizeZ() > 1) input = input.getZPlane(input.sizeZ()/2); // use mid-plane for segmentation. alternative : use autofocus algorithm.
         if (isVoid) return null;
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
 
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, objectClassIdx, parent.getMask());
+            splitAndMerge = initializeSplitAndMerge(input, parent.getMask());
         }
 
         edgeDetector = initEdgeDetector(parent, objectClassIdx);
@@ -112,11 +110,9 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Foreground detection: Region values after partitioning"));
         splitPop = filterRegionsAfterEdgeDetector(parent, objectClassIdx, splitPop);
         if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop.getImageProperties(), splitPop.getRegions().stream().collect(Collectors.toMap(r->r, r->1d))).setName("Foreground mask"));
-
         RegionPopulation split = splitAndMerge.split(splitPop.getLabelMap(), MIN_SIZE_PROPAGATION);
         if (stores!=null) {
             imageDisp.accept(splitAndMerge.getHessian().setName("Hessian"));
-            
         }
         split = filterRegionsAfterSplitByHessian(parent, objectClassIdx, split);
         if (stores!=null)  {
@@ -154,8 +150,8 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
     @Override public void setManualSegmentationVerboseMode(boolean verbose) {
         this.verboseManualSeg=verbose;
     }
-    @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-
+    @Override public RegionPopulation manualSegment(Image inputImage, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
+        Image input = (inputImage.sizeZ() > 1) ? inputImage.getZPlane(inputImage.sizeZ()/2) : inputImage; // use mid-plane for segmentation.
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
         EdgeDetector seg = initEdgeDetector(parent, objectClassIdx);
         Image wsMap = seg.getWsMap(input, parent.getMask());

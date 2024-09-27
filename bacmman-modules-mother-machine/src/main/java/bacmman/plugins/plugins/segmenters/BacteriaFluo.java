@@ -314,7 +314,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, structureIdx,parent.getMask());
+            splitAndMerge = initializeSplitAndMerge(input,parent.getMask());
         }
         if (stores!=null) splitAndMerge.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = splitAndMerge.splitAndMerge(mask, MIN_SIZE_PROPAGATION, splitAndMerge.objectNumberLimitCondition(2));

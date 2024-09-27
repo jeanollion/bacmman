@@ -147,9 +147,8 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
 
     @Override public String getSimpleHintText() { return toolTipSimple; }
 
-    @Override public SplitAndMergeHessian initializeSplitAndMerge(SegmentedObject parent, int structureIdx, ImageMask foregroundMask) {
-        SplitAndMergeHessian sam = super.initializeSplitAndMerge(parent, structureIdx, foregroundMask);
-        Image input = parent.getPreFilteredImage(structureIdx);
+    @Override public SplitAndMergeHessian initializeSplitAndMerge(Image input, ImageMask foregroundMask) {
+        SplitAndMergeHessian sam = super.initializeSplitAndMerge(input, foregroundMask);
         setInterfaceValue(input, sam);
         return sam;
     }
@@ -413,9 +412,9 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, structureIdx,parent.getMask());
+            splitAndMerge = initializeSplitAndMerge(input,parent.getMask());
         }
-        if (splitVerbose) splitAndMerge.setTestMode(i->Core.showImage(i));
+        if (splitVerbose) splitAndMerge.setTestMode(Core::showImage);
         if (splitMethod.getSelectedEnum().equals(SPLIT_METHOD.MIN_WIDTH)) splitAndMerge.setInterfaceValue(i->-(double)i.getVoxels().size()); // algorithm:  split  @ smallest interface
         RegionPopulation res = splitAndMerge.splitAndMerge(mask, MIN_SIZE_PROPAGATION, splitAndMerge.objectNumberLimitCondition(2));
         setInterfaceValue(input, splitAndMerge); // for interface value computation

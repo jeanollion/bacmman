@@ -311,7 +311,11 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         return this;
     }
     public int getSizeZ(int channelIdx) {
-        //logger.debug("get size Z channel: {} -> {}. prop: {}", channelIdx, channelMapSizeZ.get(channelIdx), getExperiment().getImageDAO().getPreProcessedImageProperties(0, getName()));
+        /*try {
+            logger.debug("get size Z channel: {} -> {}. prop: {}", channelIdx, channelMapSizeZ.get(channelIdx), getImageDAO().getPreProcessedImageProperties(channelIdx));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }*/
         if (channelMapSizeZ.containsKey(channelIdx)) return channelMapSizeZ.get(channelIdx);
         else {
             synchronized (channelMapSizeZ) {

@@ -87,14 +87,13 @@ public interface MicrochannelSegmenter extends Segmenter {
         public MutableBoundingBox getBounds(int idx, boolean includeYMinShift) {
             return new MutableBoundingBox(xMin[idx], xMax[idx], yMin+(includeYMinShift?yMinShift[idx]:0), yMax, 0, 0);
         }
-        public Region getRegion(int idx, double scaleXY, double scaleZ, boolean includeYMinShift, int zMax) {
+        public Region getRegion(int idx, double scaleXY, double scaleZ, boolean includeYMinShift) {
             MutableBoundingBox bds = getBounds(idx, includeYMinShift);
-            if (zMax>1) bds.unionZ(zMax);
-            return new Region(new BlankMask( bds, scaleXY, scaleZ), idx+1, bds.sizeZ()==1);
+            return new Region(new BlankMask( bds, scaleXY, scaleZ), idx+1, true);
         }
         public RegionPopulation getObjectPopulation(ImageProperties im, boolean includeYMinShift) {
             List<Region> l = new ArrayList<>(xMin.length);
-            for (int i = 0; i<xMin.length; ++i) l.add(getRegion(i, im.getScaleXY(), im.getScaleZ(), includeYMinShift, im.sizeZ()));
+            for (int i = 0; i<xMin.length; ++i) l.add(getRegion(i, im.getScaleXY(), im.getScaleZ(), includeYMinShift));
             return new RegionPopulation(l, im);
         }
     }

@@ -104,7 +104,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
 
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, objectClassIdx, parent.getMask());
+            splitAndMerge = initializeSplitAndMerge(input, parent.getMask());
         }
         // step 1: partition the whole image with hessian and merge using criterion on hessian value
         RegionPopulation pop = splitAndMerge.split(parent.getMask(), 5); // partition the whole parent mask
@@ -155,10 +155,9 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
     }
 
     
-    @Override public SplitAndMergeHessian initializeSplitAndMerge(SegmentedObject parent, int structureIdx, ImageMask foregroundMask) {
-        SplitAndMergeHessian sam = super.initializeSplitAndMerge(parent, structureIdx, foregroundMask);
+    @Override public SplitAndMergeHessian initializeSplitAndMerge(Image input, ImageMask foregroundMask) {
+        SplitAndMergeHessian sam = super.initializeSplitAndMerge(input, foregroundMask);
         sam.setThreshold(this.mergeThreshold.getValue().doubleValue());
-        Image input = parent.getPreFilteredImage(structureIdx);
         setInterfaceValue(input, sam);
         return sam;
     }
@@ -215,7 +214,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, structureIdx,parent.getMask());
+            splitAndMerge = initializeSplitAndMerge(input,parent.getMask());
         }
         splitAndMerge.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent));
         if (splitMethod.getSelectedEnum().equals(SPLIT_METHOD.MIN_WIDTH)) splitAndMerge.setInterfaceValue(i->-(double)i.getVoxels().size()); // algorithm:  split  @ smallest interface

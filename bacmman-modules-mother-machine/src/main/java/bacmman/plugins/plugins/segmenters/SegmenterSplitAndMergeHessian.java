@@ -47,8 +47,8 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
     double globalBackgroundLevel=0;
     boolean isVoid;
 
-    protected SplitAndMergeHessian initializeSplitAndMerge(SegmentedObject parent, int structureIdx, ImageMask foregroundMask) {
-        SplitAndMergeHessian res= new SplitAndMergeHessian(parent.getPreFilteredImage(structureIdx), splitThreshold.getValue().doubleValue(), hessianScale.getValue().doubleValue(), globalBackgroundLevel);
+    protected SplitAndMergeHessian initializeSplitAndMerge(Image input, ImageMask foregroundMask) {
+        SplitAndMergeHessian res= new SplitAndMergeHessian(input, splitThreshold.getValue().doubleValue(), hessianScale.getValue().doubleValue(), globalBackgroundLevel);
         return res;
     }
 
@@ -90,7 +90,7 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
         mergePop.relabel(false); // ensure distinct labels , if not cluster cannot be found
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, structureIdx, parent.getMask());
+            splitAndMerge = initializeSplitAndMerge(input, parent.getMask());
         }
         RegionCluster c = new RegionCluster(mergePop, true, splitAndMerge.getFactory());
         List<Set<Region>> clusters = c.getClusters();
