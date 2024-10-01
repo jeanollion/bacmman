@@ -64,8 +64,8 @@ public class MultipleChoiceParameterUI implements ParameterUI {
         }
         listJsp = new JScrollPane(list);
         listJsp.setMinimumSize(new Dimension(100, 300));
-        listJsp.setPreferredSize(new Dimension(Math.min((int)(width + 25), 500), Math.min( 22 * listModel.size(), 500)));
-        listJsp.setMaximumSize(new Dimension(500, Math.min(22 * listModel.size(), 800)));
+        listJsp.setPreferredSize(new Dimension(Math.min((int)(width + 30), 500), Math.min( 22 * (1 + listModel.size()), 500)));
+        listJsp.setMaximumSize(new Dimension(500, Math.min(22 * (1 + listModel.size()), 800)));
         updateUIFromParameter();
         menuItems = new JMenuItem[2];
         menuItems[0] = new StayOpenMenuItem("Select All", this::showMenu);

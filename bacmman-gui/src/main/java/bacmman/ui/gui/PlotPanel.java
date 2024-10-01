@@ -12,7 +12,7 @@ import com.intellij.uiDesigner.core.GridLayoutManager;
 import org.jfree.chart.*;
 import org.jfree.chart.annotations.XYLineAnnotation;
 import org.jfree.chart.annotations.XYTextAnnotation;
-import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.axis.*;
 import org.jfree.chart.entity.ChartEntity;
 import org.jfree.chart.entity.XYItemEntity;
 import org.jfree.chart.plot.PlotOrientation;
@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.geom.Line2D;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,6 +39,7 @@ import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class PlotPanel {
@@ -62,8 +62,8 @@ public class PlotPanel {
     EnumChoiceParameter<CHART_TYPE> chartType = new EnumChoiceParameter<>("Chart Type", CHART_TYPE.values(), CHART_TYPE.LINE);
     ColumnListParameter xColumn = new ColumnListParameter("X-Axis", false);
     ColumnListParameter yColumns = new ColumnListParameter("Y-Axis", true).setExcludeColFun(() -> xColumn.getSelectedItem() != null ? xColumn.getSelectedItems() : new String[0]);
-
-    ConditionalParameter<CHART_TYPE> chartTypeCond = new ConditionalParameter<>(chartType).setActionParameters(CHART_TYPE.LINE, xColumn, yColumns, smoothScale);
+    BooleanParameter yLogScale = new BooleanParameter("Log-scale (Y)", false);
+    ConditionalParameter<CHART_TYPE> chartTypeCond = new ConditionalParameter<>(chartType).setActionParameters(CHART_TYPE.LINE, xColumn, yColumns, smoothScale); //yLogScale
     GroupParameter root = new GroupParameter("Parameters", workingDirs, fileFilterInclude, fileFilterExclude, selectedFiles, chartTypeCond);
     Color[] colorPalette = new Color[]{new Color(31, 119, 180), new Color(255, 127, 14), new Color(44, 160, 44), new Color(214, 39, 40), new Color(148, 103, 189), new Color(140, 86, 75), new Color(227, 119, 194), new Color(127, 127, 127), new Color(188, 189, 34), new Color(23, 190, 207)};
     ProgressLogger bacmmanLogger;
@@ -111,7 +111,11 @@ public class PlotPanel {
     }
 
     protected String getConfigFile(int plotIdx) {
-        return Paths.get(getConfigDir()).resolve(".bacmman.plot" + plotIdx + ".json").toString();
+        return getConfigFile(getConfigDir(), plotIdx);
+    }
+
+    protected static String getConfigFile(String dir, int plotIdx) {
+        return Paths.get(dir).resolve(".bacmman.plot" + plotIdx + ".json").toString();
     }
 
     public void saveConfiguration() {
@@ -136,6 +140,15 @@ public class PlotPanel {
 
         }
         return false;
+    }
+
+    public static String getPlotName(String dir, int plotIdx) {
+        String f = getConfigFile(dir, plotIdx);
+        if (!new File(f).isFile()) return "#" + plotIdx;
+        List<String> confList = FileIO.readFromFile(f, s -> s, s -> {
+        });
+        if (confList.size() != 2) return "#" + plotIdx;
+        return confList.get(0) + " (#" + plotIdx + ")";
     }
 
     protected void updateChart() {
@@ -171,25 +184,39 @@ public class PlotPanel {
                     range = plot.getRangeAxis().getRange();
                     domain = plot.getDomainAxis().getRange();
                 }
-                JFreeChart xylineChart = ChartFactory.createXYLineChart(
-                        "",
-                        xCol,
-                        "Values",
-                        dataset,
-                        PlotOrientation.VERTICAL,
-                        true, true, false);
-                XYPlot plot = xylineChart.getXYPlot();
-                plot.getRangeAxis().setAutoRange(true);
-                ((NumberAxis) plot.getRangeAxis()).setAutoRangeIncludesZero(false);
-                if (range != null) plot.getRangeAxis().setRange(range);
-                if (domain != null) plot.getDomainAxis().setRange(domain);
+                Supplier<Boolean> minPositive = () -> IntStream.range(0, dataset.getSeriesCount()).mapToDouble(s -> IntStream.range(0, dataset.getItemCount(s)).mapToDouble(i -> dataset.getYValue(s, i)).min().orElse(Double.POSITIVE_INFINITY)).min().orElse(-1) > 0;
+                boolean yLogScale = this.yLogScale.getSelected() && minPositive.get();
+                NumberAxis xAxis = new NumberAxis(xCol);
+                xAxis.setAutoRangeIncludesZero(false);
+                xAxis.setAutoRange(true);
+
+                ValueAxis yAxis;
+                if (yLogScale) {
+                    LogarithmicAxis yAxis_ = new LogarithmicAxis("Values");
+                    yAxis_.setAllowNegativesFlag(true);
+                    yAxis_.setAutoRangeNextLogFlag(false);
+                    yAxis_.setExpTickLabelsFlag(true);
+                    yAxis = yAxis_;
+                } else {
+                    NumberAxis yAxis_ = new NumberAxis("Values");
+                    yAxis_.setAutoRangeIncludesZero(false);
+                    yAxis = yAxis_;
+                }
+                yAxis.setAutoRange(true);
+                if (domain != null) xAxis.setRange(domain);
+                if (range != null) yAxis.setRange(range);
+                XYLineAndShapeRenderer renderer = intervalSeries ? new DeviationRenderer(true, false) : new XYLineAndShapeRenderer(true, false);
+                XYPlot plot = new XYPlot(dataset, xAxis, yAxis, renderer);
+                plot.setOrientation(PlotOrientation.VERTICAL);
+                //renderer.setDefaultToolTipGenerator(new StandardXYToolTipGenerator());
+                JFreeChart xylineChart = new JFreeChart("", JFreeChart.DEFAULT_TITLE_FONT, plot, true);
+                ChartFactory.getChartTheme().apply(xylineChart);
                 ChartPanel chartPanel = new ChartPanel(xylineChart);
                 chartPanel.setMinimumDrawWidth(300);
                 chartPanel.setMinimumDrawHeight(300);
                 chartPanel.setPreferredSize(new Dimension(600, 350));
                 chartPanel.setHorizontalAxisTrace(true);
                 chartPanel.setVerticalAxisTrace(true);
-                XYLineAndShapeRenderer renderer = intervalSeries ? new DeviationRenderer(true, false) : new XYLineAndShapeRenderer(true, false);
 
                 renderer.setAutoPopulateSeriesStroke(false);
                 float stokeWidth = 2f;
