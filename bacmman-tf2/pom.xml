@@ -11,6 +11,7 @@
     <properties>
         <!--javacpp.platform>macosx-arm64</javacpp.platform-->
         <!--javacpp.platform>macosx-x86_64</javacpp.platform-->
+        <!--javacpp.platform>macosx-arm64</javacpp.platform-->
         <!--javacpp.platform>windows-x86_64</javacpp.platform-->
         <javacpp.platform>linux-x86_64</javacpp.platform>
 
@@ -48,9 +49,8 @@
         </dependency>
         <dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-api</artifactId>
-            <!--artifactId>tensorflow-core-native</artifactId-->
-            <version>0.4.2</version>
+            <artifactId>tensorflow-core-native</artifactId>
+            <version>1.0.0-rc.2</version>
             <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency>
         <!--dependency>

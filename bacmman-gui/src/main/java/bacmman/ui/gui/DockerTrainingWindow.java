@@ -1354,15 +1354,13 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected File getSavedWeightFile() {
         String rel = getSavedWeightRelativePath();
-        if (rel == null) {
-            logger.debug("rel path is null");
-            return null;
-        } else logger.debug("rel path: {}", rel);
+        if (rel == null) return null;
         File res = Paths.get(currentWorkingDirectory, rel).toFile();
+        //logger.debug("saved w file: {} exists: {}", res, res.isFile());
         if (res.isFile()) return res;
         // extension may be missing -> search
         File[] allFiles = res.getParentFile().listFiles();
-        logger.debug("looking for saved weight @ {} within {}", res.getParentFile(), allFiles);
+        //logger.debug("looking for saved weight @ {} within {}", res.getParentFile(), allFiles);
         if (allFiles == null) return null;
         for (File f : allFiles) {
             if (f.isFile() && f.getName().startsWith(res.getName())) return f;

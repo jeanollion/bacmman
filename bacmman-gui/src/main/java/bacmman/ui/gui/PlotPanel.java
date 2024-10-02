@@ -35,11 +35,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
+import java.text.FieldPosition;
+import java.text.NumberFormat;
 import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class PlotPanel {
@@ -169,9 +171,13 @@ public class PlotPanel {
                     if (x != null) {
                         return columns.stream().map(col -> {
                             double[] vals = cols.get(col);
-                            if (vals != null)
+                            if (vals != null) {
+                                /*if (yLogScale.getSelected()) {
+                                    if (DoubleStream.of(vals).anyMatch(d -> d <= 0)) return null;
+                                    else vals = DoubleStream.of(vals).map(Math::log10).toArray();
+                                }*/
                                 return getXYSeries(name + ":" + col, x, vals, smoothScale.getDoubleValue());
-                            else return null;
+                            } else return null;
                         }).filter(Objects::nonNull);
                     } else return Stream.empty();
                 }).forEachOrdered(s -> {
@@ -184,19 +190,37 @@ public class PlotPanel {
                     range = plot.getRangeAxis().getRange();
                     domain = plot.getDomainAxis().getRange();
                 }
-                Supplier<Boolean> minPositive = () -> IntStream.range(0, dataset.getSeriesCount()).mapToDouble(s -> IntStream.range(0, dataset.getItemCount(s)).mapToDouble(i -> dataset.getYValue(s, i)).min().orElse(Double.POSITIVE_INFINITY)).min().orElse(-1) > 0;
-                boolean yLogScale = this.yLogScale.getSelected() && minPositive.get();
+                boolean yLogScale = this.yLogScale.getSelected();
                 NumberAxis xAxis = new NumberAxis(xCol);
                 xAxis.setAutoRangeIncludesZero(false);
                 xAxis.setAutoRange(true);
 
                 ValueAxis yAxis;
                 if (yLogScale) {
-                    LogarithmicAxis yAxis_ = new LogarithmicAxis("Values");
-                    yAxis_.setAllowNegativesFlag(true);
-                    yAxis_.setAutoRangeNextLogFlag(false);
-                    yAxis_.setExpTickLabelsFlag(true);
+                    LogAxis yAxis_ = new LogAxis("Values");
+                    yAxis_.setMinorTickMarksVisible(true);
+                    yAxis_.setMinorTickCount(9);
+                    NumberFormat scientificFormat = new DecimalFormat("#.##E0");
+                    NumberFormat decimalFormat = new DecimalFormat("#.##");
+                    class ExponentialFormat extends DecimalFormat {
+                        @Override
+                        public StringBuffer format(double number, StringBuffer result, FieldPosition fieldPosition) {
+                            if (number > 100 || number < 0.01) return scientificFormat.format(number, result, fieldPosition);
+                            else return decimalFormat.format(number, result, fieldPosition);
+                        }
+                    }
                     yAxis = yAxis_;
+                    //yAxis_.setTickUnit(new NumberTickUnit(1.0, new ExponentialFormat(), 9));
+
+                    /*LogarithmicAxis yAxis_ = new LogarithmicAxis("Values");
+                    yAxis_.setMinorTickCount(9);
+                    yAxis_.setAllowNegativesFlag(true);
+                    yAxis_.setExpTickLabelsFlag(true);
+                    yAxis_.setAutoRangeIncludesZero(false);
+                    yAxis_.setAutoRangeStickyZero(false);
+                    yAxis = yAxis_;
+                    */
+
                 } else {
                     NumberAxis yAxis_ = new NumberAxis("Values");
                     yAxis_.setAutoRangeIncludesZero(false);
