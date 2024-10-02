@@ -30,6 +30,14 @@ public interface DockerGateway {
             } else consumer.accept(message);
         };
     }
+    static Consumer<String> filterOutANSIEscapeSequences(Consumer<String> consumer) {
+        return message -> {
+            if (message != null && !message.isEmpty()) {
+                message = message.replaceAll("\\033\\[\\d+[;\\d+]*m", "");
+            }
+            consumer.accept(message);
+        };
+    }
     static int[] parseGPUList(String gpuList) {
         if (gpuList==null || gpuList.isEmpty()) return new int[0];
         String[] split = gpuList.split(",");

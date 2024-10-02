@@ -676,7 +676,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel) {
         currentProgressBar = extractProgressBar;
         if (sel == null) sel = new ArrayList<>();
-        Task t = getDatasetExtractionTask(dir, fileName, sel);
+        Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
         if (background) Task.executeTask(t, this, 1);
         else Task.executeTaskInForeground(t, this, 1);
         return t.getExtractDSTracking();
@@ -1080,7 +1080,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("build progress: {}", message);
     }
 
-    String[] ignoreError = new String[]{"Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
+    String[] ignoreError = new String[]{"Skipping the delay kernel, measurement accuracy will be reduced", "Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
     String[] isInfo = new String[]{"Created device"};
 
     protected void printError(String message) {
