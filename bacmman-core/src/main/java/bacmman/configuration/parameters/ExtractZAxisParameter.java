@@ -3,6 +3,8 @@ package bacmman.configuration.parameters;
 import bacmman.core.Task;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
+import bacmman.image.SimpleImageProperties;
 
 public class ExtractZAxisParameter extends ConditionalParameterAbstract<Task.ExtractZAxis, ExtractZAxisParameter> {
     BoundedNumberParameter plane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
@@ -43,7 +45,7 @@ public class ExtractZAxisParameter extends ConditionalParameterAbstract<Task.Ext
             case MIDDLE_PLANE:
                 return image.getZPlane(image.sizeZ()/2);
             case CHANNEL: // simply transpose dimensions x,y,z -> z,y,x
-                Image im = Image.createEmptyImage(image.getName(), image, image);
+                Image im = Image.createEmptyImage(image.getName(), image, new SimpleImageProperties(new SimpleBoundingBox(image.zMin(), image.zMax(), image.xMin(), image.xMax(), image.yMin(), image.yMax()), image.getScaleXY(), image.getScaleZ()));
                 BoundingBox.loop(image, (x, y, z) -> im.setPixel(z, x, y, image.getPixel(x, y, z)));
                 return im;
         }

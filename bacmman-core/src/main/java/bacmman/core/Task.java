@@ -780,13 +780,16 @@ public class Task implements ProgressCallback {
         db.lockPositions(positionsToProcess.toArray(new String[0]));
 
         // check that all position to be processed are effectively locked
-        List<String> readOnlyPos = positionsToProcess.stream().filter(p->db.getDao(p).isReadOnly()).collect(Collectors.toList());
-        if (!readOnlyPos.isEmpty()) {
-            ui.setMessage("Some positions could not be locked and will not be processed: " + readOnlyPos);
-            for (String p : readOnlyPos) errors.addExceptions(new Pair(p, new RuntimeException("Locked position. Already used by another process?")));
-            positionsToProcess.removeAll(readOnlyPos);
+        if (preProcess || segmentAndTrack || trackOnly || generateTrackImages || measurements) {
+            List<String> readOnlyPos = positionsToProcess.stream().filter(p -> db.getDao(p).isReadOnly()).collect(Collectors.toList());
+            logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
+            if (!readOnlyPos.isEmpty()) {
+                ui.setMessage("Some positions could not be locked and will not be processed: " + readOnlyPos);
+                for (String p : readOnlyPos)
+                    errors.addExceptions(new Pair<>(p, new RuntimeException("Locked position. Already used by another process?")));
+                positionsToProcess.removeAll(readOnlyPos);
+            }
         }
-        logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
         boolean needToDeleteObjects = preProcess || segmentAndTrack;
         boolean deleteAll =  needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && positionsToProcess.size()==db.getExperiment().getPositionCount();
         boolean canDeleteAll = IntStream.range(0, db.getExperiment().getStructureCount()).mapToObj(db.getExperiment()::getStructure).allMatch(s -> s.getProcessingPipelineParameter().isOnePluginSet());

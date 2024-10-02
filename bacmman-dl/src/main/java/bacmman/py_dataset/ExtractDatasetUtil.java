@@ -190,17 +190,17 @@ public class ExtractDatasetUtil {
         Function<Image, Image> extract = image -> {
             if (bounds!=null) {
                 MutableBoundingBox bds = new MutableBoundingBox(bounds);
-                logger.debug("bounds before adjust: {}, image: {}", bds, image.getBoundingBox());
+                //logger.debug("bounds before adjust: {}, image: {}", bds, image.getBoundingBox());
                 if (bds.sizeX() <= 0 || bds.xMax() > image.xMax()) bds.setxMax(image.xMax());
                 if (bds.sizeY() <= 0 || bds.yMax() > image.yMax()) bds.setyMax(image.yMax());
                 if (bds.sizeZ() <= 0 || bds.zMax() > image.zMax()) bds.setzMax(image.zMax());
                 image = image.crop(bds);
-                logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
+                //logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
             }
             return ExtractZAxisParameter.handleZ(image, t.getExtractRawZAxis(), t.getExtractRawZAxisPlaneIdx());
         };
         for (String position : positionMapFrames.keySet()) {
-            logger.debug("position: {}", position);
+            //logger.debug("position: {}", position);
             InputImages inputImages = mDAO.getExperiment().getPosition(position).getInputImages();
             List<Integer> frames = positionMapFrames.get(position);
             boolean saveLabels = false;
