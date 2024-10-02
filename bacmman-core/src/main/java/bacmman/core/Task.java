@@ -384,6 +384,12 @@ public class Task implements ProgressCallback {
         initDB();
         return db;
     }
+
+    public Task setDB(MasterDAO db) {
+        this.db = db;
+        return this;
+    }
+
     public String getDir() {
         return dir;
     }

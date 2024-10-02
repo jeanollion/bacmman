@@ -28,6 +28,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import static bacmman.core.DockerGateway.*;
+import static bacmman.core.DockerGateway.filterOutANSIEscapeSequences;
+
 
 public class DockerGatewayImpl implements DockerGateway {
     private static final Logger logger = LoggerFactory.getLogger(DockerGatewayImpl.class);
@@ -76,7 +79,7 @@ public class DockerGatewayImpl implements DockerGateway {
     public String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress) {
         bacmman.docker.BuildImageResultCallback buildCb = dockerClient.buildImageCmd(dockerFile)
                 .withTags(Collections.singleton(tag)).withPull(true)
-                .exec(new bacmman.docker.BuildImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr, stepProgress));
+                .exec(new bacmman.docker.BuildImageResultCallback(filterOutANSIEscapeSequences(applyToSplit(stdOut)), stdErr, stepProgress));
         return buildCb.awaitImageId();
     }
 
@@ -90,7 +93,7 @@ public class DockerGatewayImpl implements DockerGateway {
             }
             PullImageCmd cmd = dockerClient.pullImageCmd(image);
             if (version!=null) cmd = cmd.withTag(version);
-            cmd.exec(new PullImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr, stepProgress)).awaitCompletion();
+            cmd.exec(new PullImageResultCallback(filterOutANSIEscapeSequences(applyToSplit(stdOut)), stdErr, stepProgress)).awaitCompletion();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -159,7 +162,7 @@ public class DockerGatewayImpl implements DockerGateway {
             .withAttachStderr(stdErr!=null);
         ExecCreateCmdResponse createCmdResponse = cmd.exec();
         try {
-            dockerClient.execStartCmd(createCmdResponse.getId()).exec(new ExecResultCallback(DockerGateway.applyToSplit(stdOut), stdErr)).awaitCompletion();
+            dockerClient.execStartCmd(createCmdResponse.getId()).exec(new ExecResultCallback(filterOutANSIEscapeSequences(applyToSplit(stdOut)), stdErr)).awaitCompletion();
         } finally {
             if (remove) stopContainer(containerId);
         }
