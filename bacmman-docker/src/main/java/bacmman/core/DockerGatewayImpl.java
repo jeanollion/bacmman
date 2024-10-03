@@ -119,10 +119,10 @@ public class DockerGatewayImpl implements DockerGateway {
                 //.withRestartPolicy(RestartPolicy.noRestart())
                 //.withDevices(Collections.EMPTY_LIST)
                 //.withBlkioDeviceReadBps(Collections.emptyList()).withBlkioDeviceWriteBps(Collections.emptyList()).withBlkioDeviceWriteIOps(Collections.emptyList()).withBlkioDeviceReadIOps(Collections.emptyList()).withBlkioWeightDevice(Collections.emptyList());
-        if (gpuIds!=null) {
+        if (gpuIds!=null && gpuIds.length>0) {
             DeviceRequest dr = new DeviceRequest().withDriver("nvidia")
-                    .withCapabilities(Collections.singletonList(Collections.singletonList("gpu"))).withOptions(Collections.emptyMap());
-            if (gpuIds.length>0) dr = dr.withDeviceIds(Arrays.stream(gpuIds).boxed().map(s->""+s).collect(Collectors.toList()));
+                    .withCapabilities(Collections.singletonList(Collections.singletonList("gpu"))).withOptions(Collections.emptyMap())
+                    .withDeviceIds(Arrays.stream(gpuIds).boxed().map(s->""+s).collect(Collectors.toList()));
             hostConfig = hostConfig.withDeviceRequests(Collections.singletonList(dr));//.withRuntime("nvidia"); // not working under windows ?
         }
         hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * Math.pow(2, 30))); //.withMemorySwappiness(0L); //.withBlkioWeight(1000);
