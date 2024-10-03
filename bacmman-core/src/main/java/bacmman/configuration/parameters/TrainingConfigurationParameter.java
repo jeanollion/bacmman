@@ -254,6 +254,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new BooleanParameter("Use Shared Memory", defaultValue).setHint("If true, and multiprocessing is enabled, mini-batch will be passed through shared memory to speed up training. Increase the size of shared memory so that the mini-batch queue can fit (queue max size = workers*1.5)");
     }
 
+    public static BoundedNumberParameter getValidationStepParameter(int defaultValue) {
+        return new BoundedNumberParameter("Validation Step Number", 0, defaultValue, 1, null).setHint("Total number of steps (batches of samples) to draw before stopping when performing validation at the end of every epoch. <br/>Validation is only performed if datasets of type TEST are provided");
+    }
+    public static BoundedNumberParameter getValidationFreqParameter(int defaultValue) {
+        return new BoundedNumberParameter("Validation Frequency", 0, defaultValue, 1, null).setHint("Specifies how many training epochs to run before a new validation run is performed, e.g. validation_freq=2 runs validation every 2 epochs.<br/>Validation is only performed if datasets of type TEST are provided");
+    }
+
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {
         DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
         DockerImageParameter dockerImageExport = new DockerImageParameter("Docker Image (export)").setAllowNoSelection(true).setHint("Docker image used to export model only. If left to void, <em>Docker Image</em> will be used");
