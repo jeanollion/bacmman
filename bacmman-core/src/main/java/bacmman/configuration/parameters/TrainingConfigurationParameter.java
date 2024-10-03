@@ -337,7 +337,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         }
 
         public String getModelWeightFileName() {
-            boolean legacy = false;
+            boolean legacy = true;
             String file = modelName.getValue();
             if (!file.contains(".")) return file + (legacy ? ".h5" : ".weights.h5");
             else return file;
