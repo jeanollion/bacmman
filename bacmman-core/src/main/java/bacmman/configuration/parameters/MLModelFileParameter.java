@@ -1,6 +1,7 @@
 package bacmman.configuration.parameters;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.core.Core;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
@@ -100,8 +101,17 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         // special case: when valid model was set before: file needs to be changed
         if ( (oldID==null || !oldID.equals(modelID))) {
             String path = modelFile.getFirstSelectedFilePath();
-            File f = new File(path);
-            if (f.exists() && validDirectory!=null && validDirectory.test(path)) modelFile.setSelectedFilePath(f.getParent());
+            if (path == null) { // get current experiment path
+                Experiment xp = ParameterUtils.getExperiment(this);
+                Path p = xp != null ? xp.getPath() : null;
+                if (p == null) {
+                    logger.error("Configure a parent folder to save model file to");
+                    Core.userLog("Configure a parent folder to save model file to");
+                } else modelFile.setSelectedFiles(p.toFile());
+            } else {
+                File f = new File(path);
+                if (f.exists() && validDirectory!=null && validDirectory.test(path)) modelFile.setSelectedFilePath(f.getParent());
+            }
         }
         configureParentsAndSiblings(metadata, this);
     }
@@ -153,7 +163,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     @Override
     public boolean isValid() { // either one of the two is valid
         if (modelFile.isValid()) return true;
-        else return isValidID();
+        else return isValidID() && modelFile.getFirstSelectedFilePath() != null;
     }
     public boolean isValidID() {
         return getID().length()>=30; // TODO check: always same length of 32 ?

@@ -38,11 +38,11 @@ public interface DLMetadataConfigurable {
         }
     }
     static void configureParentsAndSiblings(DLModelMetadata metadata, Parameter parameter) {
-        if (parameter.getParent() instanceof ContainerParameter) {
+        if (parameter.getParent() != null) {
             ContainerParameter parent = ((ContainerParameter)parameter.getParent());
-            if (parent instanceof ListParameter || (parent instanceof PluginParameter && ( ProcessingPipeline.class.equals(((PluginParameter)parent).getPluginType()) || Transformation.class.equals(((PluginParameter)parent).getPluginType()))  ) || parent instanceof Structure || parent instanceof Experiment) return;
             configure(metadata, parent.getChildren(), parameter);
             configure(metadata, parent);
+            if (parent instanceof ListParameter || (parent instanceof PluginParameter && ( ProcessingPipeline.class.equals(((PluginParameter)parent).getPluginType()) || Transformation.class.equals(((PluginParameter)parent).getPluginType()))  ) || parent instanceof Structure || parent instanceof Experiment) return;
             configureParentsAndSiblings(metadata, parent);
         }
     }

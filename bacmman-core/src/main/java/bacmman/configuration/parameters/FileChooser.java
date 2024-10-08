@@ -207,7 +207,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     
     @Override public String toString() {
-        return name+" :"+Utils.getStringArrayAsString(selectedFiles);
+        return name+": "+Utils.getStringArrayAsString(selectedFiles);
     }
     
     public FileChooserOption getOption() {return option;}

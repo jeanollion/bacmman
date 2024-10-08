@@ -249,6 +249,11 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
             super(name);
         }
 
+        public DLModelOutputParameter setReverseScalingIndex(int i) {
+            this.scalerIndex.setValue(i);
+            return this;
+        }
+
         public int getReverseScalingIndex() {return scalerIndex.getIntValue();}
 
         @Override
