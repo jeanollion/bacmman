@@ -51,7 +51,7 @@ public class ObjectFeatures implements Measurement, Hint {
                 if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityStructure(structure.getSelectedClassIdx());
                 // TODO find a way to set name as default name ...
             });;
-    SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", 0, def).setEmphasized(true);
+    SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");
     enum MODE_3D {ALL_PLANES, SINGLE_PLANE}
     EnumChoiceParameter<MODE_3D> mode3D = new EnumChoiceParameter<MODE_3D>("3D measurement", MODE_3D.values(), MODE_3D.ALL_PLANES).setHint("For intensity measurement only: In case of 3D measurement: choose ALL_PLANES to perform regular 3D measurement, or SINGLE_PLANE to limit measurement to a single user-defined plane");

@@ -18,7 +18,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, Hint {
-    SimpleListParameter<ObjectClassParameter> channels = new SimpleListParameter<>("Channels to Extract", 0, new ObjectClassParameter("Object Class"))
+    SimpleListParameter<ObjectClassParameter> channels = new SimpleListParameter<>("Channels to Extract", new ObjectClassParameter("Object Class")).setMinChildCount(1)
             .setChildrenNumber(2)
             .setHint("Choose object classes associated to the channels to be extracted. Note that each object class can only be selected once")
             .addValidationFunction(l -> l.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).distinct().count() == l.getActivatedChildren().size());

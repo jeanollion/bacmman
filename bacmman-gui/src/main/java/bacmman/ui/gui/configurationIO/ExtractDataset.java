@@ -98,7 +98,7 @@ public class ExtractDataset extends JDialog {
         eraseTouchingContours = new SimpleListParameter<>("Erase touching contours", ObjectClassParameter.class)
                 .setHint("List here all object class that should have touching contours erased.")
                 .setNewInstanceNameFunction((p, i) -> "Object class");
-        outputFeatureList = new SimpleListParameter<>("Features", 0, defOutput)
+        outputFeatureList = new SimpleListParameter<>("Features", defOutput).setMinChildCount(1)
                 .setNewInstanceNameFunction((l, i) -> "Feature #" + i).setChildrenNumber(1).setHint("List here all extracted feature");
         outputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, null)
                 .setMaxChildCount(2)

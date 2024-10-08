@@ -15,7 +15,7 @@ import java.util.stream.IntStream;
 
 public class ManualRectangle implements SegmenterNoRelabel, TrackerSegmenter, Hint {
 
-    SimpleListParameter<BoundingBoxParameter> objects = new SimpleListParameter<>("Objects", 0, new BoundingBoxParameter("Bounds", true)).setEmphasized(true);
+    SimpleListParameter<BoundingBoxParameter> objects = new SimpleListParameter<>("Objects", new BoundingBoxParameter("Bounds", true)).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);
 
     @Override
     public String getHintText() {

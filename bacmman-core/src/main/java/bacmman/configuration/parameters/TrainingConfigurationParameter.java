@@ -375,7 +375,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
         TextParameter channel = new TextParameter("Channel Name", "raw", false, false).setHint("Name of images / movies to consider within the dataset");
         EnumChoiceParameter<DATASET_TYPE> type = new EnumChoiceParameter<>("Dataset Type", DATASET_TYPE.values(), DATASET_TYPE.TRAIN).setHint("Puropose of dataset: training, test (loss computation during training), evaluation (metric computation)");
-        SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", 0, channel).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0);
+        SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", channel).setMinChildCount(1).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0);
         DLScalingParameter scaler = new DLScalingParameter("Intensity Scaling");
         SimpleListParameter<DLScalingParameter> scalers = new SimpleListParameter<>("Intensity Scaling", scaler).setHint("Input channel scaling parameter (one per channel or one for all channels)")
                 .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(true))

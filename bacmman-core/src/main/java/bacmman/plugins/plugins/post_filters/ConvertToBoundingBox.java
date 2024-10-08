@@ -56,7 +56,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
             .setActionParameters(METHOD.EXTEND_ON_SIDES, addBefore, addAfter, outOfBound)
             .setActionParameters(METHOD.FROM_OBJECT_CLASS, refObjectClass);
 
-    SimpleListParameter<ConditionalParameter<METHOD>> axisCond = new SimpleListParameter<>("Per axis modification", -1, methodCond)
+    SimpleListParameter<ConditionalParameter<METHOD>> axisCond = new SimpleListParameter<>("Per axis modification", methodCond)
             .setNewInstanceNameFunction((l, idx)-> "XYZ".charAt(idx)+" axis")
             .setEmphasized(true).setMaxChildCount(3).setChildrenNumber(2)
             .addValidationFunction(l -> !l.getActivatedChildren().isEmpty());

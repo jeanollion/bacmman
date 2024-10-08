@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import javax.swing.JComponent;
 import javax.swing.JTree;
 import javax.swing.TransferHandler;
@@ -55,18 +54,14 @@ public class TreeTransferHandler extends TransferHandler {
             nodesFlavor = new DataFlavor(mimeType);
             flavors[0] = nodesFlavor;
         } catch(ClassNotFoundException e) {
-            System.out.println("ClassNotFound: " + e.getMessage());
+            logger.debug("ClassNotFound: ", e);
         }
     }
     @Override
     public boolean canImport(TransferHandler.TransferSupport support) {
-        if(!support.isDrop()) {
-            return false;
-        }
+        if(!support.isDrop()) return false;
         support.setShowDropLocation(true);
-        if(!support.isDataFlavorSupported(nodesFlavor)) {
-            return false;
-        }
+        if(!support.isDataFlavorSupported(nodesFlavor)) return false;
 
         JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
         JTree destTree = (JTree)support.getComponent();
@@ -82,10 +77,10 @@ public class TreeTransferHandler extends TransferHandler {
         JTree sourceTree = nt.sourceTree;
         int[] selRows = sourceTree.getSelectionRows();
         if (selRows.length==0) return false;
-
+        //logger.debug("selected rows: {} destination: {}", selRows, dl.getPath().getLastPathComponent());
 
         TreePath dest = dl.getPath();
-        TreePath destParent = dest.getParentPath();
+        TreePath destParent = dest.getParentPath(); // should be a list
 
         // only allow to move nodes from same parent
         TreePath sourcePath0 = sourceTree.getPathForRow(selRows[0]);
@@ -188,7 +183,7 @@ public class TreeTransferHandler extends TransferHandler {
                 return false;
             }
         } catch(UnsupportedFlavorException | IOException ufe) {
-            logger.debug("dnd error: {}", ufe);
+            logger.error("dnd error: {}", ufe);
             return false;
         }
         // Get drop location info.

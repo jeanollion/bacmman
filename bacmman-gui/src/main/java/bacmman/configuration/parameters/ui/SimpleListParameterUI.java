@@ -140,7 +140,7 @@ public class SimpleListParameterUI implements ListParameterUI {
         final int unMutableIdx = list.getUnMutableIndex();
         final int idx = list.getIndex(child);
         final boolean mutable = idx>unMutableIdx;
-        Component[] childActions = new Component[deactivatable? (list.allowModifications() ? 8 : 2) : 5];
+        Component[] childActions = new Component[deactivatable? (list.allowModifications()||list.allowMoveChildren() ? 8 : 2) : 5];
         int actionIdx = 0;
         if (list.allowModifications()) {
             childActions[0] = newJMenuItem.apply(childActionNames[0]);
@@ -222,6 +222,10 @@ public class SimpleListParameterUI implements ListParameterUI {
             } else if (!list.allowMoveChildren()) {
                 childActions[3].setEnabled(false); // move up
                 childActions[4].setEnabled(false); // move down
+            } else if (list.allowMoveChildren() && !list.allowModifications()) {
+                childActions[0].setEnabled(false); // add
+                childActions[1].setEnabled(false); // duplicate
+                childActions[2].setEnabled(false); // delete
             }
             if (idx == unMutableIdx + 1) childActions[3].setEnabled(false);  // move up
             if (idx == 0) childActions[3].setEnabled(false);  // move up

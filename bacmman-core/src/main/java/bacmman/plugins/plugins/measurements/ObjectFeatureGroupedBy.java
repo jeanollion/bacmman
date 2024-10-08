@@ -41,7 +41,7 @@ public class ObjectFeatureGroupedBy implements Measurement, Hint {
             .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
                 if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityStructure(objectClass.getSelectedClassIdx());
             });
-    SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", 0, def).setEmphasized(true);
+    SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");
 
     Parameter[] parameters = new Parameter[]{groupClass, objectClass, preFilters, features, reductionOP};

@@ -51,7 +51,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     protected String childClassName;
     protected T childInstance;
 
-    protected int unMutableIndex, maxChildCount;
+    protected int unMutableIndex, maxChildCount, minChildCount;
     protected Boolean isEmphasized;
     protected BiFunction<L, Integer, String> newInstanceNameFunction;
     protected Utils.TriConsumer<L, Integer, T> newInstanceConfiguration;
@@ -70,6 +70,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         dest.setAllowMoveChildren(source.allowModifications);
         dest.setUnmutableIndex(source.unMutableIndex);
         dest.setMaxChildCount(source.maxChildCount);
+        dest.setMinChildCount(source.minChildCount);
         dest.setNewInstanceNameFunction(source.newInstanceNameFunction);
         dest.setNewInstanceConfigurationFunction(source.newInstanceConfiguration);
         dest.setHint(source.toolTipText);
@@ -119,6 +120,13 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public L setMaxChildCount(int maxChildCount) {
         this.maxChildCount=maxChildCount;
         return (L)this;
+    }
+    public L setMinChildCount(int minChildCount) {
+        this.minChildCount=minChildCount;
+        return (L)this;
+    }
+    public int getMinChildCount() {
+        return this.minChildCount;
     }
     @Override 
     public boolean allowMoveChildren() {
@@ -198,28 +206,16 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
      * @param name : name of the parameter
      */
     public ListParameterImpl(String name, Class<T> childClass) {
-        //this.childrenClass=childrenClass;
-        this.name = name;
-        children = new ArrayList<T>(10);
-        this.unMutableIndex=-1;
-        this.childClass = childClass;
-        this.childClassName=childClass.getName();
+        this(name, -1, childClass);
     }
     
     public ListParameterImpl(String name, int unMutableIndex, T childInstance) {
+        this(name, unMutableIndex, (Class<T>)childInstance.getClass());
         this.childInstance=childInstance;
-        this.name = name;
-        children = new ArrayList<T>(10);
-        this.unMutableIndex=unMutableIndex;
-        this.childClass=(Class<T>)childInstance.getClass();
     }
     
     public ListParameterImpl(String name, T childInstance) {
-        this.childInstance=childInstance;
-        this.name = name;
-        children = new ArrayList<T>(10);
-        this.unMutableIndex=-1;
-        this.childClass=(Class<T>)childInstance.getClass();
+        this(name, -1, childInstance);
     }
     
     public boolean containsElement(String name) {
@@ -330,6 +326,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public boolean isValid() {
         if (unMutableIndex>=this.getChildCount()) return false;
         if (maxChildCount>0 && maxChildCount<this.getChildCount()) return false;
+        if (minChildCount>0 && minChildCount>this.getChildCount()) return false;
         if (getActivatedChildren().stream().anyMatch((child) -> (!child.isValid()))) return false;
         return this.additionalValidation.test((L)this);
     }

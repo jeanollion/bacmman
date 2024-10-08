@@ -52,9 +52,9 @@ public class PlotPanel {
     private JScrollPane plotJSP;
     ConfigurationTreeGenerator config;
     FileChooser defWD = new FileChooser("Directory", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setRelativePath(false);
-    SimpleListParameter<FileChooser> workingDirs = new SimpleListParameter<>("Working Directories", 0, defWD);
+    SimpleListParameter<FileChooser> workingDirs = new SimpleListParameter<>("Working Directories", defWD).setMinChildCount(1);
     TextParameter defTxt = new TextParameter("Keyword", "", true);
-    SimpleListParameter<TextParameter> fileFilterInclude = new SimpleListParameter<>("File Filter Include", 0, defTxt);
+    SimpleListParameter<TextParameter> fileFilterInclude = new SimpleListParameter<>("File Filter Include", defTxt);
     SimpleListParameter<TextParameter> fileFilterExclude = new SimpleListParameter<>("File Filter Exclude", defTxt);
     FileListParameter selectedFiles = new FileListParameter("Data Files");
     FloatParameter smoothScale = new FloatParameter("Smooth Scale", 2).setLowerBound(0);

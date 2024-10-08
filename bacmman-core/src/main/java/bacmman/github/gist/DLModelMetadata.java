@@ -11,16 +11,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
-    SimpleListParameter<DLModelInputParameter> inputs = new SimpleListParameter<>("Input layers", 0, new DLModelInputParameter("input"))
+    SimpleListParameter<DLModelInputParameter> inputs = new SimpleListParameter<>("Input layers", new DLModelInputParameter("input")).setMinChildCount(1)
             .setNewInstanceNameFunction((s, i)->"input #"+i)
             .addchildrenPropertyValidation(DLModelInputParameter::is3D, true)
             .setChildrenNumber(1).setHint("Description of input tensor(s)");
-    SimpleListParameter<DLModelOutputParameter> outputs = new SimpleListParameter<>("Output layers", 0, new DLModelOutputParameter("output")).setNewInstanceNameFunction((s, i)->"output #"+i)
+    SimpleListParameter<DLModelOutputParameter> outputs = new SimpleListParameter<>("Output layers", new DLModelOutputParameter("output")).setMinChildCount(1).setNewInstanceNameFunction((s, i)->"output #"+i)
             .setChildrenNumber(1).setHint("Description of output tensor(s)")
             .addNewInstanceConfiguration(o -> o.scalerIndex.addValidationFunction(s -> s.getIntValue() < inputs.getChildCount()));
     ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Contraction Factor").setHint("Size ratio between the smallest tensor in the network and the input tensor. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis").addValidationFunction(a -> inputs.getChildren().stream().mapToInt(c-> c.is3D()?3:2).max().orElse(2) == a.getChildCount());
     TextParameter exportLibrary = new TextParameter("Export Library", "", true).setHint("DL Library the model was exported with");
-    SimpleListParameter<CustomParameter<Parameter>> miscParameters = new SimpleListParameter<>("Other Parameters", -1, new CustomParameter<>("Parameter", Parameter.class, ObjectClassOrChannelParameter.class::isAssignableFrom));
+    SimpleListParameter<CustomParameter<Parameter>> miscParameters = new SimpleListParameter<>("Other Parameters", new CustomParameter<>("Parameter", Parameter.class, ObjectClassOrChannelParameter.class::isAssignableFrom));
     PluginParameter<DockerDLTrainer> dockerTrainer = new PluginParameter<>("Docker Training Configuration", DockerDLTrainer.class, true);
     public DLModelMetadata() {
         super("Metadata");

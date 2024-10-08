@@ -381,14 +381,13 @@ public class ConfigurationTreeGenerator {
         tree.setDropMode(DropMode.ON_OR_INSERT);
         tree.setTransferHandler(new TreeTransferHandler( 
                 (TreeNode n) -> ((Parameter)n).duplicate(), 
-                (TreePath p, TreePath sourceP)-> { // can receive bi-predicate
-                    if (p==null) return false;
-                    if (!(p.getLastPathComponent() instanceof ListParameter)) return false;
-                    ListParameter dest= (ListParameter)p.getLastPathComponent();
-                    if (!dest.allowMoveChildren() || dest.allowModifications()) return false;
+                (TreePath destP, TreePath sourceP)-> { // can receive bi-predicate
+                    if (destP==null) return false;
+                    if (!(destP.getLastPathComponent() instanceof ListParameter)) return false;
+                    ListParameter dest= (ListParameter)destP.getLastPathComponent();
+                    if (!dest.allowMoveChildren() || !dest.allowModifications()) return false;
                     if (!(sourceP.getLastPathComponent() instanceof ListParameter)) return false;
                     ListParameter source= (ListParameter)sourceP.getLastPathComponent();
-                    //return true;
                     return source.getChildClass().equals(dest.getChildClass());
                 }
         ));

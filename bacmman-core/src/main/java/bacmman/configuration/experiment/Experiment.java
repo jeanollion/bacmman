@@ -58,14 +58,14 @@ import java.util.stream.Stream;
  */
 
 public class Experiment extends ContainerParameterImpl<Experiment> implements ParameterChangeCallback<Experiment> {
-    SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels", 0 , ChannelImage.class).setNewInstanceNameFunction((l, i)->"channel"+i).setHint("Define here the different channels of input images");
-    SimpleListParameter<ChannelImageDuplicated> channelImagesDuplicated= new SimpleListParameter<>("Duplicated Detection Channels", -1 , ChannelImageDuplicated.class).setNewInstanceNameFunction((l, i)->"duplicated channel"+i).setHint("Define here duplicated detection channels. Duplicated detection channels allow to perform different transformations pipeline on the same detection channel");
+    SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels" , ChannelImage.class).setMinChildCount(1).setNewInstanceNameFunction((l, i)->"channel"+i).setHint("Define here the different channels of input images");
+    SimpleListParameter<ChannelImageDuplicated> channelImagesDuplicated= new SimpleListParameter<>("Duplicated Detection Channels", ChannelImageDuplicated.class).setNewInstanceNameFunction((l, i)->"duplicated channel"+i).setHint("Define here duplicated detection channels. Duplicated detection channels allow to perform different transformations pipeline on the same detection channel");
 
-    SimpleListParameter<Structure> structures= new SimpleListParameter<>("Object Classes", -1 , Structure.class)
+    SimpleListParameter<Structure> structures= new SimpleListParameter<>("Object Classes", Structure.class).setMinChildCount(1)
             .setNewInstanceNameFunction((l, i)->"object class"+i)
             .addNewInstanceConfiguration(Structure::setAutomaticColor)
             .setHint("Types of objects to be analysed in this dataset. The processing pipeline (segmentation, tracking…) is defined in this part of the configuration tree, and can be configured from the <em>Configuration Test</em> tab (by selecting the <em>Processing</em> step)");
-    SimpleListParameter<PluginParameter<Measurement>> measurements = new SimpleListParameter<>("Measurements", -1 , new PluginParameter<>("", Measurement.class, false))
+    SimpleListParameter<PluginParameter<Measurement>> measurements = new SimpleListParameter<>("Measurements", new PluginParameter<>("", Measurement.class, false))
             .addValidationFunctionToChildren(ppm -> {
                 if (!ppm.isActivated()) return true;
                 if (!ppm.isOnePluginSet()) return false;
@@ -83,7 +83,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
                 });
             })
             .setHint("Measurements to be performed after processing. Measurements will be extracted in several data tables, each one corresponding to a single object class (e.g. microchannels or bacteria or spots). For each measurement, the table in which it will be written and the name of the corresponding column are indicated in the Help window. If the user defines two measurements with the same name in the same data table, the measurements will not be performed and invalid measurements are displayed in red.");
-    SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowModifications(false).setAllowDeactivable(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
+    SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", Position.class).setAllowModifications(false).setAllowDeactivable(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
     PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operations can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
     
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("Output").setHint("Directory where preprocessed images will be stored");
