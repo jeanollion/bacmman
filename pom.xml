@@ -51,8 +51,8 @@
         <developer>
             <id>jeanollion</id>
             <name>Jean Ollion</name>
-            <email>jean.ollion@upmc.fr</email>
-            <organization>LJP</organization>
+            <url>www.sabilab.fr</url>
+            <organization>SABILAB</organization>
             <roles>
                 <role>developer</role>
             </roles>

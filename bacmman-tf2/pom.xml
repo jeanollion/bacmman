@@ -55,6 +55,12 @@
         </dependency>
         <!--dependency>
             <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow-core-api</artifactId>
+            <version>0.4.2</version>
+            <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
+        </dependency-->
+        <!--dependency>
+            <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-platform</artifactId>
             <version>0.5.0</version>
         </dependency-->
