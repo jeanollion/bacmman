@@ -140,10 +140,10 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         BooleanParameter timelapse = new BooleanParameter("Timelapse", false).setHint("Whether raw input channel is a timelapse sequence. In that case input image will be concatenated with previous and next frames, as defined in the parameter <em>Frame Window</em> ");
         IntegerParameter frameWindow = new IntegerParameter("Frame Window", 3).setHint("Number of frames before and after current frame");
         IntegerParameter channelNumber = new IntegerParameter("Channel Number", 1).setHint("Number of input channels");
+        BooleanParameter sharedEncoder = new BooleanParameter("Shared Encoder", true).setHint("For timelapse dataset, whether each input frames are encoded independently by a shared encoder or processed as a multichannel batch by the encoder");
         ConditionalParameter<Boolean> timelapseCond = new ConditionalParameter<>(timelapse)
-                .setActionParameters(true, frameWindow)
+                .setActionParameters(true, frameWindow, sharedEncoder)
                 .setActionParameters(false, channelNumber);
-        BooleanParameter sharedEncoder = new BooleanParameter("Shared Encoder", false).setHint("For timelapse dataset, whether each input frames are encoded independently by a shared encoder or processed as a multichannel batch by the encoder");
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 128, 64, 1024).setHint("Number of filters at the feature level");
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 2, 2, 3).addListener(p-> {
             SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);

@@ -1353,7 +1353,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         // backward
         if (inputWindow == 1) {
             res.add(sortedFrames[search(sortedFrames, idx, frame - gap, tol)]);
-        } else {
+        } else if (inputWindow>1) {
             int firstNeighborIdx = search(sortedFrames, idx, frame - 1, tol);
             int endFrameIdx = search(sortedFrames, firstNeighborIdx, frame - 1 - gap * (inputWindow-1), tol);
             int endFrame = sortedFrames[endFrameIdx];
@@ -1372,7 +1372,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (addNext) { // forward
             if (inputWindow == 1) {
                 res.add(sortedFrames[search(sortedFrames, idx, frame + gap, tol)]);
-            } else {
+            } else if (inputWindow > 1) {
                 int firstNeighborIdx = search(sortedFrames, idx, frame + 1, tol);
                 int endFrameIdx = search(sortedFrames, firstNeighborIdx, frame + 1 + gap * (inputWindow-1), tol);
                 int endFrame = sortedFrames[endFrameIdx];
