@@ -111,7 +111,9 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     public static void trimToParentBounds(List<SegmentedObject> parentTrack, int objectClassIdx) {
         parentTrack.stream().parallel().forEach(p -> {
             BoundingBox pBounds = p.getBounds();
-            p.getChildren(objectClassIdx).filter(c -> c.is2D() ? !BoundingBox.isIncluded2D(c.getBounds(), pBounds) : !BoundingBox.isIncluded(c.getBounds(), p.getBounds()))
+            p.getChildren(objectClassIdx)
+                .filter(c -> !(c.getRegion() instanceof Analytical)) // cannot perform intersection with parent on analytical regions.
+                .filter(c -> c.is2D() ? !BoundingBox.isIncluded2D(c.getBounds(), pBounds) : !BoundingBox.isIncluded(c.getBounds(), p.getBounds()))
                 .forEach(c -> {
                     BoundingBox inter = c.is2D() ? BoundingBox.getIntersection2D(c.getBounds(), pBounds) : BoundingBox.getIntersection(c.getBounds(), pBounds);
                     if (inter.sizeX()<=0 || inter.sizeY()<=0 || inter.sizeZ()<=0) logger.error("Error trim: parent: {} object : {} bounds: {} parent bounds: {} inter: {}", p, c, c.getBounds(), pBounds, inter);
@@ -126,7 +128,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     }
 
     public static Map<SegmentedObject, SegmentedObject> duplicate(Stream<SegmentedObject> sourceStream, int targetObjectClassIdx, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        Map<SegmentedObject, SegmentedObject> sourceMapDup = sourceStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s, targetObjectClassIdx,true, true, false, false)));
+        Map<SegmentedObject, SegmentedObject> sourceMapDup = sourceStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s, s.getFrame(), targetObjectClassIdx,true, true, false, false)));
 
         // set trackHead, next & prev ids + structureIdx
         if (editor!=null) {

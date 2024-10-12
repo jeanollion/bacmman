@@ -113,13 +113,14 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         this.dao=dao;
     }
     SegmentedObject duplicate() {
-        return duplicate(false, false, false);
+        return duplicate(timePoint, structureIdx, false, false, false);
     }
 
-   SegmentedObject duplicate(boolean generateNewID, boolean duplicateRegion, boolean duplicateImages) {
+   SegmentedObject duplicate(int targetFrame, int targetObjectClass, boolean generateNewID, boolean duplicateRegion, boolean duplicateImages) {
         SegmentedObject res;
-        if (isRoot()) res = new SegmentedObject(timePoint, (BlankMask)(duplicateRegion?getMask().duplicateMask():getMask()), dao);
-        else res=new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?getRegion().duplicate():getRegion(), getParent());
+        if (targetObjectClass==-1 && !isRoot()) throw new IllegalArgumentException("Only root objects can be duplicated to root objects");
+        if (targetObjectClass==-1) res = new SegmentedObject(targetFrame, (BlankMask)(duplicateRegion?getMask().duplicateMask():getMask()), dao);
+        else res=new SegmentedObject(targetFrame, targetObjectClass, idx, duplicateRegion?getRegion().duplicate():getRegion(), getParent());
         if (!generateNewID) res.id=id;
         res.previousId=previousId;
         res.nextId=nextId;

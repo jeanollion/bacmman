@@ -26,12 +26,6 @@ public class SegmentedObjectAccessor {
         return new SegmentedObject(jo, dao);
     }
 
-    public SegmentedObject duplicate(SegmentedObject o) {
-        return o.duplicate();
-    }
-    public SegmentedObject duplicate(SegmentedObject o, boolean generateNewID, boolean duplicateObject, boolean duplicateImages) {
-        return o.duplicate(generateNewID, duplicateObject, duplicateImages);
-    }
     public SegmentedObject createRoot(int timePoint, BlankMask mask, ObjectDAO dao) {
         return new SegmentedObject(timePoint, mask, dao);
     }

@@ -295,7 +295,7 @@ public class Ellipse2D extends Region implements Analytical {
     }
 
     public void setMask(ImageMask mask) {
-        throw new RuntimeException("Cannot perform operation on spot");
+        throw new RuntimeException("Cannot perform operation on Analytical Object");
     }
 
     @Override

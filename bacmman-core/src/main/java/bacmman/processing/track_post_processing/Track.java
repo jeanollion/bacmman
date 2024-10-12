@@ -246,7 +246,7 @@ public class Track implements Comparable<Track> {
             return null;
         }
         SegmentedObject head1 = track.head();
-        SegmentedObject head2 = factory.duplicate(head1, head1.getStructureIdx(), true, false, false, false);
+        SegmentedObject head2 = factory.duplicate(head1, head1.getFrame(), head1.getStructureIdx(), true, false, false, false);
         factory.addToParent(head1.getParent(),true, head2); // will set a new idx to head2
         logger.debug("splitting track: {} -> {}", track, head2);
         factory.setRegion(head1, regions.get(head1).get(0));
@@ -263,7 +263,7 @@ public class Track implements Comparable<Track> {
             boolean matchInOrder = matchOrder(new UnaryPair<>(prev.getRegion(), track2.tail().getRegion()), r);
             //logger.debug("setting regions: {} + {}", match.key.getGeomCenter(false), match.value.getGeomCenter(false));
             SegmentedObject nextO1 = track.objects.get(i);
-            SegmentedObject nextO2 = factory.duplicate(nextO1,nextO1.getStructureIdx(), true, false, false, false);
+            SegmentedObject nextO2 = factory.duplicate(nextO1, nextO1.getFrame(),nextO1.getStructureIdx(), true, false, false, false);
             trackEditor.setTrackLinks(track2.tail(), nextO2, true, true, false);
             factory.addToParent(nextO1.getParent(),true, nextO2);
             factory.setRegion(nextO1, matchInOrder ? r.key : r.value);
@@ -289,7 +289,7 @@ public class Track implements Comparable<Track> {
         res.add(template);
         int availableIdx = template.getParent().getChildren(template.getStructureIdx()).mapToInt(SegmentedObject::getIdx).max().getAsInt() + 1;
         for (int i = 1; i<regions.size(); ++i) {
-            SegmentedObject dup = factory.duplicate(template, template.getStructureIdx(), true, false, false, false);
+            SegmentedObject dup = factory.duplicate(template, template.getFrame(), template.getStructureIdx(), true, false, false, false);
             factory.setRegion(dup, regions.get(i));
             factory.setIdx(dup, availableIdx++);
             factory.addToParent(template.getParent(),false, dup);

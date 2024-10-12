@@ -543,7 +543,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             return gtL.stream().map(gt -> {
                 List<SegmentedObject> predL = correctedMatchGraph.getAllMatching(gt, true).collect(Collectors.toList());
                 if (predL.isEmpty()) { // gt -> pred has been removed. no other edge = simply return gt
-                    SegmentedObject gtPred = factory.duplicate(gt, predOCIdx, true, false, false, false );
+                    SegmentedObject gtPred = factory.duplicate(gt, gt.getFrame(), predOCIdx, true, false, false, false );
                     correctedMatchGraph.prediction.get(pred.getFrame()).add(gtPred);
                     correctedMatchGraph.addEdge(gt, gtPred, getOverlap.applyAsDouble(gt, gtPred));
                     return gtPred;
@@ -618,7 +618,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 List<SegmentedObject> predPrev = correctedMatchGraph.getAllMatching(gtPrev, true).collect(Collectors.toList());
                 if (predPrev.size()>1) {
                     predPrev.forEach(p -> correctedMatchGraph.removeVertex(p, false));
-                    SegmentedObject gtPredPrev = factory.duplicate(gtPrev, predOCIdx, true, false, false, false);
+                    SegmentedObject gtPredPrev = factory.duplicate(gtPrev, gtPrev.getFrame(), predOCIdx, true, false, false, false);
                     correctedMatchGraph.addEdge(gtPrev, gtPredPrev, getOverlap.applyAsDouble(gtPrev, gtPredPrev));
                     List<Set<SegmentedObject>> allPredNext = predPrev.stream().map(pp -> predGraph.getNextObjects(pp).collect(Collectors.toSet())).collect(Collectors.toList());
                     Set<SegmentedObject> predNext = allPredNext.stream().flatMap(Collection::stream).collect(Collectors.toSet());
@@ -640,7 +640,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 List<SegmentedObject> predNext = correctedMatchGraph.getAllMatching(gtNext, true).collect(Collectors.toList());
                 if (predNext.size()>1) {
                     predNext.forEach(p -> correctedMatchGraph.removeVertex(p, false));
-                    SegmentedObject gtPredNext = factory.duplicate(gtNext, predOCIdx, true, false, false, false);
+                    SegmentedObject gtPredNext = factory.duplicate(gtNext, gtNext.getFrame(), predOCIdx, true, false, false, false);
                     correctedMatchGraph.addEdge(gtNext, gtPredNext, getOverlap.applyAsDouble(gtNext, gtPredNext));
                     List<Set<SegmentedObject>> allPredPrev = predNext.stream().map(pn -> predGraph.getPreviousObjects(pn).collect(Collectors.toSet())).collect(Collectors.toList());
                     Set<SegmentedObject> predPrev = allPredPrev.stream().flatMap(Collection::stream).collect(Collectors.toSet());

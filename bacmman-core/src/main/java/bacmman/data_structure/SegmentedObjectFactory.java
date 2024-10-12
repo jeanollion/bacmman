@@ -19,9 +19,9 @@ public class SegmentedObjectFactory {
     public int getEditableObjectClassIdx() {
         return editableObjectClassIdx;
     }
-    public SegmentedObject duplicate(SegmentedObject o, int targetObjectClass, boolean generateNewId, boolean duplicateRegion, boolean duplicateImages, boolean removeParentAndTrackAttributes) {
-        SegmentedObject res = o.duplicate(generateNewId, duplicateRegion, duplicateImages);
-        res.structureIdx = targetObjectClass;
+
+    public SegmentedObject duplicate(SegmentedObject o, int targetFrame, int targetObjectClass, boolean generateNewId, boolean duplicateRegion, boolean duplicateImages, boolean removeParentAndTrackAttributes) {
+        SegmentedObject res = o.duplicate(targetFrame, targetObjectClass, generateNewId, duplicateRegion, duplicateImages);
         if (removeParentAndTrackAttributes) {
             res.parent = null;
             res.next = null;
@@ -36,7 +36,6 @@ public class SegmentedObjectFactory {
         res.structureIdx = targetObjectClass;
         return res;
     }
-
 
     public List<SegmentedObject> setChildObjects(SegmentedObject parent, RegionPopulation regions) {
         return parent.setChildrenObjects(regions, editableObjectClassIdx, true);
