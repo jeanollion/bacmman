@@ -39,8 +39,9 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         .setNoSelectionString("Viewfield")
         .addListener(poc -> {
             logger.debug("modified poc: parent: {}", poc.getParent());
-            logger.debug("modified poc: sieblings: {}", ((ContainerParameter)poc.getParent()).getChildren());
+            logger.debug("modified poc: siblings: {}", ((ContainerParameter)poc.getParent()).getChildren());
             ConditionalParameter<SELECTION_MODE> selModeCond = ParameterUtils.getParameterFromSiblings(ConditionalParameter.class, poc, p->p.getName().equals("Selection"));
+            logger.debug("selMode Cond found ? {}", selModeCond!=null);
             ((SelectionParameter)selModeCond.getParameters(SELECTION_MODE.SPARSE_FRAMES).get(0)).setSelectionObjectClass(poc.getSelectedClassIdx());
         })
         .setHint("Select object class that will define the frame (usually parent object class)");
@@ -57,7 +58,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.SPARSE_FRAMES, extractSel, frameInteval);
-    Parameter[] datasetExtractionParameters = new Parameter[] {objectClass, parentObjectClass, channel, extractZCond, selModeCond, spatialDownsampling};
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZCond, selModeCond, spatialDownsampling);
 
 
     @Override
@@ -71,7 +72,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
 
     @Override
     public Parameter[] getDatasetExtractionParameters() {
-        return datasetExtractionParameters;
+        return datasetExtractionParameters.getChildren().toArray(new Parameter[0]);
     }
 
     @Override
