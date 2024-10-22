@@ -393,12 +393,19 @@ public class DLModelsLibrary {
     public void uploadModel(UserAuth modelAuth, DLModelMetadata metadata, File model) {
         if (tree == null || !loggedIn) return;
         GistDLModel gist = tree.getSelectedGist();
+        boolean update = gist != null && Utils.promptBoolean("Update selected Model ?", this.displayingFrame);
         SaveDLModelGist form = new SaveDLModelGist(gateway);
         if (gist != null) {
-            form.setFolder(gist.folder).disableFolderField()
+            if (update) {
+                form.setFolder(gist.folder).disableFolderField()
                     .setName(gist.name).disableNameField()
                     .setDescription(gist.getDescription())
                     .setVisible(gist.isVisible()).disableVisibleField();
+            } else {
+                form.setFolder(gist.folder)
+                    .setDescription(gist.getDescription())
+                    .setVisible(gist.isVisible());
+            }
             if (metadata == null) form.setMetadata(gist.getMetadata());
         } else {
             String folder = tree.getSelectedFolder();
@@ -406,18 +413,17 @@ public class DLModelsLibrary {
         }
         if (metadata != null) form.setMetadata(metadata);
         form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
-        if (gist != null && gist.getModelID() != null && !gist.getModelID().isEmpty()) {
-            String url = BASE_URL + "/gists/" + gist.getModelID();
-            boolean del = JSONQuery.delete(url, modelAuth);
-            if (!del) form.setURL(gist.getModelID());
-            logger.debug("Old gist: {} was deleted: {}", url, del);
-        }
+
         logger.debug("uploading new gist...");
         form.uploadFile(model, modelAuth, true);
-        form.display(displayingFrame, gist == null ? "Upload model..." : "Update model...");
-        if (form.canceled) return;
-
-        if (gist == null) {
+        form.display(displayingFrame, update ? "Update model..." : "Upload model...");
+        if (form.canceled) {
+            boolean del = JSONQuery.delete(BASE_URL + "/gists/" + form.id(), modelAuth);
+            return;
+        } else if (update && gist.getModelID() != null && !gist.getModelID().isEmpty()) { // delete current model file
+            JSONQuery.delete(BASE_URL + "/gists/" + gist.getModelID(), modelAuth);
+        }
+        if (!update) {
             if (!Utils.isValid(form.name(), false)) {
                 if (pcb != null) {
                     pcb.setMessage("Invalid name (no special chars allowed except underscores)");
