@@ -72,6 +72,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -1195,10 +1196,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             dockerTraining.setParent(INSTANCE);
             tabIndex.add(TAB.TRAINING.name());
             tabs.setEnabledAt(tabIndex.indexOf(TAB.TRAINING.name()), Core.getCore().getDockerGateway() != null);
-            Runnable onClose = () -> {
-                tabIndex.remove(TAB.TRAINING.name());
-                dockerTraining.close();
-                dockerTraining = null;
+            BooleanSupplier onClose = () -> {
+                boolean close = dockerTraining.close();
+                if (close) {
+                    tabIndex.remove(TAB.TRAINING.name());
+                    dockerTraining = null;
+                }
+                return close;
             };
             tabs.setTabComponentAt(tabIndex.indexOf(TAB.TRAINING.name()), new ClosableTabComponent(tabs, onClose));
         }
@@ -1739,10 +1743,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!tabIndex.contains(tabName)) {
             tabs.addTab(plotPanels[plotIdx].getName() + "(#"+plotIdx+")", plotPanels[plotIdx].getMainPanel());
             tabIndex.add(tabName);
-            Runnable onClose = () -> {
+            BooleanSupplier onClose = () -> {
                 tabIndex.remove(tabName);
                 plotPanels[plotIdx].close();
                 plotPanels[plotIdx] = null;
+                return true;
             };
             ClosableTabComponent comp = new ClosableTabComponent(tabs, onClose);
             tabs.setTabComponentAt(tabIndex.indexOf(tabName), comp);
@@ -1810,9 +1815,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!tabIndex.contains(TAB.CONFIGURATION_LIBRARY.name())) {
             tabs.addTab("Configuration Library", configurationLibrary.getMainPanel());
             tabIndex.add(TAB.CONFIGURATION_LIBRARY.name());
-            Runnable onClose = () -> {
-                tabIndex.remove(TAB.CONFIGURATION_LIBRARY.name());
-                configurationLibrary.close();
+            BooleanSupplier onClose = () -> {
+                boolean close = configurationLibrary.close();
+                if (close) {
+                    tabIndex.remove(TAB.CONFIGURATION_LIBRARY.name());
+                    configurationLibrary = null;
+                }
+                return close;
             };
             tabs.setTabComponentAt(tabIndex.indexOf(TAB.CONFIGURATION_LIBRARY.name()), new ClosableTabComponent(tabs, onClose));
         }
@@ -1831,10 +1840,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!tabIndex.contains(TAB.MODEL_LIBRARY.name())) {
             tabs.addTab("Model Library", dlModelLibrary.getMainPanel());
             tabIndex.add(TAB.MODEL_LIBRARY.name());
-            Runnable onClose = () -> {
-                tabIndex.remove(TAB.MODEL_LIBRARY.name());
-                dlModelLibrary.close();
-                dlModelLibrary = null;
+            BooleanSupplier onClose = () -> {
+                boolean close = dlModelLibrary.close();
+                if (close) {
+                    tabIndex.remove(TAB.MODEL_LIBRARY.name());
+                    dlModelLibrary = null;
+                }
+                return close;
             };
             tabs.setTabComponentAt(tabIndex.indexOf(TAB.MODEL_LIBRARY.name()), new ClosableTabComponent(tabs, onClose));
         }

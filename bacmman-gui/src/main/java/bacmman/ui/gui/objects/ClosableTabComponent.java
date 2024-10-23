@@ -3,6 +3,7 @@ import javax.swing.*;
 import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.function.BooleanSupplier;
 /*
  * Copyright (c) 1995, 2008, Oracle and/or its affiliates. All rights reserved.
  *
@@ -41,7 +42,7 @@ import java.awt.event.*;
 public class ClosableTabComponent extends JPanel {
     private final JTabbedPane pane;
     public final JLabel label;
-    public ClosableTabComponent(final JTabbedPane pane, Runnable onClose) {
+    public ClosableTabComponent(final JTabbedPane pane, BooleanSupplier onClose) {
         //unset default FlowLayout' gaps
         super(new FlowLayout(FlowLayout.LEFT, 0, 0));
         if (pane == null) {
@@ -72,8 +73,8 @@ public class ClosableTabComponent extends JPanel {
     }
 
     private class TabButton extends JButton implements ActionListener {
-        final Runnable onClose;
-        public TabButton(Runnable onClose) {
+        final BooleanSupplier onClose;
+        public TabButton(BooleanSupplier onClose) {
             this.onClose = onClose;
             int size = 17;
             setPreferredSize(new Dimension(size, size));
@@ -95,12 +96,14 @@ public class ClosableTabComponent extends JPanel {
         }
 
         public void actionPerformed(ActionEvent e) {
-            int i = pane.indexOfTabComponent(ClosableTabComponent.this);
-            pane.setSelectedIndex(0);
-            if (i != -1) {
-                pane.remove(i);
+            boolean close = onClose.getAsBoolean();
+            if (close) {
+                int i = pane.indexOfTabComponent(ClosableTabComponent.this);
+                pane.setSelectedIndex(0);
+                if (i != -1) {
+                    pane.remove(i);
+                }
             }
-            onClose.run();
         }
 
         //we don't want to update UI for this button

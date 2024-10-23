@@ -166,7 +166,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 @Override
                                 public void actionPerformed(ActionEvent e) {
                                     setWorkingDirectory();
-                                    setConfigurationFile(true);
+                                    if (javaConfig == null) setConfigurationFile(true);
                                     FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
                                     loadConfigFile(false, true, f);
                                     f.close();
@@ -1626,12 +1626,20 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    public void close() {
+    public boolean close() {
+        if (currentContainer != null) {
+            boolean close = Utils.promptBoolean("A work is in progress, closing the tab will cancel it. Proceed ?", this.parent);
+            if (!close) return false;
+        }
         closeFiles();
         if (extractConfig != null) extractConfig.unRegister();
         if (dia != null) dia.dispose();
         if (runner != null) runner.cancelSilently();
-        if (currentContainer != null && dockerGateway != null) dockerGateway.stopContainer(currentContainer);
+        if (currentContainer != null && dockerGateway != null) {
+            dockerGateway.stopContainer(currentContainer);
+            currentContainer = null;
+        }
+        return true;
     }
 
     // helper methods

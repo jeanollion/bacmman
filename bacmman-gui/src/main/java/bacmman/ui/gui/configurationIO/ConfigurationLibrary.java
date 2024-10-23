@@ -728,11 +728,12 @@ public class ConfigurationLibrary {
         return mainPanel;
     }
 
-    public void close() {
+    public boolean close() {
         if (remoteConfig != null) remoteConfig.unRegister();
         if (localConfig != null) localConfig.unRegister();
         if (onClose != null) onClose.run();
         if (dia != null) dia.dispose();
+        return true;
     }
 
     private void setWholeConfig() {

@@ -533,10 +533,11 @@ public class DLModelsLibrary {
         dia.setVisible(true);
     }
 
-    public void close() {
+    public boolean close() {
         if (dia != null) dia.dispose();
         if (tree != null) tree.flush();
         if (onClose != null) onClose.run();
+        return true;
     }
 
     public JPanel getMainPanel() {
