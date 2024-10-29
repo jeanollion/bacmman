@@ -89,7 +89,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         String path = modelFile.getFirstSelectedFilePath();
         if (path==null) return null;
         File f = new File(path);
-        if ( needsToDownloadModel() && id.getValue().length()>0) {
+        if ( needsToDownloadModel() && !id.getValue().isEmpty()) {
             return downloadModel(f, false, null);
         } else return f;
     }

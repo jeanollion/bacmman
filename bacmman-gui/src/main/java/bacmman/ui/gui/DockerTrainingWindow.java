@@ -150,7 +150,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
         setLoadButton.addActionListener(ae -> {
             setWorkingDirectory();
-            setConfigurationFile(true);
+            setConfigurationFile(true, true, true);
             setWorkingDirectory();
             updateDisplayRelatedToWorkingDir();
         });
@@ -166,7 +166,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 @Override
                                 public void actionPerformed(ActionEvent e) {
                                     setWorkingDirectory();
-                                    if (javaConfig == null) setConfigurationFile(true);
+                                    boolean notLoaded = javaConfig == null;
+                                    setConfigurationFile(true, notLoaded, notLoaded);
                                     FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
                                     loadConfigFile(false, true, f);
                                     f.close();
@@ -184,7 +185,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         setWriteButton.addActionListener(ae -> {
             setWorkingDirectory();
-            setConfigurationFile(false);
+            setConfigurationFile(false, false, false);
             setWorkingDirectory();
             writeConfigFile(true, true, true, true);
             updateDisplayRelatedToWorkingDir();
@@ -631,7 +632,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         workingDirPersistence = PropertyUtils.setPersistent(workingDirectoryTextField, WD_ID, defWD, true, chooseFile);
         if (workingDirectoryIsValid()) {
             setWorkingDirectory();
-            setConfigurationFile(true);
+            setConfigurationFile(true, true, true);
             updateDisplayRelatedToWorkingDir();
         }
         Action chooseFileMD = new AbstractAction("Choose model destination folder") {
@@ -1134,7 +1135,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
     }
 
-    protected void setConfigurationFile(boolean load) {
+    protected void setConfigurationFile(boolean loadJavaConf, boolean loadextractConf, boolean loadDockerConf) {
         if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
         closeFiles();
         pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, Utils.isUnix());
@@ -1146,11 +1147,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, Utils.isUnix());
         Path dockerConfigPath = Paths.get(currentWorkingDirectory, "docker_options.json");
         dockerConfig = new FileIO.TextFile(dockerConfigPath.toString(), true, Utils.isUnix());
-        if (load && canLoad) {
-            loadConfigFile(true, true, javaConfig);
-            loadExtractConfig();
-            loadDockerConfigFile(false);
-        }
+        if (loadJavaConf && canLoad) loadConfigFile(true, true, javaConfig);
+        if (loadextractConf) loadExtractConfig();
+        if (loadDockerConf) loadDockerConfigFile(false);
     }
 
     protected void loadConfigFile(boolean ref, boolean displayed, FileIO.TextFile javaConfig) {

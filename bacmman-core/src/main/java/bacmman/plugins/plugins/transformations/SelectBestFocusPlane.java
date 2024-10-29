@@ -60,7 +60,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
     }
     
     @Override
-    public void computeConfigurationData(final int channelIdx, final InputImages inputImages)  throws IOException {
+    public void computeConfigurationData(final int channelIdx, final InputImages inputImages) throws IOException {
         final double scale = gradientScale.getValue().doubleValue();
         final double sscale = smooothScale.getValue().doubleValue();
         final Integer[] conf = new Integer[inputImages.getFrameNumber()];
