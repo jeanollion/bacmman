@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.io.IOException;
 import java.util.function.Consumer;
 
 public class MLModelFileParameterUI implements ParameterUI {
@@ -50,22 +51,27 @@ public class MLModelFileParameterUI implements ParameterUI {
         );
         downloadModel = new JMenuItem("Download Model");
         downloadModel.setAction(
-                new AbstractAction("Download Model") {
-                    @Override
-                    public void actionPerformed(ActionEvent ae) {
-                        Consumer<File> callback = outputFile -> {
-                            if (outputFile!=null) {
-                                parameter.setSelectedFilePath(outputFile.getAbsolutePath());
-                                for (Parameter p : parameter.getChildren()) model.nodeChanged(p); // update display
-                                model.nodeChanged(parameter);
-                            }
-                        };
-                        parameter.downloadModel(new File(parameter.getModelFilePath()), true, callback, GUI.getInstance());
+            new AbstractAction("Download Model") {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    Consumer<File> callback = outputFile -> {
+                        if (outputFile!=null) {
+                            parameter.setSelectedFilePath(outputFile.getAbsolutePath());
+                            for (Parameter p : parameter.getChildren()) model.nodeChanged(p); // update display
+                            model.nodeChanged(parameter);
+                        }
+                    };
+                    try {
+                        parameter.downloadModel(new File(parameter.getModelFilePath()), true, true, callback, GUI.getInstance());
+                    } catch (IOException ex) {
+                        GUI.getInstance().setMessage("Error trying to download model: "+ex.getMessage());
+                        logger.debug("Error trying to download model", ex);
                     }
                 }
+            }
         );
         String f = parameter.getModelFilePath();
-        downloadModel.setEnabled(parameter.isValidID() && f!=null && f.length()>0);
+        downloadModel.setEnabled(parameter.isValidID() && f!=null && !f.isEmpty());
     }
 
     @Override

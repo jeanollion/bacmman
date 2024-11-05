@@ -81,7 +81,7 @@ public class ExtractDataset extends JDialog {
             }
         });
         defOC.addListener(t -> {
-            SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter) t.getParent(), SelectionParameter.class).get(0);
+            SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter) t.getParent(), SelectionParameter.class, false).get(0);
             sel.setSelectionObjectClass(t.getSelectedClassIdx());
         }).addListener(t -> setEnableOk());
         Predicate<ObjectClassParameter> isOneEntryPerInstanceFeature = p -> {

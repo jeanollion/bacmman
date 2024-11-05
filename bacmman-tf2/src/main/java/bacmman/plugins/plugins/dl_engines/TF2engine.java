@@ -19,6 +19,8 @@ import org.tensorflow.proto.framework.GPUOptions;
 //import org.tensorflow.proto.ConfigProto;
 //import org.tensorflow.proto.GPUOptions;
 import org.tensorflow.types.TFloat32;
+
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,9 +75,14 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
             } else {
                 configProto = ConfigProto.newBuilder().setAllowSoftPlacement(true).putDeviceCount("GPU", 0).build(); // force CPU
             }
-            SavedModelBundle.Loader loader = SavedModelBundle
-                    .loader(modelFile.getModelFile().getAbsolutePath())
-                    .withTags("serve");
+            SavedModelBundle.Loader loader;
+            try {
+                loader = SavedModelBundle
+                        .loader(modelFile.getModelFile().getAbsolutePath())
+                        .withTags("serve");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             if (configProto!=null) loader = loader.withConfigProto(configProto);
             model = loader.load();
 
@@ -181,6 +188,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         DataBufferContainer bufferContainer = new DataBufferContainer();
         long wrapTime = 0, predictTime = 0;
         int increment = (int)Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) );
+        logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, increment, nSamples);
         for (int idx = 0; idx<nSamples; idx+=increment) {
             int idxMax = Math.min(idx+increment, nSamples);
             logger.debug("batch: [{};{}) / [0;{})", idx, idxMax, nSamples);
@@ -244,19 +252,19 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
     }
-    private void predict(Image[][][] inputNC, int idx, int idxMax, DataBufferContainer bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
-        Tensor[] input = IntStream.range(0, inputNC.length).mapToObj(i ->  TensorWrapper.fromImagesNC(inputNC[i], idx, idxMax, bufferContainer.getDataBufferContainer(i), flipXYZ)).toArray(Tensor[]::new);
+    private void predict(Image[][][] inputNC, int idx, int idxMaxExcl, DataBufferContainer bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
+        Tensor[] input = IntStream.range(0, inputNC.length).mapToObj(i ->  TensorWrapper.fromImagesNC(inputNC[i], idx, idxMaxExcl, bufferContainer.getDataBufferContainer(i), flipXYZ)).toArray(Tensor[]::new);
         TFloat32[] output = predict(input);
         if (flipXYZ==null || flipXYZ.length==0) {
             for (int io = 0; io < outputNames.length; ++io) {
                 Image[][] resIm = TensorWrapper.getImagesNC(output[io], halfPrecision.getSelected() );
                 output[io].close();
-                for (int i = idx; i < idxMax; ++i) outputONC[io][i] = resIm[i - idx];
+                for (int i = idx; i < idxMaxExcl; ++i) outputONC[io][i] = resIm[i - idx];
             }
         } else { // supposes outputON already contains images
             for (int io = 0; io < outputNames.length; ++io) {
                 int fio = io;
-                Image[][] resImNC = IntStream.range(idx, idxMax).mapToObj(i -> outputONC[fio][i]).toArray(Image[][]::new);
+                Image[][] resImNC = IntStream.range(idx, idxMaxExcl).mapToObj(i -> outputONC[fio][i]).toArray(Image[][]::new);
                 TensorWrapper.addToImagesNC(resImNC, output[io], flipXYZ);
                 output[io].close();
             }

@@ -350,15 +350,21 @@ public class ParameterUtils {
         }
         return source;
     }
-    public static <T> List<T> getParameterByClass(Parameter parent, Class<T> clazz) {
+    public static <T> List<T> getParameterByClass(Parameter parent, Class<T> clazz, boolean activatedOnly) {
+        if (activatedOnly && !activated(parent)) return Collections.emptyList();
         List<T> res = new ArrayList<>();
         if (clazz.isAssignableFrom(parent.getClass())) res.add((T)parent);
-        if (parent instanceof ContainerParameter) addParameterByClass((ContainerParameter)parent, clazz, res);
+        if (parent instanceof ContainerParameter) addParameterByClass((ContainerParameter)parent, clazz, res, activatedOnly);
         return res;
     }
-    private static <T> void addParameterByClass(ContainerParameter parent, Class<T> clazz, List<T> list) {
-        parent.getChildren().stream().filter(c -> clazz.isAssignableFrom(c.getClass())).forEach(c -> list.add((T)c));
-        parent.getChildren().stream().filter(c -> c instanceof ContainerParameter).forEach(c -> addParameterByClass((ContainerParameter)c, clazz, list));
+
+    private static <T> void addParameterByClass(ContainerParameter<? extends Parameter, ?> parent, Class<T> clazz, List<T> list, boolean activatedOnly) {
+        parent.getChildren().stream().filter(c -> (!activatedOnly || activated(c))).filter(c -> clazz.isAssignableFrom(c.getClass())).forEach(c -> list.add((T)c));
+        parent.getChildren().stream().filter(c -> (!activatedOnly || activated(c))).filter(c -> c instanceof ContainerParameter).forEach(c -> addParameterByClass((ContainerParameter)c, clazz, list, activatedOnly));
     }
 
+    public static boolean activated(Parameter p) {
+        if (p instanceof Deactivatable) return ((Deactivatable)p).isActivated();
+        else return true;
+    }
 }

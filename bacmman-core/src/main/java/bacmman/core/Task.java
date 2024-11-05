@@ -583,7 +583,16 @@ public class Task implements ProgressCallback {
     public boolean isValid() {
         initDB(); // read only by default
         Map<String, MLModelFileParameter> dlModelToDownload= new HashMap<>();
-        Consumer<List<MLModelFileParameter>> analyzeDLModelFP = l -> l.stream().filter(MLModelFileParameter::needsToDownloadModel).forEach(m -> dlModelToDownload.put(m.getModelFilePath(), m));
+        Consumer<List<MLModelFileParameter>> analyzeDLModelFP = l -> l.stream()
+                .filter(mfp -> {
+                    try {
+                        return mfp.needsToDownloadModel();
+                    } catch (IOException e) {
+                        errors.addExceptions(new Pair<>(mfp.getName(), e));
+                        return false;
+                    }
+                })
+                .forEach(m -> dlModelToDownload.put(m.getModelFilePath(), m));
         if (db.getExperiment()==null) {
             errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
             printErrors();
@@ -602,16 +611,16 @@ public class Task implements ProgressCallback {
             if (preProcess || generateTrackImages || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
             else {
                 Selection sel = db.getSelectionDAO().getOrCreate(selectionName, false);
-                if (sel.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception("Empty selection")));
+                if (sel.isEmpty()) errors.addExceptions(new Pair<>(dbName, new Exception("Empty selection")));
                 else {
                     int selObjectClass = sel.getStructureIdx();
                     if (segmentAndTrack || trackOnly) { // check that parent object class of all object class is selection object class
                         if (structures == null)
-                            errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
+                            errors.addExceptions(new Pair<>(dbName, new Exception("One of the object class is not direct children of selection object class")));
                         else {
                             for (int objectClass : structures) {
                                 if (!db.getExperiment().experimentStructure.isDirectChildOf(selObjectClass, objectClass))
-                                    errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
+                                    errors.addExceptions(new Pair<>(dbName, new Exception("One of the object class is not direct children of selection object class")));
                             }
                         }
                     }
@@ -622,8 +631,8 @@ public class Task implements ProgressCallback {
         for (Pair<String, int[]> e : extractMeasurementDir) {
             String exDir = e.key==null? db.getDatasetDir().toFile().getAbsolutePath() : e.key;
             File f= new File(exDir);
-            if (!f.exists()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " not found")));
-            else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
+            if (!f.exists()) errors.addExceptions(new Pair<>(dbName, new Exception("File: "+ exDir+ " not found")));
+            else if (!f.isDirectory()) errors.addExceptions(new Pair<>(dbName, new Exception("File: "+ exDir+ " is not a directory")));
             else if (e.value!=null) checkArray(e.value, -1, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
         }
         if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData && extractDSFile==null && extractRawDSFile==null) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
@@ -631,17 +640,17 @@ public class Task implements ProgressCallback {
         if (preProcess) {
             ensurePositionAndStructures(true, false);
             for (int p : positions) {
-                if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
+                if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair<>(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
                 // check dl model is on disk
-                List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getPosition(p), MLModelFileParameter.class);
+                List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getPosition(p), MLModelFileParameter.class, true);
                 analyzeDLModelFP.accept(dlModelFP);
             }
         }
         if (segmentAndTrack || trackOnly) {
             ensurePositionAndStructures(false, true);
             for (int s : structures) {
-                if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Object Class: "+ db.getExperiment().getStructure(s).getName())));
-                List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getStructure(s), MLModelFileParameter.class);
+                if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair<>(dbName, new Exception("Configuration error @ Object Class: "+ db.getExperiment().getStructure(s).getName())));
+                List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getStructure(s), MLModelFileParameter.class, true);
                 analyzeDLModelFP.accept(dlModelFP);
             }
         }
@@ -691,8 +700,11 @@ public class Task implements ProgressCallback {
             if (download) {
                 dlModelToDownload.forEach( (path, dlModelFP) -> {
                     try{if (ui!=null) ui.setMessage("Downloading: "+path + " ("+ String.format("%.2f", dlModelFP.getLargeFileGist().getSizeMb()) + ')' );}catch(IOException e){}
-                    dlModelFP.getModelFile();
-
+                    try {
+                        dlModelFP.getModelFile();
+                    } catch (IOException e) {
+                        errors.addExceptions(new Pair<>("Task validity check", e));
+                    }
                 } );
             } else {
                 errors.addExceptions(new Pair<>("Task validity check", new IOException("Missing dl model files")));

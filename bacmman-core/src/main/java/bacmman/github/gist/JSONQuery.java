@@ -157,7 +157,7 @@ public class JSONQuery {
                 o_oSb.append(sLine);
             }
         } catch(FileNotFoundException e) {
-            throw new IOException("Authentication Error for "+e.getMessage());
+            throw new IOException("Authentication Error or Erased/Unexisting file : "+e.getMessage());
         } catch (IOException e) {
             throw e;
         }  finally {

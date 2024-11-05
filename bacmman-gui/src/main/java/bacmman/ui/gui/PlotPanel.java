@@ -89,7 +89,11 @@ public class PlotPanel {
         csv.setValue(".csv");
         fileFilterInclude.insert(csv);
         updateButton.addActionListener(e -> updateChart());
-        if (loadConfiguration(loadPlotIdx) && root.isValid()) updateChart();
+        try {
+            if (loadConfiguration(loadPlotIdx) && root.isValid()) updateChart();
+        } catch (Exception e) {
+            if (bacmmanLogger != null) bacmmanLogger.setMessage("Error while plotting invalid data may have been selected");
+        }
     }
 
     public void setName(String name) {

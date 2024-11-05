@@ -205,9 +205,9 @@ public class Utils {
             }
             for (TreePath p : expanded) {
                 try {
-                    logger.debug("will expand: {}", (Object)p);
+                    //logger.debug("will expand: {}", (Object)p);
                     if (willExpand != null) willExpand.accept((T)p.getLastPathComponent());
-                    logger.debug("expanding: {}", (Object)p);
+                    //logger.debug("expanding: {}", (Object)p);
                     tree.expandPath(p);
                 } catch (Exception e) { }
             }
