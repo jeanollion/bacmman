@@ -101,7 +101,7 @@ public class CropTransmittedLightZStack implements ConfigurableTransformation, M
                 int step = this.step.getValue().intValue();
                 int[] zMinMax = new int[]{zCenter - interval[1], zCenter - interval[0]};
                 fixInterval(zMinMax, planes.size());
-                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
+                //logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
 
                 if (includeOverFocus.getSelected()) {
                     int[] zMinMax2 = new int[]{zCenter + interval[0], zCenter + interval[1]};
@@ -113,7 +113,7 @@ public class CropTransmittedLightZStack implements ConfigurableTransformation, M
                 int[] zMinMax = new int[]{zCenter - range.getValue().intValue(), zCenter + range.getValue().intValue()};
                 fixInterval(zMinMax, planes.size());
                 int step = this.step.getValue().intValue();
-                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
+                //logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
                 return getInterval(zMinMax[0], zMinMax[1], step);
             }
             case INDICES:

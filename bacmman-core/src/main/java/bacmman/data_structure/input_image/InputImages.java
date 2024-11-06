@@ -48,6 +48,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public interface InputImages {
+    String getTmpDirectory();
     boolean sourceImagesLinked();
     public static Image getImage(InputImages images , int channelIdx, int timePoint, IOException[] exceptionContainer) {
         try {

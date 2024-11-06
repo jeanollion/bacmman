@@ -114,7 +114,8 @@ public class MemoryImageContainer extends MultipleImageContainer {
     public boolean singleFrame(int channel) {
         return false;
     }
-    public InputImagesImpl getInputImages(String position) {
+
+    /*public InputImagesImpl getInputImages(String position) {
         InputImage[][] inputCT = new InputImage[getChannelNumber()][getFrameNumber()];
         for (int t = 0; t<getFrameNumber(); ++t) {
             for (int c = 0; c<getChannelNumber(); ++c) {
@@ -122,5 +123,5 @@ public class MemoryImageContainer extends MultipleImageContainer {
             }
         }
         return new InputImagesImpl(inputCT, 0, null);
-    }
+    }*/
 }

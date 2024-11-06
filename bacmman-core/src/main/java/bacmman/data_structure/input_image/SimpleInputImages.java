@@ -4,8 +4,16 @@ import bacmman.image.Image;
 
 public class SimpleInputImages implements InputImages {
     Image[][] imagesCT;
-    public SimpleInputImages(Image[]... imagesCT) {
+    final String tmpDir;
+
+    public SimpleInputImages(String tmpDir, Image[]... imagesCT) {
         this.imagesCT = imagesCT;
+        this.tmpDir = tmpDir;
+    }
+
+    @Override
+    public String getTmpDirectory() {
+        return tmpDir;
     }
 
     @Override

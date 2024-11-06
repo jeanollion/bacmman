@@ -33,7 +33,8 @@ public interface ConfigurableTransformation extends Transformation {
      * @param channelIdx
      * @param inputImages 
      */
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException;
-    public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber);
+    void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException;
+    boolean isConfigured(int totalChannelNumber, int totalTimePointNumber);
     boolean highMemory();
+    default void clear() {}
 }

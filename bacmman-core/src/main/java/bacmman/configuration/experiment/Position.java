@@ -20,6 +20,7 @@ package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.data_structure.DiskBackedImageManagerProvider;
 import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
@@ -31,6 +32,8 @@ import static bacmman.data_structure.SegmentedObjectUtils.setTrackLinks;
 import bacmman.image.BlankMask;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -202,8 +205,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     }
                     int defTp = defaultTimePoint.getValue().intValue()-tpOff;
                     if (defTp<0) defTp=0;
-                    if (defTp>=tpNp) defTp=tpNp-1;   
-                    inputImages = new InputImagesImpl(res, defTp, getExperiment().getFocusChannelAndAlgorithm()).setMinFrame(tpOff);
+                    if (defTp>=tpNp) defTp=tpNp-1;
+                    String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()), true);
+                    inputImages = new InputImagesImpl(res, defTp, getExperiment().getFocusChannelAndAlgorithm(), tmpDir).setMinFrame(tpOff);
                     logger.debug("creation input images: def tp: {}, frames: {} ([{}; {}]), channels: {}",defTp, inputImages.getFrameNumber(), getStartTrimFrame(),getEndTrimFrame() , inputImages.getChannelNumber());
                 }
             }

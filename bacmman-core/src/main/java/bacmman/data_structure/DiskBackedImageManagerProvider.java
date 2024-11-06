@@ -41,7 +41,7 @@ public class DiskBackedImageManagerProvider {
         return manager;
     }
 
-    public DiskBackedImageManagerImageDAO getManager(String position, ImageDAO imageDAO, boolean replaceIfExisting) {
+    public DiskBackedImageManagerImageDAO getImageDAOManager(String position, ImageDAO imageDAO, boolean replaceIfExisting) {
         DiskBackedImageManager manager = managers.get(position);
         if (manager == null || replaceIfExisting) {
             synchronized (managers) {

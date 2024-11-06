@@ -212,7 +212,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     if (binFactor>1) images[t] = ImageOperations.spatialBinning(images[t], binFactor, 1, false);
                 }
                 if (stabilize.getSelected()) {
-                    images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0, true, true);
+                    images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0, true, true, inputImages.getTmpDirectory());
                 }
 
                 Image dt_ = ImageFeatures.getDerivative(Image.mergeZPlanes(images), 1, 1, 0, 0, 1, false);

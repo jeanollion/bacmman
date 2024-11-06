@@ -168,8 +168,8 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         logger.debug("ImageStabilizerXY: total estimation time: {}, reference timePoint: {}", tEnd-tStart, tRef);
     }
 
-    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel, boolean allowInterpolation, boolean crop) throws IOException{
-        InputImages ii = new SimpleInputImages(images);
+    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel, boolean allowInterpolation, boolean crop, String tmpDir) throws IOException{
+        InputImages ii = new SimpleInputImages(tmpDir, images);
         ImageStabilizerXY stab = new ImageStabilizerXY();
         stab.segmentLength.setValue(segmentLength);
         stab.pyramidLevel.setSelectedIndex(pyramidLevel);

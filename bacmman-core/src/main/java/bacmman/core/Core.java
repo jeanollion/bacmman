@@ -133,7 +133,7 @@ public class Core {
         return diskBackedImageManagerProvider.getManager(segmentedObject);
     }
     public static DiskBackedImageManagerImageDAO getDiskBackedManager(String position, ImageDAO imageDAO, boolean forceCreation) {
-        return diskBackedImageManagerProvider.getManager(position, imageDAO, forceCreation);
+        return diskBackedImageManagerProvider.getImageDAOManager(position, imageDAO, forceCreation);
     }
     public static void clearDiskBackedImageManagers() {
         diskBackedImageManagerProvider.clear();

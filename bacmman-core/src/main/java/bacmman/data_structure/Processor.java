@@ -140,8 +140,6 @@ public class Processor {
             if (idao instanceof ImageDAOTrack) ((ImageDAOTrack)idao).deleteTrackImages(s);
         }
         setTransformations(position, memoryLimit, pcb);
-        logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
-        images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
@@ -157,6 +155,7 @@ public class Processor {
             pcb.setSubtaskNumber(confTransfo+1);
         }
         List<TransformationPluginParameter<Transformation>> transfos = ppc.getTransformations(true);
+        List<ConfigurableTransformation> configurableTransformations = new ArrayList<>();
         for (int i = 0; i<transfos.size(); ++i) {
             TransformationPluginParameter<Transformation> tpp = transfos.get(i);
             Transformation transfo = tpp.instantiatePlugin();
@@ -167,6 +166,7 @@ public class Processor {
                 ct.computeConfigurationData(tpp.getInputChannel(), images);
                 logger.debug("after configuring: {}", Utils.getMemoryUsage());
                 if (pcb!=null) pcb.incrementSubTask();
+                configurableTransformations.add((ConfigurableTransformation)transfo);
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
             if (i<transfos.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // TransformationApplyDirectly plugins are cases where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
@@ -175,8 +175,14 @@ public class Processor {
                 images.applyTransformationsAndSave(true, true);
                 System.gc();
                 logger.debug("after temp save: {}", Utils.getMemoryUsage());
+                configurableTransformations.forEach(ConfigurableTransformation::clear);
+                configurableTransformations.clear();
             }
         }
+        logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
+        images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
+        configurableTransformations.forEach(ConfigurableTransformation::clear);
+        configurableTransformations.clear();
     }
     // processing-related methods
     

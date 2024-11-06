@@ -46,7 +46,8 @@ public class InputImagesImpl implements InputImages {
     Integer[] autofocusPlanes;
     double memoryProportionLimit;
     final LinkedList<UnaryPair<Integer>> lastUsedImages = new LinkedList<>();
-    public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig) {
+    final String tmpDir;
+    public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig, String tmpDir) {
         this.imageCT = imageCT;
         this.defaultTimePoint= defaultTimePoint;
         for (int c = 0; c<imageCT.length; ++c) if (imageCT[c].length>frameNumber) frameNumber = imageCT[c].length;
@@ -55,7 +56,14 @@ public class InputImagesImpl implements InputImages {
             this.autofocusAlgo=autofocusConfig.value;
         }
         autofocusPlanes = new Integer[frameNumber];
+        this.tmpDir = tmpDir;
     }
+
+    @Override
+    public String getTmpDirectory() {
+        return tmpDir;
+    }
+
     @Override
     public boolean sourceImagesLinked() {
         return !imageCT[0][0].imageSources.isEmpty();
@@ -73,7 +81,7 @@ public class InputImagesImpl implements InputImages {
             imageCTDup[i] = new InputImage[imageCT[i].length];
             for (int j = 0; j<imageCT[i].length; ++j) imageCTDup[i][j] = imageCT[i][j].duplicate();
         }
-        return new InputImagesImpl(imageCTDup, defaultTimePoint, new Pair<>(autofocusChannel, autofocusAlgo)).setMinFrame(minFrame);
+        return new InputImagesImpl(imageCTDup, defaultTimePoint, new Pair<>(autofocusChannel, autofocusAlgo), tmpDir).setMinFrame(minFrame);
     }
     public InputImagesImpl duplicate(int frameMin, int frameMaxExcluded) {
         if (frameMin<0) throw new IllegalArgumentException("Frame min must be >=0");
@@ -91,7 +99,7 @@ public class InputImagesImpl implements InputImages {
                 }
             }
         }
-        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1-frameMin, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo))
+        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1-frameMin, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo), tmpDir)
                 .setMinFrame(minFrame+frameMin);
     }
 
