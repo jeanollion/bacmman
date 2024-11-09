@@ -593,7 +593,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                     if (f != null) {
                         Path p = Paths.get(f.getAbsolutePath());
                         JPopupMenu menu = new JPopupMenu();
-                        for (int i = 1; i < 30; ++i) {
+                        for (int i = 0; i < 50; ++i) {
                             final int idx = i;
                             String name = PlotPanel.getPlotName(GUI.getInstance().getWorkingDirectory(), i);
                             Action plot = new AbstractAction("Add to Plot: " + name) {
