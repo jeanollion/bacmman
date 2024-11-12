@@ -53,25 +53,26 @@ public class MasterDAOFactory {
     private final static TreeMap<String, Class<PersistentMasterDAO>> NAME_MAP_CLASS = new TreeMap<>();
     private final static Map<Class<PersistentMasterDAO>, String> CLASS_MAP_NAME = new HashMap<>();
 
-    private static String currentType = "MapDB";
+    private static String defaultDBType = "ObjectBox";
 
-    public static Collection<String> getAllTypes() {return NAME_MAP_CLASS.keySet(); }
-    public static String getCurrentType() {
-        return currentType;
+    public static Collection<String> getAvailableDBTypes() {return NAME_MAP_CLASS.keySet(); }
+    public static String getDefaultDBType() {
+        return defaultDBType;
     }
 
-    public static void setCurrentType(String currentType) {
-        MasterDAOFactory.currentType = currentType;
+    public static void setDefaultDBType(String currentType) {
+        MasterDAOFactory.defaultDBType = currentType;
     }
 
     public static MasterDAO getDAO(String dbName, String dir) {
-        return getDAO(dbName, dir, currentType);
+        return getDAO(dbName, dir, defaultDBType);
     }
 
     public static MasterDAO getDAO(String dbName, String datasetDir, String defaultDAOType) {
         Pair<String, String> correctedPath = Utils.convertRelPathToFilename(datasetDir, dbName);
         dbName = correctedPath.value;
         datasetDir = correctedPath.key;
+        if (Paths.get(datasetDir, dbName, dbName + "_config.json").toFile().isFile()) datasetDir = Paths.get(datasetDir, dbName).toAbsolutePath().toString();
         String outputPath = extractOutputPath(datasetDir, dbName);
         String daoType = getObjectDAOType(dbName, datasetDir, outputPath, defaultDAOType);
         logger.debug("Extracted output path: {}, detected dao type: {}, default type: {}", outputPath, daoType, defaultDAOType);
@@ -135,6 +136,7 @@ public class MasterDAOFactory {
         Path configFile = datasetPath.resolve(dbName + "_config.json");
         if (!Files.exists(configFile)) return null;
         String config = FileIO.readFisrtFromFile(configFile.toString(), s->s);
+        if (config == null) return null;
         int i = config.indexOf("outputPath");
         if (i==-1) return null;
         String param = config.substring(config.indexOf(":", i)+1, config.indexOf(",", i));
@@ -154,7 +156,7 @@ public class MasterDAOFactory {
         try {
             List<String> types = new ArrayList<>();
             SegmentedObjectAccessor accessor = new SegmentedObjectAccessor();
-            Collection<String> dbTypes = getAllTypes();
+            Collection<String> dbTypes = getAvailableDBTypes();
             for (String type : dbTypes) {
                 MasterDAO mDAO = initDAO(type, dbName, directory, accessor);
                 if (mDAO instanceof PersistentMasterDAO && ((PersistentMasterDAO)mDAO).containsDatabase(outputPath)) types.add(type);

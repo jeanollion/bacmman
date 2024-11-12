@@ -136,7 +136,7 @@ public class IJ1 implements PlugIn {
                     // TODO find other IJ1&2 plugins & ops...
                     initCore();
                     if (ij == null) ij = IJ.getInstance();
-                    if (MasterDAOFactory.getAllTypes().isEmpty()) {
+                    if (MasterDAOFactory.getAvailableDBTypes().isEmpty()) {
                         IJ.log("No Database system installed. Install bacmman-mapdb update site");
                         throw new RuntimeException("No Database system installed. Install bacmman-mapdb update site");
                     }

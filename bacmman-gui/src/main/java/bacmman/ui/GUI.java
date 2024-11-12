@@ -169,7 +169,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
     private BoundedNumberParameter dbConcurrencyScale = new BoundedNumberParameter("Database Concurrency Scale", 0, 8, 1, ThreadRunner.getMaxCPUs());
 
-    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAllTypes().toArray(new String[0]), "ObjectBox", false).setHint("Database structure to store objects and measurements. <br/>Note that with MapDB, it is not safe to manually edit parent objects that already have children objects");
+    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAvailableDBTypes().toArray(new String[0]), "ObjectBox", false).setHint("Database structure to store objects and measurements. <br/>Note that with MapDB, it is not safe to manually edit parent objects that already have children objects");
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
     private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
     private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
@@ -366,7 +366,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         */
 
         PropertyUtils.setPersistent(this.dbType, PropertyUtils.DATABASE_TYPE);
-        MasterDAOFactory.setCurrentType(dbType.getSelectedItem());
+        MasterDAOFactory.setDefaultDBType(dbType.getSelectedItem());
         JMenu dbTypeSubMenu = (JMenu)ConfigurationTreeGenerator.addToMenu(dbType, databaseMenu)[0];
         dbType.addListener(e -> {
             dbTypeSubMenu.setText(dbType.toString());
@@ -377,7 +377,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     if (Utils.promptBoolean("Convert Database from "+MasterDAOFactory.getType(db)+" to "+targetType+" ?", this)) {
                         String dbName = db.getDBName();
                         Path dbDir = db.getDatasetDir();
-                        String relPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbDir.toString(), getHostNameOrDir());
+                        String relPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbDir.toString(), getWorkingDirectory());
                         DefaultWorker.executeSingleTask(() -> {
                             closeDataset();
                             MasterDAO source = MasterDAOFactory.getDAO(dbName, dbDir.toString());
@@ -385,15 +385,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                             if (target!=null) {
                                 target.unlockPositions();
                                 target.unlockConfiguration();
-                                MasterDAOFactory.setCurrentType(targetType);
+                                MasterDAOFactory.setDefaultDBType(targetType);
                             }
-                        }, this).appendEndOfWork(()-> openDataset(relPath, getHostNameOrDir(), false));
+                        }, this).appendEndOfWork(()-> openDataset(relPath, getWorkingDirectory(), false));
                     }
                 }
                 PropertyUtils.set(PropertyUtils.DATABASE_TYPE, defaultDBType); // do not override database type when converting current database
             } else {
                 logger.debug("new default target type : {}", dbType.getSelectedItem());
-                MasterDAOFactory.setCurrentType(dbType.getSelectedItem());
+                MasterDAOFactory.setDefaultDBType(dbType.getSelectedItem());
             }
         });
 
@@ -1321,7 +1321,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     }
     public double getPreProcessingMemoryThreshold() {return this.memoryThreshold.getValue().doubleValue();}
     public int getExtractedDSCompressionFactor() {return this.extractDSCompression.getIntValue();}
-    public String getWorkingDirectory() {return this.getHostNameOrDir();}
 
     //public StructureObjectTreeGenerator getObjectTree() {return this.objectTreeGenerator;}
     public TrackTreeController getTrackTrees() {return this.trackTreeController;}
@@ -1374,16 +1373,16 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         });
     }
 
-    public void openDataset(String dbName, String hostnameOrDir, boolean readOnly) {
+    public void openDataset(String dbName, String workingDirectory, boolean readOnly) {
         if (db!=null) closeDataset();
         //long t0 = System.currentTimeMillis();
-        if (hostnameOrDir==null) {
-            hostnameOrDir = getHostNameOrDir();
-            if (hostnameOrDir==null) return;
+        if (workingDirectory==null) {
+            workingDirectory = getWorkingDirectory();
+            if (workingDirectory==null) return;
         } else {
-            String curWorkingDir = workingDirectory.getText();
-            if (!hostnameOrDir.startsWith(curWorkingDir)) {
-                workingDirectory.setText(Paths.get(hostnameOrDir).getParent().toAbsolutePath().toString());
+            String curWorkingDir = this.workingDirectory.getText();
+            if (!workingDirectory.equals(curWorkingDir)) {
+                this.workingDirectory.setText(Paths.get(workingDirectory).toAbsolutePath().toString());
                 populateDatasetTree();
             }
         }
@@ -1394,14 +1393,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         db = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
         if (db==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
-            logger.warn("no config found in dataset {} @ {}", dbName, hostnameOrDir);
+            logger.warn("no config found in dataset {} @ {}", dbName, workingDirectory);
             return;
         }
         db.setConfigurationReadOnly(readOnly);
         db.setLogger(this);
         if (db.getExperiment()==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
-            logger.warn("no xp found in dataset {} @ {}", dbName, hostnameOrDir);
+            logger.warn("no xp found in dataset {} @ {}", dbName, workingDirectory);
             closeDataset();
             return;
         }
@@ -3366,7 +3365,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    private String getHostNameOrDir() {
+    public String getWorkingDirectory() {
         return this.workingDirectory.getText();
     }
     public void navigateToNextImage(boolean next) {

@@ -127,8 +127,10 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
         }
         // local files
         File dirFile = dir.toFile();
-        List<SelectionBox> toStore = new ArrayList<>();
-        for (File f : dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"))) {
+        File[] files = dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"));
+        if (files == null) return;
+        List<SelectionBox> toStore = new ArrayList<>(files.length);
+        for (File f : files) {
             List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> {
                 try {
                     return JSONUtils.parse(Selection.class, s);

@@ -25,9 +25,11 @@ import bacmman.ui.GUI;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.File;
 
 import bacmman.ui.gui.objects.DatasetTree;
 import bacmman.ui.gui.selection.SelectionUtils;
@@ -60,10 +62,11 @@ public class PythonGateway {
         try {
             server = new GatewayServer(this, port, address(), 0, 0, null, new CallbackClient(pythonPort, address()), ServerSocketFactory.getDefault());
             server.start();
-            logger.info("Python Gateway started : port: {} python port: {} address: {}", port, pythonPort, address);
+            if (GUI.hasInstance()) GUI.log("Python Gateway started : port: "+port+" python port: "+pythonPort+ " address: "+address);
+            logger.debug("Python Gateway started : port: {} python port: {} address: {}", port, pythonPort, address);
         } catch(Exception e) {
-            logger.error("Error with Python Gateway: binding with python will not be available", e);
-            if (GUI.hasInstance()) GUI.log("Could not start Python Gateway: binding with python will not be available. Error: "+e.getMessage());
+            logger.debug("Error with Python Gateway: binding with python will not be available", e);
+            if (GUI.hasInstance()) GUI.log("Could not start Python Gateway: binding with python will not be available. \nAnother python gateway may be running on those ports, try to change ports from the menu Misc>Python Gateway");
         }
     }
 
@@ -101,6 +104,7 @@ public class PythonGateway {
      */
     public void saveCurrentSelection(String dbName, String dbPath, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
         logger.debug("saveCurrentSelection: db: {} path: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbName, dbPath, objectClassIdx, selectionName, ids.size(), positions.size());
+        if (dbName == null && dbPath == null) logger.error("neither dbPath nor dbPath is provided");
         if (ids.isEmpty()) return;
         if (ids.size()!=positions.size()) throw new IllegalArgumentException("idx & position lists should be of same size "+ids.size() +" vs "+ positions.size());
         if (selectionName.isEmpty()) selectionName=null;
@@ -109,24 +113,24 @@ public class PythonGateway {
         Selection res = Selection.generateSelection(selectionName, objectClassIdx, idsByPosition);
         logger.info("Generating selection: size: {} ({})", positions.size(), res.count());
         SwingUtilities.invokeLater(() -> {
-            // get relative path:
+            if (GUI.getInstance() == null) {
+                logger.error("BACMMAN is not open");
+                return;
+            }
             String workingDir = GUI.getInstance().getWorkingDirectory();
-            String dbPathCorr = dbPath == null ? workingDir : dbPath;
-            String dbRelPath;
-            try {
-                dbRelPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbPathCorr, workingDir);
-            } catch (RuntimeException e) {
-                logger.error("Error saving selection", e);
+            UnaryPair<String> relPathAndDir = getRelPath(dbName, dbPath, workingDir);
+            if (relPathAndDir == null) {
+                logger.error("Could not find dataset: dbName: {} dbPath: {} working dir: {}", dbName, dbPath, workingDir);
                 return;
             }
             boolean dbOpen;
             if (GUI.getDBConnection() != null) {
-                String curDBRelPath = DatasetTree.getRelPathFromNameAndDir(GUI.getDBConnection().getDBName(), GUI.getDBConnection().getDatasetDir().toString(), workingDir);
-                dbOpen = curDBRelPath.equals(workingDir);
+                logger.debug("test DB open: curPath: {} targetPath: {}", GUI.getDBConnection().getDatasetDir().toString(), Paths.get(relPathAndDir.value, relPathAndDir.key).toAbsolutePath().toString());
+                dbOpen = GUI.getDBConnection().getDatasetDir().toString().equals(Paths.get(relPathAndDir.value, relPathAndDir.key).toAbsolutePath().toString());
             } else dbOpen = false;
             if (GUI.getDBConnection() == null) {
-                logger.info("Opening dataset {}....", dbRelPath);
-                GUI.getInstance().openDataset(dbRelPath, null, false);
+                logger.info("Opening dataset {} in {}....", relPathAndDir.key, relPathAndDir.value);
+                GUI.getInstance().openDataset(relPathAndDir.key, relPathAndDir.value, false);
                 if (GUI.getDBConnection() != null) {
                     dbOpen = true;
                     try {
@@ -138,18 +142,18 @@ public class PythonGateway {
                     }
                 }
             }
-            MasterDAO db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(dbName, dbPathCorr);
+            MasterDAO db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(relPathAndDir.key, relPathAndDir.value);
             if (db == null) {
-                logger.error("Could not find dataset: {} in {}", dbName, dbPathCorr);
+                logger.error("Could not find dataset: {} in {}", relPathAndDir.key, relPathAndDir.value);
                 return;
             }
             db.setConfigurationReadOnly(false);
             if (db.isConfigurationReadOnly()) {
-                String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
+                String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".json").toString();
                 FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
                     add(res);
                 }}, s -> s.toJSONEntry().toString());
-                logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbRelPath, outputFile);
+                logger.debug("Could not open dataset {} in write mode: selection was saved to file: {}", relPathAndDir.key, outputFile);
                 return;
             }
             db.getSelectionDAO().store(res);
@@ -184,5 +188,37 @@ public class PythonGateway {
 
     public void testConnection(String message) {
         GUI.getInstance().setMessage(message);
+    }
+
+    protected static UnaryPair<String> getRelPath(String dbName, String dbDir, String workingDir) {
+        if (dbDir != null ) { // make sure working directory is a parent directory
+            dbDir = Paths.get(dbDir).toAbsolutePath().toString();
+            workingDir = Paths.get(workingDir).toAbsolutePath().toString();
+            if (!dbDir.startsWith(workingDir)) {
+                File dbFile = new File(dbDir);
+                if (!dbFile.isDirectory() || !dbFile.getParentFile().isDirectory()) return null;
+                workingDir = null;
+            }
+        } else dbDir = workingDir;
+        Pair<String, String> relPathAndName = dbName != null ? Utils.splitNameAndRelpath(dbName) : new Pair<>(null, Paths.get(dbDir).getFileName().toString());
+        Path dbPath = Paths.get(dbDir);
+        String name = relPathAndName.value;
+        if (dbPath.resolve(name + "_config.json").toFile().isFile()) return optimizeRelPath(name, dbPath.getParent().toAbsolutePath().toString(), workingDir);
+        if (dbPath.resolve(name).resolve(name + "_config.json").toFile().isFile()) return optimizeRelPath(name, dbPath.toAbsolutePath().toString(), workingDir);
+        if (relPathAndName.key != null) {
+            if (dbPath.resolve(relPathAndName.key).resolve(name).resolve(name + "_config.json").toFile().isFile()) return optimizeRelPath(dbName, dbPath.toString(), workingDir);
+        }
+        return null;
+    }
+
+    protected static UnaryPair<String> optimizeRelPath(String name, String dbDir, String workingDir) {
+        if (workingDir == null) return new UnaryPair<>(name, dbDir);
+        if (dbDir.startsWith(workingDir)) {
+            Path targetPath = Paths.get(dbDir, name);
+            Path rel = Utils.getRelativePath(targetPath.toAbsolutePath().toString(), workingDir);
+            return new UnaryPair<>(rel.toString(), workingDir);
+        } else { // working directory is not a parent directory of dBPath
+            return new UnaryPair<>(name, dbDir);
+        }
     }
 }
