@@ -368,12 +368,10 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             }
             int f = frame;
             boolean inv = invertTZ;
-            return bufferPool.apply( b -> ImageReaderFile.openImage(fileCT.get(channel).get(f), new ImageIOCoordinates(), inv, b) );
+            return bufferPool.applyThrows( b -> ImageReaderFile.openImage(fileCT.get(channel).get(f), new ImageIOCoordinates(), inv, b) );
         }
     }
-    
-    
-    
+
     @Override
     public Image getImage(int frame, int channel, BoundingBox bounds) throws IOException {
         if (singleFrame(channel)) frame = 0;
@@ -396,7 +394,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             if (fileCT == null) getFileMap();
             int f = frame;
             boolean inv = invertTZ;
-            return bufferPool.apply( b -> ImageReaderFile.openImage(fileCT.get(channel).get(f), coords, inv, b));
+            return bufferPool.applyThrows( b -> ImageReaderFile.openImage(fileCT.get(channel).get(f), coords, inv, b));
         }
     }
 

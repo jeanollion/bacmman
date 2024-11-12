@@ -20,8 +20,6 @@ package bacmman.data_structure;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
-import bacmman.data_structure.dao.ImageDAO;
-import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
 import bacmman.image.*;
@@ -29,7 +27,6 @@ import bacmman.image.*;
 import java.io.IOException;
 import java.util.*;
 
-import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -1017,36 +1014,26 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                             BoundingBox bb=getRelativeBoundingBox(parentWithImage);
                             bb=extendBoundsInZIfNecessary(channelIdx, bb);
                             rawImagesC.set(parentWithImage.getRawImageByChannel(channelIdx).crop(bb), channelIdx);
-                        } else { // check track image
-                            Image trackImage = getTrackImage(channelIdx);
-                            if (trackImage!=null) {
-                                //logger.debug("object: {}, channel: {}, open from trackImage: offset:{}", this, channelIdx, offsetInTrackImage);
-                                BoundingBox bb = new SimpleBoundingBox(getBounds()).resetOffset().translate(offsetInTrackImage);
+                        } else { // open root and crop
+                            Image rootImage = getRoot().getRawImageByChannel(channelIdx);
+                            //logger.debug("object: {}, channel: {}, no trackImage try to open root and crop... null ? {}", this, channelIdx, rootImage==null);
+                            if (rootImage!=null) {
+                                BoundingBox bb = getRelativeBoundingBox(getRoot());
                                 bb=extendBoundsInZIfNecessary(channelIdx, bb);
-                                Image image = trackImage.crop(bb);
-                                image.resetOffset().translate(getBounds());
+                                Image image = rootImage.crop(bb);
                                 rawImagesC.set(image, channelIdx);
-                            } else { // open root and crop
-                                Image rootImage = getRoot().getRawImageByChannel(channelIdx);
-                                //logger.debug("object: {}, channel: {}, no trackImage try to open root and crop... null ? {}", this, channelIdx, rootImage==null);
-                                if (rootImage!=null) {
-                                    BoundingBox bb = getRelativeBoundingBox(getRoot());
+                            } else if (!this.equals(getRoot())) {
+                                // try to open parent image (if trackImage present...)
+                                Image pImage = this.getParent().getRawImageByChannel(channelIdx);
+                                //logger.debug("try to open parent image: null?{}", pImage==null);
+                                if (pImage!=null) {
+                                    BoundingBox bb = getRelativeBoundingBox(getParent());
                                     bb=extendBoundsInZIfNecessary(channelIdx, bb);
-                                    Image image = rootImage.crop(bb);
+                                    Image image = pImage.crop(bb);
                                     rawImagesC.set(image, channelIdx);
-                                } else if (!this.equals(getRoot())) {
-                                    // try to open parent image (if trackImage present...)
-                                    Image pImage = this.getParent().getRawImageByChannel(channelIdx);
-                                    //logger.debug("try to open parent image: null?{}", pImage==null);
-                                    if (pImage!=null) {
-                                        BoundingBox bb = getRelativeBoundingBox(getParent());
-                                        bb=extendBoundsInZIfNecessary(channelIdx, bb);
-                                        Image image = pImage.crop(bb);
-                                        rawImagesC.set(image, channelIdx);
-                                    }
-                                }                                
+                                }
                             }
-                            // no speed gain in opening only tiles
+                            // no speed gain in opening only tiles // TODO check how that depends on reader ...
                             /*StructureObject root = getRoot();
                             BoundingBox bb=getRelativeBoundingBox(root);
                             bb=extendBoundsInZIfNecessary(channelIdx, bb);
@@ -1093,34 +1080,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             image.resetOffset().translate(getBounds()); // ensure same offset
         }
         this.preFilteredImagesS.set(image, structureIdx);
-    }
-
-    Image getTrackImage(int channelIdx) {
-        //logger.debug("get Track image for : {}, id: {}, thId: {}, isTH?: {}, th: {}", this, id, this.trackHeadId, isTrackHead, this.trackHead);
-        //logger.debug("get Track Image for: {} th {}", this, getTrackHead());
-        // feature temporarily not supported anymore TODO restore
-        if (this.isTrackHead()) {
-            if (this.trackImagesC.get(channelIdx)==null) {
-                synchronized(trackImagesC) {
-                    if (trackImagesC.getAndExtend(channelIdx)==null) {
-                        ImageDAO dao = getPosition().getImageDAO();
-                        Image im = dao instanceof ImageDAOTrack ? ((ImageDAOTrack)dao).openTrackImage(this, channelIdx) : null;
-                        if (im!=null) { // set image && set offsets for all track
-                            im.setCalibration(getScaleXY(), getScaleZ());
-                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(this);
-                            TimeLapseInteractiveImageFactory.Data kymo = TimeLapseInteractiveImageFactory.generateKymographData(track, false, 0, 0, 0);
-                            IntStream.range(0, track.size()).forEach(i->track.get(i).offsetInTrackImage=kymo.trackOffset[i]);
-                            //logger.debug("get track image: track:{}(id: {}/trackImageCId: {}) length: {}, chId: {}", this, this.hashCode(), trackImagesC.hashCode(), track.size(), channelIdx);
-                            //logger.debug("offsets: {}", Utils.toStringList(track, o->o+"->"+o.offsetInTrackImage));
-                            trackImagesC.setQuick(im, channelIdx); // set after offset is set if not offset could be null
-                        }
-                    }
-                }
-            }
-            return trackImagesC.get(channelIdx);
-        } else {
-            return getTrackHead().getTrackImage(channelIdx);
-        }
     }
     
     private BoundingBox getOffsetInTrackImage() {

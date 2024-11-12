@@ -24,10 +24,10 @@ import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
 
-import java.awt.image.ImagingOpException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Transformation;
@@ -40,14 +40,14 @@ import bacmman.plugins.TransformationNoInput;
  */
 
 public class InputImage {
-    MultipleImageContainer imageSources;
+    final MultipleImageContainer imageSources;
     ImageDAO dao;
     int inputChannelIdx, channelIdx, frame, inputFrame;
     String microscopyFieldName;
     Image originalImageType;
     Image image;
     boolean intermediateImageSavedToDAO=false, modified=false, transformationHaveBeenApplied=false;
-    ArrayList<Transformation> transformationsToApply;
+    final List<Transformation> transformationsToApply;
     double scaleXY=Double.NaN, scaleZ= Double.NaN;
     public InputImage(int inputChannelIdx, int channelIdx, int inputFrame, int frame, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao) {
         this.imageSources = imageSources;
@@ -101,7 +101,7 @@ public class InputImage {
     }
     public Image getImage() throws IOException {
         if (image == null && requiresInputImage()) {
-            synchronized (this) {
+            synchronized (imageSources) {
                 if (image==null) {
                     if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame); //try to open from DAO
                     if (image==null) {

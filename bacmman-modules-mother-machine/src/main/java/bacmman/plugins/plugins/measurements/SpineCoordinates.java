@@ -120,7 +120,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
                 e.getKey().getMeasurements().setValue("SpineRadius", coord.spineRadius()*scale); // radius at spot position
             }
         });
-        if (!me.isEmpty()) throw me;
+        if (!me.isEmpty()) throw me; // throw after measurement to indicate that there were errors on some objects, but do not block measurement for valid objects
     }
 
     @Override

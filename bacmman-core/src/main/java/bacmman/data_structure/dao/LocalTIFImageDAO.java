@@ -30,6 +30,7 @@ import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.function.IntPredicate;
 
@@ -42,7 +43,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
+public class LocalTIFImageDAO implements ImageDAO {
     private final static Logger logger = LoggerFactory.getLogger(LocalTIFImageDAO.class);
     final String directory;
     final String position;
@@ -64,7 +65,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     }
 
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws FileNotFoundException {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException {
         if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
@@ -78,8 +79,9 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             throw new FileNotFoundException(path);
         }
     }
+
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws FileNotFoundException {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException {
         if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
@@ -93,8 +95,9 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             throw new FileNotFoundException(path);
         }
     }
+
     @Override
-    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws FileNotFoundException {
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException {
         if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
@@ -108,6 +111,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             throw new FileNotFoundException(path);
         }
     }
+
     @Override
     public void deletePreProcessedImage(int channelImageIdx, int timePoint) {
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
@@ -149,39 +153,8 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     protected String getPreProcessedImagePath(int channelImageIdx, int timePoint) {
         return Paths.get(directory, position, "pre_processed", "t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif").toString();
     }
+
     private String getTrackImageFolder(int parentStructureIdx) {
         return Paths.get(directory, position, "track_images_"+parentStructureIdx).toString();
     }
-    private String getTrackImagePath(SegmentedObject o, int channelImageIdx) {
-        return Paths.get(getTrackImageFolder(o.getStructureIdx()), Selection.indicesString(o)+"_"+channelImageIdx+".tif").toString();
-    }
-    
-    @Override
-    public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, Image image) {
-        String path = getTrackImagePath(trackHead, channelImageIdx);
-        File f = new File(path);
-        f.delete();
-        f.getParentFile().mkdirs();
-        //logger.trace("writing track image to path: {}", path);
-        ImageWriter.writeToFile(image, path, ImageFormat.TIF);
-    }
-    @Override
-    public Image openTrackImage(SegmentedObject trackHead, int channelImageIdx) {
-        String path = getTrackImagePath(trackHead, channelImageIdx);
-        File f = new File(path);
-        //logger.debug("opening track image: from {} c={}, path: {}, exists? {}", trackHead, channelImageIdx, path, f.exists());
-        if (f.exists()) {
-            //logger.trace("Opening track image:  trackHead: {}", trackHead);
-            return ImageReaderFile.openImage(path);
-        } else {
-            return null;
-        }
-    }
-
-    @Override
-    public void deleteTrackImages(int parentStructureIdx) {
-        String folder = getTrackImageFolder(parentStructureIdx);
-        Utils.deleteDirectory(folder);
-    }
-    
 }

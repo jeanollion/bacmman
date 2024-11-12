@@ -556,21 +556,6 @@ public class SegmentedObjectUtils {
         // transform track to root track in order to include indirect children
         boolean includeChildren = includeOCIdx.length>0;
         if (includeChildren) track = track.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
-        // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
-        Experiment xp = track.get(0).getExperiment();
-        Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap(xp.experimentStructure::getAllDirectChildStructures, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
-        Consumer<SegmentedObject> openTrackImages = so -> directChildren.get(so.getStructureIdx()).forEach(so::getTrackImage);
-        Predicate<Integer> includeChildrenOC = oc -> Arrays.stream(includeOCIdx).anyMatch(o->o==oc);
-        for (SegmentedObject o : track) {
-            openTrackImages.accept(o);
-            SegmentedObject p = o.getParent();
-            while(p!=null) {openTrackImages.accept(p); p=p.getParent();}
-            if (includeChildren) {
-                for (int sIdx : o.getExperiment().experimentStructure.getAllChildStructures(o.getStructureIdx())) {
-                    if (includeChildrenOC.test(sIdx)) o.getChildren(sIdx).forEach(openTrackImages);
-                }
-            }
-        }
 
         // create basic dao for duplicated objects
         Map<Object, SegmentedObject> dupMap = new HashMap<>(); // maps original ID to new object

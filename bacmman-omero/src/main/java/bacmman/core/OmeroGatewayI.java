@@ -40,12 +40,11 @@ import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static bacmman.configuration.experiment.Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION;
 import static bacmman.image.io.OmeroUtils.convertPlane;
@@ -162,7 +161,7 @@ public class OmeroGatewayI implements OmeroGateway {
         }
     }
 
-    public Image[][] openImageCT(long id) {
+    public Image[][] openImageCT(long id) throws IOException {
         try {
             RawPixelsStorePrx rawData = gateway().createPixelsStore(securityContext());
             ImageData imData = browse.getImage(ctx, id);
@@ -180,17 +179,20 @@ public class OmeroGatewayI implements OmeroGateway {
             throw new RuntimeException(e);
         }
     }
-    public Image getImage(PixelsData pixels, RawPixelsStorePrx rawData, int c, int t) {
-        List<Image> planes = IntStream.range(0, pixels.getSizeZ()).mapToObj(z -> getPlane(pixels, rawData, z, c, t)).collect(Collectors.toList());
+
+    public Image getImage(PixelsData pixels, RawPixelsStorePrx rawData, int c, int t) throws IOException {
+        List<Image> planes = new ArrayList<>(pixels.getSizeZ());
+        for (int z = 0; z<pixels.getSizeZ(); ++z) planes.add(getPlane(pixels, rawData, z, c, t));
         return (Image)Image.mergeImagesInZ(planes);
     }
-    public Image getPlane(PixelsData pixels, RawPixelsStorePrx rawData, int z, int c, int t) {
+
+    public Image getPlane(PixelsData pixels, RawPixelsStorePrx rawData, int z, int c, int t) throws IOException {
         try {
             byte[] data = rawData.getPlane(z, c, t);
             return convertPlane(data, null, pixels.getSizeX(), pixels.getSizeY(), pixels.getPixelType());
         } catch (ServerError e) {
             logger.debug("error retrieving raw data", e);
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
     }
 

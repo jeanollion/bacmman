@@ -137,8 +137,6 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
              mDAO.getDao(p.getName()).deleteAllObjects();
              mDAO.unlockPositions(p.getName());
             if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
-            for (int s = 0; s < xp.getStructureCount(); ++s)
-                if (p.getImageDAO() instanceof ImageDAOTrack) ((ImageDAOTrack) p.getImageDAO()).deleteTrackImages(s);
             Utils.deleteDirectory(Paths.get(xp.getOutputDirectory() , p.getName()).toString());
             return true;
         };

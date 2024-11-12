@@ -191,11 +191,12 @@ public class ImageReaderFile implements ImageReader {
         }
     }
     
-    public Image openChannel() {
+    public Image openChannel() throws IOException {
         return ImageReaderFile.this.openImage(new ImageIOCoordinates());
     }
-    public Image openImage(ImageIOCoordinates coords) {
-        if (reader==null) return null;
+
+    public Image openImage(ImageIOCoordinates coords) throws IOException {
+        if (reader==null) throw new IOException("Reader not initialized");
         Image res = null;
         /*if (reader==null && extension==ImageFormat.TIF) { // try IJ's method
             res = ImageReader.openIJTif(fullPath);
@@ -227,21 +228,24 @@ public class ImageReaderFile implements ImageReader {
         for (int z = zMin; z <= zMax; z++) {
             int idx = getIndex(coords.getChannel(), coords.getTimePoint(), z);
             try {
-                if (bounds==null || !supportView) {
+                if (bounds == null || !supportView) {
                     planes.add(openImage(idx, 0, 0, sizeX, sizeY, coords.getRGB()));
                 } else {
                     planes.add(openImage(idx, bounds.xMin(), bounds.yMin(), bounds.sizeX(), bounds.sizeY(), coords.getRGB()));
                 }
                 res = Image.mergeZPlanes(planes);
-                if (!supportView && bounds!=null) { // crop
-                    bounds.setzMin(0).setzMax(res.sizeZ()-1);
-                    res=res.crop(bounds);
+                if (!supportView && bounds != null) { // crop
+                    bounds.setzMin(0).setzMax(res.sizeZ() - 1);
+                    res = res.crop(bounds);
                 }
-                if (bounds!=null) res.resetOffset().translate(bounds);
+                if (bounds != null) res.resetOffset().translate(bounds);
                 double[] scaleXYZ = getScaleXYZ(1);
-                if (scaleXYZ[0]!=1) res.setCalibration((float)scaleXYZ[0], (float)scaleXYZ[2]);
-            } catch (FormatException | IOException ex) {
+                if (scaleXYZ[0] != 1) res.setCalibration((float) scaleXYZ[0], (float) scaleXYZ[2]);
+            } catch (FormatException ex) {
+                throw new IOException(ex);
+            } catch (IOException ex) {
                 logger.error("An error occurred while opening image: {}, c:{}, t:{}, s:{}, message: {}", reader.getCurrentFile() , coords.getChannel() , coords.getTimePoint(), coords.getSerie(), ex.getMessage());
+                throw ex;
             }
         }
         return res;
@@ -418,8 +422,7 @@ public class ImageReaderFile implements ImageReader {
             }
             int c = meta.getTimestampAnnotationCount();
             for (int i = 0; i<c; ++c) {
-                logger.debug("time: i={}, time: {}({}/{}), ns={}, id={}, desc={}, annotator={}", i, meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asDateTime(DateTimeZone.UTC), meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asInstant(), meta.getTimestampAnnotationNamespace(i), meta.getTimestampAnnotationID(i), meta.getTimestampAnnotationDescription(i), meta.getTimestampAnnotationAnnotator(i));
-                
+                logger.debug("time: i={}, value: {} (as date={}, as instant={}), ns={}, id={}, desc={}, annotator={}", i, meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asDateTime(DateTimeZone.UTC), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asInstant(), meta.getTimestampAnnotationNamespace(i), meta.getTimestampAnnotationID(i), meta.getTimestampAnnotationDescription(i), meta.getTimestampAnnotationAnnotator(i));
                 int cc = meta.getTimestampAnnotationAnnotationCount(i);
                 for (int ii = 0; ii<cc; ++ii) {
                     logger.debug("time: i={}, ref.idx={}, ref={}", i, ii, meta.getTimestampAnnotationAnnotationRef(i, ii));
@@ -465,14 +468,15 @@ public class ImageReaderFile implements ImageReader {
         return res;
     }
     
-    public static Image openImage(String filePath) {
+    public static Image openImage(String filePath) throws IOException {
         return openImage(filePath, new ImageIOCoordinates());
     }
     
-    public static Image openImage(String filePath, ImageIOCoordinates ioCoords) {
+    public static Image openImage(String filePath, ImageIOCoordinates ioCoords) throws IOException {
         return openImage(filePath, ioCoords, false, null);
     }
-    public static Image openImage(String filePath, ImageIOCoordinates ioCoords, boolean invertTZ, byte[][] buffer) {
+
+    public static Image openImage(String filePath, ImageIOCoordinates ioCoords, boolean invertTZ, byte[][] buffer) throws IOException {
         if (filePath.toLowerCase().endsWith(".tif")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
             if (ioCoords.getSerie()==0 && ioCoords.getChannel()==0 && ioCoords.getTimePoint()==0) { // this only works when
                 int[] slices = ioCoords.getBounds()==null ? null : ArrayUtil.generateIntegerArray(ioCoords.getBounds().zMin(), ioCoords.getBounds().zMax()+1);

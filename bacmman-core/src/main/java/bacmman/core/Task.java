@@ -69,7 +69,7 @@ public class Task implements ProgressCallback {
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
         public enum ExtractZAxis {IMAGE3D, CHANNEL, SINGLE_PLANE, MIDDLE_PLANE, BATCH}
         String dbName, dir;
-        boolean preProcess, segmentAndTrack, trackOnly, measurements, generateTrackImages, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
+        boolean preProcess, segmentAndTrack, trackOnly, measurements, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
         MEASUREMENT_MODE measurementMode = MEASUREMENT_MODE.ERASE_ALL;
         boolean exportData;
         List<Integer> positions;
@@ -110,7 +110,6 @@ public class Task implements ProgressCallback {
                 res.put("measurements", measurements);
                 res.put("measurementMode", measurementMode.toString());
             }
-            if (generateTrackImages) res.put("generateTrackImages", generateTrackImages);
             if (exportPreProcessedImages) res.put("exportPreProcessedImages", exportPreProcessedImages);
             if (exportTrackImages) res.put("exportTrackImages", exportTrackImages);
             if (exportObjects) res.put("exportObjects", exportObjects);
@@ -186,7 +185,6 @@ public class Task implements ProgressCallback {
             this.trackOnly = (Boolean)data.getOrDefault("trackOnly", false);
             this.measurements = (Boolean)data.getOrDefault("measurements", false);
             this.measurementMode = MEASUREMENT_MODE.valueOf((String)data.getOrDefault("measurementMode", MEASUREMENT_MODE.ERASE_ALL.toString()));
-            this.generateTrackImages = (Boolean)data.getOrDefault("generateTrackImages", false);
             this.exportPreProcessedImages = (Boolean)data.getOrDefault("exportPreProcessedImages", false);
             this.exportTrackImages = (Boolean)data.getOrDefault("exportTrackImages", false);
             this.exportObjects = (Boolean)data.getOrDefault("exportObjects", false);
@@ -258,7 +256,6 @@ public class Task implements ProgressCallback {
         hash = 59 * hash + (this.segmentAndTrack ? 1 : 0);
         hash = 59 * hash + (this.trackOnly ? 1 : 0);
         hash = 59 * hash + (this.measurements ? 1 : 0);
-        hash = 59 * hash + (this.generateTrackImages ? 1 : 0);
         hash = 59 * hash + (this.exportPreProcessedImages ? 1 : 0);
         hash = 59 * hash + (this.exportTrackImages ? 1 : 0);
         hash = 59 * hash + (this.exportObjects ? 1 : 0);
@@ -294,9 +291,6 @@ public class Task implements ProgressCallback {
             return false;
         }
         if (this.measurements != other.measurements) {
-            return false;
-        }
-        if (this.generateTrackImages != other.generateTrackImages) {
             return false;
         }
         if (this.exportPreProcessedImages != other.exportPreProcessedImages) {
@@ -469,14 +463,6 @@ public class Task implements ProgressCallback {
         return measurements;
     }
 
-    public boolean isGenerateTrackImages() {
-        return generateTrackImages;
-    }
-
-    public Task setGenerateTrackImages(boolean generateTrackImages) {
-        this.generateTrackImages=generateTrackImages;
-        return this;
-    }
     public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, boolean tracking, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
@@ -608,7 +594,7 @@ public class Task implements ProgressCallback {
             if (!posWithDifferentPP.isEmpty()) publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
         }
         if (selectionName!=null) {
-            if (preProcess || generateTrackImages || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
+            if (preProcess || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
             else {
                 Selection sel = db.getSelectionDAO().getOrCreate(selectionName, false);
                 if (sel.isEmpty()) errors.addExceptions(new Pair<>(dbName, new Exception("Empty selection")));
@@ -635,7 +621,7 @@ public class Task implements ProgressCallback {
             else if (!f.isDirectory()) errors.addExceptions(new Pair<>(dbName, new Exception("File: "+ exDir+ " is not a directory")));
             else if (e.value!=null) checkArray(e.value, -1, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
         }
-        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData && extractDSFile==null && extractRawDSFile==null) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
+        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() && !exportData && extractDSFile==null && extractRawDSFile==null) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
         // check parametrization
         if (preProcess) {
             ensurePositionAndStructures(true, false);
@@ -756,11 +742,6 @@ public class Task implements ProgressCallback {
             int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
             count += positionsToProcess * (nCallOC+1); // +1 for upsert
         }
-        if (this.generateTrackImages) {
-            int gen = 0;
-            for (int s : structures)  if (!db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) ++gen;
-            count+=positionsToProcess*gen;
-        }
         if (extractByPosition) count+=extractMeasurementDir.size() * positionsToProcess;
         else count+=extractMeasurementDir.size();
         if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
@@ -798,7 +779,7 @@ public class Task implements ProgressCallback {
         db.lockPositions(positionsToProcess.toArray(new String[0]));
 
         // check that all position to be processed are effectively locked
-        if (preProcess || segmentAndTrack || trackOnly || generateTrackImages || measurements) {
+        if (preProcess || segmentAndTrack || trackOnly || measurements) {
             List<String> readOnlyPos = positionsToProcess.stream().filter(p -> db.getDao(p).isReadOnly()).collect(Collectors.toList());
             logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
             if (!readOnlyPos.isEmpty()) {
@@ -821,7 +802,7 @@ public class Task implements ProgressCallback {
         logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllPosition);
         if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
         publish("number of subtasks: "+countSubtasks());
-        if (preProcess || segmentAndTrack || trackOnly || generateTrackImages || measurements) {
+        if (preProcess || segmentAndTrack || trackOnly || measurements) {
             try {
                 for (String position : positionsToProcess) {
                     try {
@@ -951,26 +932,12 @@ public class Task implements ProgressCallback {
                     errors.addExceptions(new Pair<>("Error while processing: db: "+db.getDBName()+" pos: "+position+" structure: "+s, e));
                 }
                 incrementProgress();
-                if (generateTrackImages && !db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) {
-                    publish("Generating Track Images for Structure: "+s);
-                    Processor.generateTrackImages(db.getDao(position), s, this);
-                    incrementProgress();
-                }
-                //db.getDao(position).applyOnAllOpenedObjects(o->{if (o.hasRegion()) o.getRegion().clearVoxels();}); // possible memory leak at this stage : list of voxels of big objects -> no necessary for further processing. 
+                //db.getDao(position).applyOnAllOpenedObjects(o->{if (o.hasRegion()) o.getRegion().clearVoxels();}); // possible memory leak at this stage : list of voxels of big objects -> no necessary for further processing.
                 // TODO : when no more processing with direct parent as root: get all images of direct root children & remove images from root
                 System.gc();
                 publishMemoryUsage("After Processing structure:"+s);
             }
             publishMemoryUsage("After Processing:");
-        } else if (generateTrackImages) {
-            publish("Generating Track Images...");
-            // generate track images for all selected structure that has direct children
-            for (int s : structures) {
-                if (db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) continue;
-                Processor.generateTrackImages(db.getDao(position), s, this);
-                incrementProgress();
-            }
-            //publishMemoryUsage("After Generate Track Images:");
         }
         
         if (measurements) {

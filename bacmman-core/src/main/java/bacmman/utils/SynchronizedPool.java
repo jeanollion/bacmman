@@ -20,7 +20,6 @@ package bacmman.utils;
 
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -59,6 +58,14 @@ public class SynchronizedPool<T> {
         this.push(buffer);
         return res;
     }
+
+    public <U, E extends Throwable> U applyThrows(Utils.CheckedFunction<T, U, E> function) throws E {
+        T buffer = this.pull();
+        U res = function.apply(buffer);
+        this.push(buffer);
+        return res;
+    }
+
     public void flush() {
         queue.clear();
     }

@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import static bacmman.utils.Utils.applyREx;
 
 /**
  *
@@ -200,11 +199,9 @@ public class CleanVoxelLine {
         while (segments.size()>1) {
             Vertex junction = segments.values().stream().filter(Segment::isJunction).map(v->(Vertex)v).filter(v->v.countNonEndEdges()>1).findAny().orElse(null);
             if (junction==null) break;
-            Map<Edge, Vertex> connectedVertices;
-            try {
-                connectedVertices = junction.connectedSegments.stream().filter(e -> !e.isEndBranch()).collect(Collectors.toMap(e -> e, applyREx(e -> e.getOtherJunction(junction))));
-            } catch (RuntimeException ex) {
-                throw (InvalidObjectException)ex.getCause();
+            Map<Edge, Vertex> connectedVertices = new HashMap<>();
+            for (Edge e : junction.connectedSegments) {
+                if (!e.isEndBranch()) connectedVertices.put(e, e.getOtherJunction(junction));
             }
             Entry<Edge, Vertex> toRemove = connectedVertices.entrySet().stream().filter(e -> Collections.frequency(connectedVertices.values(), e.getValue())>1).min(Entry.comparingByKey()).orElse(null);
             if (toRemove!=null) {
@@ -341,13 +338,11 @@ public class CleanVoxelLine {
                 //throw new RuntimeException("cannot clean unconnected junction");
             }
             default: { 
-                // remove duplicated redondent edges: remove smallest. 
+                // remove duplicated redundant edges: remove smallest.
                 // At this stage end-branches have been removed, if one remains it is the only one in the cluster
-                Map<Edge, Vertex> connectedVertices;
-                try {
-                    connectedVertices = junction.connectedSegments.stream().filter(e -> !e.isEndBranch()).collect(Collectors.toMap(e -> e, applyREx(e -> e.getOtherJunction(junction))));
-                } catch (RuntimeException ex) {
-                    throw (InvalidObjectException) ex.getCause();
+                Map<Edge, Vertex> connectedVertices = new HashMap<>();
+                for (Edge e : junction.connectedSegments) {
+                    if (!e.isEndBranch()) connectedVertices.put(e, e.getOtherJunction(junction));
                 }
                 Entry<Edge, Vertex> toRemove = connectedVertices.entrySet().stream().filter(e -> Collections.frequency(connectedVertices.values(), e.getValue())>1).min(Entry.comparingByKey()).orElse(null);
                 if (toRemove!=null) {

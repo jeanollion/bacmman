@@ -150,26 +150,27 @@ public class Utils {
     }
 
     @FunctionalInterface
-    public interface CheckedFunction<T,R> {
-        R apply(T t) throws Exception;
+    public interface CheckedFunction<T, R, E extends Throwable> {
+        R apply(T t) throws E;
     }
-    public static <T,R> Function<T,R> applyREx(CheckedFunction<T,R> checkedFunction) {
+
+    public static <T,R,E extends Throwable> Function<T,R> applyREx(CheckedFunction<T,R, E> checkedFunction) {
         return t -> {
             try {
                 return checkedFunction.apply(t);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
         };
     }
-    public static <T,R> Function<T,R> applyCollectEx(CheckedFunction<T,R> checkedFunction, MultipleException me) {
+    public static <T,R,E extends Throwable> Function<T,R> applyCollectEx(CheckedFunction<T,R,E> checkedFunction, MultipleException me) {
         return applyCollectEx(checkedFunction, me, T::toString);
     }
-    public static <T,R> Function<T,R> applyCollectEx(CheckedFunction<T,R> checkedFunction, MultipleException me, Function<T, String> toString) {
+    public static <T,R,E extends Throwable> Function<T,R> applyCollectEx(CheckedFunction<T,R,E> checkedFunction, MultipleException me, Function<T, String> toString) {
         return t -> {
             try {
                 return checkedFunction.apply(t);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 me.addExceptions(new Pair<>(toString.apply(t), e));
                 return null;
             }
@@ -195,9 +196,11 @@ public class Utils {
         sortedEntries.addAll(map.entrySet());
         return sortedEntries;
     }
+
     public static <T, K, U> Map<K, U> toMapWithNullValues(Stream<T> stream, Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, boolean allowNullValues) {
         return toMapWithNullValues(stream, keyMapper, valueMapper, allowNullValues, null);
     }
+
     public static <T, K, U> Map<K, U> toMapWithNullValues(Stream<T> stream, Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, boolean allowNullValues, MultipleException exceptionCollector) {
         if (stream==null) return Collections.emptyMap();
         if (allowNullValues && exceptionCollector==null) return stream.collect(HashMap::new, (m, e)->m.put(keyMapper.apply(e), valueMapper.apply(e)), HashMap::putAll);
@@ -215,6 +218,35 @@ public class Utils {
             }
             if (allowNullValues || v!=null) m.put(k, v);
         }, HashMap::putAll);
+    }
+
+    public static <T, K, U, EK extends Throwable, EV extends Throwable> Map<K, U> toMapWithNullValuesChecked(Stream<T> stream, CheckedFunction<? super T, ? extends K, EK> keyMapper, CheckedFunction<? super T, ? extends U, EV> valueMapper, boolean allowNullValues) throws EK, EV {
+        if (stream==null) return Collections.emptyMap();
+        try {
+            return stream.collect(HashMap::new, (m, e) -> {
+                K k = null;
+                try {
+                    k = keyMapper.apply(e);
+                } catch (Throwable ex) {
+                    throw new RuntimeException(ex);
+                }
+                U v = null;
+                try {
+                    v = valueMapper.apply(e);
+                } catch (Throwable ex) {
+                    throw new RuntimeException(ex);
+                }
+                if (allowNullValues || v != null) m.put(k, v);
+            }, HashMap::putAll);
+        } catch (RuntimeException e) {
+            Throwable cause = e.getCause();
+            try {
+                EK ek = (EK)cause;
+                throw ek;
+            } catch (ClassCastException cce) {
+                throw (EV)cause;
+            }
+        }
     }
     
     public static <T> Stream<T> parallel(Stream<T> stream, boolean parallele) {

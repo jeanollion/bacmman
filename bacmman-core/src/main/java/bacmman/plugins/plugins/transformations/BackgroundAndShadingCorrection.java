@@ -72,7 +72,7 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
         return parameters;
     }
 
-    private Image getImage(String[] path, PreFilterSequence prefilters, Image refImage, String imageName) {
+    private Image getImage(String[] path, PreFilterSequence prefilters, Image refImage, String imageName) throws IOException {
         if (path == null || path.length==0) throw new IllegalArgumentException("No "+imageName+" image found");
         for (String p : path) {
             if (!new File(p).isFile()) throw new IllegalArgumentException("Invalid "+imageName+" image:"+p);

@@ -3245,14 +3245,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         jMenu1.setText("Erase Images from Disk");
 
-        clearTrackImagesMenuItem.setText("Clear Track Images");
-        clearTrackImagesMenuItem.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                clearTrackImagesMenuItemActionPerformed(evt);
-            }
-        });
-        jMenu1.add(clearTrackImagesMenuItem);
-
         clearPPImageMenuItem.setText("Clear Pre-Processed Images");
         clearPPImageMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -3973,7 +3965,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         boolean segmentAndTrack = false;
         boolean trackOnly = false;
         boolean runMeasurements=false;
-        boolean generateTrackImages = false;
         boolean extract = false;
         boolean export=false;
         for (int i : this.runActionList.getSelectedIndices()) {
@@ -4005,7 +3996,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             }
             t.getDB().clearCache(true, true, true);
         } else return null;
-        t.setActions(preProcess, segmentAndTrack, segmentAndTrack || trackOnly, runMeasurements).setGenerateTrackImages(generateTrackImages);
+        t.setActions(preProcess, segmentAndTrack, segmentAndTrack || trackOnly, runMeasurements);
         t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
         //if (export) t.setExportData(this.exportPPImagesMenuItem.isSelected(), this.exportTrackImagesMenuItem.isSelected(), this.exportObjectsMenuItem.isSelected(), this.exportConfigMenuItem.isSelected(), this.exportSelectionsMenuItem.isSelected());
         
@@ -4178,17 +4169,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             PropertyUtils.set(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR, outputDir.getAbsolutePath());
         }
     }//GEN-LAST:event_extractSelectionMenuItemActionPerformed
-    
-    private void clearTrackImagesMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearTrackImagesMenuItemActionPerformed
-        if (!checkConnection()) return;
-        if (!Utils.promptBoolean("Delete All Track Images ? (Irreversible)", this)) return;
-        for (String p : getSelectedPositions(true)) {
-            for (int sIdx = 0; sIdx<db.getExperiment().getStructureCount(); ++sIdx) {
-                ImageDAO dao = db.getExperiment().getPosition(p).getImageDAO();
-                if (dao instanceof ImageDAOTrack) ((ImageDAOTrack)dao).deleteTrackImages(sIdx);
-            }
-        }
-    }//GEN-LAST:event_clearTrackImagesMenuItemActionPerformed
 
     private void clearPPImageMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearPPImageMenuItemActionPerformed
         if (!checkConnection()) return;

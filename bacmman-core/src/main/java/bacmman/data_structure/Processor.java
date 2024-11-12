@@ -26,8 +26,6 @@ import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
-import bacmman.data_structure.dao.ImageDAO;
-import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
@@ -135,10 +133,6 @@ public class Processor {
             throw new RuntimeException(e);
         }
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
-        for (int s =0; s<dao.getExperiment().getStructureCount(); ++s) {
-            ImageDAO idao = position.getImageDAO();
-            if (idao instanceof ImageDAOTrack) ((ImageDAOTrack)idao).deleteTrackImages(s);
-        }
         setTransformations(position, memoryLimit, pcb);
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
@@ -230,19 +224,6 @@ public class Processor {
             for (int s : structures) {
                 if (xp.getStructure(s).getProcessingPipelineParameter().isOnePluginSet()) {
                     dao.deleteObjectsByStructureIdx(structures);
-                }
-            }
-        }
-        ImageDAO imageDAO = xp.getPosition(dao.getPositionName()).getImageDAO();
-        if (imageDAO instanceof ImageDAOTrack) {
-            ImageDAOTrack imageDAOt = (ImageDAOTrack) imageDAO;
-            if (allOC && canDeleteAll) {
-                for (int s : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray()) imageDAOt.deleteTrackImages(s);
-            } else {
-                for (int s : structures) {
-                    if (xp.getStructure(s).getProcessingPipelineParameter().isOnePluginSet()) {
-                        imageDAOt.deleteTrackImages(s);
-                    }
                 }
             }
         }
@@ -699,31 +680,5 @@ public class Processor {
         Set<Integer> l = new HashSet<>(5);
         for (Measurement m : mList) for (MeasurementKey k : m.getMeasurementKeys()) l.add(k.getStoreStructureIdx());
         return l;
-    }
-    
-    public static void generateTrackImages(ObjectDAO dao, int parentStructureIdx, ProgressCallback pcb, int... childStructureIdx) {
-        if (dao==null || dao.getExperiment()==null) return;
-        if (childStructureIdx==null || childStructureIdx.length==0) {
-            List<Integer> childStructures =dao.getExperiment().experimentStructure.getAllDirectChildStructures(parentStructureIdx);
-            childStructures.add(parentStructureIdx);
-            Utils.removeDuplicates(childStructures, sIdx -> dao.getExperiment().getStructure(sIdx).getChannelImage());
-            childStructureIdx = Utils.toArray(childStructures, false);
-        }
-        final int[] cSI = childStructureIdx;
-        ImageDAO imageDAO = dao.getExperiment().getPosition(dao.getPositionName()).getImageDAO();
-        if (!(imageDAO instanceof ImageDAOTrack)) throw new RuntimeException("Image DAO do not allow track images");
-        ImageDAOTrack iDAOt = (ImageDAOTrack)imageDAO;
-        iDAOt.deleteTrackImages(parentStructureIdx);
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(dao.getRoots(), parentStructureIdx);
-        if (pcb!=null) pcb.log("Generating Image for structure: "+parentStructureIdx+". #tracks: "+allTracks.size()+", child structures: "+Utils.toStringArray(childStructureIdx));
-        ThreadRunner.execute(allTracks.values(), false, (List<SegmentedObject> track, int idx) -> {
-            TimeLapseInteractiveImageFactory.Data kymo = TimeLapseInteractiveImageFactory.generateKymographData(track, false, 0, 0, 0);
-            for (int childSIdx : cSI) {
-                //Core.userLog("Generating Image for track:"+track.get(0)+", structureIdx:"+childSIdx+" ...");
-                Image im = kymo.generateKymograph("", childSIdx, true);
-                int channelIdx = dao.getExperiment().getChannelImageIdx(childSIdx);
-                iDAOt.writeTrackImage(track.get(0), channelIdx, im);
-            }
-        });
     }
 }
