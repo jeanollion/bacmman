@@ -178,7 +178,7 @@ public interface InputImages {
     }
 
     static Stream<Image> streamChannel(InputImages images, int channelIdx, int modulo, boolean parallel) {
-        return Utils.parallel(IntStream.iterate(0, i->i+Math.max(1, modulo)), parallel).mapToObj(f -> {
+        return Utils.parallel(IntStream.iterate(0, i->i+Math.max(1, modulo)).limit(images.getFrameNumber() / modulo), parallel).mapToObj(f -> {
             try {
                 return images.getImage(channelIdx, f);
             } catch (IOException e) {
