@@ -166,6 +166,7 @@ public interface InputImages {
         logger.debug("choose {} images: {} t={} (among: {})", n, res, t1-t0, signal);
         return Pair.unpairKeys(res);
     }
+
     static Stream<Image> streamChannel(InputImages images, int channelIdx, boolean parallel) {
         return Utils.parallel(IntStream.range(0, images.getFrameNumber()), parallel).mapToObj(f -> {
             try {
@@ -175,6 +176,17 @@ public interface InputImages {
             }
         });
     }
+
+    static Stream<Image> streamChannel(InputImages images, int channelIdx, int modulo, boolean parallel) {
+        return Utils.parallel(IntStream.iterate(0, i->i+Math.max(1, modulo)), parallel).mapToObj(f -> {
+            try {
+                return images.getImage(channelIdx, f);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     static DoubleStream streamChannelValues(InputImages images, int channelIdx, boolean parallel) {
         return streamChannel(images, channelIdx, parallel).flatMapToDouble(Image::stream);
     }

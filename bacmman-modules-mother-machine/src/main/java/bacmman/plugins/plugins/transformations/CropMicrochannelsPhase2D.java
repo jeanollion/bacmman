@@ -73,7 +73,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     ConditionalParameter<Boolean> twoPeaksCond = new ConditionalParameter<>(twoPeaks)
             .setActionParameters(false, cropMarginY, maxDistanceRangeFromAberration)
             .setActionParameters(true, aberrationPeakPropUp, yEndMarginUp, landmarkUpperPeak);
-    Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup};
+    Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup, processingWindow};
     @Override public String getHintText() {
         return simpleToolTip + toolTip;
     }
@@ -86,7 +86,6 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     }
     public CropMicrochannelsPhase2D() {
         this.referencePoint.setSelectedIndex(1);
-        this.frameNumber.setValue(0);
     }
     
     @Override public MutableBoundingBox getBoundingBox(Image image) {

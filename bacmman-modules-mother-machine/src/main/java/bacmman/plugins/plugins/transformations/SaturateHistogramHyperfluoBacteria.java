@@ -40,8 +40,9 @@ import java.util.Arrays;
 public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransformation, Hint {
     NumberParameter maxSignalProportion = new BoundedNumberParameter("Maximum Saturated Signal Amount Proportion", 5, 0.02, 0, 1).setHint("Condition on amount of signal for detection of hyper-fluorescent bacteria: <br />Total amount of foreground signal / amount of hyper-fluorescent signal &lt; this threshold");
     NumberParameter minSignalRatio = new BoundedNumberParameter("Minimum Signal Ratio", 2, 10, 2, null).setHint("Condition on signal value for detection of hyper-fluorescent bacteria: <br />Mean Hyper-fluorescent signal / Mean Foreground signal > this threshold");
-    
-    Parameter[] parameters = new Parameter[]{maxSignalProportion, minSignalRatio};
+    NumberParameter frameModulo = new BoundedNumberParameter("Frame Increment", 0, 2, 1, null).setHint("To improve speed: 1 frame out of N is used for histogram computation");
+
+    Parameter[] parameters = new Parameter[]{maxSignalProportion, minSignalRatio, frameModulo};
     double saturateValue= Double.NaN;
     boolean configured = false;
     
@@ -57,7 +58,7 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
         long t0 = System.currentTimeMillis();
-        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannelValues(inputImages, channelIdx, true), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
         double[] bckMuStd = new double[2];
         double bckThld = BackgroundFit.backgroundFit(histo, 10, bckMuStd);
         Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(bckThld)+1, histo.getData().length);
@@ -81,7 +82,7 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
          
         long t1 = System.currentTimeMillis();
         configured = true;
-        logger.debug("SaturateHistoAuto: {}, bck : {}, thld: {}, fore: {}, saturation thld: {}, saturation proportion: {}, image range: {} computation time {}ms",saturateValue, bckMuStd[0], bckThld, foreThld, satThld, satSignal/totalSignal, new double[]{histo.getMinValue(), histo.getMaxValue()}, t1-t0);
+        logger.debug("SaturateHistoAuto: {}, bck : {}, thld: {}, before: {}, saturation thld: {}, saturation proportion: {}, image range: {} computation time {}ms",saturateValue, bckMuStd[0], bckThld, foreThld, satThld, satSignal/totalSignal, new double[]{histo.getMinValue(), histo.getMaxValue()}, t1-t0);
     }
     
     @Override
