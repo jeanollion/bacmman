@@ -19,7 +19,7 @@ public class HistogramScaler implements ConfigurableTransformation {
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         if (scalePerFrame.getSelected()) return;
-        globalHistogram = HistogramFactory.getHistogram(()->InputImages.streamChannelValues(inputImages, channelIdx), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        globalHistogram = HistogramFactory.getHistogram(()->InputImages.streamChannelValues(inputImages, channelIdx, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
     }
 
     @Override
