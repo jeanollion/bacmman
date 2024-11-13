@@ -208,7 +208,7 @@ public class DLModelGistTreeGenerator {
                         try {
                             UserAuth auth = authSupplier.get();
                             LargeFileGist lf = gtn.gist.getLargeFileGist(auth);
-                            File destDir = Utils.chooseFile("Select Destination Directory", defaultDirectory, FileChooser.FileChooserOption.DIRECTORIES_ONLY, GUI.getInstance());
+                            File destDir = FileChooser.chooseFile("Select Destination Directory", defaultDirectory, FileChooser.FileChooserOption.DIRECTORIES_ONLY, GUI.getInstance());
                             if (destDir!=null && destDir.exists()) {
                                 File modelFile = lf.retrieveFile(destDir, true, true, auth, null, pcb);
                                 if (modelFile!=null) {

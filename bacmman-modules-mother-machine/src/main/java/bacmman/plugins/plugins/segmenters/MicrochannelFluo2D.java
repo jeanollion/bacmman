@@ -31,7 +31,7 @@ import bacmman.processing.ImageOperations;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Utils;
+import bacmman.utils.IJUtils;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
@@ -172,7 +172,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         ImageOperations.affineOperation(imProjX, imProjX, (double) (image.sizeY() * image.sizeZ()) / channelLength, 0);
         if (imageTestDisplayer != null) imageTestDisplayer.accept(mask.setName("Thresholded Bacteria"));
         if (miscDataDisplayer != null)
-            miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> Utils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
+            miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> IJUtils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
 
         switch (method) {
             case LEGACY: {

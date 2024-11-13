@@ -225,7 +225,7 @@ public class SaveDLModelGist {
                 }
             });
             Consumer<UserAuth> uploadFile = a -> {
-                File file = Utils.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
+                File file = FileChooser.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
                 if (file != null) {
                     uploadFile(file, a, true);
                 }

@@ -62,19 +62,19 @@ public interface InputImages {
             return null;
         }
     }
-    public Image getImage(int channelIdx, int timePoint) throws IOException;
-    public Image getRawPlane(int z, int channelIdx, int timePoint) throws IOException ;
-    public int getFrameNumber();
+    Image getImage(int channelIdx, int timePoint) throws IOException;
+    Image getRawPlane(int z, int channelIdx, int timePoint) throws IOException ;
+    int getFrameNumber();
     int getMinFrame();
-    public int getChannelNumber();
-    public int getDefaultTimePoint();
-    public int getSourceSizeZ(int channelIdx);
-    public int getBestFocusPlane(int timePoint);
-    public void flush();
-    public double getCalibratedTimePoint(int c, int t, int z);
-    public boolean singleFrameChannel(int channelIdx);
+    int getChannelNumber();
+    int getDefaultTimePoint();
+    int getSourceSizeZ(int channelIdx);
+    int getBestFocusPlane(int timePoint);
+    void flush();
+    double getCalibratedTimePoint(int c, int t, int z);
+    boolean singleFrameChannel(int channelIdx);
     void setMemoryProportionLimit(double memoryProportionLimit);
-    public static Image[] getImageForChannel(InputImages images, int channelIdx, boolean ensure2D) {
+    static Image[] getImageForChannel(InputImages images, int channelIdx, boolean ensure2D) {
         if(channelIdx<0 || channelIdx>=images.getChannelNumber()) throw new IllegalArgumentException("invalid channel idx: "+channelIdx+" max idx: "+(images.getChannelNumber()-1));
         Function<Integer, Image> fun;
         if (!ensure2D) {

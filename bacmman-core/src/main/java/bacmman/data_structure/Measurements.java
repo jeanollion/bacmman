@@ -45,7 +45,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
     protected int[] indices;
     protected Map<String, Object> values;
     public boolean modifications=false;
-    final public static String NA_STRING = "NA";
+    final public static String NA_STRING = Utils.NA_STRING;
     public Measurements(SegmentedObject o) {
         this.id=o.id;
         this.calibratedTimePoint=o.getCalibratedTimePoint();

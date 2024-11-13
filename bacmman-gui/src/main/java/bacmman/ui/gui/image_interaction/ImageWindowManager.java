@@ -1312,7 +1312,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
         Histogram h = HistogramFactory.getHistogram(()->values.stream().mapToDouble(Number::doubleValue), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
         double binSize = h.getBinSize();
         double min = h.getMin() + binSize/2;
-        Utils.plotHistogram("Histogram of "+name, IntStream.range(0, h.getData().length).mapToDouble(i -> min + i*binSize).toArray(), LongStream.of(h.getData()).mapToDouble(l->(double)l).toArray());
+        IJUtils.plotHistogram("Histogram of "+name, IntStream.range(0, h.getData().length).mapToDouble(i -> min + i*binSize).toArray(), LongStream.of(h.getData()).mapToDouble(l->(double)l).toArray());
     }
     
     private static void replaceRepeatedValues(List list) {

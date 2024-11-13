@@ -30,10 +30,7 @@ import bacmman.plugins.TestableOperation;
 import bacmman.processing.ImageDerivatives;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.Plugin;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
-import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -124,7 +121,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
             Image imCrop = image.crop(nonNullBound);
             Image imDerY = ImageDerivatives.getGradient(imCrop, 2, false, true, 1).get(0);
             float[] yProj = ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
-            if (testMode.testExpert()) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
+            if (testMode.testExpert()) IJUtils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check
             //if (yProj.length-1<channelHeight/10) throw new RuntimeException("No microchannels found in image. Out-of-Focus image ?");
             yMin = ArrayUtil.max(yProj, 0, yMinMax-nonNullBound.yMin()) + nonNullBound.yMin();
@@ -169,7 +166,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         int startOfMicroChannel = endOfPeakYIdx - margin;
         if (testMode) {
             //Core.showImage(image.setName("Peak detection Input Image"));
-            Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" end of microchannels: y = "+startOfMicroChannel, yProj, "Y", "Mean Intensity projection along X");
+            IJUtils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" end of microchannels: y = "+startOfMicroChannel, yProj, "Y", "Mean Intensity projection along X");
             //Utils.plotProfile("Sliding sigma", slidingSigma);
             logger.debug("Bright line detection: start mc / end peak/ peak: idx: [{};{};{}], values: [{};{};{}]", startOfMicroChannel, endOfPeakYIdx, peakIdx, median, thld, yProj[peakIdx]);
         }
@@ -232,7 +229,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
 
         if (testMode) {
             //Core.showImage(image.setName("Peak detection Input Image"));
-            Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" peak2: y = "+peakIdx2+ " end of peak 2: y = "+endOfPeak2YIdx+ " microchannel: ["+startOfMicroChannel[0]+ ";" + startOfMicroChannel[1]+"]", yProj, "Y", "Mean Intensity projection along X");
+            IJUtils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" peak2: y = "+peakIdx2+ " end of peak 2: y = "+endOfPeak2YIdx+ " microchannel: ["+startOfMicroChannel[0]+ ";" + startOfMicroChannel[1]+"]", yProj, "Y", "Mean Intensity projection along X");
             //Utils.plotProfile("Sliding sigma", slidingSigma);
             Plugin.logger.debug("Bright line detection: peak1 {} / end of peak1 {} , peak2: {} end of peak2: {}, microchannels: {}", peakIdx, endOfPeakYIdx, peakIdx2, endOfPeak2YIdx, startOfMicroChannel);
         }

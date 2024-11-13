@@ -320,6 +320,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         List<Image> planes = all2D ?  (images instanceof List ? (List)images: new ArrayList<>(images)) : images.stream().flatMap(im -> ((List<Image>)im.splitZPlanes()).stream()).collect(Collectors.toList());
         return StreamConcatenation.concat((DoubleStream[])IntStream.range(0, planes.size()).mapToObj(i->planes.get(i).streamPlane(0)).toArray(s->new DoubleStream[s]));
     }
+
     public static DoubleStream stream(Map<Image, ImageMask> images, boolean masksHaveAbsoluteOffset) {
         // if all masks are blank masks or null -> use method with no masks
         if (Utils.objectsAllHaveSameProperty(images.values(), im -> im == null || im instanceof BlankMask)) return stream(images.keySet());

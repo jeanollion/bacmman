@@ -18,12 +18,7 @@
  */
 package bacmman.utils;
 
-import bacmman.configuration.parameters.FileChooser;
-import bacmman.data_structure.Measurements;
-import bacmman.image.Image;
-import bacmman.measurement.MeasurementExtractor;
 import com.sun.management.UnixOperatingSystemMXBean;
-import ij.gui.Plot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,17 +46,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.*;
 import javax.swing.*;
-
-import static javax.swing.UIManager.setLookAndFeel;
-
 import javax.swing.Timer;
-import javax.swing.filechooser.FileFilter;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
-import java.awt.FileDialog;
-import java.awt.Frame;
-
-
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 /**
@@ -69,6 +56,7 @@ import java.util.jar.JarFile;
  * @author Jean Ollion
  */
 public class Utils {
+    final public static String NA_STRING = "NA";
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
     public static <T> List<T> safeCollectToList(Stream<T> stream) {
@@ -589,10 +577,10 @@ public class Utils {
         return sb.toString();
     }
     public static <T> String toStringArray(double[] array) {
-        return toStringArray(array, "[", "]", "; ", MeasurementExtractor.numberFormater).toString();
+        return toStringArray(array, "[", "]", "; ", n->Utils.format(n,5)).toString();
     }
     public static <T> String toStringArray(float[] array) {
-        return toStringArray(array, "[", "]", "; ", MeasurementExtractor.numberFormater).toString();
+        return toStringArray(array, "[", "]", "; ", n->Utils.format(n,5)).toString();
     }
     public static <T> StringBuilder toStringArray(T[] array, String init, String end, String sep, Function<T, Object> toString) {
         StringBuilder sb = new StringBuilder(init);
@@ -839,108 +827,7 @@ public class Utils {
     }
     
     private static double incrementColor(double h, double goldenRatioConjugate) {return (h+goldenRatioConjugate)%1;}
-    
-    public static void plotProfile(Image image, int z, int coord, boolean alongX, String... axisLabels) {
-        double[] x;
-        double[] y;
-        if (alongX) {
-            x=new double[image.sizeX()];
-            y=new double[image.sizeX()];
-            for (int i = 0; i<x.length; ++i) {
-                x[i]=i;
-                y[i]=image.getPixel(i, coord, z);
-            }
-        } else {
-            x=new double[image.sizeY()];
-            y=new double[image.sizeY()];
-            for (int i = 0; i<x.length; ++i) {
-                x[i]=i;
-                y[i]=image.getPixel(coord, i, z);
-            }
-        }
-        new Plot(image.getName(), axisLabels.length>0 ? axisLabels[0] : (alongX?"x":"y"), axisLabels.length>1 ? axisLabels[1] : "value", x, y).show();
-    }
-    
-    public static void plotProfile(String title, int[] values) {
-        if (values.length<=1) return;
-        double[] doubleValues = ArrayUtil.toDouble(values);
-        double v = doubleValues[0];
-        int idx = 0; 
-        while (idx<doubleValues.length && doubleValues[idx]==v) ++idx;
-        if (idx==doubleValues.length) return;
-        double[] x=new double[doubleValues.length];
-        for (int i = 0; i<x.length; ++i) x[i]=i;
-        new Plot(title, "coord", "value", x, doubleValues).show();
-    }
-    public static void plotProfile(String title, float[] values, String... axisLabels) {
-        plotProfile(title, values, 0, axisLabels);
-    }
-    public static void plotProfile(String title, float[] values, int xOffset, String... axisLabels) {
-        if (values.length<=1) return;
-        float v = values[0];
-        int idx = 0; 
-        while (idx<values.length && values[idx]==v) ++idx;
-        if (idx==values.length) return;
-        float[] x=new float[values.length];
-        for (int i = 0; i<x.length; ++i) x[i]=i+xOffset;
-        new Plot(title, axisLabels.length>0 ? axisLabels[0] : "coord", axisLabels.length>1 ? axisLabels[1] : "value", x, values).show();
-    }
-    
-    public static Plot plotProfile(String title, double[] values, String... axisLabels) {
-        if (values.length<=1) return null;
-        double v = values[0];
-        int idx = 0; 
-        while (idx<values.length && values[idx]==v) ++idx;
-        if (idx==values.length) return null; // cannot be ploted if one single value
-        double[] x=new double[values.length];
-        for (int i = 0; i<x.length; ++i) x[i]=i;
-        Plot p  = new Plot(title, axisLabels.length>0 ? axisLabels[0] : "coord", axisLabels.length>1 ? axisLabels[1] : "value", x, values);
-        p.show();
-        return p;
-    }
-    public static void plotProfile(String title, double[] values1, double[] values2, boolean sort) {
-        if (values1.length<=1) return;
-        double v = values1[0];
-        int idx = 0; 
-        while (idx<values1.length && values1[idx]==v) ++idx;
-        if (idx==values1.length) return; // cannot be ploted if one single value
-        double[] x1=new double[values1.length];
-        for (int i = 0; i<x1.length; ++i) x1[i]=i;
-        double[] x2=new double[values2.length];
-        for (int i = 0; i<x2.length; ++i) x2[i]=i;
-        if (sort) {
-            Arrays.sort(values1);
-            Arrays.sort(values2);
-        }
-        Plot p = new Plot(title, "coord", "value1", x1, values1);
-        p.addPoints(x2, values2, 5);
-        p.show();
-    }
-    public static void plotHistogram(String title, double[] x, double[] count) {
-        if (count.length<=1) return;
-        double v = count[0];
-        int idx = 0;
-        while (idx<count.length && count[idx]==v) ++idx;
-        if (idx==count.length) return; // cannot be ploted if one single value
-        Plot p = new Plot(title, "Value", "Count");
-        p.add("bar", x, count);
-        p.show();
-    }
-    public static void plotProfile(String title, double[] values1, double[] x1, double[] values2, double[] x2) {
-        if (values1.length<=1) return;
-        double v = values1[0];
-        int idx = 0; 
-        while (idx<values1.length && values1[idx]==v) ++idx;
-        if (idx==values1.length) return; // cannot be ploted if one single value
-        Plot p = new Plot(title, "coord", "value1", x1, values1);
-        if (values2!=null) {
-            p.addPoints(x2, values2, 5);
-            Function<double[] , Double> min = a -> Arrays.stream(a).min().getAsDouble();
-            Function<double[] , Double> max = a -> Arrays.stream(a).max().getAsDouble();
-            p.setLimits(Math.min(min.apply(x1), min.apply(x1)), Math.max(max.apply(x1), max.apply(x1)), Math.min(min.apply(values1), min.apply(values2)), Math.max(max.apply(values1), max.apply(values2)));
-        }
-        p.show();
-    }
+
     public static void moveOrMerge(Path source, Path target) throws IOException {
         if (!Files.isDirectory(target) || isEmpty(target)) Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
         else { // target is a non empty directory
@@ -1084,56 +971,7 @@ public class Utils {
             return -1;
         }
     }
-    public static File[] chooseFiles(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent, String... fileExtension) {
-        if (false && isMacOSX()) {
-            // FileDialog does not allow to select directories...
-            //System.setProperty("apple.awt.fileDialogForDirectories", "false");
-            FileDialog fd = new FileDialog(parent,  dialogTitle, FileDialog.LOAD);
-            fd.setDirectory(directory);
-            fd.setMode(0);
-            // TODO how to sets the options (file / directories...) 
-            //fd.setFile("*.xml");
-            fd.setVisible(true);
-            return fd.getFiles();
-        } else {
-            final JFileChooser fc = new JFileChooser();
-            fc.setFileSelectionMode(option.getOption());
-            //fc.setFileHidingEnabled(false);
-            if (fileExtension.length>0) {
-                fc.setFileFilter(new FileFilter() {
-                    public String getDescription() {
-                        return Arrays.toString(fileExtension);
-                    }
-                    public boolean accept(File f) {
-                        if (f.isDirectory()) {
-                            return true;
-                        } else {
-                            String filename = f.getName().toLowerCase();
-                            return Arrays.stream(fileExtension).anyMatch(filename::endsWith);
-                        }
-                    }
-                });
 
-            }
-            fc.setMultiSelectionEnabled(option.getMultipleSelectionEnabled());
-            if (directory != null) fc.setCurrentDirectory(new File(directory));
-            if (dialogTitle!=null) fc.setDialogTitle(dialogTitle);
-            else fc.setDialogTitle("Choose Files");
-            int returnval = fc.showOpenDialog(parent);
-            if (returnval == JFileChooser.APPROVE_OPTION) {
-                File[] res;
-                if (option.getMultipleSelectionEnabled()) res = fc.getSelectedFiles();
-                else res = new File[]{fc.getSelectedFile()};
-                return res;
-            } else return null;
-        }
-    }
-    
-    public static File chooseFile(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent, String... fileExtension) {
-        File[] res = chooseFiles(dialogTitle,directory, option,  parent, fileExtension);
-        if (res!=null && res.length>0) return res[0];
-        else return null;
-    }
     /**
      * 
      * @param message to be displayed
@@ -1360,7 +1198,7 @@ public class Utils {
             else return String.format(java.util.Locale.US, "%."+digits+"e", n.doubleValue());
         } else {
             double abs = Math.abs(n.doubleValue());
-            if (Double.isInfinite(abs) || Double.isNaN(abs)) return Measurements.NA_STRING; // NAN ?
+            if (Double.isInfinite(abs) || Double.isNaN(abs)) return NA_STRING; // NAN ?
             double pow = Math.pow(10, digits);
             if (abs > 1000 || (abs<0.1 && ((int)(abs*pow))/pow!=abs)) {
                 return String.format(java.util.Locale.US, "%."+ digits+ "e", n);

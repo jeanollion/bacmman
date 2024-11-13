@@ -622,7 +622,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String path = PropertyUtils.get(WD_ID, defWD);
-                File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
+                File f = FileChooser.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
                 if (f != null) {
                     workingDirectoryTextField.setText(f.getAbsolutePath());
                     workingDirPersistence.actionPerformed(e);
@@ -639,7 +639,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String path = PropertyUtils.get(MD_ID, defWD);
-                File f = Utils.chooseFile("Choose model destination folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
+                File f = FileChooser.chooseFile("Choose model destination folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
                 if (f != null) {
                     modelDestinationTextField.setText(f.getAbsolutePath());
                     moveDirPersistence.actionPerformed(e);

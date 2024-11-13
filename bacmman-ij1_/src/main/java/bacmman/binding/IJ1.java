@@ -27,6 +27,7 @@ import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.GUI;
 import bacmman.utils.FileIO;
 import bacmman.utils.Palette;
+import bacmman.utils.Utils;
 import ij.IJ;
 import ij.ImageJ;
 import ij.plugin.PlugIn;
@@ -54,7 +55,9 @@ import org.slf4j.LoggerFactory;
  */
 public class IJ1 implements PlugIn {
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
-    static {LegacyInjector.preinit();}
+    static {
+        if (Utils.isUnix()) LegacyInjector.preinit();
+    }
 
     private static Object LOCK = new Object();
     private static ImageJ ij;

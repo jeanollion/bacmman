@@ -29,8 +29,8 @@ import bacmman.processing.ImageDerivatives;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.IJUtils;
 import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
 
 import java.util.*;
@@ -193,8 +193,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
             stores.get(parent).addMisc("Show test data", l->{
                 stores.get(parent).imageDisp.accept(imDerY.setName("Closed-end detection image (dI/dy)"));
                 stores.get(parent).imageDisp.accept(imDerX.setName("Side detection image (dI/dx)"));
-                if (yProj!=null) Utils.plotProfile("Closed-end detection (mean projection)", yProj, "y", "dI/dy");
-                Utils.plotProfile("Side detection (mean projection of dI/dx) Threshold: "+localDerExtremaThld+(this.xDerPeakThldMethod.getSelectedIndex()==1? " Signal Range: "+(relativeDerThld.getValue().doubleValue()*localDerExtremaThld) : ""), xProjDer, "x", "dI/dx");
+                if (yProj!=null) IJUtils.plotProfile("Closed-end detection (mean projection)", yProj, "y", "dI/dy");
+                IJUtils.plotProfile("Side detection (mean projection of dI/dx) Threshold: "+localDerExtremaThld+(this.xDerPeakThldMethod.getSelectedIndex()==1? " Signal Range: "+(relativeDerThld.getValue().doubleValue()*localDerExtremaThld) : ""), xProjDer, "x", "dI/dx");
                 //plotProfile("Side detection (mean projection of I)", xProj);
             });
         }
@@ -273,7 +273,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
                     stores.get(parent).addMisc("Display closed-end adjument", l -> {
                         Set<Integer> idxes = l.stream().map(SegmentedObject::getIdx).collect(Collectors.toSet());
                         if (idxes.contains(ii))
-                            Utils.plotProfile("Closed-end y-adjustment: first local max @ y=:" + (localMaxY.get(0) + win.yMin()), proj, win.yMin(), "y", "dI/dy");
+                            IJUtils.plotProfile("Closed-end y-adjustment: first local max @ y=:" + (localMaxY.get(0) + win.yMin()), proj, win.yMin(), "y", "dI/dy");
                     });
 
                 }

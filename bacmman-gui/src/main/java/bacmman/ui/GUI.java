@@ -1144,7 +1144,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         upload.setToolTipText("Upload a file (or directory) as gist to a prompt account");
         upload.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                File f = Utils.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
+                File f = FileChooser.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
                 if (f!=null) {
                     UserAuth auth = Core.getCore().getGithubGateway().promptCredentials(INSTANCE::setMessage, "Connect to account to upload file to...");
                     if (auth instanceof NoAuth) return;
@@ -1161,7 +1161,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         JMenuItem download = new JMenuItem("Download...");
         download.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
+                File f = FileChooser.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
                     try {
                         LargeFileGist lf = new LargeFileGist(downloadId.getValue(), new NoAuth());
@@ -1214,7 +1214,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         sample.setText(name);
         sample.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
+                File f = FileChooser.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
                     try {
                         LargeFileGist lf = new LargeFileGist(id, new NoAuth());
@@ -3792,7 +3792,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     }//GEN-LAST:event_saveConfigMenuItemActionPerformed
     private String promptDir(String message, String def, boolean onlyDir) {
         if (message==null) message = "Choose Directory";
-        File outputFile = Utils.chooseFile(message, def, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, this);
+        File outputFile = FileChooser.chooseFile(message, def, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, this);
         if (outputFile ==null) return null;
         if (onlyDir && !outputFile.isDirectory()) outputFile=outputFile.getParentFile();
         return outputFile.getAbsolutePath();
@@ -3838,7 +3838,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private void exportXPConfigMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exportXPConfigMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR, db.getDatasetDir().toFile().getAbsolutePath());
-        File f = Utils.chooseFile("Write config to...", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
+        File f = FileChooser.chooseFile("Write config to...", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.getParentFile().isDirectory()) return;
         promptSaveUnsavedChanges();
         // export config as text file, without positions
@@ -3856,7 +3856,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private void importPositionsToCurrentExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importPositionsToCurrentExperimentMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = db.getDatasetDir().toFile().getAbsolutePath();
-        File f = Utils.chooseFile("Select exported archive", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
+        File f = FileChooser.chooseFile("Select exported archive", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
         /*
         DefaultWorker.WorkerTask t= new DefaultWorker.WorkerTask() {
@@ -3892,7 +3892,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private void importConfigurationForSelectedPositionsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationForSelectedPositionsMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
-        File f = Utils.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
+        File f = FileChooser.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.isFile()) return;
         Experiment sourceXP = null;
         try {
@@ -3920,7 +3920,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             setMessage("Select only one destination object class");
             return;
         }
-        File f = Utils.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
+        File f = FileChooser.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.isFile()) return;
         Experiment sourceXP = null;
         try {
@@ -4050,7 +4050,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!checkConnection()) return;
         String defDir = db.getDatasetDir().toFile().getAbsolutePath();
         if (!new File(defDir).exists()) defDir = PropertyUtils.get(PropertyUtils.LAST_IMPORT_IMAGE_DIR);
-        File[] selectedFiles = Utils.chooseFiles("Choose images/directories to import (selected import method="+db.getExperiment().getImportImageMethod()+")", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
+        File[] selectedFiles = FileChooser.chooseFiles("Choose images/directories to import (selected import method="+db.getExperiment().getImportImageMethod()+")", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
         if (selectedFiles!=null) {
             if (Experiment.IMPORT_METHOD.SINGLE_FILE.equals(db.getExperiment().getImportImageMethod())) { // warning if a lot of files 
                 for (File f : selectedFiles) {
@@ -4088,7 +4088,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!checkConnection()) return;
         int[] selectedStructures = this.getSelectedStructures(false);
         String defDir = PropertyUtils.get(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), new File(db.getExperiment().getOutputDirectory()).getParent());
-        File outputDir = Utils.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
+        File outputDir = FileChooser.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
         if (outputDir!=null) {
             if (selectedStructures.length==0) {
                 selectedStructures = this.getSelectedStructures(true);
@@ -4160,7 +4160,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private void extractSelectionMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_extractSelectionMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = PropertyUtils.get(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), new File(db.getExperiment().getOutputDirectory()).getParent());
-        File outputDir = Utils.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
+        File outputDir = FileChooser.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
         if (outputDir!=null) {
             String file = Paths.get(outputDir.getAbsolutePath(),db.getDBName()+"_Selections.csv").toString();
             SelectionExtractor.extractSelections(db, getSelectedSelections(true), file);
@@ -4184,7 +4184,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (path!=null && !this.appendToFileMenuItem.isSelected() && new File(path).exists()) new File(path).delete();
     }
     private void setLogFileMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_setLogFileMenuItemActionPerformed
-        File f = Utils.chooseFile("Save Log As...", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
+        File f = FileChooser.chooseFile("Save Log As...", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
         if (f==null) {
             PropertyUtils.set(PropertyUtils.LOG_FILE, null);
             setLogFile(null);
@@ -4550,7 +4550,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     String defDir = PropertyUtils.get(PropertyUtils.LAST_TASK_FILE_DIR, workingDirectory.getText());
-                    File out = Utils.chooseFile("Save Task list as...", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
+                    File out = FileChooser.chooseFile("Save Task list as...", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
                     if (out==null || out.isDirectory()) {
                         if (out!=null) setMessage("Choose a file, not a directory");
                         return;
@@ -4567,7 +4567,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     String defDir = PropertyUtils.get(PropertyUtils.LAST_TASK_FILE_DIR, workingDirectory.getText());
-                    File out = Utils.chooseFile("Choose Folder", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
+                    File out = FileChooser.chooseFile("Choose Folder", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
                     if (out==null || !out.isDirectory()) {
                         if (out!=null) setMessage("Choose a directory, not a file");
                         return;
@@ -4590,7 +4590,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 public void actionPerformed(ActionEvent e) {
                     String dir = PropertyUtils.get(PropertyUtils.LAST_TASK_FILE_DIR, workingDirectory.getText());
                     if (!new File(dir).isDirectory()) dir = null;
-                    File f = Utils.chooseFile("Choose Task list file", dir, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
+                    File f = FileChooser.chooseFile("Choose Task list file", dir, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
                     if (f!=null && f.exists()) {
                         PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, f.getParent());
                         List<Task> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
@@ -4681,7 +4681,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     String path = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH, null);
-                    File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, GUI.getInstance());
+                    File f = FileChooser.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, GUI.getInstance());
                     if (f!=null) {
                         closeDataset();
                         PropertyUtils.set(PropertyUtils.LOCAL_DATA_PATH, f.getAbsolutePath());

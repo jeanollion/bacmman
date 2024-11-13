@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import java.awt.*;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +31,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileFilter;
 
 import bacmman.configuration.experiment.Experiment;
 import net.imagej.ops.Ops;
@@ -63,6 +65,58 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             else return xp.getPath();
         });
     }
+
+    public static File[] chooseFiles(String dialogTitle, String directory, FileChooserOption option, Frame parent, String... fileExtension) {
+        if (false && Utils.isMacOSX()) {
+            // FileDialog does not allow to select directories...
+            //System.setProperty("apple.awt.fileDialogForDirectories", "false");
+            FileDialog fd = new FileDialog(parent,  dialogTitle, FileDialog.LOAD);
+            fd.setDirectory(directory);
+            fd.setMode(0);
+            // TODO how to sets the options (file / directories...)
+            //fd.setFile("*.xml");
+            fd.setVisible(true);
+            return fd.getFiles();
+        } else {
+            final JFileChooser fc = new JFileChooser();
+            fc.setFileSelectionMode(option.getOption());
+            //fc.setFileHidingEnabled(false);
+            if (fileExtension.length>0) {
+                fc.setFileFilter(new FileFilter() {
+                    public String getDescription() {
+                        return Arrays.toString(fileExtension);
+                    }
+                    public boolean accept(File f) {
+                        if (f.isDirectory()) {
+                            return true;
+                        } else {
+                            String filename = f.getName().toLowerCase();
+                            return Arrays.stream(fileExtension).anyMatch(filename::endsWith);
+                        }
+                    }
+                });
+
+            }
+            fc.setMultiSelectionEnabled(option.getMultipleSelectionEnabled());
+            if (directory != null) fc.setCurrentDirectory(new File(directory));
+            if (dialogTitle!=null) fc.setDialogTitle(dialogTitle);
+            else fc.setDialogTitle("Choose Files");
+            int returnval = fc.showOpenDialog(parent);
+            if (returnval == JFileChooser.APPROVE_OPTION) {
+                File[] res;
+                if (option.getMultipleSelectionEnabled()) res = fc.getSelectedFiles();
+                else res = new File[]{fc.getSelectedFile()};
+                return res;
+            } else return null;
+        }
+    }
+
+    public static File chooseFile(String dialogTitle, String directory, FileChooserOption option, Frame parent, String... fileExtension) {
+        File[] res = chooseFiles(dialogTitle,directory, option,  parent, fileExtension);
+        if (res!=null && res.length>0) return res[0];
+        else return null;
+    }
+
     public FileChooser setOption(FileChooserOption option) {
         this.option = option;
         return this;
