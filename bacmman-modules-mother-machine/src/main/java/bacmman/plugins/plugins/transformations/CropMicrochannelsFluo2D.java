@@ -58,6 +58,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     protected NumberParameter channelWidth = new BoundedNumberParameter("Channel Width", 0, 20, 1, null).setEmphasized(true).setHint("Width of microchannels, in pixels. Only a rough estimation is required");
     NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setEmphasized(true).setHint(SIZE_TOOL_TIP);
     NumberParameter fillingProportion = new BoundedNumberParameter("Filling proportion of Microchannel", 2, 0.4, 0.05, 1).setEmphasized(true).setHint(FILL_TOOL_TIP);
+    NumberParameter frameModulo = new BoundedNumberParameter("Frame Increment", 0, 2, 1, null).setHint("To improve speed: 1 frame out of N is used for histogram computation");
     PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setEmphasized(true).setHint(THLD_TOOL_TIP);
 
     Parameter[] parameters = new Parameter[]{channelLength, channelWidth, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup, processingWindow};
@@ -104,9 +105,8 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         // compute one threshold for all images
-        List<Image> allImages = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         ThresholderHisto thlder = thresholder.instantiatePlugin();
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).filter(v->v!=0).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
+        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream).filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
         threshold = thlder.runThresholderHisto(histo);
         super.computeConfigurationData(channelIdx, inputImages);
     }
