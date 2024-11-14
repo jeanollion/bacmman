@@ -103,7 +103,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runThresholder(input, parent) : thresholdValue;
         logger.debug("thresholder: {} : {}", threshold.getPluginName(), threshold.getParameters());
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), null);
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), buffers);
         if (r==null) return null;
         else return r.getObjectPopulation(input, true);
     }
@@ -111,7 +111,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     @Override
     public Result segment(Image input, int structureIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runSimpleThresholder(input, null) : thresholdValue;
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), null);
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), buffers);
         return r;
     }
     
@@ -122,12 +122,26 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
 
     // use threshold implementation
     protected double thresholdValue = Double.NaN;
-
+    Buffers buffers;
 
     @Override
     public TrackConfigurer<MicrochannelFluo2D> run(int structureIdx, List<SegmentedObject> parentTrack) {
+        Buffers buffers = parentTrack.isEmpty() || !parentTrack.get(0).isRoot() ? null: new Buffers(parentTrack.get(0).getMaskProperties());
         double thld = TrackConfigurable.getGlobalThreshold(structureIdx, parentTrack, this.threshold.instantiatePlugin());
-        return (p, s)->s.thresholdValue=thld;
+        return new TrackConfigurer<MicrochannelFluo2D>() {
+            @Override
+            public void apply(SegmentedObject parent, MicrochannelFluo2D plugin) {
+                plugin.thresholdValue=thld;
+                plugin.buffers=buffers;
+            }
+            @Override
+            public void close() {
+                if (buffers != null) {
+                    buffers.imageIntPool.flush();
+                    buffers.imageBytePool.flush();
+                }
+            }
+        };
     }
 
     @Override
@@ -136,11 +150,11 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     }
 
     public static class Buffers {
-        public final SynchronizedPool<ImageByte> maskPool;
-        public final SynchronizedPool<ImageInt> labelImagePool;
+        public final SynchronizedPool<ImageByte> imageBytePool;
+        public final SynchronizedPool<ImageInt> imageIntPool;
         public Buffers(ImageProperties props) {
-            maskPool = new SynchronizedPool<>(() -> new ImageByte("mask", props), (ImageByte im) -> ImageOperations.fill(im, 0, null));
-            labelImagePool = new SynchronizedPool<>(() -> new ImageInt("labels", props), (ImageInt im) -> ImageOperations.fill(im, 0, null));
+            imageBytePool = new SynchronizedPool<>(() -> new ImageByte("mask", props), (ImageByte im) -> ImageOperations.fill(im, 0, null));
+            imageIntPool = new SynchronizedPool<>(() -> new ImageInt("labels", props), (ImageInt im) -> ImageOperations.fill(im, 0, null));
         }
     }
 
@@ -172,20 +186,15 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
                 Core.userLog("Microchannel Segmentation threshold: " + t);
             });
         }
-        ImageInteger mask;
-        if (thresholdedImage == null) {
-            ImageByte buffer = buffers == null ? null : buffers.maskPool.pull();
-            mask = ImageOperations.threshold(image, thld, true, true, false, buffer);
-            if (buffers != null) buffers.maskPool.push(buffer);
-        } else mask = thresholdedImage;
+        ImageInteger mask = thresholdedImage == null ? ImageOperations.threshold(image, thld, true, true, false, null) : thresholdedImage;
 
         // filter out small objects
-        ImageByte minBuffer = buffers == null ? null : buffers.maskPool.pull();
+        ImageByte minBuffer = buffers == null ? null : buffers.imageBytePool.pull();
         Filters.binaryOpen(mask, mask, minBuffer, Filters.getNeighborhood(1.5, 0, image), false); // case of low intensity signal -> noisy. removes individual pixels
-        if (buffers != null) buffers.maskPool.push(minBuffer);
-        ImageInt labelBuffer = buffers == null ? null : buffers.labelImagePool.pull();
+        if (buffers != null) buffers.imageBytePool.push(minBuffer);
+        ImageInt labelBuffer = buffers == null ? null : buffers.imageIntPool.pull();
         List<Region> bacteria = ImageOperations.filterObjects(mask, mask, labelBuffer, (Region o) -> o.size() < minObjectSize);
-        if (buffers != null) buffers.labelImagePool.push(labelBuffer);
+        if (buffers != null) buffers.imageIntPool.push(labelBuffer);
 
         // selected filled microchannels
         float[] xProj = ImageOperations.meanProjection(mask, ImageOperations.Axis.X, null);

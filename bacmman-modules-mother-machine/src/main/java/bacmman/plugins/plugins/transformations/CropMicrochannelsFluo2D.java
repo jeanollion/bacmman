@@ -127,8 +127,8 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     @Override
     protected void clean() {
         if (buffers != null) {
-            buffers.maskPool.flush();
-            buffers.labelImagePool.flush();
+            buffers.imageBytePool.flush();
+            buffers.imageIntPool.flush();
             buffers = null;
         }
     }
