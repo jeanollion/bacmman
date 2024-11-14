@@ -49,6 +49,10 @@ public interface ImageMask<I extends ImageMask<I>> extends ImageProperties<I> {
         if (withOffset) return (x,y, z)->mask.insideMaskWithOffset(x, y, z); 
         else return (x,y, z)->mask.insideMask(x, y, z);
     }
+    default int[] dimensions() {
+        if (sizeZ() == 1 && sizeY() == 1) return new int[]{sizeX()}; // 1D case
+        return sizeZ()>1 ? new int[]{sizeX(), sizeY(), sizeZ()}:new int[]{sizeX(), sizeY()};
+    }
     public static LoopPredicate borderOfMask(final ImageMask mask, boolean withOffset) {
         EllipsoidalNeighborhood n = mask.sizeZ()>1 ? new EllipsoidalNeighborhood(1.5, 1.5, true) : new EllipsoidalNeighborhood(1.5, true);
         if (withOffset) {

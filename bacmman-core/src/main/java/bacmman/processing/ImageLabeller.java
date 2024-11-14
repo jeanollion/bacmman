@@ -63,9 +63,8 @@ public class ImageLabeller {
     public ImageLabeller(ImageMask mask, ImageInt buffer) {
         this.mask=mask;
         if (buffer != null) {
-            if (!buffer.sameDimensions(mask)) throw new IllegalArgumentException("Buffer must have same dimensions as mask");
+            if (!buffer.sameDimensions(mask)) throw new IllegalArgumentException("Buffer must have same dimensions as mask: buffer="+ Arrays.toString(buffer.dimensions()) +" mask="+ Arrays.toString(mask.dimensions()));
             imLabels = buffer;
-            ImageOperations.fill(imLabels, 0, null);
         } else imLabels = new ImageInt("labels", mask);
         spots = new HashMap<>();
     }
