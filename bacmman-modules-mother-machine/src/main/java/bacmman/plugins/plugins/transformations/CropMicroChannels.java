@@ -122,9 +122,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
         }
         if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);
         logger.debug("computing bounding box on {} frames", frames.size());
-        init(inputImages.getImage(channelIdx, 0));
         List<MutableBoundingBox> bds = ThreadRunner.parallelExecutionBySegmentsFunction(getBds, frames, processingWindow.getIntValue(), true);
-        clean();
         if (ex[0]!=null) throw ex[0];
         Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(frames.stream(), i->i, bds::get, true); // not using Collectors.toMap because result of getBounds can be null
 
@@ -219,8 +217,6 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
         return OUTPUT_SELECTION_MODE.ALL;
     }
     protected abstract MutableBoundingBox getBoundingBox(Image image);
-    protected abstract void init(ImageProperties bds);
-    protected abstract void clean();
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         BoundingBox bds = bounds!=null ? bounds : cropBounds.get(timePoint);

@@ -108,7 +108,11 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         ThresholderHisto thlder = thresholder.instantiatePlugin();
         Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream).filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
         threshold = thlder.runThresholderHisto(histo);
+        buffers = new MicrochannelFluo2D.Buffers(inputImages.getImage(channelIdx, 0));
         super.computeConfigurationData(channelIdx, inputImages);
+        buffers.imageBytePool.flush();
+        buffers.imageIntPool.flush();
+        buffers = null;
     }
 
     @Override
@@ -117,20 +121,6 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
                 thresholder.instantiatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream().filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND)) // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
                 : threshold;
         return getBoundingBox(image, null , thld);
-    }
-
-    @Override
-    protected void init(ImageProperties bds) {
-        buffers = new MicrochannelFluo2D.Buffers(bds);
-    }
-
-    @Override
-    protected void clean() {
-        if (buffers != null) {
-            buffers.imageBytePool.flush();
-            buffers.imageIntPool.flush();
-            buffers = null;
-        }
     }
 
     MicrochannelFluo2D.Buffers buffers;

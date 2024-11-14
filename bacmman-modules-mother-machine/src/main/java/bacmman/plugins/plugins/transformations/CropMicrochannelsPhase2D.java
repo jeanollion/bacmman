@@ -88,14 +88,6 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     @Override public MutableBoundingBox getBoundingBox(Image image) {
         return getBoundingBox(image, twoPeaks.getSelected() ? 0 : cropMarginY.getValue().intValue(),xStart.getValue().intValue(), xStop.getValue().intValue(), yStart.getValue().intValue(), yStop.getValue().intValue());
     }
-
-    @Override
-    protected void init(ImageProperties bds) {
-    }
-
-    @Override
-    protected void clean() {
-    }
     
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
