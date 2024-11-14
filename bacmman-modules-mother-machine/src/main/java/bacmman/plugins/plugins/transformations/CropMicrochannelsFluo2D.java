@@ -21,15 +21,11 @@ package bacmman.plugins.plugins.transformations;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.*;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.TestableOperation;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.data_structure.input_image.InputImages;
-import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,6 +36,9 @@ import bacmman.plugins.plugins.segmenters.MicrochannelFluo2D;
 import bacmman.plugins.MicrochannelSegmenter.Result;
 import bacmman.plugins.ThresholderHisto;
 import bacmman.plugins.Hint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static bacmman.plugins.plugins.segmenters.MicrochannelFluo2D.FILL_TOOL_TIP;
 import static bacmman.plugins.plugins.segmenters.MicrochannelFluo2D.SIZE_TOOL_TIP;
 import static bacmman.plugins.plugins.segmenters.MicrochannelFluo2D.THLD_TOOL_TIP;
@@ -54,6 +53,7 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, HintSimple, TestableOperation {
+    private final static Logger logger = LoggerFactory.getLogger(CropMicrochannelsFluo2D.class);
     protected NumberParameter channelLength = new BoundedNumberParameter("Channel Length", 0, 410, 0, null).setEmphasized(true).setHint("Length of microchannels, in pixels. This length will determine the y-size of the cropped image");
     protected NumberParameter channelWidth = new BoundedNumberParameter("Channel Width", 0, 20, 1, null).setEmphasized(true).setHint("Width of microchannels, in pixels. Only a rough estimation is required");
     NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setEmphasized(true).setHint(SIZE_TOOL_TIP);
@@ -110,7 +110,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         threshold = thlder.runThresholderHisto(histo);
         super.computeConfigurationData(channelIdx, inputImages);
     }
-            
+
     @Override
     public MutableBoundingBox getBoundingBox(Image image) {
         double thld = Double.isNaN(threshold)? 
@@ -118,12 +118,27 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
                 : threshold;
         return getBoundingBox(image, null , thld);
     }
-    
+
+    @Override
+    protected void init(ImageProperties bds) {
+        buffers = new MicrochannelFluo2D.Buffers(bds);
+    }
+
+    @Override
+    protected void clean() {
+        if (buffers != null) {
+            buffers.maskPool.flush();
+            buffers.labelImagePool.flush();
+            buffers = null;
+        }
+    }
+
+    MicrochannelFluo2D.Buffers buffers;
     public MutableBoundingBox getBoundingBox(Image image, ImageInteger thresholdedImage, double threshold) {
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
         Consumer<Image> dispImage = testMode.testSimple() ? Core::showImage : null;
         BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testSimple() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
-        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, channelWidth.getIntValue(), this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), 1, MicrochannelFluo2D.METHOD.PEAK, dispImage, miscDisp);
+        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, channelWidth.getIntValue(), this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), 1, MicrochannelFluo2D.METHOD.PEAK, dispImage, miscDisp, buffers);
         if (r == null) return null;
         
         int xStart = this.xStart.getValue().intValue();

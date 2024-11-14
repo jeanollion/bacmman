@@ -20,6 +20,7 @@ package bacmman.utils;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -36,11 +37,15 @@ public class SynchronizedPool<T> {
     final Supplier<T> factory;
     final UnaryOperator<T> reset;
     public SynchronizedPool(Supplier<T> factory) {
-        this(factory, null);
+        this(factory, (UnaryOperator<T>) null);
     }
     public SynchronizedPool(Supplier<T> factory, UnaryOperator<T> reset) {
         this.factory=factory;
         this.reset=reset;
+    }
+    public SynchronizedPool(Supplier<T> factory, Consumer<T> reset) {
+        this.factory=factory;
+        this.reset=t -> {reset.accept(t);return t;};
     }
     public synchronized T pull() {
         T res = queue.poll();

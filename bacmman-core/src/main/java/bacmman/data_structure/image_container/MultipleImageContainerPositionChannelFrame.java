@@ -43,7 +43,7 @@ import org.json.simple.JSONObject;
  * @author Jean Ollion
  */
 public class MultipleImageContainerPositionChannelFrame extends MultipleImageContainer { // one file per channel & per frame
-    final SynchronizedPool<byte[][]> bufferPool = new SynchronizedPool<>(() -> new byte[1][], null);
+    final SynchronizedPool<byte[][]> bufferPool = new SynchronizedPool<>(() -> new byte[1][]);
     String inputDir, extension, positionKey, positionName, timeKeyword;
     int frameNumber;
     int nChannels;

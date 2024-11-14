@@ -20,10 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.input_image.InputImages;
-import bacmman.image.BoundingBox;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.SimpleBoundingBox;
+import bacmman.image.*;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.TestableOperation;
@@ -90,6 +87,14 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     
     @Override public MutableBoundingBox getBoundingBox(Image image) {
         return getBoundingBox(image, twoPeaks.getSelected() ? 0 : cropMarginY.getValue().intValue(),xStart.getValue().intValue(), xStop.getValue().intValue(), yStart.getValue().intValue(), yStop.getValue().intValue());
+    }
+
+    @Override
+    protected void init(ImageProperties bds) {
+    }
+
+    @Override
+    protected void clean() {
     }
     
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {

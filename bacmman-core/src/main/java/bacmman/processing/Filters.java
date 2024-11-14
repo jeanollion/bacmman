@@ -75,37 +75,41 @@ public class Filters {
         return applyFilter(image, output, new BinaryMax(false), neighborhood, parallele);
     }
     
-    public static <T extends ImageInteger<T>> T binaryMin(ImageInteger image, T output, Neighborhood neighborhood, boolean parallele) {
-        return applyFilter(image, output, new BinaryMin(true), neighborhood, parallele);
+    public static <T extends ImageInteger<T>> T binaryMin(ImageInteger image, T output, Neighborhood neighborhood, boolean parallel) {
+        return applyFilter(image, output, new BinaryMin(true), neighborhood, parallel);
     }
     
-    public static <T extends Image<T>> T open(Image image, T output, Neighborhood neighborhood, boolean parallele) {
-        ImageFloat min = applyFilter(image, new ImageFloat("", 0, 0, 0), new Min(), neighborhood, parallele);
+    public static <T extends Image<T>> T open(Image image, T output, Neighborhood neighborhood, boolean parallel) {
+        ImageFloat min = applyFilter(image, new ImageFloat("", 0, 0, 0), new Min(), neighborhood, parallel);
         //if (output == image) output = Image.createEmptyImage("open", output, output);
-        return applyFilter(min, output, new Max(), neighborhood, parallele);
+        return applyFilter(min, output, new Max(), neighborhood, parallel);
     }
     
-    public static <T extends Image<T>> T close(Image image, T output, Neighborhood neighborhood, boolean parallele) {
-        ImageFloat max = applyFilter(image, new ImageFloat("", 0, 0, 0), new Max(), neighborhood, parallele);
-        return applyFilter(max, output, new Min(), neighborhood, parallele);
+    public static <T extends Image<T>> T close(Image image, T output, Neighborhood neighborhood, boolean parallel) {
+        ImageFloat max = applyFilter(image, new ImageFloat("", 0, 0, 0), new Max(), neighborhood, parallel);
+        return applyFilter(max, output, new Min(), neighborhood, parallel);
     }
     
-    public static <T extends ImageInteger<T>> T binaryOpen(ImageInteger image, T output, Neighborhood neighborhood, boolean parallele) {
-        ImageByte min = applyFilter(image, new ImageByte("", 0, 0, 0), new BinaryMin(true), neighborhood, parallele);
-        //if (output == image) output = Image.createEmptyImage("binary open", output, output);
-        return applyFilter(min, output, new BinaryMax(false), neighborhood, parallele);
+    public static <T extends ImageInteger<T>> T binaryOpen(ImageInteger image, T output, Neighborhood neighborhood, boolean parallel) {
+        return binaryOpen(image, output, null, neighborhood, parallel);
     }
 
-    public static <T extends ImageInteger<T>> T binaryCloseExtend(ImageInteger<T> image, Neighborhood neighborhood, boolean parallele) {
+    public static <T extends ImageInteger<T>> T binaryOpen(ImageInteger image, T output, ImageByte minBuffer, Neighborhood neighborhood, boolean parallel) {
+        ImageByte min = applyFilter(image, minBuffer==null ? new ImageByte("", 0, 0, 0) : minBuffer, new BinaryMin(true), neighborhood, parallel);
+        //if (output == image) output = Image.createEmptyImage("binary open", output, output);
+        return applyFilter(min, output, new BinaryMax(false), neighborhood, parallel);
+    }
+
+    public static <T extends ImageInteger<T>> T binaryCloseExtend(ImageInteger<T> image, Neighborhood neighborhood, boolean parallel) {
         MutableBoundingBox extent = neighborhood.getBoundingBox();
         T resized =  image.extend(extent);
-        ImageByte max = applyFilter(resized, new ImageByte("", 0, 0, 0), new BinaryMax(false), neighborhood, parallele);
-        T min = applyFilter(max, resized, new BinaryMin(true), neighborhood, parallele);
+        ImageByte max = applyFilter(resized, new ImageByte("", 0, 0, 0), new BinaryMax(false), neighborhood, parallel);
+        T min = applyFilter(max, resized, new BinaryMin(true), neighborhood, parallel);
         return min.crop(image.getBoundingBox().resetOffset().translate(extent.duplicate().reverseOffset()));
     }
-    public static <T extends ImageInteger<T>> T binaryClose(ImageInteger image, T output, Neighborhood neighborhood, boolean parallele) {
-        ImageByte max = applyFilter(image, new ImageByte("", 0, 0, 0), new BinaryMax(false), neighborhood, parallele);
-        return applyFilter(max, output, new BinaryMin(true), neighborhood, parallele);
+    public static <T extends ImageInteger<T>> T binaryClose(ImageInteger image, T output, Neighborhood neighborhood, boolean parallel) {
+        ImageByte max = applyFilter(image, new ImageByte("", 0, 0, 0), new BinaryMax(false), neighborhood, parallel);
+        return applyFilter(max, output, new BinaryMin(true), neighborhood, parallel);
     }
     /*public static <T extends ImageInteger> T labelWiseBinaryCloseExtend(T image, Neighborhood neighborhood) {
         BoundingBox extent = neighborhood.getBoundingBox();

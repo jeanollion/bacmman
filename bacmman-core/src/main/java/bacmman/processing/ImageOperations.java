@@ -26,8 +26,8 @@ import bacmman.image.wrappers.IJImageWrapper;
 import static bacmman.image.BoundingBox.loop;
 
 import bacmman.utils.DoubleStatistics;
-import java.util.ArrayList;
-import java.util.List;
+
+import java.util.*;
 import java.util.function.Function;
 
 import bacmman.utils.Utils;
@@ -37,9 +37,6 @@ import ij.process.StackProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Random;
 import java.util.function.BinaryOperator;
 import java.util.function.DoublePredicate;
 import java.util.function.ToDoubleFunction;
@@ -73,8 +70,8 @@ public class ImageOperations {
         });
         return image;
     }
-    public static List<Region> filterObjects(ImageInteger image, ImageInteger output, Function<Region, Boolean> removeObject) {
-        List<Region> l = ImageLabeller.labelImageList(image);
+    public static List<Region> filterObjects(ImageInteger image, ImageInteger output, ImageInt labelBuffer, Function<Region, Boolean> removeObject) {
+        List<Region> l = new ArrayList<>(Arrays.asList(ImageLabeller.labelImage(image, labelBuffer)));
         List<Region> toRemove = new ArrayList<>(l.size());
         for (Region o : l) if (removeObject.apply(o)) toRemove.add(o);
         l.removeAll(toRemove);

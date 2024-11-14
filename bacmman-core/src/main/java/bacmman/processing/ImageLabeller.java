@@ -59,19 +59,38 @@ public class ImageLabeller {
         imLabels = new ImageInt("labels", mask);
         spots = new HashMap<>();
     }
+
+    public ImageLabeller(ImageMask mask, ImageInt buffer) {
+        this.mask=mask;
+        if (buffer != null) {
+            if (!buffer.sameDimensions(mask)) throw new IllegalArgumentException("Buffer must have same dimensions as mask");
+            imLabels = buffer;
+            ImageOperations.fill(imLabels, 0, null);
+        } else imLabels = new ImageInt("labels", mask);
+        spots = new HashMap<>();
+    }
+
     public static Region[] labelImage(ImageMask mask, Neighborhood n) {
+        return labelImage(mask, n, null);
+    }
+
+    public static Region[] labelImage(ImageMask mask, Neighborhood n, ImageInt buffer) {
         if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
         else {
-            ImageLabeller il = new ImageLabeller(mask);
+            ImageLabeller il = new ImageLabeller(mask, buffer);
             il.labelSpots(n);
             return il.getObjects();
         }
     }
 
     public static Region[] labelImage(ImageMask mask) {
+        return labelImage(mask, (ImageInt) null);
+    }
+
+    public static Region[] labelImage(ImageMask mask, ImageInt buffer) {
         if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
         else {
-            ImageLabeller il = new ImageLabeller(mask);
+            ImageLabeller il = new ImageLabeller(mask, buffer);
             if (mask.sizeZ()>1) il.neigh= ImageLabeller.neigh3DHalf;
             else il.neigh= ImageLabeller.neigh2D8Half;
             il.labelSpots();
