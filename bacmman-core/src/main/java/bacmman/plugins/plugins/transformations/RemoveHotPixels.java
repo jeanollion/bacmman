@@ -49,6 +49,7 @@ import bacmman.utils.SlidingOperator;
 import bacmman.utils.ThreadRunner;
 
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -57,7 +58,7 @@ import java.util.stream.Collectors;
 public class RemoveHotPixels implements ConfigurableTransformation, TestableOperation, Hint {
     NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higher than this threshold pixel is considered as dead and will be replaced by the median value");
     NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 1, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
-    HashMapGetCreate<Integer, CoordCollection> configMapF;
+    Map<Integer, CoordCollection> configMapF;
     public RemoveHotPixels(){}
     public RemoveHotPixels(double threshold, int frameRadius) {
         this.threshold.setValue(threshold);
@@ -69,9 +70,9 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
     @Override
     public boolean highMemory() {return false;}
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages)   throws IOException {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         ImageProperties bds = new SimpleImageProperties(inputImages.getImage(channelIdx, 0));
-        configMapF = new HashMapGetCreate<>(bds.sizeZ() == 1 ? time -> new CoordCollection.CoordCollection2D(bds.sizeX(), bds.sizeY()) : time -> new CoordCollection.CoordCollection3D(bds.sizeX(), bds.sizeY(), bds.sizeZ()));
+        configMapF = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(bds.sizeZ() == 1 ? time -> new CoordCollection.CoordCollection2D(bds.sizeX(), bds.sizeY()) : time -> new CoordCollection.CoordCollection3D(bds.sizeX(), bds.sizeY(), bds.sizeZ()));
         Image median = new ImageFloat("", bds);
         Neighborhood n =  new EllipsoidalNeighborhood(1.5, true); // excludes center pixel // only on same plane
         double thld= threshold.getDoubleValue();
@@ -80,25 +81,36 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         final Image[][] testMeanTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
         final Image[][] testMedianTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
         // perform sliding mean of image
-        SlidingOperator<Image, Pair<Integer, Image>, Void> operator = new SlidingOperator<Image, Pair<Integer, Image>, Void>() {
+        SlidingOperator<Integer, Pair<Integer, Image>, Void> operator = new SlidingOperator<Integer, Pair<Integer, Image>, Void>() {
             @Override public Pair<Integer, Image> instanciateAccumulator() {
-                return new Pair(-1, new ImageFloat("", median));
+                return new Pair<>(-1, new ImageFloat("", median));
             }
-            @Override public void slide(Image removeElement, Image addElement, Pair<Integer, Image> accumulator) {
+            @Override public void slide(Integer removeElementIdx, Integer addElementIdx, Pair<Integer, Image> accumulator) {
+                Image removeElement, addElement;
+                try {
+                    addElement = addElementIdx==null?null:inputImages.getImage(channelIdx, addElementIdx);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 if (frameRadius<=1) { // no averaging in time
                     accumulator.value=addElement;
-                } else {
+                } else { // averaging in time
+                    try {
+                        removeElement = removeElementIdx==null?null:inputImages.getImage(channelIdx, removeElementIdx);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     if (removeElement!=null && addElement!=null) {
                         loop(accumulator.value.getBoundingBox().resetOffset(), (x, y, z)->{
-                            accumulator.value.setPixel(x, y, z, accumulator.value.getPixel(x, y, z)+(addElement.getPixel(x, y, z)-removeElement.getPixel(x, y, z))/fRd);
+                            accumulator.value.addPixel(x, y, z, (addElement.getPixel(x, y, z)-removeElement.getPixel(x, y, z))/fRd);
                         }, true);
-                    }else if (addElement!=null) {
+                    } else if (addElement!=null) {
                         loop(accumulator.value.getBoundingBox().resetOffset(), (x, y, z)->{
-                            accumulator.value.setPixel(x, y, z, accumulator.value.getPixel(x, y, z)+addElement.getPixel(x, y, z)/fRd);
+                            accumulator.value.addPixel(x, y, z, addElement.getPixel(x, y, z)/fRd);
                         }, true);
                     } else if (removeElement!=null) {
                         loop(accumulator.value.getBoundingBox().resetOffset(), (x, y, z)->{
-                            accumulator.value.setPixel(x, y, z, accumulator.value.getPixel(x, y, z)-removeElement.getPixel(x, y, z)/fRd);
+                            accumulator.value.addPixel(x, y, z, -removeElement.getPixel(x, y, z)/fRd);
                         }, true);
                     }
                 }
@@ -115,19 +127,21 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
                     double med = median.getPixel(x, y, z);
                     if (accumulator.value.getPixel(x, y, z)-med>= thld) {
                         for (int f = Math.max(0, accumulator.key-frameRadius); f<=accumulator.key; ++f) {
-                            CoordCollection ccol = configMapF.getAndCreateIfNecessary(f);
-                            ccol.add(ccol.toCoord(x, y, z));
-                            //Set<Voxel> set = configMapF.getAndCreateIfNecessarySync(f);
-                            //synchronized (set) {set.add(v);}
+                            CoordCollection ccol = configMapF.get(f);
+                            synchronized (ccol) {ccol.add(ccol.toCoord(x, y, z));}
                         }
                     }
-                });  // not parallele
+                }, true);
                 return null;
             }
         };
-        List<Image> imList = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
-        if (frameRadius>=1) SlidingOperator.performSlideLeft(imList, frameRadius, operator);
-        else ThreadRunner.parallelExecutionBySegments(i-> operator.compute(new Pair<>(i, imList.get(i))), 0, imList.size(), 100, s -> Core.freeMemory());
+        if (frameRadius>=1) {
+            List<Integer> frameList = IntStream.range(0, inputImages.getFrameNumber()).boxed().collect(Collectors.toList());
+            SlidingOperator.performSlideLeft(frameList, frameRadius, operator);
+        } else {
+            // to parallelize by frame : use a different " median " image.
+            for (int f = 0; f<inputImages.getFrameNumber(); ++f) operator.compute(new Pair<>(f, inputImages.getImage(f, channelIdx)));
+        }
         if (testMode.testExpert()) {
             // first frames are not computed
             for (int f = 0; f<frameRadius-1; ++f) testMeanTC[f][0] = testMeanTC[frameRadius-1][0];
@@ -156,18 +170,6 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
 
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        /*double thld= threshold.getValue().doubleValue();
-        Image median = Filters.median(image, null, Filters.getNeighborhood(1.5, 1, image));
-        //Image blurred = ImageFeatures.gaussianSmooth(image, 5, 5, false);
-        median.getBoundingBox().translateToOrigin().loop((x, y, z)->{
-            float med = median.getPixel(x, y, z);
-            if (image.getPixel(x, y, z)-med>= thld) {
-                image.setPixel(x, y, z, med);
-                //if (testMode) logger.debug("pixel @ [{};{};{}] f={}, value: {}, median: {}, diff: {}", timePoint, x, y, z, image.getPixel(x, y, z), med, image.getPixel(x, y, z)-med );
-            }
-        });
-        return image;
-        */
         Map<Integer, CoordCollection> map = this.getHotPixels();
         if (map.containsKey(timePoint)) {
             CoordCollection ccol= map.get(timePoint);
