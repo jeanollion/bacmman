@@ -214,16 +214,16 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         if (testMode.testExpert())logger.debug("im to ref map: {}", mapImageToRef);
         MutableBoundingBox refBB = cropBB==null ? inputImages.getImage(channelIdx, tRef).getBoundingBox().resetOffset() : cropBB;
         // process each segment
-        final HashMapGetCreate<Integer, FloatProcessor> processorMap = new HashMapGetCreate<>(i-> {
+        final Function<Integer, FloatProcessor> processorMap = i-> {
             try {
                 return getFloatProcessor(cropBB==null ? inputImages.getImage(channelIdx, i) : inputImages.getImage(channelIdx, i).crop(cropBB), false);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        });
+        };
         BiFunction<Integer, Bucket, Bucket> r = (imageRefIdx, bucket) -> {
             if (bucket.imageRefIdx!=imageRefIdx) { // only compute gradient if reference image is different
-                ImageStabilizerCore.gradient(bucket.pyramid[1][0], processorMap.getAndCreateIfNecessarySync(imageRefIdx));
+                ImageStabilizerCore.gradient(bucket.pyramid[1][0], processorMap.apply(imageRefIdx));
                 bucket.imageRefIdx=imageRefIdx;
             }
             return bucket;
@@ -282,9 +282,9 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         return ImageTransformation.translate(imageToTranslate, -wp[0][0], -wp[1][0], 0, ImageTransformation.InterpolationScheme.BSPLINE5);
     }
     
-    private Double[] performCorrection(HashMapGetCreate<Integer, FloatProcessor> processorMap, int t, ImageProcessor[][] pyramids, double[] outParameters) {
+    private Double[] performCorrection(Function<Integer, FloatProcessor> processorMap, int t, ImageProcessor[][] pyramids, double[] outParameters) {
         long t0 = System.currentTimeMillis();
-        FloatProcessor currentTime = processorMap.getAndCreateIfNecessarySync(t); 
+        FloatProcessor currentTime = processorMap.apply(t);
         long tStart = System.currentTimeMillis();
         double[][] wp = ImageStabilizerCore.estimateTranslation(currentTime, null, pyramids[0], pyramids[1], false, maxIter.getValue().intValue(), tol.getValue().doubleValue(), null, outParameters);
         long tEnd = System.currentTimeMillis();

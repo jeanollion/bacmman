@@ -43,10 +43,7 @@ import java.util.stream.IntStream;
 import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.OPTICAL_FLOW;
 
 import bacmman.processing.ImageTransformation;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
-import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
 
 /**
  *
@@ -109,6 +106,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         return this;
     }
     List<Image> upperObjectsTest, lowerObjectsTest;
+    Buffers buffers;
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         flip=null;
@@ -133,7 +131,10 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     }
                     return isFlipFluo(image);
                 };
-                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50, true);
+                buffers = new Buffers(inputImages.getImage(channelIdx, frames.get(0)).getZPlane(0));
+                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, Core.PRE_PROCESSING_WINDOW, true);
+                buffers.imageIntPool.flush();
+                buffers = null;
                 if (ioe[0]!=null) throw ioe[0];
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
@@ -160,7 +161,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     }
                     return isFlipFluoUpperHalf(image);
                 };
-                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50, true);
+                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, Core.PRE_PROCESSING_WINDOW, true);
                 if (ioe[0]!=null) throw ioe[0];
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
@@ -205,6 +206,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 if (frameLimit <=1 ) frameLimit = inputImages.getFrameNumber();
                 // compute dI/dy & dI/dt
                 int binFactor = this.binFactor.getValue().intValue();
+
                 Image[] images = new Image[frameLimit];
                 for (int t = 0; t<images.length; ++t) {
                     images[t] = inputImages.getImage(channelIdx, t);
@@ -286,7 +288,9 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         double thld = thlder.runSimpleThresholder(image, null);
         if (testMode.testSimple()) logger.debug("threshold: {}", thld);
         ImageMask mask = new PredicateMask(image, thld, true, true);
-        List<Region> objects = ImageLabeller.labelImageList(mask);
+        ImageInt buffer = buffers!=null?buffers.imageIntPool.pull() : null;
+        List<Region> objects = ImageLabeller.labelImageList(mask, buffer);
+        if (buffers!=null) buffers.imageIntPool.push(buffer);
         objects.removeIf(o->o.size()<minSize);
         // filter by median sizeY
         Map<Region, Integer> sizeY = objects.stream().collect(Collectors.toMap(o->o, o->o.getBounds().sizeY()));
@@ -310,12 +314,11 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
 
         // filter outliers with distance to median value
         double yMinMed = ArrayUtil.medianInt(Utils.transform(yMinOs, o->o.getBounds().yMin()));
-        yMinOs.removeIf(o->Math.abs(o.getBounds().yMin()-yMinMed)>o.getBounds().sizeY()/4);
+        yMinOs.removeIf(o->Math.abs(o.getBounds().yMin()-yMinMed)>o.getBounds().sizeY()/4.);
         double yMaxMed = ArrayUtil.medianInt(Utils.transform(yMaxOs, o->o.getBounds().yMax()));
-        yMaxOs.removeIf(o->Math.abs(o.getBounds().yMax()-yMaxMed)>o.getBounds().sizeY()/4);
+        yMaxOs.removeIf(o->Math.abs(o.getBounds().yMax()-yMaxMed)>o.getBounds().sizeY()/4.);
         if (yMinOs.size()<=2 || yMaxOs.size()<=2) return null;
         if (testMode.testExpert()) {
-            //ImageWindowManagerFactory.showImage(TypeConverter.toByteMask(mask, null, 1).setName("Segmentation mask"));
             this.upperObjectsTest.add(new RegionPopulation(yMinOs, image).getLabelMap().setName("Upper Objects"));
             this.lowerObjectsTest.add(new RegionPopulation(yMaxOs, image).getLabelMap().setName("Lower Objects"));
         }
@@ -374,5 +377,11 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     public Parameter[] getParameters() {
         return new Parameter[]{cond};
     }
-    
+
+    static class Buffers {
+        public final SynchronizedPool<ImageInt> imageIntPool;
+        public Buffers(ImageProperties props) {
+            imageIntPool = new SynchronizedPool<>(() -> new ImageInt("labels", props), (ImageInt im) -> ImageOperations.fill(im, 0, null));
+        }
+    }
 }

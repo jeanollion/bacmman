@@ -53,6 +53,7 @@ import static bacmman.plugins.PluginFactory.getClasses;
 public class Core {
     public static final Logger logger = LoggerFactory.getLogger(Core.class);
     public static boolean enableTrackMate = true;
+    public static int PRE_PROCESSING_WINDOW = 100;
     private static ImageJ ij;
     private static OpService opService;
     private static Core core;

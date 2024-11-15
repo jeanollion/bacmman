@@ -164,7 +164,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
-    private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory");
+    private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory. \nDecrease this value in case of out-of-memory errors. Note that saving images to disk will reduce speed.");
+    private IntegerParameter processingWindow = new IntegerParameter("Pre-Processing Window", 100).setLowerBound(5).setHint("Pre-processing is performed in frame windows (frames are processed in parallel when possible) to reduce memory footprint. \nDecrease this value in case of memory errors during pre-processing. \nIn absence of memory errors set this value to 10-20 times the number of CPU cores");
     private NumberParameter dbStartSize = new BoundedNumberParameter("Database Start Size (Mb)", 0, 2, 1, null);
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
     private BoundedNumberParameter dbConcurrencyScale = new BoundedNumberParameter("Database Concurrency Scale", 0, 8, 1, ThreadRunner.getMaxCPUs());
@@ -543,8 +544,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         });
         manualCuration.add(relabelAll);
         // memory
-        ConfigurationTreeGenerator.addToMenu(memoryThreshold, memoryMenu);
         PropertyUtils.setPersistent(memoryThreshold, "memory_threshold");
+        ConfigurationTreeGenerator.addToMenu(memoryThreshold, memoryMenu);
+        PropertyUtils.setPersistent(processingWindow, "pre_processing_window");
+        ConfigurationTreeGenerator.addToMenu(processingWindow, memoryMenu);
+        processingWindow.addListener(p->Core.PRE_PROCESSING_WINDOW = p.getIntValue());
+        Core.PRE_PROCESSING_WINDOW = processingWindow.getIntValue();
 
         // tensorflow
         PropertyUtils.setPersistent(tfPerProcessGpuMemoryFraction, PropertyUtils.TF_GPU_MEM);

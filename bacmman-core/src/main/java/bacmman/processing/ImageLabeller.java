@@ -115,6 +115,10 @@ public class ImageLabeller {
     public static List<Region> labelImageList(ImageMask mask) {
         return new ArrayList<>(Arrays.asList(labelImage(mask)));
     }
+
+    public static List<Region> labelImageList(ImageMask mask, ImageInt buffer) {
+        return new ArrayList<>(Arrays.asList(labelImage(mask, buffer)));
+    }
     
     public static List<Region> labelImageListLowConnectivity(ImageMask mask) {
         return new ArrayList<>(Arrays.asList(labelImageLowConnectivity(mask)));

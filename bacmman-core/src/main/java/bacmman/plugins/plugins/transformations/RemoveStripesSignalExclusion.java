@@ -34,6 +34,7 @@ import bacmman.image.PredicateMask;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.ConfigurableTransformation;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,10 +43,8 @@ import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.Hint;
 import bacmman.utils.SlidingOperatorDouble;
 import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
 
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -69,7 +68,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     float[][][] meanFZY;
     Image[] backgroundMask;
     @Override
-    public boolean highMemory() {return true;}
+    public boolean highMemory() {return smoothScale.getScaleXY()>0;}
     public RemoveStripesSignalExclusion() {}
     
     public RemoveStripesSignalExclusion(int signalExclusion) {
@@ -98,7 +97,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     }
     Map<Integer, Image> testMasks, testMasks2;
     @Override
-    public void computeConfigurationData(final int channelIdx, final InputImages inputImages)  {
+    public void computeConfigurationData(final int channelIdx, final InputImages inputImages) throws IOException {
         final int chExcl = signalExclusion.getSelectedIndex();
         final int chExcl2 = this.signalExclusionBool2.getSelected() ? signalExclusion2.getSelectedIndex() : -1;
         if (testMode.testExpert() && chExcl>=0) {
@@ -109,25 +108,38 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         final int slidingHalfWindow = this.slidingHalfWindow.getValue().intValue();
         //logger.debug("remove stripes thld: {}", exclThld);
         meanFZY = new float[inputImages.getFrameNumber()][][];
-        Image[] allImages = InputImages.getImageForChannel(inputImages, channelIdx, false);
-        Image[] allImagesExcl = chExcl<0 ? null : (chExcl == channelIdx ? allImages : InputImages.getImageForChannel(inputImages, chExcl, false));
-        Image[] allImagesExcl2 = chExcl2<0 ? null : (chExcl2 == channelIdx ? allImages : InputImages.getImageForChannel(inputImages, chExcl2, false));
+        Image ref = inputImages.getImage(channelIdx, inputImages.getDefaultTimePoint());
         double scale = smoothScale.getScaleXY();
-        double scaleZ = smoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
-        if (scale>0) backgroundMask = new Image[allImages.length];
+        double scaleZ = smoothScale.getScaleZ(ref.getScaleXY(), ref.getScaleZ());
+        if (scale>0) backgroundMask = new Image[inputImages.getFrameNumber()];
         double mScale = maskSmoothScale.getScaleXY();
-        double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
+        double mScaleZ = maskSmoothScale.getScaleZ(ref.getScaleXY(), ref.getScaleZ());
         IntConsumer ex = frame -> {
-            Image currentImage = allImages[frame];
+            Image currentImage;
+            try {
+                currentImage = inputImages.getImage(channelIdx, frame);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             ImageMask m;
             if (chExcl>=0) {
-                Image se1 = allImagesExcl[frame];
+                Image se1;
+                try {
+                    se1 = inputImages.getImage(chExcl, frame);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
                 double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
                 PredicateMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new PredicateMask(se1, thld1, true, true, 0):new PredicateMask(se1, thld1, true, true);
                 if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
                 if (chExcl2>=0) {
-                    Image se2 = allImagesExcl2[frame];
+                    Image se2;
+                    try {
+                        se2 = inputImages.getImage(chExcl2, frame);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     if (mScale>0) se2 = ImageFeatures.gaussianSmooth(se2, mScale, mScaleZ, false);
                     double thld2 = signalExclusionThreshold2.instantiatePlugin().runSimpleThresholder(se2, null);
                     PredicateMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new PredicateMask(se2, thld2, true, true, 0):new PredicateMask(se2, thld2, true, true);
@@ -138,14 +150,17 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
             } else m = new BlankMask(currentImage);
             meanFZY[frame] = computeMeanX(currentImage, m, addGlobalMean, slidingHalfWindow);
             if (backgroundMask!=null) backgroundMask[frame] = SubtractGaussSignalExclusion.getBackgroundImage(currentImage, m, scale, scaleZ);
-            if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());
         };
-        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100, s -> Core.freeMemory());
-
+        try {
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof IOException) throw (IOException) e.getCause();
+            else throw e;
+        }
         if (testMode.testExpert()) { // make stripes images
             Image[][] stripesTC = new Image[meanFZY.length][1];
             for (int f = 0; f<meanFZY.length; ++f) {
-                stripesTC[f][0] = new ImageFloat("removeStripes", allImages[f]);
+                stripesTC[f][0] = new ImageFloat("removeStripes", inputImages.getImage(channelIdx, f));
                 for (int z = 0; z<stripesTC[f][0].sizeZ(); ++z) {
                     for (int y = 0; y<stripesTC[f][0].sizeY(); ++y) {
                         for (int x = 0; x<stripesTC[f][0].sizeX(); ++x) {
@@ -233,7 +248,6 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         if (meanFZY==null || meanFZY.length<timePoint) throw new RuntimeException("RemoveStripes transformation not configured");
         Image res = removeMeanX(image, image instanceof ImageFloat ? image : null, meanFZY[timePoint]);
         if (backgroundMask!=null) res = ImageOperations.addImage(res, backgroundMask[timePoint], res, -1);
-        if (timePoint%100==0) logger.debug(Utils.getMemoryUsage());
         return res;
     }
     

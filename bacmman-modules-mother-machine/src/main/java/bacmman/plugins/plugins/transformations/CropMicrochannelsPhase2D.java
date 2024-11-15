@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.Hint;
@@ -70,7 +71,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     ConditionalParameter<Boolean> twoPeaksCond = new ConditionalParameter<>(twoPeaks)
             .setActionParameters(false, cropMarginY, maxDistanceRangeFromAberration)
             .setActionParameters(true, aberrationPeakPropUp, yEndMarginUp, landmarkUpperPeak);
-    Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup, processingWindow};
+    Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup};
     @Override public String getHintText() {
         return simpleToolTip + toolTip;
     }
@@ -272,7 +273,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
             int yMinNull = getYmin( im , b.xMin(), b.xMax()); // limit sizeY so that no null pixels (due to rotation) is present in the image & not out-of-bounds
             //logger.debug("yMinnull: {}", yMinNull);
             return b.yMax() - Math.max(b.yMax()-(maxSizeY-1), yMinNull)+1;
-        }, allBounds.keySet(), 200, true)
+        }, allBounds.keySet(), Core.PRE_PROCESSING_WINDOW, true)
                 .stream().mapToInt(i->i).min().getAsInt();
         if (ex[0]!=null) throw ex[0];
         logger.debug("max size Y: {} uniformized sizeY: {}", maxSizeY, sY);

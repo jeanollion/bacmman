@@ -61,7 +61,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     NumberParameter frameModulo = new BoundedNumberParameter("Frame Increment", 0, 2, 1, null).setHint("To improve speed: 1 frame out of N is used for histogram computation");
     PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setEmphasized(true).setHint(THLD_TOOL_TIP);
 
-    Parameter[] parameters = new Parameter[]{channelLength, channelWidth, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup, processingWindow};
+    Parameter[] parameters = new Parameter[]{channelLength, channelWidth, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup};
     double threshold = Double.NaN;
     public CropMicrochannelsFluo2D(int channelHeight, int cropMargin, int minObjectSize, double fillingProportion, int FrameNumber) {
         this.channelLength.setValue(channelHeight);
@@ -108,11 +108,15 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         ThresholderHisto thlder = thresholder.instantiatePlugin();
         Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream).filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
         threshold = thlder.runThresholderHisto(histo);
-        buffers = new MicrochannelFluo2D.Buffers(inputImages.getImage(channelIdx, 0));
+
+        buffers = new MicrochannelFluo2D.Buffers(inputImages.getImage(channelIdx, 0).getZPlane(0));
         super.computeConfigurationData(channelIdx, inputImages);
+
+        // clean up
         buffers.imageBytePool.flush();
         buffers.imageIntPool.flush();
         buffers = null;
+        threshold = Double.NaN;
     }
 
     @Override

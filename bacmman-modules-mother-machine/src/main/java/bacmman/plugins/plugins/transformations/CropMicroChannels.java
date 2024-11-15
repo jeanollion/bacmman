@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.ChoiceParameter;
 import bacmman.configuration.parameters.GroupParameter;
 import bacmman.configuration.parameters.NumberParameter;
+import bacmman.core.Core;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.ConfigurableTransformation;
@@ -53,8 +54,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     protected NumberParameter yStop = new BoundedNumberParameter("Y stop (0 for image heigth)", 0, 0, 0, null);
     protected GroupParameter boundGroup = new GroupParameter("Bound constraint", xStart, xStop, yStart, yStop).setHint("Parameters to crop the image according to constant bounds. <br />If needed, a constant crop should be set here rather than in a separate module at a previous step, because of possible XY-drift.");
     protected BoundedNumberParameter cropMarginY = new BoundedNumberParameter("Crop Margin", 0, 45, 0, null).setHint("The y-coordinate of the microchannels closed-end used to crop the image is defined as: <em>Y start</em> - <em>Crop margin</em> (for definition of <em>Y start</em> see help of the module)<br />A positive value will results in larger microchannels.");
-    protected NumberParameter processingWindow = new BoundedNumberParameter("Processing Window", 0, 100, 10, null).setHint("Number of frames processed at a time. Reduce in case of out-of-memory error");
-    
+
     ChoiceParameter referencePoint = new ChoiceParameter("Reference point", new String[]{"Top", "Bottom"}, "Top", false);
     Map<Integer, ? extends BoundingBox> cropBounds;
     BoundingBox bounds;
@@ -122,7 +122,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
         }
         if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);
         logger.debug("computing bounding box on {} frames", frames.size());
-        List<MutableBoundingBox> bds = ThreadRunner.parallelExecutionBySegmentsFunction(getBds, frames, processingWindow.getIntValue(), true);
+        List<MutableBoundingBox> bds = ThreadRunner.parallelExecutionBySegmentsFunction(getBds, frames, Core.PRE_PROCESSING_WINDOW, true);
         if (ex[0]!=null) throw ex[0];
         Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(frames.stream(), i->i, bds::get, true); // not using Collectors.toMap because result of getBounds can be null
 

@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.input_image;
 
+import bacmman.core.Core;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
@@ -101,7 +102,7 @@ public interface InputImages {
                 return image;
             };
         }
-        List<Image> res = ThreadRunner.parallelExecutionBySegmentsFunction(fun, 0,  images.getFrameNumber(), 100, true);
+        List<Image> res = ThreadRunner.parallelExecutionBySegmentsFunction(fun, 0,  images.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, true);
         return res.toArray(new Image[0]);
     }
     
@@ -189,5 +190,32 @@ public interface InputImages {
 
     static DoubleStream streamChannelValues(InputImages images, int channelIdx, boolean parallel) {
         return streamChannel(images, channelIdx, parallel).flatMapToDouble(Image::stream);
+    }
+    /**
+     * Remove all time points excluding time points between {@param tStart} and {@param tEnd}, for testing purposes only
+     * @param tStart
+     * @param tEnd
+     */
+    static InputImages subSetTimePoints(InputImagesImpl sources, int tStart, int tEnd) {
+        if (tStart<0) tStart=0;
+        if (tEnd>=sources.getFrameNumber()) tEnd = sources.getFrameNumber()-1;
+        InputImage[][] newImageCT = new InputImage[sources.getChannelNumber()][];
+
+        for (int c=0; c<sources.getChannelNumber(); ++c) {
+            if (sources.imageCT[c].length==1) {
+                newImageCT[c] = new InputImage[1];
+                newImageCT[c][0] = sources.imageCT[c][0];
+            } else {
+                newImageCT[c] = new InputImage[tEnd-tStart+1];
+                for (int t=tStart; t<=tEnd; ++t) {
+                    newImageCT[c][t-tStart] = sources.imageCT[c][t];
+                    sources.imageCT[c][t].setTimePoint(t-tStart);
+                }
+            }
+        }
+        int defaultTimePoint = sources.getDefaultTimePoint();
+        if (sources.getDefaultTimePoint()<tStart) defaultTimePoint = 0;
+        if (sources.getDefaultTimePoint()>tEnd-tStart) defaultTimePoint = tEnd-tStart;
+        return new InputImagesImpl(newImageCT, defaultTimePoint, new Pair<>(sources.autofocusChannel, sources.autofocusAlgo), sources.getTmpDirectory());
     }
 }

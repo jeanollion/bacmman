@@ -435,6 +435,7 @@ public class ThreadRunner {
             if (segmentEnd!=null) segmentEnd.accept(s);
         }
     }
+
     public static void parallelExecutionBySegments(IntConsumer action, List<Integer> indices, int window, IntConsumer segmentEnd) {
         int n = indices.size() / window;
         double r = indices.size() % window;

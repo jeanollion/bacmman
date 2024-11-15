@@ -104,7 +104,7 @@ public class InputImage {
             synchronized (imageSources) {
                 if (image==null) {
                     if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame); //try to open from DAO
-                    if (image==null) {
+                    else {
                         image = imageSources.getImage(inputFrame, inputChannelIdx);
                         if (image==null) throw new RuntimeException("Image not found: position:"+microscopyFieldName+" channel:"+inputChannelIdx+" frame:"+inputFrame);
                         if (!Double.isNaN(scaleXY)) image.setCalibration(scaleXY, scaleZ);
@@ -126,16 +126,16 @@ public class InputImage {
     void deleteFromDAO() {dao.deletePreProcessedImage(channelIdx, frame);}
     
     public void flush() {
-        if (image!=null) image=null;
-        //imageSources.close();
+        image=null;
     }
+
     private boolean requiresInputImage() {
-        if (transformationsToApply.size()>=1 && transformationsToApply.get(0) instanceof TransformationNoInput) return false;
-        return true;
+        return transformationsToApply.isEmpty() || !(transformationsToApply.get(0) instanceof TransformationNoInput);
     }
+
     private void applyTransformations() {
-        if (transformationsToApply!=null && !transformationsToApply.isEmpty()) {
-            synchronized(transformationsToApply) {
+        if (!transformationsToApply.isEmpty()) {
+            synchronized(this) {
                 if (transformationsToApply.isEmpty()) return;
                 modified=true;
                 transformationHaveBeenApplied=true;
@@ -143,8 +143,13 @@ public class InputImage {
                 while(it.hasNext()) {
                     Transformation t = it.next();
                     image = t.applyTransformation(channelIdx, frame, image);
+                    if (image == null) throw new RuntimeException("Transformation "+t.getClass()+ " returned null image for frame: "+frame+" channel: "+channelIdx);
                     it.remove();
                 }
+            }
+            if (intermediateImageSavedToDAO && modified) {
+                intermediateImageSavedToDAO = false;
+                deleteFromDAO();
             }
         }
     }

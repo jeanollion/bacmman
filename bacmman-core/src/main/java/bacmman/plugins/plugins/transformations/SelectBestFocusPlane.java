@@ -23,7 +23,6 @@ import bacmman.core.Core;
 import bacmman.image.*;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.pre_filters.IJSubtractBackground;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.processing.*;
@@ -34,11 +33,9 @@ import java.util.Arrays;
 
 import java.util.List;
 
-import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
 
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -76,7 +73,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
             };
-            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100, s -> Core.freeMemory());
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
             if (ioe[0]!=null) throw ioe[0];
         }
         bestFocusPlaneIdxT.addAll(Arrays.asList(conf));

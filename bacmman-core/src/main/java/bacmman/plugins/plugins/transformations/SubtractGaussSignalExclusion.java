@@ -18,8 +18,8 @@ import bacmman.utils.ThreadRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 public class SubtractGaussSignalExclusion implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
@@ -45,20 +45,24 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
     }
 
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         final int chExcl = signalExclusion.getSelectedIndex();
 
-        Image[] allImages = InputImages.getImageForChannel(inputImages, channelIdx, false);
-        Image[] allImagesExcl = chExcl == channelIdx ? allImages : InputImages.getImageForChannel(inputImages, chExcl, false);
-        if (testMode.testExpert()) mask = new Image[allImages.length];
+        if (testMode.testExpert()) mask = new Image[inputImages.getFrameNumber()];
+        Image ref = inputImages.getImage(channelIdx, inputImages.getDefaultTimePoint());
         double scale = smoothScale.getScaleXY();
-        double scaleZ = smoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
+        double scaleZ = smoothScale.getScaleZ(ref.getScaleXY(), ref.getScaleZ());
         double mScale = maskSmoothScale.getScaleXY();
-        double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
-        bck = new Image[allImages.length];
+        double mScaleZ = maskSmoothScale.getScaleZ(ref.getScaleXY(),ref.getScaleZ());
+        bck = new Image[inputImages.getFrameNumber()];
         IntConsumer ex = frame -> {
-            Image currentImage = allImages[frame];
-            Image se1 = allImagesExcl[frame];
+            Image currentImage, se1;
+            try {
+                currentImage = inputImages.getImage(channelIdx, frame);
+                se1 = inputImages.getImage(chExcl, frame);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
             double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
             PredicateMask maskT = currentImage.sizeZ() > 1 && se1.sizeZ() == 1 ? new PredicateMask(se1, thld1, true, true, 0) : new PredicateMask(se1, thld1, true, true);
@@ -66,7 +70,12 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
             if (testMode.testExpert()) mask[frame] = new RegionPopulation(maskT).getLabelMap();
 
         };
-        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100, s -> Core.freeMemory());
+        try {
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof IOException) throw (IOException) e.getCause();
+            else throw e;
+        }
         if (testMode.testSimple()) {
             Image[][] maskTC = Arrays.stream(bck).map(a->new Image[]{a}).toArray(Image[][]::new);
             Core.showImage5D("Background", maskTC);

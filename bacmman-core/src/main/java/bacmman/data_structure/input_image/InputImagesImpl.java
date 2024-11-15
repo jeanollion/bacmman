@@ -28,7 +28,6 @@ import bacmman.utils.*;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -259,7 +258,7 @@ public class InputImagesImpl implements InputImages {
                 }
                 if (f%100==0) System.gc();
             };
-            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100, s -> Core.freeMemory());
+            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
             System.gc();
             logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
         });
@@ -315,35 +314,6 @@ public class InputImagesImpl implements InputImages {
             }
         }
         lastUsedImages.clear();
-    }
-    
-    /**
-     * Remove all time points excluding time points between {@param tStart} and {@param tEnd}, for testing purposes only
-     * @param tStart
-     * @param tEnd 
-     */
-    public void subSetTimePoints(int tStart, int tEnd) {
-        if (tStart<0) tStart=0; 
-        if (tEnd>=getFrameNumber()) tEnd = getFrameNumber()-1;
-        InputImage[][] newImageCT = new InputImage[this.getChannelNumber()][];
-        
-        for (int c=0; c<getChannelNumber(); ++c) {
-            if (imageCT[c].length==1) {
-                newImageCT[c] = new InputImage[1];
-                newImageCT[c][0] = imageCT[c][0];
-            } else {
-                newImageCT[c] = new InputImage[tEnd-tStart+1];
-                for (int t=tStart; t<=tEnd; ++t) {
-                    newImageCT[c][t-tStart] = imageCT[c][t];
-                    imageCT[c][t].setTimePoint(t-tStart);
-                }
-            }
-        }
-        if (this.defaultTimePoint<tStart) defaultTimePoint = 0;
-        if (this.defaultTimePoint>tEnd-tStart) defaultTimePoint = tEnd-tStart;
-        logger.debug("default time Point: {}", defaultTimePoint);
-        this.imageCT=newImageCT;
-        this.frameNumber = tEnd-tStart+1;
     }
 
 }

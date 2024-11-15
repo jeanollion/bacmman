@@ -112,32 +112,39 @@ public class HistogramFactory {
         
         if (stats[7]==0) binSize = Math.max(1, binSize); // no decimal places
         switch(method) {
-            case NBINS_256:
-                binSize = getBinSize(stats[5], stats[6], 256); 
+            case NBINS_256: {
+                binSize = getBinSize(stats[5], stats[6], 256);
                 break;
-            case AUTO_WITH_LIMITS:
-                if (stats[7]==0) binSize=1;
+            } case AUTO_WITH_LIMITS: {
+                if (stats[7] == 0) binSize = 1;
                 else {
                     // ensure histogram will respect nbins range
                     int nBins = getNBins(stats[5], stats[6], binSize);
-                    if (nBins<MIN_N_BINS) binSize = getBinSize(stats[5], stats[6], MIN_N_BINS); 
-                    if (nBins>MAX_N_BINS) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS);
+                    if (nBins < MIN_N_BINS) binSize = getBinSize(stats[5], stats[6], MIN_N_BINS);
+                    if (nBins > MAX_N_BINS) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS);
                 }
                 break;
-            case AUTO:
+            } case AUTO: {
                 int nBins = getNBins(stats[5], stats[6], binSize);
-                if (nBins>MAX_N_BINS2) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS2);
+                if (nBins > MAX_N_BINS2) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS2);
                 break;
-            case BACKGROUND:
-                if (stats[7]==0) binSize=1;
-                else { // get sigma for distribution : under mean + 3*sigma
+            } case BACKGROUND: {
+                if (stats[7] == 0) {
+                    binSize = 1;
+                    int nBins = getNBins(stats[5], stats[6], binSize);
+                    if (nBins > MAX_N_BINS2) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS2);
+                } else { // get sigma for distribution : under mean + 3*sigma
                     double thldSup = stats[4] / stats[3] + 2.5 * std;
-                    double[] stats2 = streamSupplier.get().filter(d->d<thldSup).collect(supplier ,cons, combiner);
-                    double std2 = stats2[3]>0 ?  Math.sqrt((DoubleStatistics.getSumOfSquare(stats2) / stats2[3]) - Math.pow(stats2[4]/stats2[3], 2)) : 0.0d;
-                    double binSize2 = 3.49 * std2 * Math.pow(stats2[3], -1/3d);
+                    double[] stats2 = streamSupplier.get().filter(d -> d < thldSup).collect(supplier, cons, combiner);
+                    double std2 = stats2[3] > 0 ? Math.sqrt((DoubleStatistics.getSumOfSquare(stats2) / stats2[3]) - Math.pow(stats2[4] / stats2[3], 2)) : 0.0d;
+                    double binSize2 = 3.49 * std2 * Math.pow(stats2[3], -1 / 3d);
+                    int nBins = getNBins(stats[5], stats[6], binSize2);
+                    if (nBins > MAX_N_BINS2) binSize2 = getBinSize(stats[5], stats[6], MAX_N_BINS2);
                     //logger.debug("autobin: std: {} count: {} value: {}, thld: {} new std: {} new binSize: {}", std, stats[3], binSize, thldSup, std2, binSize2);
                     binSize = binSize2;
                 }
+                break;
+            }
         }
         //logger.debug("autobin: range: [{};{}], count: {}, sigma: {}, max decimal place: {} binSize: {}", stats[5], stats[6], stats[3], std, stats[7], binSize);
         return new double[]{stats[5], stats[6], binSize};

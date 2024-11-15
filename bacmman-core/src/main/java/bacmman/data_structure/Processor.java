@@ -31,7 +31,6 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.*;
-import bacmman.image.io.TimeLapseInteractiveImageFactory;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
@@ -66,6 +65,7 @@ import static bacmman.plugins.ProcessingPipeline.parentTrackMode;
  */
 public class Processor {
     public static final Logger logger = LoggerFactory.getLogger(Processor.class);
+
     /*public static int getRemainingMemory() {
         
     }*/
