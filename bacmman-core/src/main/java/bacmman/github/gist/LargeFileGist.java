@@ -67,13 +67,15 @@ public class LargeFileGist {
     }
     public static List<File> downloadGist(String id, String dir) throws IOException {
         Map<String, String> files = downloadGist(id);
-        return files.entrySet().stream().map(e -> {
+        List<File> res = new ArrayList<>(files.size());
+        for (Map.Entry<String, String> e : files.entrySet()) {
             Path path = Paths.get(dir, e.getKey());
             FileIO.TextFile file = new FileIO.TextFile(path.toString(), true, true);
             file.write(e.getValue(), false);
             file.close();
-            return path.toFile();
-        }).collect(Collectors.toList());
+            res.add(path.toFile());
+        }
+        return res;
     }
     public static Map<String, String> downloadGist(String id) throws IOException {
         if (id.startsWith(GIST_BASE_URL)) id=id.replace(GIST_BASE_URL, "");

@@ -136,7 +136,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         }, s -> {
         }, null, null);
         config.setCompareTree(configRef.getTree(), false);
-        config.expandAll();
+        config.expandAll(1);
         configurationJSP.setViewportView(config.getTree());
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
         PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
@@ -150,9 +150,14 @@ public class DockerTrainingWindow implements ProgressLogger {
 
         setLoadButton.addActionListener(ae -> {
             setWorkingDirectory();
-            setConfigurationFile(true, true, true);
-            setWorkingDirectory();
-            updateDisplayRelatedToWorkingDir();
+            try {
+                setConfigurationFile(true, true, true);
+                setWorkingDirectory();
+                updateDisplayRelatedToWorkingDir();
+            } catch (IOException e) {
+                Core.userLog("Could not set directory: "+e.getMessage());
+                logger.error("Error setting directory", e);
+            }
         });
         setLoadButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -167,12 +172,16 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 public void actionPerformed(ActionEvent e) {
                                     setWorkingDirectory();
                                     boolean notLoaded = javaConfig == null;
-                                    setConfigurationFile(true, notLoaded, notLoaded);
-                                    FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
-                                    loadConfigFile(false, true, f);
-                                    f.close();
-                                    setWorkingDirectory();
-                                    updateDisplayRelatedToWorkingDir();
+                                    try {
+                                        setConfigurationFile(true, notLoaded, notLoaded);
+                                        FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
+                                        loadConfigFile(false, true, f);
+                                        f.close();
+                                        setWorkingDirectory();
+                                        updateDisplayRelatedToWorkingDir();
+                                    } catch (IOException ex) {
+                                        Core.userLog("Could not load file"+p.value.toString());
+                                    }
                                 }
                             };
                             menu.add(load);
@@ -185,11 +194,17 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         setWriteButton.addActionListener(ae -> {
             setWorkingDirectory();
-            setConfigurationFile(false, false, false);
-            setWorkingDirectory();
-            writeConfigFile(true, true, true, true);
-            updateDisplayRelatedToWorkingDir();
-            config.getTree().updateUI();
+            try {
+                setConfigurationFile(false, false, false);
+                setWorkingDirectory();
+                writeConfigFile(true, true, true, true);
+                updateDisplayRelatedToWorkingDir();
+                config.getTree().updateUI();
+            } catch (IOException e) {
+                logger.error("Error writing configuration ", e);
+                Core.userLog("Could not write configuration file "+e.getMessage());
+            }
+
         });
         setWriteButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -566,7 +581,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
                                 if (newTrainer != null) {
                                     trainerParameter.setPlugin(newTrainer);
-                                    config.expandAll(3);
+                                    config.expandAll(1);
                                 }
                             });
                             // set back properties
@@ -632,8 +647,14 @@ public class DockerTrainingWindow implements ProgressLogger {
         workingDirPersistence = PropertyUtils.setPersistent(workingDirectoryTextField, WD_ID, defWD, true, chooseFile);
         if (workingDirectoryIsValid()) {
             setWorkingDirectory();
-            setConfigurationFile(true, true, true);
-            updateDisplayRelatedToWorkingDir();
+            try {
+                setConfigurationFile(true, true, true);
+                updateDisplayRelatedToWorkingDir();
+            } catch (IOException e) {
+                logger.error("Error setting working dir", e);
+                Core.userLog("Could not set working directory "+e.getMessage());
+            }
+
         }
         Action chooseFileMD = new AbstractAction("Choose model destination folder") {
             @Override
@@ -1135,7 +1156,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
     }
 
-    protected void setConfigurationFile(boolean loadJavaConf, boolean loadextractConf, boolean loadDockerConf) {
+    protected void setConfigurationFile(boolean loadJavaConf, boolean loadextractConf, boolean loadDockerConf) throws IOException {
         if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
         closeFiles();
         pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, Utils.isUnix());
@@ -1167,7 +1188,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (ref) trainerParameterRef.initFromJSONEntry(config);
             if (displayed) {
                 trainerParameter.initFromJSONEntry(config);
-                this.config.expandAll(3);
+                this.config.expandAll(1);
                 Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
                 if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
                     updateExtractDatasetConfiguration();
@@ -1177,7 +1198,12 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected DockerDLTrainer getTrainerFromTrainingConfig() {
-        FileIO.TextFile javaConfig = new FileIO.TextFile(getModelTrainConfigFile(), false, false);
+        FileIO.TextFile javaConfig = null;
+        try {
+            javaConfig = new FileIO.TextFile(getModelTrainConfigFile(), false, false);
+        } catch (IOException e) {
+            return null;
+        }
         String configS = javaConfig.read();
         javaConfig.close();
         if (!configS.isEmpty()) {
@@ -1217,7 +1243,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (!exConfigS.isEmpty()) {
                 try {
                     extractConfig.getRoot().initFromJSONEntry(new JSONParser().parse(exConfigS.get(0)));
-                    extractConfig.expandAll();
+                    extractConfig.expandAll(1);
                     if (exConfigS.size() > 1) { // second line is last extracted file name
                         datasetNameTextField.setText(exConfigS.get(1));
                     }
@@ -1245,10 +1271,16 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void writeModelTrainConfigFile() {
-        FileIO.TextFile configFile = new FileIO.TextFile(getModelTrainConfigFile(), true, Utils.isUnix());
-        JSONObject config = trainerParameter.toJSONEntry();
-        configFile.write(config.toJSONString(), false);
-        configFile.close();
+        FileIO.TextFile configFile = null;
+        try {
+            configFile = new FileIO.TextFile(getModelTrainConfigFile(), true, Utils.isUnix());
+            JSONObject config = trainerParameter.toJSONEntry();
+            configFile.write(config.toJSONString(), false);
+            configFile.close();
+        } catch (IOException e) {
+            logger.error("Error writing model config file", e);
+            Core.userLog("Could not write model train config file "+e.getMessage());
+        }
     }
 
     protected void writeConfigFile(boolean javaTrain, boolean pythonTrain, boolean pythonTest, boolean extract) {

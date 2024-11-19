@@ -135,7 +135,7 @@ public class MasterDAOFactory {
         Path datasetPath = Paths.get(datasetDir);
         Path configFile = datasetPath.resolve(dbName + "_config.json");
         if (!Files.exists(configFile)) return null;
-        String config = FileIO.readFisrtFromFile(configFile.toString(), s->s);
+        String config = FileIO.readFirstLineFromFile(configFile.toString(), s->s);
         if (config == null) return null;
         int i = config.indexOf("outputPath");
         if (i==-1) return null;

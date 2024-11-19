@@ -4740,7 +4740,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             log("Config file should en in .zip, .json or .txt");
             return;
         }
-        Experiment xp = FileIO.readFisrtFromFile(config, s-> {
+        Experiment xp = FileIO.readFirstLineFromFile(config, s-> {
             try {
                 return JSONUtils.parse(Experiment.class, s);
             } catch (ParseException e) {

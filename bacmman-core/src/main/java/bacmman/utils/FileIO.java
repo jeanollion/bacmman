@@ -97,8 +97,13 @@ public class FileIO {
             logger.debug("Error while writing list to file", ex);
         }
     }
-    public static <T> T readFisrtFromFile(String path, Function<String, T> converter) {
-        TextFile tf = new TextFile(path, false, false);
+    public static <T> T readFirstLineFromFile(String path, Function<String, T> converter) {
+        TextFile tf = null;
+        try {
+            tf = new TextFile(path, false, false);
+        } catch (IOException e) {
+            return null;
+        }
         String line = tf.readFirstLine();
         tf.close();
         return converter.apply(line);
@@ -198,14 +203,12 @@ public class FileIO {
         RandomAccessFile raf;
         java.nio.channels.FileLock lock;
         final boolean toLock;
-        public TextFile(String file, boolean write, boolean lock) {
+        public TextFile(String file, boolean write, boolean lock) throws IOException {
             f = new File(file);
-            try {
-                if (!f.exists()) f.createNewFile();
-                raf = new RandomAccessFile(f, write?"rw":"r");
-            } catch (IOException ex) {
-                logger.error("error reading file: "+file, ex);
+            if (!f.exists()) {
+                if (!f.createNewFile()) throw new IOException("File do not exist and could not be created: "+file);
             }
+            raf = new RandomAccessFile(f, write?"rw":"r");
             if (lock) lock();
             toLock = lock;
         }

@@ -454,7 +454,7 @@ public class PlotPanel {
         @Override
         public String[] getChoiceList() {
             if (excludeColFun != null) excludeCols = new HashSet<>(Arrays.asList(excludeColFun.get()));
-            return Arrays.stream(selectedFiles.getSelectedItems()).map(f -> FileIO.readFisrtFromFile(f, s -> s)).filter(Objects::nonNull)
+            return Arrays.stream(selectedFiles.getSelectedItems()).map(f -> FileIO.readFirstLineFromFile(f, s -> s)).filter(Objects::nonNull)
                     .flatMap(header -> Arrays.stream(header.split(getParseRegex())))
                     .filter(c -> excludeCols == null || !excludeCols.contains(c))
                     .distinct().sorted().toArray(String[]::new);
