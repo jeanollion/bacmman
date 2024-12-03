@@ -43,10 +43,7 @@ import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
-import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Pair;
-import bacmman.utils.SlidingOperator;
-import bacmman.utils.ThreadRunner;
+import bacmman.utils.*;
 
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -73,7 +70,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         ImageProperties bds = new SimpleImageProperties(inputImages.getImage(channelIdx, 0));
         configMapF = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(bds.sizeZ() == 1 ? time -> new CoordCollection.CoordCollection2D(bds.sizeX(), bds.sizeY()) : time -> new CoordCollection.CoordCollection3D(bds.sizeX(), bds.sizeY(), bds.sizeZ()));
-        Image median = new ImageFloat("", bds);
+        SynchronizedPool<Image> medianPool = new SynchronizedPool<>(() -> new ImageFloat("", bds));
         Neighborhood n =  new EllipsoidalNeighborhood(1.5, true); // excludes center pixel // only on same plane
         double thld= threshold.getDoubleValue();
         int frameRadius = Math.min(this.frameRadius.getValue().intValue(), inputImages.getFrameNumber());
@@ -83,7 +80,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         // perform sliding mean of image
         SlidingOperator<Integer, Pair<Integer, Image>, Void> operator = new SlidingOperator<Integer, Pair<Integer, Image>, Void>() {
             @Override public Pair<Integer, Image> instanciateAccumulator() {
-                return new Pair<>(-1, new ImageFloat("", median));
+                return new Pair<>(-1, new ImageFloat("", bds));
             }
             @Override public void slide(Integer removeElementIdx, Integer addElementIdx, Pair<Integer, Image> accumulator) {
                 Image removeElement, addElement;
@@ -116,7 +113,8 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
                 }
                 accumulator.key = accumulator.key+1; /// keep track of current frame
             }
-            @Override public Void compute(Pair<Integer, Image> accumulator) {   
+            @Override public Void compute(Pair<Integer, Image> accumulator) {
+                Image median = medianPool.pull();
                 Filters.median(accumulator.value, median, n, true);
                 //Filters.median(inputImages.getImage(channelIdx, accumulator.key), median, n);
                 if (testMode.testSimple()) {
@@ -132,6 +130,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
                         }
                     }
                 }, true);
+                medianPool.push(median);
                 return null;
             }
         };
@@ -139,8 +138,20 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
             List<Integer> frameList = IntStream.range(0, inputImages.getFrameNumber()).boxed().collect(Collectors.toList());
             SlidingOperator.performSlideLeft(frameList, frameRadius, operator);
         } else {
-            // to parallelize by frame : use a different " median " image.
-            for (int f = 0; f<inputImages.getFrameNumber(); ++f) operator.compute(new Pair<>(f, inputImages.getImage(f, channelIdx)));
+            try {
+                IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(f -> {
+                    try {
+                        operator.compute(new Pair<>(f, inputImages.getImage(f, channelIdx)));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } catch (RuntimeException e) {
+                if (e.getCause() instanceof IOException) {
+                    throw (IOException) e.getCause();
+                } else throw e;
+            }
+            medianPool.flush();
         }
         if (testMode.testExpert()) {
             // first frames are not computed
@@ -165,7 +176,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
 
     @Override
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
-        return (configMapF!=null); // when config is computed put 1 vox and frame -1 to set config. 
+        return (configMapF!=null); // when config is computed put 1 vox and frame -1 to set config.
     }
 
     @Override
@@ -208,5 +219,5 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
     public String getHintText() {
         return "Removes pixels that have much higher values than their surroundings (in space & time)";
     }
-    
+
 }
