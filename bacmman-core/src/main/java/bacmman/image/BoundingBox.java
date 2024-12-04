@@ -20,11 +20,13 @@ package bacmman.image;
 
 import bacmman.processing.ImageDerivatives;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -268,6 +270,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
             });
         }
     }
+
     static void loop(BoundingBox bb, LoopFunction function, boolean parallel) {
         if (!parallel) {
             loop(bb, function);
@@ -298,6 +301,66 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
                     }
                 }
             });
+        }
+    }
+
+    static void loop(BoundingBox bb, Supplier<LoopFunction> function, boolean parallel) {
+        if (!parallel) {
+            loop(bb, function.get());
+            return;
+        }
+        int parallelAxis = chooseParallelAxis(bb);
+        if (parallelAxis == 2) {
+            ThreadRunner<Void> tr = new ThreadRunner<>( () ->  {
+                LoopFunction fun = function.get();
+                return z -> {
+                    for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
+                        for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                            fun.loop(x, y, z);
+                        }
+                    }
+                    return null;
+                };
+            }, bb.zMin(), bb.zMax() + 1);
+            try {
+                tr.setCollectValues(false).startAndJoin();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (parallelAxis == 1) {
+            ThreadRunner<Void> tr = new ThreadRunner<>( () ->  {
+                LoopFunction fun = function.get();
+                return y -> {
+                    for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+                        for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                            fun.loop(x, y, z);
+                        }
+                    }
+                    return null;
+                };
+            }, bb.yMin(), bb.yMax() + 1);
+            try {
+                tr.setCollectValues(false).startAndJoin();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            ThreadRunner<Void> tr = new ThreadRunner<>( () ->  {
+                LoopFunction fun = function.get();
+                return x -> {
+                    for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+                        for (int y=bb.yMin(); y<=bb.yMax(); ++y) {
+                            fun.loop(x, y, z);
+                        }
+                    }
+                    return null;
+                };
+            }, bb.xMin(), bb.xMax() + 1);
+            try {
+                tr.setCollectValues(false).startAndJoin();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

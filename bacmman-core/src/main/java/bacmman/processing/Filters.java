@@ -30,6 +30,7 @@ import bacmman.image.ImageProperties;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
@@ -183,15 +184,13 @@ public class Filters {
         else if (!output.sameDimensions(image) || output==image) res = Image.createEmptyImage(name, output, image);
         else res = (T)output.setName(name);
         double round=res instanceof ImageFloat ? 0: 0.5d;
-        
         if (parallel && Runtime.getRuntime().availableProcessors()>1) {
-            HashMapGetCreate<Thread, Filter> nMap = new HashMapGetCreate<>(t -> {
+            Supplier<BoundingBox.LoopFunction> loopFunc = () -> {
                 Filter f = filter.duplicate();
                 f.setUp(image, neighborhood.duplicate());
-                return f;
-            });
-            BoundingBox.LoopFunction loopFunc = (x, y, z)->res.setPixel(x, y, z, nMap.getAndCreateIfNecessarySyncOnKey(Thread.currentThread()).applyFilter(x, y, z)+round);
-            BoundingBox.loop(res.getBoundingBox().resetOffset(), loopFunc, parallel);
+                return (x, y, z)->res.setPixel(x, y, z, f.applyFilter(x, y, z)+round);
+            };
+            BoundingBox.loop(res.getBoundingBox().resetOffset(), loopFunc, true);
         } else  {
             filter.setUp(image, neighborhood);
             BoundingBox.LoopFunction loopFunc = (x, y, z)->res.setPixel(x, y, z, filter.applyFilter(x, y, z)+round);

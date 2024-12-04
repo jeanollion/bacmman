@@ -22,19 +22,14 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.input_image.InputImages;
-import bacmman.data_structure.Voxel;
+
 import static bacmman.image.BoundingBox.loop;
-import bacmman.image.Image;
-import bacmman.image.ImageFloat;
+
+import bacmman.image.*;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import bacmman.image.ImageProperties;
-import bacmman.image.SimpleImageProperties;
 import bacmman.plugins.TestableOperation;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Median;
@@ -45,6 +40,8 @@ import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
 import bacmman.utils.*;
 
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -54,7 +51,7 @@ import java.util.stream.IntStream;
  */
 public class RemoveHotPixels implements ConfigurableTransformation, TestableOperation, Hint {
     NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higher than this threshold pixel is considered as dead and will be replaced by the median value");
-    NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 1, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
+    NumberParameter frameRadius = new BoundedNumberParameter("Frame Window", 0, 1, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
     Map<Integer, CoordCollection> configMapF;
     public RemoveHotPixels(){}
     public RemoveHotPixels(double threshold, int frameRadius) {
@@ -69,14 +66,16 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         ImageProperties bds = new SimpleImageProperties(inputImages.getImage(channelIdx, 0));
-        configMapF = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(bds.sizeZ() == 1 ? time -> new CoordCollection.CoordCollection2D(bds.sizeX(), bds.sizeY()) : time -> new CoordCollection.CoordCollection3D(bds.sizeX(), bds.sizeY(), bds.sizeZ()));
+        Function<Integer, CoordCollection> coordCollectionFactory = bds.sizeZ() == 1 ? time -> new CoordCollection.CoordCollection2D(bds.sizeX(), bds.sizeY()) : time -> new CoordCollection.CoordCollection3D(bds.sizeX(), bds.sizeY(), bds.sizeZ());
+        configMapF = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(coordCollectionFactory);
         SynchronizedPool<Image> medianPool = new SynchronizedPool<>(() -> new ImageFloat("", bds));
-        Neighborhood n =  new EllipsoidalNeighborhood(1.5, true); // excludes center pixel // only on same plane
+        SynchronizedPool<Neighborhood> nPool = new SynchronizedPool<>(() -> new EllipsoidalNeighborhood(1.5, true)); // excludes center pixel // only on same plane
         double thld= threshold.getDoubleValue();
-        int frameRadius = Math.min(this.frameRadius.getValue().intValue(), inputImages.getFrameNumber());
-        double fRd= (double)frameRadius;
+        int frameWindow = Math.min(this.frameRadius.getValue().intValue(), inputImages.getFrameNumber());
+        double fRd= (double)frameWindow;
         final Image[][] testMeanTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
         final Image[][] testMedianTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
+        boolean parallelPerFrame = frameWindow > 1;
         // perform sliding mean of image
         SlidingOperator<Integer, Pair<Integer, Image>, Void> operator = new SlidingOperator<Integer, Pair<Integer, Image>, Void>() {
             @Override public Pair<Integer, Image> instanciateAccumulator() {
@@ -89,7 +88,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-                if (frameRadius<=1) { // no averaging in time
+                if (frameWindow<=1) { // no averaging in time
                     accumulator.value=addElement;
                 } else { // averaging in time
                     try {
@@ -115,33 +114,41 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
             }
             @Override public Void compute(Pair<Integer, Image> accumulator) {
                 Image median = medianPool.pull();
-                Filters.median(accumulator.value, median, n, true);
-                //Filters.median(inputImages.getImage(channelIdx, accumulator.key), median, n);
+                Neighborhood n = nPool.pull();
+                Filters.median(accumulator.value, median, n, parallelPerFrame);
                 if (testMode.testSimple()) {
                     testMeanTC[accumulator.key][0] = accumulator.value.duplicate();
                     testMedianTC[accumulator.key][0] = median.duplicate();
                 }
-                loop(median.getBoundingBox().resetOffset(), (x, y, z)->{
-                    double med = median.getPixel(x, y, z);
-                    if (accumulator.value.getPixel(x, y, z)-med>= thld) {
-                        for (int f = Math.max(0, accumulator.key-frameRadius); f<=accumulator.key; ++f) {
-                            CoordCollection ccol = configMapF.get(f);
-                            synchronized (ccol) {ccol.add(ccol.toCoord(x, y, z));}
+                SynchronizedPool<CoordCollection> ccolPool = new SynchronizedPool<>(() -> coordCollectionFactory.apply(accumulator.key));
+                Supplier<BoundingBox.LoopFunction> loopFun = () -> {
+                    CoordCollection ccolLocal = parallelPerFrame ? ccolPool.pull() : configMapF.get(accumulator.key);
+                    return (x, y, z) -> {
+                        double med = median.getPixel(x, y, z);
+                        if (accumulator.value.getPixel(x, y, z) - med >= thld) {
+                            long coord = ccolLocal.toCoord(x, y, z);
+                            ccolLocal.add(coord);
                         }
-                    }
-                }, true);
+                    };
+                };
+                loop(median.getBoundingBox().resetOffset(), loopFun, parallelPerFrame);
+                if (parallelPerFrame) { // collect local coordCollections
+                    CoordCollection ccol = configMapF.get(accumulator.key);
+                    ccolPool.streamPool().flatMapToLong(CoordCollection::stream).forEach(ccol::add);
+                }
                 medianPool.push(median);
+                nPool.push(n);
                 return null;
             }
         };
-        if (frameRadius>=1) {
+        if (frameWindow>1) {
             List<Integer> frameList = IntStream.range(0, inputImages.getFrameNumber()).boxed().collect(Collectors.toList());
-            SlidingOperator.performSlideLeft(frameList, frameRadius, operator);
+            SlidingOperator.performSlideLeft(frameList, frameWindow, operator);
         } else {
             try {
                 IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(f -> {
                     try {
-                        operator.compute(new Pair<>(f, inputImages.getImage(f, channelIdx)));
+                        operator.compute(new Pair<>(f, inputImages.getImage(channelIdx, f)));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -155,8 +162,8 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         }
         if (testMode.testExpert()) {
             // first frames are not computed
-            for (int f = 0; f<frameRadius-1; ++f) testMeanTC[f][0] = testMeanTC[frameRadius-1][0];
-            for (int f = 0; f<frameRadius-1; ++f) testMedianTC[f][0] = testMedianTC[frameRadius-1][0];
+            for (int f = 0; f<frameWindow-1; ++f) testMeanTC[f][0] = testMeanTC[frameWindow-1][0];
+            for (int f = 0; f<frameWindow-1; ++f) testMedianTC[f][0] = testMedianTC[frameWindow-1][0];
             Core.showImage5D("Sliding median", testMedianTC);
             Core.showImage5D("Sliding mean", testMeanTC);
         }

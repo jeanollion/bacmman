@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +58,7 @@ public class SynchronizedPool<T> {
         queue.add(object);
         //logger.debug("queue size: {} (type: {})", queue.size(), object.getClass().getSimpleName());
     }
+
     public <U> U apply(Function<T, U> function) {
         T buffer = this.pull();
         U res = function.apply(buffer);
@@ -69,6 +71,10 @@ public class SynchronizedPool<T> {
         U res = function.apply(buffer);
         this.push(buffer);
         return res;
+    }
+
+    public Stream<T> streamPool() {
+        return queue.stream();
     }
 
     public void flush() {

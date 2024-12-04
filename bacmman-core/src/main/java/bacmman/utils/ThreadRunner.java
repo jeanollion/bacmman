@@ -20,17 +20,10 @@ package bacmman.utils;
 
 import bacmman.data_structure.Processor;
 import bacmman.core.ProgressCallback;
-import net.imagej.ops.Ops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -61,7 +54,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-public class ThreadRunner {
+public class ThreadRunner<T> {
     public final static Logger logger = LoggerFactory.getLogger(ThreadRunner.class);
     /** Start all given threads and wait on each of them until all are done.
      * From Stephan Preibisch's Multithreading.java class. See:
@@ -85,51 +78,77 @@ public class ThreadRunner {
 
      * 
      */
-    public final int start, end;
-    public final Thread[] threads;
+    public final int startIncl, stopExcl;
+    final Thread[] threads;
+    final List<Integer>[] indices;
+    final List<T>[] values;
+    boolean collectValues = true;
+    boolean leaveOneCPUFree = false;
     public final AtomicInteger ai;
     public final List<Pair<String, Throwable>> errors = new ArrayList<>();
-    public ThreadRunner(int start, int end) {
-        this(start, end, 0);
-    }
-    
-    public int size() {
-        return this.threads.length;
-    }
-    public static boolean leaveOneCPUFree = true;
-    /**
-     * 
-     * @param start inclusive
-     * @param end exclusive 
-     * @param cpulimit 
-     */
-    public ThreadRunner(int start, int end, int cpulimit) {
-        this.start=start;
-        this.end=end;
-        this.ai= new AtomicInteger(this.start);
-        int nb = getNbCpus();
-        if (cpulimit>0 && nb>cpulimit) {
-            nb=cpulimit;
-            if (leaveOneCPUFree && nb==getNbCpus() && nb>1) nb--;
-        }
-       
-        this.threads = new Thread[nb];
-        
+
+    public ThreadRunner(Supplier<IntFunction<T>> threadAction, int size) {
+        this(threadAction, 0, size, 0);
     }
 
-    public void startAndJoin() {
-        Map<Integer, Throwable> err = startAndJoin(threads);
-        for (Entry<Integer, Throwable> er : err.entrySet()) errors.add(new Pair<>("Thread #"+er.getKey(), er.getValue() instanceof Exception ? (Exception)er.getValue() : new RuntimeException(er.getValue())));
+    public ThreadRunner(Supplier<IntFunction<T>> threadAction, int startIncl, int stopExcl) {
+        this(threadAction, startIncl, stopExcl, 0);
     }
-    
-    public void throwErrorIfNecessary(String message) throws Exception {
-        if (!errors.isEmpty()) {
-            throw new MultipleException(errors);
-            //throw new RuntimeException(message +"Errors in #"+ errors.size()+" threads. Throwing one error", errors.iterator().next().value);
+
+    /**
+     * 
+     * @param startIncl inclusive
+     * @param stopExcl exclusive
+     * @param cpuLimit
+     */
+    public ThreadRunner(Supplier<IntFunction<T>> threadAction, int startIncl, int stopExcl, int cpuLimit) {
+        this.startIncl = startIncl;
+        this.stopExcl = stopExcl;
+        this.ai = new AtomicInteger(this.startIncl);
+        int nb = getNbCpus();
+        if (cpuLimit>0 && nb>cpuLimit) {
+            nb=cpuLimit;
+            if (leaveOneCPUFree && nb==getNbCpus() && nb>1) nb--;
+        }
+        this.threads = new Thread[nb];
+        this.indices = new List[nb];
+        this.values = new List[nb];
+        for (int i = 0; i<nb; ++i) {
+            IntFunction<T> action = threadAction.get();
+            int tIdx = i;
+            threads[i] = new Thread(() -> {
+                for (int idx = ai.getAndIncrement(); idx<stopExcl; idx = ai.getAndIncrement()) {
+                    T value = action.apply(idx);
+                    if (indices[tIdx] != null ) {
+                        indices[tIdx].add(idx);
+                        values[tIdx].add(value);
+                    }
+                }
+            });
         }
     }
     
-    protected static Map<Integer, Throwable> startAndJoin(Thread[] threads) {
+    public void throwErrorIfNecessary() throws MultipleException {
+        if (!errors.isEmpty()) {
+            throw new MultipleException(errors);
+        }
+    }
+
+    public ThreadRunner<T> setCollectValues(boolean collectValues) {
+        this.collectValues = collectValues;
+        return this;
+    }
+
+    public List<T> startAndJoin() throws InterruptedException {
+        ai.set(startIncl);
+        if (collectValues) {
+            for (int i = 0; i< threads.length; ++i) {
+                if (indices[i] == null) indices[i] = new ArrayList<>();
+                else indices[i].clear();
+                if (values[i] == null) values[i] = new ArrayList<>();
+                else values[i].clear();
+            }
+        }
         Map<Integer, Throwable> res = new HashMap<>();
         Thread.UncaughtExceptionHandler h = (Thread th, Throwable ex) -> {
             res.put(Arrays.asList(threads).indexOf(th), ex);
@@ -139,29 +158,38 @@ public class ThreadRunner {
             threads[ithread].setUncaughtExceptionHandler(h);
             threads[ithread].start();
         }
+        for (int ithread = 0; ithread < threads.length; ++ithread) threads[ithread].join();
 
-        try {
-            for (int ithread = 0; ithread < threads.length; ++ithread) {
-                threads[ithread].join();
-            }
-        } catch (InterruptedException ie) {
-            throw new RuntimeException(ie);
-        }
-        return res;
+        // collect values
+        List<T> values;
+        if (collectValues) {
+            values = new ArrayList<>(stopExcl - startIncl);
+            int[] curIdx = new int[threads.length];
+            for (int i = startIncl; i< stopExcl; ++i) values.add(getValue(i, curIdx));
+        } else values = null;
+        for (Entry<Integer, Throwable> er : res.entrySet()) errors.add(new Pair<>("Thread #"+er.getKey(), er.getValue() instanceof Exception ? (Exception)er.getValue() : new RuntimeException(er.getValue())));
+        return values;
     }
     
-
-    public void resetAi(){
-        ai.set(start);
+    protected T getValue(int idx, int[] threadIdx) {
+        for (int t = 0; t<threads.length; ++t) {
+            if (indices[t].get(threadIdx[t]) == idx) {
+                T res = values[t].get(threadIdx[t]);
+                ++threadIdx[t];
+                return res;
+            }
+        }
+        throw new IllegalArgumentException("Index not found");
     }
     
     private int getNbCpus() {
-        return Math.max(1, Math.min(getMaxCPUs(), end-start));
+        return Math.max(1, Math.min(getMaxCPUs(), stopExcl - startIncl));
     }
     
     public static int getMaxCPUs() {
         return Runtime.getRuntime().availableProcessors();
     }
+
     public static <T> void execute(final T[] array, final boolean setToNull, final ThreadAction<T> action) {
         execute(array, setToNull, action, null, null);
     }
@@ -210,12 +238,15 @@ public class ThreadRunner {
         }
         if (!errors.isEmpty()) throw new MultipleException(errors);
     }
+
     public static <T> void execute(Collection<T> array, boolean removeElements, final ThreadAction<T> action) {
         execute(array, removeElements, action, null, null);
     }
+
     public static <T> void execute(Collection<T> array, boolean removeElements, final ThreadAction<T> action, ProgressCallback pcb) {
         execute(array, removeElements, action, null, pcb);
     }
+
     public static <T> void execute(Collection<T> array, boolean removeElements, final ThreadAction<T> action,  ExecutorService executor, ProgressCallback pcb) {
         if (array==null) return;
         if (array.isEmpty()) return;
@@ -297,8 +328,11 @@ public class ThreadRunner {
         else if (t instanceof Object[]) return ((Object[])t)[0].toString();
         else return t.toString();
     }
-    public static interface ThreadAction<T> {
-        public void run(T object, int idx);
+
+
+    @FunctionalInterface
+    public interface ThreadAction<T> {
+        void run(T object, int idx);
     }
     
     public static ProgressCallback loggerProgressCallback(final org.slf4j.Logger logger) {

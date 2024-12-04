@@ -106,7 +106,7 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
                 if (image.contains(xx, yy, zz)) {
                     values[i]=image.getPixel(xx, yy, zz);
                     valueCount++;
-                } else values[i]=Float.NaN;
+                } else values[i]=Double.NaN;
             }
         } else {
             for (int i = 0; i<dx.length; ++i) {
@@ -115,7 +115,7 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
                 if (image.contains(xx, yy, z)) {
                     values[i]=image.getPixel(xx, yy, z);
                     valueCount++;
-                } else values[i]=Float.NaN;
+                } else values[i]=Double.NaN;
             }
         }
     }
