@@ -46,7 +46,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     ChannelImageParameter channelImage = new ChannelImageParameter("Detection Channel", -1).setHint("Detection channel on which processing pipeline will be applied");
     PluginParameter<ObjectSplitter> objectSplitter = new PluginParameter<>("Object Splitter", ObjectSplitter.class, true).setEmphasized(false).setHint("Algorithm used to split segmented in manual edition. <br />If no algorithm is defined here and the segmenter is able to split objects, the segmenter will be used instead");
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
-    PluginParameter<ProcessingPipeline> processingPipeline = new PluginParameter<>("Processing Pipeline", ProcessingPipeline.class, true).setEmphasized(false);
+    ProcessingChain processingPipeline = new ProcessingChain("Processing Pipeline");
     PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object by pressing ctrl + F");
     BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>true</em> is set, a track can divide in several tracks");
     BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
@@ -294,7 +294,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
             processingPipeline.getParameters().stream().filter(p->p instanceof SiblingObjectClassParameter).map(p->(SiblingObjectClassParameter)p).filter(p->!p.includeCurrent()).forEach(p->p.setMaxStructureIdx(idx));
         }
     }
-    public PluginParameter<ProcessingPipeline>  getProcessingPipelineParameter() {
+    public ProcessingChain  getProcessingPipelineParameter() {
         return processingPipeline;
     }
 }

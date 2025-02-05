@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.image.BufferedImage;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Supplier;
@@ -38,7 +39,7 @@ public class GistConfiguration implements Hint {
             return Arrays.stream(TYPE.values()).filter(t->fileName.startsWith(PREFIX+t.shortName)).findAny().orElse(null);
         }
     }
-    public final String name, folder;
+    private String name, folder;
     String description;
     boolean visible=true;
     private String fileURL;
@@ -46,7 +47,7 @@ public class GistConfiguration implements Hint {
     private Supplier<String> contentRetriever;
     public String getHintText() {return description;}
     private static String PREFIX = "bacmman-config-";
-    public final TYPE type;
+    private TYPE type;
     String id;
     Experiment xp;
     public static String BASE_URL = "https://api.github.com";
@@ -55,7 +56,22 @@ public class GistConfiguration implements Hint {
     TreeMap<Integer, List<BufferedImage>> thumbnailByObjectClass;
     boolean thumbnailModified, contentModified;
 
+    public GistConfiguration(String id) throws IOException {
+        String response;
+        try {
+            response = new JSONQuery(BASE_URL + "/gists/" + id).method(JSONQuery.METHOD.GET).fetch();
+            Object json = new JSONParser().parse(response);
+            init((JSONObject) json);
+        } catch (ParseException e) {
+            throw new IOException(e);
+        }
+    }
+
     public GistConfiguration(JSONObject gist) {
+        init(gist);
+    }
+
+    private void init(JSONObject gist) {
         description = (String)gist.get("description");
         id = (String)gist.get("id");
         visible = (Boolean)gist.get("public");
@@ -137,6 +153,7 @@ public class GistConfiguration implements Hint {
         }
         if (contentRetriever==null) contentRetriever = () -> new JSONQuery(fileURL).fetchSilently();
     }
+
     public GistConfiguration(String folder, String name, String description, JSONObject content, TYPE type) {
         if (folder.contains("_")) throw new IllegalArgumentException("folder name should not contain '_' character");
         this.folder=folder;
@@ -144,6 +161,18 @@ public class GistConfiguration implements Hint {
         this.description=description;
         this.jsonContent=content;
         this.type=type;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String folder() {
+        return folder;
+    }
+
+    public TYPE getType() {
+        return type;
     }
 
     public boolean isVisible() {
@@ -187,9 +216,11 @@ public class GistConfiguration implements Hint {
             logger.error("Error parsing configuration file: {}: content: {}", e.toString(), res);
         }
     }
+
     public void delete(UserAuth auth) {
         new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetchSilently();
     }
+
     private String getFileName() {
         return PREFIX+type.shortName +"_"+folder+"_"+name+".json";
     }
@@ -231,6 +262,7 @@ public class GistConfiguration implements Hint {
         if (thumbnail==null && thumbnailRetriever!=null) thumbnailRetriever.run();
         return thumbnail;
     }
+
     public List<BufferedImage> getThumbnail(int ocIdx) {
         if (!type.equals(WHOLE)) throw new IllegalArgumentException("Calling get thumbnail by oc idx to non whole experiment");
         if (thumbnailByObjectClass==null) {
@@ -239,6 +271,7 @@ public class GistConfiguration implements Hint {
         }
         return thumbnailByObjectClass.get(ocIdx);
     }
+
     public GistConfiguration setThumbnail(BufferedImage thumbnail, int ocIdx) {
         if (!type.equals(WHOLE)) throw new IllegalArgumentException("Calling set thumbnail by oc idx to non whole experiment");
         if (thumbnailByObjectClass==null) {
@@ -256,6 +289,7 @@ public class GistConfiguration implements Hint {
         }
         return this;
     }
+
     public GistConfiguration appendThumbnail(BufferedImage thumbnail, int ocIdx) {
         if (thumbnail==null) return this;
         if (!type.equals(WHOLE)) throw new IllegalArgumentException("Calling set thumbnail by oc idx to non whole experiment");
@@ -404,24 +438,31 @@ public class GistConfiguration implements Hint {
         }
         return res;
     }
+
     public Experiment getExperiment() {
         if (xp==null) {
             JSONObject content = getContent();
-            if (content != null) xp = getExperiment(content, type);
+            if (content != null) {
+                xp = getExperiment(content, type, getID());
+            }
         }
         return xp;
     }
-    public static Experiment getExperiment(JSONObject jsonContent, TYPE type) {
+
+    public static Experiment getExperiment(JSONObject jsonContent, TYPE type, String id) {
         Experiment res = new Experiment("");
         switch (type) {
             case WHOLE:
                 res.initFromJSONEntry(jsonContent);
+                res.setConfigID(id);
                 break;
             case PRE_PROCESSING:
                 res.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
+                res.getPreProcessingTemplate().setConfigID(id);
                 break;
             case MEASUREMENTS:
                 res.getMeasurements().initFromJSONEntry(jsonContent);
+                res.getMeasurements().setConfigID(id);
                 // add object classes to avoid getting display errors
                 int maxOC = res.getMeasurements().getChildren().stream().mapToInt(m -> m.getParameters().stream().mapToInt(p -> p instanceof ObjectClassParameter ? ((ObjectClassParameter)p).getSelectedClassIdx() : 0 ).max().getAsInt()).max().orElse(0);
                 for (int i = 0; i<=maxOC; ++i) res.getStructures().insert(res.getStructures().createChildInstance("Object Class #"+i));
@@ -430,6 +471,7 @@ public class GistConfiguration implements Hint {
                 res.getChannelImages().insert(res.getChannelImages().createChildInstance());
                 res.getStructures().insert(res.getStructures().createChildInstance());
                 res.getStructure(0).getProcessingPipelineParameter().initFromJSONEntry(jsonContent);
+                res.getStructure(0).getProcessingPipelineParameter().setConfigID(id);
                 break;
         }
         return res;

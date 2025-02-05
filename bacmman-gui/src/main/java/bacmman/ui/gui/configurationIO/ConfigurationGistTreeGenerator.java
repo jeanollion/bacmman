@@ -91,9 +91,9 @@ public class ConfigurationGistTreeGenerator {
                 if (!icons.containsKey(n.gist)) {
                     icons.get(n.gist);
                     modified = true;
-                    if (!n.gist.type.equals(GistConfiguration.TYPE.WHOLE)) treeModel.nodeChanged(n);
+                    if (!n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) treeModel.nodeChanged(n);
                 }
-                if (n.gist.type.equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
+                if (n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
                     if (n.gist.getExperiment() != null) {
                         for (int oc = 0; oc < n.gist.getExperiment().getStructureCount(); ++oc) {
                             if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
@@ -165,23 +165,24 @@ public class ConfigurationGistTreeGenerator {
         else return null;
     }
 
-    public void setSelectedGist(GistConfiguration gist, int selectedOC) {
+    public boolean setSelectedGist(GistConfiguration gist, int selectedOC) {
         if (gist==null) {
             tree.setSelectionPath(null);
-            return;
+            return true;
         }
         TreeNode root = (TreeNode)tree.getModel().getRoot();
-        TreeNode folder = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(gist.folder)).findAny().orElse(null);
+        TreeNode folder = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(gist.folder())).findAny().orElse(null);
         if (folder==null) {
             tree.setSelectionPath(null);
-            return;
+            return false;
         }
-        GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.gist.name.equals(gist.name) && (g.objectClassIdx==selectedOC) ).findAny().orElse(null);
+        GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.gist.name().equals(gist.name()) && (g.objectClassIdx==selectedOC) ).findAny().orElse(null);
         if (element==null) {
             tree.setSelectionPath(null);
-            return;
+            return false;
         }
         tree.setSelectionPath(new TreePath(new Object[]{root, folder, element}));
+        return true;
     }
 
     private void generateTree() {
@@ -251,7 +252,7 @@ public class ConfigurationGistTreeGenerator {
 
     }
     private void addGistToFolder(FolderNode f, GistConfiguration g, boolean sorted) {
-        if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.type.equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
+        if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.getType().equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
             if (g.getExperiment() != null) {
                 for (int oIdx = 0; oIdx<g.getExperiment().getStructureCount(); ++oIdx) {
                     GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
@@ -284,7 +285,7 @@ public class ConfigurationGistTreeGenerator {
         });
     }
     public void addGist(GistConfiguration gist) {
-        FolderNode folder = getFolderNode(gist.folder, true);
+        FolderNode folder = getFolderNode(gist.folder(), true);
         addGistToFolder(folder, gist, true);
         treeModel.nodeStructureChanged(folder);
         if (thumbnailLazyLoader.containsKey(folder)) {
@@ -328,10 +329,10 @@ public class ConfigurationGistTreeGenerator {
         logger.debug("update tree: force: {}, mode equals: {}, gist equals: {}, keep selection: {}", force, !changeMode, newGists.equals(this.gists), keepSel);
         if (force || changeMode || !newGists.equals(this.gists)) {
             this.type = mode;
-            this.gists = newGists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
+            this.gists = newGists.stream().filter(g -> g.getType().equals(type)).collect(Collectors.toList());
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) { // also add parts of whole configurations
-                Predicate<GistConfiguration> notPresent = g -> this.gists.stream().noneMatch(gg-> gg.folder.equals(g.folder) && gg.name.equals(g.name));
-                this.gists.addAll(newGists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
+                Predicate<GistConfiguration> notPresent = g -> this.gists.stream().noneMatch(gg-> gg.folder().equals(g.folder()) && gg.name().equals(g.name()));
+                this.gists.addAll(newGists.stream().filter(g -> g.getType().equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
             }
             DefaultMutableTreeNode root = getRoot();
             Enumeration<TreePath> expState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{getRoot()}));
@@ -340,10 +341,10 @@ public class ConfigurationGistTreeGenerator {
             thumbnailLazyLoader.values().forEach(DefaultWorker::cancelSilently);
             thumbnailLazyLoader.clear();
             // folder nodes
-            gists.stream().map(gc -> gc.folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
+            gists.stream().map(gc -> gc.folder()).distinct().sorted().map(FolderNode::new).forEach(f -> {
                 root.add(f);
                 // actual configuration element
-                gists.stream().filter(g -> g.folder.equals(f.getUserObject())).sorted(Comparator.comparing(g->g.name)).forEach(g -> {
+                gists.stream().filter(g -> g.folder().equals(f.getUserObject())).sorted(Comparator.comparing(GistConfiguration::name)).forEach(g -> {
                     addGistToFolder(f, g, false);
                 });
             });
@@ -411,7 +412,7 @@ public class ConfigurationGistTreeGenerator {
         }
         @Override
         public String toString() {
-            String res = gist.name;
+            String res = gist.name();
             if (objectClassIdx>=0 && gist.getExperiment()!=null) res+=" ["+gist.getExperiment().getStructure(objectClassIdx).getName()+"]";
             return res;
         }

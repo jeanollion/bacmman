@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.DLengineProvider;
 import bacmman.plugins.DLengine;
@@ -264,6 +265,9 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             }
             if (toInit) initChildList();
             bypassListeners=false;
+            if (this instanceof ConfigIDAware && other instanceof ConfigIDAware) {
+                ((ConfigIDAware)this).setConfigID(((ConfigIDAware)other).getConfigID());
+            }
         } //else throw new IllegalArgumentException("wrong parameter type");
     }
 

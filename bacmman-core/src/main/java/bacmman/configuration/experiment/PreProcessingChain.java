@@ -19,6 +19,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.github.gist.GistConfiguration;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.MultichannelTransformation;
 
@@ -34,7 +35,7 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChain> implements ParameterChangeCallback<PreProcessingChain> {
+public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChain> implements ParameterChangeCallback<PreProcessingChain>, ConfigIDAware<PreProcessingChain> {
     BooleanParameter useImageScale = new BooleanParameter("Voxel Calibration", "Use Image Calibration", "Custom Calibration", true).setHint("Voxel calibration (voxel size in x, y, z axis). If <em>Custom calibration</em> is set, the image calibration will be overwritten.<br />Pre-processing must be re-run after modifying the calibration");
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("Scale XY", 5, 1, 0.00001, null);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("Scale Z", 5, 1, 0.00001, null);
@@ -43,6 +44,8 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     IntervalParameter trimFrames = new IntervalParameter("Trim Frames", 0, 0, 0, 0, 0).setHint("Frame interval (inclusive) to be pre-processed. [0;0] = no trimming");
     SimpleListParameter<TransformationPluginParameter<Transformation>> transformations = new SimpleListParameter<>("Pre-Processing pipeline", new TransformationPluginParameter<>("Transformation", Transformation.class, false));
     final boolean template;
+    String configID;
+
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -52,6 +55,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         res.put("frameDuration", frameDuration.toJSONEntry());
         res.put("trimFrames", trimFrames.toJSONEntry());
         res.put("transformations", transformations.toJSONEntry());
+        if (configID!=null) res.put(ConfigIDAware.key, configID);
         return res;
     }
 
@@ -64,6 +68,21 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         frameDuration.initFromJSONEntry(jsonO.get("frameDuration"));
         if (jsonO.containsKey("trimFrames")) trimFrames.initFromJSONEntry(jsonO.get("trimFrames"));
         transformations.initFromJSONEntry(jsonO.get("transformations"));
+        if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
+    }
+
+    public PreProcessingChain setConfigID(String configID) {
+        this.configID = configID;
+        return this;
+    }
+
+    public String getConfigID() {
+        return configID;
+    }
+
+    @Override
+    public GistConfiguration.TYPE getType() {
+        return GistConfiguration.TYPE.PRE_PROCESSING;
     }
     
     public PreProcessingChain(String name, boolean template) {

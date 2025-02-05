@@ -18,39 +18,31 @@
  */
 package bacmman.ui.gui.configuration;
 
-import bacmman.configuration.experiment.Experiment;
-import bacmman.configuration.experiment.Position;
-import bacmman.configuration.experiment.PreProcessingChain;
-import bacmman.configuration.experiment.Structure;
+import bacmman.configuration.experiment.*;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.*;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.github.gist.GistConfiguration;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
+import bacmman.ui.GUI;
+import bacmman.ui.gui.configurationIO.ConfigurationLibrary;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static bacmman.plugins.Hint.formatHint;
 
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
-import javax.swing.Action;
-import javax.swing.DropMode;
-import javax.swing.Icon;
-import javax.swing.JLabel;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JSeparator;
-import javax.swing.JTree;
-import javax.swing.SwingUtilities;
-import javax.swing.ToolTipManager;
+import javax.swing.*;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
 import javax.swing.tree.*;
@@ -323,37 +315,112 @@ public class ConfigurationTreeGenerator {
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    TreePath path = tree.getPathForLocation(e.getX(), e.getY());
-                    tree.setSelectionPath(path);
-                    Rectangle pathBounds = tree.getUI().getPathBounds(tree, path);
-                    if (pathBounds != null && pathBounds.contains(e.getX(), e.getY())) {
-                        Object lastO = path.getLastPathComponent();
-                        JPopupMenu menu = new JPopupMenu();
-                        if (lastO instanceof Parameter) {
-                            Parameter p = (Parameter) lastO;
-                            ParameterUI ui = ParameterUIBinder.getUI(p, treeModel, pcb);
-                            if (ui!=null) {
-                                //logger.debug("right click: UI: {}", ui.getClass().getSimpleName());
-                                if (ui instanceof ChoiceParameterUI) ((ArmableUI)ui).refreshArming();
-                                if (ui instanceof MultipleChoiceParameterUI) ((MultipleChoiceParameterUI)ui).addMenuListener(menu, pathBounds.x, pathBounds.y + pathBounds.height, tree);
-                                if (ui instanceof PreProcessingChainUI) ((PreProcessingChainUI)ui).addMenuListener(menu, pathBounds.x, pathBounds.y + pathBounds.height, tree);
-                                addToMenu(ui.getDisplayComponent(), menu);
-                                menu.addSeparator();
-                            }
-                            if (path.getPathCount()>=2 && path.getPathComponent(path.getPathCount()-2) instanceof ListParameter) { // specific actions for children of ListParameters
+            if (SwingUtilities.isRightMouseButton(e)) {
+                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+                tree.setSelectionPath(path);
+                Rectangle pathBounds = tree.getUI().getPathBounds(tree, path);
+                if (pathBounds != null && pathBounds.contains(e.getX(), e.getY())) {
+                    Object lastO = path.getLastPathComponent();
+                    JPopupMenu menu = new JPopupMenu();
+                    if (lastO instanceof Parameter) {
+                        Parameter p = (Parameter) lastO;
+                        ParameterUI ui = ParameterUIBinder.getUI(p, treeModel, pcb);
+                        if (ui!=null) {
+                            //logger.debug("right click: UI: {}", ui.getClass().getSimpleName());
+                            if (ui instanceof ChoiceParameterUI) ((ArmableUI)ui).refreshArming();
+                            if (ui instanceof MultipleChoiceParameterUI) ((MultipleChoiceParameterUI)ui).addMenuListener(menu, pathBounds.x, pathBounds.y + pathBounds.height, tree);
+                            if (ui instanceof PreProcessingChainUI) ((PreProcessingChainUI)ui).addMenuListener(menu, pathBounds.x, pathBounds.y + pathBounds.height, tree);
+                            addToMenu(ui.getDisplayComponent(), menu);
+                            menu.addSeparator();
+                        }
+                        if (path.getPathCount()>=2 && path.getPathComponent(path.getPathCount()-2) instanceof ListParameter) { // specific actions for children of ListParameters
                             ListParameter lp = (ListParameter)path.getPathComponent(path.getPathCount()-2);
                             ListParameterUI listUI = (ListParameterUI)ParameterUIBinder.getUI(lp, treeModel, pcb);
                             addToMenu(listUI.getChildDisplayComponent(p), menu);
-                                //menu.addSeparator();
-                            }
                         }
-
-                        menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
-
+                        if (lastO instanceof ConfigIDAware) {
+                            //menu.addSeparator();
+                            ConfigIDAware cia = (ConfigIDAware)lastO;
+                            String id = cia.getConfigID();
+                            //menu.add("ConfigID: "+id + " idx:"+cia.getConfigItemIdx());
+                            JMenuItem update = new JMenuItem("Update from configuration library");
+                            update.setAction(
+                                new AbstractAction("Update from configuration library") {
+                                    @Override
+                                    public void actionPerformed(ActionEvent ae) {
+                                        if (Utils.promptBoolean("Update will overwrite component configuration", tree)) {
+                                            try {
+                                                GistConfiguration config = new GistConfiguration(id);
+                                                int remoteItemIdx = -1;
+                                                if (config.getType().equals(GistConfiguration.TYPE.WHOLE) && cia.getType().equals(GistConfiguration.TYPE.PROCESSING)) {
+                                                    remoteItemIdx = cia.getConfigItemIdx();
+                                                    if (remoteItemIdx == -1) throw new IOException("Configuration of processing chain points to a whole configuration but object class is not set");
+                                                }  else if (!config.getType().equals(cia.getType()) && !config.getType().equals(GistConfiguration.TYPE.WHOLE)) throw new IOException("Remote configuration type do not match configuration block type: remote="+config.getType()+" vs local="+cia.getType());
+                                                int itemIdx = -1;
+                                                if (cia.getType().equals(GistConfiguration.TYPE.PROCESSING)) {
+                                                    Structure oc = ParameterUtils.getFirstParameterFromParents(Structure.class, (Parameter)lastO, false);
+                                                    if (oc == null) throw new IOException("Current block is not associated with any object class");
+                                                    itemIdx = oc.getIndex();
+                                                } else if (cia.getType().equals(GistConfiguration.TYPE.PRE_PROCESSING) && ((Parameter)lastO).getParent() instanceof Position) {
+                                                    Position p = (Position) ((Parameter)lastO).getParent();
+                                                    itemIdx = p.getIndex() + 1; // 0 is template in configuration library
+                                                }
+                                                ContainerParameter remoteParameter = ConfigurationLibrary.getParameter(config, remoteItemIdx, cia.getType());
+                                                if (remoteParameter == null) throw new IOException("Could not retrieve remote configuration");
+                                                Experiment xp = ParameterUtils.getExperiment((Parameter)lastO);
+                                                if (xp == null) throw new IOException("Local parameter is not within an Experiment");
+                                                ConfigurationLibrary.copyRemoteToLocal(xp, itemIdx, cia.getType(), remoteParameter, id, cia.getConfigItemIdx());
+                                                treeModel.nodeChanged((Parameter)lastO);
+                                                treeModel.nodeStructureChanged((Parameter)lastO);
+                                            } catch (IOException ex) {
+                                                GUI.getInstance().setMessage("Error updating from library conif_id="+id+ " error: "+ex.getMessage());
+                                            }
+                                        }
+                                    }
+                                }
+                            );
+                            update.setEnabled(id != null);
+                            menu.add(update);
+                            JMenuItem edit = new JMenuItem("Edit configuration in library");
+                            edit.setAction(
+                                new AbstractAction("Edit configuration in library") {
+                                    @Override
+                                    public void actionPerformed(ActionEvent ae) {
+                                        try {
+                                            GistConfiguration config = new GistConfiguration(id);
+                                            int remoteItemIdx = -1;
+                                            if (config.getType().equals(GistConfiguration.TYPE.WHOLE) && cia.getType().equals(GistConfiguration.TYPE.PROCESSING)) {
+                                                remoteItemIdx = cia.getConfigItemIdx();
+                                                if (remoteItemIdx == -1) throw new IOException("Configuration of processing chain points to a whole configuration but object class is not set");
+                                            }  else if (!config.getType().equals(cia.getType()) && !config.getType().equals(GistConfiguration.TYPE.WHOLE)) throw new IOException("Remote configuration type do not match configuration block type: remote="+config.getType()+" vs local="+cia.getType());
+                                            ContainerParameter remoteParameter = ConfigurationLibrary.getParameter(config, remoteItemIdx, cia.getType());
+                                            if (remoteParameter == null) throw new IOException("Could not retrieve remote configuration");
+                                            Experiment xp = ParameterUtils.getExperiment((Parameter)lastO);
+                                            if (xp == null) throw new IOException("Local parameter is not within an Experiment");
+                                            ConfigurationLibrary lib = GUI.getInstance().displayConfigurationLibrary();
+                                            if (lib.selectGist(config, cia.getType(), remoteItemIdx)) lib.updateRemoteConfigTree(config, remoteItemIdx);
+                                            else {
+                                                Utils.displayTemporaryMessage("Could not select configuration. Connect to account first", 3000);
+                                                GUI.log("Could not select configuration. Connect to account first");
+                                            }
+                                            if (cia.getType().equals(GistConfiguration.TYPE.PROCESSING)) {
+                                                Structure oc = ParameterUtils.getFirstParameterFromParents(Structure.class, (Parameter)lastO, false);
+                                                lib.setLocalItemIdx(oc.getIndex());
+                                            }
+                                        } catch (IOException ex) {
+                                            GUI.getInstance().setMessage("Error editing remote configuration in library config_id="+id+ " error: "+ex.getMessage());
+                                        }
+                                    }
+                                }
+                            );
+                            edit.setEnabled(id != null);
+                            menu.add(edit);
+                        }
                     }
+                    menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
                 }
-                xpChanged();
+            }
+            xpChanged();
             }
         });
         tree.addTreeSelectionListener(e -> {

@@ -26,6 +26,8 @@ import java.util.Enumeration;
 import java.util.List;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
+
+import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -125,9 +127,13 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
             if (!ParameterUtils.setContent(getChildren(), otherP.getChildren())) logger.warn("SCP: {}({}): different parameter length, they might not be well set: c:{}/src:{}", name, this.getClass().getSimpleName(), children.size(), otherP.children.size());
             transferStateArguments((ContainerParameterImpl) other, this);
             bypassListeners=false;
+            if (this instanceof ConfigIDAware && other instanceof ConfigIDAware) {
+                ((ConfigIDAware)this).setConfigID(((ConfigIDAware)other).getConfigID());
+            }
         } else {
             //throw new IllegalArgumentException("wrong parameter type");
         }
+
     }
     public static void transferStateArguments(ContainerParameterImpl source, ContainerParameterImpl dest) {
         dest.setListeners(source.listeners);

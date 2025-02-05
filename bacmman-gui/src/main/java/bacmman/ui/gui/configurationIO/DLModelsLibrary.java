@@ -226,73 +226,73 @@ public class DLModelsLibrary {
         duplicateButton.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    JPopupMenu menu = new JPopupMenu();
-                    Action dupOther = new AbstractAction("Duplicate To another Account") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to duplicate to");
-                            if (cred != null) {
-                                try {
-                                    TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
-                                    GistDLModel gist = tree.getSelectedGist();
-                                    if (gist == null) return;
-                                    SaveDLModelGist form = new SaveDLModelGist(gateway);
-                                    form.setFolder(gist.folder)
-                                            .setName(gist.name)
-                                            .setDescription(gist.getDescription())
-                                            .setURL(gist.getModelURL())
-                                            .setMetadata(gist.getMetadata())
-                                            .setVisible(gist.isVisible());
-                                    form.setAuthAndDefaultDirectory(auth2, workingDirectory, pcb);
-                                    form.display(displayingFrame, "Duplicate model to another account...");
-                                    if (form.canceled) return;
-                                    if (!Utils.isValid(form.name(), false)) {
-                                        pcb.setMessage("Invalid name");
-                                        return;
-                                    }
-                                    if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
-                                        pcb.setMessage("Invalid folder name");
-                                        return;
-                                    }
-                                    if (cred.key.equals(username.getText())) { // same account
-                                        boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
-                                        if (exists) {
-                                            pcb.setMessage("Model already exists.");
-                                            return;
-                                        }
-                                    } else { // check on remote
-                                        List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, pcb);
-                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
-                                        if (exists) {
-                                            if (pcb != null)
-                                                pcb.setMessage("Configuration already exists on other account.");
-                                            return;
-                                        }
-                                    }
-                                    GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-                                    List<BufferedImage> otherThumb = gist.getThumbnail();
-                                    if (otherThumb != null)
-                                        for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
-                                    toSave.createNewGist(auth2);
-                                    if (cred.key.equals(username.getText())) { // same account
-                                        gists.add(toSave);
-                                        updateGistDisplay();
-                                        tree.setSelectedGist(toSave);
-                                    }
-                                } catch (GeneralSecurityException ex) {
-                                    pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
-                                } catch (IOException ex) {
-                                    if (pcb != null) pcb.setMessage("Error saving gist" + ex.getMessage());
-                                    logger.error("Error saving gist", ex);
+            if (SwingUtilities.isRightMouseButton(evt)) {
+                JPopupMenu menu = new JPopupMenu();
+                Action dupOther = new AbstractAction("Duplicate To another Account") {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to duplicate to");
+                        if (cred != null) {
+                            try {
+                                TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                GistDLModel gist = tree.getSelectedGist();
+                                if (gist == null) return;
+                                SaveDLModelGist form = new SaveDLModelGist(gateway);
+                                form.setFolder(gist.folder)
+                                        .setName(gist.name)
+                                        .setDescription(gist.getDescription())
+                                        .setURL(gist.getModelURL())
+                                        .setMetadata(gist.getMetadata())
+                                        .setVisible(gist.isVisible());
+                                form.setAuthAndDefaultDirectory(auth2, workingDirectory, pcb);
+                                form.display(displayingFrame, "Duplicate model to another account...");
+                                if (form.canceled) return;
+                                if (!Utils.isValid(form.name(), false)) {
+                                    pcb.setMessage("Invalid name");
+                                    return;
                                 }
+                                if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
+                                    pcb.setMessage("Invalid folder name");
+                                    return;
+                                }
+                                if (cred.key.equals(username.getText())) { // same account
+                                    boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
+                                    if (exists) {
+                                        pcb.setMessage("Model already exists.");
+                                        return;
+                                    }
+                                } else { // check on remote
+                                    List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, pcb);
+                                    boolean exists = otherConfigs.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()));
+                                    if (exists) {
+                                        if (pcb != null)
+                                            pcb.setMessage("Configuration already exists on other account.");
+                                        return;
+                                    }
+                                }
+                                GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+                                List<BufferedImage> otherThumb = gist.getThumbnail();
+                                if (otherThumb != null)
+                                    for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
+                                toSave.createNewGist(auth2);
+                                if (cred.key.equals(username.getText())) { // same account
+                                    gists.add(toSave);
+                                    updateGistDisplay();
+                                    tree.setSelectedGist(toSave);
+                                }
+                            } catch (GeneralSecurityException ex) {
+                                pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                            } catch (IOException ex) {
+                                if (pcb != null) pcb.setMessage("Error saving gist" + ex.getMessage());
+                                logger.error("Error saving gist", ex);
                             }
                         }
-                    };
-                    dupOther.setEnabled(tree != null && tree.getSelectedGist() != null);
-                    menu.add(dupOther);
-                    menu.show(duplicateButton, evt.getX(), evt.getY());
-                }
+                    }
+                };
+                dupOther.setEnabled(tree != null && tree.getSelectedGist() != null);
+                menu.add(dupOther);
+                menu.show(duplicateButton, evt.getX(), evt.getY());
+            }
             }
         });
         setThumbnailButton.addActionListener(e -> {

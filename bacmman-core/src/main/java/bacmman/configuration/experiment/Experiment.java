@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.*;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Selection;
+import bacmman.github.gist.GistConfiguration;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;
@@ -57,7 +58,7 @@ import java.util.stream.Stream;
  * 
  */
 
-public class Experiment extends ContainerParameterImpl<Experiment> implements ParameterChangeCallback<Experiment> {
+public class Experiment extends ContainerParameterImpl<Experiment> implements ParameterChangeCallback<Experiment>, ConfigIDAware<Experiment> {
     SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels" , ChannelImage.class).setMinChildCount(1).setNewInstanceNameFunction((l, i)->"channel"+i).setHint("Define here the different channels of input images");
     SimpleListParameter<ChannelImageDuplicated> channelImagesDuplicated= new SimpleListParameter<>("Duplicated Detection Channels", ChannelImageDuplicated.class).setNewInstanceNameFunction((l, i)->"duplicated channel"+i).setHint("Define here duplicated detection channels. Duplicated detection channels allow to perform different transformations pipeline on the same detection channel");
 
@@ -65,24 +66,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
             .setNewInstanceNameFunction((l, i)->"object class"+i)
             .addNewInstanceConfiguration(Structure::setAutomaticColor)
             .setHint("Types of objects to be analysed in this dataset. The processing pipeline (segmentation, tracking…) is defined in this part of the configuration tree, and can be configured from the <em>Configuration Test</em> tab (by selecting the <em>Processing</em> step)");
-    SimpleListParameter<PluginParameter<Measurement>> measurements = new SimpleListParameter<>("Measurements", new PluginParameter<>("", Measurement.class, false))
-            .addValidationFunctionToChildren(ppm -> {
-                if (!ppm.isActivated()) return true;
-                if (!ppm.isOnePluginSet()) return false;
-                Measurement m = ppm.instantiatePlugin();
-                if (m==null) return false;
-                Map<Integer, List<String>> currentmkByStructure= m.getMeasurementKeys().stream().collect(Collectors.groupingBy(MeasurementKey::getStoreStructureIdx, Collectors.mapping(MeasurementKey::getKey, Collectors.toList())));
-                if (currentmkByStructure.values().stream().anyMatch((l) -> ((new HashSet<>(l).size()!=l.size())))) return false; // first check if duplicated keys for the measurement
-                SimpleListParameter<PluginParameter<Measurement>> ml= (SimpleListParameter) ppm.getParent();
-                if (ml==null) return true; // in case the child was removed from parent
-                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp -> pp!=ppm).map(PluginParameter::instantiatePlugin).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(MeasurementKey::getStoreStructureIdx, Collectors.mapping(MeasurementKey::getKey, Collectors.toSet())));
-                return currentmkByStructure.entrySet().stream().noneMatch(e -> {
-                    Set<String> otherKeys = allmkByStructure.get(e.getKey());
-                    if (otherKeys==null) return false;
-                    return !Sets.intersection(otherKeys, new HashSet<>(e.getValue())).isEmpty();
-                });
-            })
-            .setHint("Measurements to be performed after processing. Measurements will be extracted in several data tables, each one corresponding to a single object class (e.g. microchannels or bacteria or spots). For each measurement, the table in which it will be written and the name of the corresponding column are indicated in the Help window. If the user defines two measurements with the same name in the same data table, the measurements will not be performed and invalid measurements are displayed in red.");
+    MeasurementList measurements = new MeasurementList("Measurements");
     SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", Position.class).setAllowModifications(false).setAllowDeactivable(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
     PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operations can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
     
@@ -117,7 +101,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
     protected OmeroGateway omeroGateway;
     protected GithubGateway githubGateway;
-
+    protected String configID;
     protected Supplier<Stream<Selection>> selectionSupplier;
     @Override
     public JSONObject toJSONEntry() {
@@ -134,6 +118,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         res.put("importMethod", importCond.toJSONEntry());
         res.put("bestFocusPlane", bestFocusPlane.toJSONEntry());
         res.put("note", note.toJSONEntry());
+        if (configID!=null) res.put(ConfigIDAware.key, configID);
         return res;
     }
 
@@ -154,6 +139,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         else importMethod.initFromJSONEntry(jsonO.get("importMethod")); // RETRO COMPATIBILITY
         bestFocusPlane.initFromJSONEntry(jsonO.get("bestFocusPlane"));
         if (jsonO.containsKey("note")) note.initFromJSONEntry(jsonO.get("note"));
+        if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
+
     }
     public Experiment(){
         this("");
@@ -176,6 +163,21 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         structures.addListener(source -> source.getChildren().forEach(Structure::setMaxStructureIdx));
         initChildList();
     }
+
+    public Experiment setConfigID(String configID) {
+        this.configID = configID;
+        return this;
+    }
+
+    public String getConfigID() {
+        return configID;
+    }
+
+    @Override
+    public GistConfiguration.TYPE getType() {
+        return GistConfiguration.TYPE.WHOLE;
+    }
+
     @Override 
     public boolean isEmphasized() {
         return false;
@@ -471,7 +473,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
 
     
     // measurement-related methods
-    public SimpleListParameter<PluginParameter<Measurement>> getMeasurements() { return measurements;}
+    public MeasurementList getMeasurements() { return measurements;}
     public List<MeasurementKey> getAllMeasurementKeys() {
         if (this.measurements.getChildCount()==0) return Collections.emptyList();
         else {

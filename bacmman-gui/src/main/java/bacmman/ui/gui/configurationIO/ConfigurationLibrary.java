@@ -1,5 +1,6 @@
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
@@ -153,7 +154,7 @@ public class ConfigurationLibrary {
             form.display(displayingFrame, "Save selected local configuration to...");
             if (form.canceled) return;
             // check that name does not already exists
-            boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
+            boolean exists = gists.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
             if (exists) {
                 GUI.log("Gist already exists.");
                 return;
@@ -189,7 +190,7 @@ public class ConfigurationLibrary {
                 String folder = remoteSelector.getSelectedFolder();
                 if (folder == null) return;
                 if (!Utils.promptBoolean("Delete all configuration files from selected folder ? ", mainPanel)) return;
-                gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {
+                gists.stream().filter(g -> folder.equals(g.folder())).collect(Collectors.toList()).forEach(g -> {
                     gists.remove(g);
                     g.delete(getAuth());
                     toRemove.add(g);
@@ -205,21 +206,22 @@ public class ConfigurationLibrary {
             if (remoteSelector == null || !loggedIn) return;
             GistConfiguration gist = remoteSelector.getSelectedGist();
             SaveGistForm form = new SaveGistForm();
-            form.setFolder(gist.folder).disableFolderField()
-                    .setName(gist.name).disableNameField()
+            form.setFolder(gist.folder()).disableFolderField()
+                    .setName(gist.name()).disableNameField()
                     .setDescription(gist.getDescription())
                     .setVisible(gist.isVisible()).disableVisibleField();
             form.display(displayingFrame, "Update remote configuration...");
             if (form.canceled) return;
             gist.setDescription(form.description()); // only those fields can be modified
             JSONObject content = null;
-            if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+            if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                 switch (currentMode) {
                     case PROCESSING: {
                         Experiment xp = gist.getExperiment();
                         int sIdx = remoteSelector.getSelectedGistNode().getObjectClassIdx();
                         xp.getStructure(sIdx).getProcessingPipelineParameter().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
                         content = xp.toJSONEntry();
+                        content.remove(ConfigIDAware.key);
                         break;
                     }
                     case PRE_PROCESSING: {
@@ -252,50 +254,12 @@ public class ConfigurationLibrary {
             localConfig.getTree().updateUI();
             remoteConfig.getTree().updateUI();
         });
+
         copyToLocal.addActionListener(e -> {
             if (remoteConfig == null) return;
-            switch (currentMode) {
-                case WHOLE: {
-                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
-                    String outputPath = xp.getOutputDirectory();
-                    String outputImagePath = xp.getOutputImageDirectory();
-                    content.remove("positions");
-                    content.remove("note");
-                    xp.initFromJSONEntry(content);
-                    xp.setOutputDirectory(outputPath);
-                    xp.setOutputImageDirectory(outputImagePath);
-                    boolean differ = xp.getPositions().stream().anyMatch(p -> !p.getPreProcessingChain().sameContent(xp.getPreProcessingTemplate()));
-                    if (differ && Utils.promptBoolean("Also copy pre-processing template to all positions ?", this.mainPanel)) {
-                        xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(xp.getPreProcessingTemplate()));
-                    }
-                    break;
-                }
-                case PRE_PROCESSING: {
-                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
-                    Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
-                    int pIdx = this.localSelectorJCB.getSelectedIndex() - 1;
-                    if (pIdx < 0) { // template is selected
-                        this.xp.getPreProcessingTemplate().setContentFrom(remoteXP.getPreProcessingTemplate());
-                        boolean differ = xp.getPositions().stream().anyMatch(p -> !p.getPreProcessingChain().sameContent(remoteXP.getPreProcessingTemplate()));
-                        if (differ && Utils.promptBoolean("Also copy pre-processing to all positions ?", this.mainPanel)) {
-                            xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate()));
-                        }
-                    } else { // one position is selected
-                        this.xp.getPosition(pIdx).getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate());
-                    }
-                    break;
-                }
-                case MEASUREMENTS: {
-                    this.xp.getMeasurements().initFromJSONEntry(remoteConfig.getRoot().toJSONEntry());
-                    break;
-                }
-                case PROCESSING: {
-                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
-                    Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
-                    xp.getStructure(localSelectorJCB.getSelectedIndex()).getProcessingPipelineParameter().setContentFrom(remoteXP.getStructure(0).getProcessingPipelineParameter());
-                    break;
-                }
-            }
+            String remoteID = remoteSelector.getSelectedGist().getID();
+            int remoteIdx = remoteSelector.getSelectedGistNode().getObjectClassIdx();
+            copyRemoteToLocal(xp, this.localSelectorJCB.getSelectedIndex(), currentMode, remoteConfig.getRoot(), remoteID, remoteIdx);
             updateCompareParameters();
             localConfig.getTree().updateUI();
             remoteConfig.getTree().updateUI();
@@ -305,15 +269,16 @@ public class ConfigurationLibrary {
             if (remoteConfig == null) return;
             GistConfiguration gist = remoteSelector.getSelectedGist();
             SaveGistForm form = new SaveGistForm();
-            form.setFolder(gist.folder)
-                    .setName(gist.name)
+            form.setFolder(gist.folder())
+                    .setName(gist.name())
                     .setDescription(gist.getDescription())
                     .setVisible(gist.isVisible());
             form.display(displayingFrame, "Duplicate remote configuration...");
             if (form.canceled) return;
             JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
+            content.remove(ConfigIDAware.key);
             // check that name does not already exists
-            boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
+            boolean exists = gists.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
             if (exists) {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Configuration already exists.");
                 return;
@@ -327,13 +292,13 @@ public class ConfigurationLibrary {
                 return;
             }
             GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-            if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+            if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                 List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
                 if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
             } else {
                 List<BufferedImage> otherThumb = gist.getThumbnail();
                 if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
-                if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                     for (int ocIdx = 0; ocIdx < gist.getExperiment().getStructureCount(); ++ocIdx) {
                         otherThumb = gist.getThumbnail(ocIdx);
                         logger.debug("dup thumbs: oc: {} #{}", ocIdx, otherThumb == null ? 0 : otherThumb.size());
@@ -360,13 +325,14 @@ public class ConfigurationLibrary {
                                     TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                     GistConfiguration gist = remoteSelector.getSelectedGist();
                                     SaveGistForm form = new SaveGistForm();
-                                    form.setFolder(gist.folder)
-                                            .setName(gist.name)
+                                    form.setFolder(gist.folder())
+                                            .setName(gist.name())
                                             .setDescription(gist.getDescription())
                                             .setVisible(gist.isVisible());
                                     form.display(displayingFrame, "Duplicate remote configuration to another account...");
                                     if (form.canceled) return;
                                     JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
+                                    content.remove("config_id");
                                     if (!Utils.isValid(form.name(), false)) {
                                         if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid name");
                                         return;
@@ -377,7 +343,7 @@ public class ConfigurationLibrary {
                                     }
                                     // check that name does not already exists
                                     if (cred.key.equals(username.getText())) { // same account
-                                        boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
+                                        boolean exists = gists.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
                                         if (exists) {
                                             if (bacmmanLogger != null)
                                                 bacmmanLogger.setMessage("Configuration already exists.");
@@ -385,7 +351,7 @@ public class ConfigurationLibrary {
                                         }
                                     } else { // check on remote
                                         List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, bacmmanLogger);
-                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
+                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
                                         if (exists) {
                                             if (bacmmanLogger != null)
                                                 bacmmanLogger.setMessage("Configuration already exists on other account.");
@@ -393,7 +359,7 @@ public class ConfigurationLibrary {
                                         }
                                     }
                                     GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                                         List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
                                         if (otherThumb != null)
                                             for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
@@ -401,7 +367,7 @@ public class ConfigurationLibrary {
                                         List<BufferedImage> otherThumb = gist.getThumbnail();
                                         if (otherThumb != null)
                                             for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
-                                        if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                                        if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                                             for (int ocIdx = 0; ocIdx < gist.getExperiment().getStructureCount(); ++ocIdx) {
                                                 otherThumb = gist.getThumbnail(ocIdx);
                                                 if (otherThumb != null)
@@ -483,6 +449,55 @@ public class ConfigurationLibrary {
         remoteConfigJSP.setToolTipText(formatHint("Configuration tree of the selected remote file. Differences with the configuration of the local current dataset are are displayed in blue. <br/>Modifications in this tree are not taken into account: to modify this configuration, modify the local one and click <em>Update Remote</em>", true));
     }
 
+    public static void copyRemoteToLocal(Experiment xp, int localItemIdx, GistConfiguration.TYPE configBlockType, ContainerParameter remote, String remoteID, int remoteIdx) {
+        Component main = GUI.getInstance();
+        switch (configBlockType) {
+            case WHOLE: {
+                JSONObject content = (JSONObject) remote.toJSONEntry();
+                String outputPath = xp.getOutputDirectory();
+                String outputImagePath = xp.getOutputImageDirectory();
+                content.remove("positions");
+                content.remove("note");
+                xp.initFromJSONEntry(content);
+                xp.setOutputDirectory(outputPath);
+                xp.setOutputImageDirectory(outputImagePath);
+                xp.setConfigID(remoteID);
+                boolean differ = xp.getPositions().stream().anyMatch(p -> !p.getPreProcessingChain().sameContent(xp.getPreProcessingTemplate()));
+                if (differ && Utils.promptBoolean("Also copy pre-processing template to all positions ?", main)) {
+                    xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(xp.getPreProcessingTemplate()));
+                }
+                break;
+            }
+            case PRE_PROCESSING: {
+                JSONObject content = (JSONObject) remote.toJSONEntry();
+                Experiment remoteXP = GistConfiguration.getExperiment(content, configBlockType, remoteID);
+                int pIdx = localItemIdx - 1;
+                if (pIdx < 0) { // template is selected
+                    xp.getPreProcessingTemplate().setContentFrom(remoteXP.getPreProcessingTemplate());
+                    boolean differ = xp.getPositions().stream().anyMatch(p -> !p.getPreProcessingChain().sameContent(remoteXP.getPreProcessingTemplate()));
+                    if (differ && Utils.promptBoolean("Also copy pre-processing to all positions ?", main)) {
+                        xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate()));
+
+                    }
+                } else { // one position is selected
+                    xp.getPosition(pIdx).getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate());
+                }
+                break;
+            }
+            case MEASUREMENTS: {
+                xp.getMeasurements().initFromJSONEntry(remote.toJSONEntry());
+                break;
+            }
+            case PROCESSING: {
+                JSONObject content = (JSONObject) remote.toJSONEntry();
+                Experiment remoteXP = GistConfiguration.getExperiment(content, configBlockType, remoteID);
+                xp.getStructure(localItemIdx).getProcessingPipelineParameter().setContentFrom(remoteXP.getStructure(0).getProcessingPipelineParameter());
+                xp.getStructure(localItemIdx).getProcessingPipelineParameter().setConfigItemIdx(remoteIdx);
+                break;
+            }
+        }
+    }
+
     public void updateLocalSelector() {
         if (db == null || currentMode == null || localSelectorJCB.getSelectedIndex() < 0) {
             localConfigJSP.setViewportView(null);
@@ -560,22 +575,25 @@ public class ConfigurationLibrary {
         } else {
             GistConfiguration.TYPE cur = currentMode;
             currentMode = null;
-            switch (cur) {
-                case WHOLE:
-                default:
-                    logger.debug("will set whole config");
-                    setWholeConfig();
-                    break;
-                case PRE_PROCESSING:
-                    setPreProcessing();
-                    break;
-                case MEASUREMENTS:
-                    setMeasurements();
-                    break;
-                case PROCESSING:
-                    setProcessing();
-                    break;
-            }
+            setMode(cur);
+        }
+    }
+
+    protected void setMode(GistConfiguration.TYPE cur) {
+        switch (cur) {
+            case WHOLE:
+            default:
+                setWholeConfig();
+                break;
+            case PRE_PROCESSING:
+                setPreProcessing();
+                break;
+            case MEASUREMENTS:
+                setMeasurements();
+                break;
+            case PROCESSING:
+                setProcessing();
+                break;
         }
     }
 
@@ -753,6 +771,7 @@ public class ConfigurationLibrary {
             updateRemoteSelector();
             updateEnableButtons();
         }
+        if (stepJCB.getSelectedIndex() != 0) stepJCB.setSelectedIndex(0);
     }
 
     private void setMeasurements() {
@@ -772,6 +791,7 @@ public class ConfigurationLibrary {
             updateRemoteSelector();
             updateEnableButtons();
         }
+        if (stepJCB.getSelectedIndex() != 3) stepJCB.setSelectedIndex(3);
     }
 
     private void setPreProcessing() {
@@ -792,6 +812,7 @@ public class ConfigurationLibrary {
             updateRemoteSelector();
             updateEnableButtons();
         }
+        if (stepJCB.getSelectedIndex() != 1) stepJCB.setSelectedIndex(1);
     }
 
     private void setProcessing() {
@@ -811,6 +832,7 @@ public class ConfigurationLibrary {
             updateRemoteSelector();
             updateEnableButtons();
         }
+        if (stepJCB.getSelectedIndex() != 2) stepJCB.setSelectedIndex(2);
     }
 
     private void updateRemoteSelector() {
@@ -832,28 +854,46 @@ public class ConfigurationLibrary {
         }
     }
 
+    public static ContainerParameter getParameter(GistConfiguration gist, int objectClass, GistConfiguration.TYPE configBlockType) {
+        Experiment xp = gist.getExperiment();
+        if (xp == null) return null;
+        switch (configBlockType) {
+            case WHOLE:
+            default:
+                xp.setConfigID(gist.getID());
+                return xp;
+            case PROCESSING:
+                xp.getStructure(objectClass).getProcessingPipelineParameter().setConfigID(gist.getID());
+                if (GistConfiguration.TYPE.WHOLE.equals(gist.getType()) && objectClass >= 0) {
+                    xp.getStructure(objectClass).getProcessingPipelineParameter().setConfigItemIdx(objectClass);
+                    return xp.getStructure(objectClass).getProcessingPipelineParameter();
+                } else {
+                    return xp.getStructure(0).getProcessingPipelineParameter();
+                }
+            case PRE_PROCESSING:
+                xp.getPreProcessingTemplate().setConfigID(gist.getID());
+                return xp.getPreProcessingTemplate();
+            case MEASUREMENTS:
+                xp.getMeasurements().setConfigID(gist.getID());
+                return xp.getMeasurements();
+        }
+    }
+
+    public boolean selectGist(GistConfiguration gist, GistConfiguration.TYPE configType, int remoteObjectClass) {
+        if (!configType.equals(currentMode)) setMode(configType);
+        return remoteSelector.setSelectedGist(gist, remoteObjectClass);
+    }
+
+    public void setLocalItemIdx(int idx) {
+        if (currentMode.equals(GistConfiguration.TYPE.PRE_PROCESSING)) localSelectorJCB.setSelectedIndex(idx+1); // zero is template
+        else if (currentMode.equals(GistConfiguration.TYPE.PROCESSING)) localSelectorJCB.setSelectedIndex(idx);
+    }
+
     public void updateRemoteConfigTree(GistConfiguration gist, int objectClass) {
         if (gist != null) {
-            ContainerParameter root;
             Experiment xp = gist.getExperiment();
             if (xp != null) {
-                switch (currentMode) {
-                    case WHOLE:
-                    default:
-                        root = xp;
-                        break;
-                    case PROCESSING:
-                        if (GistConfiguration.TYPE.WHOLE.equals(gist.type) && objectClass >= 0)
-                            root = xp.getStructure(objectClass).getProcessingPipelineParameter();
-                        else root = xp.getStructure(0).getProcessingPipelineParameter();
-                        break;
-                    case PRE_PROCESSING:
-                        root = xp.getPreProcessingTemplate();
-                        break;
-                    case MEASUREMENTS:
-                        root = xp.getMeasurements();
-                        break;
-                }
+                ContainerParameter root = getParameter(gist, objectClass, currentMode);
                 //ConfigurationTreeModel.SaveExpandState expState = remoteConfig == null || !remoteConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(remoteConfig.getTree());
                 if (remoteConfig != null) remoteConfig.unRegister();
                 remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
@@ -897,7 +937,7 @@ public class ConfigurationLibrary {
             PropertyUtils.set("GITHUB_USERNAME", username.getText());
             PropertyUtils.addFirstStringToList("GITHUB_USERNAME", username.getText());
         }
-        logger.debug("fetched gists: {} -> {}", gists.size(), Utils.toStringList(gists, g -> g.folder + "/" + g.name + " [" + g.type + "]"));
+        logger.debug("fetched gists: {} -> {}", gists.size(), Utils.toStringList(gists, g -> g.folder() + "/" + g.name() + " [" + g.getType() + "]"));
         updateEnableButtons();
     }
 
