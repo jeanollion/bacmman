@@ -1,6 +1,7 @@
 package bacmman.ui.gui;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 import bacmman.image.Image;
@@ -21,13 +22,13 @@ import java.util.stream.Collectors;
 public class PSFCommand {
     public static JMenu getPSFMenu(Supplier<List<Selection>> selectionSupplier, Supplier<String> path) {
         JMenu menu = new JMenu("Compute PSF");
-        menu.setToolTipText("Compute PSF by averaging segmented spots in selected selections");
-        BoundedNumberParameter sizeXY = new BoundedNumberParameter("Radius XY", 0, 8, 2, null).setHint("PSF Size is 2 x radius + 1");
+        menu.setToolTipText("Compute PSF by averaging segmented spots in selected selections in the Data Browsing tab");
+        BoundedNumberParameter sizeXY = new BoundedNumberParameter("Radius XY", 0, 18, 2, null).setHint("PSF Size is 2 x radius + 1");
         BoundedNumberParameter sizeZ = new BoundedNumberParameter("Radius Z", 0, 0, 0, null).setHint("PSF Size is 2 x radius + 1 (0 for 2D PSF)");
         IntervalParameter filterQuantiles = new IntervalParameter("Size Filter Quantiles", 5, 0, 1, 0.1, 0.9).setHint("Filter outlier spots by size");
         BooleanParameter flipX = new BooleanParameter("FlipX", true).setHint("If true, average with flipped version along X axis");
         BooleanParameter flipY = new BooleanParameter("FlipY", true).setHint("If true, average with flipped version along Y axis");
-        BooleanParameter flipZ = new BooleanParameter("FlipZ", true).setHint("If true, average with flipped version along Z axis");
+        BooleanParameter flipZ = new BooleanParameter("FlipZ", false).setHint("If true, average with flipped version along Z axis");
         InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
 
         PropertyUtils.setPersistent(sizeXY, "psf_sizeXY");
@@ -54,7 +55,11 @@ public class PSFCommand {
         compute.setText("Compute PSF");
         compute.addActionListener(evt -> {
             List<Selection> sels = selectionSupplier.get();
-            if (sels.isEmpty()) return;
+            if (sels.isEmpty()) {
+                Utils.displayTemporaryMessage("Select spot selection(s) first", 5000);
+                Core.userLog("Select one or several spot selection in the Data Browsing tab in order to compute PSF");
+                return;
+            }
             int ocIdx = sels.get(0).getStructureIdx();
             if (!Utils.objectsAllHaveSameProperty(sels, s->s.getStructureIdx() == ocIdx)) return;
             List<SegmentedObject> objects = sels.stream().flatMap(s -> s.getAllElements().stream()).collect(Collectors.toList());

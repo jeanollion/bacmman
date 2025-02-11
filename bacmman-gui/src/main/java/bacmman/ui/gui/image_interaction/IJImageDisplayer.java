@@ -82,14 +82,13 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         //logger.debug("show image:w={}, h={}, disp: {}", ip.getWidth(), ip.getHeight(), displayRange);
         if (!ip.isVisible()) {
             ip.show();
-            logger.debug("show ok");
             InteractiveImage im = ImageWindowManagerFactory.getImageManager().getInteractiveImage(image);
-            logger.debug("interactive image ok");
+            logger.debug("im shown. interactive image is null? {}", im==null);
             if (im != null) {
                 TimeLapseInteractiveImageFactory.DIRECTION dir = getDirection(im);
                 ToIntBiFunction<Integer, Boolean> nextPos = getNextPosFunction(im);
                 addMouseWheelListener(ip, dir, nextPos);
-            }
+            } else addMouseWheelListener(ip, TimeLapseInteractiveImageFactory.DIRECTION.T, null);
             ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         }
         return ip;
@@ -210,7 +209,6 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 boolean alt = e.isAltDown();
                 boolean shift = e.isShiftDown();
                 boolean space = IJ.spaceBarDown();
-
                 if (ctrl && ic!=null) { // zoom
                     java.awt.Point loc = ic.getCursorLoc();
                     int x = ic.screenX(loc.x);
