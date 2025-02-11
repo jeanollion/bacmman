@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
@@ -16,6 +17,7 @@ import java.util.function.Function;
 
 public class RemoveCloseObjects implements PostFilter, Hint {
     BoundedNumberParameter minDist = new BoundedNumberParameter("Minimal distance", 3, 1, 0, null).setEmphasized(true).setHint("When two objects are closer than this distance (in pixels), only one of the two objects is kept.");
+    BooleanParameter removeBoth = new BooleanParameter("Remove Both", false).setHint("Both objects are removed when they are too close");
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
@@ -36,13 +38,18 @@ public class RemoveCloseObjects implements PostFilter, Hint {
         for (int i = 0; i<regions.size()-1;++i) {
             for (int j = i+1; j<regions.size(); ++j) {
                 if (areClose.test(regions.get(i), regions.get(j))) {
-                    if (keepFirst.test(regions.get(i), regions.get(j))) {
+                    if (removeBoth.getSelected()) {
+                        regions.remove(j);
+                        regions.remove(i);
+                        --i;
+                        break;
+                    } else if (keepFirst.test(regions.get(i), regions.get(j))) {
                         regions.remove(j);
                         --j;
                     } else {
                         regions.remove(i);
                         --i;
-                        --j;
+                        break;
                     }
                 }
             }
@@ -53,7 +60,7 @@ public class RemoveCloseObjects implements PostFilter, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{minDist};
+        return new Parameter[]{minDist, removeBoth};
     }
 
     @Override
