@@ -344,7 +344,7 @@ public class ConfigurationTreeGenerator {
                             //menu.addSeparator();
                             ConfigIDAware cia = (ConfigIDAware)lastO;
                             String id = cia.getConfigID();
-                            menu.add("ConfigID: "+id + " idx:"+cia.getConfigItemIdx());
+                            if (id !=null) menu.add("ConfigID: "+id + (cia.getConfigItemIdx()>=0 ? " idx:"+cia.getConfigItemIdx():"") );
                             JMenuItem update = new JMenuItem("Update from configuration library");
                             update.setAction(
                                 new AbstractAction("Update from configuration library") {
