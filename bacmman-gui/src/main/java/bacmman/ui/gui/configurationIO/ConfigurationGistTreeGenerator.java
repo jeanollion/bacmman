@@ -18,8 +18,10 @@
  */
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
 import bacmman.github.gist.GistConfiguration;
+import bacmman.github.gist.UserAuth;
 import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
 import bacmman.utils.EnumerationUtils;
@@ -66,6 +68,7 @@ public class ConfigurationGistTreeGenerator {
 
     Supplier<Icon> currentThumbnail;
     ImageIcon folderIcon, defaultConfigurationIcon;
+
     public ConfigurationGistTreeGenerator(List<GistConfiguration> gists, GistConfiguration.TYPE type, BiConsumer<GistConfiguration, Integer> setSelectedConfiguration) {
         folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
         defaultConfigurationIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/configuration32.png");
@@ -78,6 +81,11 @@ public class ConfigurationGistTreeGenerator {
         if (tree==null) generateTree();
         return tree;
     }
+
+    private UserAuth getAuth() {
+        return Core.getCore().getGithubGateway().getAuthentication(false);
+    }
+
     protected DefaultWorker loadIconsInBackground(FolderNode folder) {
         return DefaultWorker.execute( i -> {
             GistTreeNode n = (GistTreeNode) folder.getChildAt(i);
@@ -94,8 +102,8 @@ public class ConfigurationGistTreeGenerator {
                     if (!n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) treeModel.nodeChanged(n);
                 }
                 if (n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
-                    if (n.gist.getExperiment() != null) {
-                        for (int oc = 0; oc < n.gist.getExperiment().getStructureCount(); ++oc) {
+                    if (n.gist.getExperiment(getAuth()) != null) {
+                        for (int oc = 0; oc < n.gist.getExperiment(getAuth()).getStructureCount(); ++oc) {
                             if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
                                 iconsByOC.get(new Pair<>(n.gist, oc));
                                 modified = true;
@@ -253,8 +261,8 @@ public class ConfigurationGistTreeGenerator {
     }
     private void addGistToFolder(FolderNode f, GistConfiguration g, boolean sorted) {
         if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.getType().equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
-            if (g.getExperiment() != null) {
-                for (int oIdx = 0; oIdx<g.getExperiment().getStructureCount(); ++oIdx) {
+            if (g.getExperiment(getAuth()) != null) {
+                for (int oIdx = 0; oIdx<g.getExperiment(getAuth()).getStructureCount(); ++oIdx) {
                     GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
                     if (sorted) insertSorted(f, n);
                     else f.add(n);
@@ -413,7 +421,7 @@ public class ConfigurationGistTreeGenerator {
         @Override
         public String toString() {
             String res = gist.name();
-            if (objectClassIdx>=0 && gist.getExperiment()!=null) res+=" ["+gist.getExperiment().getStructure(objectClassIdx).getName()+"]";
+            if (objectClassIdx>=0 && gist.getExperiment(getAuth())!=null) res+=" ["+gist.getExperiment(getAuth()).getStructure(objectClassIdx).getName()+"]";
             return res;
         }
 
@@ -436,8 +444,8 @@ public class ConfigurationGistTreeGenerator {
             } else {
                 List<BufferedImage> images = new ArrayList<>();
                 if (icons.getOrDefault(gist, null)!=null) images.addAll(icons.get(gist));
-                if (gist.getExperiment() != null) {
-                    for (int i = 0; i < gist.getExperiment().getStructureCount(); ++i) {
+                if (gist.getExperiment(getAuth()) != null) {
+                    for (int i = 0; i < gist.getExperiment(getAuth()).getStructureCount(); ++i) {
                         Pair<GistConfiguration, Integer> key = new Pair<>(gist, i);
                         if (iconsByOC.getOrDefault(key, null) != null) images.addAll(iconsByOC.get(key));
                     }

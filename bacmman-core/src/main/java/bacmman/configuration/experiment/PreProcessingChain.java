@@ -45,6 +45,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     SimpleListParameter<TransformationPluginParameter<Transformation>> transformations = new SimpleListParameter<>("Pre-Processing pipeline", new TransformationPluginParameter<>("Transformation", Transformation.class, false));
     final boolean template;
     String configID;
+    BooleanParameter autoUpdate = ConfigIDAware.getAutoUpdateParameter();
 
     @Override
     public JSONObject toJSONEntry() {
@@ -55,7 +56,10 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         res.put("frameDuration", frameDuration.toJSONEntry());
         res.put("trimFrames", trimFrames.toJSONEntry());
         res.put("transformations", transformations.toJSONEntry());
-        if (configID!=null) res.put(ConfigIDAware.key, configID);
+        if (configID!=null) {
+            res.put(ConfigIDAware.key, configID);
+            res.put(ConfigIDAware.autoUpdateKey, autoUpdate.toJSONEntry());
+        }
         return res;
     }
 
@@ -69,6 +73,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         if (jsonO.containsKey("trimFrames")) trimFrames.initFromJSONEntry(jsonO.get("trimFrames"));
         transformations.initFromJSONEntry(jsonO.get("transformations"));
         if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
+        if (jsonO.containsKey(ConfigIDAware.autoUpdateKey)) autoUpdate.initFromJSONEntry(jsonO.get(ConfigIDAware.autoUpdateKey));
     }
 
     public PreProcessingChain setConfigID(String configID) {
@@ -78,6 +83,11 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
 
     public String getConfigID() {
         return configID;
+    }
+
+    @Override
+    public BooleanParameter getAutoUpdate() {
+        return autoUpdate;
     }
 
     @Override

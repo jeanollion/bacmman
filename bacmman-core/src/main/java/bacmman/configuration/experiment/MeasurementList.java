@@ -1,5 +1,6 @@
 package bacmman.configuration.experiment;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.github.gist.GistConfiguration;
@@ -18,7 +19,7 @@ import java.util.stream.Collectors;
 
 public class MeasurementList extends SimpleListParameter<PluginParameter<Measurement>> implements ConfigIDAware<MeasurementList> {
     String configID;
-    
+    BooleanParameter autoUpdate = ConfigIDAware.getAutoUpdateParameter();
     public MeasurementList(String name) {
         super(name, new PluginParameter<>("", Measurement.class, false));
         addValidationFunctionToChildren(ppm -> {
@@ -50,6 +51,11 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
     }
 
     @Override
+    public BooleanParameter getAutoUpdate() {
+        return autoUpdate;
+    }
+
+    @Override
     public GistConfiguration.TYPE getType() {
         return GistConfiguration.TYPE.MEASUREMENTS;
     }
@@ -60,6 +66,7 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
         JSONObject res = new JSONObject();
         JSONArray list = (JSONArray)super.toJSONEntry();
         res.put(ConfigIDAware.key, configID);
+        res.put(ConfigIDAware.autoUpdateKey, autoUpdate.toJSONEntry());
         res.put("list", list);
         return res;
     }
@@ -70,6 +77,7 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
         else {
             JSONObject jsonO = (JSONObject)jsonEntry;
             if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
+            if (jsonO.containsKey(ConfigIDAware.autoUpdateKey)) autoUpdate.initFromJSONEntry(jsonO.get(ConfigIDAware.autoUpdateKey));
             super.initFromJSONEntry(jsonO.get("list"));
         }
     }

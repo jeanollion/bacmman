@@ -53,10 +53,12 @@ public class JSONQuery {
             logger.error("open connection error", e);
         }
     }
+
     public JSONQuery header(String key, String value) {
         urlConnection.setRequestProperty(key, value);
         return this;
     }
+
     public JSONQuery headerAcceptJSON() {
         header("Accept", "application/json");
         return this;
@@ -143,22 +145,24 @@ public class JSONQuery {
             o_sLineSep = "\n";
         }
         StringBuilder o_oSb = new StringBuilder();
+        String sLine = null;
         try {
             InputStream o_oResponse = urlConnection.getInputStream();
             BufferedReader o_oBufReader = new BufferedReader(new InputStreamReader(o_oResponse));
-            String sLine;
+
             boolean first = true;
             while ((sLine = o_oBufReader.readLine()) != null) {
                 if (first) first = false;
                 else {
                     o_oSb.append(o_sLineSep);
-                    logger.info("APPEND SEP LINE CHAR");
+                    //logger.info("APPEND SEP LINE CHAR");
                 }
                 o_oSb.append(sLine);
             }
         } catch(FileNotFoundException e) {
             throw new IOException("Authentication Error or Erased/Unexisting file : "+e.getMessage());
         } catch (IOException e) {
+            logger.debug("fetch exception : message: {} currentLine: {} string builder: {}", e.getMessage(), sLine, o_oSb.toString());
             throw e;
         }  finally {
             urlConnection.disconnect();

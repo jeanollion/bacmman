@@ -1,5 +1,6 @@
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
@@ -159,7 +160,10 @@ public class NewDatasetFromGithub extends JDialog {
         int selectedOC = remoteSelector == null ? -1 : remoteSelector.getSelectedGistOC();
         if (remoteSelector != null) remoteSelector.flush();
         remoteSelector = new ConfigurationGistTreeGenerator(gists, GistConfiguration.TYPE.WHOLE, (gist, ocIdx) -> {
-            if (gist != null) selectedXP = gist.getContent();
+            if (gist != null) {
+                selectedXP = gist.getContent();
+                selectedXP.put(ConfigIDAware.key, gist.getID());
+            }
             else selectedXP = null;
             buttonOK.setEnabled(selectedXP != null);
         });

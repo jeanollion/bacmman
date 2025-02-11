@@ -174,6 +174,11 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
 
     @Override
+    public BooleanParameter getAutoUpdate() {
+        return null;
+    }
+
+    @Override
     public GistConfiguration.TYPE getType() {
         return GistConfiguration.TYPE.WHOLE;
     }
