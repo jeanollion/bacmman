@@ -103,6 +103,7 @@ public class DLModelGistTreeGenerator {
         if (path.getPathCount()<2) return null;
         return path.getPath()[1].toString();
     }
+
     public GistDLModel getSelectedGist() {
         if (tree==null) return null;
         TreePath path = tree.getSelectionPath();
@@ -110,6 +111,7 @@ public class DLModelGistTreeGenerator {
         if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent()).gist;
         else return null;
     }
+
     public GistTreeNode getSelectedGistNode() {
         if (tree==null) return null;
         TreePath path = tree.getSelectionPath();
@@ -118,8 +120,18 @@ public class DLModelGistTreeGenerator {
         else return null;
     }
 
+    public GistDLModel getByID(String id, boolean modelID) {
+        if (id == null) return null;
+        if (modelID) return this.gists.stream().filter(g -> g.getModelID().equals(id)).findFirst().orElse(null);
+        else return this.gists.stream().filter(g -> g.getID().equals(id)).findFirst().orElse(null);
+    }
+
     public void setSelectedGist(GistDLModel gist) {
-        TreeNode root =getRoot();
+        if (gist == null) {
+            tree.setSelectionPath(null);
+            return;
+        }
+        TreeNode root = getRoot();
         TreeNode folder = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(gist.folder)).findAny().orElse(null);
         if (folder==null) return;
         GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.gist.name.equals(gist.name)).findAny().orElse(null);

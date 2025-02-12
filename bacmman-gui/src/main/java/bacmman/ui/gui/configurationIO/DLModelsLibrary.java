@@ -355,6 +355,18 @@ public class DLModelsLibrary {
         });
     }
 
+    public boolean setSelectedGist(String id, boolean modelID) {
+        if (id == null) tree.setSelectedGist(null);
+        else {
+            GistDLModel gist = tree.getByID(id, modelID);
+            if (gist != null) {
+                tree.setSelectedGist(gist);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public DLModelsLibrary setProgressLogger(ProgressLogger progressLogger) {
         this.pcb = progressLogger;
         return this;

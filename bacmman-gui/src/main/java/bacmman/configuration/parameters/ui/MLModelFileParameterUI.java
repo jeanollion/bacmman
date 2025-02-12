@@ -45,6 +45,7 @@ public class MLModelFileParameterUI implements ParameterUI {
                             GUI.getInstance().setSelectedTab(tabIdx);
                         }
                     });
+                    if (parameter.getID() != null) library.setSelectedGist(parameter.getID(), true);
                     if (GUI.getInstance()==null) library.display(null);
                 }
             }

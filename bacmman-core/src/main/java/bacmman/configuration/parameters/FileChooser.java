@@ -338,7 +338,8 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
 
     public FileChooser setGetRefPathFunction(Function<Parameter, Path> getRefPathFunction) {
-        this.getRefPathFunction = () -> getRefPathFunction.apply(this);
+        if (getRefPathFunction==null) this.getRefPathFunction = null;
+        else this.getRefPathFunction = () -> getRefPathFunction.apply(this);
         return this;
     }
     protected static String[] toAbsolutePath(Path referencePath, String[] files) {
