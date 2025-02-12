@@ -1,6 +1,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.github.gist.GistConfiguration;
@@ -11,13 +12,10 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
-public class MeasurementList extends SimpleListParameter<PluginParameter<Measurement>> implements ConfigIDAware<MeasurementList> {
+public class MeasurementList extends SimpleListParameter<PluginParameter<Measurement>> implements ConfigIDAware<SimpleListParameter<PluginParameter<Measurement>>> {
     String configID;
     BooleanParameter autoUpdate = ConfigIDAware.getAutoUpdateParameter();
     public MeasurementList(String name) {
@@ -58,6 +56,12 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
     @Override
     public GistConfiguration.TYPE getType() {
         return GistConfiguration.TYPE.MEASUREMENTS;
+    }
+
+    @Override
+    public boolean sameContent(Parameter other) {
+        if (!super.sameContent(other)) return false;
+        return Objects.equals(this.getConfigID(), ((ConfigIDAware)other).getConfigID());
     }
 
     @Override

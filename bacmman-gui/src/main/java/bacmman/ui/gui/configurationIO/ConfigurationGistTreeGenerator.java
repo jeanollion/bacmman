@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
 import bacmman.github.gist.GistConfiguration;
@@ -99,7 +100,9 @@ public class ConfigurationGistTreeGenerator {
                 if (!icons.containsKey(n.gist)) {
                     icons.get(n.gist);
                     modified = true;
-                    if (!n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) treeModel.nodeChanged(n);
+                    if (!n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
+                        try {treeModel.nodeChanged(n);} catch (Exception e) {}
+                    }
                 }
                 if (n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
                     if (n.gist.getExperiment(getAuth()) != null) {
@@ -109,7 +112,9 @@ public class ConfigurationGistTreeGenerator {
                                 modified = true;
                             }
                         }
-                        if (modified) treeModel.nodeChanged(n);
+                        if (modified) {
+                            try {treeModel.nodeChanged(n);} catch (Exception e) {}
+                        }
                     }
                 }
             }
@@ -421,7 +426,11 @@ public class ConfigurationGistTreeGenerator {
         @Override
         public String toString() {
             String res = gist.name();
-            if (objectClassIdx>=0 && gist.getExperiment(getAuth())!=null) res+=" ["+gist.getExperiment(getAuth()).getStructure(objectClassIdx).getName()+"]";
+            Experiment xp = gist.getExperiment(getAuth());
+            if (objectClassIdx>=0 && xp != null) res+=" ["+xp.getStructure(objectClassIdx).getName()+"]"; // whole experiment exploded into each object class
+            else if (gist.getType().equals(GistConfiguration.TYPE.PRE_PROCESSING)) res += " [PP]";
+            else if (gist.getType().equals(GistConfiguration.TYPE.MEASUREMENTS)) res += " [M]";
+            else if (gist.getType().equals(GistConfiguration.TYPE.PROCESSING)) res += " [P]";
             return res;
         }
 

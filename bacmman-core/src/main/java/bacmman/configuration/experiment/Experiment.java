@@ -183,6 +183,12 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         return GistConfiguration.TYPE.WHOLE;
     }
 
+    @Override
+    public boolean sameContent(Parameter other) {
+        if (!super.sameContent(other)) return false;
+        return Objects.equals(this.getConfigID(), ((ConfigIDAware)other).getConfigID());
+    }
+
     @Override 
     public boolean isEmphasized() {
         return false;

@@ -4,11 +4,9 @@ import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
-import bacmman.configuration.parameters.ContainerParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.ParameterUtils;
+import bacmman.configuration.parameters.*;
 import bacmman.plugins.Hint;
+import bacmman.plugins.Transformation;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
 import bacmman.utils.JSONUtils;
@@ -28,7 +26,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static bacmman.github.gist.GistConfiguration.TYPE.*;
@@ -586,6 +586,14 @@ public class GistConfiguration implements Hint {
                 }
                 break;
             case PRE_PROCESSING:
+                // add channel images to avoid getting display errors
+                ToIntFunction<int[]> maxChan = c -> {
+                    if (c==null || c.length==0) return -1;
+                    return IntStream.of(c).max().getAsInt();
+                };
+                int maxChannel = res.getPreProcessingTemplate().getTransformations(false).stream().map(t -> ((TransformationPluginParameter<Transformation>)t))
+                        .mapToInt(t -> Math.max( t.getInputChannel(), maxChan.applyAsInt(t.getOutputChannels()) )).max().orElse(0);
+                for (int i = 0; i<=maxChannel; ++i) res.getChannelImages().insert(res.getChannelImages().createChildInstance("Channel #"+i));
                 res.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
                 res.getPreProcessingTemplate().setConfigID(id);
                 break;

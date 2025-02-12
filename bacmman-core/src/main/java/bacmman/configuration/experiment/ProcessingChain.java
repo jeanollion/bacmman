@@ -1,12 +1,15 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.github.gist.GistConfiguration;
 import bacmman.plugins.ProcessingPipeline;
 import org.json.simple.JSONObject;
 
-public class ProcessingChain extends PluginParameter<ProcessingPipeline> implements ConfigIDAware<ProcessingChain>  {
+import java.util.Objects;
+
+public class ProcessingChain extends PluginParameter<ProcessingPipeline> implements ConfigIDAware<PluginParameter<ProcessingPipeline>>  {
     String configID;
     int configObjectClassIdx=-1;
     BooleanParameter autoUpdate = ConfigIDAware.getAutoUpdateParameter();
@@ -23,6 +26,13 @@ public class ProcessingChain extends PluginParameter<ProcessingPipeline> impleme
 
     public String getConfigID() {
         return configID;
+    }
+
+    @Override
+    public boolean sameContent(Parameter other) {
+        if (!super.sameContent(other)) return false;
+        return Objects.equals(this.getConfigID(), ((ConfigIDAware)other).getConfigID())
+                && Objects.equals(this.getConfigItemIdx(), ((ConfigIDAware)other).getConfigItemIdx());
     }
 
     @Override

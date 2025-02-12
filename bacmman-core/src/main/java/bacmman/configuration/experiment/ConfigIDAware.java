@@ -4,7 +4,7 @@ import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.github.gist.GistConfiguration;
 
-public interface ConfigIDAware<P> {
+public interface ConfigIDAware<P extends Parameter<P>> extends Parameter<P> {
     String getConfigID();
     P setConfigID(String configID);
     GistConfiguration.TYPE getType();

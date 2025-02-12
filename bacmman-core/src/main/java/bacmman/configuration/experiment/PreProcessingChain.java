@@ -29,6 +29,8 @@ import java.util.List;
 import bacmman.plugins.ParameterChangeCallback;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Transformation;
+
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -74,6 +76,12 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         transformations.initFromJSONEntry(jsonO.get("transformations"));
         if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
         if (jsonO.containsKey(ConfigIDAware.autoUpdateKey)) autoUpdate.initFromJSONEntry(jsonO.get(ConfigIDAware.autoUpdateKey));
+    }
+
+    @Override
+    public boolean sameContent(Parameter other) {
+        if (!super.sameContent(other)) return false;
+        return Objects.equals(this.getConfigID(), ((ConfigIDAware)other).getConfigID());
     }
 
     public PreProcessingChain setConfigID(String configID) {
