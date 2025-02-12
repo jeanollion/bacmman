@@ -586,16 +586,16 @@ public class GistConfiguration implements Hint {
                 }
                 break;
             case PRE_PROCESSING:
+                res.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
+                res.getPreProcessingTemplate().setConfigID(id);
                 // add channel images to avoid getting display errors
                 ToIntFunction<int[]> maxChan = c -> {
                     if (c==null || c.length==0) return -1;
                     return IntStream.of(c).max().getAsInt();
                 };
-                int maxChannel = res.getPreProcessingTemplate().getTransformations(false).stream().map(t -> ((TransformationPluginParameter<Transformation>)t))
+                int maxChannel = res.getPreProcessingTemplate().getTransformations(false).stream()
                         .mapToInt(t -> Math.max( t.getInputChannel(), maxChan.applyAsInt(t.getOutputChannels()) )).max().orElse(0);
                 for (int i = 0; i<=maxChannel; ++i) res.getChannelImages().insert(res.getChannelImages().createChildInstance("Channel #"+i));
-                res.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
-                res.getPreProcessingTemplate().setConfigID(id);
                 break;
             case MEASUREMENTS:
                 res.getMeasurements().initFromJSONEntry(jsonContent);
