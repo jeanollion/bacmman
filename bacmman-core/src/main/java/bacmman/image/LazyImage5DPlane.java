@@ -73,7 +73,7 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
 
 
     @Override public boolean isSinglePlane(int f, int c) {
-        return (getImage(f, c, 1)==getImage(f, c, 0));
+        return sizeZ == 1 || (getImage(f, c, 1)==getImage(f, c, 0));
     }
 
     public I getImageType() {

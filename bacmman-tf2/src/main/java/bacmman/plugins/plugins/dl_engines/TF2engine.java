@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
 public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
@@ -40,7 +39,6 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         } else logger.debug("no Z-Axis in metadata");
     }
 
-    enum Z_AXIS {Z, CHANNEL, BATCH}
     MLModelFileParameter modelFile = new MLModelFileParameter("Tensorflow model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
@@ -136,16 +134,6 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         inputNames = null;
         outputNames = null;
     }
-    private static int getSizeZ(Image[][]... inputNC) {
-        ToIntFunction<Image[][]> getZ = iNC -> {
-            int[] sizeZ = IntStream.range(0, iNC[0].length).map(c -> ResizeUtils.getSizeZ(iNC, c)).distinct().toArray();
-            assert sizeZ.length == 1 : "different sizeZ among channels";
-            return sizeZ[0];
-        };
-        int[] sizeZ = Arrays.stream(inputNC).mapToInt(getZ).distinct().toArray();
-        assert sizeZ.length == 1 : "different sizeZ among inputs";
-        return sizeZ[0];
-    }
 
     public synchronized Image[][][] process(Image[][]... inputNC) {
         if (inputNC.length!=getNumInputArrays()) throw new IllegalArgumentException("Invalid number of input provided. Expected:"+getNumInputArrays()+" provided:"+inputNC.length);
@@ -167,7 +155,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
                 break;
             }
             case BATCH: {
-                sizeZ = getSizeZ(inputNC);
+                sizeZ = DLengine.getSizeZ(inputNC);
                 logger.debug("Z to batch: size Z = {}", sizeZ);
                 if (sizeZ>1) {
                     for (int idx = 0; idx < inputNC.length; ++idx) {

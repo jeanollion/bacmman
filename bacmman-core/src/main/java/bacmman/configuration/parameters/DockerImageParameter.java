@@ -12,7 +12,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
     protected List<DockerImage> allImages=new ArrayList<>();
     int[] minimalVersion, maximalVersion;
     String imageName;
-    protected DockerImageParameter(String name) {
+    public DockerImageParameter(String name) {
         super(name, null, null, DockerImage::toString, false);
         setMapper(s->allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null));
     }

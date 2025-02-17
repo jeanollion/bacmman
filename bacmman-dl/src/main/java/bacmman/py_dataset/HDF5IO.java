@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -25,6 +26,12 @@ import java.util.stream.Stream;
 public class HDF5IO {
     public final static Logger logger = LoggerFactory.getLogger(HDF5IO.class);
     public static IHDF5Writer getWriter(File outFile, boolean append) {
+        try {
+            if (!outFile.exists()) outFile.createNewFile();
+        } catch (IOException e) {
+            logger.error("error creating file:", e);
+            throw new RuntimeException(e);
+        }
         IHDF5WriterConfigurator conf = HDF5Factory.configure(outFile.getAbsolutePath()).syncMode(
                 IHDF5WriterConfigurator.SyncMode.SYNC_BLOCK)
                 .useSimpleDataSpaceForAttributes();
@@ -65,22 +72,72 @@ public class HDF5IO {
         }
         //writer.float64().setArrayAttr(dsName, "element_size_um", elSize);
     }
-    public static void saveImage(Image image, IHDF5Writer writer, String dsName, int compressionLevel) {
+
+    public static void save3DImage(ImagePlus imp, IHDF5Writer writer, String dsName, int compressionLevel, ProgressCallback pr) {
+        int T = imp.getNFrames();
+        int Z = imp.getNSlices();
+        int C = imp.getNChannels();
+        int W = imp.getWidth();
+        int H = imp.getHeight();
+        long[] dims = { T, C, Z, H, W };
+        int[] blockDims = { 1, 1, 1, H, W };
+        long[] blockIdx = { 0, 0, 0, 0, 0 };
+        int sliceSize = H*W;
+        //double[] elSize = getElementSizeUm(imp);
+
+        //if (pr != null) pr.init(imp.getImageStackSize());
+        DTYPE type = getType(imp);
+        MDAbstractArray data = getArray(writer, dsName, dims, blockDims, type, compressionLevel);
+        Object dataFlat = data.getAsFlatArray();
+        for (int t = 0; t < T; ++t) {
+            blockIdx[0] = t;
+            for (int z = 0; z < Z; ++z) {
+                blockIdx[2] = z;
+                for (int c = 0; c < C; ++c) {
+                    blockIdx[1] = c;
+                    //if (pr != null && !pr.count( "Saving " + dsName + " t=" + t + ", z=" + z + ", c=" + c, 1)) throw new InterruptedException();
+                    writeSlice(writer, imp, data, dataFlat, dsName, type, blockIdx, sliceSize, c, z, t);
+                }
+            }
+        }
+        //writer.float64().setArrayAttr(dsName, "element_size_um", elSize);
+    }
+
+    public static void saveImage(Image image, IHDF5Writer writer, String dsName, boolean channelLast, int compressionLevel) {
+        int C = (image instanceof LazyImage5D) ? ((LazyImage5D)image).getSizeC() : 1;
+        int T = (image instanceof LazyImage5D) ? ((LazyImage5D)image).getSizeF() : 1;
         int Z = image.sizeZ();
         int W = image.sizeX();
         int H = image.sizeY();
-        long[] dims = { Z, H, W };
-        int[] blockDims = { 1, H, W };
-        long[] blockIdx = { 0, 0, 0 };
 
+        long[] dims;
+        int[] blockDims;
+        long[] blockIdx;
+        if (Z > 1) {
+            dims = channelLast ? new long[]{ T, Z, H, W, C } : new long[]{ T, C, Z, H, W };
+            blockDims = channelLast ? new int[]{ 1, 1, H, W, 1 } : new int[]{ 1, 1, 1, H, W };
+            blockIdx = new long[]{ 0, 0, 0, 0, 0 };
+        } else {
+            dims = channelLast ? new long[]{ T, H, W, C } : new long[]{ T, C, H, W };
+            blockDims = channelLast ? new int[]{ 1, H, W, 1 } : new int[]{ 1, 1, H, W };
+            blockIdx = new long[]{ 0, 0, 0, 0 };
+        }
         DTYPE type = getType(image);
         MDAbstractArray data = getArray(writer, dsName, dims, blockDims, type, compressionLevel);
         Object dataFlat = data.getAsFlatArray();
-        for (int z = 0; z < Z; ++z, ++blockIdx[0]) {
-            blockIdx[0] = z;
-            writeSlice(writer, image, data, dataFlat, dsName, type, blockIdx, z);
+        for (int t = 0; t < T; ++t) {
+            blockIdx[0] = t;
+            for (int c = 0; c < C; ++c) {
+                blockIdx[channelLast ? blockIdx.length -1 : 1] = c;
+                if (image instanceof LazyImage5D) ((LazyImage5D)image).setPosition(t, c);
+                for (int z = 0; z < Z; ++z) {
+                    if (Z>1) blockIdx[channelLast ? 1 : 2] = z;
+                    writeSlice(writer, image, data, dataFlat, dsName, type, blockIdx, z);
+                }
+            }
         }
     }
+
     public enum DTYPE {
         BYTE(8, false), SHORT(16, false), FLOAT32(32, true), FLOAT64(64, true), INT32(32, false);
         final int bitDepth;
@@ -159,35 +216,7 @@ public class HDF5IO {
                 return new MDIntArray(blockDims);
         }
     }
-    public static void save3DImage(ImagePlus imp, IHDF5Writer writer, String dsName, int compressionLevel, ProgressCallback pr) {
-        int T = imp.getNFrames();
-        int Z = imp.getNSlices();
-        int C = imp.getNChannels();
-        int W = imp.getWidth();
-        int H = imp.getHeight();
-        long[] dims = { T, C, Z, H, W };
-        int[] blockDims = { 1, 1, 1, H, W };
-        long[] blockIdx = { 0, 0, 0, 0, 0 };
-        int sliceSize = H*W;
-        //double[] elSize = getElementSizeUm(imp);
 
-        //if (pr != null) pr.init(imp.getImageStackSize());
-        DTYPE type = getType(imp);
-        MDAbstractArray data = getArray(writer, dsName, dims, blockDims, type, compressionLevel);
-        Object dataFlat = data.getAsFlatArray();
-        for (int t = 0; t < T; ++t) {
-            blockIdx[0] = t;
-            for (int z = 0; z < Z; ++z) {
-                blockIdx[2] = z;
-                for (int c = 0; c < C; ++c) {
-                    blockIdx[1] = c;
-                    //if (pr != null && !pr.count( "Saving " + dsName + " t=" + t + ", z=" + z + ", c=" + c, 1)) throw new InterruptedException();
-                    writeSlice(writer, imp, data, dataFlat, dsName, type, blockIdx, sliceSize, c, z, t);
-                }
-            }
-        }
-        //writer.float64().setArrayAttr(dsName, "element_size_um", elSize);
-    }
     private static void writeSlice(IHDF5Writer writer, ImagePlus imp, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int sliceSize, int c, int z, int t) {
         int stackIndex = imp.getStackIndex(c + 1, z + 1, t + 1);
         System.arraycopy(imp.getImageStack().getPixels(stackIndex), 0, dataFlat, 0, sliceSize);
@@ -209,6 +238,7 @@ public class HDF5IO {
                 break;
         }
     }
+
     private static void writeSlice(IHDF5Writer writer, Image image, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int z) {
         System.arraycopy(image.getPixelArray()[z], 0, dataFlat, 0, image.getSizeXY());
         switch (type){
@@ -269,6 +299,7 @@ public class HDF5IO {
             }
         }
     }
+
     public static ImagePlus readDataset(IHDF5Reader reader, String dsName) {
         HDF5DataSetInformation dsInfo = reader.object().getDataSetInformation(dsName);
         DTYPE type = getType(dsInfo);
@@ -306,6 +337,52 @@ public class HDF5IO {
         imp.setOpenAsHyperStack(true);
         return imp;
     }
+
+    public static LazyImage5D readDatasetLazy(IHDF5Reader reader, String dsName, boolean channelLast) {
+        HDF5DataSetInformation dsInfo = reader.object().getDataSetInformation(dsName);
+        DTYPE type = getType(dsInfo);
+        int nDims    = dsInfo.getDimensions().length - 2;
+        int channelAxis = channelLast ? dsInfo.getDimensions().length - 1 : 1;
+        int zAxis = channelLast ? 1 : 2;
+        int nFrames  = (int)dsInfo.getDimensions()[0];
+        int nChannels = (int)dsInfo.getDimensions()[channelAxis];
+        int nZ    = (nDims == 2) ? 1 : (int)dsInfo.getDimensions()[zAxis];
+        int nRows    = (int)dsInfo.getDimensions()[zAxis + ((nDims == 2) ? 0 : 1)];
+        int nCols    = (int)dsInfo.getDimensions()[zAxis + ((nDims == 2) ? 1 : 2)];
+        int[] blockDims;
+        if (nDims == 2) {
+            blockDims = channelLast ? new int[] { 1, nRows, nCols, 1 } : new int[] { 1, 1, nRows, nCols };
+        } else {
+            blockDims = channelLast ? new int[] { 1, 1, nRows, nCols, 1 } : new int[] { 1, 1, 1, nRows, nCols };
+        }
+
+        Function<int[], Image> generatorFCZ = fcz -> {
+            long[] blockIdx = (nDims == 2) ? (new long[] { 0, 0, 0, 0 }) : (new long[] { 0, 0, 0, 0, 0 });
+            blockIdx[0] = fcz[0];
+            if (nDims == 3) blockIdx[zAxis] = fcz[2];
+            blockIdx[channelAxis] = fcz[1];
+            Object slice = readSlice(reader, dsName, blockDims, blockIdx, type);
+            return toImage(Utils.toStringArray(fcz), nCols, slice, type);
+        };
+        return new LazyImage5DPlane(dsName, getImageType(type), generatorFCZ, new int[]{nFrames, nChannels, nZ} );
+    }
+
+    private static Image toImage(String name, int sizeX, Object slice, DTYPE type) {
+        switch (type) {
+            case FLOAT32:
+                return new ImageFloat(name, sizeX, (float[])slice);
+            case FLOAT64:
+                return new ImageDouble(name, sizeX, (double[])slice);
+            case SHORT:
+                return new ImageShort(name, sizeX, (short[])slice);
+            case BYTE:
+                return new ImageByte(name, sizeX, (byte[])slice);
+            case INT32:
+                return new ImageInt(name, sizeX, (int[])slice);
+            default:
+                throw new IllegalArgumentException("Unsupported datatype");
+        }
+    }
     private static Object readSlice(IHDF5Reader reader, String dsName, int[] blockDims, long[] blockIdx, DTYPE type) {
         switch (type) {
             case FLOAT32:
@@ -322,14 +399,9 @@ public class HDF5IO {
                 throw new IllegalArgumentException("Unsupported datatype");
         }
     }
+
     public static void savePyDataset(List<Image> images, File outFile, boolean append, String dsName, int compressionLevel, boolean saveLabels, int[][] originalDimensions, Map<String, Object> metadata) {
         if (images.isEmpty()) return;
-        try {
-            if (!outFile.exists()) outFile.createNewFile();
-        } catch (IOException e) {
-            logger.error("error creating file:", e);
-            throw new RuntimeException(e);
-        }
         if (!Utils.objectsAllHaveSameProperty(images, Image::sameDimensions)) {
             List<Image> distinctImages =  images.stream().filter(Utils.distinctByKey(Image::getBoundingBox)).collect(Collectors.toList());
             logger.error("Dimensions differ: {}", Utils.toStringList(distinctImages, i -> i.getName()+"->"+i.getBoundingBox()));
@@ -377,6 +449,7 @@ public class HDF5IO {
 
         writer.close();
     }
+
     private static void saveMetadata(IHDF5Writer writer, String s, Map<String, Object> metadata) {
         if (metadata==null || metadata.isEmpty()) return;
         metadata.forEach((k, v)-> {
