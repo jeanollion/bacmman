@@ -39,12 +39,12 @@ import static bacmman.core.DockerGateway.formatDockerTag;
 public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     private static final Logger logger = LoggerFactory.getLogger(DockerEngine.class);
     MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model");
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
     DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
-    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.");
+    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setEmphasized(true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.<br/>Leave blank to run on CPU");
     protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 8).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB)");
-    FloatParameter initTimeout = new FloatParameter("Init TimeOut", 20).setHint("Maximum time (in s) to initialize the engine.");
-    FloatParameter processTimeout = new FloatParameter("Processing TimeOut", 240).setHint("Maximum time (in s) for the engine to process each batch");
+    FloatParameter initTimeout = new FloatParameter("Init TimeOut", 60).setHint("Maximum time (in s) to initialize the engine.");
+    FloatParameter processTimeout = new FloatParameter("Processing TimeOut", 480).setHint("Maximum time (in s) for the engine to process each batch");
     EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z)
             .setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");
     BoundedNumberParameter channelIdx = new BoundedNumberParameter("Channel Index", 0, 0, 0, null).setHint("Channel Used when Z axis is transposed to channel axis");
@@ -73,14 +73,17 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     public void init() {
         if (containerID != null) return;
         containerID = getContainer();
+        if (containerID == null) throw new RuntimeException("Container could not be initialized");
         int i = 0;
         int nIterMax = (int)Math.ceil(1000 * initTimeout.getDoubleValue() / (double)loopFreqMs);
         Path model_specs = dataDir.resolve("model_specs.json");
+        Path model_specs_lock = dataDir.resolve("model_specs.lock");
         while(i++ < nIterMax) {
-            if (Files.exists(model_specs)) {
+            if (Files.exists(model_specs) && !Files.exists(model_specs_lock)) {
                 List<String> lines = FileIO.readFromFile(model_specs.toString(), s->s, null);
                 if (!lines.isEmpty()) {
                     try {
+                        logger.debug("model specs: {}", lines.get(0));
                         JSONObject o = JSONUtils.parse(lines.get(0));
                         this.inputNames = ((Stream<String>) ((JSONArray)o.get("inputs")).stream()).toArray(String[]::new);
                         this.outputNames = ((Stream<String>) ((JSONArray)o.get("outputs")).stream()).toArray(String[]::new);
@@ -97,12 +100,18 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                 throw new RuntimeException(e);
             }
         }
-        logger.debug("inputs: {} \noutputs: {}", inputNames, outputNames);
+        logger.debug("inputs: {} outputs: {}", inputNames, outputNames);
+        if (inputNames == null || outputNames == null) {
+            close();
+            if (i == nIterMax) throw new RuntimeException("Timeout Error while initializing");
+            else throw new RuntimeException("Engine not initialized (model not loaded properly)");
+        }
     }
 
     @Override
     public Image[][][] process(Image[][]... inputNC) {
-        if (containerID == null) throw new RuntimeException("Engine not initialized");
+        if (containerID == null) throw new RuntimeException("Engine not initialized (no container)");
+        if (inputNames == null || outputNames == null) throw new RuntimeException("Engine not initialized (model not loaded properly)");
         if (inputNC.length != inputNames.length) {
             throw new RuntimeException("Provided input number is: " + inputNC.length + " while model expects : " + inputNames.length + " inputs");
         }
@@ -208,7 +217,10 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                     deleteSilently(ds_path_error);
                     deleteSilently(ds_path);
                     deleteSilently(ds_path_out);
-                    throw new RuntimeException(error.get(0));
+                    if (error.get(0).contains("No algorithm worked!")) {
+                        Core.userLog("No algorithm worked error: check that selected GPU is compatible, or set no GPU to run on CPU");
+                    }
+                    throw new RuntimeException(String.join("\n", error));
                 }
 
             }
@@ -295,12 +307,18 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
 
     @Override
     public void close() {
-        if (containerID != null && dockerGateway != null) dockerGateway.stopContainer(containerID);
+        if (containerID != null && dockerGateway != null) {
+            try {
+                dockerGateway.stopContainer(containerID);
+            } catch (Exception e) {}
+        }
         this.containerID = null;
-        try {
-            Files.delete(dataDir);
-        } catch (IOException e) {
+        if (dataDir != null) {
+            try {
+                Files.delete(dataDir);
+            } catch (IOException e) {
 
+            }
         }
         this.dataDir = null;
         this.inputNames = null;
@@ -322,7 +340,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
         logger.debug("docker image: {}", image);
         try {
             List<UnaryPair<String>> mounts = new ArrayList<>();
-            mounts.add(new UnaryPair<>(modelFile.getModelFilePath(), "/model"));
+            mounts.add(new UnaryPair<>(modelFile.getModelFile().getAbsolutePath(), "/model"));
             dataDir = getDataDirectory();
             mounts.add(new UnaryPair<>(dataDir.toString(), "/data"));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), 0, DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
