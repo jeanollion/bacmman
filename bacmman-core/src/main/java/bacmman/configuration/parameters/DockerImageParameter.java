@@ -2,6 +2,7 @@ package bacmman.configuration.parameters;
 
 import bacmman.core.DockerGateway;
 import bacmman.core.Core;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
 import java.util.*;
@@ -11,13 +12,14 @@ import java.util.stream.Stream;
 public class DockerImageParameter extends AbstractChoiceParameter<DockerImageParameter.DockerImage, DockerImageParameter> {
     protected List<DockerImage> allImages=new ArrayList<>();
     int[] minimalVersion, maximalVersion;
-    String imageName;
+    String imageName, versionPrefix;
     public DockerImageParameter(String name) {
         super(name, null, null, DockerImage::toString, false);
         setMapper(s->allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null));
     }
-    public DockerImageParameter setImageRequirement(String imageName, int[] minimalVersion, int[] maximalVersion) {
+    public DockerImageParameter setImageRequirement(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
         this.imageName = imageName;
+        this.versionPrefix = versionPrefix;
         this.minimalVersion = minimalVersion;
         this.maximalVersion = maximalVersion;
         refreshImageList();
@@ -47,8 +49,9 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         Stream.concat(Utils.getResourcesForPath("dockerfiles/"), installedImages.stream())
             .map(n -> new DockerImage(n, installedImages))
             .filter(imageName == null ? i->true : i -> i.imageName.equals(imageName))
-            .filter(minimalVersion == null ? i->true: i->i.compareVersion(minimalVersion)>=0 )
-            .filter(maximalVersion == null ? i->true: i->i.compareVersion(maximalVersion)<=0 )
+            .filter(versionPrefix==null ? i -> true : i -> Objects.equals(versionPrefix, i.versionPrefix))
+            .filter(minimalVersion == null ? i->true: i->i.compareVersionNumber(minimalVersion)>=0 )
+            .filter(maximalVersion == null ? i->true: i->i.compareVersionNumber(maximalVersion)<=0 )
             .distinct()
             .forEach(allImages::add);
         Collections.sort(allImages);
@@ -79,7 +82,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
 
 
     public static class DockerImage implements Comparable<DockerImage> {
-        String imageName, version, fileName;
+        String imageName, version, versionPrefix, fileName;
         int[] versionNumber;
         boolean installed;
         public DockerImage(String fileName, Set<String> installed) {
@@ -90,7 +93,9 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
                 imageName = tag.substring(0, i);
                 version = tag.substring(i+1);
                 try {
-                    versionNumber = DockerGateway.parseVersion(tag);
+                    Pair<String, int[]> t = DockerGateway.parseVersion(tag);
+                    versionPrefix = t.key;
+                    versionNumber = t.value;
                 } catch (NumberFormatException e) {
                     versionNumber = new int[0];
                 }
@@ -141,7 +146,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
             return getTag() + (isInstalled() ? "" : " (not installed)");
         }
 
-        public int compareVersion(int[] version) {
+        public int compareVersionNumber(int[] version) {
             return DockerGateway.versionComparator().compare(versionNumber, version);
         }
 

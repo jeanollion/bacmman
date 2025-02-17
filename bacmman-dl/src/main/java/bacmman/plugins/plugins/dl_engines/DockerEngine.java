@@ -67,8 +67,8 @@ public class DockerEngine implements DLengine, Hint {
         dockerGateway = Core.getCore().getDockerGateway();
         if (dockerGateway == null) throw new RuntimeException("Docker Gateway could not be initialized. Is bacmman-docker installed ? ");
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
-        if (dc != null) dockerImage.setImageRequirement(dc.getDockerImageName(), dc.minimalVersion(), dc.maximalVersion());
-        else dockerImage.setImageRequirement("predict_dnn", null, null);
+        if (dc != null) dockerImage.setImageRequirement(dc.getDockerImageName(), dc.getVersionPrefix(), dc.minimalVersion(), dc.maximalVersion());
+        else dockerImage.setImageRequirement("predict_dnn", null, null, null);
     }
 
     @Override
@@ -382,7 +382,6 @@ public class DockerEngine implements DLengine, Hint {
         } else dir = getLocalDirectory();
         dir = dir.resolve(UUID.get().toHexString());
         Files.createDirectories(dir);
-        logger.debug("data dir: {}", dir);
         return dir;
     }
 

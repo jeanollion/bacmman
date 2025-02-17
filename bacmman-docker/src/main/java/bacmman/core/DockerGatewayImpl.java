@@ -139,7 +139,7 @@ public class DockerGatewayImpl implements DockerGateway {
            .withTty(true);
         if (Utils.isUnix()) {
             int uid = Utils.getUID();
-            logger.debug("Unix UID: {}", uid);
+            //logger.debug("Unix UID: {}", uid);
             if (uid>=0) cmd = cmd.withUser(uid+":"+uid);
         }
         CreateContainerResponse container = cmd.exec();

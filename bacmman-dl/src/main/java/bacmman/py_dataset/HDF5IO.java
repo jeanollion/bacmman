@@ -107,19 +107,20 @@ public class HDF5IO {
         int C = (image instanceof LazyImage5D) ? ((LazyImage5D)image).getSizeC() : 1;
         int T = (image instanceof LazyImage5D) ? ((LazyImage5D)image).getSizeF() : 1;
         int Z = image.sizeZ();
-        int W = image.sizeX();
-        int H = image.sizeY();
+        int X = image.sizeX();
+        int Y = image.sizeY();
 
         long[] dims;
         int[] blockDims;
         long[] blockIdx;
+        boolean byLine = X * Y > 512*512 && X > 16;
         if (Z > 1) {
-            dims = channelLast ? new long[]{ T, Z, H, W, C } : new long[]{ T, C, Z, H, W };
-            blockDims = channelLast ? new int[]{ 1, 1, H, W, 1 } : new int[]{ 1, 1, 1, H, W };
+            dims = channelLast ? new long[]{ T, Z, Y, X, C } : new long[]{ T, C, Z, Y, X };
+            blockDims = channelLast ? new int[]{ 1, 1, byLine?1:Y, X, 1 } : new int[]{ 1, 1, 1, byLine?1:Y, X };
             blockIdx = new long[]{ 0, 0, 0, 0, 0 };
         } else {
-            dims = channelLast ? new long[]{ T, H, W, C } : new long[]{ T, C, H, W };
-            blockDims = channelLast ? new int[]{ 1, H, W, 1 } : new int[]{ 1, 1, H, W };
+            dims = channelLast ? new long[]{ T, Y, X, C } : new long[]{ T, C, Y, X };
+            blockDims = channelLast ? new int[]{ 1, byLine?1:Y, X, 1 } : new int[]{ 1, 1, byLine?1:Y, X };
             blockIdx = new long[]{ 0, 0, 0, 0 };
         }
         DTYPE type = getType(image);
@@ -132,7 +133,13 @@ public class HDF5IO {
                 if (image instanceof LazyImage5D) ((LazyImage5D)image).setPosition(t, c);
                 for (int z = 0; z < Z; ++z) {
                     if (Z>1) blockIdx[channelLast ? 1 : 2] = z;
-                    writeSlice(writer, image, data, dataFlat, dsName, type, blockIdx, z);
+                    if (!byLine) writeSlice(writer, image, data, dataFlat, dsName, type, blockIdx, z);
+                    else {
+                        for (int y = 0; y < Y; ++y) {
+                            blockIdx[(channelLast ? 1 : 2) + (Z>1 ? 1 : 0)] = y;
+                            writeLine(writer, image, data, dataFlat, dsName, type, blockIdx, z, y);
+                        }
+                    }
                 }
             }
         }
@@ -220,6 +227,20 @@ public class HDF5IO {
     private static void writeSlice(IHDF5Writer writer, ImagePlus imp, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int sliceSize, int c, int z, int t) {
         int stackIndex = imp.getStackIndex(c + 1, z + 1, t + 1);
         System.arraycopy(imp.getImageStack().getPixels(stackIndex), 0, dataFlat, 0, sliceSize);
+        writeArray(writer, data, dsName, type, blockIdx);
+    }
+
+    private static void writeSlice(IHDF5Writer writer, Image image, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int z) {
+        System.arraycopy(image.getPixelArray()[z], 0, dataFlat, 0, image.getSizeXY());
+        writeArray(writer, data, dsName, type, blockIdx);
+    }
+
+    private static void writeLine(IHDF5Writer writer, Image image, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int z, int y) {
+        System.arraycopy(image.getPixelArray()[z], image.sizeX() * y, dataFlat, 0, image.sizeX());
+        writeArray(writer, data, dsName, type, blockIdx);
+    }
+
+    private static void writeArray(IHDF5Writer writer, MDAbstractArray data, String dsName, DTYPE type, long[] blockIdx) {
         switch (type){
             case FLOAT32:
                 writer.float32().writeMDArrayBlock(dsName, (MDFloatArray)data, blockIdx);
@@ -239,26 +260,6 @@ public class HDF5IO {
         }
     }
 
-    private static void writeSlice(IHDF5Writer writer, Image image, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int z) {
-        System.arraycopy(image.getPixelArray()[z], 0, dataFlat, 0, image.getSizeXY());
-        switch (type){
-            case FLOAT32:
-                writer.float32().writeMDArrayBlock(dsName, (MDFloatArray)data, blockIdx);
-                break;
-            case FLOAT64:
-                writer.float64().writeMDArrayBlock(dsName, (MDDoubleArray)data, blockIdx);
-                break;
-            case SHORT:
-                writer.uint16().writeMDArrayBlock(dsName, (MDShortArray)data, blockIdx);
-                break;
-            case BYTE:
-                writer.uint8().writeMDArrayBlock(dsName, (MDByteArray)data, blockIdx);
-                break;
-            case INT32:
-                writer.int32().writeMDArrayBlock(dsName, (MDIntArray)data, blockIdx);
-                break;
-        }
-    }
     public static IHDF5Reader getReader(File file) {
         return HDF5Factory.configureForReading(file.getAbsolutePath()).reader();
     }
@@ -417,13 +418,14 @@ public class HDF5IO {
         DTYPE type = getType(sample);
         long[] dims, blockIdx;
         int[] blockDims;
+        boolean byLine = sample.sizeY() * sample.sizeX() > 512 * 512 && sample.sizeX()>16;
         if (sample.sizeZ()>1) {
             dims=new long[]{images.size(), sample.sizeZ(), sample.sizeY(), sample.sizeX()};
-            blockDims = new int[]{1, 1, sample.sizeY(), sample.sizeX()};
+            blockDims = new int[]{1, 1, byLine ? 1 : sample.sizeY(), sample.sizeX()};
             blockIdx = new long[4];
         } else {
             dims=new long[]{images.size(), sample.sizeY(), sample.sizeX()};
-            blockDims = new int[]{1, sample.sizeY(), sample.sizeX()};
+            blockDims = new int[]{1, byLine ? 1 : sample.sizeY(), sample.sizeX()};
             blockIdx = new long[3];
         }
         int sizeZ = sample.sizeZ();
@@ -435,7 +437,13 @@ public class HDF5IO {
             blockIdx[0] = idx;
             for (int z = 0; z < sizeZ; ++z) {
                 if (sizeZ>1) blockIdx[1] = z;
-                writeSlice(writer, images.get(idx), data, dataFlat, dsName, type, blockIdx, z);
+                if (!byLine) writeSlice(writer, images.get(idx), data, dataFlat, dsName, type, blockIdx, z);
+                else {
+                    for (int y = 0; y < sample.sizeY(); ++y) {
+                        blockIdx[sizeZ>1 ? 2 : 1] = y;
+                        writeLine(writer, images.get(idx), data, dataFlat, dsName, type, blockIdx, z, y);
+                    }
+                }
             }
         }
 

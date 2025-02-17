@@ -36,7 +36,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(1000).setStepNumber(200)
-            .setDockerImageRequirements(getDockerImageName(), null, null);
+            .setDockerImageRequirements(getDockerImageName(), null, null, null);
 
     // dataset extraction
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false)

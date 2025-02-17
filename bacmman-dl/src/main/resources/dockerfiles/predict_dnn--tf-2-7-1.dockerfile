@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:2.14.0-gpu
+FROM tensorflow/tensorflow:2.7.1-gpu
 RUN apt-get -y install wget
 RUN pip install --upgrade h5py==3.11.0
 

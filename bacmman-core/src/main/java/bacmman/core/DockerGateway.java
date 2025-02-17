@@ -1,5 +1,6 @@
 package bacmman.core;
 
+import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
 
 import java.io.File;
@@ -30,6 +31,7 @@ public interface DockerGateway {
             } else consumer.accept(message);
         };
     }
+
     static Consumer<String> filterOutANSIEscapeSequences(Consumer<String> consumer) {
         return message -> {
             if (message != null && !message.isEmpty()) {
@@ -38,11 +40,13 @@ public interface DockerGateway {
             consumer.accept(message);
         };
     }
+
     static int[] parseGPUList(String gpuList) {
         if (gpuList==null || gpuList.isEmpty()) return new int[0];
         String[] split = gpuList.split(",");
         return Arrays.stream(split).filter(s->!s.isEmpty()).mapToInt(Integer::parseInt).toArray();
     }
+
     static Comparator<int[]> versionComparator() {
         return (v1, v2) -> {
             for (int i = 0; i<Math.min(v1.length, v2.length); ++i) {
@@ -52,19 +56,42 @@ public interface DockerGateway {
             return Integer.compare(v1.length,v2.length); // if one is longer considered as later version
         };
     }
+
     static Comparator<String> tagComparator(){
-        return (t1, t2) -> versionComparator().compare(parseVersion(t1), parseVersion(t2));
+        return (t1, t2) -> {
+            Pair<String, int[]> v1 = parseVersion(t1);
+            Pair<String, int[]> v2 = parseVersion(t2);
+            if (v1.key != null || v2.key!=null) {
+                if (v1.key==null) return -1;
+                else if (v2.key == null) return 1;
+                else {
+                    int c = v1.key.compareTo(v2.key);
+                    if (c!=0) return c;
+                }
+            }
+            return versionComparator().compare(v1.value, v2.value);
+        };
     }
+
     static Comparator<String> dockerFileComparator(){
         return (f1, f2) -> tagComparator().compare(formatDockerTag(f1), formatDockerTag(f2));
     }
-    static int[] parseVersion(String tag) {
+
+    static Pair<String, int[]> parseVersion(String tag) {
+        // image name
         int i = tag.indexOf(':');
         if (i>=0) tag = tag.substring(i+1);
+        // version prefix
+        String versionPrefix = null;
         i = tag.indexOf('-');
-        if (i>=0) tag = tag.substring(i+1);
-        return Arrays.stream(tag.split("\\.")).mapToInt(Integer::parseInt).toArray();
+        if (i>=0) {
+            versionPrefix = tag.substring(0, i);
+            tag = tag.substring(i+1);
+        }
+        int[] version = Arrays.stream(tag.split("\\.")).mapToInt(Integer::parseInt).toArray();
+        return new Pair<>(versionPrefix, version);
     }
+
     static String formatDockerTag(String tag) {
         tag = tag.replace(".dockerfile", "");
         tag = tag.replace("--", ":");

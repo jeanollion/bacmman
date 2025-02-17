@@ -35,7 +35,7 @@ public class PixMClass implements DockerDLTrainer {
     GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", extractChannels, extractClasses, selModeCond, selModeCond);
 
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, null, null)
-            .setEpochNumber(500).setStepNumber(100).setDockerImageRequirements(getDockerImageName(), null, null);
+            .setEpochNumber(500).setStepNumber(100).setDockerImageRequirements(getDockerImageName(), null, null, null);
     @Override
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();

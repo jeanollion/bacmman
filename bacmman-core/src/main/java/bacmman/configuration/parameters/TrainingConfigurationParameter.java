@@ -123,9 +123,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return this;
     }
 
-    public TrainingConfigurationParameter setDockerImageRequirements(String imageName, int[] minimalVersion, int[] maximalVersion) {
-        trainingParameters.dockerImage.setImageRequirement(imageName, minimalVersion, maximalVersion);
-        trainingParameters.dockerImageExport.setImageRequirement(imageName, minimalVersion, maximalVersion);
+    public TrainingConfigurationParameter setDockerImageRequirements(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
+        trainingParameters.dockerImage.setImageRequirement(imageName, versionPrefix, minimalVersion, maximalVersion);
+        trainingParameters.dockerImageExport.setImageRequirement(imageName, versionPrefix, minimalVersion, maximalVersion);
         return this;
     }
 

@@ -28,7 +28,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(500).setStepNumber(200)
-            .setDockerImageRequirements(getDockerImageName(), null, null);
+            .setDockerImageRequirements(getDockerImageName(), null, null, null);
 
     // dataset extraction
     enum SELECTION_MODE {SPARSE_FRAMES}
