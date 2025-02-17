@@ -174,7 +174,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         getLargeFileGist();
         if (appendModelName) {
             destFile = Paths.get(destFile.getAbsolutePath(), lf.getFileName()).toFile();
-            if (destFile.exists() && destFile.isDirectory() && validDirectory!=null && validDirectory.test(destFile.getAbsolutePath())) {
+            if (destFile.exists() && destFile.isDirectory() && (validDirectory==null || validDirectory.test(destFile.getAbsolutePath())) ) {
                 if (bacmmanLogger!=null) bacmmanLogger.setMessage("Model already exists @ "+destFile.getAbsolutePath());
                 if (callback!=null) callback.accept(destFile);
                 return destFile; // model already exists simply return the path

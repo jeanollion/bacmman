@@ -13,10 +13,12 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
     protected List<DockerImage> allImages=new ArrayList<>();
     int[] minimalVersion, maximalVersion;
     String imageName, versionPrefix;
+
     public DockerImageParameter(String name) {
         super(name, null, null, DockerImage::toString, false);
         setMapper(s->allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null));
     }
+
     public DockerImageParameter setImageRequirement(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
         this.imageName = imageName;
         this.versionPrefix = versionPrefix;
@@ -29,6 +31,15 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         }
         return this;
     }
+
+    public Stream<DockerImage> getAllImages() {
+        return allImages.stream();
+    }
+
+    public String getImageName() {
+        return imageName;
+    }
+
     @Override
     public void setSelectedItem(String item) {
         setValue(this.mapper.apply(item));
@@ -141,6 +152,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         public String getTag() {
             return imageName+":"+version;
         }
+
         @Override
         public String toString() {
             return getTag() + (isInstalled() ? "" : " (not installed)");

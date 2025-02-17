@@ -296,6 +296,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             initChildList();
         }
 
+        public DockerImageParameter.DockerImage getDockerImage(boolean export) {
+            DockerImageParameter.DockerImage im = null;
+            if (export) im = this.dockerImageExport.getValue();
+            if (!export || im == null) im = this.dockerImage.getValue();
+            return im;
+        }
+
         public MLModelFileParameter getLoadModelFile() {
             return loadModelFile;
         }

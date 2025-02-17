@@ -86,6 +86,9 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         this.exportLibrary.setValue(lib);
         return this;
     }
+    public String getExportLibrary() {
+        return this.exportLibrary.getValue();
+    }
 
     public DLModelMetadata addMiscParameters(CustomParameter<Parameter>... parameters) {
         this.miscParameters.insert(parameters);
@@ -101,6 +104,8 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
 
     public DLModelMetadata setDockerDLTrainer(DockerDLTrainer trainer) {
         this.dockerTrainer.setPlugin(trainer);
+        DockerImageParameter.DockerImage im = trainer.getConfiguration().getTrainingParameters().getDockerImage(true);
+        if (im!=null) this.exportLibrary.setValue(im.getVersion());
         return this;
     }
 

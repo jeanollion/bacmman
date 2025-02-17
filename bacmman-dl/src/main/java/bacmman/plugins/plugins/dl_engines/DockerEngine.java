@@ -5,6 +5,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.core.DockerGateway;
 import bacmman.data_structure.dao.UUID;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
 import bacmman.image.LazyImage5D;
 import bacmman.image.LazyImage5DStack;
@@ -13,10 +14,7 @@ import bacmman.plugins.DockerComplient;
 import bacmman.plugins.Hint;
 import bacmman.processing.ResizeUtils;
 import bacmman.py_dataset.HDF5IO;
-import bacmman.utils.FileIO;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.UnaryPair;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
 import ch.systemsx.cisd.hdf5.IHDF5Reader;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import org.json.simple.JSONArray;
@@ -38,9 +36,9 @@ import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 
-public class DockerEngine implements DLengine, Hint {
+public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     private static final Logger logger = LoggerFactory.getLogger(DockerEngine.class);
-    MLModelFileParameter modelFile = new MLModelFileParameter("Model").setEmphasized(true).setHint("Select the folder containing the saved model");
+    MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
     DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
     protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.");
@@ -398,4 +396,18 @@ public class DockerEngine implements DLengine, Hint {
         }
         return dataDir;
     }
+
+    @Override
+    public void configureFromMetadata(DLModelMetadata metadata) {
+        String exportLib = metadata.getExportLibrary();
+        if (exportLib!= null && !exportLib.isEmpty()) {
+            try {
+                Pair<String, int[]> tag = DockerGateway.parseVersion(exportLib);
+                dockerImage.setImageRequirement(dockerImage.getImageName(), tag.key, tag.value, tag.value);
+                DockerImageParameter.DockerImage im = dockerImage.getAllImages().filter(DockerImageParameter.DockerImage::isInstalled).findFirst().orElse(dockerImage.getAllImages().findFirst().orElse(null));
+                dockerImage.setValue(im);
+            } catch (Exception e) {}
+        }
+    }
+
 }
