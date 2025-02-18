@@ -31,6 +31,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -41,8 +42,8 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
     DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
-    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setEmphasized(true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.<br/>Leave blank to run on CPU");
-    protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 8).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB)");
+    protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "-1", true, true).setEmphasized(true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.<br/>Leave blank to run on CPU, set -1 to use default GPU (from Option menu)");
+    protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 0).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB). Set 0 to use default value (set in Option menu)");
     FloatParameter initTimeout = new FloatParameter("Init TimeOut", 60).setHint("Maximum time (in s) to initialize the engine.");
     FloatParameter processTimeout = new FloatParameter("Processing TimeOut", 480).setHint("Maximum time (in s) for the engine to process each batch");
     EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z)
@@ -174,7 +175,6 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
 
     protected Image[][][] predictBatch(Image[][][] inputINC) {
         String ds_name = "bdp_inputs"+UUID.get().toHexString()+".h5";
-        logger.debug("processing batch: {}", ds_name);
         String ds_name_out = ds_name.replace("inputs", "outputs");
         Path ds_path = dataDir.resolve(ds_name);
         // write input images to dataset
@@ -187,14 +187,12 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
         }
         writer.close();
         deleteSilently(ds_path_lock);
-        logger.debug("processing batch: {} (unlock)", ds_name);
         int t=0;
         int nIterMax = (int)Math.ceil(1000 * processTimeout.getDoubleValue() / (double)loopFreqMs);
         Path ds_path_out = dataDir.resolve(ds_name_out);
         Path ds_path_error = dataDir.resolve(ds_name.replace("h5", "error"));
         while(t++ < nIterMax) {
             if (Files.exists(ds_path_out)) {
-                logger.debug("processing batch: {} (found output)", ds_name);
                 try {
                     Image[][][] resONC = new Image[outputNames.length][][];
                     IHDF5Reader reader = HDF5IO.getReader(ds_path_out.toFile());
@@ -203,7 +201,6 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                         resONC[i] = toImageArray(im);
                     }
                     reader.close();
-                    logger.debug("processing batch: {} (read output)", ds_name);
                     return resONC;
                 } catch (Exception e) {
                     deleteSilently(ds_path);
@@ -374,7 +371,11 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                 if (dc != null) Utils.extractResourceFile(dc.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 else Utils.extractResourceFile(getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 Core.userLog("Building docker image: " + tag);
-                return dockerGateway.buildImage(tag, new File(dockerFilePath), Core::userLog, Core::userLog, null);
+                Consumer<String> progressParser = m -> {
+                    int[] prog = DockerGateway.parseBuildProgress(m);
+                    if (prog !=null) Core.userLog("Build Progress: step " + prog[0] +" / "+ prog[1]);
+                };
+                return dockerGateway.buildImage(tag, new File(dockerFilePath), progressParser, Core::userLog, null);
             } catch (IOException e) {
                 Core.userLog("Could not build docker image");
                 logger.error("Error while extracting resources", e);

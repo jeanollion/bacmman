@@ -1668,7 +1668,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             for (int i = 0; i < framesToPredict.length; i += increment ) {
                 int idxMax = Math.min(i + increment, framesToPredict.length);
                 Image[][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval);
-                logger.debug("input: [{}; {}) / [{}; {})", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
+                logger.debug("input: [{}; {}] / [{}; {}]", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
                 Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
                 appendPrediction(predictions, i);
             }

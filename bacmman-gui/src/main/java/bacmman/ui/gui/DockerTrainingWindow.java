@@ -52,6 +52,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
+import static bacmman.core.DockerGateway.parseProgress;
 import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
@@ -922,17 +923,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     static Pattern epochProgressPattern = Pattern.compile("Epoch (\\d+)/(\\d+)");
     static Pattern epochEndPattern = Pattern.compile("(\\n*Epoch \\d+):");
     static Pattern stepProgressPattern = Pattern.compile("^(\\n*\\s*\\d+)/(\\d+)");
-    static Pattern buildProgressPattern = Pattern.compile("^Step (\\d+)/(\\d+)");
     static Pattern numberPattern = Pattern.compile("[+-]?\\d+(\\.\\d*)?([eE][+-]?\\d+)?");
-
-    protected int[] parseProgress(String message) {
-        Matcher m = numberPattern.matcher(message);
-        m.find();
-        int step = Integer.parseInt(m.group());
-        m.find();
-        int totalSteps = Integer.parseInt(m.group());
-        return new int[]{step, totalSteps};
-    }
 
     protected String parseLoss(String message) {
         int i = message.toLowerCase().indexOf("loss:");
@@ -1083,23 +1074,11 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void parseBuildProgress(String message) {
-        //16:14:28.235 [docker-java-stream-1238510046] DEBUG c.g.d.z.s.o.a.hc.client5.http.wire - http-outgoing-0 << "{"status":"Downloading","progressDetail":{"current":90067877,"total":566003872},"progress":"[=======\u003e                                           ]  90.07MB/566MB","id":"7f04413edb94"}[\r][\n]"
-        //16:14:28.398 [docker-java-stream-1238510046] DEBUG c.g.d.z.s.o.a.hc.client5.http.wire - http-outgoing-0 << "{"status":"Downloading","progressDetail":{"current":771,"total":1090},"progress":"[===================================\u003e               ]     771B/1.09kB","id":"7aa0f52ee7e3"}[\r][\n]"
-        if (message == null || message.isEmpty()) return;
-        Matcher m = buildProgressPattern.matcher(message);
-        if (m.find()) {
-            int[] prog = parseProgress(message);
-            if (prog != null) {
-                if (currentProgressBar.getMaximum() != prog[1]) currentProgressBar.setMaximum(prog[1]);
-                setProgress(prog[0]);
-            }
-        } else {
-            if (message.startsWith("Successfully tagged")) {
-                setMessage(message);
-            }
+        int[] prog = DockerGateway.parseBuildProgress(message);
+        if (prog != null) {
+            if (currentProgressBar.getMaximum() != prog[1]) currentProgressBar.setMaximum(prog[1]);
+            setProgress(prog[0]);
         }
-
-        logger.debug("build progress: {}", message);
     }
 
     String[] ignoreError = new String[]{"Type inference failed", "Skipping the delay kernel, measurement accuracy will be reduced", "Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};

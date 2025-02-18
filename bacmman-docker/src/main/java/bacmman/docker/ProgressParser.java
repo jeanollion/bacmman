@@ -11,7 +11,6 @@ import java.util.function.BiConsumer;
 
 public class ProgressParser {
     public final static Logger logger = LoggerFactory.getLogger(ProgressParser.class);
-
     final private HashMap<String, ResponseItem.ProgressDetail> progress = new HashMap<>();
     //String currentStatus = null;
     final BiConsumer<Integer, Integer> stepProgress;

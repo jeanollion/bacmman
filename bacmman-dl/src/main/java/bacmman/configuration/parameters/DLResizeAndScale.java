@@ -317,7 +317,6 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 if (dims[i]<minTargetShape) throw new RuntimeException("Error while resizing in padding mode on axis="+i+":  max image size (with min pad)="+minTargetShape+" > target size="+dims[i]);
             }
         }
-        logger.debug("Target shape: {}", Utils.toStringArray(dims));
         return dims;
     }
     public Image[][][] predict(DLengine engine, Image[][]... inputINC) {

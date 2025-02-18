@@ -100,4 +100,24 @@ public interface DockerGateway {
         return m.replaceAll(".");
     }
 
+    Pattern buildProgressPattern = Pattern.compile("^Step (\\d+)/(\\d+)");
+    Pattern numberPattern = Pattern.compile("[+-]?\\d+(\\.\\d*)?([eE][+-]?\\d+)?");
+
+    static int[] parseBuildProgress(String message) {
+        if (message == null || message.isEmpty()) return null;
+        Matcher m = buildProgressPattern.matcher(message);
+        if (m.find()) {
+            return parseProgress(message);
+        } else {
+            return null;
+        }
+    }
+    static int[] parseProgress(String message) {
+        Matcher m = numberPattern.matcher(message);
+        m.find();
+        int step = Integer.parseInt(m.group());
+        m.find();
+        int totalSteps = Integer.parseInt(m.group());
+        return new int[]{step, totalSteps};
+    }
 }

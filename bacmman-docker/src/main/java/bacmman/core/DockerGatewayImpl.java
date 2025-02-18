@@ -120,11 +120,13 @@ public class DockerGatewayImpl implements DockerGateway {
                 //.withDevices(Collections.EMPTY_LIST)
                 //.withBlkioDeviceReadBps(Collections.emptyList()).withBlkioDeviceWriteBps(Collections.emptyList()).withBlkioDeviceWriteIOps(Collections.emptyList()).withBlkioDeviceReadIOps(Collections.emptyList()).withBlkioWeightDevice(Collections.emptyList());
         if (gpuIds!=null && gpuIds.length>0) {
+            if (gpuIds.length==1 && gpuIds[0]==-1) gpuIds = DockerGateway.parseGPUList(PropertyUtils.get(PropertyUtils.DOCKER_GPU_LIST, "")); // use default GPU
             DeviceRequest dr = new DeviceRequest().withDriver("nvidia")
                     .withCapabilities(Collections.singletonList(Collections.singletonList("gpu"))).withOptions(Collections.emptyMap())
                     .withDeviceIds(Arrays.stream(gpuIds).boxed().map(s->""+s).collect(Collectors.toList()));
             hostConfig = hostConfig.withDeviceRequests(Collections.singletonList(dr));//.withRuntime("nvidia"); // not working under windows ?
         }
+        if (shmSizeGb == 0) shmSizeGb = PropertyUtils.get(PropertyUtils.DOCKER_SHM_GB, 8.);
         hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * Math.pow(2, 30))); //.withMemorySwappiness(0L); //.withBlkioWeight(1000);
         if (memoryGb>0) hostConfig = hostConfig.withMemory(Math.round(memoryGb * Math.pow(2, 30))).withMemorySwap(Math.round(memoryGb * Math.pow(2, 30))).withOomKillDisable(true); //memory swap to same value = no swap;
         if (mountDirs!=null && mountDirs.length>0) {
