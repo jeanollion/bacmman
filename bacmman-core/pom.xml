@@ -28,7 +28,7 @@
         <dependency>
             <groupId>net.imagej</groupId>
             <artifactId>ij</artifactId>
-            <version>1.54g</version>
+            <version>1.54n</version>
         </dependency>
         <dependency>
             <groupId>net.imagej</groupId>

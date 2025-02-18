@@ -21,6 +21,16 @@
             <artifactId>bacmman-core</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
+        <!--dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-mapdb</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency-->
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-objectbox</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-modules-mother-machine</artifactId>
@@ -36,10 +46,30 @@
             <artifactId>bacmman-tango</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
+        <!--dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-omero</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency-->
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-tf2</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-docker</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-distnet2d</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency>
+        <!--dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-blissed</artifactId>
+            <version>${bacmman.version}</version>
+        </dependency-->
     </dependencies>
 </project>

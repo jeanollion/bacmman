@@ -55,9 +55,9 @@ import org.slf4j.LoggerFactory;
  */
 public class IJ1 implements PlugIn {
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
-    static {
-        if (Utils.isUnix()) LegacyInjector.preinit();
-    }
+    //static {
+        //if (Utils.isUnix()) LegacyInjector.preinit();
+    //}
 
     private static Object LOCK = new Object();
     private static ImageJ ij;
