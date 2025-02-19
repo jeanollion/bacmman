@@ -139,7 +139,7 @@ public class DockerGatewayImpl implements DockerGateway {
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
            .withHostConfig(hostConfig)
            .withTty(true);
-        if (Utils.isUnix()) {
+        if (Utils.isUnix()) { // TODO also on mac ?
             int uid = Utils.getUID();
             //logger.debug("Unix UID: {}", uid);
             if (uid>=0) cmd = cmd.withUser(uid+":"+uid);

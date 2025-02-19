@@ -183,7 +183,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
         IHDF5Writer writer = HDF5IO.getWriter(ds_path.toFile(), false);
         for (int i = 0; i<inputNames.length; ++i) {
             LazyImage5DStack im = new LazyImage5DStack(inputNames[i], inputINC[i]);
-            HDF5IO.saveImage(im, writer, "inputs/"+inputNames[i], true, Utils.isUnix() ? 0 : 4);
+            HDF5IO.saveImage(im, writer, "inputs/"+inputNames[i], true, DockerGateway.hasShm() ? 0 : 4);
         }
         writer.close();
         deleteSilently(ds_path_lock);
@@ -394,7 +394,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
 
     protected Path getDataDirectory() throws IOException {
         Path dir;
-        if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) {
+        if (DockerGateway.hasShm()) {
             dir = Paths.get("/dev/shm");
         } else dir = getLocalDirectory();
         dir = dir.resolve(UUID.get().toHexString());

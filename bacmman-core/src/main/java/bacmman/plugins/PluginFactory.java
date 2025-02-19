@@ -167,7 +167,7 @@ public class PluginFactory {
                 String p = resource.getPath();
                 if (p.contains("!")) {
                     p = p.substring(p.indexOf("file:")+5, p.indexOf("!"));
-                    if (Utils.isUnix()) p = p.replaceAll("%20", " ");// space char replacement ... TODO test that this is valid for all unix system + test on windows
+                    if (!Utils.isWindows()) p = p.replaceAll("%20", " ");// space char replacement ... TODO test that this is valid for all unix system + test on windows
                     pathToJars.add(p);
                 }
                 else dirs.add(new File(resource.getFile()));

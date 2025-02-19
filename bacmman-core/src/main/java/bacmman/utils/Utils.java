@@ -955,8 +955,16 @@ public class Utils {
     public static boolean isWindows() {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }
-    public static boolean isUnix() {return !isWindows();}
-
+    public static boolean isUnix() {
+        String OS = System.getProperty("os.name").toLowerCase();
+        return (OS.contains("nix") || OS.contains("nux") || OS.contains("aix"));
+    }
+    public static boolean isSolaris() {
+        return (System.getProperty("os.name").toLowerCase().contains("sunos"));
+    }
+    public static boolean isARM() {
+        return System.getProperty ("os.arch").toLowerCase().contains("arm");
+    }
     public static int getUID() {
         if (!isUnix()) return -1;
         Class c = null;

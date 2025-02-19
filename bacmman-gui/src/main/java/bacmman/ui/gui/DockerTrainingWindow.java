@@ -792,7 +792,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected Path getTempDirectory() {
-        if (Utils.isUnix() && Files.isDirectory(Paths.get("/dev/shm"))) { //TODO add docker menu parameter
+        if (DockerGateway.hasShm()) {
             return Paths.get("/dev/shm");
         } else {
             Path dataTemp = Paths.get(currentWorkingDirectory, "dockerData");
@@ -1138,15 +1138,16 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void setConfigurationFile(boolean loadJavaConf, boolean loadextractConf, boolean loadDockerConf) throws IOException {
         if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
         closeFiles();
-        pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, Utils.isUnix());
-        pythonConfigTest = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "test_configuration.json").toString(), true, Utils.isUnix());
+        boolean lock = !Utils.isWindows();
+        pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, lock);
+        pythonConfigTest = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "test_configuration.json").toString(), true, lock);
         Path jConfigPath = Paths.get(currentWorkingDirectory, "training_jconfiguration.json");
         boolean canLoad = jConfigPath.toFile().isFile();
-        javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, Utils.isUnix());
+        javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, lock);
         Path jExtractConfigPath = Paths.get(currentWorkingDirectory, "extract_jconfiguration.json");
-        javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, Utils.isUnix());
+        javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, lock);
         Path dockerConfigPath = Paths.get(currentWorkingDirectory, "docker_options.json");
-        dockerConfig = new FileIO.TextFile(dockerConfigPath.toString(), true, Utils.isUnix());
+        dockerConfig = new FileIO.TextFile(dockerConfigPath.toString(), true, lock);
         if (loadJavaConf && canLoad) loadConfigFile(true, true, javaConfig);
         if (loadextractConf) loadExtractConfig();
         if (loadDockerConf) loadDockerConfigFile(false);
@@ -1252,7 +1253,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void writeModelTrainConfigFile() {
         FileIO.TextFile configFile = null;
         try {
-            configFile = new FileIO.TextFile(getModelTrainConfigFile(), true, Utils.isUnix());
+            boolean lock = !Utils.isWindows();
+            configFile = new FileIO.TextFile(getModelTrainConfigFile(), true, lock);
             JSONObject config = trainerParameter.toJSONEntry();
             configFile.write(config.toJSONString(), false);
             configFile.close();

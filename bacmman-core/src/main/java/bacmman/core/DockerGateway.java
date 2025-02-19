@@ -4,6 +4,8 @@ import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.BiConsumer;
@@ -119,5 +121,12 @@ public interface DockerGateway {
         m.find();
         int totalSteps = Integer.parseInt(m.group());
         return new int[]{step, totalSteps};
+    }
+    static boolean hasShm() {
+        try {
+            return Files.isDirectory(Paths.get("/dev/shm"));
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
