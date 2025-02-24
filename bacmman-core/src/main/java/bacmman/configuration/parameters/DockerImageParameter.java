@@ -13,18 +13,22 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
     protected List<DockerImage> allImages=new ArrayList<>();
     int[] minimalVersion, maximalVersion;
     String imageName, versionPrefix;
-
+    final List<String> dockerImageResources;
     public DockerImageParameter(String name) {
         super(name, null, null, DockerImage::toString, false);
         setMapper(s->allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null));
+        dockerImageResources = Utils.getResourcesForPath("dockerfiles/").collect(Collectors.toList());
     }
 
     public DockerImageParameter setImageRequirement(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
+        boolean change = !Objects.equals(this.imageName, imageName) || !Objects.equals(this.versionPrefix, versionPrefix) || !Objects.equals(this.minimalVersion, minimalVersion) || !Objects.equals(this.maximalVersion, maximalVersion);
         this.imageName = imageName;
         this.versionPrefix = versionPrefix;
         this.minimalVersion = minimalVersion;
         this.maximalVersion = maximalVersion;
-        refreshImageList();
+        if (allImages.isEmpty() || change) {
+            refreshImageList();
+        }
         if (selectedItem == null && !allImages.isEmpty() && !isAllowNoSelection()) {
             // set first installed value
             setValue(allImages.stream().filter(DockerImage::isInstalled).findFirst().orElse(allImages.get(0)));
@@ -57,7 +61,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         if (gateway==null) installedImages = Collections.EMPTY_SET;
         else installedImages = gateway.listImages().collect(Collectors.toSet());
         allImages.clear();
-        Stream.concat(Utils.getResourcesForPath("dockerfiles/"), installedImages.stream())
+        Stream.concat(dockerImageResources.stream(), installedImages.stream())
             .map(n -> new DockerImage(n, installedImages))
             .filter(imageName == null ? i->true : i -> i.imageName.equals(imageName))
             .filter(versionPrefix==null ? i -> true : i -> Objects.equals(versionPrefix, i.versionPrefix))
@@ -81,7 +85,6 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
 
     @Override
     public DockerImage getValue() {
-        if (selectedItem != null && !selectedItem.isInstalled()) refreshImageList(); // in case image has been installed but not refreshed
         return selectedItem;
     }
 

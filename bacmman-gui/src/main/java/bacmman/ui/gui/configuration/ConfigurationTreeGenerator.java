@@ -218,7 +218,9 @@ public class ConfigurationTreeGenerator {
         String t = getParameterHint((Parameter)parameter, expertMode);
         if (t==null) t = "";
         if (parameter instanceof PluginParameter) {
-            Plugin p = ((PluginParameter)parameter).instantiatePlugin();
+            PluginParameter pp = ((PluginParameter)parameter);
+            Plugin p = PluginFactory.getPlugin(pp.getPluginType(), pp.getPluginName());
+            //Plugin p = ((PluginParameter)parameter).instantiatePlugin(); // this can slow down UI -> Hint must not depend on parametrization
             String t2 = getPluginHint(p, expertMode);
             if (t2!=null && t2.length()>0) {
                 if (t.length()>0) t = t+"<br /><br />";

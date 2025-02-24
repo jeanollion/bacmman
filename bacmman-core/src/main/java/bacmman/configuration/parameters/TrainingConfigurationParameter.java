@@ -129,14 +129,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return this;
     }
 
-    public TrainingConfigurationParameter refreshDockerImages() {
-        trainingParameters.dockerImage.refreshImageList();
-        trainingParameters.dockerImageExport.refreshImageList();
-        return this;
-    }
-
     public DockerImageParameter.DockerImage getSelectedDockerImage(boolean export) {
-        if (export && trainingParameters.dockerImageExport.getSelectedIndex()>=0) return trainingParameters.dockerImageExport.getValue();
+        if (export && trainingParameters.dockerImageExport.getSelectedIndex()>=0) {
+            trainingParameters.dockerImageExport.refreshImageList();
+            return trainingParameters.dockerImageExport.getValue();
+        }
+        trainingParameters.dockerImage.refreshImageList();
         return trainingParameters.dockerImage.getValue();
     }
 

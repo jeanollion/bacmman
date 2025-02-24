@@ -92,7 +92,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JScrollPane dockerOptionJSP;
     private JButton computeMetricsButton;
     private JButton plotButton;
-    private JComboBox dockerImageJCB;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
     static String MD_ID = "docker_training_move_dir";
@@ -1360,6 +1359,10 @@ public class DockerTrainingWindow implements ProgressLogger {
         moveModelButton.setEnabled(uploadModelEnable && moveDirIsValid);
     }
 
+    protected TrainingConfigurationParameter.TrainingParameter getTrainingParameter() {
+        return ParameterUtils.getParameter(TrainingConfigurationParameter.TrainingParameter.class, trainerParameter.getParameters(), null);
+    }
+
     protected File getMoveModelDestinationDir() {
         return new File(modelDestinationTextField.getText());
     }
@@ -1382,12 +1385,12 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected String getSavedWeightRelativePath() {
         if (!trainerParameter.isOnePluginSet()) return null;
-        return trainerParameter.instantiatePlugin().getConfiguration().getTrainingParameters().getSavedWeightRelativePath();
+        return getTrainingParameter().getSavedWeightRelativePath();
     }
 
     protected File getSavedModelPath() {
         if (!trainerParameter.isOnePluginSet() || currentWorkingDirectory == null) return null;
-        String relPath = trainerParameter.instantiatePlugin().getConfiguration().getTrainingParameters().getModelName();
+        String relPath = getTrainingParameter().getModelName();
         return Paths.get(currentWorkingDirectory, relPath).toFile();
     }
 
