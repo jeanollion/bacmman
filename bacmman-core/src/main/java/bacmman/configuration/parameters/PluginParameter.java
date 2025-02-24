@@ -29,12 +29,9 @@ import java.util.function.Supplier;
 import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.DLengineProvider;
-import bacmman.plugins.DLengine;
-import bacmman.plugins.PluginWithLegacyInitialization;
+import bacmman.plugins.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import bacmman.plugins.Plugin;
-import bacmman.plugins.PluginFactory;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
@@ -137,7 +134,11 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         else {
             Parameter[] parameters = pluginInstance.getParameters();
             if (parameters ==null) parameters = new Parameter[0];
-            this.pluginParameters=new ArrayList<>(Arrays.asList(parameters));
+            List<Parameter> parameterList = Arrays.asList(parameters);
+            if (this.pluginParameters != null && pluginInstance instanceof PersistentConfiguration) { // pre-configure
+                ParameterUtils.setContentMap(Arrays.asList(parameters), this.pluginParameters);
+            }
+            this.pluginParameters=new ArrayList<>(parameterList);
             initChildList();
             this.pluginName=PluginFactory.getPluginName(pluginInstance.getClass());
         }

@@ -126,7 +126,7 @@ public class ParameterUtils {
         }
         return ok;
     }
-    private static void setContentMap(List<Parameter> recieve, List<Parameter> give) {
+    static void setContentMap(List<Parameter> recieve, List<Parameter> give) {
         if (recieve==null || recieve.isEmpty() || give==null || give.isEmpty()) return;
         Map<String, Parameter> recieveMap = recieve.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
         for (Parameter p : give) {

@@ -438,7 +438,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
                                 }
                             }*/
-                        } else logger.debug("was able to delete temp file: {}", outputFile);
+                        }
                         dockerGateway.stopContainer(currentContainer);
                         currentContainer = null;
                     }

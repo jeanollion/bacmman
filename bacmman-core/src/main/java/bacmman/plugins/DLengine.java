@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
-public interface DLengine extends Plugin {
+public interface DLengine extends Plugin, PersistentConfiguration {
     static int getSizeZ(Image[][]... inputNC) {
         ToIntFunction<Image[][]> getZ = iNC -> {
             int[] sizeZ = IntStream.range(0, iNC[0].length).map(c -> ResizeUtils.getSizeZ(iNC, c)).distinct().toArray();
