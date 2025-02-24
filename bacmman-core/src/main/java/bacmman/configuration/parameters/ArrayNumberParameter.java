@@ -38,6 +38,11 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
         addValidationFunctionToChildren( n -> !distinct || Arrays.stream(getArrayDouble()).distinct().count() == getActivatedChildCount());
         addListener();
     }
+
+    public boolean isInteger() {
+        return childInstance.decimalPlaces == 0;
+    }
+
     private void addListener() {
         addListener(o->{
             ArrayNumberParameter a = (ArrayNumberParameter)o;

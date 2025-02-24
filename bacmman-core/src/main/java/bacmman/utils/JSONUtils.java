@@ -193,6 +193,20 @@ public class JSONUtils {
         for (String d : array) res.add(d);
         return res;
     }
+
+    public static JSONArray toJSON(double[][] matrix) {
+        JSONArray res = new JSONArray();
+        for (int i = 0; i<matrix.length; ++i) res.add(toJSONArray(matrix[i]));
+        return res;
+    }
+
+    public static JSONArray toJSON(int[][] matrix) {
+        JSONArray res = new JSONArray();
+        for (int i = 0; i<matrix.length; ++i) res.add(toJSONArray(matrix[i]));
+        return res;
+    }
+
+
     public static JSONArray toJSONArrayString(Collection<String> collection) {
         JSONArray res = new JSONArray();
         for (String d : collection) res.add(d);
@@ -371,6 +385,7 @@ public class JSONUtils {
         }
         return null;
     }
+
     public static JSONArray toJSON(Image image) {
         if (image instanceof LazyImage5D) throw new IllegalArgumentException("Image5D not supported yet");
         BiFunction<Integer, Integer, JSONArray> getLine = (y, z) -> {

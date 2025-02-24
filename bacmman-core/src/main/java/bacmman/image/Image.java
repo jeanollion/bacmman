@@ -155,6 +155,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         else if (pixelArray instanceof short[]) return new ImageShort(name, sizeX, (short[])pixelArray);
         else if (pixelArray instanceof float[]) return new ImageFloat(name, sizeX, (float[])pixelArray);
         else if (pixelArray instanceof int[]) return new ImageInt(name, sizeX, (int[])pixelArray);
+        else if (pixelArray instanceof double[]) return new ImageDouble(name, sizeX, (double[])pixelArray);
         else throw new IllegalArgumentException("Pixel Array should be of type byte, short, float or int");
     }
     
@@ -210,6 +211,10 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
             int[][] pixels = new int[planes.size()][];
             for (int i = 0; i<pixels.length; ++i) pixels[i]=((int[][])planes.get(i).getPixelArray())[0];
             return (T)new ImageInt(title, plane0.sizeX(), pixels).setCalibration(plane0).translate(plane0);
+        } else if (plane0 instanceof ImageDouble) {
+            double[][] pixels = new double[planes.size()][];
+            for (int i = 0; i<pixels.length; ++i) pixels[i]=((double[][])planes.get(i).getPixelArray())[0];
+            return (T)new ImageDouble(title, plane0.sizeX(), pixels).setCalibration(plane0).translate(plane0);
         } else {
             logger.error("merge plane Z: unrecognized image type");
             return null;

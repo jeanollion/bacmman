@@ -26,10 +26,14 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.GistConfiguration;
 import bacmman.github.gist.UserAuth;
+import bacmman.image.*;
+import bacmman.image.Image;
+import bacmman.image.io.ImageReaderFile;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configurationIO.ConfigurationLibrary;
+import bacmman.utils.FileIO;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +45,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
@@ -339,6 +345,83 @@ public class ConfigurationTreeGenerator {
                             ListParameter lp = (ListParameter)path.getPathComponent(path.getPathCount()-2);
                             ListParameterUI listUI = (ListParameterUI)ParameterUIBinder.getUI(lp, treeModel, pcb);
                             addToMenu(listUI.getChildDisplayComponent(p), menu);
+                        }
+                        if (lastO instanceof ArrayNumberParameter2D) {
+                            ArrayNumberParameter2D array = ((ArrayNumberParameter2D) lastO);
+                            JMenuItem load = new JMenuItem("Load From Image File");
+                            load.setAction(
+                                new AbstractAction("Load From Image File") {
+                                    @Override
+                                    public void actionPerformed(ActionEvent ae) {
+                                        Path p = getExperiment()!=null? getExperiment().getPath() : (ParameterUtils.getExperiment(array) !=null ? ParameterUtils.getExperiment(array).getPath() : null );
+                                        java.io.File f = FileChooser.chooseFile("Choose image file", p!=null?p.toString():null, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
+                                        if (f != null) {
+                                            try {
+                                                Image image = ImageReaderFile.openImage(f.getAbsolutePath());
+                                                image.resetOffset();
+                                                if (image.sizeZ()>1) throw new IOException("Image must be 2D");
+                                                if (array.isInteger()) {
+                                                    ImageInt imageInt = TypeConverter.toInt(image, null);
+                                                    int[][] data = new int[image.sizeY()][image.sizeX()];
+                                                    BoundingBox.loop(image, (x, y, z) -> data[y][x] = imageInt.getPixelInt(x, y, z));
+                                                    array.setValue(data);
+                                                } else {
+                                                    double[][] data = new double[image.sizeY()][image.sizeX()];
+                                                    BoundingBox.loop(image, (x, y, z) -> data[y][x] = image.getPixel(x, y, z));
+                                                    array.setValue(data);
+                                                }
+                                                treeModel.nodeChanged(array);
+                                                treeModel.nodeStructureChanged(array);
+                                            } catch (IOException e) {
+                                                Core.userLog("Could not read image: "+f.getAbsolutePath()+ " reason: "+e.getMessage());
+                                            }
+                                        }
+                                    }
+                                }
+                            );
+                            menu.add(load);
+                            JMenuItem loadText = new JMenuItem("Load From Text File");
+                            loadText.setAction(
+                                new AbstractAction("Load From Text File") {
+                                    @Override
+                                    public void actionPerformed(ActionEvent ae) {
+                                        Path p = getExperiment()!=null? getExperiment().getPath() : (ParameterUtils.getExperiment(array) !=null ? ParameterUtils.getExperiment(array).getPath() : null );
+                                        java.io.File f = FileChooser.chooseFile("Choose image file", p!=null?p.toString():null, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
+                                        if (f != null) {
+                                            List<String> lines = FileIO.readFromFile(f.getAbsolutePath(), s->s, null);
+                                            if (lines!=null && !lines.isEmpty()) {
+                                                String l = lines.get(0);
+                                                String sep = null;
+                                                if (l.contains(";")) sep = ";";
+                                                else if (l.contains("\t")) sep = "\t";
+                                                else if (l.contains(" ")) sep = " ";
+                                                else if (l.contains(",")) sep = ",";
+                                                if (sep != null) {
+                                                    boolean floating = l.contains(".") || l.contains("E-") || l.contains("e-");
+                                                    if (floating) {
+                                                        double[][] data = new double[lines.size()][];
+                                                        for (int i = 0; i < lines.size(); ++i) {
+                                                            String[] split = lines.get(i).split(sep);
+                                                            data[i] = Arrays.stream(split).mapToDouble(Double::parseDouble).toArray();
+                                                        }
+                                                        array.setValue(data);
+                                                    } else {
+                                                        int[][] data = new int[lines.size()][];
+                                                        for (int i = 0; i < lines.size(); ++i) {
+                                                            String[] split = lines.get(i).split(sep);
+                                                            data[i] = Arrays.stream(split).mapToInt(Integer::parseInt).toArray();
+                                                        }
+                                                        array.setValue(data);
+                                                    }
+                                                    treeModel.nodeChanged(array);
+                                                    treeModel.nodeStructureChanged(array);
+                                                } else Core.userLog("Sep char not found");
+                                            }
+                                        }
+                                    }
+                                }
+                            );
+                            menu.add(loadText);
                         }
                         if (lastO instanceof ConfigIDAware) {
                             //menu.addSeparator();
