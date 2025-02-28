@@ -324,7 +324,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
 
     @Override
     public String getHintText() {
-        return "";
+        return "Deep Learning engine based on Docker. Requires Docker, see bacmman wiki install section.";
     }
 
     @Override

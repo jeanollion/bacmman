@@ -18,6 +18,7 @@
  */
 package bacmman.ui;
 
+import bacmman.core.Core;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.core.Task;
 import bacmman.plugins.PluginFactory;
@@ -44,7 +45,7 @@ import org.slf4j.LoggerFactory;
 public class ProcessTasks {
     
     public static void main(String[] args) {
-        PluginFactory.findPlugins("bacmman.plugins.plugins");
+        Core.getCore();
         Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         root.setLevel(Level.INFO);
         ConsoleProgressLogger consoleUI = new ConsoleProgressLogger();

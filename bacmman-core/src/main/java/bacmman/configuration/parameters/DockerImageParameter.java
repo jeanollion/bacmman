@@ -10,13 +10,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DockerImageParameter extends AbstractChoiceParameter<DockerImageParameter.DockerImage, DockerImageParameter> {
-    protected List<DockerImage> allImages=new ArrayList<>();
+    protected List<DockerImage> allImages=null;
     int[] minimalVersion, maximalVersion;
     String imageName, versionPrefix;
     final List<String> dockerImageResources;
     public DockerImageParameter(String name) {
         super(name, null, null, DockerImage::toString, false);
-        setMapper(s->allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null));
+        setMapper(s->{
+            if (allImages == null) refreshImageList();
+            return allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null);
+        });
         dockerImageResources = Utils.getResourcesForPath("dockerfiles/").collect(Collectors.toList());
     }
 
@@ -26,17 +29,16 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         this.versionPrefix = versionPrefix;
         this.minimalVersion = minimalVersion;
         this.maximalVersion = maximalVersion;
-        if (allImages.isEmpty() || change) {
-            refreshImageList();
-        }
-        if (selectedItem == null && !allImages.isEmpty() && !isAllowNoSelection()) {
-            // set first installed value
-            setValue(allImages.stream().filter(DockerImage::isInstalled).findFirst().orElse(allImages.get(0)));
+        if (allImages != null) { //  only calls docker if has already been initialized. otherwise block on machine without docker installed
+            if (allImages.isEmpty() || change) {
+                refreshImageList();
+            }
         }
         return this;
     }
 
     public Stream<DockerImage> getAllImages() {
+        if (allImages == null) refreshImageList();
         return allImages.stream();
     }
 
@@ -60,7 +62,9 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         Set<String> installedImages;
         if (gateway==null) installedImages = Collections.EMPTY_SET;
         else installedImages = gateway.listImages().collect(Collectors.toSet());
-        allImages.clear();
+        boolean notInit = allImages == null;
+        if (allImages !=null) allImages.clear();
+        else allImages = new ArrayList<>();
         Stream.concat(dockerImageResources.stream(), installedImages.stream())
             .map(n -> new DockerImage(n, installedImages))
             .filter(imageName == null ? i->true : i -> i.imageName.equals(imageName))
@@ -73,6 +77,8 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         if (selectedItem != null) {
             int idx = allImages.indexOf(selectedItem);
             if (idx>=0) selectedItem = allImages.get(idx);
+        } else if (notInit && !allImages.isEmpty() && !isAllowNoSelection()) {
+            setValue(allImages.stream().filter(DockerImage::isInstalled).findFirst().orElse(allImages.get(0)));
         }
     }
 
