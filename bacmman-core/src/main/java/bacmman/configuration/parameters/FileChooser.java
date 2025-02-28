@@ -253,10 +253,13 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public void setContentFrom(Parameter other) {
         if (other instanceof FileChooser) {
             FileChooser otherFC = (FileChooser)other;
-            if (this.relativePath!=otherFC.relativePath) {
-                if (this.relativePath) selectedFiles = toRelativePath(otherFC.getRefPath(), otherFC.selectedFiles);
-                else selectedFiles = toAbsolutePath(otherFC.getRefPath(), otherFC.selectedFiles);
-            } else this.selectedFiles=Arrays.copyOf(((FileChooser)other).selectedFiles, ((FileChooser)other).selectedFiles.length);
+            if (otherFC.selectedFiles == null) this.selectedFiles = null;
+            else {
+                if (this.relativePath != otherFC.relativePath) {
+                    if (this.relativePath) selectedFiles = toRelativePath(otherFC.getRefPath(), otherFC.selectedFiles);
+                    else selectedFiles = toAbsolutePath(otherFC.getRefPath(), otherFC.selectedFiles);
+                } else this.selectedFiles = Arrays.copyOf(otherFC.selectedFiles, (otherFC.selectedFiles.length));
+            }
         } else throw new IllegalArgumentException("wrong parameter type");
     }
     
