@@ -175,7 +175,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         DataBufferContainer bufferContainer = new DataBufferContainer();
         long wrapTime = 0, predictTime = 0;
-        int increment = (int)Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) );
+        int increment = (int)Math.max(1, Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) ));
         logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, increment, nSamples);
         for (int idx = 0; idx<nSamples; idx+=increment) {
             int idxMax = Math.min(idx+increment, nSamples);

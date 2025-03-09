@@ -79,7 +79,16 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
         int nIterMax = (int)Math.ceil(1000 * initTimeout.getDoubleValue() / (double)loopFreqMs);
         Path model_specs = dataDir.resolve("model_specs.json");
         Path model_specs_lock = dataDir.resolve("model_specs.lock");
+        Path model_error = dataDir.resolve("load_model.error");
         while(i++ < nIterMax) {
+            if (Files.exists(model_error)) {
+                List<String> error = FileIO.readFromFile(model_error.toString(), s->s, null);
+                if (!error.isEmpty()) {
+                    deleteSilently(model_error);
+                    close();
+                    throw new RuntimeException(String.join("\n", error));
+                }
+            }
             if (Files.exists(model_specs) && !Files.exists(model_specs_lock)) {
                 List<String> lines = FileIO.readFromFile(model_specs.toString(), s->s, null);
                 if (!lines.isEmpty()) {
@@ -148,7 +157,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                 break;
             }
         }
-        int increment = batchSize==0? nSamples : (int) Math.ceil(nSamples / Math.ceil((double) nSamples / batchSize));
+        int increment = batchSize==0? nSamples : (int) Math.max(1, Math.ceil(nSamples / Math.ceil((double) nSamples / batchSize)));
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         for (int idx = 0; idx < nSamples; idx += increment) {
             int idxMax = Math.min(idx + increment, nSamples);
@@ -217,6 +226,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                     if (error.get(0).contains("No algorithm worked!")) {
                         Core.userLog("No algorithm worked error: check that selected GPU is compatible, or set no GPU to run on CPU");
                     }
+                    close();
                     throw new RuntimeException(String.join("\n", error));
                 }
 
@@ -310,13 +320,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
             } catch (Exception e) {}
         }
         this.containerID = null;
-        if (dataDir != null) {
-            try {
-                Files.delete(dataDir);
-            } catch (IOException e) {
-
-            }
-        }
+        if (dataDir != null) deleteSilently(dataDir);
         this.dataDir = null;
         this.inputNames = null;
         this.outputNames = null;
