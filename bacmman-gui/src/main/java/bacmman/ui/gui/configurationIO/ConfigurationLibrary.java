@@ -480,7 +480,7 @@ public class ConfigurationLibrary {
         localConfig = new ConfigurationTreeGenerator(xp, root, v -> {
         }, (s, l) -> {
         }, s -> {
-        }, db, null);
+        }, db, null).rootVisible(false);
         //if (expState != null) expState.setTree(remoteConfig.getTree()).restoreExpandedPaths(); // not working as tree changed // TODO make it work
         localConfigJSP.setViewportView(localConfig.getTree());
         updateCompareParameters();
@@ -825,7 +825,7 @@ public class ConfigurationLibrary {
                 remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
                 }, (s, l) -> {
                 }, s -> {
-                }, null, null);
+                }, null, null).rootVisible(false);
                 //if (expState != null) expState.setTree(remoteConfig.getTree()).restoreExpandedPaths(); // TODO make it work
                 updateCompareParameters();
                 remoteConfigJSP.setViewportView(remoteConfig.getTree());

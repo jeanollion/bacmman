@@ -269,8 +269,11 @@ public class ConfigurationGistTreeGenerator {
             if (g.getExperiment(getAuth()) != null) {
                 for (int oIdx = 0; oIdx<g.getExperiment(getAuth()).getStructureCount(); ++oIdx) {
                     GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
-                    if (sorted) insertSorted(f, n);
-                    else f.add(n);
+                    Stream<GistTreeNode> stream = EnumerationUtils.toStream(f.children()).map(gg->(GistTreeNode)gg);
+                    if (stream.anyMatch(gg -> gg.gist.getType().equals(GistConfiguration.TYPE.PROCESSING) && gg.getID().equals(n.getID()) )) { // do not add if existing processing block
+                        if (sorted) insertSorted(f, n);
+                        else f.add(n);
+                    }
                 }
             }
         } else {
@@ -278,6 +281,7 @@ public class ConfigurationGistTreeGenerator {
             if (sorted) insertSorted(f, n);
             else f.add(n);
         }
+
     }
 
     protected FolderNode getFolderNode(String folder, boolean createIfNotExisting) {
@@ -354,7 +358,7 @@ public class ConfigurationGistTreeGenerator {
             thumbnailLazyLoader.values().forEach(DefaultWorker::cancelSilently);
             thumbnailLazyLoader.clear();
             // folder nodes
-            gists.stream().map(gc -> gc.folder()).distinct().sorted().map(FolderNode::new).forEach(f -> {
+            gists.stream().map(GistConfiguration::folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
                 root.add(f);
                 // actual configuration element
                 gists.stream().filter(g -> g.folder().equals(f.getUserObject())).sorted(Comparator.comparing(GistConfiguration::name)).forEach(g -> {
@@ -432,6 +436,14 @@ public class ConfigurationGistTreeGenerator {
             else if (gist.getType().equals(GistConfiguration.TYPE.MEASUREMENTS)) res += " [M]";
             else if (gist.getType().equals(GistConfiguration.TYPE.PROCESSING)) res += " [P]";
             return res;
+        }
+
+        public String getID() {
+            if (objectClassIdx>=0) {
+                Experiment xp = gist.getExperiment(getAuth());
+                return xp.getStructure(objectClassIdx).getProcessingPipelineParameter().getConfigID();
+            }
+            return gist.getID();
         }
 
         public int getObjectClassIdx() {
