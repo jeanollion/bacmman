@@ -349,8 +349,8 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             } else {
                 Function<Image[], LazyImage5DPlane> getImage5D = (ZSP) -> new LazyImage5DPlane<>("", fcz->ZSP[fcz[1]].getZPlane(fcz[2]), new int[]{1, ZSP.length, ZSP[0].sizeZ()});
                 if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds Scale-space", getImage5D.apply(seedMaps));
-                if (wsMap.length>0) stores.get(parent).addIntermediateImage(name1+" Scale-space", getImage5D.apply(wsMap));
-                stores.get(parent).addIntermediateImage(name2+" Scale-space", getImage5D.apply(wsMapGauss));
+                if (wsMap.length > 0) stores.get(parent).addIntermediateImage(name1+" Scale-space", getImage5D.apply(wsMap));
+                if (wsMapGauss.length > 0) stores.get(parent).addIntermediateImage(name2+" Scale-space", getImage5D.apply(wsMapGauss));
             }
         }
         return pop;

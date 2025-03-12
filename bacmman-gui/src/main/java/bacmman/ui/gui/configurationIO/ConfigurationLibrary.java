@@ -313,83 +313,83 @@ public class ConfigurationLibrary {
         duplicateRemote.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    JPopupMenu menu = new JPopupMenu();
-                    Action dupOther = new AbstractAction("Duplicate To another Account") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to duplicate to");
-                            if (cred != null) {
-                                try {
-                                    TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
-                                    GistConfiguration gist = remoteSelector.getSelectedGist();
-                                    SaveGistForm form = new SaveGistForm();
-                                    form.setFolder(gist.folder())
-                                            .setName(gist.name())
-                                            .setDescription(gist.getDescription())
-                                            .setVisible(gist.isVisible());
-                                    form.display(displayingFrame, "Duplicate remote configuration to another account...");
-                                    if (form.canceled) return;
-                                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
-                                    content.remove("config_id");
-                                    if (!Utils.isValid(form.name(), false)) {
-                                        if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid name");
-                                        return;
-                                    }
-                                    if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
-                                        if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid folder name");
-                                        return;
-                                    }
-                                    // check that name does not already exists
-                                    if (cred.key.equals(username.getText())) { // same account
-                                        boolean exists = gists.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
-                                        if (exists) {
-                                            if (bacmmanLogger != null)
-                                                bacmmanLogger.setMessage("Configuration already exists.");
-                                            return;
-                                        }
-                                    } else { // check on remote
-                                        List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, bacmmanLogger);
-                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
-                                        if (exists) {
-                                            if (bacmmanLogger != null)
-                                                bacmmanLogger.setMessage("Configuration already exists on other account.");
-                                            return;
-                                        }
-                                    }
-                                    GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
-                                        List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
-                                        if (otherThumb != null)
-                                            for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
-                                    } else {
-                                        List<BufferedImage> otherThumb = gist.getThumbnail();
-                                        if (otherThumb != null)
-                                            for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
-                                        if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
-                                            for (int ocIdx = 0; ocIdx < gist.getExperiment(getAuth()).getStructureCount(); ++ocIdx) {
-                                                otherThumb = gist.getThumbnail(ocIdx);
-                                                if (otherThumb != null)
-                                                    for (BufferedImage t : otherThumb) toSave.appendThumbnail(t, ocIdx);
-                                            }
-                                        }
-                                    }
-                                    toSave.createNewGist(auth2);
-                                    if (cred.key.equals(username.getText())) { // same account
-                                        gists.add(toSave);
-                                        remoteSelector.addGist(toSave);
-                                        remoteSelector.setSelectedGist(toSave, -1);
-                                    }
-                                } catch (GeneralSecurityException ex) {
-                                    bacmmanLogger.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+            if (SwingUtilities.isRightMouseButton(evt)) {
+                JPopupMenu menu = new JPopupMenu();
+                Action dupOther = new AbstractAction("Duplicate To another Account") {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to duplicate to");
+                        if (cred != null) {
+                            try {
+                                TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                GistConfiguration gist = remoteSelector.getSelectedGist();
+                                SaveGistForm form = new SaveGistForm();
+                                form.setFolder(gist.folder())
+                                        .setName(gist.name())
+                                        .setDescription(gist.getDescription())
+                                        .setVisible(gist.isVisible());
+                                form.display(displayingFrame, "Duplicate remote configuration to another account...");
+                                if (form.canceled) return;
+                                JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
+                                content.remove("config_id");
+                                if (!Utils.isValid(form.name(), false)) {
+                                    if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid name");
+                                    return;
                                 }
+                                if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
+                                    if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid folder name");
+                                    return;
+                                }
+                                // check that name does not already exists
+                                if (cred.key.equals(username.getText())) { // same account
+                                    boolean exists = gists.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
+                                    if (exists) {
+                                        if (bacmmanLogger != null)
+                                            bacmmanLogger.setMessage("Configuration already exists.");
+                                        return;
+                                    }
+                                } else { // check on remote
+                                    List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, bacmmanLogger);
+                                    boolean exists = otherConfigs.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()) && g.getType().equals(currentMode));
+                                    if (exists) {
+                                        if (bacmmanLogger != null)
+                                            bacmmanLogger.setMessage("Configuration already exists on other account.");
+                                        return;
+                                    }
+                                }
+                                GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
+                                if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
+                                    List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
+                                    if (otherThumb != null)
+                                        for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
+                                } else {
+                                    List<BufferedImage> otherThumb = gist.getThumbnail();
+                                    if (otherThumb != null)
+                                        for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
+                                    if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
+                                        for (int ocIdx = 0; ocIdx < gist.getExperiment(getAuth()).getStructureCount(); ++ocIdx) {
+                                            otherThumb = gist.getThumbnail(ocIdx);
+                                            if (otherThumb != null)
+                                                for (BufferedImage t : otherThumb) toSave.appendThumbnail(t, ocIdx);
+                                        }
+                                    }
+                                }
+                                toSave.createNewGist(auth2);
+                                if (cred.key.equals(username.getText())) { // same account
+                                    gists.add(toSave);
+                                    remoteSelector.addGist(toSave);
+                                    remoteSelector.setSelectedGist(toSave, -1);
+                                }
+                            } catch (GeneralSecurityException ex) {
+                                bacmmanLogger.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                             }
                         }
-                    };
-                    dupOther.setEnabled(remoteSelector != null && remoteSelector.getTree().getSelectionCount() == 1);
-                    menu.add(dupOther);
-                    menu.show(duplicateRemote, evt.getX(), evt.getY());
-                }
+                    }
+                };
+                dupOther.setEnabled(remoteSelector != null && remoteSelector.getTree().getSelectionCount() == 1);
+                menu.add(dupOther);
+                menu.show(duplicateRemote, evt.getX(), evt.getY());
+            }
             }
         });
         setThumbnailButton.addActionListener(e -> {
