@@ -225,6 +225,8 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     }
     protected void duplicate(Stream<SegmentedObject> source) {
         Map<SegmentedObject, SegmentedObject> sourceMapRes = source.distinct().collect(Collectors.toMap(s->s, this::makeDuplicate));
+        int[] frameRange = new int[] {sourceMapRes.keySet().stream().mapToInt(SegmentedObject::getFrame).min().orElse(0),
+                sourceMapRes.keySet().stream().mapToInt(SegmentedObject::getFrame).max().orElse(0)};
         if (sourceMapRes.isEmpty()) return;
         // ensure parents are duplicated
         duplicate(sourceMapRes.keySet().stream().filter(o -> !o.isRoot()).map(SegmentedObject::getParent));
@@ -253,14 +255,18 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
                 res.setParent(parent);
             }
             Map<sourceID, SegmentedObject> map = sourceIdMapDupObject.get(s.getStructureIdx());
-            if (s.getPrevious()!=null) {
-                SegmentedObject previous = map.get((sourceID)s.getPreviousId());
-                res.setPrevious(previous);
-            }
-            if (s.getNext()!=null) {
-                SegmentedObject next = map.get((sourceID)s.getNextId());
-                res.setNext(next);
-            }
+            try {
+                if (s.getFrame() > frameRange[0] && s.getPrevious() != null) {
+                    SegmentedObject previous = map.get((sourceID) s.getPreviousId());
+                    res.setPrevious(previous);
+                }
+            } catch (RuntimeException e) { } // previous is out of frame range
+            try {
+                if (s.getFrame() < frameRange[1] && s.getNext() != null) {
+                    SegmentedObject next = map.get((sourceID) s.getNextId());
+                    res.setNext(next);
+                }
+            } catch (RuntimeException e) {} // next is out of frame range
             SegmentedObject th = map.get((sourceID)s.getTrackHeadId());
             if (th == null) {
                 logger.error("TrackHead not duplicated for {} (th: {})", s, s.getTrackHead());

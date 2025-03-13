@@ -22,6 +22,7 @@ import bacmman.data_structure.Processor;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
+import bacmman.image.TypeConverter;
 import bacmman.image.wrappers.ImagescienceWrapper;
 import imagescience.feature.Differentiator;
 import imagescience.feature.Hessian;
@@ -344,11 +345,12 @@ public class ImageFeatures {
     public static ImageFloat gaussianSmooth(Image image, double scale, boolean overrideIfFloat) {
         return gaussianSmooth(image, scale, scale*image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
     }
-    public static ImageFloat gaussianSmooth(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
+    public static ImageFloat gaussianSmooth(Image image, double scaleXY, double scaleZ, boolean overwriteIfFloat) {
         if (image.sizeZ()>1 && scaleZ<=0) throw new IllegalArgumentException("Scale Z should be >0 ");
         else if (scaleZ<=0) scaleZ=1;
-        if (scaleXY<=0) throw new IllegalArgumentException("Scale XY should be >0 ");
-        boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
+        if (scaleXY == 0) return TypeConverter.toFloat(image, null, !overwriteIfFloat);
+        if (scaleXY<0) throw new IllegalArgumentException("Scale XY should be >0 ");
+        boolean duplicate = !((image instanceof ImageFloat) && overwriteIfFloat);
         final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
         is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
         Differentiator differentiator = new Differentiator();
