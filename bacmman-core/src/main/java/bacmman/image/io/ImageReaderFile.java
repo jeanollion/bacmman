@@ -477,12 +477,12 @@ public class ImageReaderFile implements ImageReader {
     }
 
     public static Image openImage(String filePath, ImageIOCoordinates ioCoords, boolean invertTZ, byte[][] buffer) throws IOException {
-        if (filePath.toLowerCase().endsWith(".tif")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
+        if (filePath.toLowerCase().endsWith(".tif") || filePath.toLowerCase().endsWith(".tiff")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
             if (ioCoords.getSerie()==0 && ioCoords.getChannel()==0 && ioCoords.getTimePoint()==0) { // this only works when
                 int[] slices = ioCoords.getBounds()==null ? null : ArrayUtil.generateIntegerArray(ioCoords.getBounds().zMin(), ioCoords.getBounds().zMax()+1);
                 //long t0 = System.currentTimeMillis();
                 //logger.debug("opening IJ TIF: slices {}", slices);
-                Image res = openIJTif(filePath, slices);
+                Image res = openIJTif(filePath, ioCoords.rgb, slices);
                 //long t1 = System.currentTimeMillis();
                 //logger.debug("opening IJ TIF: slices {} in {}ms", slices, t1-t0);
                 if (res!=null) {
@@ -547,6 +547,9 @@ public class ImageReaderFile implements ImageReader {
         }
     }
     public static Image openIJTif(String filePath, int... slices) {
+        return openIJTif(filePath, ImageIOCoordinates.RGB.R, slices);
+    }
+    public static Image openIJTif(String filePath, ImageIOCoordinates.RGB rgb, int... slices) {
         File file = new File(filePath);
         ImagePlus imp;
         Opener o = new Opener();
@@ -555,6 +558,7 @@ public class ImageReaderFile implements ImageReader {
             imp = o.openTiff(file.getParent(), file.getName());
             if (imp != null) {
                 imp.setTitle(file.getName());
+                if (imp.isRGB()) imp.updatePosition(rgb.idx + 1, imp.getZ(), imp.getT());
                 Image im = IJImageWrapper.wrap(imp);
                 return im;
             } else return null;
@@ -562,6 +566,7 @@ public class ImageReaderFile implements ImageReader {
             List<Image> planes = Arrays.stream(slices)
                     .mapToObj(s -> o.openTiff(file.toString(), s+1))
                     .filter(Objects::nonNull)
+                    .peek(i -> { if (i.isRGB()) {i.updatePosition(rgb.idx + 1, i.getZ(), i.getT() );} })
                     .map(IJImageWrapper::wrap)
                     .collect(Collectors.toList());
             if (planes.isEmpty()) return null;

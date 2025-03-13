@@ -38,6 +38,7 @@ import java.util.function.ToIntFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -157,10 +158,11 @@ public class OmeroImageFieldFactory {
         }
         PosLoop : for (Entry<String, List<OmeroImageMetadata>> positionFiles : filesByPosition.entrySet()) {
             logger.debug("Pos: {}, grouping {} files by channels...", positionFiles.getKey(), positionFiles.getValue().size());
-            Map<String, List<OmeroImageMetadata>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getFileName(), channelKeywords, "")));
+            String[] sortedChannelKW = Stream.of(channelKeywords).sorted(Comparator.comparingInt(s->-s.length())).toArray(String[]::new); // longer channel kw first, in case some kw have same start
+            Map<String, List<OmeroImageMetadata>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getFileName(), sortedChannelKW, "")));
             logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
-
-            if (filesByChannel.size()==channelKeywords.length) {
+            int nDistinctChannels = (int)Stream.of(channelKeywords).distinct().count();
+            if (filesByChannel.size()==nDistinctChannels) {
                 Integer frameNumber = null;
                 boolean ok = true;
                 Map<String, List<OmeroImageMetadata>> sortedFilesByChannel = new TreeMap<>();
@@ -231,6 +233,7 @@ public class OmeroImageFieldFactory {
                                 new MultipleImageContainerPositionChannelFrame(
                                         fileIDsCT,
                                         frameNumber,
+                                        xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList()),
                                         invertTZ_CT,
                                         sizeZC,
                                         sortedFilesByChannel.get(refChan).get(0).getScaleXY(),

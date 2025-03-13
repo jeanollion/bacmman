@@ -39,6 +39,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import bacmman.utils.FileIO;
 import bacmman.utils.Utils;
@@ -383,7 +384,7 @@ public class ImageFieldFactory {
         // 3 split by position / channel (check number) / frames (check same number between channels & continuity)
         
         Map<String, List<File>> filesByPosition=null;
-        if (posSep.length()>0) {
+        if (!posSep.isEmpty()) {
             if (posSep.length()==1 && posSep.charAt(0)=='^') { // position name is at the beginning of the file name
                 try {
                     filesByPosition = files.stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getAsStringBeforeMatch(f.getName(), allchanPattern)));
@@ -412,14 +413,16 @@ public class ImageFieldFactory {
             pcb.log("Directory: "+input.getAbsolutePath()+ ". Number of position found: "+ filesByPosition.size()+ ". Checking validity...");
             pcb.incrementTaskNumber(filesByPosition.size());
         }
-        Pattern timePattern = frameSep.length()>0 ? Pattern.compile(".*"+frameSep+"(\\d+).*") : null;
+        Pattern timePattern = !frameSep.isEmpty() ? Pattern.compile(".*"+frameSep+"(\\d+).*") : null;
 
         PosLoop : for (Entry<String, List<File>> positionFiles : filesByPosition.entrySet()) {
-            logger.debug("Pos: {}, grouping {} files by channels...", positionFiles.getKey(), positionFiles.getValue().size());
-            Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), channelKeywords, "")));
+            logger.debug("Pos: {}, grouping {} files by channels... (keywords: {}) ", positionFiles.getKey(), positionFiles.getValue().size(), channelKeywords);
+            String[] sortedChannelKW = Stream.of(channelKeywords).sorted(Comparator.comparingInt(s->-s.length())).toArray(String[]::new); // longer channel kw first, in case some kw have same start
+            Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), sortedChannelKW, "")));
             logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
             Map<String, Map<Integer, File>> fileByChannelAndTimePoint = new HashMap<>();
-            if (filesByChannel.size()==channelKeywords.length) {
+            int nDistinctChannels = (int)Stream.of(channelKeywords).distinct().count();
+            if (filesByChannel.size()==nDistinctChannels) {
                 Integer frameNumber = null;
                 boolean ok = true;
 
@@ -477,6 +480,7 @@ public class ImageFieldFactory {
                                 !posSep.isEmpty() ? positionFiles.getKey() : "",
                                 frameSep,
                                 channelKeywords,
+                                xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList()),
                                 frameNumber,
                                 positionFiles.getKey()
                             ));

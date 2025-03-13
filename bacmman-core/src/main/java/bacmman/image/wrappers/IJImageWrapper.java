@@ -22,6 +22,9 @@ import bacmman.image.*;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
+import ij.process.ColorProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -31,11 +34,11 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class IJImageWrapper {
-    
+    private static final Logger logger = LoggerFactory.getLogger(IJImageWrapper.class);
     public static Image wrap(ImagePlus img) {
         int slices = img.getNSlices() * img.getNFrames() * img.getNChannels();
         switch(img.getBitDepth()) {
-            case 8:
+            case 8: {
                 byte[][] pix8 = new byte[slices][];
                 if (img.getImageStack() != null) {
                     for (int i = 0; i < pix8.length; ++i) {
@@ -45,7 +48,7 @@ public class IJImageWrapper {
                     pix8[0] = (byte[]) img.getProcessor().getPixels();
                 }
                 return new ImageByte(img.getTitle(), img.getWidth(), pix8);
-            case 16:
+            } case 16: {
                 short[][] pix16 = new short[slices][];
                 if (img.getImageStack() != null) {
                     for (int i = 0; i < pix16.length; ++i) {
@@ -55,7 +58,18 @@ public class IJImageWrapper {
                     pix16[0] = (short[]) img.getProcessor().getPixels();
                 }
                 return new ImageShort(img.getTitle(), img.getWidth(), pix16);
-            case 32:
+            } case 24: { // color
+                int chan = img.getC();
+                byte[][] pix8 = new byte[slices][];
+                if (img.getImageStack() != null) {
+                    for (int i = 0; i < pix8.length; ++i) {
+                        pix8[i] = ((ColorProcessor)img.getImageStack().getProcessor(i + 1)).getChannel(chan);
+                    }
+                } else {
+                    pix8[0] = ((ColorProcessor)img.getProcessor()).getChannel(chan);
+                }
+                return new ImageByte(img.getTitle(), img.getWidth(), pix8);
+            } case 32: {
                 float[][] pix32 = new float[slices][];
                 if (img.getImageStack() != null) {
                     for (int i = 0; i < pix32.length; ++i) {
@@ -65,8 +79,8 @@ public class IJImageWrapper {
                     pix32[0] = (float[]) img.getProcessor().getPixels();
                 }
                 return new ImageFloat(img.getTitle(), img.getWidth(), pix32);
-            default:
-                throw new IllegalArgumentException("Image should be of thype byte, short or float");
+            } default:
+                throw new IllegalArgumentException("Image should be of thype byte, short or float. got bitdepth: "+img.getBitDepth());
         }
     }
     protected static boolean isConvertibleToFloat(Image image) {
