@@ -29,6 +29,12 @@ public class RadialAutoCorrelation implements Measurement {
     ObjectClassParameter intensityOC = new ObjectClassParameter("Intensity");
     PreFilterSequence filters = new PreFilterSequence("Pre-filters");
     TextParameter key = new TextParameter("Key", "RAC", false);
+
+    @Override
+    public String getHintText() {
+        return "Radial Auto-Correlation of signal inside a given object class";
+    }
+
     enum ANISOTROPY_CORRECTION {NONE, IMAGE_SCALE, CUSTOM_SCALE, RESAMPLE}
     EnumChoiceParameter<ANISOTROPY_CORRECTION> anisotropyCorrection = new EnumChoiceParameter<>("Z-Anisotropy Correction", ANISOTROPY_CORRECTION.values(), RESAMPLE );
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation");

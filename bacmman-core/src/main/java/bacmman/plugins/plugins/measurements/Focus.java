@@ -104,5 +104,9 @@ public class Focus implements Measurement, DevPlugin {
     public Parameter[] getParameters() {
         return new Parameter[]{structure, scale};
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "";
+    }
 }

@@ -105,5 +105,9 @@ public class XZSlope implements Measurement {
     public Parameter[] getParameters() {
         return new Parameter[]{microchannel, preFilters, gradientScale,smoothScale, precisionFactor};
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "Compute slope along X axis (left-right), perpendicular to objective axis";
+    }
 }

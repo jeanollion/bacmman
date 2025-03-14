@@ -120,5 +120,9 @@ public class SimpleIntensityMeasurementStructureExclusion implements Measurement
     @Override public Parameter[] getParameters() {
         return parameters;
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "";
+    }
 }

@@ -215,41 +215,41 @@ public class ConfigurationTreeGenerator {
     }
     public static String getHint(Object parameter, boolean limitWidth, boolean expertMode, IntFunction<String> getObjectClassIdxName) {
         if (!(parameter instanceof Parameter)) return null;
-        String t = getParameterHint((Parameter)parameter, expertMode);
-        if (t==null) t = "";
+        String firstHint = getParameterHint((Parameter) parameter, expertMode);
+        StringBuilder t = new StringBuilder(firstHint == null ? "" : firstHint);
         if (parameter instanceof PluginParameter) {
             PluginParameter pp = ((PluginParameter)parameter);
             Plugin p = PluginFactory.getPlugin(pp.getPluginType(), pp.getPluginName());
-            //Plugin p = ((PluginParameter)parameter).instantiatePlugin(); // this can slow down UI -> Hint must not depend on parametrization
+            if (p instanceof Hint && ((Hint)p).hintRequiresParametrization()) p = ((PluginParameter)parameter).instantiatePlugin(); // this can slow down UI -> Hint must not depend on parametrization
             String t2 = getPluginHint(p, expertMode);
-            if (t2!=null && t2.length()>0) {
-                if (t.length()>0) t = t+"<br /><br />";
-                t = t+"<b>Current Module:</b><br />"+t2;
+            if (t2!=null && !t2.isEmpty()) {
+                if (t.length() > 0) t.append("<br /><br />");
+                t.append("<b>Current Module:</b><br />").append(t2);
             }
             if (p instanceof Measurement) { // also display measurement keys
                 List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
                 if (!keys.isEmpty()) {
-                    if (t.length()>0) t= t+"<br /><br />";
-                    t = t+ "<b>Measurement Names:</b><ul>";
+                    if (t.length() > 0) t.append("<br /><br />");
+                    t.append("<b>Measurement Names:</b><ul>");
 
-                    for (MeasurementKey k : keys) t=t+"<li>"+k.getKey()+ " ("+getObjectClassIdxName.apply(k.getStoreStructureIdx()) + ")</li>";
-                    t = t+"</ul>(list of column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears)";
+                    for (MeasurementKey k : keys) t.append("<li>").append(k.getKey()).append(" (").append(getObjectClassIdxName.apply(k.getStoreStructureIdx())).append(")</li>");
+                    t.append("</ul>(list of column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears)");
                 }
             }
         } else if (parameter instanceof ConditionalParameterAbstract) { // also display hint of action parameter
             Parameter action = ((ConditionalParameterAbstract)parameter).getActionableParameter();
             String t2 = getParameterHint(action ,expertMode);
             if (t2!=null && t2.length()>0) {
-                if (t.length()>0) t = t+"<br /><br />";
-                t = t+t2;
+                if (t.length()>0) t.append("<br /><br />");
+                t.append(t2);
             }
         }
-        if (t!=null && t.length()>0) return formatHint(t, limitWidth);
+        if (t!=null && t.length()>0) return formatHint(t.toString(), limitWidth);
         else return null;
     }
 
     private void generateTree() {
-        treeModel = new ConfigurationTreeModel(rootParameter, () -> xpChanged(), p->{
+        treeModel = new ConfigurationTreeModel(rootParameter, this::xpChanged, p->{
             // called when update a tree node that is a plugin parameter
             setHint.accept(getHint(p, false, expertMode, getObjectClassIdxNameF()));
             setModules.accept(p.getPluginName(), p.getPluginNames()); // in order to select module in list

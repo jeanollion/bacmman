@@ -27,7 +27,7 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public interface Measurement extends Plugin {
+public interface Measurement extends Plugin, Hint {
     /**
      * 
      * @return index of structure of the objects that will be provided to the method {@link Measurement#performMeasurement(SegmentedObject)}  }.
@@ -49,4 +49,6 @@ public interface Measurement extends Plugin {
      * @param object object to perform measurement on. The object class index is the one returned by {@link Measurement#getCallObjectClassIdx()}. If {@link Measurement#callOnlyOnTrackHeads()} is true {@param object} is first element of its track
      */
     public void performMeasurement(SegmentedObject object);
+
+    default boolean hintRequiresParametrization() { return true;} // if implement hint. parameterization required in order to get object classes
 }

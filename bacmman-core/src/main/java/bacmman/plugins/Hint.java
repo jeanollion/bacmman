@@ -28,6 +28,7 @@ public interface Hint {
      * @return the (html) string that will be displayed as a tool tip when scrolling over the name of the plugin
      */
     String getHintText();
+    default boolean hintRequiresParametrization() { return false;} // for plugins only whether content of hint depends on parametrization or not. true for measurements.
     int TOOL_TIP_BOX_WIDTH = 500;
     static String formatHint(String hint) {return formatHint(hint, true);}
     static String formatHint(String hint, boolean limitWidth) {

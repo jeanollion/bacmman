@@ -87,4 +87,9 @@ public class ChromaticShiftBeads implements Measurement, DevPlugin {
     public Parameter[] getParameters() {
         return parameters;
     }
+
+    @Override
+    public String getHintText() {
+        return "";
+    }
 }

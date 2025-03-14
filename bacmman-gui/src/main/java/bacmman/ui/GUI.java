@@ -37,10 +37,7 @@ import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.py_dataset.ExtractDatasetUtil;
-import bacmman.ui.gui.DockerTrainingWindow;
-import bacmman.ui.gui.JListReorderDragAndDrop;
-import bacmman.ui.gui.PSFCommand;
-import bacmman.ui.gui.PlotPanel;
+import bacmman.ui.gui.*;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
@@ -81,6 +78,7 @@ import javax.swing.event.*;
 import javax.swing.text.*;
 
 import bacmman.utils.*;
+import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -219,9 +217,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
     ConfigurationLibrary configurationLibrary;
+    JupyterPanel jupyterPanel;
     DLModelsLibrary dlModelLibrary;
     PlotPanel[] plotPanels = new PlotPanel[100];
-    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY, PLOT_PANEL}
+    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY, PLOT_PANEL, JUPYTER_PANEL}
     List<String> tabIndex = new ArrayList<>();
     DockerTrainingWindow dockerTraining;
     /**
@@ -1833,6 +1832,28 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         return configurationLibrary;
     }
 
+    public JupyterPanel displayJupyterPanel() {
+        if (jupyterPanel == null) {
+            jupyterPanel = new JupyterPanel();
+        }
+
+        if (!tabIndex.contains(TAB.JUPYTER_PANEL.name())) {
+            tabs.addTab("Data Analysis", jupyterPanel.getMainPanel());
+            tabIndex.add(TAB.JUPYTER_PANEL.name());
+            BooleanSupplier onClose = () -> {
+                boolean close = jupyterPanel.close();
+                if (close) {
+                    tabIndex.remove(TAB.JUPYTER_PANEL.name());
+                    configurationLibrary = null;
+                }
+                return close;
+            };
+            tabs.setTabComponentAt(tabIndex.indexOf(TAB.JUPYTER_PANEL.name()), new ClosableTabComponent(tabs, onClose));
+        }
+        tabs.setSelectedIndex(tabIndex.indexOf(TAB.JUPYTER_PANEL.name()));
+        return jupyterPanel;
+    }
+
     public DLModelsLibrary displayOnlineDLModelLibrary() {
         /*if (dlModelLibrary!=null) dlModelLibrary.toFront();
         else {
@@ -3021,6 +3042,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         });
         runDockerTrainer.setEnabled(Core.getCore().getDockerGateway()!=null);
         runMenu.add(runDockerTrainer);
+
+        JMenuItem runJupyter = new JMenuItem("Data Analysis");
+        runJupyter.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                displayJupyterPanel();
+            }
+        });
+        runJupyter.setEnabled(Core.getCore().getDockerGateway()!=null);
+        //runMenu.add(runJupyter);
 
         mainMenu.add(runMenu);
 
