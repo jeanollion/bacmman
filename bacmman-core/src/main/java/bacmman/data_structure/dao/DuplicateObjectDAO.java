@@ -224,22 +224,30 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         return res;
     }
     protected void duplicate(Stream<SegmentedObject> source) {
-        // ensure prev / nexts / trackHead are also duplicated
-        Stream<SegmentedObject> toDuplicate = source.flatMap(s -> {
-            boolean prev = s.getPrevious()!=null;
-            boolean next = s.getNext()!=null;
-            if (prev && next) return Stream.of(s.getTrackHead(), s.getPrevious(), s, s.getNext());
-            else if (prev) return Stream.of(s.getTrackHead(), s.getPrevious(), s);
-            else if (next) return Stream.of(s.getTrackHead(), s, s.getNext());
-            else if (!s.isTrackHead()) return Stream.of(s.getTrackHead(), s);
-            else return Stream.of(s);
-        }).distinct();
-        Map<SegmentedObject, SegmentedObject> sourceMapRes = toDuplicate.collect(Collectors.toMap(s->s, this::makeDuplicate));
+        Map<SegmentedObject, SegmentedObject> sourceMapRes = source.distinct().collect(Collectors.toMap(s->s, this::makeDuplicate));
         if (sourceMapRes.isEmpty()) return;
+        // ensure prev / nexts / trackHead are also duplicated
+        List<SegmentedObject> dupAdd = sourceMapRes.keySet().stream().flatMap(s -> {
+            boolean prev = s.getPrevious()!=null && !sourceMapRes.containsKey(s.getPrevious());
+            boolean next = s.getNext()!=null && !sourceMapRes.containsKey(s.getNext());
+            boolean th = !s.isTrackHead() && !sourceMapRes.containsKey(s.getTrackHead());
+            if (th) {
+                if (prev && next) return Stream.of(s.getTrackHead(), s.getPrevious(), s.getNext());
+                else if (prev) return Stream.of(s.getTrackHead(), s.getPrevious());
+                else if (next) return Stream.of(s.getTrackHead(), s.getNext());
+                else return Stream.of(s.getTrackHead());
+            } else {
+                if (prev && next) return Stream.of(s.getPrevious(), s.getNext());
+                else if (prev) return Stream.of(s.getPrevious());
+                else if (next) return Stream.of(s.getNext());
+                else return Stream.empty();
+            }
+        }).distinct().collect(Collectors.toList());
+        dupAdd.forEach(this::makeDuplicate);
         // ensure parents are duplicated
-        duplicate(sourceMapRes.keySet().stream().filter(o -> !o.isRoot()).map(SegmentedObject::getParent));
+        duplicate(Stream.concat(sourceMapRes.keySet().stream(), dupAdd.stream()).filter(o -> !o.isRoot()).map(SegmentedObject::getParent));
         // ensure segmentation parents are also duplicated
-        duplicate(sourceMapRes.keySet().stream().filter(o -> !o.isRoot()).map(SegmentedObject::getSegmentationParent));
+        duplicate(Stream.concat(sourceMapRes.keySet().stream(), dupAdd.stream()).filter(o -> !o.isRoot()).map(SegmentedObject::getSegmentationParent));
         // set parent, prev, next
         sourceMapRes.forEach((s, res) -> {
             if (s.getParent()!=null) {
@@ -262,7 +270,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
             SegmentedObject th = map.get((sourceID)s.getTrackHeadId());
             if (th == null) {
                 logger.error("TrackHead not duplicated for {} (th: {})", s, s.getTrackHead());
-                throw new RuntimeException("Next not duplicated");
+                throw new RuntimeException("TrackHead not duplicated");
             }
             res.setTrackHead(th);
         });
