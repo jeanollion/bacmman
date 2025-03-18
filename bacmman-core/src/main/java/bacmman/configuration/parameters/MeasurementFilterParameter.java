@@ -69,11 +69,11 @@ public class MeasurementFilterParameter extends ConditionalParameterAbstract<Mea
                 double value = this.numberValue.getDoubleValue();
                 DoublePredicate predicate;
                 if (keepHigher.getSelected()) {
-                    if (strict.getSelected()) predicate = d -> d > value;
-                    else predicate = d -> d >= value;
+                    if (strict.getSelected()) predicate = d -> Double.isNaN(d) || d > value;
+                    else predicate = d -> Double.isNaN(d) || d >= value;
                 } else {
-                    if (strict.getSelected()) predicate = d -> d < value;
-                    else predicate = d -> d <= value;
+                    if (strict.getSelected()) predicate = d -> Double.isNaN(d) || d < value;
+                    else predicate = d -> Double.isNaN(d) || d <= value;
                 }
                 return so -> {
                     Object v = so.getMeasurements().getValue(key);
