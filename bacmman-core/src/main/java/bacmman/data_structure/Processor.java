@@ -402,6 +402,7 @@ public class Processor {
         return histo.getShortenedHistogram();
     }
     private static void execute(ProcessingPipeline ps, int structureIdx, List<SegmentedObject> parentTrack, boolean trackOnly, boolean deleteChildren, ObjectDAO dao) {
+        if (parentTrack.isEmpty()) return;
         if (!trackOnly && deleteChildren) dao.deleteChildren(parentTrack, structureIdx);
         if (ps==null) return;
         if (trackOnly) ps.trackOnly(structureIdx, parentTrack, new SegmentedObjectFactory(structureIdx), new TrackLinkEditor(structureIdx));
@@ -413,15 +414,19 @@ public class Processor {
                 parentTrack.forEach(p -> p.setChildren(Collections.EMPTY_LIST, structureIdx)); // remove segmented objects if present to avoid saving them in DAO
                 throw e;
             } finally { // clear voxels & pre-filtered images
-                parentTrack.stream().map(p -> {
+                parentTrack.stream().peek(p -> {
                     p.setPreFilteredImage(null, structureIdx); // erase preFiltered images
-                    return p;
-                }).filter(p -> p.childrenRetrieved(structureIdx))
+                        }).filter(p -> p.childrenRetrieved(structureIdx))
                   .forEachOrdered(p -> {
                       p.getChildren(structureIdx)
-                              .filter(c -> (c.hasRegion()))
+                              .filter(SegmentedObject::hasRegion)
                               .forEachOrdered((c) -> c.getRegion().clearVoxels());
                 });
+                // sub segmentation: clear pre-filtered images
+                int segPIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
+                if (segPIdx!=parentTrack.get(0).structureIdx) {
+                    parentTrack.stream().flatMap(p -> p.getChildren(segPIdx)).distinct().forEach( p -> p.setPreFilteredImage(null, structureIdx));
+                }
                 logger.debug("prefiltered images erased: {} for structure: {}", parentTrack.get(0), structureIdx);
             }
         }

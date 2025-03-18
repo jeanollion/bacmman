@@ -299,6 +299,11 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             return SegmentedObjectUtils.getContainer(getRegion(), p.getChildren(parentObjectClassIdx), null);
         }
     }
+
+    public SegmentedObject getSegmentationParent() {
+        return getParent(getExperimentStructure().getSegmentationParentObjectClassIdx(this.structureIdx));
+    }
+
     public void setParent(SegmentedObject parent) {
         this.parent=parent;
         this.parentId=parent.getId();

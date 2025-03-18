@@ -41,12 +41,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         List<Parameter> testAugParams = new ArrayList<>();
         testAugParams.add(new BoundedNumberParameter("Iteration Number", 0, 10, 1, null).setHint("Number of random versions of the same mini batch"));
         testAugParams.add(new BoundedNumberParameter("Batch Index", 0, -1, -1, null)
-            .setHint("Index of batch on which augmentation parameters will be tested. -1 = random idx")
-            .addValidationFunction(b -> {
+            .setHint("Index of batch on which augmentation parameters will be tested. -1 = random idx"));
+            /*.addValidationFunction(b -> {
                 Object tp = ((ContainerParameter)b.getParent().getParent()).getChildren().stream().filter(p -> p instanceof TrainingParameter).findAny().orElse(null);
                 if (tp==null) return true;
                 return b.getIntValue() < ((TrainingParameter)tp).getStepNumber();
-        }));
+            }))*/
         testAugParams.add(new BooleanParameter("Input Only", true).setHint("Only return augmented input images"));
         testAugParams.add(new BoundedNumberParameter("Batch Size", 0, 1, 1, null).setHint("size of test mini-batch for testing"));
         testAugParams.add(new BoundedNumberParameter("Concat Batch Size", 0, 1, 1, null).setHint("size of concatenated test mini-batch for testing"));

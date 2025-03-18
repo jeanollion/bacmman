@@ -152,10 +152,12 @@ public class GaussianFit {
         double d2 = minDist * minDist;
         for (int i = 0; i<peaks.size()-1; ++i) {
             Point pi = peaks.get(i);
+            if (pi == null) logger.error("get cluster point i={} is null", i);
             //Set<Point> currentCluster = getCluster.apply(peaks.get(i));
             Set<Point> currentCluster = pointToCluster.get(peaks.get(i));
             for (int j = i+1; j<peaks.size(); ++j ) {
                 Point pj = peaks.get(j);
+                if (pj == null) logger.error("get cluster point j={} is null", j);
                 if (pi.distSq(pj)<=d2) {
                     Set<Point> otherCluster = pointToCluster.get(pj);
                     //Set<Point> otherCluster = getCluster.apply(peaks.get(j));
