@@ -23,6 +23,9 @@ import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
 import bacmman.image.Image;
 import bacmman.image.MutableBoundingBox;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -83,7 +86,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {
-
+        SegmentedObjectAccessor accessor = getAccessor();
         MultipleException me = new MultipleException();
         if (!segmenter.isOnePluginSet()) {
             logger.info("No segmenter set for structure: {}", structureIdx);
@@ -120,7 +123,10 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 if (multithreadF) ((MultiThreaded)seg).setMultiThread(true);
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
                 Image input = globalParent.getPreFilteredImage(structureIdx);
-                if (subSegmentation) input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
+                if (subSegmentation) {
+                    input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
+                    accessor.setPreFilteredImage(subParent, structureIdx, input);
+                }
                 RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
                 if (subSegmentation && pop != null) pop.translate(subParent.getBounds(), true);
                 return pop;
@@ -202,5 +208,15 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         Segmenter seg = getSegmenter();
         if (seg instanceof ManualSegmenter) return (ManualSegmenter)seg;
         else return null;
+    }
+
+    private static SegmentedObjectAccessor getAccessor() {
+        try {
+            Constructor<SegmentedObjectAccessor> constructor = SegmentedObjectAccessor.class.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            return constructor.newInstance();
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
     }
 }
