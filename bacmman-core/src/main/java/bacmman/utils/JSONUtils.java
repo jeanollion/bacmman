@@ -411,4 +411,73 @@ public class JSONUtils {
             return res;
         }
     }
+
+    public static String prettyPrint(String jsonString, String indentString) {
+        StringBuilder prettyJson = new StringBuilder();
+        int indentLevel = 0;
+        boolean inQuotes = false;
+        boolean escape = false;
+
+        for (char character : jsonString.toCharArray()) {
+            if (escape) {
+                prettyJson.append(character);
+                escape = false;
+            } else {
+                switch (character) {
+                    case '"':
+                        prettyJson.append(character);
+                        inQuotes = !inQuotes;
+                        break;
+                    case '\\':
+                        prettyJson.append(character);
+                        if (inQuotes) {
+                            escape = true;
+                        }
+                        break;
+                    case '{':
+                    case '[':
+                        prettyJson.append(character);
+                        if (!inQuotes) {
+                            prettyJson.append("\n");
+                            indentLevel++;
+                            appendIndent(prettyJson, indentLevel, indentString);
+                        }
+                        break;
+                    case '}':
+                    case ']':
+                        if (!inQuotes) {
+                            prettyJson.append("\n");
+                            indentLevel--;
+                            appendIndent(prettyJson, indentLevel, indentString);
+                        }
+                        prettyJson.append(character);
+                        break;
+                    case ',':
+                        prettyJson.append(character);
+                        if (!inQuotes) {
+                            prettyJson.append("\n");
+                            appendIndent(prettyJson, indentLevel, indentString);
+                        }
+                        break;
+                    case ':':
+                        prettyJson.append(character);
+                        if (!inQuotes) {
+                            prettyJson.append(" ");
+                        }
+                        break;
+                    default:
+                        prettyJson.append(character);
+                        break;
+                }
+            }
+        }
+
+        return prettyJson.toString();
+    }
+
+    private static void appendIndent(StringBuilder prettyJson, int indentLevel, String indentString) {
+        for (int i = 0; i < indentLevel; i++) {
+            prettyJson.append(indentString);
+        }
+    }
 }

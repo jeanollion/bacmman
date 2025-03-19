@@ -249,7 +249,7 @@ public class TrackTreeGenerator {
                     }
                     menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
                 }
-            } else if (SwingUtilities.isLeftMouseButton(e) && !Utils.isCtrlOrShiftDown(e)) {
+            } else if (SwingUtilities.isLeftMouseButton(e) && !e.isShiftDown() && !e.isControlDown()) {
                 if (tree.isCollapsed(path)) { // expand & select all children
                     ArrayList<TreePath> pathToSelect = new ArrayList<TreePath>();
                     Utils.expandAll(tree, path, pathToSelect);

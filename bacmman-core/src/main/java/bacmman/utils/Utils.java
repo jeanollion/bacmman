@@ -766,10 +766,6 @@ public class Utils {
         return res;
     }
     
-    public static boolean isCtrlOrShiftDown(MouseEvent e) {
-        return (e.getModifiers()&InputEvent.CTRL_DOWN_MASK)!=0 || (e.getModifiers()&InputEvent.ALT_DOWN_MASK)!=0 ;
-    }
-    
     public static void addToSelectionPaths(JTree tree, TreePath... pathToSelect) {
         if (pathToSelect==null) return;
         addToSelectionPaths(tree, Arrays.asList(pathToSelect));
