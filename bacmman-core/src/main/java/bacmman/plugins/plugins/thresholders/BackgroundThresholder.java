@@ -71,6 +71,16 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
         this.startingPoint.setPlugin(thlder);
         return this;
     }
+    public double getSigma() {
+        return sigmaFactor.getDoubleValue();
+    }
+    public double getFinalSigma() {
+        return finalSigmaFactor.getDoubleValue();
+    }
+    public int getIterations() {
+        return iterations.getIntValue();
+    }
+
     @Override
     public double runThresholderHisto(Histogram histogram) {
         double firstValue = Double.MAX_VALUE;

@@ -488,13 +488,15 @@ public class ManualEdition {
                 }
                 RegionPopulation seg = segmenter.manualSegment(input, e.getKey(), refMask, structureIdx, e.getValue());
                 //seg.filter(new RegionPopulation.Size().setMin(2)); // remove seeds
-                logger.debug("{} children segmented in parent: {}", seg.getRegions().size(), e.getKey());
+                //logger.debug("{} children segmented in parent: {}, parent bb: {} first object bb: {}, absolute landmark: {}", seg.getRegions().size(), e.getKey(), e.getKey().getBounds(), seg.getRegions().isEmpty() ? "none":seg.getRegions().get(0).getBounds(), seg.isAbsoluteLandmark());
+
                 if (!test && !seg.getRegions().isEmpty()) {
                     SegmentedObject parent = e.getKey().getParent(parentStructureIdx);
-                    if (!parent.equals(e.getKey())) seg.translate(e.getKey().getRelativeBoundingBox(parent), false);
+                    if (!seg.isAbsoluteLandmark()) seg.translate(e.getKey().getBounds(), true);
                     ArrayList<SegmentedObject> modified = new ArrayList<>();
                     List<SegmentedObject> newChildren;
                     existingChildren = parent.getChildren(structureIdx).collect(Collectors.toList());
+
                     if (relabel) {
                         newChildren = factory.setChildObjects(parent, seg);
                         segmentedObjects.addAll(newChildren);
@@ -502,6 +504,7 @@ public class ManualEdition {
                         factory.relabelChildren(parent, modified);
                     } else {
                         newChildren = seg.getRegions().stream().map(r -> new SegmentedObject(parent.getFrame(), structureIdx, 0, r, parent)).collect(Collectors.toList());
+                        segmentedObjects.addAll(newChildren);
                         factory.reassignDuplicateIndices(newChildren);
                         existingChildren.addAll(newChildren);
                         Collections.sort(existingChildren);

@@ -23,6 +23,7 @@ import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.plugins.plugins.thresholders.ConstantValue;
@@ -46,17 +47,20 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegmenterRS3D>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple, MultiThreaded {
+public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegmenterRS>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple, MultiThreaded {
     public static boolean debug = false;
-    public final static Logger logger = LoggerFactory.getLogger(SpotSegmenterRS3D.class);
+    public final static Logger logger = LoggerFactory.getLogger(SpotSegmenterRS.class);
     // scales
-    NumberParameter smoothScale = new BoundedNumberParameter("Smooth globalScale", 1, 1.5, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
+    NumberParameter smoothScale = new BoundedNumberParameter("Smooth globalScale", 5, 1.5, 0, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null);
     ArrayNumberParameter radii = new ArrayNumberParameter("Radial Symmetry Radii", 0, radius).setSorted(true).setValue(1, 2, 3, 4).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
     ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 1.5, 1.5 * 3, false).setNumberParameters(1, null, 1, true, true).setHint("Radius of local maxima filter for seed detection step. Increasing the value will decrease false positive spots but decrease the capacity to segment close spots. <br/> This parameter also defines the z-anisotropy ratio used for gaussian fit and gaussian and radial symmetry transform");
-    enum NORMALIZATION_MODE {NO_NORM, GLOBAL, PER_CELL}
-    EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.GLOBAL).setHint("Normalization of the input intensity, will influence the values of <em>Radial Symmetry Threshold</em> and <em>Seed Threshold</em>");
+    enum NORMALIZATION_MODE {NO_NORMALIZATION, GLOBAL, PER_CELL, PER_CELL_CENTER}
+    EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.GLOBAL)
+            .setHint("Normalization of the input intensity, will influence the values of <em>Radial Symmetry Threshold</em> and <em>Seed Threshold</em>.<br>STDEV and STDEV of intensity is computed within the cell, normalization is I -> (I - MEAN) / STDEV. <br>If a thresholder is set, only values under the threshold are considered to compute MEAN and STDEV. <br>GLOBAL mode uses a median STDEV in the parent cell line. <br>PER_CELL_CENTER only removes MEAN (caution: before 2025 march 19, this mode was called NO_NORM)");
+    PluginParameter<bacmman.plugins.SimpleThresholder> normThresholder = new PluginParameter<>("Foreground Removal Thld", bacmman.plugins.SimpleThresholder.class, new BackgroundThresholder(6, 6, 2), true);
+    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.GLOBAL, normThresholder).setActionParameters(NORMALIZATION_MODE.PER_CELL, normThresholder).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, normThresholder);
     NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null);
     IntervalParameter sigmaRange = new IntervalParameter("Sigma Filter", 3, 0, null, 1, 5)
             .setLegacyParameter((p, i)->i.setValue(((NumberParameter)p[0]).getDoubleValue(), 1), maxSigma)
@@ -70,7 +74,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
     PluginParameter<Thresholder> intensityThreshold = new PluginParameter<>("Seed Threshold", Thresholder.class, new BackgroundThresholder(3, 3, 2), false).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide the parent object class (e.g. bacteria), the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
 
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, localMaxMode, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normCond, radii, smoothScale, localMaxMode, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
@@ -96,11 +100,11 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         return toolTipSimple + toolTipDispImage+ "</ul>";
     }
 
-    public SpotSegmenterRS3D() {}
+    public SpotSegmenterRS() {}
 
 
     /**
-     * See {@link #run(Image, int, SegmentedObject, ThresholderHisto, ThresholderHisto)}
+     * See {@link #run(Image, int, SegmentedObject, Thresholder, Thresholder)}
      * @param input
      * @param objectClassIdx
      * @param parent
@@ -122,18 +126,27 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         boolean symScaled, smoothScaled;
         double[] ms;
         double smoothScale;
-        double globalScale =Double.NaN;
-        public void initPV(Image input, ImageMask mask, double smoothScale) {
+        double globalScale = Double.NaN;
+        public void initPV(Image input, ImageMask mask, double smoothScale, NORMALIZATION_MODE norm, SimpleThresholder thlder) {
             this.input=input;
             this.smoothScale=smoothScale;
             if (ms == null) {
-                //BackgroundFit.debug=debug;
-                ms = new double[2];
-                //double thld = BackgroundFit.backgroundFit(HistogramFactory.getHistogram(()->input.stream(mask, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS), 5, ms);
-                double thld = BackgroundThresholder.runThresholder(input, mask, 2, 2, 3, Double.MAX_VALUE, ms); // more robust than background fit because too few values to make histogram
-
-                //if (true) logger.debug("scaling thld: {} mean & sigma: {}, global sigma: {}", thld, ms, globalScale);
-                if (!Double.isNaN(globalScale)) ms[1] = globalScale;
+                if (NORMALIZATION_MODE.NO_NORMALIZATION.equals(norm)) {
+                    ms = new double[]{0, 1};
+                } else {
+                    if (thlder instanceof BackgroundThresholder) {
+                        ms = new double[2];
+                        BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
+                        double thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, ms);
+                    } else if (thlder != null) {
+                        double thld = thlder.runSimpleThresholder(input, mask);
+                        ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=thld);
+                    } else {
+                        ms = ImageOperations.getMeanAndSigma(input, mask, null);
+                    }
+                }
+                if (NORMALIZATION_MODE.GLOBAL.equals(norm) && !Double.isNaN(globalScale)) ms[1] = globalScale;
+                if (NORMALIZATION_MODE.PER_CELL_CENTER.equals(norm)) ms[1] = 1;
             }
         }
         public Image getScaledInput() {
@@ -143,7 +156,8 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
             if (smooth==null) throw new RuntimeException("Smooth map not initialized");
             if (!smoothScaled) {
                 if (!smooth.sameDimensions(input)) smooth = smooth.cropWithOffset(input.getBoundingBox()); // map was computed on parent that differs from segmentation parent
-                ImageOperations.affineOperation2WithOffset(smooth, smooth, smoothScale/ms[1], -ms[0]);
+                double s = Math.max(1, smoothScale);
+                ImageOperations.affineOperation2WithOffset(smooth, smooth, s/ms[1], -ms[0]);
                 smoothScaled=true;
             }
             return smooth;
@@ -174,8 +188,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
      */
     public RegionPopulation run(Image input, int objectClassIdx, SegmentedObject parent, Thresholder thresholderSeeds, Thresholder intensityThresholder) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        if (this.parentSegTHMapmeanAndSigma!=null) pv.ms = parentSegTHMapmeanAndSigma.get((parent).getTrackHead());
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
+        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin()) ;
         if (pv.smooth==null || pv.getRadialSymmetryMap()==null) throw new RuntimeException("Spot Segmenter not parametrized");//setMaps(computeMaps(input, input));
         //logger.debug("get maps..");
         Image smooth = pv.getSmoothedMap();
@@ -185,8 +198,8 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         double intensityThreshold = intensityThresholder.runThresholder(smooth, parent);
 
         if (stores!=null) {
-            Core.userLog("Radial Symmetry Threshold: "+thresholdSeeds);
-            Core.userLog("Intensity Threshold: "+intensityThreshold);
+            if (!(thresholderSeeds instanceof ConstantValue)) Core.userLog("Radial Symmetry Threshold: "+thresholdSeeds);
+            if (!(intensityThresholder instanceof ConstantValue)) Core.userLog("Intensity Threshold: "+intensityThreshold);
         }
 
         //logger.debug("local max...");
@@ -236,9 +249,9 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
             });
             segmentedSpots.forEach(s->s.setIs2D(false));
         } else {
-            logger.debug("gaussian fit...");
+            //logger.debug("gaussian fit...");
             segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
-            logger.debug("gaussian fit done.");
+            //logger.debug("gaussian fit done.");
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
         // remove spots with center outside mask
@@ -328,7 +341,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
 
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedObjects) {
-        this.pv.initPV(input, segmentationMask, smoothScale.getValue().doubleValue()) ;
+        this.pv.initPV(input, segmentationMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin());
         if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(parent.getRawImage(objectClassIdx), input), Double.NaN);
         else logger.debug("manual seg: maps already set!");
         Image radialSymmetryMap = pv.getRadialSymmetryMap();
@@ -380,7 +393,7 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
      * @return 
      */
     @Override
-    public TrackConfigurer<SpotSegmenterRS3D> run(int structureIdx, List<SegmentedObject> parentTrack) {
+    public TrackConfigurer<SpotSegmenterRS> run(int structureIdx, List<SegmentedObject> parentTrack) {
         if (parentTrack.isEmpty()) return (p, s) -> {};
         Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));
@@ -391,19 +404,18 @@ public class SpotSegmenterRS3D implements Segmenter, TrackConfigurable<SpotSegme
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
-    Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma;
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
         double smoothScale = this.smoothScale.getValue().doubleValue();
         Image[] maps = new Image[2];
-        Function<Image, Image> gaussF = f->ImageDerivatives.gaussianSmooth(f, ImageDerivatives.getScaleArray(smoothScale, smoothScale * getAnisotropyRatio(rawSource), rawSource), parallel).setName("gaussian: "+smoothScale);
-        maps[0] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
+        Function<Image, Image> gaussF = smoothScale > 0 ? f->ImageDerivatives.gaussianSmooth(f, ImageDerivatives.getScaleArray(smoothScale, smoothScale * getAnisotropyRatio(rawSource), rawSource), parallel).setName("gaussian: "+smoothScale) : f -> TypeConverter.toFloat(f, null, true);
+        maps[0] = planeByPlane && filteredSource.sizeZ()>1 && smoothScale > 0 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
         Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 0.5,1, 0, parallel, 1.5, 1.5 * getAnisotropyRatio(rawSource));
         maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);
         return maps;
     }
     private double getScale(int structureIdx, List<SegmentedObject> parentTrack) {
         switch (normMode.getSelectedEnum()) {
-            case NO_NORM:
+            case NO_NORMALIZATION:
             default: {
                 return 1;
             }

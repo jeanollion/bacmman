@@ -625,17 +625,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 res.translateInto(globalBoundingBox);
                 return res;
             }
-            case RESAMPLE: {
-                // either honor contraction or target shape
-                int[] targetDim = ArrayUtil.reverse(this.targetShape.getArrayInt(), true);
-                int[] contraction = ArrayUtil.reverse(this.contraction.getArrayInt(), true);
-                for (int i = 0; i<targetDim.length; ++i) {
-                    if (targetDim[i] == 0) targetDim[i] = closestNumber(minimalBouningBox.size(i), contraction[i], true);
-                    if (targetDim[i]>minimalBouningBox.size(i)) res.setSize(targetDim[i], MutableBoundingBox.DIRECTION.CENTER, i );
-                }
-                res.translateInto(globalBoundingBox);
-                return res;
-            }
+            case RESAMPLE:
             case SCALE_ONLY:
             default: {
                 return globalBoundingBox;

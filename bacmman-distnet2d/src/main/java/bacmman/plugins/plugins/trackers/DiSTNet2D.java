@@ -1161,6 +1161,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         final int inputWindow, frameSubsampling, manualCurationMargin;
         final BiFunction<BoundingBox, BoundingBox, BoundingBox> getOptimalPredictionBoundingBox;
         final TriFunction<SegmentedObject, Integer, BoundingBox, Image> predictEDMFunction;
+        boolean verbose = false;
         public DNManualSegmenterSplitter(Plugin seg, int inputWindow, int frameSubsampling, int manualCurationMargin, BiFunction<BoundingBox, BoundingBox, BoundingBox> getOptimalPredictionBoundingBox, TriFunction<SegmentedObject, Integer, BoundingBox, Image> predictEDMFunction) {
             this.seg = seg;
             this.inputWindow = inputWindow;
@@ -1178,6 +1179,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         @Override
         public void setManualSegmentationVerboseMode(boolean verbose) {
             ((ManualSegmenter)seg).setManualSegmentationVerboseMode(verbose);
+            this.verbose = verbose;
         }
 
         @Override
@@ -1209,6 +1211,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(edm, parent, segmentationMask, objectClassIdx, seedsXYZ);
                 pop.filter(new RegionPopulation.Size().setMin(2)); // exclude 1-pixel objects (outside mask)
                 pop.getRegions().forEach(Region::clearVoxels);
+                if (verbose) {
+                    Core.showImage(input.setName("INPUT"));
+                    Core.showImage(edm.setName("EDM"));
+                }
                 //logger.debug("manual seg: #{} pop bds: {} isabs: {}", pop.getRegions().size(), new SimpleBoundingBox<>(pop.getImageProperties()), pop.isAbsoluteLandmark());
                 if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, false);
                 pop.translate(parent.getBounds(), true);

@@ -297,7 +297,7 @@ public class PluginConfigurationUtils {
             GUI.log("An error occurred while testing...");
             publishError(t);
         } finally {
-            xp.getDLengineProvider().closeAllEngines();
+            //xp.getDLengineProvider().closeAllEngines();
         }
         return storeList;
     }

@@ -41,23 +41,24 @@ import static bacmman.utils.Utils.loadIcon;
 
 public class JupyterNotebookViewer extends JFrame {
     private static final Logger logger = LoggerFactory.getLogger(JupyterNotebookViewer.class);
-    private DefaultTreeModel treeModel;
-    private DefaultMutableTreeNode rootNode;
-    private JTree tree;
-    private String filePath = "/data/PyBACMMAN_Basic_Selections.ipynb";
-    JSONObject notebook;
-    private String language = "python";
     private static String[] supportedLanguages = new String[]{"python", "java"};
     private static ImageIcon codeIcon = loadIcon(JupyterNotebookViewer.class, "/icons/code24.png");
     private static ImageIcon textIcon = loadIcon(JupyterNotebookViewer.class, "/icons/text24.png");
     private static ImageIcon notebookIcon = loadIcon(JupyterNotebookViewer.class, "/icons/notebook32.png");
+
+    private DefaultTreeModel treeModel;
+    private DefaultMutableTreeNode rootNode;
+    private JTree tree;
+    private String filePath;
+    private JSONObject notebook;
+    private String language = "python";
     private RSyntaxTextArea description;
 
-    public JupyterNotebookViewer() {
+    public JupyterNotebookViewer(String filePath) {
         setTitle("Jupyter Notebook Viewer");
         setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
+        this.filePath=filePath;
         rootNode = new DefaultMutableTreeNode("Notebook");
         treeModel = new DefaultTreeModel(rootNode);
         tree = new JTree(treeModel);
@@ -551,7 +552,7 @@ public class JupyterNotebookViewer extends JFrame {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JupyterNotebookViewer viewer = new JupyterNotebookViewer();
+            JupyterNotebookViewer viewer = new JupyterNotebookViewer("/data/PyBACMMAN_Basic_Selections.ipynb");
             viewer.setVisible(true);
         });
     }

@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin, MultiThreaded {
+public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin, MultiThreaded, Hint {
     public final static Logger logger = LoggerFactory.getLogger(SPTSpotDetector.class);
 
     PluginParameter<Thresholder> thld = new PluginParameter<>("Threshold Method", Thresholder.class, new FactorOfMean().setFactor(6), false);
@@ -111,5 +111,10 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin, Mul
     @Override
     public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores = stores;
+    }
+
+    @Override
+    public String getHintText() {
+        return "Spot detection for single-particle tracking. <br>Compute local maxima on a smoothed image, and filter out local maxima too close to one another. <br>Perform elliptical gaussian fit from local maxima";
     }
 }

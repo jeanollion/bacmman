@@ -159,16 +159,13 @@ public class IJ1 implements PlugIn {
                     IJ.setTool("freeline");
                     IJ.setTool("ellipse");
                     IJ.setTool("rect");
-
-
+                    Runtime.getRuntime().addShutdownHook(new Thread(() -> gui.closeDataset(true)));
                 } else {
                     IJ.log("Another instance of BACMMAN is already running");
                     return;
                 }
             }
         } else IJ.log("Another instance of BACMMAN is already running");
-
-
     }
 
 }

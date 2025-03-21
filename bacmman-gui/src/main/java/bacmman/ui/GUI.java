@@ -1516,13 +1516,19 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             }
         }
     }
-    
+
     private void closeDataset() {
-        promptSaveUnsavedChanges();
+        closeDataset(false);
+    }
+
+    public void closeDataset(boolean silently) {
+        if (!silently) promptSaveUnsavedChanges();
         ImageWindowManagerFactory.getImageManager().stopAllRunningWorkers();
+        Core.clearDiskBackedImageManagers();
         this.trackSubPanel.removeAll(); // this must be called before releasing locks because this methods somehow calls db.getExperiment() and thus re-lock(toString method)
         String xp = db!=null ? db.getDBName() : null;
         if (db!=null) {
+            db.getExperiment().getDLengineProvider().closeAllEngines();
             db.unlockPositions();
             db.unlockConfiguration();
             db.clearCache(true, true, true);
@@ -1549,8 +1555,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         loadObjectTrees();
         tabs.setSelectedIndex(tabIndex.indexOf(TAB.HOME.name()));
         ImageWindowManagerFactory.getImageManager().flush();
-        if (xp!=null) setMessage("XP: "+xp+ " closed");
-        logger.debug("db {} closed.", xp);
+        if (xp!=null && !silently) setMessage("XP: "+xp+ " closed");
+        if (!silently) logger.debug("db {} closed.", xp);
         datasetListValueChanged(null);
         reloadObjectTrees=true;
         populateModuleList(moduleModel, moduleList, null, Collections.emptyList());
