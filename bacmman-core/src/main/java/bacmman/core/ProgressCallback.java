@@ -25,26 +25,39 @@ import bacmman.ui.logger.ProgressLogger;
  * @author Jean Ollion
  */
 public interface ProgressCallback {
-    public void incrementTaskNumber(int subtask);
+    void incrementTaskNumber(int subtask);
     void setSubtaskNumber(int number);
     void incrementSubTask();
-    public void incrementProgress();
-    public void log(String message);
-    public static ProgressCallback get(ProgressLogger ui, int taskNumber) {
+    void incrementProgress();
+    void log(String message);
+    void setProgress(int i);
+    int getTaskNumber();
+    void setRunning(boolean running);
+
+    static ProgressCallback get(ProgressLogger ui, int taskNumber) {
         ProgressCallback pcb = get(ui);
         pcb.incrementTaskNumber(taskNumber);
         return pcb;
     }
-    public static ProgressCallback get(ProgressLogger ui) {
+    static ProgressCallback get(ProgressLogger ui) {
         ProgressCallback pcb = new ProgressCallback(){
             double progress = 0;
             double taskCount = 0;
             double subTaskNumber = 0;
             double subTaskCount = 0;
+
+            @Override
+            public void setRunning(boolean running) {
+                ui.setRunning(running);
+            }
+
             @Override
             public void incrementTaskNumber(int subtask) {
                 taskCount+=subtask;
             }
+
+            @Override
+            public int getTaskNumber() {return (int)taskCount;}
 
             @Override
             public void setSubtaskNumber(int number) {
@@ -63,6 +76,14 @@ public interface ProgressCallback {
                 progress++;
                 subTaskCount = 0;
                 if (taskCount>0) ui.setProgress((int)(100 * (progress/taskCount)));
+            }
+            @Override
+            public synchronized void setProgress(int i) {
+                if (progress != i) {
+                    progress = i;
+                    subTaskCount = 0;
+                    if (taskCount>0) ui.setProgress((int)(100 * (progress/taskCount)));
+                }
             }
             @Override
             public void log(String message) {

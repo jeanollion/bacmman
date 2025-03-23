@@ -368,6 +368,22 @@ public class ThreadRunner<T> {
             public void log(String message) {
                 logger.debug(message);
             }
+
+            @Override
+            public void setProgress(int i) {
+                taskCount = i - 1;
+                incrementProgress();
+            }
+
+            @Override
+            public int getTaskNumber() {
+                return taskCount;
+            }
+
+            @Override
+            public void setRunning(boolean running) {
+
+            }
         };
     }
     public static PriorityThreadFactory priorityThreadFactory(int priority) {return new PriorityThreadFactory(priority);}

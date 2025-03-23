@@ -1844,7 +1844,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     public JupyterPanel displayJupyterPanel() {
         if (jupyterPanel == null) {
-            jupyterPanel = new JupyterPanel();
+            jupyterPanel = new JupyterPanel(Core.getCore().getDockerGateway(), Core.getCore().getGithubGateway(), this);
         }
 
         if (!tabIndex.contains(TAB.JUPYTER_PANEL.name())) {
@@ -3060,7 +3060,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             }
         });
         runJupyter.setEnabled(Core.getCore().getDockerGateway()!=null);
-        //runMenu.add(runJupyter);
+        runMenu.add(runJupyter);
 
         mainMenu.add(runMenu);
 

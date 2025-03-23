@@ -1172,6 +1172,7 @@ public class Task implements ProgressCallback {
             publishError(t.getCause());
         }
     }
+
     // Progress Callback
     @Override
     public void incrementTaskNumber(int subtask) {
@@ -1199,8 +1200,24 @@ public class Task implements ProgressCallback {
     }
 
     @Override
+    public synchronized void setProgress(int i) {
+        taskCounter[0] = i -1;
+        incrementProgress();
+    }
+
+    @Override
+    public int getTaskNumber() {
+        return taskCounter[1];
+    }
+
+    @Override
     public void log(String message) {
         publish(message);
+    }
+
+    @Override
+    public void setRunning(boolean running) {
+        if (ui!=null) ui.setRunning(running);
     }
 
     public static void executeTasksInForeground(List<Task> tasks, ProgressLogger ui, double preProcessingMemoryThreshold) {
