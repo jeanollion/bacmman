@@ -344,7 +344,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
             mounts.add(new UnaryPair<>(modelFile.getModelFile().getAbsolutePath(), "/model"));
             dataDir = getDataDirectory();
             mounts.add(new UnaryPair<>(dataDir.toString(), "/data"));
-            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), 0, DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
                 Core.userLog("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");

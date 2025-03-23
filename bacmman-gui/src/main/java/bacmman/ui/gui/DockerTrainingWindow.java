@@ -16,6 +16,7 @@ import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
+import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
@@ -45,6 +46,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -65,7 +67,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JPanel directoryPanel;
     private JPanel datasetPanel;
     private JPanel trainingPanel;
-    private JTextField workingDirectoryTextField;
     private JButton extractButton;
     private JPanel trainingCommandPanel;
     private JProgressBar trainingProgressBar;
@@ -76,8 +77,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JTextField datasetNameTextField;
     private JButton uploadModelButton;
     private JScrollPane extractDatasetConfigurationJSP;
-    private JButton setLoadButton;
-    private JButton setWriteButton;
     private JProgressBar extractProgressBar;
     private JProgressBar stepProgressBar;
     private JLabel epochLabel;
@@ -93,17 +92,18 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JButton computeMetricsButton;
     private JButton plotButton;
     private Dial dia;
+    protected final Color textFG;
+    private WorkingDirPanel workingDirPanel;
     static String WD_ID = "docker_training_working_dir";
     static String MD_ID = "docker_training_move_dir";
     private static final Logger logger = LoggerFactory.getLogger(DockerTrainingWindow.class);
     final protected DockerGateway dockerGateway;
     protected ConfigurationTreeGenerator config, configRef, extractConfig, dockerOptions, dockerOptionsRef;
 
-    protected String currentWorkingDirectory;
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
             .setNewInstanceConfiguration(i -> {
-                if (currentWorkingDirectory != null)
-                    i.getConfiguration().setReferencePathFunction(() -> Paths.get(currentWorkingDirectory));
+                if (workingDirPanel.getCurrentWorkingDirectory() != null)
+                    i.getConfiguration().setReferencePathFunction(() -> Paths.get(workingDirPanel.getCurrentWorkingDirectory()));
             }).addListener(tp -> {
                 updateExtractDatasetConfiguration();
                 updateDisplayRelatedToWorkingDir();
@@ -114,11 +114,11 @@ public class DockerTrainingWindow implements ProgressLogger {
     //protected FloatParameter dockerMemorySizeGb = new FloatParameter("Memory Limit", 0).setLowerBound(0).setHint("Memory Limit (GB). Set zero to set no limit");
 
     protected PluginParameter<DockerDLTrainer> trainerParameterRef = trainerParameter.duplicate();
-    protected final Color textFG;
+    
     protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig, dockerConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
-    final protected ActionListener workingDirPersistence, moveDirPersistence;
+    final protected ActionListener moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
     protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
@@ -128,6 +128,83 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     public DockerTrainingWindow(DockerGateway dockerGateway) {
         this.dockerGateway = dockerGateway;
+        PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
+        PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
+        String defWD;
+        if (GUI.hasInstance()) {
+            if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
+            else defWD = GUI.getInstance().getWorkingDirectory();
+        } else defWD = "";
+        Runnable setLoadButton = () -> {
+            setWorkingDirectory();
+            try {
+                setConfigurationFile(true, true, true);
+                setWorkingDirectory();
+                updateDisplayRelatedToWorkingDir();
+            } catch (IOException e) {
+                Core.userLog("Could not set directory: " + e.getMessage());
+                logger.error("Error setting directory", e);
+            }
+        };
+        Supplier<JPopupMenu> setLoadMenu = () -> {
+            List<Pair<String, Path>> modelConf = listModelTrainingConfigFile();
+            if (!modelConf.isEmpty()) {
+                JPopupMenu menu = new JPopupMenu();
+                for (Pair<String, Path> p : modelConf) {
+                    Action load = new AbstractAction("Load: " + p.key) {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            setWorkingDirectory();
+                            boolean notLoaded = javaConfig == null;
+                            try {
+                                setConfigurationFile(true, notLoaded, notLoaded);
+                                FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
+                                loadConfigFile(false, true, f);
+                                f.close();
+                                setWorkingDirectory();
+                                updateDisplayRelatedToWorkingDir();
+                            } catch (IOException ex) {
+                                Core.userLog("Could not load file" + p.value.toString());
+                            }
+                        }
+                    };
+                    menu.add(load);
+                }
+                return menu;
+            } else return null;
+        };
+        Runnable setWriteButton = () -> {
+            setWorkingDirectory();
+            try {
+                setConfigurationFile(false, false, false);
+                setWorkingDirectory();
+                writeConfigFile(true, true, true, true);
+                updateDisplayRelatedToWorkingDir();
+                config.getTree().updateUI();
+            } catch (IOException e) {
+                logger.error("Error writing configuration ", e);
+                Core.userLog("Could not write configuration file " + e.getMessage());
+            }
+        };
+        Supplier<JPopupMenu> setWriteMenu = () -> {
+            JPopupMenu menu = new JPopupMenu();
+            Action write = new AbstractAction("Write current model configuration") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    writeModelTrainConfigFile();
+                }
+            };
+            menu.add(write);
+            return menu;
+        };
+        Runnable updateDisplayWD = () -> {
+            updateExtractDisplay();
+            updateTrainingDisplay();
+        };
+        workingDirPanel = new WorkingDirPanel(updateDisplayWD, defWD, WD_ID, setLoadButton, setLoadMenu, setWriteButton, setWriteMenu);
+
+        $$$setupUI$$$();
+
         config = new ConfigurationTreeGenerator(null, trainerParameter, this::updateTrainingDisplay, (s, l) -> {
         }, s -> {
         }, null, null);
@@ -138,94 +215,18 @@ public class DockerTrainingWindow implements ProgressLogger {
         config.setCompareTree(configRef.getTree(), false);
         config.expandAll(1);
         configurationJSP.setViewportView(config.getTree());
-        PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
-        PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
-        //PropertyUtils.setPersistent(dockerMemorySizeGb, PropertyUtils.DOCKER_MEM_GB);
+        textFG = new Color(datasetNameTextField.getForeground().getRGB());
+
 
         updateDockerOptions();
-        textFG = new Color(workingDirectoryTextField.getForeground().getRGB());
-        workingDirectoryTextField.getDocument().addDocumentListener(getDocumentListener(this::updateDisplayRelatedToWorkingDir));
+
         datasetNameTextField.getDocument().addDocumentListener(getDocumentListener(this::updateExtractDisplay));
         modelDestinationTextField.getDocument().addDocumentListener(getDocumentListener(this::updateTrainingDisplay));
 
-        setLoadButton.addActionListener(ae -> {
-            setWorkingDirectory();
-            try {
-                setConfigurationFile(true, true, true);
-                setWorkingDirectory();
-                updateDisplayRelatedToWorkingDir();
-            } catch (IOException e) {
-                Core.userLog("Could not set directory: "+e.getMessage());
-                logger.error("Error setting directory", e);
-            }
-        });
-        setLoadButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    List<Pair<String, Path>> modelConf = listModelTrainingConfigFile();
-                    if (!modelConf.isEmpty()) {
-                        JPopupMenu menu = new JPopupMenu();
-                        for (Pair<String, Path> p : modelConf) {
-                            Action load = new AbstractAction("Load: " + p.key) {
-                                @Override
-                                public void actionPerformed(ActionEvent e) {
-                                    setWorkingDirectory();
-                                    boolean notLoaded = javaConfig == null;
-                                    try {
-                                        setConfigurationFile(true, notLoaded, notLoaded);
-                                        FileIO.TextFile f = new FileIO.TextFile(p.value.toString(), false, false);
-                                        loadConfigFile(false, true, f);
-                                        f.close();
-                                        setWorkingDirectory();
-                                        updateDisplayRelatedToWorkingDir();
-                                    } catch (IOException ex) {
-                                        Core.userLog("Could not load file"+p.value.toString());
-                                    }
-                                }
-                            };
-                            menu.add(load);
-                        }
-                        MenuScroller.setScrollerFor(menu, 25, 125);
-                        menu.show(setLoadButton, evt.getX(), evt.getY());
-                    }
-                }
-            }
-        });
-        setWriteButton.addActionListener(ae -> {
-            setWorkingDirectory();
-            try {
-                setConfigurationFile(false, false, false);
-                setWorkingDirectory();
-                writeConfigFile(true, true, true, true);
-                updateDisplayRelatedToWorkingDir();
-                config.getTree().updateUI();
-            } catch (IOException e) {
-                logger.error("Error writing configuration ", e);
-                Core.userLog("Could not write configuration file "+e.getMessage());
-            }
-
-        });
-        setWriteButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    JPopupMenu menu = new JPopupMenu();
-                    Action write = new AbstractAction("Write current model configuration") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            writeModelTrainConfigFile();
-                        }
-                    };
-                    menu.add(write);
-                    menu.show(setWriteButton, evt.getX(), evt.getY());
-                }
-            }
-        });
         extractButton.addActionListener(ae -> {
             updateExtractDisplay(); // in case dataset has be closed
             if (!extractButton.isEnabled()) return;
-            extractCurrentDataset(Paths.get(currentWorkingDirectory), null, true, null);
+            extractCurrentDataset(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, true, null);
         });
         extractButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -235,7 +236,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                     Action appendTask = new AbstractAction("Append extraction task") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Task t = getDatasetExtractionTask(Paths.get(currentWorkingDirectory), null, new ArrayList<>());
+                            Task t = getDatasetExtractionTask(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, new ArrayList<>());
                             GUI.getInstance().appendTask(t);
                         }
                     };
@@ -290,7 +291,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             // compute loss
             // erase temp dataset
             String tempDatasetName = "temp_dataset.h5";
-            Path datasetDir = getTempDirectory(); // Paths.get(currentWorkingDirectory)
+            Path datasetDir = getTempDirectory(); // Paths.get(workingDirPanel.getCurrentWorkingDirectory())
             File tempDatasetFile = datasetDir.resolve(tempDatasetName).toFile();
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
             SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
@@ -554,7 +555,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             else {
                 setMessage("Successfully authenticated to account to store configuration to.");
                 DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
-                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata(currentWorkingDirectory).setDockerDLTrainer(trainer), getSavedModelPath());
+                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
                 // set back properties
                 if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
                 epochLabel.setText("Epoch:");
@@ -625,36 +626,16 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
             }
         });
-        String defWD;
-        if (GUI.hasInstance()) {
-            if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
-            else defWD = GUI.getInstance().getWorkingDirectory();
-        } else defWD = "";
-        workingDirectoryTextField.addActionListener(ae -> {
-            updateDisplayRelatedToWorkingDir();
-        });
-        Action chooseFile = new AbstractAction("Choose local data folder") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String path = PropertyUtils.get(WD_ID, defWD);
-                File f = FileChooser.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
-                if (f != null) {
-                    workingDirectoryTextField.setText(f.getAbsolutePath());
-                    workingDirPersistence.actionPerformed(e);
-                }
-            }
-        };
-        workingDirPersistence = PropertyUtils.setPersistent(workingDirectoryTextField, WD_ID, defWD, true, chooseFile);
-        if (workingDirectoryIsValid()) {
+        
+        if (workingDirPanel.workingDirectoryIsValid()) {
             setWorkingDirectory();
             try {
                 setConfigurationFile(true, true, true);
                 updateDisplayRelatedToWorkingDir();
             } catch (IOException e) {
                 logger.error("Error setting working dir", e);
-                Core.userLog("Could not set working directory "+e.getMessage());
+                Core.userLog("Could not set working directory " + e.getMessage());
             }
-
         }
         Action chooseFileMD = new AbstractAction("Choose model destination folder") {
             @Override
@@ -721,9 +702,9 @@ public class DockerTrainingWindow implements ProgressLogger {
         DLModelsLibrary dlModelLibrary;
         if (fromGUI) {
             dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
-                    .setWorkingDirectory(currentWorkingDirectory);
+                    .setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
         } else {
-            dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> {
+            dlModelLibrary = new DLModelsLibrary(githubGateway, workingDirPanel.getCurrentWorkingDirectory(), () -> {
                 epochLabel.setText("Epoch:");
                 if (currentProgressBar != null) {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
@@ -760,9 +741,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                 epochLabel.setText("Build:");
                 String dockerfileName = currentImage.getFileName();
                 String tag = formatDockerTag(dockerfileName);
-                dockerDir = new File(currentWorkingDirectory, "docker");
+                dockerDir = new File(workingDirPanel.getCurrentWorkingDirectory(), "docker");
                 if (!dockerDir.exists()) dockerDir.mkdir();
-                dockerFilePath = Paths.get(currentWorkingDirectory, "docker", "Dockerfile").toString();
+                dockerFilePath = Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "docker", "Dockerfile").toString();
                 logger.debug("will build docker image: {} from dockerfile: {} @ {}", tag, dockerfileName, dockerFilePath);
                 Utils.extractResourceFile(trainer.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 setMessage("Building docker image: " + tag);
@@ -794,7 +775,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (DockerGateway.hasShm()) {
             return Paths.get("/dev/shm");
         } else {
-            Path dataTemp = Paths.get(currentWorkingDirectory, "dockerData");
+            Path dataTemp = Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "dockerData");
             if (!Files.exists(dataTemp)) {
                 try {
                     Files.createDirectories(dataTemp);
@@ -811,7 +792,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("docker image: {}", image);
         try {
             List<UnaryPair<String>> mounts = new ArrayList<>();
-            mounts.add(new UnaryPair<>(currentWorkingDirectory, "/data"));
+            mounts.add(new UnaryPair<>(workingDirPanel.getCurrentWorkingDirectory(), "/data"));
             if (mountTempData) {
                 Path dataTemp = getTempDirectory();
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
@@ -819,7 +800,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             Map<String, String> dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
-            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), 0, DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
                 setMessage("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
@@ -837,11 +818,11 @@ public class DockerTrainingWindow implements ProgressLogger {
         int[] counter = new int[1];
         Map<String, String> dirMapMountDir = HashMapGetCreate.getRedirectedMap(dir -> "/data" + counter[0]++, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
-        Path curPath = Paths.get(currentWorkingDirectory).normalize().toAbsolutePath();
+        Path curPath = Paths.get(workingDirPanel.getCurrentWorkingDirectory()).normalize().toAbsolutePath();
         dsList.getChildren().forEach(dsParam -> {
             String relPath = dsParam.getFilePath();
             Path path = curPath.resolve(relPath).normalize().toAbsolutePath();
-            if (!curPath.startsWith(path)) { // currentWorkingDirectory is not parent of this dataset -> generate new mount
+            if (!curPath.startsWith(path)) { // workingDirPanel.getCurrentWorkingDirectory() is not parent of this dataset -> generate new mount
                 dsParam.setRefPathFun(() -> null); // absolute
                 String parentDir = path.getParent().toString();
                 String mountParent = dirMapMountDir.get(parentDir);
@@ -1130,22 +1111,21 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void setWorkingDirectory() {
-        currentWorkingDirectory = workingDirectoryTextField.getText();
-        if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
+        workingDirPanel.setWorkingDirectory();
     }
 
     protected void setConfigurationFile(boolean loadJavaConf, boolean loadextractConf, boolean loadDockerConf) throws IOException {
-        if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
+        if (workingDirPanel.getCurrentWorkingDirectory() == null) throw new RuntimeException("Working Directory is not set");
         closeFiles();
         boolean lock = !Utils.isWindows();
-        pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, lock);
-        pythonConfigTest = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "test_configuration.json").toString(), true, lock);
-        Path jConfigPath = Paths.get(currentWorkingDirectory, "training_jconfiguration.json");
+        pythonConfig = new FileIO.TextFile(Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "training_configuration.json").toString(), true, lock);
+        pythonConfigTest = new FileIO.TextFile(Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "test_configuration.json").toString(), true, lock);
+        Path jConfigPath = Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "training_jconfiguration.json");
         boolean canLoad = jConfigPath.toFile().isFile();
         javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, lock);
-        Path jExtractConfigPath = Paths.get(currentWorkingDirectory, "extract_jconfiguration.json");
+        Path jExtractConfigPath = Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "extract_jconfiguration.json");
         javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, lock);
-        Path dockerConfigPath = Paths.get(currentWorkingDirectory, "docker_options.json");
+        Path dockerConfigPath = Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "docker_options.json");
         dockerConfig = new FileIO.TextFile(dockerConfigPath.toString(), true, lock);
         if (loadJavaConf && canLoad) loadConfigFile(true, true, javaConfig);
         if (loadextractConf) loadExtractConfig();
@@ -1239,7 +1219,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected List<Pair<String, Path>> listModelTrainingConfigFile() {
         try {
-            return Files.list(Paths.get(workingDirectoryTextField.getText()))
+            return Files.list(Paths.get(workingDirPanel.getWorkingDirectory()))
                     .filter(p -> p.getFileName().toString().endsWith(".training_jconfiguration.json"))
                     .map(p -> new Pair<>(p.getFileName().toString().replace(".training_jconfiguration.json", ""), p))
                     .sorted(Comparator.comparing(p -> p.key))
@@ -1259,7 +1239,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             configFile.close();
         } catch (IOException e) {
             logger.error("Error writing model config file", e);
-            Core.userLog("Could not write model train config file "+e.getMessage());
+            Core.userLog("Could not write model train config file " + e.getMessage());
         }
     }
 
@@ -1306,23 +1286,15 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    protected boolean workingDirectoryIsValid() {
-        String wd = workingDirectoryTextField.getText();
-        return wd != null && !wd.isEmpty() && new File(wd).isDirectory();
-    }
-
     protected void updateDisplayRelatedToWorkingDir() {
-        boolean workDirIsValid = workingDirectoryIsValid();
-        workingDirectoryTextField.setForeground(workDirIsValid ? (workingDirectoryTextField.getText().equals(currentWorkingDirectory) ? textFG : Color.blue.darker()) : Color.red.darker());
-        setLoadButton.setEnabled(workDirIsValid);
-        boolean enable = workDirIsValid && trainerParameter.isOnePluginSet();
-        setWriteButton.setEnabled(enable);
+        workingDirPanel.updateDisplayRelatedToWorkingDir();
         updateExtractDisplay();
         updateTrainingDisplay();
+
     }
 
     protected void updateExtractDisplay() {
-        boolean enable = currentWorkingDirectory != null;
+        boolean enable = workingDirPanel.getCurrentWorkingDirectory() != null;
         String name = datasetNameTextField.getText();
         if (enable && name.isEmpty()) enable = false;
         if (enable && (extractConfig == null || !extractConfig.getRoot().isValid())) enable = false;
@@ -1336,7 +1308,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void updateTrainingDisplay(boolean configIsValid) {
-        boolean enable = configIsValid && currentWorkingDirectory != null;
+        boolean enable = configIsValid && workingDirPanel.getCurrentWorkingDirectory() != null;
         startTrainingButton.setEnabled(enable && runner == null);
         computeMetricsButton.setEnabled(enable && runner == null && extractButton.isEnabled() && DockerDLTrainer.ComputeMetrics.class.isAssignableFrom(trainerParameter.getSelectedPluginClass()));
         testAugButton.setEnabled(enable && runner == null);
@@ -1370,7 +1342,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected File getSavedWeightFile() {
         String rel = getSavedWeightRelativePath();
         if (rel == null) return null;
-        File res = Paths.get(currentWorkingDirectory, rel).toFile();
+        File res = Paths.get(workingDirPanel.getCurrentWorkingDirectory(), rel).toFile();
         //logger.debug("saved w file: {} exists: {}", res, res.isFile());
         if (res.isFile()) return res;
         // extension may be missing -> search
@@ -1389,9 +1361,9 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected File getSavedModelPath() {
-        if (!trainerParameter.isOnePluginSet() || currentWorkingDirectory == null) return null;
+        if (!trainerParameter.isOnePluginSet() || workingDirPanel.getCurrentWorkingDirectory() == null) return null;
         String relPath = getTrainingParameter().getModelName();
-        return Paths.get(currentWorkingDirectory, relPath).toFile();
+        return Paths.get(workingDirPanel.getCurrentWorkingDirectory(), relPath).toFile();
     }
 
     public JPanel getMainPanel() {
@@ -1417,13 +1389,6 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else updateExtractDatasetConfiguration();
     }
 
-    {
-// GUI initializer generated by IntelliJ IDEA GUI Designer
-// >>> IMPORTANT!! <<<
-// DO NOT EDIT OR ADD ANY CODE HERE!
-        $$$setupUI$$$();
-    }
-
     /**
      * Method generated by IntelliJ IDEA GUI Designer
      * >>> IMPORTANT!! <<<
@@ -1432,6 +1397,7 @@ public class DockerTrainingWindow implements ProgressLogger {
      * @noinspection ALL
      */
     private void $$$setupUI$$$() {
+        createUIComponents();
         mainPanel = new JPanel();
         mainPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         final JSplitPane splitPane1 = new JSplitPane();
@@ -1450,23 +1416,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         actionPanel.setLayout(new GridLayoutManager(3, 1, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.setMaximumSize(new Dimension(600, 2147483647));
         splitPane1.setRightComponent(actionPanel);
-        directoryPanel = new JPanel();
-        directoryPanel.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(directoryPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
-        directoryPanel.setBorder(BorderFactory.createTitledBorder(null, "Working Directory", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        workingDirectoryTextField = new JTextField();
-        directoryPanel.add(workingDirectoryTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        final JPanel panel1 = new JPanel();
-        panel1.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        directoryPanel.add(panel1, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        setLoadButton = new JButton();
-        setLoadButton.setText("Set + Load");
-        setLoadButton.setToolTipText("Set working directory, and load configuration if existing (will overwrite changes in current configuration)");
-        panel1.add(setLoadButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        setWriteButton = new JButton();
-        setWriteButton.setText("Set + Write");
-        setWriteButton.setToolTipText("Set working directory, and write current configuration to file (will overwrite configuration in file if existing)");
-        panel1.add(setWriteButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         datasetPanel = new JPanel();
         datasetPanel.setLayout(new GridLayoutManager(3, 3, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(datasetPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -1483,16 +1433,16 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractProgressBar = new JProgressBar();
         extractProgressBar.setStringPainted(true);
         datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JPanel panel2 = new JPanel();
-        panel2.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        datasetPanel.add(panel2, new GridConstraints(1, 1, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        final JPanel panel1 = new JPanel();
+        panel1.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        datasetPanel.add(panel1, new GridConstraints(1, 1, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         extractButton = new JButton();
         extractButton.setText("Extract");
-        panel2.add(extractButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel1.add(extractButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         computeMetricsButton = new JButton();
         computeMetricsButton.setText("Compute Hard Samples");
         computeMetricsButton.setToolTipText("Compute metrics on all samples of the current dataset, stores them as measurements and generates selection of the hardest samples (with lowest metrics values). Use this command to inspect samples that are not well processed by the current model. It is critical to curate hardest samples when using Hard Sample Mining during training. This option is only available on methods that can compute metrics. ");
-        panel2.add(computeMetricsButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel1.add(computeMetricsButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
         trainingPanel.setLayout(new GridLayoutManager(6, 2, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
@@ -1519,38 +1469,38 @@ public class DockerTrainingWindow implements ProgressLogger {
         plotButton = new JButton();
         plotButton.setText("Plot");
         trainingCommandPanel.add(plotButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel2 = new JPanel();
+        panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.add(panel2, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         final JPanel panel3 = new JPanel();
-        panel3.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(panel3, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        final JPanel panel4 = new JPanel();
-        panel4.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panel3.add(panel4, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, 1, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panel3.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        panel2.add(panel3, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, 1, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         epochLabel = new JLabel();
         epochLabel.setText("Epoch:");
-        panel4.add(epochLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel3.add(epochLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         stepLabel = new JLabel();
         stepLabel.setText("Step:");
-        panel4.add(stepLabel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JPanel panel5 = new JPanel();
-        panel5.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panel3.add(panel5, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panel3.add(stepLabel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel4 = new JPanel();
+        panel4.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        panel2.add(panel4, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         trainingProgressBar = new JProgressBar();
         trainingProgressBar.setStringPainted(true);
-        panel5.add(trainingProgressBar, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel4.add(trainingProgressBar, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         stepProgressBar = new JProgressBar();
         stepProgressBar.setStringPainted(true);
-        panel5.add(stepProgressBar, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel4.add(stepProgressBar, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         lossJLabel = new JLabel();
         lossJLabel.setText("                                                                   ");
         trainingPanel.add(lossJLabel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(70, 20), null, null, 0, false));
-        final JPanel panel6 = new JPanel();
-        panel6.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(panel6, new GridConstraints(4, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        final JPanel panel5 = new JPanel();
+        panel5.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.add(panel5, new GridConstraints(4, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         modelDestinationTextField = new JTextField();
-        panel6.add(modelDestinationTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        panel5.add(modelDestinationTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         moveModelButton = new JButton();
         moveModelButton.setText("Move Model");
-        panel6.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel5.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         timeLabel = new JLabel();
         timeLabel.setText("                                                                                   ");
         trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(-1, 20), null, null, 0, false));
@@ -1570,6 +1520,10 @@ public class DockerTrainingWindow implements ProgressLogger {
      */
     public JComponent $$$getRootComponent$$$() {
         return mainPanel;
+    }
+
+    private void createUIComponents() {
+        directoryPanel = new CollapsiblePanel("Working Directory", workingDirPanel.getPanel());
     }
 
     private class Dial extends JDialog {

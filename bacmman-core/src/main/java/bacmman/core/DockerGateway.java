@@ -8,7 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,8 +22,19 @@ public interface DockerGateway {
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     Stream<UnaryPair<String>> listContainers();
     Stream<UnaryPair<String>> listContainers(String imageId);
-    String createContainer(String image, double shmSizeGb, double memoryGb, int[] gpuIds, UnaryPair<String>... mountDirs);
+    String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBinding, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
+
+    /**
+     * log container
+     * @param containerId
+     * @param stopLogging condition to stop logging: input = previous logs, current log
+     * @param stdErr include stdErr in logs
+     * @param stdOut include stdOut in logs
+     * @return logs
+     * @throws InterruptedException
+     */
+    List<String> logContainer(String containerId, BiPredicate<List<String>, String> stopLogging, boolean stdOut, boolean stdErr) throws InterruptedException;
     void stopContainer(String containerId);
     void authenticate(String user, String token);
     static Consumer<String> applyToSplit(Consumer<String> consumer) {

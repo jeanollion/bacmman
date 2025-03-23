@@ -31,9 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
 
-import bacmman.ui.gui.objects.DatasetTree;
 import bacmman.ui.gui.selection.SelectionUtils;
-import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +55,15 @@ public class PythonGateway {
         this.pythonPort=pythonPort;
         this.address=address;
     }
-    
+
+    public List<UnaryPair<String>> getEnv() {
+        List<UnaryPair<String>> res = new ArrayList<>();
+        res.add(new UnaryPair<>("PYBACMMAN_PORT", String.valueOf(port)));
+        res.add(new UnaryPair<>("PYBACMMAN_PYTHONPORT", String.valueOf(pythonPort)));
+        res.add(new UnaryPair<>("PYBACMMAN_ADRESS", address));
+        return res;
+    }
+
     public void startGateway() {
         try {
             server = new GatewayServer(this, port, address(), 0, 0, null, new CallbackClient(pythonPort, address()), ServerSocketFactory.getDefault());

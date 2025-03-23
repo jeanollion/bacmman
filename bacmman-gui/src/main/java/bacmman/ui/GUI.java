@@ -1305,6 +1305,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         } catch (BadLocationException|NullPointerException ex) {
         }
     }
+    public static PythonGateway getPythonGateway() {
+        if (hasInstance()) return getInstance().pyGtw;
+        return null;
+    }
     public static void log(String message) {
         if (hasInstance()) getInstance().setMessage(message);
     }

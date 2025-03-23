@@ -1,6 +1,7 @@
 package bacmman.core;
 
 import bacmman.docker.ExecResultCallback;
+import bacmman.docker.LogContainerResultCallback;
 import bacmman.docker.PullImageResultCallback;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.UnaryPair;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -113,7 +115,7 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @SafeVarargs
     @Override
-    public final String createContainer(String image, double shmSizeGb, double memoryGb, int[] gpuIds, UnaryPair<String>... mountDirs) {
+    public final String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBinding, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withAutoRemove(true);
                 //.withRestartPolicy(RestartPolicy.noRestart())
@@ -128,17 +130,28 @@ public class DockerGatewayImpl implements DockerGateway {
         }
         if (shmSizeGb == 0) shmSizeGb = PropertyUtils.get(PropertyUtils.DOCKER_SHM_GB, 8.);
         hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * Math.pow(2, 30))); //.withMemorySwappiness(0L); //.withBlkioWeight(1000);
-        if (memoryGb>0) hostConfig = hostConfig.withMemory(Math.round(memoryGb * Math.pow(2, 30))).withMemorySwap(Math.round(memoryGb * Math.pow(2, 30))).withOomKillDisable(true); //memory swap to same value = no swap;
+        if (portBinding != null && !portBinding.isEmpty()) {
+            Ports portBindings = new Ports();
+            for (UnaryPair<Integer> ports : portBinding) {
+                ExposedPort exposedPort = ExposedPort.tcp(ports.key);
+                portBindings.bind(exposedPort, Ports.Binding.bindPort(ports.value));
+            }
+            hostConfig = hostConfig.withPortBindings(portBindings);
+        }
+
         if (mountDirs!=null && mountDirs.length>0) {
             //List<Mount> mounts = Arrays.stream(mountDirs).map(p -> new Mount().withSource(p.key).withTarget(p.value).withType(MountType.BIND)).collect(Collectors.toList());
             //hostConfig = hostConfig.withMounts(mounts);
             Bind[] binds = Arrays.stream(mountDirs).map(p -> new Bind(p.key, new Volume(p.value))).toArray(Bind[]::new);
             hostConfig = hostConfig.withBinds(binds);
         }
-
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
            .withHostConfig(hostConfig)
            .withTty(true);
+        if (environmentVariables != null && !environmentVariables.isEmpty()) {
+            String[] env = environmentVariables.stream().map(p -> p.key+"="+p.value).toArray(String[]::new);
+            cmd = cmd.withEnv(env);
+        }
         if (Utils.isUnix()) { // TODO also on mac ?
             int uid = Utils.getUID();
             //logger.debug("Unix UID: {}", uid);
@@ -153,6 +166,7 @@ public class DockerGatewayImpl implements DockerGateway {
                 throw new RuntimeException("GPU not found: ", e);
             } else throw e;
         }
+
         return container.getId();
     }
 
@@ -169,6 +183,17 @@ public class DockerGatewayImpl implements DockerGateway {
             if (remove) stopContainer(containerId);
         }
     }
+
+    public List<String> logContainer(String containerId, BiPredicate<List<String>, String> stopLogging, boolean stdOut, boolean stdErr) throws InterruptedException {
+        LogContainerResultCallback cb = new LogContainerResultCallback(stopLogging);
+        dockerClient.logContainerCmd(containerId)
+                .withStdOut(stdOut)
+                .withStdErr(stdErr)
+                .exec(cb);
+        cb.latch.await();
+        return cb.getLogs();
+    }
+
     @Override
     public void stopContainer(String containerId) {
         dockerClient.stopContainerCmd(containerId).exec();
