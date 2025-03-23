@@ -3,19 +3,26 @@ package bacmman.ui.gui;
 import bacmman.core.DockerGateway;
 import bacmman.core.GithubGateway;
 import bacmman.core.ProgressCallback;
+import bacmman.data_structure.dao.UUID;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configurationIO.GitCredentialPanel;
 import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import javax.swing.*;
 import java.awt.*;
 
 public class JupyterPanel {
+    private static final Logger logger = LoggerFactory.getLogger(JupyterPanel.class);
     private JPanel mainPanel;
     private JPanel directoryPanel;
     private JPanel dockerPanel;
@@ -35,7 +42,7 @@ public class JupyterPanel {
     private final DockerGateway dockerGateway;
     private final GithubGateway githubGateway;
     private final ProgressLogger bacmmanLogger;
-
+    private final String token;
     public JupyterPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressLogger bacmmanLogger) {
         this.dockerGateway = dockerGateway;
         this.githubGateway = githubGateway;
@@ -46,11 +53,49 @@ public class JupyterPanel {
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
         workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD, null, this::updateWD, null);
-        Consumer<String> startContainer = null;
-        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", true, startContainer, ProgressCallback.get(bacmmanLogger))
+        token = UUID.get().toHexString();
+        Consumer<String> startContainer = containerId -> {
+            String serverURL = "http://127.0.0.1:8888";
+            // Wait until the server is ready
+            int i = 0;
+            while (!isServerReady(serverURL) && i++<20) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                } catch (InterruptedException e) {}
+            }
+            String notebookUrl=serverURL + "/lab/tree/work/PyBACMMAN_Basic_Selections.ipynb?token="+token;
+            try {
+                java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
+            } catch (Exception e) {
+                bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
+            }
+        };
+
+        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", true, startContainer, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+token+"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
         gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
         $$$setupUI$$$();
+    }
+
+    protected boolean isServerReady(String url) {
+        try {
+            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(500);
+            connection.connect();
+            return connection.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    protected boolean logsContain(java.util.List<String> logs, String target) {
+        for (int i = logs.size() - 1; i>=0; --i) if (logs.get(i).contains(target)) return true;
+        return false;
+    }
+
+    protected String extractNotebookURL(String line) {
+        line = line.trim();
+        return line;
     }
 
     protected void updateWD() {

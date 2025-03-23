@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -50,7 +51,7 @@ public class DockerImageLauncher {
     private String containerId = null;
     protected DefaultWorker runner;
 
-    public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean port, Consumer<String> startCb, ProgressCallback bacmmanLogger) {
+    public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean port, Consumer<String> startCb, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
         this.gateway = gateway;
         this.bacmmanLogger = bacmmanLogger;
         dockerImage = new DockerImageParameter("Docker Image");
@@ -64,9 +65,16 @@ public class DockerImageLauncher {
                 String image = ensureImage(dockerImage.getValue());
                 if (image != null) {
                     List<UnaryPair<Integer>> portList = port ? Collections.singletonList(new UnaryPair<>(this.port.getIntValue(), this.port.getIntValue())) : null;
-                    List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv() : null;
-                    containerId = gateway.createContainer(image, 2, null, portList, env, new UnaryPair<>(workingDir, containerDir));
-                    if (startCb != null) startCb.accept(containerId);
+                    List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv() : new ArrayList<>();
+                    if (environmentVariables.length>0) env.addAll(Arrays.asList(environmentVariables));
+                    try {
+                        containerId = gateway.createContainer(image, 2, null, portList, env, new UnaryPair<>(workingDir, containerDir));
+                        if (startCb != null) startCb.accept(containerId);
+                    } catch (Exception e) {
+                        bacmmanLogger.log("Error starting notebook: "+e.getMessage());
+                        logger.error("Error starting notebook", e);
+                    }
+
                 }
             });
         });
