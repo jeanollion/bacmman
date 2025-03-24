@@ -26,6 +26,7 @@ import bacmman.ui.logger.ProgressLogger;
  */
 public interface ProgressCallback {
     void incrementTaskNumber(int subtask);
+    void setTaskNumber(int number);
     void setSubtaskNumber(int number);
     void incrementSubTask();
     void incrementProgress();
@@ -41,10 +42,10 @@ public interface ProgressCallback {
     }
     static ProgressCallback get(ProgressLogger ui) {
         ProgressCallback pcb = new ProgressCallback(){
-            double progress = 0;
-            double taskCount = 0;
+            double taskCounter = 0;
+            double taskNumber = 0;
             double subTaskNumber = 0;
-            double subTaskCount = 0;
+            double subTaskCounter = 0;
 
             @Override
             public void setRunning(boolean running) {
@@ -53,36 +54,44 @@ public interface ProgressCallback {
 
             @Override
             public void incrementTaskNumber(int subtask) {
-                taskCount+=subtask;
+                taskNumber +=subtask;
             }
 
             @Override
-            public int getTaskNumber() {return (int)taskCount;}
+            public int getTaskNumber() {return (int) taskNumber;}
 
             @Override
             public void setSubtaskNumber(int number) {
                 subTaskNumber = number;
-                subTaskCount = 0;
+                subTaskCounter = 0;
+            }
+
+            @Override
+            public void setTaskNumber(int number) {
+                taskNumber = number;
+                taskCounter = 0;
+                subTaskCounter = 0;
+                subTaskNumber = 0;
             }
 
             @Override
             public synchronized void incrementSubTask() {
-                ++subTaskCount;
-                if (taskCount>0) ui.setProgress((int)(100 * ((progress+subTaskCount/subTaskNumber)/taskCount)));
+                ++subTaskCounter;
+                if (taskNumber >0) ui.setProgress((int)(100 * ((taskCounter + subTaskCounter /subTaskNumber)/ taskNumber)));
             }
 
             @Override
             public synchronized void incrementProgress() {
-                progress++;
-                subTaskCount = 0;
-                if (taskCount>0) ui.setProgress((int)(100 * (progress/taskCount)));
+                taskCounter++;
+                subTaskCounter = 0;
+                if (taskNumber >0) ui.setProgress((int)(100 * (taskCounter / taskNumber)));
             }
             @Override
             public synchronized void setProgress(int i) {
-                if (progress != i) {
-                    progress = i;
-                    subTaskCount = 0;
-                    if (taskCount>0) ui.setProgress((int)(100 * (progress/taskCount)));
+                if (taskCounter != i) {
+                    taskCounter = i;
+                    subTaskCounter = 0;
+                    if (taskNumber >0) ui.setProgress((int)(100 * (taskCounter / taskNumber)));
                 }
             }
             @Override

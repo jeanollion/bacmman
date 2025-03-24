@@ -79,7 +79,7 @@ public class Task implements ProgressCallback {
         MasterDAO db;
         final boolean keepDB;
         int[] taskCounter;
-        double subtaskNumber=0,subtaskCount=0;
+        double subtaskNumber=0, subtaskCounter =0;
         ProgressLogger ui;
         String selectionName;
 
@@ -1189,14 +1189,20 @@ public class Task implements ProgressCallback {
     @Override
     public void setSubtaskNumber(int number) {
         subtaskNumber = number;
-        subtaskCount = 0;
+        subtaskCounter = 0;
+    }
+
+    public void setTaskNumber(int taskNumber) {
+        if (taskCounter!=null) this.taskCounter[1]=taskNumber;
+        subtaskCounter = 0;
+        subtaskNumber = 0;
     }
 
     @Override
     public synchronized void incrementSubTask() {
-        ++subtaskCount;
+        ++subtaskCounter;
         //logger.debug("Progress: {}/{}, subtask: {}/{}", taskCounter[0], taskCounter[1], subtaskCount, subtaskNumber);
-        if (ui!=null) ui.setProgress((int)(100*(taskCounter[0] + subtaskCount / subtaskNumber)/taskCounter[1] + 0.5));
+        if (ui!=null) ui.setProgress((int)(100*(taskCounter[0] + subtaskCounter / subtaskNumber)/taskCounter[1] + 0.5));
     }
 
     @Override

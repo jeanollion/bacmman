@@ -9,10 +9,10 @@ import bacmman.core.GithubGateway;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
-import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.gui.objects.CollapsiblePanel;
+import bacmman.ui.gui.objects.ConfigurationGistTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;
@@ -26,8 +26,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -35,7 +33,6 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static bacmman.plugins.Hint.formatHint;

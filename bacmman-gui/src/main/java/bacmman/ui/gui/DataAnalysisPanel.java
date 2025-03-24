@@ -7,22 +7,28 @@ import bacmman.data_structure.dao.UUID;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configurationIO.GitCredentialPanel;
 import bacmman.ui.gui.objects.CollapsiblePanel;
+import bacmman.ui.gui.objects.JupyterNotebookViewer;
+import bacmman.ui.gui.objects.NotebookTree;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.*;
 import java.awt.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
-public class JupyterPanel {
-    private static final Logger logger = LoggerFactory.getLogger(JupyterPanel.class);
+public class DataAnalysisPanel {
+    private static final Logger logger = LoggerFactory.getLogger(DataAnalysisPanel.class);
     private JPanel mainPanel;
     private JPanel directoryPanel;
     private JPanel dockerPanel;
@@ -35,15 +41,21 @@ public class JupyterPanel {
     private JScrollPane remoteViewerJSP;
     private JScrollPane localSelectorJSP;
     private JScrollPane remoteSelectorJSP;
-    private WorkingDirPanel workingDirPanel;
-    private DockerImageLauncher dockerImageLauncher;
-    private GitCredentialPanel gitCredentialPanel;
-    static String WD_ID = "jupyter_working_dir";
+
+    static String WD_ID = "data_analysis_working_dir";
     private final DockerGateway dockerGateway;
     private final GithubGateway githubGateway;
     private final ProgressLogger bacmmanLogger;
     private final String token;
-    public JupyterPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressLogger bacmmanLogger) {
+
+    private WorkingDirPanel workingDirPanel;
+    private DockerImageLauncher dockerImageLauncher;
+    private GitCredentialPanel gitCredentialPanel;
+    private NotebookTree localNotebooks;
+
+    private JupyterNotebookViewer localViewer, remoteViewer;
+
+    public DataAnalysisPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressLogger bacmmanLogger) {
         this.dockerGateway = dockerGateway;
         this.githubGateway = githubGateway;
         this.bacmmanLogger = bacmmanLogger;
@@ -52,29 +64,68 @@ public class JupyterPanel {
             if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
-        workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD, null, this::updateWD, null);
         token = UUID.get().toHexString();
-        Consumer<String> startContainer = containerId -> {
-            String serverURL = "http://127.0.0.1:8888";
+        Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> notebookSelectionCB = nb -> {
+            if (nb == null || nb.isFolder()) {
+                localViewer = null;
+                localViewerJSP.setViewportView(null);
+                return null;
+            } else {
+                JupyterNotebookViewer localViewer = new JupyterNotebookViewer(nb.getContent(false));
+                localViewerJSP.setViewportView(localViewer.getTree());
+                this.localViewer = localViewer;
+                return localViewer::getContent;
+            }
+        };
+        Consumer<NotebookTree.NotebookTreeNode> doubleClickCB = nb -> {
+            if (dockerImageLauncher.hasContainer()) { // server already started, simply open notebook
+                String notebookUrl = getNotebookURL(nb, dockerImageLauncher.getExposedPorts()[0]);
+                try {
+                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
+                } catch (Exception e) {
+                    bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
+                }
+            } else dockerImageLauncher.startContainer();
+        };
+        localNotebooks = new NotebookTree(notebookSelectionCB, doubleClickCB, bacmmanLogger);
+        workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD,  this::updateWD);
+        BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
+            String serverURL = getServerURL(ports[0]);
             // Wait until the server is ready
             int i = 0;
-            while (!isServerReady(serverURL) && i++<20) {
+            int limit = 20;
+            while (!isServerReady(serverURL) && i++<limit) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(500);
                 } catch (InterruptedException e) {}
             }
-            String notebookUrl=serverURL + "/lab/tree/work/PyBACMMAN_Basic_Selections.ipynb?token="+token;
-            try {
-                java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
-            } catch (Exception e) {
-                bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
+            if (i < limit) {
+                String notebookUrl = getNotebookURL(localNotebooks.getSelectedNotebookIfOnlyOneSelected(), dockerImageLauncher.getExposedPorts()[0]);
+                try {
+                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
+                } catch (Exception e) {
+                    bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
+                }
             }
         };
 
-        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", true, startContainer, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+token+"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
+        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+token+"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
         gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
+
         $$$setupUI$$$();
+
+        localSelectorJSP.setViewportView(localNotebooks.getTree());
+        this.updateWD();
+    }
+
+    public String getServerURL(int port) {
+        return "http://127.0.0.1:" + port;
+    }
+
+    public String getNotebookURL(NotebookTree.NotebookTreeNode n, int port) {
+        if (n == null) return getServerURL(port) + "?token=" + token;
+        else return getServerURL(port) +  "/lab/tree/work/" + n.getRelativePath() + "?token=" + token;
     }
 
     protected boolean isServerReady(String url) {
@@ -100,6 +151,7 @@ public class JupyterPanel {
 
     protected void updateWD() {
         dockerImageLauncher.setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
+        localNotebooks.setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
     }
 
     protected void updateGitCredentials() {

@@ -39,7 +39,7 @@ import static bacmman.ui.gui.objects.JupyterNotebookViewer.CELL_TYPE.CODE;
 import static bacmman.ui.gui.objects.JupyterNotebookViewer.CELL_TYPE.MARKDOWN;
 import static bacmman.utils.Utils.loadIcon;
 
-public class JupyterNotebookViewer extends JFrame {
+public class JupyterNotebookViewer {
     private static final Logger logger = LoggerFactory.getLogger(JupyterNotebookViewer.class);
     private static String[] supportedLanguages = new String[]{"python", "java"};
     private static ImageIcon codeIcon = loadIcon(JupyterNotebookViewer.class, "/icons/code24.png");
@@ -49,58 +49,46 @@ public class JupyterNotebookViewer extends JFrame {
     private DefaultTreeModel treeModel;
     private DefaultMutableTreeNode rootNode;
     private JTree tree;
-    private String filePath;
     private JSONObject notebook;
     private String language = "python";
     private RSyntaxTextArea description;
 
-    public JupyterNotebookViewer(String filePath) {
-        setTitle("Jupyter Notebook Viewer");
-        setSize(800, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        this.filePath=filePath;
+    public JupyterNotebookViewer(JSONObject notebook) {
+        this.notebook = notebook;
         rootNode = new DefaultMutableTreeNode("Notebook");
         treeModel = new DefaultTreeModel(rootNode);
         tree = new JTree(treeModel);
-
         tree.setCellRenderer(new NotebookTreeCellRenderer());
         tree.setCellEditor(new NotebookTreeCellEditor(tree));
         tree.setEditable(true);
         tree.addMouseListener(new NotebookMouseAdapter());
-
-        JScrollPane mainJSP = new JScrollPane(tree);
-        add(mainJSP, BorderLayout.CENTER);
-
-        loadNotebook(filePath);
+        tree.setRootVisible(false);
+        loadNotebook();
     }
 
-    private void loadNotebook(String filePath) {
-        try {
-            Path p = Paths.get(filePath);
-            rootNode.setUserObject(Utils.removeExtension(p.getFileName().toString()));
-            String content = new String(Files.readAllBytes(p));
-            notebook = (JSONObject) new JSONParser().parse(content);
-            JSONArray cells = (JSONArray) notebook.get("cells");
-            JSONObject metadata = (JSONObject)notebook.getOrDefault("metadata", new JSONObject());
-            JSONObject languageMetadata = (JSONObject)metadata.getOrDefault("language_info", new JSONObject());
-            language = (String)languageMetadata.getOrDefault("name", "python");
-            if (Stream.of(supportedLanguages).noneMatch(l -> l.equals(language))) language = "plain";
+    private void loadNotebook() {
+        JSONArray cells = (JSONArray) notebook.get("cells");
+        JSONObject metadata = (JSONObject)notebook.getOrDefault("metadata", new JSONObject());
+        JSONObject languageMetadata = (JSONObject)metadata.getOrDefault("language_info", new JSONObject());
+        language = (String)languageMetadata.getOrDefault("name", "python");
+        if (Stream.of(supportedLanguages).noneMatch(l -> l.equals(language))) language = "plain";
 
-            rootNode.removeAllChildren();
-            if (description != null) {
-                RTextScrollPane descJSP = new RTextScrollPane(description);
-                rootNode.add(new DefaultMutableTreeNode(descJSP));
-            }
-            for (Object cellObj : cells) {
-                JSONObject cell = (JSONObject) cellObj;
-                CellNode cellNode = new CellNode(cell, language);
-                rootNode.add(cellNode);
-            }
-            treeModel.reload();
-            Utils.expandAll(tree);
-        } catch (IOException | ParseException e) {
-            logger.debug("error loading notebook", e);
+        rootNode.removeAllChildren();
+        if (description != null) {
+            RTextScrollPane descJSP = new RTextScrollPane(description);
+            rootNode.add(new DefaultMutableTreeNode(descJSP));
         }
+        for (Object cellObj : cells) {
+            JSONObject cell = (JSONObject) cellObj;
+            CellNode cellNode = new CellNode(cell, language);
+            rootNode.add(cellNode);
+        }
+        treeModel.reload();
+        Utils.expandAll(tree);
+    }
+
+    public JTree getTree() {
+        return tree;
     }
 
     enum CELL_TYPE {CODE, MARKDOWN}
@@ -140,7 +128,11 @@ public class JupyterNotebookViewer extends JFrame {
         public JSONObject getData() { // update code and return data
             JSONArray source = (JSONArray)data.get("source");
             source.clear();
-            for (String line : code.getText().split("\n")) source.add(line);
+            String[] lines = code.getText().split("\n");
+            for (int i = 0; i<lines.length; ++i) {
+                if (i<lines.length-1) source.add(lines[i] + "\n");
+                else source.add(lines[i]);
+            }
             return data;
         }
 
@@ -236,8 +228,10 @@ public class JupyterNotebookViewer extends JFrame {
         public String getCodeString() {
             JSONArray source = (JSONArray) data.get("source");
             StringBuilder sourceS = new StringBuilder();
-            for (Object line : source) {
-                sourceS.append(line).append("\n");
+            for (int i = 0; i< source.size(); ++i) {
+                String line = (String)source.get(i);
+                sourceS.append(line);
+                if (i<source.size()-1 && !line.endsWith("\n")) sourceS.append("\n");
             }
             return sourceS.toString();
         }
@@ -397,7 +391,7 @@ public class JupyterNotebookViewer extends JFrame {
                     if (node instanceof CellNode) {
                         tree.setSelectionPath(path);
                         showCellPopupMenu(e);
-                    } else if (node.isRoot()) showRootPopupMenu(e);
+                    }
                 }
             } else if (e.getClickCount() == 2) {
                 TreePath path = tree.getPathForLocation(e.getX(), e.getY());
@@ -459,25 +453,6 @@ public class JupyterNotebookViewer extends JFrame {
             menu.show(e.getComponent(), e.getX(), e.getY());
         }
 
-        private void showRootPopupMenu(MouseEvent e) {
-            JPopupMenu menu = new JPopupMenu();
-            JMenuItem reload = new JMenuItem(new AbstractAction("Reload from Disk") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    loadNotebook(filePath);
-                }
-            });
-            JMenuItem save = new JMenuItem(new AbstractAction("Save Changes") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    saveNotebook(filePath);
-                }
-            });
-            menu.add(reload);
-            menu.add(save);
-            menu.show(e.getComponent(), e.getX(), e.getY());
-        }
-
         private void createCell() {
             TreePath path = tree.getSelectionPath();
             if (path != null) {
@@ -532,28 +507,26 @@ public class JupyterNotebookViewer extends JFrame {
             }
         }
 
-        private void saveNotebook(String filePath) {
-            JSONArray cells = (JSONArray)notebook.get("cells");
-            cells.clear();
-            for (int i = 0; i < rootNode.getChildCount(); i++) {
-                TreeNode n = rootNode.getChildAt(i);
-                if (n instanceof CellNode) cells.add(((CellNode)n).getData());
-            }
-            try (FileWriter file = new FileWriter(filePath)) {
-                String toSave = notebook.toJSONString();
-                toSave = toSave.replace("\\/", "/");
-                toSave = JSONUtils.prettyPrint(toSave, " ");
-                file.write(toSave);
-            } catch (IOException e) {
-                logger.debug("error saving notebook", e);
-            }
-        }
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JupyterNotebookViewer viewer = new JupyterNotebookViewer("/data/PyBACMMAN_Basic_Selections.ipynb");
-            viewer.setVisible(true);
-        });
+    public JSONObject getContent() { // update changes to JSONArray and return it
+        JSONArray cells = (JSONArray)notebook.get("cells");
+        cells.clear();
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            TreeNode n = rootNode.getChildAt(i);
+            if (n instanceof CellNode) cells.add(((CellNode)n).getData());
+        }
+        return notebook;
+    }
+
+    public static void saveNotebook(String filePath, JSONObject notebook) {
+        try (FileWriter file = new FileWriter(filePath)) {
+            String toSave = notebook.toJSONString();
+            toSave = toSave.replace("\\/", "/");
+            toSave = JSONUtils.prettyPrint(toSave, " ");
+            file.write(toSave);
+        } catch (IOException e) {
+            logger.debug("error saving notebook", e);
+        }
     }
 }

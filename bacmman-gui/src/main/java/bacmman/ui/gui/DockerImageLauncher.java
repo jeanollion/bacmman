@@ -1,9 +1,6 @@
 package bacmman.ui.gui;
 
-import bacmman.configuration.parameters.DockerImageParameter;
-import bacmman.configuration.parameters.GroupParameter;
-import bacmman.configuration.parameters.IntegerParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
@@ -29,7 +26,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 
@@ -40,7 +40,15 @@ public class DockerImageLauncher {
     private JScrollPane configurationJSP;
     private JPanel mainPanel;
     DockerImageParameter dockerImage;
-    IntegerParameter port = new IntegerParameter("Port", 8888).setLowerBound(1);
+    BoundedNumberParameter port = new BoundedNumberParameter("Port", 0, 8888, 1, null);
+    ArrayNumberParameter ports = new ArrayNumberParameter("Ports", 0, port);
+    FloatParameter shm = new FloatParameter("Shared Memory", 2).setLowerBound(0).setHint("Shared Memory allowed to container in Gb");
+    private final String containerDir;
+    private final boolean useShm;
+    private final int[] containerPorts;
+    private final UnaryPair<String>[] environmentVariables;
+    private final BiConsumer<String, int[]> startCb;
+
     GroupParameter configuration;
     ConfigurationTreeGenerator configurationGen;
 
@@ -51,42 +59,77 @@ public class DockerImageLauncher {
     private String containerId = null;
     protected DefaultWorker runner;
 
-    public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean port, Consumer<String> startCb, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
+    public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean shm, int[] ports, BiConsumer<String, int[]> startCb, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
         this.gateway = gateway;
         this.bacmmanLogger = bacmmanLogger;
+        this.containerDir = containerDir;
+        this.useShm = shm;
+        this.containerPorts = ports;
+        this.startCb=startCb;
+        this.environmentVariables = environmentVariables;
         dockerImage = new DockerImageParameter("Docker Image");
         List<Parameter> params = new ArrayList<>();
         params.add(dockerImage);
-        if (port) params.add(this.port);
+        if (ports!=null && ports.length>0) {
+            if (ports.length == 1) {
+                this.port.setValue(ports[0]);
+                params.add(this.port);
+            } else {
+                this.ports.setValue(ports).setMaxChildCount(ports.length).setMinChildCount(ports.length);
+                params.add(this.ports);
+            }
+        }
+        if (shm) params.add(this.shm);
         configuration = new GroupParameter("Configuration", params);
         setWorkingDirectory(workingDir);
         start.addActionListener(ae -> {
-            runLater(() -> {
-                String image = ensureImage(dockerImage.getValue());
-                if (image != null) {
-                    List<UnaryPair<Integer>> portList = port ? Collections.singletonList(new UnaryPair<>(this.port.getIntValue(), this.port.getIntValue())) : null;
-                    List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv() : new ArrayList<>();
-                    if (environmentVariables.length>0) env.addAll(Arrays.asList(environmentVariables));
-                    try {
-                        containerId = gateway.createContainer(image, 2, null, portList, env, new UnaryPair<>(workingDir, containerDir));
-                        if (startCb != null) startCb.accept(containerId);
-                    } catch (Exception e) {
-                        bacmmanLogger.log("Error starting notebook: "+e.getMessage());
-                        logger.error("Error starting notebook", e);
-                    }
-
-                }
-            });
+            startContainer();
         });
-        stop.addActionListener(ae -> {
-            try {
-                gateway.stopContainer(containerId);
-            } catch (Exception e) {
+        stop.addActionListener(ae -> stopContainer());
+    }
 
-            } finally {
-                containerId = null;
+    public int[] getExposedPorts() {
+        if (containerPorts!=null && containerPorts.length>0) {
+            if (containerPorts.length == 1) return new int[]{port.getIntValue()};
+            else return this.ports.getArrayInt();
+        } else return null;
+    }
+
+    public boolean hasContainer() {
+        return containerId != null;
+    }
+
+    public void startContainer() {
+        runLater(() -> {
+            String image = ensureImage(dockerImage.getValue());
+            if (image != null) {
+                int[] exposedPorts = getExposedPorts();
+                List<UnaryPair<Integer>> portList = containerPorts == null ? null : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(containerPorts[i], exposedPorts[i])).collect(Collectors.toList());
+                List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv() : new ArrayList<>();
+                if (environmentVariables.length>0) env.addAll(Arrays.asList(environmentVariables));
+                try {
+                    containerId = gateway.createContainer(image, useShm?this.shm.getDoubleValue():0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
+                    if (startCb != null) startCb.accept(containerId, exposedPorts);
+                } catch (Exception e) {
+                    bacmmanLogger.log("Error starting notebook: "+e.getMessage());
+                    logger.error("Error starting notebook", e);
+                } finally {
+                    updateButtons();
+                }
             }
         });
+    }
+
+    public void stopContainer() {
+        if (containerId == null) return;
+        try {
+            gateway.stopContainer(containerId);
+        } catch (Exception e) {
+
+        } finally {
+            containerId = null;
+            updateButtons();
+        }
     }
 
     protected void runLater(Runnable action) {
@@ -111,28 +154,28 @@ public class DockerImageLauncher {
         try {
             Utils.extractResourceFile(this.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            bacmmanLogger.log("Error building docker image: "+tag+" could not read dockerfile: " + e.getMessage());
+            dockerDir.delete();
+            return null;
         }
         bacmmanLogger.log("Building docker image: " + tag);
         String imageId = gateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, bacmmanLogger::log, this::setProgress);
+        dockerDir.delete();
         return imageId != null ? image.getTag() : null;
     }
 
     protected void parseBuildProgress(String message) {
         int[] prog = DockerGateway.parseBuildProgress(message);
+        logger.debug("build progress: {}", message);
         if (prog != null) {
+            logger.debug("parse build progress: {}/{}", prog[0], prog[1]);
             setProgress(prog[0], prog[1]);
         }
     }
 
     public void setProgress(int i, int max) {
-        if (max > 0 && bacmmanLogger.getTaskNumber() != max) bacmmanLogger.setSubtaskNumber(max);
+        if (max > 0 && bacmmanLogger.getTaskNumber() != max) bacmmanLogger.setTaskNumber(max);
         bacmmanLogger.setProgress(i);
-    }
-
-
-    public void printError(String message) {
-        bacmmanLogger.log(message);
     }
 
     public DockerImageLauncher setWorkingDirectory(String dir) {
@@ -147,7 +190,7 @@ public class DockerImageLauncher {
         return this;
     }
 
-    protected String getConfigFile() {
+    public String getConfigFile() {
         return Paths.get(workingDir, "dockerconfig.json").toString();
     }
 
@@ -181,7 +224,8 @@ public class DockerImageLauncher {
     }
 
     public DockerImageLauncher setImageRequirements(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
-        dockerImage.setImageRequirement(imageName, versionPrefix, minimalVersion, maximalVersion);
+        dockerImage.setImageRequirement(imageName, versionPrefix, minimalVersion, maximalVersion).addArchFilter();
+        dockerImage.selectLatestImageIfNoSelection();
         return this;
     }
 

@@ -6,6 +6,7 @@ import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.gui.objects.CollapsiblePanel;
+import bacmman.ui.gui.objects.DLModelGistTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;

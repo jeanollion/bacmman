@@ -5,6 +5,7 @@ import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
+import bacmman.ui.gui.objects.ConfigurationGistTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;

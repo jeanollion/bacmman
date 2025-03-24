@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
-package bacmman.ui.gui.configurationIO;
+package bacmman.ui.gui.objects;
 
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
@@ -309,10 +309,10 @@ public class DLModelGistTreeGenerator {
         }
         return url;
     }
-    Stream<TreePath> getExpandedState() {
+    public Stream<TreePath> getExpandedState() {
         return EnumerationUtils.toStream(tree.getExpandedDescendants(new TreePath(getRoot().getPath())));
     }
-    void setExpandedState(Stream<TreePath> expandedState) {
+    public void setExpandedState(Stream<TreePath> expandedState) {
         if (expandedState!=null) expandedState.forEach(p -> tree.expandPath(p));
         else tree.expandPath(getTreePath(getRoot()));
     }
@@ -376,7 +376,7 @@ public class DLModelGistTreeGenerator {
         }
     }
 
-    class GistTreeNode extends DefaultMutableTreeNode {
+    public class GistTreeNode extends DefaultMutableTreeNode {
         public final GistDLModel gist;
         public GistTreeNode(GistDLModel gist) {
             super(gist);

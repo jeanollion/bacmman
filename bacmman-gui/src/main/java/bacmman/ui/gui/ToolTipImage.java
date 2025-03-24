@@ -1,6 +1,5 @@
 package bacmman.ui.gui;
 
-import bacmman.ui.gui.configurationIO.DLModelGistTreeGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

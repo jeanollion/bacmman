@@ -217,7 +217,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
     ConfigurationLibrary configurationLibrary;
-    JupyterPanel jupyterPanel;
+    DataAnalysisPanel dataAnalysisPanel;
     DLModelsLibrary dlModelLibrary;
     PlotPanel[] plotPanels = new PlotPanel[100];
     enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY, PLOT_PANEL, JUPYTER_PANEL}
@@ -1842,16 +1842,16 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         return configurationLibrary;
     }
 
-    public JupyterPanel displayJupyterPanel() {
-        if (jupyterPanel == null) {
-            jupyterPanel = new JupyterPanel(Core.getCore().getDockerGateway(), Core.getCore().getGithubGateway(), this);
+    public DataAnalysisPanel displayJupyterPanel() {
+        if (dataAnalysisPanel == null) {
+            dataAnalysisPanel = new DataAnalysisPanel(Core.getCore().getDockerGateway(), Core.getCore().getGithubGateway(), this);
         }
 
         if (!tabIndex.contains(TAB.JUPYTER_PANEL.name())) {
-            tabs.addTab("Data Analysis", jupyterPanel.getMainPanel());
+            tabs.addTab("Data Analysis", dataAnalysisPanel.getMainPanel());
             tabIndex.add(TAB.JUPYTER_PANEL.name());
             BooleanSupplier onClose = () -> {
-                boolean close = jupyterPanel.close();
+                boolean close = dataAnalysisPanel.close();
                 if (close) {
                     tabIndex.remove(TAB.JUPYTER_PANEL.name());
                     configurationLibrary = null;
@@ -1861,7 +1861,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             tabs.setTabComponentAt(tabIndex.indexOf(TAB.JUPYTER_PANEL.name()), new ClosableTabComponent(tabs, onClose));
         }
         tabs.setSelectedIndex(tabIndex.indexOf(TAB.JUPYTER_PANEL.name()));
-        return jupyterPanel;
+        return dataAnalysisPanel;
     }
 
     public DLModelsLibrary displayOnlineDLModelLibrary() {

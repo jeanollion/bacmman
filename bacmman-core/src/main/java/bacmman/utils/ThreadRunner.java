@@ -353,6 +353,13 @@ public class ThreadRunner<T> {
             }
 
             @Override
+            public void setTaskNumber(int number) {
+                taskCount = number;
+                subTaskCount = 0;
+                subTaskNumber = 0;
+            }
+
+            @Override
             public synchronized void incrementSubTask() {
                 ++subTaskCount;
                 logger.debug("Current: {}/{}, subtask: {}/{}", taskCount, subTask, subTaskCount, subTaskNumber);

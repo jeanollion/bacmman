@@ -32,13 +32,15 @@ public class WorkingDirPanel {
     final protected ActionListener workingDirPersistence;
 
     protected String currentWorkingDirectory;
-
+    public WorkingDirPanel(Runnable workingDirCb, String defWD, String WD_ID, Runnable setLoadCb, Runnable setWriteCb) {
+        this(workingDirCb,defWD, WD_ID, setLoadCb, null, setWriteCb, null);
+    }
     public WorkingDirPanel(Runnable workingDirCb, String defWD, String WD_ID, Runnable setLoadCb, Supplier<JPopupMenu> setLoadMenu, Runnable setWriteCb, Supplier<JPopupMenu> setWriteMenu) {
         textFG = new Color(workingDirectoryTextField.getForeground().getRGB());
         Action chooseFile = new AbstractAction("Choose local data folder") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String path = PropertyUtils.get(WD_ID, defWD);
+                String path = currentWorkingDirectory == null ? PropertyUtils.get(WD_ID, defWD) : currentWorkingDirectory;
                 File f = FileChooser.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, null);
                 if (f != null) {
                     workingDirectoryTextField.setText(f.getAbsolutePath());
@@ -54,19 +56,27 @@ public class WorkingDirPanel {
         workingDirectoryTextField.getDocument().addDocumentListener(getDocumentListener(workingDirCb2));
         workingDirectoryTextField.addActionListener(ae -> workingDirCb2.run());
 
-        setLoadButton.addActionListener(al -> setLoadCb.run());
-        setWriteButton.addActionListener(al -> setWriteCb.run());
+        setLoadButton.addActionListener(al -> {
+            setLoadCb.run();
+            updateDisplayRelatedToWorkingDir();
+            workingDirPersistence.actionPerformed(al);
+        });
+        setWriteButton.addActionListener(al -> {
+            setWriteCb.run();
+            updateDisplayRelatedToWorkingDir();
+            workingDirPersistence.actionPerformed(al);
+        });
         if (setLoadMenu != null) {
             setLoadButton.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent evt) {
-                    if (SwingUtilities.isRightMouseButton(evt)) {
-                        JPopupMenu menu = setLoadMenu.get();
-                        if (menu != null) {
-                            MenuScroller.setScrollerFor(menu, 25, 125);
-                            menu.show(setLoadButton, evt.getX(), evt.getY());
-                        }
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = setLoadMenu.get();
+                    if (menu != null) {
+                        MenuScroller.setScrollerFor(menu, 25, 125);
+                        menu.show(setLoadButton, evt.getX(), evt.getY());
                     }
+                }
                 }
             });
         }
@@ -74,13 +84,13 @@ public class WorkingDirPanel {
             setWriteButton.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent evt) {
-                    if (SwingUtilities.isRightMouseButton(evt)) {
-                        JPopupMenu menu = setWriteMenu.get();
-                        if (menu != null) {
-                            MenuScroller.setScrollerFor(menu, 25, 125);
-                            menu.show(setWriteButton, evt.getX(), evt.getY());
-                        }
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = setWriteMenu.get();
+                    if (menu != null) {
+                        MenuScroller.setScrollerFor(menu, 25, 125);
+                        menu.show(setWriteButton, evt.getX(), evt.getY());
                     }
+                }
                 }
             });
         }

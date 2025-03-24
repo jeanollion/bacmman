@@ -133,8 +133,8 @@ public class DockerGatewayImpl implements DockerGateway {
         if (portBinding != null && !portBinding.isEmpty()) {
             Ports portBindings = new Ports();
             for (UnaryPair<Integer> ports : portBinding) {
-                ExposedPort exposedPort = ExposedPort.tcp(ports.key);
-                portBindings.bind(exposedPort, Ports.Binding.bindPort(ports.value));
+                ExposedPort exposedPort = ExposedPort.tcp(ports.value);
+                portBindings.bind(exposedPort, Ports.Binding.bindPort(ports.key));
             }
             hostConfig = hostConfig.withPortBindings(portBindings);
         }

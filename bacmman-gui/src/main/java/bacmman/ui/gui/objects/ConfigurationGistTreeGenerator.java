@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
-package bacmman.ui.gui.configurationIO;
+package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
@@ -416,7 +416,7 @@ public class ConfigurationGistTreeGenerator {
             return Objects.hash(name);
         }
     }
-    class GistTreeNode extends DefaultMutableTreeNode {
+    public class GistTreeNode extends DefaultMutableTreeNode {
         public final GistConfiguration gist;
         int objectClassIdx=-1;
         public GistTreeNode(GistConfiguration gist) {

@@ -6,6 +6,7 @@ import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -13,6 +14,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
     protected List<DockerImage> allImages=null;
     int[] minimalVersion, maximalVersion;
     String imageName, versionPrefix;
+    Predicate<DockerImage> imageFilter;
     final List<String> dockerImageResources;
     public DockerImageParameter(String name) {
         super(name, null, null, DockerImage::toString, false);
@@ -21,6 +23,13 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
             return allImages.stream().filter(i -> i.equals(s)).findFirst().orElse(null);
         });
         dockerImageResources = Utils.getResourcesForPath("dockerfiles/").collect(Collectors.toList());
+    }
+
+    public void selectLatestImageIfNoSelection() {
+        if (getValue() == null) {
+            DockerImage im = getAllImages().sorted(Comparator.reverseOrder()).findFirst().orElse(null);
+            if (im != null) setValue(im);
+        }
     }
 
     public DockerImageParameter setImageRequirement(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
@@ -34,6 +43,28 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
                 refreshImageList();
             }
         }
+        return this;
+    }
+
+    public DockerImageParameter addArchFilter() {
+        if (Utils.isARM()) { // discard AMD / X86 tags
+            addImageFilter( im -> {
+                String tag = im.getTag().toLowerCase();
+                return !tag.contains("amd") && !tag.contains("x86");
+            });
+        } else { // discard ARM / AARCH tags
+            addImageFilter( im -> {
+                String tag = im.getTag().toLowerCase();
+                return !tag.contains("arm") && !tag.contains("aarch");
+            });
+        }
+        return this;
+    }
+
+    public DockerImageParameter addImageFilter(Predicate<DockerImage> imageFilter) {
+        if (imageFilter == null) return this;
+        if (this.imageFilter == null) this.imageFilter = imageFilter;
+        else this.imageFilter = this.imageFilter.and(imageFilter);
         return this;
     }
 
@@ -65,12 +96,14 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerImagePar
         boolean notInit = allImages == null;
         if (allImages !=null) allImages.clear();
         else allImages = new ArrayList<>();
+        if (imageFilter == null) imageFilter = im -> true;
         Stream.concat(dockerImageResources.stream(), installedImages.stream())
             .map(n -> new DockerImage(n, installedImages))
             .filter(imageName == null ? i->true : i -> i.imageName.equals(imageName))
             .filter(versionPrefix==null ? i -> true : i -> Objects.equals(versionPrefix, i.versionPrefix))
             .filter(minimalVersion == null ? i->true: i->i.compareVersionNumber(minimalVersion)>=0 )
             .filter(maximalVersion == null ? i->true: i->i.compareVersionNumber(maximalVersion)<=0 )
+            .filter(imageFilter)
             .distinct()
             .forEach(allImages::add);
         Collections.sort(allImages);

@@ -59,8 +59,8 @@ public class PythonGateway {
     public List<UnaryPair<String>> getEnv() {
         List<UnaryPair<String>> res = new ArrayList<>();
         res.add(new UnaryPair<>("PYBACMMAN_PORT", String.valueOf(port)));
-        res.add(new UnaryPair<>("PYBACMMAN_PYTHONPORT", String.valueOf(pythonPort)));
-        res.add(new UnaryPair<>("PYBACMMAN_ADRESS", address));
+        res.add(new UnaryPair<>("PYBACMMAN_PYPROXYPORT", String.valueOf(pythonPort)));
+        res.add(new UnaryPair<>("PYBACMMAN_ADDRESS", address));
         return res;
     }
 
