@@ -74,7 +74,7 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
     // experiments
     Experiment getExperiment();
     void storeExperiment();
-    void setExperiment(Experiment xp);
+    void setExperiment(Experiment xp, boolean store);
     boolean experimentChangedFromFile();
     // selections
     SelectionDAO getSelectionDAO();

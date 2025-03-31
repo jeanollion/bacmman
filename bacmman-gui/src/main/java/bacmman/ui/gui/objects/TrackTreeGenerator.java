@@ -135,7 +135,7 @@ public class TrackTreeGenerator {
         if (!highlightedObjects.containsKey(position)) {
             if (GUI.getInstance()==null) return Collections.EMPTY_SET;
             for (Selection s: GUI.getInstance().getSelections()) {
-                if (s.isHighlightingTracks() && (db.getExperiment().experimentStructure.isChildOf(getStructureIdx(), s.getStructureIdx()) || getStructureIdx()==s.getStructureIdx() )) {
+                if (s.isHighlightingTracks() && (db.getExperiment().experimentStructure.isChildOf(getStructureIdx(), s.getObjectClassIdx()) || getStructureIdx()==s.getObjectClassIdx() )) {
                     List<SegmentedObject> parents = SelectionOperations.getParentTrackHeads(s, position, getStructureIdx(), db);
                     GUI.logger.debug("highlight: parents for sel: {} structure: {}, eg:{}, tot: {}", s.getName(), getStructureIdx(), parents.isEmpty()?null:parents.get(0), parents.size());
                     if (!parents.isEmpty()) highlightedObjects.getAndCreateIfNecessary(position).addAll(parents);

@@ -60,8 +60,8 @@ public class PSFCommand {
                 Core.userLog("Select one or several spot selection in the Data Browsing tab in order to compute PSF");
                 return;
             }
-            int ocIdx = sels.get(0).getStructureIdx();
-            if (!Utils.objectsAllHaveSameProperty(sels, s->s.getStructureIdx() == ocIdx)) return;
+            int ocIdx = sels.get(0).getObjectClassIdx();
+            if (!Utils.objectsAllHaveSameProperty(sels, s->s.getObjectClassIdx() == ocIdx)) return;
             List<SegmentedObject> objects = sels.stream().flatMap(s -> s.getAllElements().stream()).collect(Collectors.toList());
             objects = PSFAlign.filterBySize(objects, filterQuantiles.getValuesAsDouble());
             boolean[] flip = new boolean[3];

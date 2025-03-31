@@ -22,6 +22,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
+import bacmman.configuration.parameters.ui.MultipleChoiceParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.core.*;
@@ -36,7 +37,6 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
-import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.gui.*;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
@@ -125,7 +125,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private DatasetTree dsTree;
     private DefaultListModel<String> moduleModel = new DefaultListModel<>();
     private DefaultListModel<String> testModuleModel = new DefaultListModel<>();
-    private DefaultListModel<Task> actionPoolListModel = new DefaultListModel<>();
+    private DefaultListModel<TaskI> actionPoolListModel = new DefaultListModel<>();
     private DefaultListModel<String> actionMicroscopyFieldModel;
     private DefaultListModel<Selection> selectionModel;
     StructureSelectorTree trackTreeStructureSelector, actionStructureSelector;
@@ -325,7 +325,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         this.testCopyToTemplateButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to template"));
 
         actionPoolList.setModel(actionPoolListModel);
-        JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
+        JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, TaskI.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
         relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
@@ -3498,7 +3498,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (trackTreeController==null) this.loadObjectTrees();
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         Selection sel = getNavigatingSelection();
-        int objectClassIdx = sel==null? iwm.getInteractiveObjectClass() : sel.getStructureIdx();
+        int objectClassIdx = sel==null? iwm.getInteractiveObjectClass() : sel.getObjectClassIdx();
         if (sel != null && objectClassIdx==-2) sel = null;
         Image currentImage = iwm.getDisplayer().getCurrentImage();
         InteractiveImage i = iwm.getInteractiveImage(currentImage);
@@ -3627,7 +3627,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 if (sel != null) {
-                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getStructureIdx(), sel.getElementStrings(position)).collect(Collectors.toList());
+                    List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(nextI, sel.getObjectClassIdx(), sel.getElementStrings(position)).collect(Collectors.toList());
                     //logger.debug("#objects from selection on next image: {}/{} (display oc={}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjectDisplay(sel.getStructureIdx(), currentSlice).count(), displayObjectClassIdx, objectClassIdx, im != null ? im.getName() : "null", nextParent);
                     if (!objects.isEmpty()) {
                         // wait so that new image is displayed -> magnification issue -> window is not well computed
@@ -3776,7 +3776,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             }
             Experiment xp2 = new Experiment(relPath.v1);
             xp2.setPath(db2.getDatasetDir());
-            db2.setExperiment(xp2);
+            db2.setExperiment(xp2, true);
             db2.unlockConfiguration();
             db2.clearCache(true, true, true);
             populateDatasetTree();
@@ -3820,7 +3820,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             xp2.setName(relPath.v1);
             xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
             xp2.setOutputImageDirectory(xp2.getOutputDirectory());
-            db2.setExperiment(xp2);
+            db2.setExperiment(xp2, true);
             db2.storeExperiment();
             db2.clearCache(true, true, true);
             db2.unlockConfiguration();
@@ -4155,7 +4155,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         List<DatasetTree.DatasetTreeNode> xps = dsTree.getSelectedDatasetNames();
         if (xps.isEmpty()) return;
         closeDataset();
-        List<Task> tasks = new ArrayList<>(xps.size());
+        List<TaskI> tasks = new ArrayList<>(xps.size());
         for (DatasetTree.DatasetTreeNode xp : xps) tasks.add(getCurrentTask(xp.getName(), xp.getFile().getAbsolutePath()));
         Task.executeTasks(tasks, getUserInterface(), getPreProcessingMemoryThreshold());
     }//GEN-LAST:event_runActionAllXPMenuItemActionPerformed
@@ -4384,7 +4384,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (this.running) return;
         if (SwingUtilities.isRightMouseButton(evt)) {
             JPopupMenu menu = new JPopupMenu();
-            List<Task> sel = actionPoolList.getSelectedValuesList();
+            List<TaskI> sel = actionPoolList.getSelectedValuesList();
             Action addCurrentTask = new AbstractAction("Add Current Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -4397,110 +4397,83 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             };
             menu.add(addCurrentTask);
             addCurrentTask.setEnabled(db!=null);
+
+            JMenu optMenu = new JMenu("Optimization");
+            menu.add(optMenu);
+            if (db != null) {
+                try {
+                    Optimization opt = new Optimization(db.getExperiment());
+                    MultipleChoiceParameter runChoice = new MultipleChoiceParameter("Select Runs", opt.steamRuns().map(Optimization.Run::name).toArray(String[]::new), opt.steamRuns().filter(r -> !r.performed()).map(Optimization.Run::name).toArray(String[]::new));
+                    MultipleChoiceParameterUI ui = new MultipleChoiceParameterUI(runChoice, null);
+                    ui.addMenuListener(menu, evt.getX(), evt.getY(), this.actionPoolList);
+                    JMenu runChoiceMenu = new JMenu(runChoice.getName());
+                    ConfigurationTreeGenerator.addToMenu(ui.getDisplayComponent(), runChoiceMenu);
+                    optMenu.add(runChoiceMenu);
+                    Action optimization = new AbstractAction("Add Optimization Task") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            String[] selRun = runChoice.getSelectedItemsNames();
+                            if (selRun.length == 0) selRun = null;
+                            Optimization.OptimizationTask t = new Optimization.OptimizationTask()
+                                    .setDBDir(db.getDatasetDir().toFile().getAbsolutePath())
+                                    .setDBName(db.getDBName())
+                                    .setRuns(selRun);
+                            actionPoolListModel.addElement(t);
+                        }
+                    };
+                    optMenu.add(optimization);
+                    optimization.setEnabled(db!=null);
+                    List<Selection> sels = getSelectedSelections(false);
+                    Selection selection = sels.size() == 1 ? sels.get(0) : null;
+                    Action optimizationSel = new AbstractAction("Add Optimization Task on selected Selection") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            String[] selRun = runChoice.getSelectedItemsNames();
+                            if (selRun.length == 0) selRun = null;
+                            int parentIdx = opt.getCommonParentIdx(selRun);
+                            logger.debug("sel runs: {} parent Idx: {} selection: {}", selRun, parentIdx, selection == null ? "null" : selection.getName());
+                            if (selection.getObjectClassIdx() <= parentIdx) {
+                                Optimization.OptimizationTask t = new Optimization.OptimizationTask()
+                                        .setDBDir(db.getDatasetDir().toFile().getAbsolutePath())
+                                        .setDBName(db.getDBName())
+                                        .setRuns(runChoice.getSelectedItemsNames())
+                                        .setSelectionName(selection.getName());
+                                actionPoolListModel.addElement(t);
+                            } else Core.userLog("Selection should be of common parent objects to all tested object classes (<="+parentIdx+")");
+                        }
+                    };
+                    optMenu.add(optimizationSel);
+                    optimizationSel.setEnabled(db!=null && selection != null);
+                } catch (Exception e) {
+
+                }
+            }
+
+
             JMenu datasetMenu = new JMenu("Extract Dataset");
             menu.add(datasetMenu);
 
             Action addExtractDBTask = new AbstractAction("Add new dataset extraction Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = ExtractDataset.promptExtractDatasetTask(db, actionPoolList.getSelectedValue());
+                    Task t = ExtractDataset.promptExtractDatasetTask(db, (Task)actionPoolList.getSelectedValue());
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
             datasetMenu.add(addExtractDBTask);
-            addExtractDBTask.setEnabled(db!=null);
+            addExtractDBTask.setEnabled(db!=null && actionPoolList.getSelectedValue() instanceof Task);
 
             Action addExtractRawDBTask = new AbstractAction("Add new raw dataset extraction Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = ExtractRawDataset.promptExtractDatasetTask(db, actionPoolList.getSelectedValue(), getSelectedPositions(true));
+                    Task t = ExtractRawDataset.promptExtractDatasetTask(db, (Task)actionPoolList.getSelectedValue(), getSelectedPositions(true));
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
             datasetMenu.add(addExtractRawDBTask);
-            addExtractRawDBTask.setEnabled(db!=null);
+            addExtractRawDBTask.setEnabled(db!=null && actionPoolList.getSelectedValue() instanceof Task);
 
-            Action addExtractDiSTNetTask = new AbstractAction("Add new DiSTNet dataset extraction Task to List") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDatasetDir().toString(), false);
-                    if (outputFile==null) return;
-                    try {
-                        int[] oc = getSelectedStructures(true);
-                        if (oc.length!=1) {
-                            setMessage("Select only one object class");
-                            return;
-                        }
-                        List<String> selectedSelections = selectionList.getSelectedValuesList();
-                        if (selectedSelections.isEmpty()) {
-                            int parentOC = db.getExperiment().experimentStructure.getParentObjectClassIdx(oc[0]);
-                            List<String> selectedPositions = getSelectedPositions(false);
-                            if (selectedPositions.isEmpty()) {
-                                setMessage("When no selections are selected, select at least one position");
-                                return;
-                            }
-                            Selection s = SelectionOperations.createSelection("DiSTNet_dataset", selectedPositions, parentOC, db);
-                            db.getSelectionDAO().store(s);
-                            selectedSelections = Collections.singletonList(s.getName());
-                        }
-                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, null, outputFile, 1, 1, 1, getExtractedDSCompressionFactor());
-                        if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
-                        if (t != null) actionPoolListModel.addElement(t);
-                    } catch(IllegalArgumentException ex) {
-                        GUI.log(ex.getMessage());
-                    }
-                }
-            };
-            //datasetMenu.add(addExtractDiSTNetTask);
-            addExtractDiSTNetTask.setEnabled(db!=null);
 
-            Action addExtractPixMClassTask = new AbstractAction("Add new PixMCLass dataset extraction Task to List") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDatasetDir().toString(), false);
-                    if (outputFile==null) return;
-                    try {
-                        int[] selOC = getSelectedStructures(true);
-                        List<String> selectedSelections = selectionList.getSelectedValuesList();
-                        if (selectedSelections.isEmpty()) {
-                            List<String> selectedPositions = getSelectedPositions(false);
-                            if (selectedPositions.isEmpty()) {
-                                setMessage("When no selections are selected, select at least one position");
-                                return;
-                            }
-                            int parentOC = db.getExperiment().experimentStructure.getParentObjectClassIdx(selOC[0]);
-                            Selection s = SelectionOperations.createSelection("PixMClass_dataset", selectedPositions, parentOC, db);
-                            SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(parentOC));
-                            db.getSelectionDAO().store(s);
-                            selectedSelections = Collections.singletonList(s.getName());
-                        }
-                        int[] channelIdx=  new int[]{db.getExperiment().experimentStructure.getChannelIdx(selOC[0])};
-                        Task t = ExtractDatasetUtil.getPixMClassDatasetTask(db, channelIdx, selOC, selectedSelections, outputFile, getExtractedDSCompressionFactor());
-                        if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
-                        if (t != null) actionPoolListModel.addElement(t);
-                    } catch(IllegalArgumentException ex) {
-                        GUI.log(ex.getMessage());
-                    }
-                }
-            };
-            //datasetMenu.add(addExtractPixMClassTask);
-            addExtractPixMClassTask.setEnabled(db!=null);
-
-            Action addExtractDenoisingTask = new AbstractAction("Add new Denoising dataset extraction Task to List") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDatasetDir().toString(), false);
-                    if (outputFile==null) return;
-                    try {
-                        Task t = ExtractDatasetUtil.getDenoisingDatasetTask(db, getSelectedStructures(true), getSelectedPositions(true), outputFile, getExtractedDSCompressionFactor());
-                        if (t != null) actionPoolListModel.addElement(t);
-                    } catch(IllegalArgumentException ex) {
-                        GUI.log(ex.getMessage());
-                    }
-                }
-            };
-            //datasetMenu.add(addExtractDenoisingTask);
-            addExtractDenoisingTask.setEnabled(db!=null);
 
             if (db!=null && db.getExperiment()!=null) {
                 // task on a selection
@@ -4518,7 +4491,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                         .map(i -> db.getExperiment().experimentStructure.getParentObjectClassIdx(i)).toArray();
                 //logger.debug("all allowed: {}, segTrack: {}, parentStructure: {} cond: {}", allAllowed, segTrack, parentStructure, allAllowed && (!segTrack || parentStructure.length ==1));
                 if (allAllowed && (!segTrack || parentStructure.length ==1)) {
-                    Predicate<Selection> filter = segTrack ? s -> s.getStructureIdx()==parentStructure[0] : s->true;
+                    Predicate<Selection> filter = segTrack ? s -> s.getObjectClassIdx()==parentStructure[0] : s->true;
                     List<String> allowedSelections = db.getSelectionDAO().getSelections().stream().filter(filter).map(Selection::getName).collect(Collectors.toList());
                     JMenu selMenu = new JMenu("Add current Task on Selection");
                     selMenu.setEnabled(db!=null);
@@ -4542,7 +4515,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action deleteSelected = new AbstractAction("Delete Selected Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    for (Task s : sel) actionPoolListModel.removeElement(s);
+                    for (TaskI s : sel) actionPoolListModel.removeElement(s);
                 }
             };
             deleteSelected.setEnabled(!sel.isEmpty());
@@ -4603,7 +4576,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, out.getParent());
                     String outS = out.getAbsolutePath();
                     if (!outS.endsWith(".txt")&&!outS.endsWith(".json")) outS+=".json";
-                    FileIO.writeToFile(outS, Collections.list(actionPoolListModel.elements()), s->s.toJSON().toJSONString());
+                    FileIO.writeToFile(outS, Collections.list(actionPoolListModel.elements()), s->s.toJSONEntry().toJSONString());
                 }
             };
             menu.add(save);
@@ -4619,17 +4592,17 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     }
                     PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, out.getParent());
                     String outDir = out.getAbsolutePath();
-                    List<Task> tasks = Collections.list(actionPoolListModel.elements());
+                    List<Task> tasks = Collections.list(actionPoolListModel.elements()).stream().filter( t -> t instanceof Task).map(t -> (Task)t).collect(Collectors.toList());
                     Task.getProcessingTasksByPosition(tasks).entrySet().forEach(en -> {
                         String fileName = Paths.get(outDir , en.getKey().dbName + "_P"+en.getKey().position+".json").toString();
-                        FileIO.writeToFile(fileName, en.getValue(), t->t.toJSON().toJSONString());
+                        FileIO.writeToFile(fileName, en.getValue(), t->t.toJSONEntry().toJSONString());
                     });
                     
                 }
             };
             menu.add(saveProc);
             saveProc.setEnabled(!actionPoolListModel.isEmpty());
-            
+
             Action load = new AbstractAction("Load from File") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -4638,17 +4611,17 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     File f = FileChooser.chooseFile("Choose Task list file", dir, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
                     if (f!=null && f.exists()) {
                         PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, f.getParent());
-                        List<Task> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
+                        List<TaskI> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
                             try {
                                 JSONObject o = JSONUtils.parse(s);
-                                return new Task().fromJSON(o);
+                                return TaskI.createFromJSONEntry(o);
                             } catch (ParseException ex) {
                                 logger.error("Error reading task file: {} content: {}", ex.toString(), s);
                                 throw new RuntimeException(ex);
                             }
 
                         }, s->setMessage("Error while reading task file: "+f));
-                        for (Task j : jobs) actionPoolListModel.addElement(j);
+                        for (TaskI j : jobs) actionPoolListModel.addElement(j);
                     }
                 }
             };
@@ -4658,11 +4631,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 public void actionPerformed(ActionEvent e) {
                     DatasetTree.DatasetTreeNode xp = dsTree.getSelectedDatasetIfOnlyOneSelected();
                     if (xp==null) return;
-                    String dir = workingDirectory.getText();
-                    Map<Integer, Task> indexSelJobMap = actionPoolList.getSelectedValuesList().stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
-                    for (Entry<Integer, Task> en : indexSelJobMap.entrySet()) {
-                        Task t = en.getValue();
-                        t.setDBName(xp.getName()).setDir(xp.getFile().getAbsolutePath());
+                    Map<Integer, TaskI> indexSelJobMap = actionPoolList.getSelectedValuesList().stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
+                    for (Entry<Integer, TaskI> en : indexSelJobMap.entrySet()) {
+                        TaskI t = en.getValue();
+                        if (t instanceof Task) {
+                            ((Task) t).setDBName(xp.getName()).setDir(xp.getFile().getAbsolutePath());
+                        } else log("Set db cannot be applied to tasks of type: "+t.getClass());
                         if (!t.isValid()) log("Error: task: "+en.getValue()+" is not valid with this experiment");
                     }
                 }
@@ -4672,7 +4646,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action runAll = new AbstractAction("Run All Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    List<Task> jobs = Utils.applyWithNullCheck(Collections.list(actionPoolListModel.elements()), t->t.duplicate());
+                    List<TaskI> jobs = Utils.applyWithNullCheck(Collections.list(actionPoolListModel.elements()), TaskI::duplicate);
                     if (!jobs.isEmpty()) {
                         closeDataset(); // avoid lock problems
                         Task.executeTasks(jobs, getUserInterface(), getPreProcessingMemoryThreshold());
@@ -4684,7 +4658,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action runSel = new AbstractAction("Run Selected Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    List<Task> jobs = Utils.applyWithNullCheck(sel, Task::duplicate);
+                    List<TaskI> jobs = Utils.applyWithNullCheck(sel, TaskI::duplicate);
                     if (!jobs.isEmpty()) {
                         closeDataset(); // avoid lock problems
                         Task.executeTasks(jobs, getUserInterface(), getPreProcessingMemoryThreshold());
@@ -5548,7 +5522,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private javax.swing.JScrollPane actionJSP;
     private javax.swing.JPanel actionPanel;
     private javax.swing.JScrollPane actionPoolJSP;
-    private javax.swing.JList<Task> actionPoolList;
+    private javax.swing.JList<TaskI> actionPoolList;
     private javax.swing.JScrollPane actionPositionJSP;
     private javax.swing.JScrollPane actionStructureJSP;
     private javax.swing.JCheckBoxMenuItem activateLoggingMenuItem;

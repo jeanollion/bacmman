@@ -20,7 +20,7 @@ package bacmman.configuration.parameters;
 
 import org.json.simple.JSONArray;
 import bacmman.utils.Utils;
-
+import java.util.List;
 import java.util.Arrays;
 
 /**
@@ -31,7 +31,18 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
     int[] selectedItems;
     String[] listChoice;
      int displayTrimSize=75; // for toString method
-    
+
+    public MultipleChoiceParameter(String name, String[] listChoice, String... selectedItems) {
+        super(name);
+        this.listChoice=listChoice;
+        if (selectedItems == null) {
+            this.selectedItems = new int[0];
+        } else {
+            List<String> items = Arrays.asList(listChoice);
+            this.selectedItems = Arrays.stream(selectedItems).mapToInt(items::indexOf).filter(i->i>=0).toArray();
+        }
+    }
+
     public MultipleChoiceParameter(String name, String[] listChoice, int... selectedItems) {
         super(name);
         this.listChoice=listChoice;

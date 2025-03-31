@@ -183,7 +183,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         return this;
     }
 
-    public int getStructureIdx() {
+    public int getObjectClassIdx() {
         return objectClassIdx;
     }
     public boolean contains(SegmentedObject o) {
@@ -385,7 +385,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public synchronized Selection addElements(Collection<SegmentedObject> elementsToAdd) {
         if (elementsToAdd==null || elementsToAdd.isEmpty()) return this;
         Map<Integer, List<SegmentedObject>> objectBySIdx = SegmentedObjectUtils.splitByStructureIdx(elementsToAdd, true);
-        if (this.getStructureIdx()==-2) {
+        if (this.getObjectClassIdx()==-2) {
             if (objectBySIdx.size()>1) throw new IllegalArgumentException("Cannot add objects from several structures");
             this.objectClassIdx=objectBySIdx.keySet().iterator().next();
         } else if (objectBySIdx.size()>1) {

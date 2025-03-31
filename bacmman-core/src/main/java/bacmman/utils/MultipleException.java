@@ -21,10 +21,7 @@ package bacmman.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiPredicate;
 
 /**
@@ -61,6 +58,22 @@ public class MultipleException extends RuntimeException {
         //logger.debug("add ex: {}, total: {}", added[0], exceptions.size());
         //logger.debug(ex.key, ex.value);
     }
+
+    public void unroll() {
+        // check for multiple exceptions and unroll them
+        List<Pair<String, Throwable>> errorsToAdd = new ArrayList<>();
+        Iterator<Pair<String, Throwable>> it = exceptions.iterator();
+        while(it.hasNext()) {
+            Pair<String, ? extends Throwable> e = it.next();
+            if (e.value instanceof MultipleException) {
+                it.remove();
+                ((MultipleException)e.value).unroll();
+                errorsToAdd.addAll(((MultipleException)e.value).getExceptions());
+            }
+        }
+        exceptions.addAll(errorsToAdd);
+    }
+
     
     private final static BiPredicate<Throwable, Throwable> tEq = (t1, t2) -> {
        return  t1==null ? t2==null : 

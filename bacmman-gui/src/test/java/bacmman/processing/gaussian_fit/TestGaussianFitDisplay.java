@@ -48,7 +48,7 @@ public class TestGaussianFitDisplay {
         result.forEach(r -> r.setIsAbsoluteLandmark(true));
         SegmentedObjectAccessor accessor = getAccessor();
         MasterDAO<?,?> dao = new MemoryMasterDAO<>(accessor, UUID.generator());
-        dao.setExperiment(new Experiment("xp", new Structure()));
+        dao.setExperiment(new Experiment("xp", new Structure()), true);
         dao.getExperiment().createPosition("pos1");
         SegmentedObject parent = accessor.createRoot(0, new BlankMask(im), dao.getDao("pos1"));
         List<SegmentedObject> children = result.stream().map(r -> new SegmentedObject(0, 0, r.getLabel()-1, r, parent)).collect(Collectors.toList());

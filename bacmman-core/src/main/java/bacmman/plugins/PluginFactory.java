@@ -293,6 +293,7 @@ public class PluginFactory {
         return plugClass;
     }
     public static <T extends Plugin> T getPlugin(Class<T> clazz, String pluginName) {
+        if ("NO SELECTION".equals(pluginName)) return null;
         try {
             Class<? extends T> plugClass = PLUGIN_NAMES_MAP_CLASS.get(pluginName);
             if (plugClass==null && OLD_NAMES_MAP_NEW.containsKey(pluginName)) plugClass = PLUGIN_NAMES_MAP_CLASS.get(OLD_NAMES_MAP_NEW.get(pluginName));

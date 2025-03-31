@@ -93,7 +93,7 @@ public class TestDataStructure {
         Experiment xp = new Experiment("test");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
         xp.setOutputDirectory(testFolder.newFolder("testDB").getAbsolutePath());
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         String f = "test";
         SegmentedObject r = new SegmentedObject(0, new BlankMask(1, 2, 3, 0, 0, 0, 1, 1), db.getDao(f));
         SegmentedObject r2 = new SegmentedObject(1, new BlankMask(1, 2, 3, 0, 0, 0, 1, 1), db.getDao(f));
@@ -155,7 +155,7 @@ public class TestDataStructure {
         //save to db
         
         MasterDAO.deleteObjectsAndSelectionAndXP(db);
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         ObjectDAO<?> dao = db.getDao(fieldName);
         
         try {

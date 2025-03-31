@@ -1,6 +1,6 @@
 FROM quay.io/jupyter/scipy-notebook:lab-4.3.6
-RUN pip install PyBacmman
-#RUN pip install git+https://git@github.com/jeanollion/PyBacmman.git
+#RUN pip install PyBacmman
+RUN pip install git+https://git@github.com/jeanollion/PyBacmman.git
 
 # Override settings: dark theme
 RUN mkdir -p /opt/conda/share/jupyter/lab/settings

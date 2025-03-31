@@ -49,7 +49,7 @@ public class Run {
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         xp.setOutputDirectory("Output");
 
         // import images, run and export
@@ -59,7 +59,8 @@ public class Run {
                 .setActions(false, true, true, false);
         t.setUI(ui);
         if (!t.isValid()) throw new RuntimeException("Invalid Task");
-        t.runTask(0.5);
+        t.setPreprocessingMemoryThreshold(0.5);
+        t.runTask();
         t.done();
         t.flush(false);
         int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;

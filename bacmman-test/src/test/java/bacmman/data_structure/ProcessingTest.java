@@ -171,7 +171,7 @@ public class ProcessingTest {
         
         //pre-process
         MemoryMasterDAO<String, ?> masterDAO = new MemoryMasterDAO<>(new SegmentedObjectAccessor(), UUID.generator());
-        masterDAO.setExperiment(xp);
+        masterDAO.setExperiment(xp, true);
         try {
             Processor.preProcessImages(masterDAO, 0.5);
         } catch (Exception ex) {

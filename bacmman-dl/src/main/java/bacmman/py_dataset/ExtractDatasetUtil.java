@@ -66,7 +66,7 @@ public class ExtractDatasetUtil {
                 for (String pos : mainSel.getAllPositions()) {
                     Map<SegmentedObject, List<SegmentedObject>> tracks = SegmentedObjectUtils.splitByContiguousTrackSegment(mainSel.getElements(pos));
                     tracks.forEach( (th, els) -> {
-                        Selection subSel = new Selection(mainSel.getName()+"/"+th.toStringShort(), mainSel.getStructureIdx(), mainSel.getMasterDAO());
+                        Selection subSel = new Selection(mainSel.getName()+"/"+th.toStringShort(), mainSel.getObjectClassIdx(), mainSel.getMasterDAO());
                         subSel.addElements(els);
                         trackSels.add(subSel);
                     } );
@@ -75,7 +75,7 @@ public class ExtractDatasetUtil {
             } else trackSels = Collections.singletonList(mainSel);
             for (Selection sel : trackSels) {
                 if (test) {
-                    Selection selT = new Selection("", sel.getStructureIdx(), mDAO);
+                    Selection selT = new Selection("", sel.getObjectClassIdx(), mDAO);
                     Selection selF = sel;
                     String pos = sel.getAllPositions().stream().filter(p -> selF.count(p) > 0).findAny().orElse(null);
                     if (pos == null) continue;
@@ -125,13 +125,13 @@ public class ExtractDatasetUtil {
                             if (filterParentSelection) {
                                 if (oneEntryPerInstance) {
                                     List<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptyList();
-                                    int parentSO = sel.getStructureIdx();
+                                    int parentSO = sel.getObjectClassIdx();
                                     parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
                                         put(position, allElements.stream().filter(o -> allParents.contains(o.getParent(parentSO))).collect(Collectors.toList()));
                                     }});
                                     parentSelection.setMasterDAO(mDAO);
                                 } else {
-                                    int parentOC = sel.getStructureIdx();
+                                    int parentOC = sel.getObjectClassIdx();
                                     List<SegmentedObject> allParents = allElements.stream().map(o -> o.getParent(parentOC)).distinct().collect(Collectors.toList());
                                     parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
                                         put(position, allParents);

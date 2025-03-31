@@ -83,10 +83,10 @@ public class SelectionUtils {
         return SelectionOperations.filter(objects, indices);
     }
     protected static Stream<ObjectDisplay> getObjectDisplays(Selection s, InteractiveImage i) {
-        return i.toObjectDisplay(getSegmentedObjects(i, s.getStructureIdx(), s.getElementStrings(i.getParent().getPositionName())));
+        return i.toObjectDisplay(getSegmentedObjects(i, s.getObjectClassIdx(), s.getElementStrings(i.getParent().getPositionName())));
     }
     protected static Stream<ObjectDisplay> getObjectDisplays(Selection s, InteractiveImage i, int slice) {
-        return SelectionOperations.filterObjectDisplay(i.getObjectDisplay(s.getStructureIdx(), slice), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+        return SelectionOperations.filterObjectDisplay(i.getObjectDisplay(s.getObjectClassIdx(), slice), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
     }
 
     protected static Stream<List<SegmentedObject>> getTracks(Selection s, InteractiveImage i, int slice) {
@@ -95,7 +95,7 @@ public class SelectionUtils {
 
     protected static Stream<SegmentedObject> getTrackHeads(Selection s, InteractiveImage i, int slice) {
         Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(i.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
-        return i.getObjects(s.getStructureIdx(), slice).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains);
+        return i.getObjects(s.getObjectClassIdx(), slice).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains);
     }
 
     protected static Stream<List<SegmentedObject>> getTracks(Selection s, InteractiveImage i) {
@@ -105,7 +105,7 @@ public class SelectionUtils {
     protected static Stream<SegmentedObject> getTrackHeads(Selection s, InteractiveImage i) {
         Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(i.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
         return selTH.stream().map(SegmentedObject::getFrame).distinct()
-                .flatMap(f -> i.getObjectsAtFrame(s.getStructureIdx(), f)).filter(selTH::contains);
+                .flatMap(f -> i.getObjectsAtFrame(s.getObjectClassIdx(), f)).filter(selTH::contains);
     }
 
     public static void displayObjects(Selection s, Image image, InteractiveImage i, int slice) {
@@ -390,10 +390,10 @@ public class SelectionUtils {
                 if (selectedValues.isEmpty()) return;
                 for (Selection s : selectedValues) {
                     Set<SegmentedObject> source = s.getAllElements();
-                    logger.debug("Will duplicates {} elements from oc {} to oc {} (parent: {})", source.size(), s.getStructureIdx(), ocIdx, parentOCIdx);
-                    Map<SegmentedObject, SegmentedObject> sourceMapParent = Duplicate.getSourceMapParents(source.stream().map(o -> o.getParent(parentOCIdx)), parentOCIdx, s.getStructureIdx());
+                    logger.debug("Will duplicates {} elements from oc {} to oc {} (parent: {})", source.size(), s.getObjectClassIdx(), ocIdx, parentOCIdx);
+                    Map<SegmentedObject, SegmentedObject> sourceMapParent = Duplicate.getSourceMapParents(source.stream().map(o -> o.getParent(parentOCIdx)), parentOCIdx, s.getObjectClassIdx());
                     Map<SegmentedObject, SegmentedObject> sourceMapDup = Duplicate.duplicate(source.stream(), ocIdx, factory, editor);
-                    Duplicate.setParents(sourceMapDup,sourceMapParent, parentOCIdx, s.getStructureIdx(), true, factory);
+                    Duplicate.setParents(sourceMapDup,sourceMapParent, parentOCIdx, s.getObjectClassIdx(), true, factory);
                     // save to DB
                     sourceMapDup.values().stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName)).forEach((p, toSave) -> {
                         ObjectDAO oDAO = db.getDao(p);
@@ -508,7 +508,7 @@ public class SelectionUtils {
                 GUI.getInstance().resetSelectionHighlight();
             }
         });
-        union.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        union.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
         OpMenu.add(union);
 
         JMenuItem intersection = new JMenuItem("Intersection");
@@ -523,12 +523,12 @@ public class SelectionUtils {
                 GUI.getInstance().resetSelectionHighlight();
             }
         });
-        intersection.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        intersection.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
         OpMenu.add(intersection);
 
         JMenu diffMenu = new JMenu("Remove all from");
         List<Selection> selDiff = allSelections.stream()
-                .filter(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())
+                .filter(s->s.getObjectClassIdx()==selectedValues.get(0).getObjectClassIdx())
                 .filter(s->!selectedValues.contains(s))
                 .collect(Collectors.toList());
         for (Selection sel : selDiff) {
@@ -543,7 +543,7 @@ public class SelectionUtils {
             }));
             diffMenu.add(diff);
         }
-        diffMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        diffMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
         OpMenu.add(diffMenu);
 
         // filters
@@ -577,7 +577,7 @@ public class SelectionUtils {
         JMenu edgeContactOCMenu = new JMenu("Perform Filter");
         if (selectedValues.size()>=1) {
             for (int ocIdx = -1; ocIdx<db.getExperiment().getStructureCount(); ocIdx++) {
-                if (ocIdx == selectedValues.get(0).getStructureIdx()) continue;
+                if (ocIdx == selectedValues.get(0).getObjectClassIdx()) continue;
                 int OCIdx = ocIdx;
                 JMenuItem filter = new JMenuItem(ocIdx==-1 ? "ViewField" : db.getExperiment().getStructure(ocIdx).getName());
                 filter.addActionListener((ActionEvent e) -> {
@@ -594,7 +594,7 @@ public class SelectionUtils {
             }
         }
 
-        edgeContactOCMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        edgeContactOCMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
         edgeContactMenu.add(edgeContactOCMenu);
 
         JMenu shortTrackMenu = new JMenu("Short Tracks");
@@ -664,7 +664,7 @@ public class SelectionUtils {
         JMenuItem nonEmptyFilter = new JMenuItem("Non Empty");
         nonEmptyFilter.addActionListener((ActionEvent e) -> {
             for (Selection s : selectedValues) {
-                SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(s.getStructureIdx()));
+                SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(s.getObjectClassIdx()));
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -678,7 +678,7 @@ public class SelectionUtils {
         // measurement filters
         JMenu measurementMenu = new JMenu("Measurement Filters");
         menu.add(measurementMenu);
-        int selOcIdx = selectedValues.isEmpty()?-1:selectedValues.get(0).getStructureIdx();
+        int selOcIdx = selectedValues.isEmpty()?-1:selectedValues.get(0).getObjectClassIdx();
         SimpleListParameter<MeasurementFilterParameter> filters = new SimpleListParameter<>("MeasurementFilters", new MeasurementFilterParameter(selOcIdx, false));
         filters.setParent(db.getExperiment());
         PropertyUtils.setPersistent(filters, "measurement_filters");
@@ -697,7 +697,7 @@ public class SelectionUtils {
             return new Object[]{filter};
         }).toArray(Object[][]::new);
         ConfigurationTreeGenerator.addToMenuList(filters, measurementMenu, showMenu, null, performFilter, new Object[0]);
-        measurementMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        measurementMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
 
         //
         JMenu getParentSelection = new JMenu("Create Parent/Child Selection");
@@ -713,7 +713,7 @@ public class SelectionUtils {
                 if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
                     Set<SegmentedObject> res = new HashSet<>();
                     for (Selection s : selectedValues) {
-                        if (s.getMasterDAO().getExperiment().experimentStructure.isChildOf(ocIdx, s.getStructureIdx()))
+                        if (s.getMasterDAO().getExperiment().experimentStructure.isChildOf(ocIdx, s.getObjectClassIdx()))
                             s.getAllElements().stream().map(o -> o.getParent(ocIdx)).forEach(res::add);
                         else s.getAllElements().stream().flatMap(o -> o.getChildren(ocIdx, false)).forEach(res::add);
                     }
@@ -752,7 +752,7 @@ public class SelectionUtils {
         if (selections.isEmpty()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         for (Selection s : selections ) {
-            int[] structureIdx = s.getStructureIdx()==-2 ? new int[0] : new int[]{s.getStructureIdx()};
+            int[] structureIdx = s.getObjectClassIdx()==-2 ? new int[0] : new int[]{s.getObjectClassIdx()};
             List<SegmentedObject> objects = new ArrayList<>(sel);
             SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects, structureIdx);
             s.addElements(objects);
@@ -763,9 +763,9 @@ public class SelectionUtils {
     public static void removeCurrentObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao) {
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         for (Selection s : selections ) {
-            if (s.getStructureIdx()==-2) continue;
+            if (s.getObjectClassIdx()==-2) continue;
             List<SegmentedObject> currentList = new ArrayList<>(sel);
-            SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(currentList, s.getStructureIdx());
+            SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(currentList, s.getObjectClassIdx());
             s.removeElements(currentList);
             dao.store(s);
         }

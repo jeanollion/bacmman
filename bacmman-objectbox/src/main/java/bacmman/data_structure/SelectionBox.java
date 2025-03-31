@@ -32,7 +32,7 @@ public class SelectionBox {
     public SelectionBox(Selection selection) {
         this.id=0;
         this.name = selection.getName();
-        this.objectClassIdx = selection.getStructureIdx();
+        this.objectClassIdx = selection.getObjectClassIdx();
         this.selection = selection;
         setJsonContent();
     }
@@ -40,7 +40,7 @@ public class SelectionBox {
     public SelectionBox updateSelection(Selection selection) {
         this.selection = selection;
         this.name = selection.getName();
-        this.objectClassIdx = selection.getStructureIdx();
+        this.objectClassIdx = selection.getObjectClassIdx();
         setJsonContent();
         return this;
     }

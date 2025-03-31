@@ -21,17 +21,14 @@ package bacmman.ui;
 import bacmman.core.Core;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.core.Task;
-import bacmman.plugins.PluginFactory;
 import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
-import bacmman.utils.Utils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.function.Function;
 
@@ -69,7 +66,10 @@ public class ProcessTasks {
         //ui.setMessage("BACMMAN version: "+Utils.getVersion(ui));
         Function<String, Task> parser = s-> {
             try {
-                return new Task().setUI(ui).fromJSON(JSONUtils.parse(s));
+                Task t = new Task();
+                t.setUI(ui);
+                t.initFromJSONEntry(JSONUtils.parse(s));
+                return t;
             } catch (ParseException e) {
                 throw new RuntimeException(e);
             }
@@ -99,9 +99,10 @@ public class ProcessTasks {
         ui.setMessage(">Will execute: "+jobs.size()+" jobs");
         int[] counter = new int[]{0, subTaskCount};
         for (Task t : jobs) {
-            t.setSubtaskNumber(counter);
+            t.setTaskCounter(counter);
             try {
-                t.runTask(0.5);
+                t.setPreprocessingMemoryThreshold(0.5);
+                t.runTask();
             } catch (Throwable e) {
                 t.publishError("Task", e);
             } finally {

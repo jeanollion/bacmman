@@ -460,10 +460,10 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     @Override
-    public void setExperiment(Experiment xp) {
+    public void setExperiment(Experiment xp, boolean store) {
         this.xp=xp;
         MasterDAO.configureExperiment(this, xp);
-        storeExperiment();
+        if (store) storeExperiment();
     }
 
     @Override

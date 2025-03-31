@@ -102,7 +102,7 @@ public class MemoryMasterDAO<ID, T extends ObjectDAO<ID>> implements MasterDAO<I
     }
     
     @Override
-    public void setExperiment(Experiment xp) {
+    public void setExperiment(Experiment xp, boolean store) {
         this.xp=xp;
         MasterDAO.configureExperiment(this, xp);
     }

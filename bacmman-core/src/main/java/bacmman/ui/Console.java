@@ -90,7 +90,8 @@ public class Console implements PlugIn {
         System.out.println(">Will execute: "+jobs.size()+" jobs");
         for (Task t : jobs) {
             ui.setMessage("Running: "+t.toString());
-            t.runTask(0.5);
+            t.setPreprocessingMemoryThreshold(0.5);
+            t.runTask();
             t.flush(false);
         }
         int errorCount = 0;

@@ -364,10 +364,12 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                     Processor.executeProcessingScheme(n.getTrack(), structureIdx, false, true, null, null);
                                     GUI.log("Segmentation and Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
                                 } catch (MultipleException me) {
-                                    Task t = new Task().setUI(GUI.getInstance());
+                                    Task t = new Task();
+                                    t.setUI(GUI.getInstance());
                                     for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
                                 } catch (Throwable tr) {
-                                    Task t = new Task().setUI(GUI.getInstance());
+                                    Task t = new Task();
+                                    t.setUI(GUI.getInstance());
                                     t.publishError(n.trackHead.toString(), tr);
                                 }
                                 if (nodesByPosition.size()>1 && idx<positions.size()-1 && !positions.get(idx + 1).key.equals(p)) root.generator.db.clearCache(p);
@@ -407,10 +409,12 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                     Processor.executeProcessingScheme(n.getTrack(), structureIdx, true, false, null, null);
                                     GUI.log("Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
                                 } catch (MultipleException me) {
-                                    Task t = new Task().setUI(GUI.getInstance());
+                                    Task t = new Task();
+                                    t.setUI(GUI.getInstance());
                                     for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
                                 } catch (Throwable tr) {
-                                    Task t = new Task().setUI(GUI.getInstance());
+                                    Task t = new Task();
+                                    t.setUI(GUI.getInstance());
                                     t.publishError(n.trackHead.toString(), tr);
                                 }
                                 if (nodesByPosition.size()>1 && idx<positions.size()-1 && !positions.get(idx + 1).key.equals(p)) root.generator.db.clearCache(p);
@@ -460,7 +464,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     Map<Integer, Set<SegmentedObject>> objects = new HashMapGetCreate.HashMapGetCreateRedirected<>(ocIdx -> selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(ocIdx, true)).collect(Collectors.toSet()));
                     SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
                     for (Selection s : GUI.getInstance().getSelectedSelections(false)) {
-                        Set<SegmentedObject> objectsToAdd = objects.get(s.getStructureIdx()==-2 ? trackHead.getStructureIdx() : s.getStructureIdx());
+                        Set<SegmentedObject> objectsToAdd = objects.get(s.getObjectClassIdx()==-2 ? trackHead.getStructureIdx() : s.getObjectClassIdx());
                         if (!objectsToAdd.isEmpty()) {
                             s.addElements(objectsToAdd);
                             dao.store(s);
@@ -475,8 +479,8 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     Map<Integer, Set<SegmentedObject>> objects = new HashMapGetCreate.HashMapGetCreateRedirected<>(ocIdx -> selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(ocIdx, true)).collect(Collectors.toSet()));
                     SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
                     for (Selection s : GUI.getInstance().getSelectedSelections(false)) {
-                        if (s.getStructureIdx()==-2) continue;
-                        Set<SegmentedObject> objectsToRemove = objects.get(s.getStructureIdx());
+                        if (s.getObjectClassIdx()==-2) continue;
+                        Set<SegmentedObject> objectsToRemove = objects.get(s.getObjectClassIdx());
                         if (!objectsToRemove.isEmpty()) {
                             s.removeElements(objectsToRemove);
                             dao.store(s);

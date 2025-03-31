@@ -27,6 +27,6 @@ import org.json.simple.JSONObject;
  * @author Jean Ollion
  */
 public interface JSONSerializable {
-    public Object toJSONEntry();
-    public void initFromJSONEntry(Object jsonEntry);
+    Object toJSONEntry();
+    void initFromJSONEntry(Object jsonEntry);
 }

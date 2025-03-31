@@ -273,7 +273,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         MLModelFileParameter loadModelFile = new MLModelFileParameter("Load Model")
                 .setFileChooserOption(FileChooser.FileChooserOption.FILE_OR_DIRECTORY)
                 .setSelectedFilePath(null)
-                .setGetRefPathFunction(refPathFun!=null ? p -> refPathFun.get() : null)
+                .setGetRefPathFunction(p -> refPathFun != null ? refPathFun.get() : null)
                 .allowNoSelection(true)
                 .setHint("Saved model weights that will be loaded before training (optional)")
                 .setFileChooserHint("Saved model weight");

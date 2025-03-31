@@ -149,7 +149,7 @@ public class DeleteFromDAOTest {
         //File outputDir = testFolder.newFolder();
         //xp.setOutputDirectory(outputDir.getAbsolutePath());
         // save to db
-        masterDAO.setExperiment(xp);
+        masterDAO.setExperiment(xp, true);
         logger.debug("xp path: {} output path: {}", xp.getPath(), xp.getOutputDirectory());
         File outputDir = new File(xp.getOutputDirectory());
         long t0 = System.currentTimeMillis();
@@ -236,7 +236,7 @@ public class DeleteFromDAOTest {
         xp.setOutputDirectory(output.getAbsolutePath());
         xp.createPosition(f);
         xp.getStructures().insert(new Structure("S0", -1, 0), new Structure("Sub1", 0, 0), new Structure("Sub2",1, 0));
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         SegmentedObjectAccessor accessor = getAccessor();
         ObjectDAO<?> dao = db.getDao(f);
         SegmentedObject root = getAccessor().createRoot(0, new BlankMask(1, 1, 1), dao);
@@ -307,7 +307,7 @@ public class DeleteFromDAOTest {
         xp.setOutputDirectory(output.getAbsolutePath());
         xp.getStructures().insert(new Structure("MicroChannel", -1, 0));
         xp.createPosition(f);
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         
         ObjectDAO<?> dao = db.getDao(f);
 

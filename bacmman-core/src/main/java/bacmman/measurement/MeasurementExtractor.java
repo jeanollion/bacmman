@@ -30,7 +30,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -150,16 +149,16 @@ public class MeasurementExtractor {
                 final Predicate<Indices> curOCPredicate;
                 if (selection!=null) {
                     Set<Indices> selElements = selection.getElementStrings(positions).stream().map(Selection::parseIndices).map(Indices::new).collect(Collectors.toSet());
-                    if (selection.getStructureIdx() == currentStructureIdx) {
+                    if (selection.getObjectClassIdx() == currentStructureIdx) {
                         curOCPredicate = selElements::contains;
-                    } else if (selection.getStructureIdx() < currentStructureIdx) {
-                        int order = xp.experimentStructure.getPathToStructure(selection.getStructureIdx(), currentStructureIdx).length;
+                    } else if (selection.getObjectClassIdx() < currentStructureIdx) {
+                        int order = xp.experimentStructure.getPathToStructure(selection.getObjectClassIdx(), currentStructureIdx).length;
                         if (order > 0 ) {
                             Map<Indices, Indices> parentIndicesMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(i -> i.getIndices(order));
                             curOCPredicate = i -> selElements.contains(parentIndicesMap.get(i));
                         } else curOCPredicate = i -> false;
                     } else {
-                        int order = xp.experimentStructure.getPathToStructure(currentStructureIdx, selection.getStructureIdx()).length;
+                        int order = xp.experimentStructure.getPathToStructure(currentStructureIdx, selection.getObjectClassIdx()).length;
                         if (order > 0) {
                             Set<Indices> selParentElements = selElements.stream().map(i -> i.getIndices(order)).collect(Collectors.toSet());
                             curOCPredicate = selParentElements::contains;

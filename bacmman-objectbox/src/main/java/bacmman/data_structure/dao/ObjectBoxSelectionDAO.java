@@ -152,7 +152,7 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
                     s.setIsDisplayingObjects(source.isDisplayingObjects());
                     s.setIsDisplayingTracks(source.isHighlightingTracks());
                 } else {
-                    sb = new SelectionBox(0, s.getName(), s.getStructureIdx(), s.toJSONEntry().toJSONString());
+                    sb = new SelectionBox(0, s.getName(), s.getObjectClassIdx(), s.toJSONEntry().toJSONString());
                     nameCache.put(s.getName(), sb);
                 }
                 if (!readOnly) f.delete();

@@ -127,7 +127,7 @@ public class ConfigurationTest {
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
         int idx = xp.getStructureCount();
         xp.getStructures().insert(xp.getStructures().createChildInstance("structureTest"));
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         db.clearCache(true, true, true);
         xp = db.getExperiment();
         assertEquals("structure nb", idx+1, xp.getStructureCount());
@@ -171,7 +171,7 @@ public class ConfigurationTest {
         bacteries.setProcessingPipeline(new SegmentThenTrack(new DummySegmenter(true, 3), new ObjectOrderTracker()));
         
 
-        db.setExperiment(xp);
+        db.setExperiment(xp, true);
         db.clearCache(true, true, true);
         xp = db.getExperiment();
 

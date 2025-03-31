@@ -32,6 +32,7 @@ import bacmman.image.io.ImageReaderFile;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
 import bacmman.ui.GUI;
+import bacmman.core.Optimization;
 import bacmman.ui.gui.configurationIO.ConfigurationLibrary;
 import bacmman.utils.FileIO;
 import bacmman.utils.Utils;
@@ -50,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
+import java.util.stream.Collectors;
 import javax.swing.*;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
@@ -493,6 +495,99 @@ public class ConfigurationTreeGenerator {
                                 submenu.setEnabled(cia.getConfigID() != null);
                             }
                         }
+                        if (lastO instanceof ProcessingChain) { // optimization
+                            Experiment xp = ParameterUtils.getExperiment((Parameter)lastO);
+                            Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, (Parameter)lastO, false);
+                            if (xp != null && xp.getPath() != null && s != null) {
+                                int ocIdx = s.getIndex();
+                                try {
+                                    Optimization opt = new Optimization(xp);
+                                    JMenu loadFrom = new JMenu("Optimization: load from...");
+                                    List<String> existingRunsOC = opt.getRunWithOC(ocIdx);
+                                    for (String run : existingRunsOC) {
+                                        JMenuItem load = new JMenuItem(run);
+                                        load.setAction(
+                                            new AbstractAction(run) {
+                                                @Override
+                                                public void actionPerformed(ActionEvent ae) {
+                                                    try {
+                                                        Optimization.Run r = opt.getRun(run);
+                                                        xp.getStructure(ocIdx).getProcessingPipelineParameter().setContentFrom(r.load(ocIdx));
+                                                        treeModel.nodeStructureChanged(xp.getStructure(ocIdx).getProcessingPipelineParameter());
+                                                    } catch (IOException ex) {
+                                                        Core.userLog("Error loading config from Run: "+run);
+                                                        logger.error("Error loading config from Run: "+run, ex);
+                                                    }
+                                                }
+                                            }
+                                        );
+                                        loadFrom.add(load);
+                                    }
+                                    JMenu saveTo = new JMenu("Optimization: save to...");
+                                    JMenu delete = new JMenu("Optimization: delete...");
+                                    List<String> existingRuns = opt.steamRuns().map(Optimization.Run::name).collect(Collectors.toList());
+                                    for (String run : existingRuns) {
+                                        JMenuItem save = new JMenuItem(run);
+                                        save.setAction(
+                                                new AbstractAction(run) {
+                                                    @Override
+                                                    public void actionPerformed(ActionEvent ae) {
+                                                        try {
+                                                            ProcessingChain p = xp.getStructure(ocIdx).getProcessingPipelineParameter();
+                                                            opt.getRun(run).put(ocIdx, p);
+                                                        } catch (IOException ex) {
+                                                            Core.userLog("Error save config for Run: "+run);
+                                                            logger.error("Error saving config for Run: "+run, ex);
+                                                        }
+                                                    }
+                                                }
+                                        );
+                                        saveTo.add(save);
+                                        JMenuItem del = new JMenuItem(run);
+                                        del.setAction(
+                                            new AbstractAction(run) {
+                                                @Override
+                                                public void actionPerformed(ActionEvent ae) {
+                                                    opt.deleteRun(run);
+                                                }
+                                            }
+                                        );
+                                        delete.add(del);
+                                    }
+                                    JMenuItem saveNew = new JMenuItem("New run...");
+                                    saveNew.setAction(
+                                        new AbstractAction("New run...") {
+                                            @Override
+                                            public void actionPerformed(ActionEvent ae) {
+                                                String run = JOptionPane.showInputDialog("New run name:", "");
+                                                if (run != null && !run.isEmpty()) {
+                                                    if (existingRuns.contains(run)) Core.userLog("Run already exists");
+                                                    else {
+                                                        try {
+                                                            ProcessingChain p = xp.getStructure(ocIdx).getProcessingPipelineParameter();
+                                                            opt.getRun(run).put(ocIdx, p);
+                                                        } catch (IOException ex) {
+                                                            Core.userLog("Error saving config from Run: " + run);
+                                                            logger.error("Error saving config for Run: "+run, ex);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    );
+                                    saveTo.add(saveNew);
+                                    menu.add(new JSeparator());
+                                    menu.add(saveTo);
+                                    menu.add(loadFrom);
+                                    menu.add(delete);
+                                    if (existingRuns.isEmpty()) loadFrom.setEnabled(false);
+                                } catch (IOException ex) {
+
+                                }
+
+                            }
+
+                        }
                     }
                     menu.getPopupMenu().show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
                 }
@@ -555,7 +650,7 @@ public class ConfigurationTreeGenerator {
             else if (o instanceof Component) menu.add((Component)o);
         }
     }
-    private static void addToMenu(Object[] UIElements, JMenu menu) {
+    public static void addToMenu(Object[] UIElements, JMenu menu) {
         for (Object o : UIElements) {
             if (o instanceof Action) menu.add((Action)o);
             else if (o instanceof JMenuItem) menu.add((JMenuItem)o);

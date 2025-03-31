@@ -31,6 +31,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import bacmman.image.Image;
 import bacmman.image.LazyImage5D;
@@ -152,6 +153,10 @@ public class JSONUtils {
         String[] res = new String[array.size()];
         res = (String[])array.toArray(res);
         return res;
+    }
+    public static List<String> fromStringArrayToList(List array) {
+        Stream<String> list = array.stream().map(s -> (String)s);
+        return list.collect(Collectors.toList());
     }
     public static long[] fromLongArray(List array) {
         long[] res = new long[array.size()];

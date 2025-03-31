@@ -65,7 +65,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class Task implements ProgressCallback {
+public class Task implements TaskI<Task>, ProgressCallback {
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
         public enum ExtractZAxis {IMAGE3D, CHANNEL, SINGLE_PLANE, MIDDLE_PLANE, BATCH}
         String dbName, dir;
@@ -80,8 +80,10 @@ public class Task implements ProgressCallback {
         final boolean keepDB;
         int[] taskCounter;
         double subtaskNumber=0, subtaskCounter =0;
+        double preProcessingMemoryThreshold = 0.5;
         ProgressLogger ui;
         String selectionName;
+
 
         String extractDSFile, extractRawDSFile;
         List<FeatureExtractor.Feature> extractDSFeatures;
@@ -99,7 +101,9 @@ public class Task implements ProgressCallback {
         ExtractZAxis extractZAxis = ExtractZAxis.IMAGE3D;
         int extractZAxisPlaneIdx;
         boolean extractByPosition;
-        public JSONObject toJSON() {
+
+        @Override
+        public JSONObject toJSONEntry() {
             JSONObject res=  new JSONObject();
             res.put("dbName", dbName); 
             if (this.dir!=null) res.put("dir", dir); // put dbPath ?
@@ -170,10 +174,13 @@ public class Task implements ProgressCallback {
         }
 
         public Task duplicate() {
-            return new Task().fromJSON(toJSON());
+            Task t = new Task();
+            t.initFromJSONEntry(toJSONEntry());
+            return t;
         }
-        public Task fromJSON(JSONObject data) {
-            if (data==null) return null;
+
+        public void initFromJSONEntry(JSONObject data) {
+            if (data==null) return;
             this.dbName = (String)data.getOrDefault("dbName", "");
             if (data.containsKey("dir")) {
                 dir = (String)data.get("dir");
@@ -244,7 +251,7 @@ public class Task implements ProgressCallback {
                 extractDSRawPositionMapFrames = new HashMap<>();
                 for (Object k: pf.keySet()) extractDSRawPositionMapFrames.put((String)k, JSONUtils.fromIntArrayToList((JSONArray)pf.get(k)));
             }
-            return this;
+            return;
         }
 
     @Override
@@ -331,14 +338,14 @@ public class Task implements ProgressCallback {
         }
         return true;
     }
-        
-    public Task setUI(ProgressLogger ui) {
+
+    @Override
+    public void setUI(ProgressLogger ui) {
         if (ui==null) this.ui=null;
         else {
-            if (ui.equals(this.ui)) return this;
+            if (ui.equals(this.ui)) return;
             this.ui=ui;
         }
-        return this;
     }
     public Task() {
         setUI(Core.getProgressLogger());
@@ -517,12 +524,15 @@ public class Task implements ProgressCallback {
         logger.debug("positions: {} ({})", this.positions, Utils.transform(this.positions, i->db.getExperiment().getPositionsAsString()[i]));
         return this;
     }
-    private void initDB() {
+
+    @Override
+    public void initDB() {
         if (db==null) {
             if (dir==null) throw new RuntimeException("XP not found");
             if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.getDAO(dbName, dir);
         }
     }
+
     public Task setPositions(String... positions) {
         if (positions!=null && positions.length>0) {
             boolean initDB = db==null;
@@ -546,7 +556,7 @@ public class Task implements ProgressCallback {
 
     public Task addExtractMeasurementDir(String dir, int... extractStructures) {
         if (extractStructures==null || extractStructures.length==0) {
-            ensurePositionAndStructures(false, true);
+            ensurePositionAndObjectClasses(false, true);
             for (int s : structures) this.extractMeasurementDir.add(new Pair<>(dir, new int[]{s}));
         } else this.extractMeasurementDir.add(new Pair<>(dir, extractStructures));
         if (extractMeasurementDir.stream().noneMatch(p-> p.key.equals(dir) && Arrays.stream(p.value).anyMatch(s->s==-1))) {
@@ -559,7 +569,7 @@ public class Task implements ProgressCallback {
         this.extractByPosition = extractByPosition;
     }
 
-    private void ensurePositionAndStructures(boolean positions, boolean structures) {
+    private void ensurePositionAndObjectClasses(boolean positions, boolean structures) {
         if ((!positions || this.positions!=null) && (!structures || this.structures!=null)) return;
         initDB();
         if (positions && this.positions==null) this.positions = Utils.toList(ArrayUtil.generateIntegerArray(db.getExperiment().getPositionCount()));
@@ -588,7 +598,7 @@ public class Task implements ProgressCallback {
         if (structures!=null) checkArray(structures, 0, db.getExperiment().getStructureCount(), "Invalid structure: ");
         if (positions!=null) checkArray(positions, db.getExperiment().getPositionCount(), "Invalid position: ");
         if (preProcess) { // compare pre processing to template
-            ensurePositionAndStructures(true, false);
+            ensurePositionAndObjectClasses(true, false);
             PreProcessingChain template = db.getExperiment().getPreProcessingTemplate();
             List<Integer> posWithDifferentPP = positions.stream().filter(p -> !template.getTransformations().sameContent(db.getExperiment().getPosition(p).getPreProcessingChain().getTransformations())).collect(Collectors.toList());
             if (!posWithDifferentPP.isEmpty()) publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
@@ -599,7 +609,7 @@ public class Task implements ProgressCallback {
                 Selection sel = db.getSelectionDAO().getOrCreate(selectionName, false);
                 if (sel.isEmpty()) errors.addExceptions(new Pair<>(dbName, new Exception("Empty selection")));
                 else {
-                    int selObjectClass = sel.getStructureIdx();
+                    int selObjectClass = sel.getObjectClassIdx();
                     if (segmentAndTrack || trackOnly) { // check that parent object class of all object class is selection object class
                         if (structures == null)
                             errors.addExceptions(new Pair<>(dbName, new Exception("One of the object class is not direct children of selection object class")));
@@ -624,7 +634,7 @@ public class Task implements ProgressCallback {
         if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() && !exportData && extractDSFile==null && extractRawDSFile==null) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
         // check parametrization
         if (preProcess) {
-            ensurePositionAndStructures(true, false);
+            ensurePositionAndObjectClasses(true, false);
             for (int p : positions) {
                 if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair<>(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
                 // check dl model is on disk
@@ -633,7 +643,7 @@ public class Task implements ProgressCallback {
             }
         }
         if (segmentAndTrack || trackOnly) {
-            ensurePositionAndStructures(false, true);
+            ensurePositionAndObjectClasses(false, true);
             for (int s : structures) {
                 if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair<>(dbName, new Exception("Configuration error @ Object Class: "+ db.getExperiment().getStructure(s).getName())));
                 List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getStructure(s), MLModelFileParameter.class, true);
@@ -727,7 +737,7 @@ public class Task implements ProgressCallback {
     }
     public int countSubtasks() {
         initDB();
-        ensurePositionAndStructures(true, true);
+        ensurePositionAndObjectClasses(true, true);
 
         Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
@@ -760,18 +770,22 @@ public class Task implements ProgressCallback {
         }
         return count;
     }
-    public void setSubtaskNumber(int[] taskCounter) {
+    public void setTaskCounter(int[] taskCounter) {
         this.taskCounter=taskCounter;
     }
 
-    public void runTask(double preProcessingMemoryThreshold) {
+    public void setPreprocessingMemoryThreshold(double preProcessingMemoryThreshold) {
+        this.preProcessingMemoryThreshold=preProcessingMemoryThreshold;
+    }
+
+    public void runTask() {
         //if (ui!=null) ui.setRunning(true);
         publish("Run task: "+this.toString());
         initDB();
         logger.debug("configuration read only: {}", db.isConfigurationReadOnly());
         Core.freeDisplayMemory();
         publishMemoryUsage("Before processing");
-        this.ensurePositionAndStructures(true, true);
+        this.ensurePositionAndObjectClasses(true, true);
         Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
         Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
@@ -890,6 +904,7 @@ public class Task implements ProgressCallback {
 
     private void process(String position, boolean deleteAllPosition, Selection selection, double preProcessingMemoryThreshold) {
         publish("Position: "+position);
+        logger.debug("position: {} delete all position: {}", position, deleteAllPosition);
         if (deleteAllPosition) db.getDao(position).erase();
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
@@ -957,7 +972,6 @@ public class Task implements ProgressCallback {
 
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structures);
         logger.debug("keys: {}", Utils.toStringList(keys.entrySet(), e -> e.getKey()+"="+ Arrays.toString(e.getValue())));
-        logger.debug("extract read only positions: {}", getPositions().stream().filter(p -> db.getDao(p).isReadOnly()).toArray());
         Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         if (extractByPosition) {
             for (String p : positions) {
@@ -990,7 +1004,7 @@ public class Task implements ProgressCallback {
         }
     }*/
     private List<String> getPositions() {
-        this.ensurePositionAndStructures(true, false);
+        this.ensurePositionAndObjectClasses(true, false);
         List<String> res = new ArrayList<>(positions.size());
         for (int i : positions) res.add(db.getExperiment().getPosition(i).getName());
         return res;
@@ -1129,32 +1143,22 @@ public class Task implements ProgressCallback {
     //@Override
     public void done() {
         //logger.debug("EXECUTING DONE FOR : {}", this.toJSON().toJSONString());
+        if (db!=null && !keepDB) db=null;
         this.publish("Task done.");
         publishErrors();
         this.printErrors();
         this.publish("------------------");
         //if (ui!=null) ui.setRunning(false); // in case several tasks run
     }
-    private void unrollMultipleExceptions() {
-        // check for multiple exceptions and unroll them
-        List<Pair<String, Throwable>> errorsToAdd = new ArrayList<>();
-        Iterator<Pair<String, Throwable>> it = errors.getExceptions().iterator();
-        while(it.hasNext()) {
-            Pair<String, ? extends Throwable> e = it.next();
-            if (e.value instanceof MultipleException) {
-                it.remove();
-                errorsToAdd.addAll(((MultipleException)e.value).getExceptions());
-            }
-        }
-        this.errors.addExceptions(errorsToAdd);
-    }
+
     public void publish(String message) {
         if (ui!=null) ui.setMessage(message);
         logger.debug(message);
     }
+
     public void publishErrors() {
-        unrollMultipleExceptions();
-        this.publish("Errors: "+this.errors.getExceptions().size()+ " For JOB: "+this.toString());
+        errors.unroll();
+        this.publish("Errors: "+this.errors.getExceptions().size()+ " For JOB: "+ this);
         for (Pair<String, ? extends Throwable> e : errors.getExceptions()) publishError(e.key, e.value);
     }
 
@@ -1226,22 +1230,21 @@ public class Task implements ProgressCallback {
         if (ui!=null) ui.setRunning(running);
     }
 
-    public static void executeTasksInForeground(List<Task> tasks, ProgressLogger ui, double preProcessingMemoryThreshold) {
+    public static void executeTasksInForeground(List<TaskI> tasks, ProgressLogger ui, double preProcessingMemoryThreshold) {
         int totalSubtasks = 0;
-        for (Task t : tasks) {
+        for (TaskI t : tasks) {
             logger.debug("checking task: {}", t);
             if (!t.isValid()) {
                 if (ui!=null) ui.setMessage("Invalid task: "+t.toString());
                 t.printErrorsTo(ui);
                 return;
             }
-            logger.debug("task valid. keep db: {}, readonly?: {}", t.keepDB, t.db==null ? "null" : t.db.isConfigurationReadOnly());
             t.setUI(ui);
             totalSubtasks+=t.countSubtasks();
         }
         if (ui!=null) ui.setMessage("Total subTasks: "+totalSubtasks);
         int[] taskCounter = new int[]{0, totalSubtasks};
-        for (Task t : tasks) t.setSubtaskNumber(taskCounter);
+        for (TaskI t : tasks) t.setTaskCounter(taskCounter);
         for (int i = 0; i<tasks.size(); ++i) {
             //if (ui!=null && i==0) ui.setRunning(true);
             tasks.get(i).initDB();
@@ -1250,35 +1253,34 @@ public class Task implements ProgressCallback {
             Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
-            tasks.get(i).runTask(preProcessingMemoryThreshold); // clears cache +  unlock if !keepdb
+            tasks.get(i).setPreprocessingMemoryThreshold(preProcessingMemoryThreshold);
+            tasks.get(i).runTask(); // clears cache +  unlock if !keepdb
             tasks.get(i).done();
-            if (tasks.get(i).db!=null && !tasks.get(i).keepDB) tasks.get(i).db=null;
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(unsetLF);
             else if (ui instanceof FileProgressLogger) unsetLF.accept((FileProgressLogger)ui);
 
             if (ui!=null && i==tasks.size()-1) {
                 if (tasks.size()>1) {
-                    for (Task t : tasks) t.publishErrors();
+                    for (TaskI t : tasks) t.publishErrors();
                 }
             }
         }
     }
-    public static void executeTasks(List<Task> tasks, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
+    public static void executeTasks(List<TaskI> tasks, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
         int totalSubtasks = 0;
-        for (Task t : tasks) {
+        for (TaskI t : tasks) {
             logger.debug("checking task: {}", t);
             if (!t.isValid()) {
                 if (ui!=null) ui.setMessage("Invalid task: "+t.toString());
                 t.printErrorsTo(ui);
                 return;
             }
-            logger.debug("task valid. keep db: {}, readonly?: {}", t.keepDB, t.db==null ? "null" : t.db.isConfigurationReadOnly());
             t.setUI(ui);
             totalSubtasks+=t.countSubtasks();
         }
         if (ui!=null) ui.setMessage("Total subTasks: "+totalSubtasks);
         int[] taskCounter = new int[]{0, totalSubtasks};
-        for (Task t : tasks) t.setSubtaskNumber(taskCounter);
+        for (TaskI t : tasks) t.setTaskCounter(taskCounter);
         DefaultWorker.execute(i -> {
             //if (ui!=null && i==0) ui.setRunning(true);
             tasks.get(i).initDB();
@@ -1286,40 +1288,40 @@ public class Task implements ProgressCallback {
             Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
-            tasks.get(i).runTask(preProcessingMemoryThreshold); // clears cache +  unlock if !keepdb
+            tasks.get(i).setPreprocessingMemoryThreshold(preProcessingMemoryThreshold);
+            tasks.get(i).runTask(); // clears cache +  unlock if !keepdb
             tasks.get(i).done();
-            if (tasks.get(i).db!=null && !tasks.get(i).keepDB) tasks.get(i).db=null; 
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(unsetLF);
             else if (ui instanceof FileProgressLogger) unsetLF.accept((FileProgressLogger)ui);
             
             if (ui!=null && i==tasks.size()-1) {
                 ui.setRunning(false);
                 if (tasks.size()>1) {
-                    for (Task t : tasks) t.publishErrors();
+                    for (TaskI t : tasks) t.publishErrors();
                 }
             }
             return "";
         }, tasks.size()).setEndOfWork(
                 ()->{for (Runnable r : endOfWork) r.run();});
     }
-    public static void executeTaskInForeground(Task t, ProgressLogger ui, double preProcessingMemoryThreshold) {
-        executeTasksInForeground(new ArrayList<Task>(1){{add(t);}}, ui, preProcessingMemoryThreshold);
+    public static void executeTaskInForeground(TaskI t, ProgressLogger ui, double preProcessingMemoryThreshold) {
+        executeTasksInForeground(new ArrayList<TaskI>(1){{add(t);}}, ui, preProcessingMemoryThreshold);
     }
-    public static void executeTask(Task t, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
-        executeTasks(new ArrayList<Task>(1){{add(t);}}, ui, preProcessingMemoryThreshold, endOfWork);
+    public static void executeTask(TaskI t, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
+        executeTasks(new ArrayList<TaskI>(1){{add(t);}}, ui, preProcessingMemoryThreshold, endOfWork);
     }
-    private static Stream<Task> splitByPosition(Task task) {
-        task.ensurePositionAndStructures(true, true);
+    public Stream<Task> splitByPosition() {
+        ensurePositionAndObjectClasses(true, true);
         Function<Integer, Task> subTaskCreator = p -> {
-            Task res = new Task(task.dbName, task.getDir()).setPositions(p).setStructures(task.structures);
-            if (task.preProcess) res.preProcess = true;
-            res.setStructures(task.structures);
-            res.segmentAndTrack = task.segmentAndTrack;
-            res.trackOnly = task.trackOnly;
-            if (task.measurements) res.measurements = true;
+            Task res = new Task(dbName, dir).setPositions(p).setStructures(structures);
+            if (preProcess) res.preProcess = true;
+            res.setStructures(structures);
+            res.segmentAndTrack = segmentAndTrack;
+            res.trackOnly = trackOnly;
+            if (measurements) res.measurements = true;
             return res;
         };
-        return task.positions.stream().map(subTaskCreator);
+        return positions.stream().map(subTaskCreator);
     }
     
     // check that no 2 xp with same name and different dirs
@@ -1344,12 +1346,12 @@ public class Task implements ProgressCallback {
             
             return t1;
         };
-        Map<XP_POS, List<Task>> res = tasks.stream().flatMap(t -> splitByPosition(t)) // split by db / position
+        Map<XP_POS, List<Task>> res = tasks.stream().flatMap(Task::splitByPosition) // split by db / position
                 .collect(Collectors.groupingBy(t->new XP_POS_S(t.dbName, t.dir, t.positions.get(0), new StructureArray(t.structures)))) // group including structures;
                 .entrySet().stream().map(e -> e.getValue().stream().reduce(taskMerger).get()) // merge all tasks from same group
                 .collect(Collectors.groupingBy(t->new XP_POS(t.dbName, t.dir, t.positions.get(0)))); // merge without including structures
         Function<Task, Stream<Task>> splitByStructure = t -> {
-            return Arrays.stream(t.structures).mapToObj(s->  new Task(t.dbName, t.getDir()).setActions(false, t.segmentAndTrack, t.trackOnly, false).setPositions(t.positions.get(0)).setStructures(s));
+            return Arrays.stream(t.structures).mapToObj(s->  new Task(t.dbName, t.dir).setActions(false, t.segmentAndTrack, t.trackOnly, false).setPositions(t.positions.get(0)).setStructures(s));
         };
         Comparator<Task> subTComp = (t1, t2)-> {
             int sC = Integer.compare(t1.structures[0], t2.structures[0]);
@@ -1407,7 +1409,7 @@ public class Task implements ProgressCallback {
         //checkXPNameDir(tasks);
         Function<Task, Task> getGlobalTask = t -> {
             if (!t.exportConfig && !t.exportData && !t.exportObjects && !t.exportPreProcessedImages && !t.exportSelections && !t.exportTrackImages && t.extractMeasurementDir.isEmpty()) return null;
-            Task res = new Task(t.dbName, t.getDir());
+            Task res = new Task(t.dbName, t.dir);
             res.extractMeasurementDir.addAll(t.extractMeasurementDir);
             res.exportConfig = t.exportConfig;
             res.exportData = t.exportData;

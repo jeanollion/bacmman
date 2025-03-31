@@ -256,7 +256,7 @@ public class Processor {
         String position = parentTrack.get(0).getPositionName();
         if (selection!=null) {
             if (selection.getElementStrings(position).isEmpty()) return;
-            if (selection.getStructureIdx()!=directParentStructure) return;
+            if (selection.getObjectClassIdx()!=directParentStructure) return;
         }
         if (trackOnly && ps instanceof SegmentOnly) return  ;
         SegmentedObjectUtils.setAllChildren(parentTrack, structureIdx);
@@ -319,9 +319,7 @@ public class Processor {
             xp.getDLengineProvider().closeAllEngines();
             Core.clearDiskBackedImageManagers();
         }
-        if (pcb!=null) {
-            pcb.log("Storing objects...");
-        }
+        //if (pcb!=null) pcb.log("Storing objects...");
         // store in DAO
         List<SegmentedObject> children = new ArrayList<>();
         parentTrack.stream().flatMap(p->{
@@ -449,7 +447,7 @@ public class Processor {
     public static void performMeasurements(final ObjectDAO dao, MEASUREMENT_MODE mode, Selection selection, ProgressCallback pcb) {
         long t0 = System.currentTimeMillis();
         List<SegmentedObject> roots = dao.getRoots();
-        logger.debug("{} number of roots: {}", dao.getPositionName(), roots.size());
+        logger.debug("Measurements : {} number of roots: {}, mode: {}", dao.getPositionName(), roots.size(), mode);
         final Map<Integer, List<Measurement>> measurements = dao.getExperiment().getMeasurementsByCallStructureIdx();
         if (roots.isEmpty()) return;
         Map<SegmentedObject, List<SegmentedObject>> rootTrack = new HashMap<>(1); rootTrack.put(roots.get(0), roots);
@@ -463,6 +461,7 @@ public class Processor {
                     .collect(Collectors.toSet());
             dao.retrieveMeasurements(targetStructures.stream().mapToInt(i->i).toArray());
         } else {
+            //logger.debug("position: {} delete all measurements", dao.getPositionName());
             dao.deleteAllMeasurements();
             // TODO if selection not null -> erase only corresponding measurements!
         }
@@ -476,7 +475,7 @@ public class Processor {
                 allParentTracks = SegmentedObjectUtils.getAllTracks(roots, e.getKey());
             }
             if (selection!=null) { // compute measurement only on objects contained in selection or children. only full tracks
-                if (e.getKey()==selection.getStructureIdx()) {
+                if (e.getKey()==selection.getObjectClassIdx()) {
                     allParentTracks.keySet().retainAll(selectionTH);
                 } else {
                     Set<SegmentedObject> th = selection.getElements(dao.getPositionName()).stream().flatMap(o->{
@@ -487,9 +486,9 @@ public class Processor {
                     allParentTracks.keySet().retainAll(th);
                 }
             }
-            if (pcb!=null) pcb.log("Executing #"+e.getValue().size()+" measurement"+(e.getValue().size()>1?"s":"")+" on Structure: "+e.getKey()+" (#"+allParentTracks.size()+" tracks): "+Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
+            //if (pcb!=null) pcb.log("Executing #"+e.getValue().size()+" measurement"+(e.getValue().size()>1?"s":"")+" on object class: "+e.getKey()+" (#"+allParentTracks.size()+" tracks): "+Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
             logger.debug("Executing: #{} measurements from parent: {} (#{} parentTracks) : {}", e.getValue().size(), e.getKey(), allParentTracks.size(), Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
-            // measurement are run separately depending on their characteristics to optimize parallelle processing
+            // measurement are run separately depending on their characteristics to optimize parallel processing
             // start with non parallel measurements on tracks -> give 1 CPU to the measurement and perform track by track
             List<Pair<Measurement, SegmentedObject>> nonParallelTrackMeasurements = new ArrayList<>();
             allParentTracks.keySet().forEach(pt -> dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
@@ -537,7 +536,7 @@ public class Processor {
                                 oc.forEach(idx -> track.forEach(o -> o.getChildren(idx).forEach(SegmentedObject::getMeasurements)));
                             }
                         }); // retrieve all measurement objects to avoid thread idle at measurement creation
-                pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
+                //if (pbb!=null) pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
                 try {
                     ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {
                         //pcb.log("performing: "+p.key+"@"+p.value);
@@ -546,13 +545,11 @@ public class Processor {
                     });
                 } catch (MultipleException me) {
                     globE.addExceptions(me.getExceptions());
-                } finally {
-                    //if (pcb!=null && !actionPool.isEmpty()) pcb.incrementProgress();
                 }
             }
             // parallel measurement on tracks -> give all resources to the measurement and perform track by track
-            if (pcb!=null && parallelMeasCount>0) {
-                pcb.log("Executing: #" + parallelMeasCount * allParentTracks.size() + " multithreaded track measurements");
+            if (parallelMeasCount>0) {
+                //if (pcb!=null) pcb.log("Executing: #" + parallelMeasCount * allParentTracks.size() + " multithreaded track measurements");
                 try {
                     ThreadRunner.executeAndThrowErrors(allParentTracks.keySet().stream(), pt -> {
                         dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
@@ -566,11 +563,9 @@ public class Processor {
                     });
                 } catch (MultipleException me) {
                     globE.addExceptions(me.getExceptions());
-                } finally {
-                    //if (pcb!=null && parallelMeasCount>0) pcb.incrementProgress();
                 }
             }
-            int allObCount = allParentTracks.values().stream().mapToInt(t->t.size()).sum();
+            int allObCount = allParentTracks.values().stream().mapToInt(List::size).sum();
             
             // measurements on objects
             measObj.forEach(m-> {
@@ -582,7 +577,7 @@ public class Processor {
                 } catch(MultipleException me) {
                     globE.addExceptions(me.getExceptions());
                 } catch (Throwable t) {
-                    globE.addExceptions(new Pair(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
+                    globE.addExceptions(new Pair<>(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
                 } finally {
                     if (pcb!=null) pcb.incrementSubTask();
                 }

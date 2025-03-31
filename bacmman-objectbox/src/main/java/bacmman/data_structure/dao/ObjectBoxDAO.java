@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -265,8 +266,16 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public void deleteAllObjects() {
         cache.clear();
         measurementCache.clear();
-        for (Box<SegmentedObjectBox> box : objectBoxes.values()) if (box!=null) box.removeAll();
-        for (Box<MeasurementBox> box : measurementBoxes.values()) if (box!=null) box.removeAll();
+        for (int oc : streamObjectClasses(false).toArray()) {
+            BoxStore s = objectStores.get(oc);
+            if (s != null) {
+                s.close();
+                s.deleteAllFiles();
+            }
+        }
+        objectStores.clear();
+        objectBoxes.clear();
+        deleteAllMeasurements();
         // reset counter
         idGenerator.values().forEach(LongIDGenerator::reset);
     }
@@ -544,9 +553,15 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     @Override
     public void deleteAllMeasurements() {
-        for (Box<MeasurementBox> b : measurementBoxes.values()) {
-            b.removeAll();
+        for (int oc : streamObjectClasses(false).toArray()) {
+            BoxStore s = measurementStores.get(oc);
+            if (s != null) {
+                s.close();
+                s.deleteAllFiles();
+            }
         }
+        measurementStores.clear();
+        measurementBoxes.clear();
         measurementCache.clear();
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
         // reset measurements on all open objects
@@ -681,6 +696,10 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         return objectBoxes.get(objectClassIdx)
                 .query(SegmentedObjectBox_.trackHeadId.equal(trackHeadId))
                 .build();
+    }
+
+    protected IntStream streamObjectClasses(boolean includeRoot) {
+        return IntStream.range(includeRoot ? -1 : 0, getExperiment().getStructureCount());
     }
 
     // lock system

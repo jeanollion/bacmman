@@ -17,12 +17,12 @@ public class SelectionOperations {
     public static Selection union(String name, Collection<Selection> selections) {
         if (selections.isEmpty()) return new Selection();
         Selection model = selections.iterator().next();
-        selections.removeIf(s->s.getStructureIdx()!=model.getStructureIdx());
+        selections.removeIf(s->s.getObjectClassIdx()!=model.getObjectClassIdx());
         HashMapGetCreate<String, Set<String>> elByPos = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
         for (Selection sel : selections) {
             for (String pos : sel.getAllPositions()) elByPos.getAndCreateIfNecessary(pos).addAll(sel.getElementStrings(pos));
         }
-        Selection res = new Selection(name,model.getStructureIdx(), model.getMasterDAO()); //"union:"+Utils.toStringList(selections, s->s.getName())
+        Selection res = new Selection(name,model.getObjectClassIdx(), model.getMasterDAO()); //"union:"+Utils.toStringList(selections, s->s.getName())
         for (Map.Entry<String, Set<String>> e : elByPos.entrySet()) res.addElementStrings(e.getKey(), e.getValue());
         return res;
     }
@@ -34,7 +34,7 @@ public class SelectionOperations {
     public static Selection intersection(String name, Collection<Selection> selections) {
         if (selections.isEmpty()) return new Selection();
         Selection model = selections.iterator().next();
-        selections.removeIf(s->s.getStructureIdx()!=model.getStructureIdx());
+        selections.removeIf(s->s.getObjectClassIdx()!=model.getObjectClassIdx());
         Set<String> allPos = new HashSet<>();
         allPos.addAll(model.getAllPositions());
         for (Selection s : selections) allPos.retainAll(s.getAllPositions());
@@ -44,22 +44,22 @@ public class SelectionOperations {
             if (s.equals(model)) continue;
             for (String p : allPos) elByPos.get(p).retainAll(s.getElementStrings(p));
         }
-        Selection res = new Selection(name,model.getStructureIdx(), model.getMasterDAO()); //"intersection:"+Utils.toStringList(selections, s->s.getName())
+        Selection res = new Selection(name,model.getObjectClassIdx(), model.getMasterDAO()); //"intersection:"+Utils.toStringList(selections, s->s.getName())
         for (Map.Entry<String, Set<String>> e : elByPos.entrySet()) res.addElementStrings(e.getKey(), e.getValue());
         return res;
     }
 
     public static void removeAll(Selection sel, Selection... selections) {
-        if (sel.getStructureIdx()==-2) return;
+        if (sel.getObjectClassIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             Arrays.stream(selections)
-                    .filter(s -> s.getStructureIdx() == sel.getStructureIdx() && s.getAllPositions().contains(pos))
+                    .filter(s -> s.getObjectClassIdx() == sel.getObjectClassIdx() && s.getAllPositions().contains(pos))
                     .forEach(s -> sel.removeAll(pos, s.getElementStrings(pos)));
         }
     }
 
     public static void trimBy(Selection sel, Selection container) {
-        if (sel.getStructureIdx()==-2) return;
+        if (sel.getObjectClassIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             Map<Integer, List<Region>> containers = container.getElements(pos).stream().collect(Collectors.groupingBy(SegmentedObject::getFrame, Utils.collectToList(SegmentedObject::getRegion)));
             List<SegmentedObject> toRemove = sel.getElements(pos).stream().filter(e -> e.getRegion().getMostOverlappingRegion(containers.get(e.getFrame()),null, null)==null).collect(Collectors.toList());
@@ -68,7 +68,7 @@ public class SelectionOperations {
     }
 
     public static void edgeContactFilter(Selection sel, int edgeOCIdx, boolean keepContact) {
-        if (sel.getStructureIdx()<=-1) return;
+        if (sel.getObjectClassIdx()<=-1) return;
         Predicate<SegmentedObject> filter = o -> {
             SegmentedObject parent = o.getParent(edgeOCIdx);
             RegionPopulation.ContactBorder contact = new RegionPopulation.ContactBorder(0, parent.getMask(), new RegionPopulation.Border(true, true, true, true, !o.is2D() && !parent.is2D(), !o.is2D() && !parent.is2D()));
@@ -84,7 +84,7 @@ public class SelectionOperations {
     }
 
     public static void trackLengthFilter(Selection sel, int length, boolean keepShort) {
-        if (sel.getStructureIdx()==-2) return;
+        if (sel.getObjectClassIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             List<SegmentedObject> toRemove = sel.getElements(pos).stream().filter(Objects::nonNull).map(SegmentedObject::getTrackHead).distinct()
                     .map(SegmentedObjectUtils::getTrack).filter(t -> keepShort ? t.size()>length : t.size()<length)
@@ -94,7 +94,7 @@ public class SelectionOperations {
     }
 
     public static void trackEndsFilter(Selection sel) {
-        if (sel.getStructureIdx()==-2) return;
+        if (sel.getObjectClassIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             List<SegmentedObject> toRemove = sel.getElements(pos).stream()
                     .filter(Objects::nonNull)
@@ -122,7 +122,7 @@ public class SelectionOperations {
     }
 
     public static void trackConnectionFilter(Selection sel, boolean merge) {
-        if (sel.getStructureIdx()==-2) return;
+        if (sel.getObjectClassIdx()==-2) return;
         Predicate<SegmentedObject> filter = merge ? o -> {
             SegmentedObject next = o.getNext();
             if (next==null) return true;
@@ -142,7 +142,7 @@ public class SelectionOperations {
     }
 
     public static void filter(Selection sel, Predicate<SegmentedObject> filter) {
-        if (sel.getStructureIdx()==-2) return;
+        if (sel.getObjectClassIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             List<SegmentedObject> toRemove = sel.getElements(pos).stream()
                     .filter(Objects::nonNull)
@@ -153,7 +153,7 @@ public class SelectionOperations {
     }
     public static List<String> getElements(List<Selection> selections, String fieldName) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
+        selections.removeIf(s -> s.getObjectClassIdx()!=selections.get(0).getObjectClassIdx());
         List<String> res=  new ArrayList<>();
         if (fieldName!=null) for (Selection s : selections) {
             res.addAll(s.getElementStrings(fieldName));
@@ -165,7 +165,7 @@ public class SelectionOperations {
 
     public static List<SegmentedObject> getSegmentedObjects(List<Selection> selections, String fieldName) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
+        selections.removeIf(s -> s.getObjectClassIdx()!=selections.get(0).getObjectClassIdx());
         List<SegmentedObject> res=  new ArrayList<>();
         if (fieldName!=null) for (Selection s : selections) {
             if (s.getElements(fieldName)!=null) res.addAll(s.getElements(fieldName));
@@ -177,7 +177,7 @@ public class SelectionOperations {
 
     public static Map<String, List<SegmentedObject>> getSegmentedObjects(List<Selection> selections) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_MAP;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
+        selections.removeIf(s -> s.getObjectClassIdx()!=selections.get(0).getObjectClassIdx());
         HashMapGetCreate<String, List<SegmentedObject>> res=  new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
         for (Selection s : selections) {
             for (String p : s.getAllPositions()) res.getAndCreateIfNecessary(p).addAll(s.getElements(p));
@@ -239,7 +239,7 @@ public class SelectionOperations {
     public static List<SegmentedObject> getParents(Selection sel, String position, MasterDAO db) {
         Set<String> parentStrings = sel.getElementStrings(position).stream().map(Selection::getParent).collect(Collectors.toSet());
         Utils.removeDuplicates(parentStrings, false);
-        return filter(SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), db.getExperiment().getStructure(sel.getStructureIdx()).getParentStructure()), parentStrings).collect(Collectors.toList());
+        return filter(SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), db.getExperiment().getStructure(sel.getObjectClassIdx()).getParentStructure()), parentStrings).collect(Collectors.toList());
     }
 
     public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, MasterDAO db) {
@@ -248,9 +248,9 @@ public class SelectionOperations {
     }
 
     public static List<SegmentedObject> getParents(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
-        if (!(db.getExperiment().experimentStructure.isChildOf(parentStructureIdx, sel.getStructureIdx())||parentStructureIdx==sel.getStructureIdx())) return Collections.EMPTY_LIST;
-        int[] path = db.getExperiment().experimentStructure.getPathToStructure(parentStructureIdx, sel.getStructureIdx());
-        Set<String> parentStrings = parentStructureIdx!=sel.getStructureIdx()?sel.getElementStrings(position).stream().map(s->Selection.getParent(s, path.length)).collect(Collectors.toSet()):
+        if (!(db.getExperiment().experimentStructure.isChildOf(parentStructureIdx, sel.getObjectClassIdx())||parentStructureIdx==sel.getObjectClassIdx())) return Collections.EMPTY_LIST;
+        int[] path = db.getExperiment().experimentStructure.getPathToStructure(parentStructureIdx, sel.getObjectClassIdx());
+        Set<String> parentStrings = parentStructureIdx!=sel.getObjectClassIdx()?sel.getElementStrings(position).stream().map(s->Selection.getParent(s, path.length)).collect(Collectors.toSet()):
                 sel.getElementStrings(position);
         Utils.removeDuplicates(parentStrings, false);
         logger.debug("get parent sel: path: {}, parent strings: {}", path, parentStrings);

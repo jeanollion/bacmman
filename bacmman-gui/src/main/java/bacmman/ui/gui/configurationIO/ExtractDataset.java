@@ -90,7 +90,7 @@ public class ExtractDataset extends JDialog {
             if (!f.isOnePluginSet()) return false;
             return FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass());
         };
-        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getStructureIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
+        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
         defName.addListener(t -> setEnableOk());
         defFeature.addListener(t -> setEnableOk());
         selectionParameter.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream());

@@ -860,7 +860,7 @@ public class Utils {
         for (File f : files) deleteDirectory(f);
     }
     
-    public static List<File> seachAll(String path, Predicate<String> fileMatch, int recLevels) {
+    public static List<File> searchAll(String path, Predicate<String> fileMatch, int recLevels) {
         if (path==null) return null;
         File f= new File(path);
         if (!f.exists()) return null;

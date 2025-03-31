@@ -42,6 +42,8 @@ import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
@@ -53,6 +55,7 @@ import static bacmman.utils.ThreadRunner.safeMap;
  * @author Jean Ollion
  */
 public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> implements ProcessingPipelineWithSegmenter, Hint {
+    final static Logger logger = LoggerFactory.getLogger(SegmentOnly.class);
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, false);
     Parameter[] parameters = new Parameter[]{preFilters, trackPreFilters, segmenter, postFilters};
     
@@ -82,7 +85,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     @Override public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
         TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
-        logger.debug("segmenter with track configuration: {}", apply!=null);
+        //logger.debug("segmenter with track configuration: {}", apply!=null);
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {
@@ -93,13 +96,13 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
             return;
         }
         if (parentTrack.isEmpty()) return;
-        logger.debug("post Filters: {}", postFilters.getActivatedChildCount());
+        //logger.debug("post Filters: {}", postFilters.getActivatedChildCount());
         int parentStructureIdx = parentTrack.get(0).getStructureIdx();
         int segParentStructureIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         boolean subSegmentation = segParentStructureIdx>parentStructureIdx;
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
         boolean relabel = !SegmenterNoRelabel.class.isAssignableFrom(segmenter.getSelectedPluginClass());
-        logger.debug("RELABEL: {} class assignable {} class: {}, instanceof {}", relabel, SegmenterNoRelabel.class.isAssignableFrom(segmenter.getPluginType()), segmenter.getPluginType(), segmenter.instantiatePlugin() instanceof SegmenterNoRelabel);
+        //logger.debug("RELABEL: {} class assignable {} class: {}, instanceof {}", relabel, SegmenterNoRelabel.class.isAssignableFrom(segmenter.getPluginType()), segmenter.getPluginType(), segmenter.instantiatePlugin() instanceof SegmenterNoRelabel);
         boolean parallel = !DisableParallelExecution.class.isAssignableFrom(segmenter.getSelectedPluginClass());
         boolean multithread = MultiThreaded.class.isAssignableFrom(segmenter.getSelectedPluginClass()); //
 
@@ -110,7 +113,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
             if (allParents.size() < Runtime.getRuntime().availableProcessors()) parallel = false;
             else multithread = false;
         }
-        logger.debug("single frame: {} parent track size: {}", singleFrame, allParents.size());
+        //logger.debug("single frame: {} parent track size: {}", singleFrame, allParents.size());
         if (parallel) Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
         final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getRawImage(structureIdx).sizeZ()>1;
         long t0 = System.currentTimeMillis();
@@ -185,7 +188,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
            }
         }
         long t4 = System.currentTimeMillis();
-        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}, load images: {}ms, compute maps: {}ms, process: {}ms, set to parents: {}", parentTrack.get(0), parentTrack.size(), t4-t0, "nan", "nan", "nan", t4-t3);
+        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}", parentTrack.get(0), parentTrack.size(), t4-t0);
         if (!me.isEmpty()) throw me;
     }
     

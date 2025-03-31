@@ -49,12 +49,12 @@ public class SelectionParameter extends AbstractChoiceParameterMultiple<String, 
     }
 
     public SelectionParameter setSelectionObjectClass(int oc) {
-        this.selectionFilter = s -> s.getStructureIdx() == oc;
+        this.selectionFilter = s -> s.getObjectClassIdx() == oc;
         return this;
     }
 
     public SelectionParameter sameObjectClassValidation() {
-        addValidationFunction(selParam -> Utils.objectsAllHaveSameProperty(selParam.getSelectedSelections(), Selection::getStructureIdx));
+        addValidationFunction(selParam -> Utils.objectsAllHaveSameProperty(selParam.getSelectedSelections(), Selection::getObjectClassIdx));
         return this;
     }
 

@@ -80,7 +80,7 @@ public class TestTrackStructure {
         xp.getStructures().insert(microChannel, bacteries);
         bacteries.setParentStructure(0);
         xp.createPosition("field1");
-        masterDAO.setExperiment(xp);
+        masterDAO.setExperiment(xp, true);
         ObjectDAO dao = masterDAO.getDao("field1");
         SegmentedObject[] rootT = new SegmentedObject[5];
         for (int i = 0; i<rootT.length; ++i) rootT[i] = new SegmentedObject(i, new BlankMask(1, 1, 1), dao);

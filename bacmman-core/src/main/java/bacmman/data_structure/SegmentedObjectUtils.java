@@ -561,7 +561,7 @@ public class SegmentedObjectUtils {
         Map<Object, SegmentedObject> dupMap = new HashMap<>(); // maps original ID to new object
         Map<ID, SegmentedObject> revDupMap = new HashMap<>(); // maps new ID to old object
         MemoryMasterDAO<ID, MemoryObjectDAO<ID>> mDAO = new MemoryMasterDAO<>(new SegmentedObjectAccessor(), idGenerator);
-        mDAO.setExperiment(track.get(0).getExperiment());
+        mDAO.setExperiment(track.get(0).getExperiment(), true);
         ObjectDAO<ID> dao = mDAO.getDao(track.get(0).getPositionName());
         
         List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, true, includeOCIdx));
