@@ -362,6 +362,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
 
     protected String ensureImage() {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
+        dockerImage.refreshImageList();
         DockerImageParameter.DockerImage currentImage = dockerImage.getValue();
         if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;

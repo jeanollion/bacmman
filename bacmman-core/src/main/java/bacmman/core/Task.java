@@ -903,11 +903,11 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     private void process(String position, boolean deleteAllPosition, Selection selection, double preProcessingMemoryThreshold) {
-        publish("Position: "+position);
+        publish("Dataset" + dbName+ " Position: "+position);
         logger.debug("position: {} delete all position: {}", position, deleteAllPosition);
         if (deleteAllPosition) db.getDao(position).erase();
         if (preProcess) {
-            publish("Pre-Processing: DB: "+dbName+", Position: "+position);
+            publish("Pre-Processing...");
             logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
             try {
                 Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllPosition, preProcessingMemoryThreshold, this);
@@ -926,7 +926,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         }
         
         if ((segmentAndTrack || trackOnly)) {
-            logger.info("Processing: DB: {}, Position: {}", dbName, position);
+            publish("Processing...");
             if (selection==null) {
                 int[] structuresToDelete = IntStream.of(structures).filter(s -> db.getExperiment().getStructure(s).getProcessingPipelineParameter().isOnePluginSet()).toArray();
                 deleteObjects(db.getDao(position), structuresToDelete);
@@ -938,7 +938,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 throw new RuntimeException(e);
             }
             for (int s : structures) { // TODO take code from processor
-                publish("Processing structure: "+s);
+                publish("Processing object class: "+s);
                 try {
                     executeProcessingScheme(root, s, trackOnly, selection!=null, selection, this);
                 } catch (MultipleException e) {

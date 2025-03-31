@@ -161,7 +161,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private BooleanParameter importMetadata = new BooleanParameter("Import Image Metadata", false).setHint("When importing images, choose this option to extract image metadata in the folder ./SourceImageMetadata");
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
-    private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
+    private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "localhost", true, false).setHint("adress of the python gateway server. set localhost by default. set 0.0.0.0 to listen on all network interfaces");
     private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory. \nDecrease this value in case of out-of-memory errors. Note that saving images to disk will reduce speed.");
     private IntegerParameter processingWindow = new IntegerParameter("Pre-Processing Window", 100).setLowerBound(5).setHint("Pre-processing is performed in frame windows (frames are processed in parallel when possible) to reduce memory footprint. \nDecrease this value in case of memory errors during pre-processing. \nIn absence of memory errors set this value to 10-20 times the number of CPU cores");
     private NumberParameter dbStartSize = new BoundedNumberParameter("Database Start Size (Mb)", 0, 2, 1, null);
@@ -585,17 +585,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         ConfigurationTreeGenerator.addToMenu(pyGatewayPort, pyGatewayMenu);
         ConfigurationTreeGenerator.addToMenu(pyGatewayPythonPort, pyGatewayMenu);
         ConfigurationTreeGenerator.addToMenu(pyGatewayAddress, pyGatewayMenu);
-        Consumer pyGatewayListener = p -> {
-            if (p==null) logger.debug("starting python gateway...");
-            else logger.debug("restarting python gateway...");
+        Runnable pyGatewayListener = () -> {
             if (pyGtw!=null) pyGtw.stopGateway();
             pyGtw = new PythonGateway(pyGatewayPort.getValue().intValue(), pyGatewayPythonPort.getValue().intValue(), pyGatewayAddress.getValue());
             pyGtw.startGateway();
         };
-        pyGatewayAddress.addListener(pyGatewayListener);
-        pyGatewayPythonPort.addListener(pyGatewayListener);
-        pyGatewayAddress.addListener(pyGatewayListener);
-        pyGatewayListener.accept(null);
+        JMenuItem restartPyGateway = new JMenuItem("Restart Python Gateway");
+        restartPyGateway.addActionListener(al -> pyGatewayListener.run());
+        pyGatewayMenu.add(restartPyGateway);
+        pyGatewayListener.run();
 
         // ctc
         PropertyUtils.setPersistent(marginCTC, "ctc_margin");

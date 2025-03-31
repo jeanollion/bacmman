@@ -31,9 +31,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLDecoder;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.file.*;
 import java.text.DecimalFormat;
@@ -1410,5 +1408,36 @@ public class Utils {
                 }
             } else return Stream.empty();
         });
+    }
+
+    public static String getExternalIP() throws SocketException {
+
+        // Get the network interfaces
+        Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+
+        while (networkInterfaces.hasMoreElements()) {
+            NetworkInterface networkInterface = networkInterfaces.nextElement();
+            String interfaceName = networkInterface.getName();
+
+            // Skip loopback, virtual, and Docker interfaces
+            if (networkInterface.isLoopback() || networkInterface.isVirtual() ||
+                    interfaceName.startsWith("docker") || interfaceName.startsWith("br-") ||
+                    interfaceName.startsWith("veth")) {
+                continue;
+            }
+
+            // Get the IP addresses associated with the network interface
+            Enumeration<InetAddress> inetAddresses = networkInterface.getInetAddresses();
+
+            while (inetAddresses.hasMoreElements()) {
+                InetAddress inetAddress = inetAddresses.nextElement();
+
+                // Filter out link-local addresses and ensure it's a site-local address
+                if (!inetAddress.isLinkLocalAddress() && inetAddress.isSiteLocalAddress()) {
+                    return inetAddress.getHostAddress();
+                }
+            }
+        }
+        return null;
     }
 }

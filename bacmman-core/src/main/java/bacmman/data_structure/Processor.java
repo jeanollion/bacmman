@@ -399,6 +399,7 @@ public class Processor {
         Histogram histo = HistogramFactory.getHistogram(object.stream().map(o -> o.getRawImage(objectClassIdx)), binSize, nBins, min);
         return histo.getShortenedHistogram();
     }
+
     private static void execute(ProcessingPipeline ps, int structureIdx, List<SegmentedObject> parentTrack, boolean trackOnly, boolean deleteChildren, ObjectDAO dao) {
         if (parentTrack.isEmpty()) return;
         if (!trackOnly && deleteChildren) dao.deleteChildren(parentTrack, structureIdx);
@@ -569,7 +570,7 @@ public class Processor {
             
             // measurements on objects
             measObj.forEach(m-> {
-                if (pcb!=null) pcb.log("Executing Measurement: "+m.getClass().getSimpleName()+" on #"+allObCount+" objects");
+                //if (pcb!=null) pcb.log("Executing Measurement: "+m.getClass().getSimpleName()+" on #"+allObCount+" objects");
                 Stream<SegmentedObject> callObjectStream = StreamConcatenation.concat((Stream<SegmentedObject>[])allParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]));
                 try {
                     //callObjectStream.sequential().filter(o->measurementMissing.test(o, m)).forEach(o->m.performMeasurement(o));
@@ -596,7 +597,7 @@ public class Processor {
             }
         }
         logger.debug("measurements on field: {}: computation time: {}, #modified objects: {}", dao.getPositionName(), t1-t0, allModifiedObjects.size());
-        if (pcb!=null) pcb.log("Measurements performed, saving "+allModifiedObjects.size()+" objects...");
+        //if (pcb!=null) pcb.log("Measurements performed, saving "+allModifiedObjects.size()+" objects...");
         dao.upsertMeasurements(allModifiedObjects);
         if (pcb!=null) pcb.incrementProgress();
         if (!globE.isEmpty()) throw globE;

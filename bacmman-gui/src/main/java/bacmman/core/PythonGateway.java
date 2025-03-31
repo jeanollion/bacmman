@@ -24,6 +24,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.GUI;
 
 import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,14 +54,40 @@ public class PythonGateway {
     public PythonGateway(int port, int pythonPort, String address) {
         this.port=port;
         this.pythonPort=pythonPort;
-        this.address=address;
+        String add = null;
+        try {
+            add="localhost".equals(address) ? Utils.getExternalIP() : address;
+        } catch (SocketException e) {
+            add = "0.0.0.0";
+        }
+        this.address = add == null ? "0.0.0.0" : add; // 0.0.0.0 listen on all network devices
     }
 
-    public List<UnaryPair<String>> getEnv() {
+    public List<UnaryPair<String>> getEnv(boolean docker) {
         List<UnaryPair<String>> res = new ArrayList<>();
         res.add(new UnaryPair<>("PYBACMMAN_PORT", String.valueOf(port)));
         res.add(new UnaryPair<>("PYBACMMAN_PYPROXYPORT", String.valueOf(pythonPort)));
-        res.add(new UnaryPair<>("PYBACMMAN_ADDRESS", address));
+        if (docker && (address.equals("0.0.0.0"))) {
+            if (Utils.isWindows() || Utils.isMac())
+                res.add(new UnaryPair<>("PYBACMMAN_ADDRESS", "host.docker.internal"));
+            else {
+                try {
+                    String ip = Utils.getExternalIP();
+                    if (ip != null) res.add(new UnaryPair<>("PYBACMMAN_ADDRESS", ip));
+                } catch (SocketException e) {
+
+                }
+            }
+        } else {
+            res.add(new UnaryPair<>("PYBACMMAN_ADDRESS", address));
+        }
+        return res;
+    }
+
+    public List<UnaryPair<Integer>> getPorts() {
+        List<UnaryPair<Integer>> res = new ArrayList<>();
+        res.add(new UnaryPair<>(port, port));
+        res.add(new UnaryPair<>(pythonPort, pythonPort));
         return res;
     }
 
@@ -109,6 +136,8 @@ public class PythonGateway {
      * @param interactiveObjectClassIdx
      */
     public void saveCurrentSelection(String dbName, String dbPath, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
+        java.util.Random r = new java.util.Random();
+        r.nextDouble();
         logger.debug("saveCurrentSelection: db: {} path: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbName, dbPath, objectClassIdx, selectionName, ids.size(), positions.size());
         if (dbName == null && dbPath == null) logger.error("neither dbPath nor dbPath is provided");
         if (ids.isEmpty()) return;

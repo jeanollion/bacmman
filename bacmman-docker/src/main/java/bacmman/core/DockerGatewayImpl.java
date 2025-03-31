@@ -121,6 +121,7 @@ public class DockerGatewayImpl implements DockerGateway {
                 //.withRestartPolicy(RestartPolicy.noRestart())
                 //.withDevices(Collections.EMPTY_LIST)
                 //.withBlkioDeviceReadBps(Collections.emptyList()).withBlkioDeviceWriteBps(Collections.emptyList()).withBlkioDeviceWriteIOps(Collections.emptyList()).withBlkioDeviceReadIOps(Collections.emptyList()).withBlkioWeightDevice(Collections.emptyList());
+
         if (gpuIds!=null && gpuIds.length>0) {
             if (gpuIds.length==1 && gpuIds[0]==-1) gpuIds = DockerGateway.parseGPUList(PropertyUtils.get(PropertyUtils.DOCKER_GPU_LIST, "")); // use default GPU
             DeviceRequest dr = new DeviceRequest().withDriver("nvidia")

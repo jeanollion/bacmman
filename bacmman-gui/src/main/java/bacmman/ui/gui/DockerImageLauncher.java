@@ -101,12 +101,16 @@ public class DockerImageLauncher {
 
     public void startContainer() {
         runLater(() -> {
+            dockerImage.refreshImageList();
             String image = ensureImage(dockerImage.getValue());
             if (image != null) {
                 int[] exposedPorts = getExposedPorts();
-                List<UnaryPair<Integer>> portList = containerPorts == null ? null : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(containerPorts[i], exposedPorts[i])).collect(Collectors.toList());
-                List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv() : new ArrayList<>();
+                List<UnaryPair<Integer>> portList = containerPorts == null ? new ArrayList<>() : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(containerPorts[i], exposedPorts[i])).collect(Collectors.toList());
+                if (GUI.getPythonGateway() != null) portList.addAll(GUI.getPythonGateway().getPorts());
+                List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv(true) : new ArrayList<>();
                 if (environmentVariables.length>0) env.addAll(Arrays.asList(environmentVariables));
+                env.add(new UnaryPair<>("BACMMAN_WD", workingDir));
+                env.add(new UnaryPair<>("BACMMAN_CONTAINER_DIR", containerDir));
                 try {
                     containerId = gateway.createContainer(image, useShm?this.shm.getDoubleValue():0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
                     if (startCb != null) startCb.accept(containerId, exposedPorts);
