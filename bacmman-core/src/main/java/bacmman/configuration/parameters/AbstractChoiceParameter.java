@@ -75,13 +75,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     }
     
     public void setSelectedIndex(int selectedIndex) {
-        if (selectedIndex>=0) {
-            this.selectedItem=mapper.apply(getChoiceList()[selectedIndex]);
-        } else {
-            selectedItem=null;
-        }
-        fireListeners();
-        setCondValue();
+        setSelectedItem(getChoiceList()[selectedIndex]);
     }
     
     @Override

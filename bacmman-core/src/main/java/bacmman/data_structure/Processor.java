@@ -303,7 +303,7 @@ public class Processor {
             allParentTracks.entrySet().removeIf(e->e.getValue().isEmpty());
             logger.debug("after remove selection: parent tracks: #{} mode: {}", allParentTracks.size(), mode);
         }
-        if (pcb !=null) pcb.setSubtaskNumber(allParentTracks.size());
+        if (pcb !=null) pcb.setSubtaskNumber(allParentTracks.size()+1);
         logger.debug("ex ps: structure: {}, allParentTracks: {}", structureIdx, allParentTracks.size());
 
         ensureScalerConfiguration(dao, structureIdx);
@@ -497,18 +497,18 @@ public class Processor {
                     .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
                     .forEach(m-> nonParallelTrackMeasurements.add(new Pair<>(m, pt))));
             int subTaskNumber = 0;
-            if (pcb!=null && !nonParallelTrackMeasurements.isEmpty()) {
+            if (!nonParallelTrackMeasurements.isEmpty()) {
                 subTaskNumber+=nonParallelTrackMeasurements.size();
             }
             // count parallel measurement on tracks -
             int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
-            if (pcb!=null && parallelMeasCount>0) {
-                subTaskNumber+=allParentTracks.size();
+            if (parallelMeasCount>0) {
+                subTaskNumber+=allParentTracks.size() * parallelMeasCount;
             }
             // count measurements on objects
             List<Measurement> measObj = dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
                     .filter(m->!m.callOnlyOnTrackHeads()).collect(Collectors.toList());
-            if (pcb!=null && !measObj.isEmpty()) subTaskNumber+=measObj.size();
+            if (!measObj.isEmpty()) subTaskNumber+=measObj.size();
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
             if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
             if (!nonParallelTrackMeasurements.isEmpty()) {
@@ -559,8 +559,8 @@ public class Processor {
                                 .forEach(m -> {
                                     ((MultiThreaded) m).setMultiThread(true);
                                     m.performMeasurement(pt);
+                                    if (pcb != null) pcb.incrementSubTask();
                                 });
-                        if (pcb != null) pcb.incrementSubTask();
                     });
                 } catch (MultipleException me) {
                     globE.addExceptions(me.getExceptions());
@@ -585,7 +585,6 @@ public class Processor {
             });
             //f (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->!m.callOnlyOnTrackHeads()).findAny().orElse(null)!=null;
-            if (pcb!=null) pcb.incrementProgress();
         }
         long t1 = System.currentTimeMillis();
         final Set<SegmentedObject> allModifiedObjects = new HashSet<>();

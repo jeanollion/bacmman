@@ -4,14 +4,12 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
-import com.intellij.uiDesigner.core.Spacer;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,14 +18,11 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -40,6 +35,7 @@ public class DockerImageLauncher {
     private JScrollPane configurationJSP;
     private JPanel mainPanel;
     DockerImageParameter dockerImage;
+    DockerContainerParameter dockerContainer;
     BoundedNumberParameter port = new BoundedNumberParameter("Port", 0, 8888, 1, null);
     ArrayNumberParameter ports = new ArrayNumberParameter("Ports", 0, port);
     FloatParameter shm = new FloatParameter("Shared Memory", 2).setLowerBound(0).setHint("Shared Memory allowed to container in Gb");
@@ -56,7 +52,6 @@ public class DockerImageLauncher {
     private final ProgressCallback bacmmanLogger;
 
     private String workingDir;
-    private String containerId = null;
     protected DefaultWorker runner;
 
     public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean shm, int[] ports, BiConsumer<String, int[]> startCb, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
@@ -68,6 +63,9 @@ public class DockerImageLauncher {
         this.startCb=startCb;
         this.environmentVariables = environmentVariables;
         dockerImage = new DockerImageParameter("Docker Image");
+        dockerContainer = new DockerContainerParameter("Docker Container")
+                .setAllowNoSelection(true)
+                .setImageParameter(dockerImage);
         List<Parameter> params = new ArrayList<>();
         params.add(dockerImage);
         if (ports!=null && ports.length>0) {
@@ -80,12 +78,14 @@ public class DockerImageLauncher {
             }
         }
         if (shm) params.add(this.shm);
+        params.add(dockerContainer);
         configuration = new GroupParameter("Configuration", params);
         setWorkingDirectory(workingDir);
         start.addActionListener(ae -> {
             startContainer();
         });
         stop.addActionListener(ae -> stopContainer());
+        updateButtons();
     }
 
     public int[] getExposedPorts() {
@@ -96,7 +96,7 @@ public class DockerImageLauncher {
     }
 
     public boolean hasContainer() {
-        return containerId != null;
+        return dockerContainer.getValue() != null;
     }
 
     public void startContainer() {
@@ -112,7 +112,9 @@ public class DockerImageLauncher {
                 env.add(new UnaryPair<>("BACMMAN_WD", workingDir));
                 env.add(new UnaryPair<>("BACMMAN_CONTAINER_DIR", containerDir));
                 try {
-                    containerId = gateway.createContainer(image, useShm?this.shm.getDoubleValue():0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
+                    String containerId = gateway.createContainer(image, useShm?this.shm.getDoubleValue():0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
+                    dockerContainer.setContainer(containerId);
+                    configurationGen.getTree().updateUI();
                     if (startCb != null) startCb.accept(containerId, exposedPorts);
                 } catch (Exception e) {
                     bacmmanLogger.log("Error starting notebook: "+e.getMessage());
@@ -125,13 +127,15 @@ public class DockerImageLauncher {
     }
 
     public void stopContainer() {
+        String containerId = dockerContainer.getSelectedContainerId();
         if (containerId == null) return;
         try {
             gateway.stopContainer(containerId);
         } catch (Exception e) {
 
         } finally {
-            containerId = null;
+            dockerContainer.setValue(null);
+            configurationGen.getTree().updateUI();
             updateButtons();
         }
     }
@@ -147,7 +151,7 @@ public class DockerImageLauncher {
         runner.execute();
     }
 
-    protected String ensureImage(DockerImageParameter.DockerImage image) {
+    protected String ensureImage(DockerGateway.DockerImage image) {
         if (image.isInstalled()) return image.getTag();
         String dockerfileName = image.getFileName();
         String tag = formatDockerTag(dockerfileName);
@@ -159,12 +163,12 @@ public class DockerImageLauncher {
             Utils.extractResourceFile(this.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
         } catch (IOException e) {
             bacmmanLogger.log("Error building docker image: "+tag+" could not read dockerfile: " + e.getMessage());
-            dockerDir.delete();
+            Utils.deleteDirectory(dockerDir);
             return null;
         }
         bacmmanLogger.log("Building docker image: " + tag);
         String imageId = gateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, bacmmanLogger::log, this::setProgress);
-        dockerDir.delete();
+        Utils.deleteDirectory(dockerDir);
         return imageId != null ? image.getTag() : null;
     }
 
@@ -223,8 +227,8 @@ public class DockerImageLauncher {
     }
 
     public void updateButtons() {
-        start.setEnabled(containerId == null && configuration.isValid());
-        stop.setEnabled(containerId != null);
+        start.setEnabled(configuration.isValid());
+        stop.setEnabled(dockerContainer.getValue() != null);
     }
 
     public DockerImageLauncher setImageRequirements(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {

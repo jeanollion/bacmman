@@ -177,6 +177,7 @@ public class Optimization {
             }
             db.setExperiment(xp, false);
             List<String> positions = selection == null ? Arrays.asList(xp.getPositionsAsString()) : selection.getAllPositions().stream().sorted().collect(Collectors.toList());
+            if (pcb!=null) pcb.log("Run: " + name());
             for (String position : positions) {
                 db.clearCache(position);
                 run(db.getDao(position), selection, errors, pcb);
@@ -184,6 +185,7 @@ public class Optimization {
             }
             if (!errors.isEmpty()) throw errors;
             // export all measurements
+            if (pcb!=null) pcb.log("Export Measurements...");
             for (int oc = 0 ; oc < xp.getStructureCount(); ++oc) {
                 int[] ocA = new int[]{oc};
                 Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, ocA);
@@ -206,8 +208,10 @@ public class Optimization {
                 errors.addExceptions(new Pair<>("Error getting root track", e));
                 throw errors;
             }
+            if (pcb!=null) pcb.log("Position: " + dao.getPositionName());
             for (int oc : ocA) {
                 try {
+                    if (pcb!=null) pcb.log("Object Class: " + oc);
                     executeProcessingScheme(root, oc, false, selection != null, selection, pcb);
                     pcb.incrementProgress();
                 } catch (MultipleException e) {
@@ -220,6 +224,7 @@ public class Optimization {
                     Core.clearDiskBackedImageManagers();
                 }
             }
+            if (pcb!=null) pcb.log("Measurements...");
             Processor.performMeasurements(dao, MEASUREMENT_MODE.ERASE_ALL, selection, pcb);
             pcb.incrementProgress();
         }
@@ -308,7 +313,7 @@ public class Optimization {
             initDB();
             String[] rA = runA == null ? optimization.steamRuns().map(Run::name).toArray(String[]::new) : runA;
             int nPos = selectionName == null ? db.getExperiment().getPositionCount() : db.getSelectionDAO().getOrCreate(selectionName, false).getAllPositions().size();
-            int count = 1; // extract measurements
+            int count = rA.length; // extract measurements
             for (String runN : rA) {
                 try {
                     Run r = optimization.getRun(runN);

@@ -77,13 +77,14 @@ public interface ProgressCallback {
             @Override
             public synchronized void incrementSubTask() {
                 ++subTaskCounter;
-                if (taskNumber >0) ui.setProgress((int)(100 * ((taskCounter + subTaskCounter /subTaskNumber)/ taskNumber)));
+                if (taskNumber >0 && subTaskNumber>0) ui.setProgress((int)(100 * ((taskCounter + subTaskCounter /subTaskNumber)/ taskNumber)));
             }
 
             @Override
             public synchronized void incrementProgress() {
                 taskCounter++;
                 subTaskCounter = 0;
+                subTaskNumber = 0;
                 if (taskNumber >0) ui.setProgress((int)(100 * (taskCounter / taskNumber)));
             }
             @Override
@@ -91,6 +92,7 @@ public interface ProgressCallback {
                 if (taskCounter != i) {
                     taskCounter = i;
                     subTaskCounter = 0;
+                    subTaskNumber = 0;
                     if (taskNumber >0) ui.setProgress((int)(100 * (taskCounter / taskNumber)));
                 }
             }

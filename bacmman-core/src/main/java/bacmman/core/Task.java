@@ -959,7 +959,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             publish("Measurements...");
             logger.info("Measurements: DB: {}, Position: {}", dbName, position);
             Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);
-            // process is incremented by method
+            incrementProgress();
             //publishMemoryUsage("After Measurements");
         }
     }
@@ -1186,6 +1186,8 @@ public class Task implements TaskI<Task>, ProgressCallback {
     @Override
     public synchronized void incrementProgress() {
         ++taskCounter[0];
+        subtaskCounter = 0;
+        subtaskNumber = 0;
         //logger.debug("Progress: {}/{}", taskCounter[0], taskCounter[1]);
         if (ui!=null) ui.setProgress(100*taskCounter[0]/taskCounter[1]);
     }
@@ -1206,7 +1208,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public synchronized void incrementSubTask() {
         ++subtaskCounter;
         //logger.debug("Progress: {}/{}, subtask: {}/{}", taskCounter[0], taskCounter[1], subtaskCount, subtaskNumber);
-        if (ui!=null) ui.setProgress((int)(100*(taskCounter[0] + subtaskCounter / subtaskNumber)/taskCounter[1] + 0.5));
+        if (ui!=null && subtaskNumber>0) ui.setProgress((int)(100*(taskCounter[0] + subtaskCounter / subtaskNumber)/taskCounter[1] + 0.5));
     }
 
     @Override

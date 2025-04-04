@@ -317,7 +317,8 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         for (Spot o : res) { // quality criterion : sqrt (smooth * radSym)
             Point center = bounds.contains(o.getCenter()) ? o.getCenter() : o.getCenter().duplicate().ensureWithinBounds(bounds);
             double zz = center.numDimensions()>2?center.get(2):0;
-            o.setQuality(Math.sqrt(radSym.getPixel(center.get(0), center.get(1), zz) * smoothedIntensity.getPixel(center.get(0), center.get(1), zz)));
+            o.setQuality(Math.sqrt(radSym.getPixel(center.get(0), center.get(1), zz) * o.getIntensity()));
+            //o.setQuality(Math.sqrt(radSym.getPixel(center.get(0), center.get(1), zz) * smoothedIntensity.getPixel(center.get(0), center.get(1), zz)));
         }
         return res;
     }

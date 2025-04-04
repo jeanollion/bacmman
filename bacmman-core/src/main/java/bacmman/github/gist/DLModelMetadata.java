@@ -1,6 +1,7 @@
 package bacmman.github.gist;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.DockerGateway;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.HistogramScaler;
 import org.json.simple.JSONObject;
@@ -104,7 +105,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
 
     public DLModelMetadata setDockerDLTrainer(DockerDLTrainer trainer) {
         this.dockerTrainer.setPlugin(trainer);
-        DockerImageParameter.DockerImage im = trainer.getConfiguration().getTrainingParameters().getDockerImage(true);
+        DockerGateway.DockerImage im = trainer.getConfiguration().getTrainingParameters().getDockerImage(true);
         if (im!=null) this.exportLibrary.setValue(im.getVersion());
         return this;
     }

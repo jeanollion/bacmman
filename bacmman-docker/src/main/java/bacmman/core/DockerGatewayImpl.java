@@ -104,13 +104,9 @@ public class DockerGatewayImpl implements DockerGateway {
     }
 
     @Override
-    public Stream<UnaryPair<String>> listContainers() {
-        return dockerClient.listContainersCmd().exec().stream().map(c -> new UnaryPair<>(c.getImage(), c.getId()));
-    }
-
-    @Override
-    public Stream<UnaryPair<String>> listContainers(String imageId) {
-        return dockerClient.listContainersCmd().exec().stream().filter(c -> c.getImageId().equals(imageId)).map(c -> new UnaryPair<>(c.getImage(), c.getId()));
+    public Stream<DockerContainer> listContainers() {
+        return dockerClient.listContainersCmd().exec().stream()
+                .map(c -> new DockerContainer(c.getId(), c.getImageId(), c.getImage(), c.getState(), c.getMounts().stream().map(m -> new UnaryPair<>(m.getSource(), m.getDestination())).collect(Collectors.toList())));
     }
 
     @SafeVarargs

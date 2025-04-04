@@ -1,5 +1,6 @@
 package bacmman.configuration.parameters;
 
+import bacmman.core.DockerGateway;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -129,7 +130,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return this;
     }
 
-    public DockerImageParameter.DockerImage getSelectedDockerImage(boolean export) {
+    public DockerGateway.DockerImage getSelectedDockerImage(boolean export) {
         if (export && trainingParameters.dockerImageExport.getSelectedIndex()>=0) {
             trainingParameters.dockerImageExport.refreshImageList();
             return trainingParameters.dockerImageExport.getValue();
@@ -294,8 +295,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             initChildList();
         }
 
-        public DockerImageParameter.DockerImage getDockerImage(boolean export) {
-            DockerImageParameter.DockerImage im = null;
+        public DockerGateway.DockerImage getDockerImage(boolean export) {
+            DockerGateway.DockerImage im = null;
             if (export) im = this.dockerImageExport.getValue();
             if (!export || im == null) im = this.dockerImage.getValue();
             return im;

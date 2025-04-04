@@ -6,9 +6,7 @@ import bacmman.utils.UnaryPair;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -20,8 +18,7 @@ public interface DockerGateway {
     Stream<String> listImages();
     String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
-    Stream<UnaryPair<String>> listContainers();
-    Stream<UnaryPair<String>> listContainers(String imageId);
+    Stream<DockerContainer> listContainers();
     String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBinding, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
 
@@ -107,6 +104,12 @@ public interface DockerGateway {
         return new Pair<>(versionPrefix, version);
     }
 
+    static String parseImageName(String tag) {
+        int i = tag.indexOf(':');
+        if (i>=0) return tag.substring(0,i);
+        else return tag;
+    }
+
     static String formatDockerTag(String tag) {
         tag = tag.replace(".dockerfile", "");
         tag = tag.replace("--", ":");
@@ -140,6 +143,147 @@ public interface DockerGateway {
             return Files.isDirectory(Paths.get("/dev/shm"));
         } catch (Exception e) {
             return false;
+        }
+    }
+    class DockerContainer {
+        final String id;
+        final DockerImage image;
+        final String state; // created, running, paused, restarting, exited, dead
+        final List<UnaryPair<String>> mounts;
+
+        public DockerContainer(String id, String imageID, String imageTag, String state, List<UnaryPair<String>> mounts) {
+            this.id = id;
+            this.image = new DockerImage(imageTag, imageID);
+            this.state = state;
+            this.mounts = mounts;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public DockerImage getImage() {
+            return image;
+        }
+
+        public boolean fromImage(String imageID) {
+            return imageID.equals(this.image.imageID);
+        }
+
+        public boolean isRunning() {
+            return state.equals("running");
+        }
+
+        public String toString() {
+            return image.getTag() + " " + state + " id="+id;
+        }
+
+        public static String parseId(String containerString) {
+            if (containerString == null) return null;
+            int idx = containerString.indexOf("id=");
+            if (idx>0) return containerString.substring(idx+3);
+            return containerString;
+        }
+    }
+
+    class DockerImage implements Comparable<DockerImage> {
+        String imageName, version, versionPrefix, fileName;
+        String imageID;
+        int[] versionNumber;
+        boolean installed;
+
+        public DockerImage(String tag, String imageID) {
+            init(tag);
+            this.imageID= imageID;
+            this.installed = true;
+        }
+
+        public DockerImage(String fileName, Set<String> installed) {
+            init(formatDockerTag(fileName));
+            this.fileName = fileName;
+            this.installed = installed!=null && installed.contains(getTag());
+        }
+
+        protected void init(String tag) {
+            int i = tag.indexOf(':');
+            if (i>=0) {
+                imageName = tag.substring(0, i);
+                version = tag.substring(i+1);
+                try {
+                    Pair<String, int[]> t = parseVersion(tag);
+                    versionPrefix = t.key;
+                    versionNumber = t.value;
+                } catch (NumberFormatException e) {
+                    versionNumber = new int[0];
+                }
+            } else {
+                imageName = tag;
+                version = "";
+                versionNumber = new int[0];
+            }
+        }
+
+        public boolean isInstalled() {
+            return installed;
+        }
+
+        public String getImageName() {
+            return imageName;
+        }
+
+        public String getFileName() {
+            return fileName;
+        }
+
+        public String getVersion() {
+            return version;
+        }
+
+        public String getVersionPrefix() {
+            return versionPrefix;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o instanceof DockerImage) {
+                DockerImage that = (DockerImage) o;
+                return Objects.equals(imageName, that.imageName) && Objects.equals(version, that.version);
+            } else if (o instanceof String) {
+                return ((String) o).replace(" (not installed)", "").equals(getTag());
+            } else return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(imageName, version);
+        }
+        public String getTag() {
+            return imageName+":"+version;
+        }
+
+        @Override
+        public String toString() {
+            return getTag() + (isInstalled() ? "" : " (not installed)");
+        }
+
+        public static String parseTagString(String string) {
+            if (string == null) return null;
+            int idx = string.indexOf(" ");
+            if (idx > 0) return string.substring(0, idx);
+            else return string;
+        }
+
+        public int compareVersionNumber(int[] version) {
+            return versionComparator().compare(versionNumber, version);
+        }
+
+        @Override
+        public int compareTo(DockerImage o) {
+            int c = imageName.compareTo(o.imageName);
+            if (c==0) {
+                return -versionComparator().compare(versionNumber, o.versionNumber);
+            } else return c;
         }
     }
 }

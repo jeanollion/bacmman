@@ -363,7 +363,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     protected String ensureImage() {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         dockerImage.refreshImageList();
-        DockerImageParameter.DockerImage currentImage = dockerImage.getValue();
+        DockerGateway.DockerImage currentImage = dockerImage.getValue();
         if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;
             Path dockerDir = null;
@@ -428,7 +428,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
             try {
                 Pair<String, int[]> tag = DockerGateway.parseVersion(exportLib);
                 dockerImage.setImageRequirement(dockerImage.getImageName(), tag.key, tag.value, tag.value);
-                DockerImageParameter.DockerImage im = dockerImage.getAllImages().filter(DockerImageParameter.DockerImage::isInstalled).findFirst().orElse(dockerImage.getAllImages().findFirst().orElse(null));
+                DockerGateway.DockerImage im = dockerImage.getAllImages().filter(DockerGateway.DockerImage::isInstalled).findFirst().orElse(dockerImage.getAllImages().findFirst().orElse(null));
                 dockerImage.setValue(im);
             } catch (Exception e) {}
         }

@@ -141,16 +141,17 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public void clearCache() {
         cache.clear();
         measurementCache.clear();
-        closeThreadResources();
         for (BoxStore objectStore : objectStores.values()) {
             if (objectStore!=null && !objectStore.isClosed()) {
                 objectStore.cleanStaleReadTransactions();
+                objectStore.closeThreadResources();
                 objectStore.close();
             }
         }
         for (BoxStore measurementStore : measurementStores.values()) {
             if (measurementStore!=null && !measurementStore.isClosed()) {
                 measurementStore.cleanStaleReadTransactions();
+                measurementStore.closeThreadResources();
                 measurementStore.close();
             }
         }
@@ -159,6 +160,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         measurementBoxes.clear();
         measurementStores.clear();
     }
+
     @Override
     public void closeThreadResources() {
         for (BoxStore objectStore : objectStores.values()) {
@@ -264,6 +266,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     }
     @Override
     public void deleteAllObjects() {
+        closeThreadResources();
         cache.clear();
         measurementCache.clear();
         for (int oc : streamObjectClasses(false).toArray()) {
@@ -411,7 +414,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             logger.debug("Stored {} objects of class {} in {}ms create objects: {}ms store: {}ms", toStoreSO.size(), ocIdx, t2-t0, t1-t0, t2-t1);
             upsertMeasurements(toStoreMeas);
         }
-
+        closeThreadResources();
     }
 
     protected void put(int objectClassIdx, Collection<SegmentedObjectBox> toStore) {
@@ -553,6 +556,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     @Override
     public void deleteAllMeasurements() {
+        closeThreadResources();
         for (int oc : streamObjectClasses(false).toArray()) {
             BoxStore s = measurementStores.get(oc);
             if (s != null) {

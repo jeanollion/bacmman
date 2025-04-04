@@ -733,7 +733,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean export) {
-        DockerImageParameter.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage(export);
+        DockerGateway.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage(export);
         if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;
             File dockerDir = null;
