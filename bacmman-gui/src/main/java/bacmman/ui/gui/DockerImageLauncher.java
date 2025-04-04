@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -54,7 +55,7 @@ public class DockerImageLauncher {
     private String workingDir;
     protected DefaultWorker runner;
 
-    public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean shm, int[] ports, BiConsumer<String, int[]> startCb, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
+    public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean shm, int[] ports, BiConsumer<String, int[]> startCb, Consumer<String> changeWorkingDir, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
         this.gateway = gateway;
         this.bacmmanLogger = bacmmanLogger;
         this.containerDir = containerDir;
@@ -65,7 +66,18 @@ public class DockerImageLauncher {
         dockerImage = new DockerImageParameter("Docker Image");
         dockerContainer = new DockerContainerParameter("Docker Container")
                 .setAllowNoSelection(true)
-                .setImageParameter(dockerImage);
+                .setImageParameter(dockerImage)
+                .addListener(d -> {
+                    DockerGateway.DockerContainer c = d.getValue();
+                    if (c != null) {
+                        String wd = c.getMounts().filter(m -> m.value.equals(containerDir)).findFirst().map(i -> i.key).orElse(null);
+                        if (wd != null) {
+                            setWorkingDirectory(workingDir);
+                            if (changeWorkingDir != null) changeWorkingDir.accept(wd);
+                        }
+                        port.setValue(c.getPorts().findFirst().map(p -> p.key).orElse(port.getIntValue()));
+                    }
+                });
         List<Parameter> params = new ArrayList<>();
         params.add(dockerImage);
         if (ports!=null && ports.length>0) {
@@ -85,10 +97,9 @@ public class DockerImageLauncher {
             startContainer();
         });
         stop.addActionListener(ae -> stopContainer());
-        updateButtons();
     }
 
-    public int[] getExposedPorts() {
+    public int[] getHostPorts() {
         if (containerPorts!=null && containerPorts.length>0) {
             if (containerPorts.length == 1) return new int[]{port.getIntValue()};
             else return this.ports.getArrayInt();
@@ -99,13 +110,17 @@ public class DockerImageLauncher {
         return dockerContainer.getValue() != null;
     }
 
+    public boolean hasContainer(String workingDir) {
+        return dockerContainer.getValue() != null && workingDir.equals(dockerContainer.getValue().getMounts().filter(m -> m.value.equals(containerDir)).findFirst().map(i -> i.key).orElse(null));
+    }
+
     public void startContainer() {
         runLater(() -> {
             dockerImage.refreshImageList();
             String image = ensureImage(dockerImage.getValue());
             if (image != null) {
-                int[] exposedPorts = getExposedPorts();
-                List<UnaryPair<Integer>> portList = containerPorts == null ? new ArrayList<>() : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(containerPorts[i], exposedPorts[i])).collect(Collectors.toList());
+                int[] exposedPorts = getHostPorts();
+                List<UnaryPair<Integer>> portList = containerPorts == null ? new ArrayList<>() : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(exposedPorts[i], containerPorts[i])).collect(Collectors.toList());
                 if (GUI.getPythonGateway() != null) portList.addAll(GUI.getPythonGateway().getPorts());
                 List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv(true) : new ArrayList<>();
                 if (environmentVariables.length>0) env.addAll(Arrays.asList(environmentVariables));

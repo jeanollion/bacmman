@@ -78,7 +78,7 @@ public class ChoiceParameterUI implements ArmableUI {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
                         //if (ae.getActionCommand().equals("no selection"))
-                        logger.debug("choice modif: {}, cond null? {}, model null?: {}, cond children: {}", ae.getActionCommand(), cond==null, model==null, cond==null?"0":cond.getChildCount());
+                        //logger.debug("choice modif: {}, cond null? {}, model null?: {}, cond children: {}", ae.getActionCommand(), cond==null, model==null, cond==null?"0":cond.getChildCount());
                         choice.setSelectedItem(ae.getActionCommand());
                         //choice.fireListeners(); //fired by setSelectedItem
                         if (cond!=null) {

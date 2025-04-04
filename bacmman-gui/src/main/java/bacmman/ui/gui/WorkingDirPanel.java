@@ -116,6 +116,12 @@ public class WorkingDirPanel {
     protected void setWorkingDirectory() {
         currentWorkingDirectory = workingDirectoryTextField.getText();
         if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
+        updateDisplayRelatedToWorkingDir();
+    }
+
+    public void setWorkingDirectory(String workingDirectory) {
+        workingDirectoryTextField.setText(workingDirectory);
+        setWorkingDirectory();
     }
 
     public String getWorkingDirectory() {

@@ -2,6 +2,8 @@ package bacmman.core;
 
 import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -15,11 +17,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public interface DockerGateway {
+    Logger logger = LoggerFactory.getLogger(DockerGateway.class);
     Stream<String> listImages();
     String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     Stream<DockerContainer> listContainers();
-    String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBinding, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs);
+    String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBindingHostToContainer, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
 
     /**
@@ -149,13 +152,14 @@ public interface DockerGateway {
         final String id;
         final DockerImage image;
         final String state; // created, running, paused, restarting, exited, dead
-        final List<UnaryPair<String>> mounts;
-
-        public DockerContainer(String id, String imageID, String imageTag, String state, List<UnaryPair<String>> mounts) {
+        final List<UnaryPair<String>> mountsHostToContainer;
+        final List<UnaryPair<Integer>> portsHostToContainer;
+        public DockerContainer(String id, String imageID, String imageTag, String state, List<UnaryPair<String>> mountsHostToContainer, List<UnaryPair<Integer>> portsHostToContainer) {
             this.id = id;
             this.image = new DockerImage(imageTag, imageID);
             this.state = state;
-            this.mounts = mounts;
+            this.mountsHostToContainer = mountsHostToContainer;
+            this.portsHostToContainer = portsHostToContainer;
         }
 
         public String getId() {
@@ -174,14 +178,26 @@ public interface DockerGateway {
             return state.equals("running");
         }
 
+        public Stream<UnaryPair<String>> getMounts() {
+            return mountsHostToContainer.stream().distinct();
+        }
+
+        public Stream<UnaryPair<Integer>> getPorts() {
+            return portsHostToContainer.stream().distinct();
+        }
+
         public String toString() {
-            return image.getTag() + " " + state + " id="+id;
+            int[] ports = getPorts().filter(Objects::nonNull).mapToInt(i->i.key).toArray();
+            String portString = ports == null ? "" : (ports.length == 1 ? ",port="+ports[0] : ",ports="+ Arrays.toString(ports));
+            return image.getTag() + " id="+id + " (" + state + portString + ")";
         }
 
         public static String parseId(String containerString) {
             if (containerString == null) return null;
             int idx = containerString.indexOf("id=");
-            if (idx>0) return containerString.substring(idx+3);
+            if (idx>0) containerString =  containerString.substring(idx+3);
+            idx = containerString.indexOf(" (");
+            if (idx > 0 ) containerString = containerString.substring(0, idx);
             return containerString;
         }
     }

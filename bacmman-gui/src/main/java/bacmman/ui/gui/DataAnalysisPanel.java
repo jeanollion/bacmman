@@ -78,8 +78,8 @@ public class DataAnalysisPanel {
             }
         };
         Consumer<NotebookTree.NotebookTreeNode> doubleClickCB = nb -> {
-            if (dockerImageLauncher.hasContainer()) { // server already started, simply open notebook
-                String notebookUrl = getNotebookURL(nb, dockerImageLauncher.getExposedPorts()[0]);
+            if (dockerImageLauncher.hasContainer(workingDirPanel.getCurrentWorkingDirectory())) { // server already started, simply open notebook
+                String notebookUrl = getNotebookURL(nb, dockerImageLauncher.getHostPorts()[0]);
                 try {
                     java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
                 } catch (Exception e) {
@@ -100,7 +100,7 @@ public class DataAnalysisPanel {
                 } catch (InterruptedException e) {}
             }
             if (i < limit) {
-                String notebookUrl = getNotebookURL(localNotebooks.getSelectedNotebookIfOnlyOneSelected(), dockerImageLauncher.getExposedPorts()[0]);
+                String notebookUrl = getNotebookURL(localNotebooks.getSelectedNotebookIfOnlyOneSelected(), dockerImageLauncher.getHostPorts()[0]);
                 try {
                     java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
                 } catch (Exception e) {
@@ -109,7 +109,7 @@ public class DataAnalysisPanel {
             }
         };
 
-        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+token+"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
+        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+token+"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
         gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
 
@@ -117,6 +117,7 @@ public class DataAnalysisPanel {
 
         localSelectorJSP.setViewportView(localNotebooks.getTree());
         this.updateWD();
+        dockerImageLauncher.updateButtons();
     }
 
     public String getServerURL(int port) {

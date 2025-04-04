@@ -106,12 +106,15 @@ public class DockerGatewayImpl implements DockerGateway {
     @Override
     public Stream<DockerContainer> listContainers() {
         return dockerClient.listContainersCmd().exec().stream()
-                .map(c -> new DockerContainer(c.getId(), c.getImageId(), c.getImage(), c.getState(), c.getMounts().stream().map(m -> new UnaryPair<>(m.getSource(), m.getDestination())).collect(Collectors.toList())));
+            .map(c -> new DockerContainer(c.getId(), c.getImageId(), c.getImage(), c.getState(),
+                    c.getMounts().stream().map(m -> new UnaryPair<>(m.getSource(), m.getDestination())).collect(Collectors.toList()),
+                    c.getPorts()==null? Collections.emptyList() : Arrays.stream(c.getPorts()).map(p -> new UnaryPair<>(p.getPublicPort(), p.getPrivatePort())).collect(Collectors.toList())
+            ));
     }
 
     @SafeVarargs
     @Override
-    public final String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBinding, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs) {
+    public final String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBindingHostToContainer, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withAutoRemove(true);
                 //.withRestartPolicy(RestartPolicy.noRestart())
@@ -127,9 +130,9 @@ public class DockerGatewayImpl implements DockerGateway {
         }
         if (shmSizeGb == 0) shmSizeGb = PropertyUtils.get(PropertyUtils.DOCKER_SHM_GB, 8.);
         hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * Math.pow(2, 30))); //.withMemorySwappiness(0L); //.withBlkioWeight(1000);
-        if (portBinding != null && !portBinding.isEmpty()) {
+        if (portBindingHostToContainer != null && !portBindingHostToContainer.isEmpty()) {
             Ports portBindings = new Ports();
-            for (UnaryPair<Integer> ports : portBinding) {
+            for (UnaryPair<Integer> ports : portBindingHostToContainer) {
                 ExposedPort exposedPort = ExposedPort.tcp(ports.value);
                 portBindings.bind(exposedPort, Ports.Binding.bindPort(ports.key));
             }

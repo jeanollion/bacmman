@@ -163,7 +163,7 @@ public class NotebookTree {
     }
 
     public void setWorkingDirectory(String dir) {
-        logger.debug("Setting wd: {}", dir);
+        //logger.debug("Setting wd: {}", dir);
         if (dir==null) {
             treeModel.setRoot(null);
             tree.updateUI();
