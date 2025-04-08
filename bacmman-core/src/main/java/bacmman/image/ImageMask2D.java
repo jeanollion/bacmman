@@ -93,11 +93,13 @@ public class ImageMask2D extends SimpleImageProperties<ImageMask2D> implements I
 
     @Override
     public boolean contains(Point point) {
-        return 0<=point.get(0) && xMax()-xMin>=point.get(0) && 0<=point.get(1) && yMax()-yMin>=point.get(1);
+        return 0<=Math.floor(point.get(0)) && xMax()-xMin>=Math.ceil(point.get(0))
+                && 0<=Math.floor(point.get(1)) && yMax()-yMin>=Math.ceil(point.get(1));
     }
     @Override
     public boolean containsWithOffset(Point point) {
-        return xMin<=point.get(0) && xMax()>=point.get(0) && yMin<=point.get(1) && yMax()>=point.get(1);
+        return xMin<=Math.ceil(point.get(0)) && xMax()>=Math.ceil(point.get(0))
+                && yMin<=Math.ceil(point.get(1)) && yMax()>=Math.ceil(point.get(1));
     }
 
     @Override

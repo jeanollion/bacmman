@@ -188,16 +188,16 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
     }
     @Override
     public boolean contains(Point point) {
-        return 0<=point.get(0) && xMax-xMin>=point.get(0) &&
-                0<=point.get(1) && yMax-yMin>=point.get(1) &&
-                        (point.numDimensions()<=2 || (0<=point.get(2) && zMax-zMin>=point.get(2)));
+        return 0<=Math.floor(point.get(0)) && xMax-xMin>=Math.ceil(point.get(0)) &&
+                0<=Math.floor(point.get(1)) && yMax-yMin>=Math.ceil(point.get(1)) &&
+                        (point.numDimensions()<=2 || (0<=Math.floor(point.get(2)) && zMax-zMin>=Math.ceil(point.get(2))));
     }
 
     @Override
     public boolean containsWithOffset(Point point) {
-        return xMin<=point.get(0) && xMax>=point.get(0) &&
-                yMin<=point.get(1) && yMax>=point.get(1) &&
-                        (point.numDimensions()<=2 || (zMin<=point.get(2) && zMax>=point.get(2)));
+        return xMin<=Math.floor(point.get(0)) && xMax>=Math.ceil(point.get(0)) &&
+                yMin<=Math.floor(point.get(1)) && yMax>=Math.ceil(point.get(1)) &&
+                        (point.numDimensions()<=2 || (zMin<=Math.floor(point.get(2)) && zMax>=Math.ceil(point.get(2))));
     }
     
     @Override
