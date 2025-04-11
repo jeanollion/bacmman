@@ -19,7 +19,6 @@
 package bacmman.processing;
 
 import bacmman.data_structure.Processor;
-import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.TypeConverter;
@@ -60,7 +59,7 @@ public class ImageFeatures {
             res[i].setName(image.getName() + ":structure:" + (i + 1));
             res[i].setCalibration(image);
             res[i].resetOffset().translate(image);
-            ImageOperations.affineOperation(res[i], res[i], smoothScale*smoothScale, 0);
+            ImageOperations.affineOpMulAdd(res[i], res[i], smoothScale*smoothScale, 0);
         }
         return res;
     }
@@ -115,7 +114,7 @@ public class ImageFeatures {
             res[i] = (ImageFloat)ImagescienceWrapper.wrap(differentiator.run(dup?is.duplicate():is, scaleXY, i==0?1:0, i==1?1:0, i==2?1:0));
             res[i].setCalibration(image);
             res[i].resetOffset().translate(image);
-            if (i==2 && scaleZ!=scaleXY) ImageOperations.affineOperation(res[2], res[2], scaleZ/scaleXY, 0); // take into account anisotropy
+            if (i==2 && scaleZ!=scaleXY) ImageOperations.affineOpMulAdd(res[2], res[2], scaleZ/scaleXY, 0); // take into account anisotropy
         }
         return res;
     }
@@ -215,8 +214,8 @@ public class ImageFeatures {
         boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
         ImageFloat res = (ImageFloat)ImagescienceWrapper.wrap(new Laplacian().run(duplicate?is.duplicate():is, scaleXY));
         double norm = getNorm(scaleXY, 2);
-        if (invert) ImageOperations.affineOperation(res, res, -norm, 0);
-        else ImageOperations.affineOperation(res, res, norm, 0);
+        if (invert) ImageOperations.affineOpMulAdd(res, res, -norm, 0);
+        else ImageOperations.affineOpMulAdd(res, res, norm, 0);
         res.setCalibration(image).resetOffset().translate(image).setName(image.getName() + ":laplacian:"+scaleXY);
         return res;
     }
@@ -248,7 +247,7 @@ public class ImageFeatures {
             res[i].setCalibration(image);
             res[i].resetOffset().translate(image);
             res[i].setName(image.getName() + ":hessian" + (i + 1));
-            ImageOperations.affineOperation(res[i], res[i], getNorm(scaleXY, 2), 0);
+            ImageOperations.affineOpMulAdd(res[i], res[i], getNorm(scaleXY, 2), 0);
         }
         return res;
     }
@@ -297,7 +296,7 @@ public class ImageFeatures {
         ArrayList<ImageFloat> planes = new ArrayList<ImageFloat>(scales.length);
         for (double s : scales) planes.add(ImageFeatures.getHessian(plane, s, false)[0]);
         Image res = Image.mergeZPlanes(planes).setName("Hessian Max. Scale-Space");
-        return ImageOperations.affineOperation(res, res, -1, 0);
+        return ImageOperations.affineOpMulAdd(res, res, -1, 0);
     }
     
     public static Image getScaleSpaceHessianMaxNorm(Image plane, double[] scales, Image norm, double... multiplicativeCoefficient) {
@@ -310,7 +309,7 @@ public class ImageFeatures {
             planes.add(im);
         }
         Image res = Image.mergeZPlanes(planes).setName("Hessian Max. Normed Scale-Space");
-        return ImageOperations.affineOperation(res, res, -1, 0);
+        return ImageOperations.affineOpMulAdd(res, res, -1, 0);
     }
     
     public static Image getScaleSpaceLaplacian(Image plane, double[] scales) {
@@ -362,7 +361,7 @@ public class ImageFeatures {
     public static ImageFloat gaussianSmoothScaleIndep(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
         ImageFloat res = gaussianSmooth(image, scaleXY, scaleZ, overrideIfFloat);
         double norm = getNorm(scaleXY, 0);
-        if (norm!=1) ImageOperations.affineOperation(res, res, norm, 0);
+        if (norm!=1) ImageOperations.affineOpMulAdd(res, res, norm, 0);
         return res;
     }
     

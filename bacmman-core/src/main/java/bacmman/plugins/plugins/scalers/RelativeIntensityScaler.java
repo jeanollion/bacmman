@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
 import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -56,17 +55,17 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
+        if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
         else { // perform on single image
             double center = getCenter(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
             log(center);
-            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
+            return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
         }
     }
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, center, 0);
+        if (isConfigured()) return ImageOperations.affineOpMulAdd(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, center, 0);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

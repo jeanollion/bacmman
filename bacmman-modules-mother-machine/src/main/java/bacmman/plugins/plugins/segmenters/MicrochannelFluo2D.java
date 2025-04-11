@@ -199,7 +199,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         // selected filled microchannels
         float[] xProj = ImageOperations.meanProjection(mask, ImageOperations.Axis.X, null);
         ImageFloat imProjX = new ImageFloat("Total segmented bacteria length", mask.sizeX(), new float[][]{xProj});
-        ImageOperations.affineOperation(imProjX, imProjX, (double) (image.sizeY() * image.sizeZ()) / channelLength, 0);
+        ImageOperations.affineOpMulAdd(imProjX, imProjX, (double) (image.sizeY() * image.sizeZ()) / channelLength, 0);
         if (imageTestDisplayer != null) imageTestDisplayer.accept(mask.setName("Thresholded Bacteria"));
         if (miscDataDisplayer != null)
             miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> IJUtils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));

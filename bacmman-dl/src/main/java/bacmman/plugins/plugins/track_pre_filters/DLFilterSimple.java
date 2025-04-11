@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 public class DLFilterSimple implements TrackPreFilter, Transformation, ConfigurableTransformation, Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
     static Logger logger = LoggerFactory.getLogger(DLFilterSimple.class);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine module");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine module");
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 1, 0, null).setEmphasized(true).setHint("For time-lapse dataset: defines how many frames are processed at the same time (0=all frames)");
     BooleanParameter timelapse = new BooleanParameter("Timelapse", false).setHint("If true, input image are concatenated with previous (and next) frame(s)");
@@ -74,7 +74,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
 
     @Override
     public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
-        DLengine dLengine = getDLengine();
+        DLEngine dLengine = getDLengine();
         Map<Integer, SegmentedObject> parentTrack = preFilteredImages.streamKeys().collect(Collectors.toMap(SegmentedObject::getFrame, o->o));
         List<int[]> segments = getContiguousSegments(parentTrack);
         ImageIO imageIO = new ImageIO() {
@@ -173,13 +173,13 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
     }
 
     private int engineNumIn() {
-        DLengine in = dlEngine.instantiatePlugin();
+        DLEngine in = dlEngine.instantiatePlugin();
         if (in==null) return 0;
         else return in.getNumInputArrays();
     }
 
-    private DLengine getDLengine() {
-        DLengine engine = dlEngine.instantiatePlugin();
+    private DLEngine getDLengine() {
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int numInputs = engine.getNumInputArrays();
         if (numInputs!=1) throw new IllegalArgumentException("Model inputs "+numInputs+ " while 1 input is expected");
@@ -193,7 +193,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
         void accept(int idx, Image[][][] pred) throws IOException;
     }
 
-    private void predict(ImageIO imageIO, int idxMin, int idxMaxExcl, DLengine engine) throws IOException {
+    private void predict(ImageIO imageIO, int idxMin, int idxMaxExcl, DLEngine engine) throws IOException {
         int nImages = idxMaxExcl - idxMin;
         int increment = batchSize.getIntValue() == 0 ? nImages : (int)Math.ceil( (double)nImages / Math.ceil( (double)nImages / batchSize.getIntValue()) );
         if (!timelapse.getSelected()) {

@@ -29,7 +29,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import bacmman.plugins.ParameterChangeCallback;
+import bacmman.plugins.Plugin;
 import bacmman.utils.Utils;
 
 /**
@@ -316,6 +316,11 @@ public class ParameterUtils {
             for (Parameter p : ((ContainerParameterImpl<? extends Parameter>)parameter).getChildren()) configureParameter(config, p);
         }
     }
+
+    public static boolean sameClassAndParameters(Plugin e1, Plugin e2) { // whether this instance can be used in place of other instance
+        return e1.getClass().equals(e2.getClass()) && sameContent(e1.getParameters(), e2.getParameters());
+    }
+
     public interface ParameterConfiguration {
         public void configure(Parameter p);
         public boolean isConfigurable(Parameter p);

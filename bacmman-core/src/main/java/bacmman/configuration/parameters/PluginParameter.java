@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 
 import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.configuration.experiment.Experiment;
-import bacmman.core.DLengineProvider;
+import bacmman.core.DLEngineProvider;
 import bacmman.plugins.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -205,11 +205,11 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             }
             return instance;
         };
-        if (DLengine.class.isAssignableFrom(this.getPluginType())) { // shared instance of DL engine in order to avoid re-loading the model each time
+        if (DLEngine.class.isAssignableFrom(this.getPluginType())) { // shared instance of DL engine in order to avoid re-loading the model each time
             Experiment xp = ParameterUtils.getExperiment(this);
             if (xp==null) return pluginFactory.get(); // no xp found in tree -> instance cannot be shared
-            DLengineProvider dlEngineProvider = xp.getDLengineProvider();
-            DLengine instance = (DLengine)pluginFactory.get();
+            DLEngineProvider dlEngineProvider = xp.getDLengineProvider();
+            DLEngine instance = (DLEngine)pluginFactory.get();
             return (T)dlEngineProvider.getEngine(instance);
         } else return pluginFactory.get();
     }

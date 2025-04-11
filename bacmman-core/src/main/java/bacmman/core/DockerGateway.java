@@ -56,12 +56,6 @@ public interface DockerGateway {
         };
     }
 
-    static int[] parseGPUList(String gpuList) {
-        if (gpuList==null || gpuList.isEmpty()) return new int[0];
-        String[] split = gpuList.split(",");
-        return Arrays.stream(split).filter(s->!s.isEmpty()).mapToInt(Integer::parseInt).toArray();
-    }
-
     static Comparator<int[]> versionComparator() {
         return (v1, v2) -> {
             for (int i = 0; i<Math.min(v1.length, v2.length); ++i) {

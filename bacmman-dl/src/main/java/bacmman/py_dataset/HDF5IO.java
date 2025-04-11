@@ -525,7 +525,7 @@ public class HDF5IO {
             IntStream.range(0, res.length)
                     .filter(i->res[i]!=null)
                     .parallel()
-                    .forEach(i -> res[i] = ImageOperations.affineOperation2(res[i], imType, scale_factor, -scale_center ));
+                    .forEach(i -> res[i] = ImageOperations.affineOpAddMul(res[i], imType, scale_factor, -scale_center ));
         }
         return res;
     }

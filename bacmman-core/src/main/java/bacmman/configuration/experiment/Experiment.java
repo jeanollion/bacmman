@@ -45,11 +45,9 @@ import bacmman.plugins.Autofocus;
 import bacmman.plugins.Measurement;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
-import com.google.common.collect.Sets;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -248,8 +246,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         return template;
     }
 
-    DLengineProvider dLengineProvider = new DLengineProvider();
-    public DLengineProvider getDLengineProvider() { //todo see if flush needed at beginng of processing
+    DLEngineProvider dLengineProvider = new DLEngineProvider();
+    public DLEngineProvider getDLengineProvider() { //todo see if flush needed at beginng of processing
         return dLengineProvider;
     }
 

@@ -36,17 +36,17 @@ public class ModeScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
+        if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
         else { // perform on single image
             double center = HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS).getMode(); // TODO smooth ?
             log(center);
-            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
+            return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
         }
     }
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, range.getValue().doubleValue(), center);
+        if (isConfigured()) return ImageOperations.affineOpMulAdd(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, range.getValue().doubleValue(), center);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

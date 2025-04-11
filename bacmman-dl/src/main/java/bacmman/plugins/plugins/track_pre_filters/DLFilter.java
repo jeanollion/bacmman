@@ -16,7 +16,7 @@ import java.util.function.Function;
 
 public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     static Logger logger = LoggerFactory.getLogger(DLFilter.class);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine");
     enum INPUT_TYPE {RAW, BINARY_MASK}
     EnumChoiceParameter<INPUT_TYPE> type = new EnumChoiceParameter<>("Input Type", INPUT_TYPE.values(), INPUT_TYPE.BINARY_MASK);
     ObjectClassParameter oc = new ObjectClassParameter("Object class");
@@ -30,12 +30,12 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
     private int engineNumIn() {
-        DLengine in = dlEngine.instantiatePlugin();
+        DLEngine in = dlEngine.instantiatePlugin();
         if (in==null) return 0;
         else return in.getNumInputArrays();
     }
     private Image[] predict(Image[][][] inputINC) {
-        DLengine engine = dlEngine.instantiatePlugin();
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int numInputs = engine.getNumInputArrays();
         int numOutputs = engine.getNumOutputArrays();

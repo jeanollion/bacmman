@@ -9,11 +9,12 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
 import bacmman.image.LazyImage5D;
 import bacmman.image.LazyImage5DStack;
-import bacmman.plugins.DLengine;
+import bacmman.plugins.DLEngine;
 import bacmman.plugins.DockerComplient;
 import bacmman.plugins.Hint;
 import bacmman.processing.ResizeUtils;
 import bacmman.py_dataset.HDF5IO;
+import bacmman.ui.PropertyUtils;
 import bacmman.utils.*;
 import ch.systemsx.cisd.hdf5.IHDF5Reader;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
@@ -37,7 +38,7 @@ import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 
-public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
+public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     private static final Logger logger = LoggerFactory.getLogger(DockerEngine.class);
     MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
@@ -56,7 +57,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     Parameter[] parameters = {modelFile, dockerImage, dockerParameters, batchSize, zAxisCond};
     static final int loopFreqMs = 100;
 
-    // statefull attributes
+    // stateful attributes
     String[] inputNames, outputNames;
     DockerGateway dockerGateway;
     String containerID;
@@ -68,6 +69,14 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         if (dc != null) dockerImage.setImageRequirement(dc.getDockerImageName(), dc.getVersionPrefix(), dc.minimalVersion(), dc.maximalVersion());
         else dockerImage.setImageRequirement("predict_dnn", null, null, null);
+    }
+
+    @Override
+    public int[] getGPUs() {
+        int[] gpus = DLEngine.parseGPUList(Core.getCore().tfVisibleDeviceList);
+        if (gpus.length==1 && gpus[0] == -1) {
+            return DLEngine.parseGPUList(PropertyUtils.get(PropertyUtils.DOCKER_GPU_LIST, ""));
+        } else return gpus;
     }
 
     @Override
@@ -144,7 +153,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
                 break;
             }
             case BATCH: {
-                sizeZ = DLengine.getSizeZ(inputNC);
+                sizeZ = DLEngine.getSizeZ(inputNC);
                 //logger.debug("Z to batch: size Z = {}", sizeZ);
                 if (sizeZ > 1) {
                     for (int idx = 0; idx < inputNC.length; ++idx) {
@@ -303,12 +312,12 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public DLengine setOutputNumber(int outputNumber) { // TODO can this method be removed ?
+    public DLEngine setOutputNumber(int outputNumber) { // TODO can this method be removed ?
         return this;
     }
 
     @Override
-    public DLengine setInputNumber(int outputNumber) {
+    public DLEngine setInputNumber(int outputNumber) {
         return this;
     }
 
@@ -344,7 +353,7 @@ public class DockerEngine implements DLengine, DLMetadataConfigurable, Hint {
             mounts.add(new UnaryPair<>(modelFile.getModelFile().getAbsolutePath(), "/model"));
             dataDir = getDataDirectory();
             mounts.add(new UnaryPair<>(dataDir.toString(), "/data"));
-            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
                 Core.userLog("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");

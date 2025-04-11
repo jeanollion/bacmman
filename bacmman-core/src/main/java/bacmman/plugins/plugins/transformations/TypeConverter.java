@@ -58,14 +58,14 @@ public class TypeConverter implements MultichannelTransformation, Hint {
             default: {
                 if (image.floatingPoint() || image.byteCount()>2) {
                     Image output = new ImageShort(image.getName(), image);
-                    ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
+                    ImageOperations.affineOpMulAdd(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
                     return output;
                 } else return image;
             }
             case LIMIT_TO_8: {
                 if (image.floatingPoint() || image.byteCount()>1) {
                     Image output = new ImageByte(image.getName(), image);
-                    ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
+                    ImageOperations.affineOpMulAdd(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
                     return output;
                 } else return image;
             }

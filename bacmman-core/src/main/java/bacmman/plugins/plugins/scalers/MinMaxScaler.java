@@ -1,6 +1,5 @@
 package bacmman.plugins.plugins.scalers;
 
-import bacmman.configuration.parameters.IntervalParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
 import bacmman.image.Image;
@@ -33,7 +32,7 @@ public class MinMaxScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
+        if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else {
             if (scaleLogger!=null) log(image.getMinAndMax(null));
             return ImageOperations.normalize(image, null, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null);
@@ -42,7 +41,7 @@ public class MinMaxScaler implements HistogramScaler, Hint {
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1/scale, -offset);
+        if (isConfigured()) return ImageOperations.affineOpMulAdd(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1/scale, -offset);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

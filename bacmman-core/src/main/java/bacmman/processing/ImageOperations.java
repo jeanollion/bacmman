@@ -338,7 +338,7 @@ public class ImageOperations {
      * @param additiveCoefficient
      * @return multiplicative then additive
      */
-    public static Image affineOperation(Image source1, Image output, double multiplicativeCoefficient, double additiveCoefficient) {
+    public static Image affineOpMulAdd(Image source1, Image output, double multiplicativeCoefficient, double additiveCoefficient) {
         String name = source1.getName()+" x "+multiplicativeCoefficient + " + "+additiveCoefficient;
         if (output==null) {
             if (multiplicativeCoefficient<0 || (int)multiplicativeCoefficient != multiplicativeCoefficient || additiveCoefficient<0) output = new ImageFloat(name, source1);
@@ -374,7 +374,7 @@ public class ImageOperations {
      * @param additiveCoefficient
      * @return additive coeff first then multiplicative
      */
-    public static Image affineOperation2(Image source1, Image output, double multiplicativeCoefficient, double additiveCoefficient) {
+    public static Image affineOpAddMul(Image source1, Image output, double multiplicativeCoefficient, double additiveCoefficient) {
         String name = "("+source1.getName()+ " + "+additiveCoefficient+") "+" x "+multiplicativeCoefficient ;
         if (output==null) {
             if (multiplicativeCoefficient<0 || (int)multiplicativeCoefficient != multiplicativeCoefficient || additiveCoefficient<0) output = new ImageFloat(name, source1);
@@ -818,7 +818,7 @@ public class ImageOperations {
         if (mm[0]==mm[1]) return output;
         double scale = 1 / (mm[1] - mm[0]);
         double offset = -mm[0] * scale;
-        return (ImageFloatingPoint)affineOperation(input, output, scale, offset);
+        return (ImageFloatingPoint) affineOpMulAdd(input, output, scale, offset);
     }
     public static ImageFloatingPoint normalize(Image input, ImageMask mask, ImageFloatingPoint output, double pMin, double pMax, boolean saturate) {
         if (pMin>=pMax) throw new IllegalArgumentException("pMin should be < pMax");

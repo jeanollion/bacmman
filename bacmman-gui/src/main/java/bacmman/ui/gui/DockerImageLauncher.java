@@ -61,7 +61,7 @@ public class DockerImageLauncher {
         this.containerDir = containerDir;
         this.useShm = shm;
         this.containerPorts = ports;
-        this.startCb=startCb;
+        this.startCb = startCb;
         this.environmentVariables = environmentVariables;
         dockerImage = new DockerImageParameter("Docker Image");
         dockerContainer = new DockerContainerParameter("Docker Container")
@@ -80,7 +80,7 @@ public class DockerImageLauncher {
                 });
         List<Parameter> params = new ArrayList<>();
         params.add(dockerImage);
-        if (ports!=null && ports.length>0) {
+        if (ports != null && ports.length > 0) {
             if (ports.length == 1) {
                 this.port.setValue(ports[0]);
                 params.add(this.port);
@@ -100,7 +100,7 @@ public class DockerImageLauncher {
     }
 
     public int[] getHostPorts() {
-        if (containerPorts!=null && containerPorts.length>0) {
+        if (containerPorts != null && containerPorts.length > 0) {
             if (containerPorts.length == 1) return new int[]{port.getIntValue()};
             else return this.ports.getArrayInt();
         } else return null;
@@ -123,16 +123,16 @@ public class DockerImageLauncher {
                 List<UnaryPair<Integer>> portList = containerPorts == null ? new ArrayList<>() : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(exposedPorts[i], containerPorts[i])).collect(Collectors.toList());
                 if (GUI.getPythonGateway() != null) portList.addAll(GUI.getPythonGateway().getPorts());
                 List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv(true) : new ArrayList<>();
-                if (environmentVariables.length>0) env.addAll(Arrays.asList(environmentVariables));
+                if (environmentVariables.length > 0) env.addAll(Arrays.asList(environmentVariables));
                 env.add(new UnaryPair<>("BACMMAN_WD", workingDir));
                 env.add(new UnaryPair<>("BACMMAN_CONTAINER_DIR", containerDir));
                 try {
-                    String containerId = gateway.createContainer(image, useShm?this.shm.getDoubleValue():0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
+                    String containerId = gateway.createContainer(image, useShm ? this.shm.getDoubleValue() : 0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
                     dockerContainer.setContainer(containerId);
                     configurationGen.getTree().updateUI();
                     if (startCb != null) startCb.accept(containerId, exposedPorts);
                 } catch (Exception e) {
-                    bacmmanLogger.log("Error starting notebook: "+e.getMessage());
+                    bacmmanLogger.log("Error starting notebook: " + e.getMessage());
                     logger.error("Error starting notebook", e);
                 } finally {
                     updateButtons();
@@ -177,7 +177,7 @@ public class DockerImageLauncher {
         try {
             Utils.extractResourceFile(this.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
         } catch (IOException e) {
-            bacmmanLogger.log("Error building docker image: "+tag+" could not read dockerfile: " + e.getMessage());
+            bacmmanLogger.log("Error building docker image: " + tag + " could not read dockerfile: " + e.getMessage());
             Utils.deleteDirectory(dockerDir);
             return null;
         }
@@ -274,7 +274,7 @@ public class DockerImageLauncher {
         mainPanel = new JPanel();
         mainPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         configurationJSP = new JScrollPane();
-        mainPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 50), new Dimension(-1, 50), null, 0, false));
+        mainPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 50), new Dimension(-1, 60), null, 0, false));
         start = new JButton();
         start.setText("Start");
         mainPanel.add(start, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));

@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.measurements;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -10,7 +9,7 @@ import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.DLengine;
+import bacmman.plugins.DLEngine;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.MultiThreaded;
@@ -33,7 +32,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
     protected BoundedNumberParameter classNumber = new BoundedNumberParameter("Class number", 0, -1, 0, null).setHint("Number of predicted classes");
     ConditionalParameter<Boolean> probaCond = new ConditionalParameter<>(proba).setActionParameters(true, classNumber);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", true, true, false)
             .setMaxInputNumber(2).setMinInputNumber(2).setMaxOutputNumber(1).setMinOutputNumber(1).setOutputNumber(1)
             .setMode(DLResizeAndScale.MODE.PAD).setDefaultContraction(16, 16);
@@ -94,7 +93,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
         Image[][] chanImages = parentMapChildren.keySet().stream()
                 .map(p -> IntStream.of(channels).mapToObj(p::getRawImage).toArray(Image[]::new))
                 .toArray(Image[][]::new);
-        DLengine engine = dlEngine.instantiatePlugin();
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         //dlResizeAndScale.setScaleLogger(Core::userLog);
         Image[][] predNC = dlResizeAndScale.predict(engine, chanImages, edm)[0];

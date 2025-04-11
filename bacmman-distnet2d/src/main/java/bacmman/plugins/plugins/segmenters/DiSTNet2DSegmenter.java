@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProcessingPlugin, TrackConfigurable<DiSTNet2DSegmenter>, DLMetadataConfigurable, ObjectSplitter, ManualSegmenter, Hint {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2DSegmenter.class);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("DL Model", DLengine.class, false)
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DL Model", DLEngine.class, false)
             .setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: EDM and GCDM");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Resize And Scale", true, true, false)
             .setScaler(0, new PercentileScaler())
@@ -132,7 +132,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p));
         Map<SegmentedObject, Image> edmMap_ = new HashMap<>();
         Map<SegmentedObject, Image> gcdmMap_ = new HashMap<>();
-        DLengine engine = dlEngine.instantiatePlugin();
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int[] allFrames = singleFrame ? new int[]{parentTrack.get(0).getFrame()} : parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
         double interval = allFrames.length;

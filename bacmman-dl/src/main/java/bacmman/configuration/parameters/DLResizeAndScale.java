@@ -1,10 +1,9 @@
 package bacmman.configuration.parameters;
 
-import bacmman.core.Core;
 import bacmman.dl.TileUtils;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
-import bacmman.plugins.DLengine;
+import bacmman.plugins.DLEngine;
 import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.scalers.PercentileScaler;
 import bacmman.processing.Resize;
@@ -319,7 +318,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
         return dims;
     }
-    public Image[][][] predict(DLengine engine, Image[][]... inputINC) {
+    public Image[][][] predict(DLEngine engine, Image[][]... inputINC) {
         Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> in = getNetworkInput(inputINC);
         Image[][][] out = engine.process(in.v1);
         return processPrediction(out, in);

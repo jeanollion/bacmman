@@ -231,7 +231,7 @@ public class TypeConverter {
             // check max & min values
             double[] minAndMax = image.getMinAndMax(null);
             if (minAndMax[0]<-0.5) {
-                image = ImageOperations.affineOperation(image, image, 1, -minAndMax[0]);
+                image = ImageOperations.affineOpMulAdd(image, image, 1, -minAndMax[0]);
                 minAndMax[1] -= minAndMax[0];
                 minAndMax[0] = 0;
             }

@@ -33,7 +33,7 @@ public class ConstantScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        image = ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
+        image = ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
         if (saturate.getSelected()) {
             ImageOperations.applyFunction(image, v -> Math.max(0, Math.min(1, v)), true);
         }
@@ -42,7 +42,7 @@ public class ConstantScaler implements HistogramScaler, Hint {
 
     @Override
     public Image reverseScale(Image image) {
-        return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale.getValue().doubleValue(), center.getValue().doubleValue());
+        return ImageOperations.affineOpMulAdd(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale.getValue().doubleValue(), center.getValue().doubleValue());
     }
 
     @Override

@@ -66,7 +66,7 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
         logger.debug("Normalization: range: [{}-{}] scale: {} off: {}", minAndMax[0], minAndMax[1], scale, offset);
         preFilteredImages.streamKeys().forEach(o -> {
             Image source = preFilteredImages.getImage(o);
-            Image trans = ImageOperations.affineOperation(source, preFilteredImages.allowInplaceModification()?source:null, scale_, offset_);
+            Image trans = ImageOperations.affineOpMulAdd(source, preFilteredImages.allowInplaceModification()?source:null, scale_, offset_);
             preFilteredImages.set(o, trans);
         });
     }

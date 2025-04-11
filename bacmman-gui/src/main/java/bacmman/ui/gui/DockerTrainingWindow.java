@@ -10,6 +10,7 @@ import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
+import bacmman.plugins.DLEngine;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.HDF5IO;
 import bacmman.ui.GUI;
@@ -800,7 +801,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             Map<String, String> dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
-            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DockerGateway.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
                 setMessage("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");

@@ -26,7 +26,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     static Logger logger = LoggerFactory.getLogger(DistNet.class);
 
     PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new EDMCellSegmenter(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, new MinMaxScaler(), true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction. For phase contrast images, default is MinMaxScaler. For fluorescence images use either a constant scaler or ModePercentileScaler or IQRScaler");
 
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
@@ -52,7 +52,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
         long t0= System.currentTimeMillis();
-        DLengine engine = dlEngine.instantiatePlugin();
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1= System.currentTimeMillis();
         logger.info("engine instanciated in {}ms, class: {}", t1-t0, engine.getClass());
@@ -152,7 +152,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             edm_res[idx].translate(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].translate(parentTrack.get(idx).getMaskProperties());
-            ImageOperations.affineOperation(dy_res[idx], dy_res[idx], dy_res[idx].sizeY() / yTargetSize, 0); // displacement dY is predicted in pixel in the scale seen by the network. we need to rescale to original scale
+            ImageOperations.affineOpMulAdd(dy_res[idx], dy_res[idx], dy_res[idx].sizeY() / yTargetSize, 0); // displacement dY is predicted in pixel in the scale seen by the network. we need to rescale to original scale
             if (divMap_res!=null) {
                 divMap_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
                 divMap_res[idx].translate(parentTrack.get(idx).getMaskProperties());

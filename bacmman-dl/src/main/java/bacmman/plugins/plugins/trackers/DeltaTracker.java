@@ -30,7 +30,7 @@ import java.util.stream.IntStream;
 
 public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     private final static Logger logger = LoggerFactory.getLogger(DeltaTracker.class);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model that predict next cell, as in Delta <br />Input: 1) raw image at frame F with values in range [0, 1] 2) raw image at frame F+1 with values in range [0, 1] 3) binary mask of a cell at frame F 4) binary mask of all cells at frame F+1 (input can be either 1 input with the [1, 2, 3, 4]] images concatenated in the last axis or 2 inputs [1,2] and [3,4]. <br />Output: 3 channels, 2nd one contains the predicted 1rst daughter cell and 3rd one the other predicted daughter cell(s)");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model that predict next cell, as in Delta <br />Input: 1) raw image at frame F with values in range [0, 1] 2) raw image at frame F+1 with values in range [0, 1] 3) binary mask of a cell at frame F 4) binary mask of all cells at frame F+1 (input can be either 1 input with the [1, 2, 3, 4]] images concatenated in the last axis or 2 inputs [1,2] and [3,4]. <br />Output: 3 channels, 2nd one contains the predicted 1rst daughter cell and 3rd one the other predicted daughter cell(s)");
     BoundedNumberParameter predictionThld = new BoundedNumberParameter("Probability Threshold", 3, 0.3, 0.001, 1 ).setHint("For each cell C at frame F, a probability map is predicted for all cells at F+1. A cell C' at frame F+1 is considered to be linked to C if the median predicted probability value within C' is greater than this threshold");
     BooleanParameter tracking2D = new BooleanParameter("2D Tracking", false);
     BoundedNumberParameter maxStepSize = new BoundedNumberParameter("Maximum Step size", 0, 2048, 1, null);
@@ -45,7 +45,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         // input is [0] prev + current raw image [1] prev object to predict (binary mask) + all current segmented objects (binary mask)
         // output channels are [0] background [1] mother cell [2] daughter cell
-        DLengine engine = dlEngine.instantiatePlugin();
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         boolean separateInputChannels = engine.getNumInputArrays() == 2;
         int dim = tracking2D.getSelected() ? 256 : 32;

@@ -3,6 +3,7 @@ package bacmman.core;
 import bacmman.docker.ExecResultCallback;
 import bacmman.docker.LogContainerResultCallback;
 import bacmman.docker.PullImageResultCallback;
+import bacmman.plugins.DLEngine;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
@@ -122,7 +123,7 @@ public class DockerGatewayImpl implements DockerGateway {
                 //.withBlkioDeviceReadBps(Collections.emptyList()).withBlkioDeviceWriteBps(Collections.emptyList()).withBlkioDeviceWriteIOps(Collections.emptyList()).withBlkioDeviceReadIOps(Collections.emptyList()).withBlkioWeightDevice(Collections.emptyList());
 
         if (gpuIds!=null && gpuIds.length>0) {
-            if (gpuIds.length==1 && gpuIds[0]==-1) gpuIds = DockerGateway.parseGPUList(PropertyUtils.get(PropertyUtils.DOCKER_GPU_LIST, "")); // use default GPU
+            if (gpuIds.length==1 && gpuIds[0]==-1) gpuIds = DLEngine.parseGPUList(PropertyUtils.get(PropertyUtils.DOCKER_GPU_LIST, "")); // use default GPU
             DeviceRequest dr = new DeviceRequest().withDriver("nvidia")
                     .withCapabilities(Collections.singletonList(Collections.singletonList("gpu"))).withOptions(Collections.emptyMap())
                     .withDeviceIds(Arrays.stream(gpuIds).boxed().map(s->""+s).collect(Collectors.toList()));

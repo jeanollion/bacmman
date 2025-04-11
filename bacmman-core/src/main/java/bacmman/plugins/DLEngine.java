@@ -1,17 +1,13 @@
 package bacmman.plugins;
 
-import bacmman.configuration.parameters.DLMetadataConfigurable;
-import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
-import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 
 import java.util.Arrays;
-import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
-public interface DLengine extends Plugin, PersistentConfiguration {
+public interface DLEngine extends Plugin, PersistentConfiguration {
     static int getSizeZ(Image[][]... inputNC) {
         ToIntFunction<Image[][]> getZ = iNC -> {
             int[] sizeZ = IntStream.range(0, iNC[0].length).map(c -> ResizeUtils.getSizeZ(iNC, c)).distinct().toArray();
@@ -23,6 +19,12 @@ public interface DLengine extends Plugin, PersistentConfiguration {
         return sizeZ[0];
     }
 
+    static int[] parseGPUList(String gpuList) {
+        if (gpuList==null || gpuList.isEmpty()) return new int[0];
+        String[] split = gpuList.split(",");
+        return Arrays.stream(split).filter(s->!s.isEmpty()).mapToInt(Integer::parseInt).toArray();
+    }
+
     /**
      *
      * @param inputNC
@@ -32,9 +34,10 @@ public interface DLengine extends Plugin, PersistentConfiguration {
     void init();
     int getNumOutputArrays();
     int getNumInputArrays();
-    DLengine setOutputNumber(int outputNumber);
-    DLengine setInputNumber(int outputNumber);
+    DLEngine setOutputNumber(int outputNumber);
+    DLEngine setInputNumber(int outputNumber);
     void close();
+    int[] getGPUs();
 
     enum Z_AXIS {Z, CHANNEL, BATCH}
 }

@@ -553,7 +553,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             //Function<Image, Image> lapF = f->  ImageFeatures.getLaplacian(f, scale[ii], true, false).setName("laplacian: "+scale[ii]);
             Function<Image, Image> lapF = f-> {
                 Image res = ImageDerivatives.getLaplacian(f, ImageDerivatives.getScaleArray(scale[ii], getScale.applyAsDouble(scale[ii]), f), true, true, true, false); // scaling = scale**2 * sqrt(2pi) ImageFeatures.getLaplacian(f, scale[ii], true, false).setName("laplacian: "+scale[ii]);
-                ImageOperations.affineOperation(res, res, Math.sqrt(2 * Math.PI), 0); // legacy scaling to get values with same order of magnitude as when computed with ImageScience
+                ImageOperations.affineOpMulAdd(res, res, Math.sqrt(2 * Math.PI), 0); // legacy scaling to get values with same order of magnitude as when computed with ImageScience
                 return res;
             };
             maps[i+gaussScale.length] = lapPlaneByPlane.getSelected() ? ImageOperations.applyPlaneByPlane(filteredSource, lapF) : lapF.apply(filteredSource); // if too few images laplacian is not relevent in 3D. TODO: put a condition on slice number, and check laplacian values

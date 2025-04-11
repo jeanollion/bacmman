@@ -4,7 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
-import bacmman.plugins.DLengine;
+import bacmman.plugins.DLEngine;
 import bacmman.plugins.Hint;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
+public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(TF2engine.class);
     public final static Logger loaderLog = LoggerFactory.getLogger(org.bytedeco.javacpp.Loader.class);
     @Override
@@ -53,6 +53,12 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     String[] inputNames, outputNames;
     SavedModelBundle model;
     public boolean halfPrecision() {return halfPrecision.getSelected();}
+
+    @Override
+    public int[] getGPUs() {
+        return DLEngine.parseGPUList(Core.getCore().tfVisibleDeviceList);
+    }
+
     @Override
     public synchronized void init() {
         if (model==null) {
@@ -155,7 +161,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
                 break;
             }
             case BATCH: {
-                sizeZ = DLengine.getSizeZ(inputNC);
+                sizeZ = DLEngine.getSizeZ(inputNC);
                 logger.debug("Z to batch: size Z = {}", sizeZ);
                 if (sizeZ>1) {
                     for (int idx = 0; idx < inputNC.length; ++idx) {
@@ -203,7 +209,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
                 if (norm>1) { // average of summed flipped predictions
                     for (int oi = 0; oi<res.length; ++oi) {
                         for (int i = idx; i < idxMax; ++i) {
-                            for (int c = 0; c<res[oi][i].length; ++c) ImageOperations.affineOperation(res[oi][i][c], res[oi][i][c], 1/norm, 0);
+                            for (int c = 0; c<res[oi][i].length; ++c) ImageOperations.affineOpMulAdd(res[oi][i][c], res[oi][i][c], 1/norm, 0);
                         }
                     }
                 }

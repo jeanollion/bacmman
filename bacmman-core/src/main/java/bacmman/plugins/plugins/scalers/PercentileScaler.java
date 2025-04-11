@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
 import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.IntervalParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -58,11 +57,11 @@ public class PercentileScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) image = ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
+        if (isConfigured()) image = ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else { // perform on single image
             double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
             log(scaleOff);
-            image = ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
+            image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }
         if (saturate.getSelected()) {
             ImageOperations.applyFunction(image, v -> Math.max(0, Math.min(1, v)), true);
@@ -72,7 +71,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1/scale, -offset);
+        if (isConfigured()) return ImageOperations.affineOpMulAdd(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1/scale, -offset);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

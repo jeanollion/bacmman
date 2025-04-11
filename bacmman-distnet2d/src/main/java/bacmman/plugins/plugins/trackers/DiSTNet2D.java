@@ -50,7 +50,7 @@ import static bacmman.processing.track_post_processing.Track.getTrack;
 public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2D.class);
     // prediction
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
             .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(8, 8).setDefaultTargetShape(192, 192)
@@ -1667,7 +1667,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             noLinkFW = new Image[n];
         }
 
-        void predict(DLengine engine, Map<Integer, Image> images, int[] allFrames, int[] framesToPredict, int frameInterval) {
+        void predict(DLEngine engine, Map<Integer, Image> images, int[] allFrames, int[] framesToPredict, int frameInterval) {
             init(framesToPredict.length);
             double interval = framesToPredict.length;
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
@@ -1717,7 +1717,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     private PredictionResults predict(Map<Integer, Image> images, int[] sortedFrames, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, Offset offset) {
         long t0 = System.currentTimeMillis();
-        DLengine engine = dlEngine.instantiatePlugin();
+        DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1 = System.currentTimeMillis();
         logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
@@ -1735,11 +1735,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             InterpolatorFactory linInterp = new NLinearInterpolatorFactory();
             resample = e -> e.setValue(Resize.resample(e.getValue(), linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY()));
             resampleDX = e -> {
-                ImageOperations.affineOperation(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeX() / e.getValue().sizeX(), 0);
+                ImageOperations.affineOpMulAdd(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeX() / e.getValue().sizeX(), 0);
                 resample.accept(e);
             };
             resampleDY = e -> {
-                ImageOperations.affineOperation(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeY() / e.getValue().sizeY(), 0);
+                ImageOperations.affineOpMulAdd(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeY() / e.getValue().sizeY(), 0);
                 resample.accept(e);
             };
         } else {
