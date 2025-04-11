@@ -1408,6 +1408,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
             logger.warn("no xp found in dataset {} @ {}", dbName, workingDirectory);
             closeDataset();
+            populateDatasetTree(); // refresh dataset list in case dataset has been renamed
             return;
         }
         if (!readOnly) { // locks all positions
