@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -58,13 +59,16 @@ public class LargeFileGist {
             throw e;
         }
     }
+
     public LargeFileGist(JSONObject gist, UserAuth auth) throws IOException {
         setGistData(gist, auth);
     }
+
     public String getFileName() {
         if (fullFileName.endsWith(".zip")) return fullFileName.substring(0, fullFileName.length()-4);
         else return fullFileName;
     }
+
     public static List<File> downloadGist(String id, String dir) throws IOException {
         Map<String, String> files = downloadGist(id);
         List<File> res = new ArrayList<>(files.size());
@@ -77,6 +81,7 @@ public class LargeFileGist {
         }
         return res;
     }
+
     public static Map<String, String> downloadGist(String id) throws IOException {
         if (id.startsWith(GIST_BASE_URL)) id=id.replace(GIST_BASE_URL, "");
         String response = new JSONQuery(BASE_URL + "/gists/" + id).method(JSONQuery.METHOD.GET).fetch();
@@ -104,6 +109,7 @@ public class LargeFileGist {
         } else throw new IOException("GIST not found");
         return res;
     }
+
     protected void setGistData(JSONObject gist, UserAuth auth) throws IOException {
         description = (String)gist.get("description");
         id = (String)gist.get("id");
@@ -125,7 +131,7 @@ public class LargeFileGist {
                 try {
                     masterFileJSON = JSONUtils.parse(masterFileContent);
                 } catch (ParseException e) {
-                    logger.error("Error parsing masterfileContent @setFistData. Error: {} response: {}", e, masterFileContent);
+                    logger.error("Error parsing masterfile Content @setFistData. Error: {} response: {}", e, masterFileContent);
                     throw new IOException(e);
                 }
                 nChunks = ((Number) masterFileJSON.get("n_chunks")).intValue();
@@ -172,6 +178,7 @@ public class LargeFileGist {
             checksum_md5 = IntStream.range(0, sortedChunkNames.size()).boxed().collect(Collectors.toMap(sortedChunkNames::get, i -> Base64.getDecoder().decode((String) md5.get(i))));
         }
     }
+
     public double getSizeMb() {
         return sizeMb;
     }
@@ -210,7 +217,7 @@ public class LargeFileGist {
     }
 
     public File retrieveFile(File outputFile, boolean background, boolean unzipIfPossible, UserAuth auth, Consumer<File> callback, ProgressLogger pcb) throws IOException {
-        assert outputFile!=null;
+        if (outputFile == null) throw new RuntimeException("OutputFile cannot be null");
         boolean willUnzip = unzipIfPossible && ( wasZipped || (fullFileName.endsWith(".zip") && !outputFile.getName().endsWith(".zip")) );
         File actualOutputFile = outputFile.isDirectory()? new File(outputFile, willUnzip? (fullFileName.endsWith(".zip") ? fullFileName.substring(0, fullFileName.length()-4) : fullFileName) : fullFileName) : outputFile;
         File targetFile = willUnzip ? new File(actualOutputFile.getParentFile(), actualOutputFile.getName()+".zip") : (wasZipped ? new File(outputFile, fullFileName+".zip") : actualOutputFile);
@@ -249,6 +256,72 @@ public class LargeFileGist {
         return actualOutputFile;
     }
 
+    public String retrieveString(UserAuth auth, ProgressLogger pcb) throws IOException {
+        String[] result = new String[1];
+        retrieveString(s -> result[0] = s, false, auth, pcb);
+        return result[0];
+    }
+
+    public void retrieveStringBackground(Consumer<String> getResult, UserAuth auth, ProgressLogger pcb) throws IOException {
+        retrieveString(getResult, true, auth, pcb);
+    }
+
+    protected void retrieveString(Consumer<String> getResult, boolean background, UserAuth auth, ProgressLogger pcb) throws IOException {
+        boolean willUnzip =  wasZipped || (fullFileName.endsWith(".zip") );
+        PipedOutputStream outputStream = new PipedOutputStream();
+        List<String> chunkNames = new ArrayList<>(this.chunksURL.keySet());
+        Runnable callback = () -> {
+            try {
+                PipedInputStream inputStream = new PipedInputStream(outputStream);
+                outputStream.close();
+                if (willUnzip) {
+                    PipedOutputStream unzippedOutputStream = new PipedOutputStream();
+                    PipedInputStream unzippedInputStream = new PipedInputStream(unzippedOutputStream);
+                    ZipUtils.unzipStream(inputStream, unzippedOutputStream);
+                    unzippedOutputStream.close();
+                    getResult.accept(toString(unzippedInputStream));
+                } else {
+                    getResult.accept(toString(inputStream));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+
+        DefaultWorker.WorkerTask task = i -> {
+            byte[] chunk = null;
+            try {
+                chunk = retrieveChunk(chunkNames.get(i), auth);
+            } catch(ChecksumException e) {
+                // try to retrieve a second time
+                logger.debug("checksum error, will try to retrieve a second time");
+                chunk = retrieveChunk(chunkNames.get(i), auth);
+            }
+            outputStream.write(chunk, 0, chunk.length);
+            return null; //String.format("%.2f", chunk.length/(1024d*1024d))+"MB retrieved and written to "+actualOutputFile.getName();
+        };
+        try {
+            if (background) DefaultWorker.execute(task, chunkNames.size(), pcb).appendEndOfWork(callback);
+            else {
+                DefaultWorker.executeInForeground(task, chunkNames.size());
+                callback.run();
+            }
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof IOException) throw (IOException) e.getCause();
+            else throw e;
+        }
+    }
+
+    protected static String toString(InputStream inputStream) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder();
+        int data;
+        while ((data = inputStream.read()) != -1) {
+            stringBuilder.append((char) data);
+        }
+        inputStream.close();
+        return stringBuilder.toString();
+    }
+
     public static List<String> getMD5(Collection<byte[]> chunks) {
          try {
              MessageDigest md = MessageDigest.getInstance(MD5);
@@ -258,11 +331,13 @@ public class LargeFileGist {
             return null;
         }
     }
+
     public static boolean checkSum(byte[] data, byte[] checksumMD5) throws NoSuchAlgorithmException {
         MessageDigest md = MessageDigest.getInstance(MD5);
         byte[] dataCS =  md.digest(data);
         return Arrays.equals(dataCS, checksumMD5);
     }
+
     public static Pair<String, DefaultWorker> storeFile(File file, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
         if (file==null || !file.exists()) return null;
         InputStream is;
@@ -272,6 +347,15 @@ public class LargeFileGist {
             is = ZipUtils.zipFile(file).getInputStream();
             wasZipped = true;
         } else is = new FileInputStream(file);
+        return storeInputStream(is, file.getName(), wasZipped, visible, description, fileType, auth, background, callback, pcb);
+    }
+
+    public static Pair<String, DefaultWorker> storeString(String name, String content, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
+        InputStream is = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        return storeInputStream(is, name, false, visible, description, fileType, auth, background, callback, pcb);
+    }
+
+    public static Pair<String, DefaultWorker> storeInputStream(InputStream is, String fileName, boolean wasZipped, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
         Map<String, byte[]> chunks = nameChunks(splitFile(is, MAX_CHUNK_SIZE_MB));
         if (chunks==null) return null;
         List<String> md5 = getMD5(chunks.values());
@@ -283,13 +367,13 @@ public class LargeFileGist {
         Function<Integer, String> getFileId = idx -> fileIds.get(idx/ MAX_CHUNKS_PER_SUBFILE);
         Function<Integer, String> getGistURL = idx -> BASE_URL + "/gists/" + getFileId.apply(idx);
         if (nSubFiles>1) {
-            for (int i = 1; i<nSubFiles; ++i) fileIds.add(storeSubFile(file.getName(), i, md5, visible, description, auth));
+            for (int i = 1; i<nSubFiles; ++i) fileIds.add(storeSubFile(fileName, i, md5, visible, description, auth));
             jsonContent.put("sub_file_ids", new ArrayList<>(fileIds));
             logger.debug("subfile ids: {}", fileIds);
         }
         double size = chunks.values().stream().mapToLong(b -> b.length).sum()/((double)1024*1024);
         jsonContent.put("chunk_size", chunks.values().iterator().next().length);
-        jsonContent.put("file_name", file.getName());
+        jsonContent.put("file_name", fileName);
         jsonContent.put("size_mb",  size);
         jsonContent.put("n_chunks", chunks.size());
         jsonContent.put("n_chunks_per_subfile", MAX_CHUNKS_PER_SUBFILE);
@@ -298,7 +382,7 @@ public class LargeFileGist {
         jsonContent.put("was_zipped", wasZipped);
         JSONObject files = new JSONObject();
         JSONObject contentFile = new JSONObject();
-        files.put("_"+Utils.removeExtension(file.getName())+"_master_file.json", contentFile); // leading underscore so it appears before chunks
+        files.put("_"+Utils.removeExtension(fileName)+"_master_file.json", contentFile); // leading underscore so it appears before chunks
         contentFile.put("content", jsonContent.toJSONString());
         JSONObject gist = new JSONObject();
         gist.put("files", files);
@@ -334,6 +418,7 @@ public class LargeFileGist {
             }
         } else return null;
     }
+
     protected static String storeSubFile(String name, int idx, List<String> md5, boolean visible, String description, UserAuth auth) throws IOException {
         JSONObject jsonContent = new JSONObject();
         jsonContent.put("n_chunks", md5.size());
@@ -358,6 +443,7 @@ public class LargeFileGist {
         }
         return (String) json.get("id");
     }
+
     public static boolean chunkUploaded(String id, String chunkName, UserAuth auth) {
         try {
             LargeFileGist lf = new LargeFileGist(id, auth);
@@ -373,6 +459,7 @@ public class LargeFileGist {
         String content = JSONQuery.encodeJSONBase64(name, bytes); // null will set empty content -> remove the file
         return storeTryout(gist_url, content, auth, chunkStored, JSONQuery.MAX_TRYOUTS, JSONQuery.TRYOUT_SLEEP);
     }
+
     protected static boolean storeInnerFile(String gistURL, String fileName, JSONObject fileContent, UserAuth auth) throws IOException {
         JSONObject files = new JSONObject();
         JSONObject contentFile = new JSONObject();
@@ -382,6 +469,7 @@ public class LargeFileGist {
         gist.put("files", files);
         return storeTryout(gistURL, gist.toJSONString(), auth, ()->false, JSONQuery.MAX_TRYOUTS, JSONQuery.TRYOUT_SLEEP);
     }
+
     protected static boolean storeTryout(String gist_url, String content, UserAuth auth, BooleanSupplier isStored, int remainingTryouts, int sleep) throws IOException {
         JSONQuery q = new JSONQuery(gist_url, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
         try {
@@ -412,6 +500,7 @@ public class LargeFileGist {
         inputStream.close();
         return datalist;
     }
+
     public static List<byte[]> splitFile(File inputFile, double sizeOfChunksInMB) throws IOException {
         return splitFile(new FileInputStream(inputFile), sizeOfChunksInMB);
     }

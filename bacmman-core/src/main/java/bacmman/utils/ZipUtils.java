@@ -99,6 +99,22 @@ public class ZipUtils {
         zis.close();
     }
 
+    public static void unzipStream(InputStream source, OutputStream destination) throws IOException {
+        byte[] buffer = new byte[1024];
+        ZipInputStream zis = new ZipInputStream(source);
+        ZipEntry zipEntry = zis.getNextEntry();
+        while (zipEntry != null) {
+            int len;
+            while ((len = zis.read(buffer)) > 0) {
+                destination.write(buffer, 0, len);
+            }
+            destination.close();
+            zipEntry = zis.getNextEntry();
+        }
+        zis.closeEntry();
+        zis.close();
+    }
+
     protected static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
         File destFile = new File(destinationDir, zipEntry.getName());
         String destDirPath = destinationDir.getCanonicalPath();
