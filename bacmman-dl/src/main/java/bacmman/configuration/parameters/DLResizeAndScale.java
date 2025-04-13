@@ -114,11 +114,25 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         return this;
     }
     public DLResizeAndScale setMinInputNumber(int min) {
+        if (min < 0 ) throw new IllegalArgumentException("min input number must be >=0");
         inputInterpAndScaling.setUnmutableIndex(min-1);
         if (inputInterpAndScaling.getChildCount()<min) inputInterpAndScaling.setChildrenNumber(min);
         inputScaling.setUnmutableIndex(min-1);
         if (inputScaling.getChildCount()<min) inputScaling.setChildrenNumber(min);
         return this;
+    }
+
+    public DLResizeAndScale setInputNumber(int n) {
+        if (inputInterpAndScaling.getMaxChildCount() > 0 && inputInterpAndScaling.getMaxChildCount() < n ) setMaxInputNumber(n);
+        if (inputInterpAndScaling.getUnMutableIndex() >= n - 1) setMinInputNumber(n);
+        inputInterpAndScaling.setChildrenNumber(n);
+        inputScaling.setChildrenNumber(n);
+        return this;
+    }
+
+    public int getInputNumber() {
+        if (getMode().equals(MODE.RESAMPLE)) return inputInterpAndScaling.getChildCount();
+        else return inputScaling.getChildCount();
     }
 
     public DLResizeAndScale setMaxInputNumber(int max) {

@@ -28,22 +28,29 @@ import java.util.stream.IntStream;
 
 public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
-    protected ObjectClassParameter channels = new ObjectClassParameter("Channels", -1, true, true).setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
+    protected ObjectClassParameter channels = new ObjectClassParameter("Channels", -1, true, true)
+            .setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
     protected BoundedNumberParameter classNumber = new BoundedNumberParameter("Class number", 0, -1, 0, null).setHint("Number of predicted classes");
     ConditionalParameter<Boolean> probaCond = new ConditionalParameter<>(proba).setActionParameters(true, classNumber);
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", true, true, false)
-            .setMaxInputNumber(2).setMinInputNumber(2).setMaxOutputNumber(1).setMinOutputNumber(1).setOutputNumber(1)
+            .setMinInputNumber(2).setMaxOutputNumber(1).setMinOutputNumber(1).setOutputNumber(1)
             .setMode(DLResizeAndScale.MODE.PAD).setDefaultContraction(16, 16);
     BooleanParameter eraseTouchingContours = new BooleanParameter("Erase Touching Contours", false).setHint("If true, draws a black line to split touching objects");
 
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix for measurement names");
     enum STAT {MEAN, MEDIAN}
     EnumChoiceParameter<STAT> stat =  new EnumChoiceParameter<>("Quantification", STAT.values(), STAT.MEDIAN).setHint("Operation to reduce estimated probability in each segmented object");
+
+    public DLObjectClassifier() {
+        channels.addValidationFunction(chs -> dlResizeAndScale.getInputNumber() == chs.getSelectedIndices().length + 1);
+        dlResizeAndScale.addInputNumberValidation( () -> channels.getSelectedIndices().length + 1 );
+    }
+
     @Override
     public String getHintText() {
-        return "Runs a DL model fed with one or several channels as well as the EDM of segmented objects; it predicts a category for each objet";
+        return "Runs a DL model fed with EDM of segmented objects as well as one or several channels as well (in this order, one input for EDM and one input for each channel) ; it predicts a category for each objet";
     }
 
     @Override
@@ -84,19 +91,17 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
             }
             return res;
         };
-        Image[][] edm = Utils.parallel(parentMapChildren.keySet().stream(), parallel)
-                .map(createPop::apply)
-                .map(op -> op.getEDM(true))
-                .map(i -> new Image[]{i})
-                .toArray(Image[][]::new);
         int[] channels = this.channels.getSelectedIndices().length==0 ? this.objects.getSelectedIndices() : this.channels.getSelectedIndices();
-        Image[][] chanImages = parentMapChildren.keySet().stream()
-                .map(p -> IntStream.of(channels).mapToObj(p::getRawImage).toArray(Image[]::new))
-                .toArray(Image[][]::new);
+        Image[][][] chans = IntStream.concat(IntStream.of(-1), IntStream.of(channels))
+                .mapToObj(i -> parentMapChildren.keySet().stream()
+                .map(p->i>=0 ? p.getRawImage(i) : createPop.apply(p).getEDM(true))
+                .map(im -> new Image[]{im})// per channel per object
+                .toArray(Image[][]::new)) // per channel
+                .toArray(Image[][][]::new);
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         //dlResizeAndScale.setScaleLogger(Core::userLog);
-        Image[][] predNC = dlResizeAndScale.predict(engine, chanImages, edm)[0];
+        Image[][] predNC = dlResizeAndScale.predict(engine, chans)[0];
         boolean allProba = this.proba.getSelected();
         if (allProba && predNC[0].length!=classNumber.getIntValue()) throw new RuntimeException("ClassNumber parameter differs from number of predicted classes: "+predNC[0].length);
         BiFunction<Region, Image[], double[]> reduction;
