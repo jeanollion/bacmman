@@ -74,7 +74,10 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
     PluginParameter<Thresholder> intensityThreshold = new PluginParameter<>("Seed Threshold", Thresholder.class, new BackgroundThresholder(3, 3, 2), false).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide the parent object class (e.g. bacteria), the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
 
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normCond, radii, smoothScale, localMaxMode, maxLocalRadius, typicalSigma, sigmaRange, minOverlap};
+    enum QUALITY {sqGR, sqIR, GR, IR, G, I}
+    EnumChoiceParameter<QUALITY> quality = new EnumChoiceParameter<>("Quality Formula", QUALITY.values(), QUALITY.IR).setLegacyInitializationValue(QUALITY.sqGR).setHint("G = gaussian value at center, I = fit Intensity (amplitude of fitted  gaussian), R = radial symetry transform value at center, sq = square root. e.g.: sqIR = sqrt(I x R)");
+
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normCond, radii, smoothScale, localMaxMode, maxLocalRadius, typicalSigma, sigmaRange, minOverlap, quality};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
@@ -223,7 +226,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         if (stores!=null) {
             ImageOperations.fill(seedMap, 0, null);
             seeds.forEach(p -> seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1));
-            stores.get(parent).addIntermediateImage("Seeds", seedMap);
+            //stores.get(parent).addIntermediateImage("Seeds", seedMap);
             stores.get(parent).addIntermediateImage("Gaussian", smooth);
             stores.get(parent).addIntermediateImage("RadialSymmetryTransform", radSym);
         }
@@ -243,14 +246,14 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             List<Image> radSymPlanes = radSym.splitZPlanes();
             IntStream.range(0, fitImagePlanes.size()).forEachOrdered(z -> {
                 List<Point> seedsZ = seeds.stream().filter(p -> p.get(2)==z).collect(Collectors.toList());
-                List<Spot> segmentedSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
+                List<Spot> segmentedSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
                 removeSpotsFarFromSeeds.accept(segmentedSpotsZ, seedsZ);
                 segmentedSpots.addAll(segmentedSpotsZ);
             });
             segmentedSpots.forEach(s->s.setIs2D(false));
         } else {
             //logger.debug("gaussian fit...");
-            segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
+            segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
             //logger.debug("gaussian fit done.");
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
@@ -291,7 +294,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             }
         }
     }
-    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma, double typicalSigmaZ, boolean parallel) {
+    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma, double typicalSigmaZ, QUALITY formula, boolean parallel) {
         if (seedsToSpots.isEmpty()) return Collections.emptyList();
         Offset off = !fitImage.sameDimensions(radSym) ? new SimpleOffset(radSym).translate(fitImage.getBoundingBox().reverseOffset()) : null;
         if (off!=null) allSeeds.forEach(p->p.translate(off)); // translate point to fitImages bounds
@@ -317,8 +320,32 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         for (Spot o : res) { // quality criterion : sqrt (smooth * radSym)
             Point center = bounds.contains(o.getCenter()) ? o.getCenter() : o.getCenter().duplicate().ensureWithinBounds(bounds);
             double zz = center.numDimensions()>2?center.get(2):0;
-            o.setQuality(Math.sqrt(radSym.getPixel(center.get(0), center.get(1), zz) * o.getIntensity()));
-            //o.setQuality(Math.sqrt(radSym.getPixel(center.get(0), center.get(1), zz) * smoothedIntensity.getPixel(center.get(0), center.get(1), zz)));
+            double R = radSym.getPixel(center.get(0), center.get(1), zz);
+            double I = o.getIntensity();
+            double G = smoothedIntensity.getPixel(center.get(0), center.get(1), zz);
+            double Q;
+            switch (formula) {
+                case I:
+                    Q = I;
+                    break;
+                case G:
+                    Q = G;
+                    break;
+                case IR:
+                    Q = I * R;
+                    break;
+                case GR:
+                    Q = G * R;
+                    break;
+                case sqGR:
+                    Q = Math.sqrt(I * R);
+                    break;
+                case sqIR:
+                default:
+                    Q = Math.sqrt(G * R);
+                    break;
+            }
+            o.setQuality(Q);
         }
         return res;
     }
@@ -353,13 +380,13 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                 .collect(Collectors.toList());
 
         allObjects.addAll(seedObjects);
-        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), parallel);
+        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
             for (Point p : seedObjects) seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1);
-            Core.showImage(seedMap);
+            //Core.showImage(seedMap);
             Core.showImage(radialSymmetryMap.setName("Radial Symmetry (watershedMap). "));
             Core.showImage(smooth.setName("Smoothed Scale: "+smoothScale.getValue().doubleValue()));
         }
