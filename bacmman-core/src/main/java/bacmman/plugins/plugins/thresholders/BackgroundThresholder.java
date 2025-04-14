@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.thresholders;
 
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BlankMask;
 import bacmman.image.Histogram;
@@ -30,6 +27,8 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.*;
 import bacmman.utils.DoubleStatistics;
+
+import java.util.function.DoublePredicate;
 
 /**
  * Adapted from Implementation of Kappa Sigma Clipping algorithm by Gaëtan Lehmann, http://www.insight-journal.org/browse/publication/132. 
@@ -47,7 +46,8 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     NumberParameter finalSigmaFactor = new BoundedNumberParameter("Final Sigma factor", 2, 4, 0.01, null).setHint("Sigma factor for last threshold computation");
     NumberParameter iterations = new BoundedNumberParameter("Iteration number", 0, 2, 1, null);
     PluginParameter<SimpleThresholder> startingPoint = new PluginParameter<>("Starting value", SimpleThresholder.class, true).setHint("This value limits the threshold computed at first iteration. Use this parameter when the image contains pixel with high values");
-    Parameter[] parameters = new Parameter[]{sigmaFactor, finalSigmaFactor, iterations, startingPoint};
+    BooleanParameter symmetrical = new BooleanParameter("Symmetrical", false).setHint("If true, also remove values lower that mean - f x sigma");
+    Parameter[] parameters = new Parameter[]{sigmaFactor, finalSigmaFactor, iterations, startingPoint, symmetrical};
 
     public static String simpleHint = "This algorithm estimates the mean (µ) and standard deviation (σ) of the background pixel intensity, and use these two parameters to select the pixels significantly different from the background"
             +"<br />This method works only on images in which most pixels are background pixels"
@@ -80,6 +80,9 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     public int getIterations() {
         return iterations.getIntValue();
     }
+    public boolean symmetrical() {
+        return symmetrical.getSelected();
+    }
 
     @Override
     public double runThresholderHisto(Histogram histogram) {
@@ -89,7 +92,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
                 firstValue = ((ThresholderHisto)startingPoint.instantiatePlugin()).runThresholderHisto(histogram);
             } else throw new IllegalArgumentException("Starting point should be a thresholder histo");
         }
-        return runThresholder(histogram, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, null);
+        return runThresholder(histogram, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, symmetrical.getValue(), null);
     }
     @Override 
     public double runSimpleThresholder(Image input, ImageMask mask) {
@@ -97,23 +100,26 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
         if (this.startingPoint.isOnePluginSet()) {
             firstValue = startingPoint.instantiatePlugin().runSimpleThresholder(input, mask);
         }
-        return runThresholder(input, mask, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, null);
+        return runThresholder(input, mask, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, symmetrical.getValue(), null);
         
     }
 
     // slower, more precise
-    public static double runThresholder(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue) {
-        return runThresholder(input,mask, sigmaFactor, lastSigmaFactor, iterations, firstValue, null);
+    public static double runThresholder(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, boolean symmetrical) {
+        return runThresholder(input,mask, sigmaFactor, lastSigmaFactor, iterations, firstValue, symmetrical, null);
     }
-    public static double runThresholder(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, double[] meanSigma) {
+
+    public static double runThresholder(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, boolean symmetrical, double[] meanSigma) {
         if (meanSigma!=null && meanSigma.length<2) throw new IllegalArgumentException("Argument Mean Sigma should be null or of size 2 to receive mean and sigma values");
         if (mask==null) mask = new BlankMask(input);
         if (firstValue==Double.NaN) firstValue = Double.MAX_VALUE;
         double lastThreshold = firstValue;
+        double lastThresholdNeg = Double.NEGATIVE_INFINITY;
         if (iterations<=0) iterations=1;
         for (int i = 0; i<iterations; i++) {
             double thld = lastThreshold;
-            DoubleStatistics stats = DoubleStatistics.getStats(input.stream(mask, true).filter(d->d<thld));
+            double thldNeg = lastThresholdNeg;
+            DoubleStatistics stats = DoubleStatistics.getStats(input.stream(mask, true).filter(symmetrical ? d->d<thld & d>thldNeg : d->d<thld));
             double mean = stats.getAverage();
             double sigma = stats.getStandardDeviation();
             if (meanSigma!=null) {
@@ -123,26 +129,31 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
             }
             
             double newThreshold = i==iterations-1 ? mean + lastSigmaFactor * sigma : mean + sigmaFactor * sigma;
+            double newThresholdNeg = i==iterations-1 ? mean - lastSigmaFactor * sigma : mean - sigmaFactor * sigma;
             if (Double.isFinite(firstValue)) newThreshold = Math.min(firstValue, newThreshold);
             if (debug) logger.debug("Kappa Sigma Thresholder: Iteration:"+ i+" Mean Background Value: "+mean+ " Sigma: "+sigma+ " threshold: "+newThreshold);
             if (newThreshold == lastThreshold) return lastThreshold;
-            else lastThreshold = newThreshold;
+            else {
+                lastThreshold = newThreshold;
+                lastThresholdNeg = newThresholdNeg;
+            }
         }
         if (debug) logger.debug("background thlder: {} ms: {}, first value: {}", Math.min(firstValue, lastThreshold), meanSigma, firstValue);
         return Math.min(firstValue, lastThreshold);
     }
     
-    public static double runThresholderHisto(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, double[] meanSigma) {
+    public static double runThresholderHisto(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, boolean symmetrical, double[] meanSigma) {
         Histogram histo = HistogramFactory.getHistogram(() -> input.stream(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
-        return BackgroundThresholder.runThresholder(histo, sigmaFactor, lastSigmaFactor, iterations, firstValue, meanSigma);
+        return BackgroundThresholder.runThresholder(histo, sigmaFactor, lastSigmaFactor, iterations, firstValue, symmetrical, meanSigma);
     }
     
-    public static double runThresholder(Histogram histo, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, double[] meanSigma) {
+    public static double runThresholder(Histogram histo, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, boolean symmetrical, double[] meanSigma) {
         if (meanSigma!=null && meanSigma.length<2) throw new IllegalArgumentException("Argument Mean Sigma should be null or of size 2 to receive mean and sigma values");
         int firstIdx =  Double.isInfinite(firstValue)||firstValue==Double.MAX_VALUE ? histo.getData().length-1 : (int)histo.getIdxFromValue(firstValue);
         if (firstIdx>histo.getData().length-1) firstIdx=histo.getData().length-1;
         double binInc = 0.245; // empirical correction !
         double lastThreshold = firstIdx;
+        double lastThresholdNeg = 0;
         double mean=0, sigma=0;
         double count=0;
         long[] data = histo.getData();
@@ -151,7 +162,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
             count=0;
             sigma=0;
             mean=0;
-            for (int idx = 0; idx<lastThreshold; idx++) {
+            for (int idx = symmetrical ? (int)Math.ceil(lastThresholdNeg) : 0; idx<lastThreshold; idx++) {
                 mean+=(idx+binInc)*data[idx];
                 count+=data[idx];
             }
@@ -161,7 +172,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
             count+=lastBinCount;
             if (count>0) {
                 mean = mean/count;
-                for (int idx = 0; idx<lastThreshold; idx++) sigma+=Math.pow(mean-(idx+binInc), 2)*data[idx];
+                for (int idx = symmetrical ? (int)Math.ceil(lastThresholdNeg) : 0; idx<lastThreshold; idx++) sigma+=Math.pow(mean-(idx+binInc), 2)*data[idx];
                 sigma+= Math.pow(mean-((int)lastThreshold+binInc), 2)*lastBinCount;
                 sigma= Math.sqrt(sigma/count);
                 if (meanSigma!=null) {
@@ -170,10 +181,14 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
                 }
             }
             double newThreshold = i==iterations-1 ? (mean + lastSigmaFactor * sigma) : (mean + sigmaFactor * sigma);
+            double newThresholdNeg = i==iterations-1 ? (mean - lastSigmaFactor * sigma) : (mean - sigmaFactor * sigma);
             newThreshold = Math.min(firstIdx, newThreshold);
             if (debug) logger.debug("Kappa Sigma Thresholder HISTO: Iteration: {}, Mean : {}, Sigma : {}, thld: {}, lastBinCount: {} (full bin: {}, delta: {})", i, histo.getValueFromIdx(mean),sigma*histo.getBinSize(),histo.getValueFromIdx(newThreshold), lastBinCount, lastThreshold>0? data[(int)lastThreshold] : "invalidIDX", (lastThreshold-(int)lastThreshold));
             if (newThreshold == lastThreshold) break;
-            else lastThreshold = newThreshold;
+            else {
+                lastThreshold = newThreshold;
+                lastThresholdNeg = newThresholdNeg;
+            }
         }
         if (debug) logger.debug("background thlder HISTO: {}, first idx: {}", histo.getValueFromIdx(Math.min(firstIdx, lastThreshold)), firstIdx);
         return histo.getValueFromIdx(Math.min(firstIdx, lastThreshold));

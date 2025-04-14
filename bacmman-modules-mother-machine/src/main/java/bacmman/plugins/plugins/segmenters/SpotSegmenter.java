@@ -185,7 +185,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
                 if (thlder instanceof BackgroundThresholder) {
                     ms = new double[2];
                     BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
-                    thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, ms);
+                    thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, bthlder.symmetrical(), ms);
                 } else if (thlder != null) {
                     double t = thlder.runSimpleThresholder(input, mask);
                     ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=t);
