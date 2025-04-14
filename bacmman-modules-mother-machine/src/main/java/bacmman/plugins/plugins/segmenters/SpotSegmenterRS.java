@@ -137,7 +137,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                     if (thlder instanceof BackgroundThresholder) {
                         ms = new double[2];
                         BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
-                        double thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, ms);
+                        BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, bthlder.symmetrical(), ms);
                     } else if (thlder != null) {
                         double thld = thlder.runSimpleThresholder(input, mask);
                         ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=thld);
@@ -414,6 +414,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);
         return maps;
     }
+
     private double getScale(int structureIdx, List<SegmentedObject> parentTrack) {
         switch (normMode.getSelectedEnum()) {
             case NO_NORMALIZATION:
@@ -427,9 +428,21 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                 int segmentationParentIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
                 int parentIdx = parentTrack.get(0).getStructureIdx();
                 Stream<SegmentedObject> allParents = parentIdx==segmentationParentIdx ? parentTrack.stream() : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segmentationParentIdx);
+                SimpleThresholder thlder = normThresholder.instantiatePlugin();
                 return ArrayUtil.median(allParents.parallel().mapToDouble(p -> {
-                    double[] ms = new double[3];
-                    BackgroundThresholder.runThresholder(p.getParent(parentIdx).getPreFilteredImage(structureIdx), p.getMask(), 2, 2, 3, Double.MAX_VALUE, ms);
+                    Image input = p.getParent(parentIdx).getPreFilteredImage(structureIdx);
+                    ImageMask mask = p.getMask();
+                    double[] ms;
+                    if (thlder instanceof BackgroundThresholder) {
+                        ms = new double[2];
+                        BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
+                        double thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, bthlder.symmetrical(), ms);
+                    } else if (thlder != null) {
+                        double thld = thlder.runSimpleThresholder(input, mask);
+                        ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=thld);
+                    } else {
+                        ms = ImageOperations.getMeanAndSigma(input, mask, null);
+                    }
                     return ms[1];
                 }).toArray());
             }
