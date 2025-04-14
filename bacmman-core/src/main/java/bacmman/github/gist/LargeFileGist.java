@@ -167,6 +167,21 @@ public class LargeFileGist {
                 if (masterFileJSON.get("checksum_md5") != null) {
                     retrieveMD5((JSONArray) masterFileJSON.get("checksum_md5"));
                 }
+            } else { // only one file not chunked
+                if (allFiles.size() != 1) throw  new IOException("Invalid LargeFileGist");
+                if (chunksURL.isEmpty()) {
+                    JSONObject file = (JSONObject)allFiles.get(0);
+                    chunksURL.put((String)file.get("filename"), (String)file.get("raw_url"));
+                }
+                nChunks = 1;
+                nChunksPerSubFile = 1;
+                chunkSize = (int)(1024*1024*MAX_CHUNK_SIZE_MB);
+                sizeMb = chunkSize; // max size
+                fullFileName = chunksURL.keySet().iterator().next();
+                fileType = fullFileName.contains(".") ? fullFileName.substring(fullFileName.indexOf(".")) : "";
+                wasZipped = false;
+                subFileIds = Collections.emptyList();
+                ensureChunkRetrieved = id -> {};
             }
 
         }
@@ -351,8 +366,31 @@ public class LargeFileGist {
     }
 
     public static Pair<String, DefaultWorker> storeString(String name, String content, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
-        InputStream is = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-        return storeInputStream(is, name, false, visible, description, fileType, auth, background, callback, pcb);
+        int sizeOfChunk = (int) (1024 * 1024 * MAX_CHUNK_SIZE_MB);
+        if (content.length() < sizeOfChunk) { // store string as single file
+            JSONObject contentFile = new JSONObject();
+            contentFile.put("content", content);
+            JSONObject files = new JSONObject();
+            files.put(name, contentFile);
+            JSONObject gist = new JSONObject();
+            gist.put("files", files);
+            gist.put("description", description);
+            gist.put("public", visible);
+            String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
+            JSONObject json = null;
+            try {
+                json = JSONUtils.parse(res);
+                String id = (String) json.get("id");
+                if (callback != null) callback.accept(id);
+                return new Pair<>(id, null);
+            } catch (ParseException e) {
+                logger.error("Error parsing response @LargeFileGist store file. Error: {} response: {}", e, res);
+                throw new IOException(e);
+            }
+        } else {
+            InputStream is = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+            return storeInputStream(is, name, false, visible, description, fileType, auth, background, callback, pcb);
+        }
     }
 
     public static Pair<String, DefaultWorker> storeInputStream(InputStream is, String fileName, boolean wasZipped, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
@@ -416,7 +454,7 @@ public class LargeFileGist {
                 if (callback!=null) callback.accept(fileIds.get(0));
                 return new Pair<>(fileIds.get(0), null);
             }
-        } else return null;
+        } else throw new IOException("Error storing LargeFileGist");
     }
 
     protected static String storeSubFile(String name, int idx, List<String> md5, boolean visible, String description, UserAuth auth) throws IOException {
