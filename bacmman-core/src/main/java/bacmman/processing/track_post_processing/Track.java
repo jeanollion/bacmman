@@ -131,6 +131,7 @@ public class Track implements Comparable<Track> {
         for (Track t : next) if (tree.containsKey(t.head())) return true;
         return false;
     }
+
     public Track addNext(Track next) {
         if (next==null) return this;
         if (next.getFirstFrame()<=getLastFrame()) throw new IllegalArgumentException("Error adding next track: "+head()+" -> "+getLastFrame()+" <= "+next.head() );
@@ -138,6 +139,7 @@ public class Track implements Comparable<Track> {
         if (this.next.size()>1) if (!Utils.objectsAllHaveSameProperty(this.next, Track::getFirstFrame)) throw new RuntimeException("Error adding next all first frames should be equal");
         return this;
     }
+
     public Track addPrevious(Track prev) {
         if (prev==null) return this;
         if (prev.getLastFrame()>=getFirstFrame()) throw new IllegalArgumentException("Error adding previous track: "+prev.head()+"->"+prev.getLastFrame()+" >= "+head() );
@@ -145,6 +147,19 @@ public class Track implements Comparable<Track> {
         if (previous.size()>1) if (! Utils.objectsAllHaveSameProperty(previous, Track::getLastFrame)) throw new IllegalArgumentException("Error adding prev all last frames should be equal");
         return this;
     }
+
+    public boolean removeNext(Track next) {
+        boolean remove = this.next.remove(next);
+        if (remove) next.removePrev(this);
+        return remove;
+    }
+
+    public boolean removePrev(Track prev) {
+        boolean remove = this.previous.remove(prev);
+        if (remove) prev.removeNext(this);
+        return remove;
+    }
+
     public Track duplicate() {
         Track dup = new Track(this.objects);
         dup.next.addAll(next);
