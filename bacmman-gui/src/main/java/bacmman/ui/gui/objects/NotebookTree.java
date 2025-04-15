@@ -163,7 +163,7 @@ public class NotebookTree {
 
     public File getFirstSelectedFolderOrNotebookFile() {
         TreePath[] sel = tree.getSelectionPaths();
-        if (sel==null || sel.length==0) return null;
+        if (sel==null || sel.length==0) return getRoot().file;
         TreePath p = sel[0];
         NotebookTreeNode n = (NotebookTreeNode)p.getLastPathComponent();
         return n.file;
@@ -299,8 +299,8 @@ public class NotebookTree {
 
     public void removeEmptyFolders(boolean updateUI) {
         getExistingNodes().stream()
-                .filter(n->n.isFolder && n.childrenCreated() && n.getChildCount()==0 && !n.equals(getRoot()))
-                .forEach(treeModel::removeNodeFromParent);
+            .filter(n->n.isFolder && n.getChildCount()==0 && !n.equals(getRoot()))
+            .forEach(treeModel::removeNodeFromParent);
         if (updateUI) tree.updateUI();
     }
 
@@ -387,6 +387,16 @@ public class NotebookTree {
     public void saveNotebook(NotebookTreeNode n) {
         n.updateContent();
         JupyterNotebookViewer.saveNotebook(n.getFile().getAbsolutePath(), n.getContent(false));
+    }
+
+    public void reloadNotebook(File f) {
+        NotebookTreeNode n = getNotebookNode(generateRelativePath(f));
+        if (n==null) {
+            updateNotebookTree();
+            n = getNotebookNode(generateRelativePath(f));
+            if (n==null) return;
+        }
+        reloadNotebook(n);
     }
 
     public void reloadNotebook(NotebookTreeNode n) {

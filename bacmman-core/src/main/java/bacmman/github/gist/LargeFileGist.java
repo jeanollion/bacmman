@@ -260,6 +260,12 @@ public class LargeFileGist {
         boolean willUnzip = unzipIfPossible && ( wasZipped || (fullFileName.endsWith(".zip") && !outputFile.getName().endsWith(".zip")) );
         File actualOutputFile = outputFile.isDirectory()? new File(outputFile, willUnzip? (fullFileName.endsWith(".zip") ? fullFileName.substring(0, fullFileName.length()-4) : fullFileName) : fullFileName) : outputFile;
         File targetFile = willUnzip ? new File(actualOutputFile.getParentFile(), actualOutputFile.getName()+".zip") : (wasZipped ? new File(outputFile, fullFileName+".zip") : actualOutputFile);
+        if (getStringContent(auth) != null) {
+            FileIO.TextFile f = new FileIO.TextFile(actualOutputFile.getAbsolutePath(), true, false);
+            f.write(stringContent, false);
+            if (callback != null) callback.accept(actualOutputFile);
+            return actualOutputFile;
+        }
         FileOutputStream fos = new FileOutputStream(targetFile,false);
         List<String> chunkNames = new ArrayList<>(this.chunksURL.keySet());
         Runnable unzipCallback = () -> {
@@ -305,14 +311,19 @@ public class LargeFileGist {
         retrieveString(getResult, true, auth, pcb);
     }
 
-    protected void retrieveString(Consumer<String> getResult, boolean background, UserAuth auth, ProgressLogger pcb) throws IOException {
-        logger.debug("retrieve string: n chunks: {} content non null: {}", nChunks, stringContent!=null);
-        if (stringContent != null) {
-            getResult.accept(stringContent);
-            return;
-        } else if (stringContentId != null) { // directly stored as String (not chunked)
+    protected String getStringContent(UserAuth auth) throws IOException {
+        if (stringContent != null) return stringContent;
+        if (stringContentId != null) {
             stringContent = new JSONQuery(stringContentId, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetch();
             sizeMb = stringContent.length() * 8 / ((double)1024*1024);
+        }
+        return stringContent;
+    }
+
+    protected void retrieveString(Consumer<String> getResult, boolean background, UserAuth auth, ProgressLogger pcb) throws IOException {
+        logger.debug("retrieve string: n chunks: {} content non null: {}", nChunks, stringContent!=null);
+        getStringContent(auth);
+        if (stringContent != null) {
             getResult.accept(stringContent);
             return;
         }

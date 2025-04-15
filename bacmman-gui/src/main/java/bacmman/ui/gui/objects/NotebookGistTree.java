@@ -44,6 +44,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
@@ -73,12 +74,14 @@ public class NotebookGistTree {
     final ProgressLogger pcb;
     final Supplier<UserAuth> authSupplier;
     final Supplier<File> selectedLocalFileSupplier;
+    final Consumer<File> localFileUpdated;
 
-    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> selectionCallback, Supplier<File> selectedLocalFileSupplier, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> selectionCallback, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
         this.selectionCallback=selectionCallback;
         this.pcb = pcb;
         this.authSupplier = authSupplier;
         this.selectedLocalFileSupplier = selectedLocalFileSupplier;
+        this.localFileUpdated = localFileUpdated;
     }
 
     public JTree getTree() {
@@ -287,9 +290,9 @@ public class NotebookGistTree {
         });
 
         menu.add(save);
-        save.setEnabled(f==null || f.isDirectory());
+        save.setEnabled(f.isDirectory());
         menu.add(update);
-        update.setEnabled(f!=null && !f.isDirectory());
+        update.setEnabled(!f.isDirectory());
         menu.add(delete);
         menu.show(e.getComponent(), e.getX(), e.getY());
     }
@@ -346,9 +349,10 @@ public class NotebookGistTree {
 
     public boolean downloadGist(LargeFileGist lf, File destFile) {
         if (destFile.isFile() && !Utils.promptBoolean("Overwrite local notebook ?", tree)) return false;
+        if (destFile.isDirectory()) destFile = Paths.get(destFile.getAbsolutePath(), name(lf)+".ipynb").toFile();
         try {
             UserAuth auth = authSupplier.get();
-            File notebookFile = lf.retrieveFile(destFile, true, true, auth, null, pcb);
+            File notebookFile = lf.retrieveFile(destFile, true, true, auth, localFileUpdated, pcb);
             if (notebookFile!=null) {
                 if (pcb!=null) pcb.setMessage("Notebook will be downloaded @:" + notebookFile);
                 return true;

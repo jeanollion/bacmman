@@ -115,7 +115,7 @@ public class DataAnalysisPanel {
             } else dockerImageLauncher.startContainer();
         };
         localNotebooks = new NotebookTree(localNotebookSelectionCB, () -> remoteNotebooks.getSelectedGistNode(), doubleClickCB, (n, c) -> remoteNotebooks.upload(n, c), (n, c) -> remoteNotebooks.updateRemote(n, c), bacmmanLogger);
-        remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, localNotebooks::getFirstSelectedFolderOrNotebookFile, gitCredentialPanel::getAuth, bacmmanLogger);
+        remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, gitCredentialPanel::getAuth, bacmmanLogger);
         workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD,  this::updateWD);
         BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
             String serverURL = getServerURL(ports[0]);
