@@ -207,10 +207,12 @@ public class GistDLModel implements Hint {
         }
         return this;
     }
+
     public void uploadIfNecessary(UserAuth auth) {
         if (contentModified) uploadContent(auth);
         if (thumbnailModified) uploadThumbnail(auth);
     }
+
     public void uploadContent(UserAuth auth) {
         JSONObject files = new JSONObject();
         JSONObject contentFile = new JSONObject();
