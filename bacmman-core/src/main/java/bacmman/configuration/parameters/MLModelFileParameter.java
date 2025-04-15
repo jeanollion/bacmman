@@ -124,7 +124,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
                 }
             } else {
                 File f = new File(path);
-                if (f.exists() && validDirectory!=null && validDirectory.test(path)) {
+                if (f.isFile() || (f.isDirectory() && validDirectory!=null && validDirectory.test(path))) {
                     modelFile.setSelectedFilePath(f.getParent());
                 }
             }
