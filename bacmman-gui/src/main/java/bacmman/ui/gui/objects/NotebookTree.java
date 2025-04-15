@@ -42,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -58,16 +59,18 @@ public class NotebookTree {
     private static final Logger logger = LoggerFactory.getLogger(NotebookTree.class);
     final JTree tree;
     final Consumer<NotebookTreeNode> doubleClickCallback;
+    final BiConsumer<String, JSONObject> upload;
     final Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback;
     final ProgressLogger bacmmanLogger;
     DefaultTreeModel treeModel;
     boolean expanding=false;
 
-    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback, Consumer<NotebookTreeNode> doubleClickCallback, ProgressLogger bacmmanLogger) {
+    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, ProgressLogger bacmmanLogger) {
         this.bacmmanLogger = bacmmanLogger;
         this.tree = new JTree();
         this.doubleClickCallback = doubleClickCallback;
         this.selectionCallback = selectionCallback;
+        this.upload = upload;
         this.treeModel=new DefaultTreeModel(null);
         tree.setModel(treeModel);
         tree.setRootVisible(false);
@@ -151,6 +154,14 @@ public class NotebookTree {
 
     public JTree getTree() {
         return tree;
+    }
+
+    public File getFirstSelectedFolderOrNotebookFile() {
+        TreePath[] sel = tree.getSelectionPaths();
+        if (sel==null || sel.length==0) return null;
+        TreePath p = sel[0];
+        NotebookTreeNode n = (NotebookTreeNode)p.getLastPathComponent();
+        return n.file;
     }
 
     public File getFirstSelectedFolder() {
@@ -331,6 +342,12 @@ public class NotebookTree {
                 saveNotebookAs(n);
             }
         });
+        JMenuItem upload = new JMenuItem(new AbstractAction("Upload...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                upload(n);
+            }
+        });
         JMenuItem reload = new JMenuItem(new AbstractAction("Reload") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -383,6 +400,10 @@ public class NotebookTree {
         setSelectedNotebookByRelativePath(relativePath);
     }
 
+    public void upload(NotebookTreeNode n) {
+        JSONObject content = n.contentUpdate != null ? n.contentUpdate.get() : n.getContent(false);
+        this.upload.accept(n.name, content);
+    }
 
     public class NotebookTreeNode extends DefaultMutableTreeNode {
         final File file;

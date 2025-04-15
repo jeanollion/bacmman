@@ -9,6 +9,7 @@ import bacmman.ui.gui.configurationIO.GitCredentialPanel;
 import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.gui.objects.JupyterNotebookViewer;
 import bacmman.ui.gui.objects.NotebookTree;
+import bacmman.ui.gui.objects.NotebookGistTree;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -46,13 +47,13 @@ public class DataAnalysisPanel {
     private final DockerGateway dockerGateway;
     private final GithubGateway githubGateway;
     private final ProgressLogger bacmmanLogger;
-    private final String token;
+    private final String jupyterToken;
 
     private WorkingDirPanel workingDirPanel;
     private DockerImageLauncher dockerImageLauncher;
     private GitCredentialPanel gitCredentialPanel;
     private NotebookTree localNotebooks;
-
+    private NotebookGistTree remoteNotebooks;
     private JupyterNotebookViewer localViewer, remoteViewer;
 
     public DataAnalysisPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressLogger bacmmanLogger) {
@@ -64,8 +65,8 @@ public class DataAnalysisPanel {
             if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDatasetDir().toString();
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
-        token = UUID.get().toHexString();
-        Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> notebookSelectionCB = nb -> {
+        jupyterToken = UUID.get().toHexString();
+        Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> localNotebookSelectionCB = nb -> {
             if (nb == null || nb.isFolder()) {
                 localViewer = null;
                 localViewerJSP.setViewportView(null);
@@ -75,6 +76,18 @@ public class DataAnalysisPanel {
                 localViewerJSP.setViewportView(localViewer.getTree());
                 this.localViewer = localViewer;
                 return localViewer::getContent;
+            }
+        };
+        Function<JSONObject, Supplier<JSONObject>> remoteNotebookSelectionCB = content -> {
+            if (content == null) {
+                localViewer = null;
+                localViewerJSP.setViewportView(null);
+                return null;
+            } else {
+                JupyterNotebookViewer remoteViewer = new JupyterNotebookViewer(content);
+                remoteViewerJSP.setViewportView(remoteViewer.getTree());
+                this.remoteViewer = remoteViewer;
+                return remoteViewer::getContent;
             }
         };
         Consumer<NotebookTree.NotebookTreeNode> doubleClickCB = nb -> {
@@ -87,7 +100,8 @@ public class DataAnalysisPanel {
                 }
             } else dockerImageLauncher.startContainer();
         };
-        localNotebooks = new NotebookTree(notebookSelectionCB, doubleClickCB, bacmmanLogger);
+        localNotebooks = new NotebookTree(localNotebookSelectionCB, doubleClickCB, (name, content) -> remoteNotebooks.upload(name, content), bacmmanLogger);
+        remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, () -> localNotebooks.getFirstSelectedFolderOrNotebookFile(), () -> gitCredentialPanel.getAuth(), bacmmanLogger);
         workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD,  this::updateWD);
         BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
             String serverURL = getServerURL(ports[0]);
@@ -109,7 +123,7 @@ public class DataAnalysisPanel {
             }
         };
 
-        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+token+"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
+        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+ jupyterToken +"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
         gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
 
@@ -125,8 +139,8 @@ public class DataAnalysisPanel {
     }
 
     public String getNotebookURL(NotebookTree.NotebookTreeNode n, int port) {
-        if (n == null) return getServerURL(port) + "?token=" + token;
-        else return getServerURL(port) +  "/lab/tree/work/" + n.getRelativePath() + "?token=" + token;
+        if (n == null) return getServerURL(port) + "?token=" + jupyterToken;
+        else return getServerURL(port) +  "/lab/tree/work/" + n.getRelativePath() + "?token=" + jupyterToken;
     }
 
     protected boolean isServerReady(String url) {

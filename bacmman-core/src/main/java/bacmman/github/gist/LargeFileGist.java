@@ -69,6 +69,14 @@ public class LargeFileGist {
         else return fullFileName;
     }
 
+    public String getDescription() {
+        return description;
+    }
+
+    public String getID() {
+        return id;
+    }
+
     public static List<File> downloadGist(String id, String dir) throws IOException {
         Map<String, String> files = downloadGist(id);
         List<File> res = new ArrayList<>(files.size());
@@ -485,6 +493,30 @@ public class LargeFileGist {
             } else throw e;
         }
         return true;
+    }
+
+    public boolean delete(UserAuth auth) {
+        String url = BASE_URL + "/gists/" + getID();
+        return JSONQuery.delete(url, auth);
+    }
+
+    public static Stream<LargeFileGist> fetch(UserAuth auth, ProgressLogger pcb) {
+        try {
+            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
+            return gists.stream().map(content -> {
+                try {
+                    LargeFileGist lf = new LargeFileGist(content, auth);
+                    if (lf.id == null) return null; // TODO test
+                    else return lf;
+                } catch (IOException e) {
+                    return null;
+                }
+            }).filter(Objects::nonNull);
+        } catch (IOException | ParseException e) {
+            logger.error("Error getting public configurations", e);
+            if (pcb!=null) pcb.setMessage("Could not get public configurations: "+e.getMessage());
+            return Stream.empty();
+        }
     }
 
     public static List<byte[]> splitFile(InputStream inputStream, double sizeOfChunksInMB) throws IOException {

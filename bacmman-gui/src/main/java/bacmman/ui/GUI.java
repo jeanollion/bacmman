@@ -1841,7 +1841,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         return configurationLibrary;
     }
 
-    public DataAnalysisPanel displayJupyterPanel() {
+    public DataAnalysisPanel displayDataAnalysisPanel() {
         if (dataAnalysisPanel == null) {
             dataAnalysisPanel = new DataAnalysisPanel(Core.getCore().getDockerGateway(), Core.getCore().getGithubGateway(), this);
         }
@@ -3055,7 +3055,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         JMenuItem runJupyter = new JMenuItem("Data Analysis");
         runJupyter.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                displayJupyterPanel();
+                displayDataAnalysisPanel();
             }
         });
         runJupyter.setEnabled(Core.getCore().getDockerGateway()!=null);
