@@ -177,7 +177,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
 
         // get thresholded image
         if (Double.isNaN(thld) && thresholdedImage == null) {
-            thld = BackgroundThresholder.runThresholder(image, null, 3, 6, 3, Double.MAX_VALUE, null); //IJAutoThresholder.runThresholder(image, null, AutoThresholder.Method.Triangle); // OTSU / TRIANGLE / YEN
+            thld = BackgroundThresholder.runThresholder(image, null, 3, 6, 3, Double.MAX_VALUE, false, null); //IJAutoThresholder.runThresholder(image, null, AutoThresholder.Method.Triangle); // OTSU / TRIANGLE / YEN
         }
         if (miscDataDisplayer != null) {
             double t = thld;
