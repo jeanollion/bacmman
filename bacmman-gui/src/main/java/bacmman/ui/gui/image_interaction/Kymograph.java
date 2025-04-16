@@ -137,28 +137,30 @@ public abstract class Kymograph extends TimeLapseInteractiveImage {
         }
     }
 
+    protected BoundingBox getObjectOffset(SegmentedObject object, int slice, int refSlice) {
+        int idx = getOffsetIdx(object.getFrame(), slice);
+        BoundingBox b = idx<0 ? null : this.trackObjects.get(slice)[idx].getObjectOffset(object, 0).duplicate();
+        if (b!=null) {
+            Offset offRef = data.trackOffset[getStartParentIdx(refSlice)].duplicate().reverseOffset();
+            Offset off = data.trackOffset[getStartParentIdx(slice)];
+            b.translate(off).translate(offRef); // put offset in landmark of slice
+            return b;
+        } else return null;
+    }
+
     @Override
     public BoundingBox getObjectOffset(SegmentedObject object, int slice) {
-        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
         if (object==null) return null;
+        SimpleInteractiveImage[] trackObjects = this.trackObjects.get(slice);
         int idx = getOffsetIdx(object.getFrame(), slice);
         BoundingBox b = idx<0 ? null : trackObjects[idx].getObjectOffset(object, 0);
-        if (b==null) { // search in adjacent slides
-            if (slice>0 && this.trackObjects.get(slice-1)!=null && object.getFrame()<trackObjects[0].parent.getFrame()) {
-                idx = getOffsetIdx(object.getFrame(), slice - 1);
-                b = idx<0 ? null : this.trackObjects.get(slice-1)[idx].getObjectOffset(object, 0).duplicate();
-            }
-            if (b!=null) {
-                Offset off = data.trackOffset[getStartParentIdx(slice)].duplicate().reverseOffset();
-                Offset offPrev = data.trackOffset[getStartParentIdx(slice-1)];
-                b.translate(offPrev).translate(off); // put offset in landmark of slice
-            } else if (slice+1<data.nSlices && this.trackObjects.get(slice+1)!=null) {
-                idx = getOffsetIdx(object.getFrame(), slice + 1);
-                b = idx<0 ? null : this.trackObjects.get(slice+1)[idx].getObjectOffset(object, 0).duplicate();
-                if (b!=null) {
-                    Offset off = data.trackOffset[getStartParentIdx(slice)].duplicate().reverseOffset();
-                    Offset offNext = data.trackOffset[getStartParentIdx(slice+1)];
-                    b.translate(offNext).translate(off); // put offset in landmark of slice
+        if (b==null) { // search in adjacent slices
+            int sig = object.getFrame() < trackObjects[0].parent.getFrame() ? - 1 : 1;
+            for (int i = 1; i<=3; ++i) {
+                int sliceAdj = slice + sig * i;
+                if (sliceAdj >=0 && sliceAdj < data.nSlices) {
+                    b = getObjectOffset(object, sliceAdj, slice);
+                    if (b!=null) return b;
                 }
             }
         }
