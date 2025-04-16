@@ -914,7 +914,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 boolean createRoot = true; //segmentAndTrack || trackOnly || generateTrackImages;
                 if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
             } catch (IOException e) {
-                if (db.getExperiment().getPosition(position).inputImagesInstanciated()) db.getExperiment().getPosition(position).getInputImages().deleteFromDAO(); // erase pre-processed images that where temporarily saved
+                if (db.getExperiment().getPosition(position).inputImagesInstantiated()) db.getExperiment().getPosition(position).getInputImages().deleteFromDAO(); // erase pre-processed images that where temporarily saved
                 throw new RuntimeException(e);
             } finally {
                 db.getExperiment().getPosition(position).flushImages(true, true);

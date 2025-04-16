@@ -465,7 +465,7 @@ public class PluginConfigurationUtils {
             public void actionPerformed(ActionEvent ae) {
                 TestableOperation.TEST_MODE testMode = expertMode ? TestableOperation.TEST_MODE.TEST_EXPERT : TestableOperation.TEST_MODE.TEST_SIMPLE;
                 int[] frames = GUI.hasInstance() && GUI.getInstance().isTestTabSelected() ? GUI.getInstance().getTestFrameRange() : new int[]{0, position.getFrameNumber(false)};
-                InputImagesImpl images = position.getInputImages().duplicate(frames[0], frames[1]);
+                InputImagesImpl images = position.getInputImages().duplicate(frames[0], frames[1], position.getTempImageDAO(), position.getTempImageDAO());
                 PreProcessingChain ppc = position.getPreProcessingChain();
                 List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
                 for (int i = 0; i<=transfoIdx; ++i) {

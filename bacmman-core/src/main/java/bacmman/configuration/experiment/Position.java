@@ -32,7 +32,6 @@ import static bacmman.data_structure.SegmentedObjectUtils.setTrackLinks;
 import bacmman.image.BlankMask;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,7 +57,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     InputImagesImpl inputImages;
     public static final int defaultTP = 50;
     private final Map<Integer, Integer> channelMapSizeZ = new HashMap<>();
-    ImageDAO originalImageDAO;
+    ImageDAO originalImageDAO, tempImageDAO;
     DiskBackedImageManagerImageDAO imageDAO;
     @Override
     public Object toJSONEntry() {
@@ -140,6 +139,18 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         createImageDAO();
         return imageDAO;
     }
+    public ImageDAO getTempImageDAO() {
+        if (tempImageDAO ==null) {
+            synchronized(this) {
+                if (tempImageDAO ==null) {
+                    String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()), true);
+                    tempImageDAO = new LocalTIFImageDAO(getName(), tmpDir, this::singleFrameChannel);
+                }
+            }
+        }
+        return tempImageDAO;
+    }
+
     private void createImageDAO() {
         if (originalImageDAO ==null) {
             synchronized(this) {
@@ -175,7 +186,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             }
         }
     }
-    public boolean inputImagesInstanciated() {
+    public boolean inputImagesInstantiated() {
         return inputImages != null;
     }
     public boolean sourceImagesLinked() {
@@ -199,7 +210,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                         int inputC = c<sourceImages.getChannelNumber() ? c : duplicatedChannelSources[c-sourceImages.getChannelNumber()];
                         res[c] = sourceImages.singleFrame(inputC) ? new InputImage[1] : new InputImage[tpNp];
                         for (int t = 0; t<res[c].length; ++t) {
-                            res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, originalImageDAO);
+                            res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, originalImageDAO, getTempImageDAO());
                             if (preProcessingChain.useCustomScale()) res[c][t].overwriteCalibration(preProcessingChain.getScaleXY(), preProcessingChain.getScaleZ());
                         } 
                     }
@@ -238,6 +249,10 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         if (originalImageDAO !=null) {
             originalImageDAO.flush();
             originalImageDAO =null;
+        }
+        if (tempImageDAO != null) {
+            tempImageDAO.flush();
+            tempImageDAO = null;
         }
     }
     

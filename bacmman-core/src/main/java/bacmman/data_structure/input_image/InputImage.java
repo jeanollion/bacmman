@@ -41,7 +41,7 @@ import bacmman.plugins.TransformationNoInput;
 
 public class InputImage {
     final MultipleImageContainer imageSources;
-    ImageDAO dao;
+    ImageDAO dao, daoTemp;
     int inputChannelIdx, channelIdx, frame, inputFrame;
     String microscopyFieldName;
     Image originalImageType;
@@ -49,9 +49,10 @@ public class InputImage {
     boolean intermediateImageSavedToDAO=false, modified=false, transformationHaveBeenApplied=false;
     final List<Transformation> transformationsToApply;
     double scaleXY=Double.NaN, scaleZ= Double.NaN;
-    public InputImage(int inputChannelIdx, int channelIdx, int inputFrame, int frame, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao) {
+    public InputImage(int inputChannelIdx, int channelIdx, int inputFrame, int frame, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao, ImageDAO daoTemp) {
         this.imageSources = imageSources;
         this.dao = dao;
+        this.daoTemp = daoTemp;
         this.inputChannelIdx=inputChannelIdx;
         this.channelIdx = channelIdx;
         this.frame = frame;
@@ -67,7 +68,10 @@ public class InputImage {
         return modified;
     }
     public InputImage duplicate() {
-        InputImage res = new InputImage(inputChannelIdx, channelIdx, inputFrame, frame, microscopyFieldName, imageSources, dao);
+        return duplicate(dao, daoTemp);
+    }
+    public InputImage duplicate(ImageDAO dao, ImageDAO daoTemp) {
+        InputImage res = new InputImage(inputChannelIdx, channelIdx, inputFrame, frame, microscopyFieldName, imageSources, dao, daoTemp);
         res.overwriteCalibration(scaleXY, scaleZ);
         if (image!=null) {
             res.image = image.duplicate();
@@ -103,7 +107,7 @@ public class InputImage {
         if (image == null && requiresInputImage()) {
             synchronized (imageSources) {
                 if (image==null) {
-                    if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame); //try to open from DAO
+                    if (intermediateImageSavedToDAO) image = daoTemp.openPreProcessedImage(channelIdx, frame); //try to open from DAO
                     else {
                         image = imageSources.getImage(inputFrame, inputChannelIdx);
                         if (image==null) throw new RuntimeException("Image not found: position:"+microscopyFieldName+" channel:"+inputChannelIdx+" frame:"+inputFrame);
@@ -123,9 +127,12 @@ public class InputImage {
         return plane;
     }
 
-    void deleteFromDAO() {dao.deletePreProcessedImage(channelIdx, frame);}
+    void deleteFromDAO(boolean temp) {
+        if (!temp) dao.deletePreProcessedImage(channelIdx, frame);
+        else daoTemp.deletePreProcessedImage(channelIdx, frame);
+    }
     
-    public void flush() {
+    public void freeMemory() {
         image=null;
     }
 
@@ -149,12 +156,13 @@ public class InputImage {
             }
             if (intermediateImageSavedToDAO && modified) {
                 intermediateImageSavedToDAO = false;
-                deleteFromDAO();
+                deleteFromDAO(true);
             }
         }
     }
 
     public void saveImage(boolean intermediate) {
+        ImageDAO dao = intermediate ? this.daoTemp : this.dao;
         dao.writePreProcessedImage(image, channelIdx, frame);
         this.intermediateImageSavedToDAO = intermediate && !(dao instanceof BypassImageDAO);
         if (intermediate) modified=false;

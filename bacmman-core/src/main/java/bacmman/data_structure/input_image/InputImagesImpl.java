@@ -19,6 +19,7 @@
 package bacmman.data_structure.input_image;
 
 import bacmman.core.Core;
+import bacmman.data_structure.dao.ImageDAO;
 import bacmman.image.Image;
 import static bacmman.image.Image.logger;
 import bacmman.plugins.Autofocus;
@@ -82,18 +83,19 @@ public class InputImagesImpl implements InputImages {
         }
         return new InputImagesImpl(imageCTDup, defaultTimePoint, new Pair<>(autofocusChannel, autofocusAlgo), tmpDir).setMinFrame(minFrame);
     }
-    public InputImagesImpl duplicate(int frameMin, int frameMaxExcluded) {
+
+    public InputImagesImpl duplicate(int frameMin, int frameMaxExcluded, ImageDAO dao, ImageDAO daoTemp) {
         if (frameMin<0) throw new IllegalArgumentException("Frame min must be >=0");
         if (frameMin>=frameNumber) throw new IllegalArgumentException("Frame min must be < to frame number");
         if (frameMaxExcluded>frameNumber) throw new IllegalArgumentException("Frame max must be <= to frame number ("+frameMaxExcluded+">"+frameNumber+")");
         InputImage[][] imageCTDup = new InputImage[imageCT.length][];
         for (int c = 0; c<imageCT.length; ++c) { //channel
             if (singleFrameChannel(c)) {
-                imageCTDup[c] = new InputImage[]{imageCT[c][0].duplicate()};
+                imageCTDup[c] = new InputImage[]{imageCT[c][0].duplicate(dao, daoTemp)};
             } else {
                 imageCTDup[c] = new InputImage[frameMaxExcluded-frameMin];
                 for (int t = frameMin; t<frameMaxExcluded; ++t) {
-                    imageCTDup[c][t-frameMin] = imageCT[c][t].duplicate();
+                    imageCTDup[c][t-frameMin] = imageCT[c][t].duplicate(dao, daoTemp);
                     imageCTDup[c][t-frameMin].setTimePoint(t-frameMin);
                 }
             }
@@ -101,6 +103,8 @@ public class InputImagesImpl implements InputImages {
         return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1-frameMin, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo), tmpDir)
                 .setMinFrame(minFrame+frameMin);
     }
+
+
 
     @Override public int getBestFocusPlane(int timePoint) {
         if (autofocusChannel>=0 && autofocusAlgo!=null) {
@@ -193,7 +197,7 @@ public class InputImagesImpl implements InputImages {
         return imageCT[channelIdx][timePoint].imageOpened();
     }
     public void flush(int channelIdx, int timePoint) {
-        imageCT[channelIdx][timePoint].flush();
+        imageCT[channelIdx][timePoint].freeMemory();
         synchronized (lastUsedImages) {
             lastUsedImages.remove(new UnaryPair<>(channelIdx, timePoint));
         }
@@ -253,7 +257,7 @@ public class InputImagesImpl implements InputImages {
                     imageF[f].saveImage(tempCheckPoint);
                 }
                 if (close) {
-                    imageF[f].flush();
+                    imageF[f].freeMemory();
                     lastUsedImages.remove(new UnaryPair<>(c, f));
                 }
                 if (f%100==0) System.gc();
@@ -263,7 +267,7 @@ public class InputImagesImpl implements InputImages {
             logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
         });
         if (close) { // in case some image have been re-opened by the process of other channels -> close them
-            allChannels.stream().forEachOrdered(c -> Arrays.stream(imageCT[c]).filter(InputImage::imageOpened).forEach(InputImage::flush));
+            allChannels.stream().forEachOrdered(c -> Arrays.stream(imageCT[c]).filter(InputImage::imageOpened).forEach(InputImage::freeMemory));
         }
         long tEnd = System.currentTimeMillis();
         logger.debug("apply transformation & {} save: total time: {}, for {} time points and {} channels", tempCheckPoint ? "temp":"", tEnd-tStart, getFrameNumber(), getChannelNumber() );
@@ -287,7 +291,7 @@ public class InputImagesImpl implements InputImages {
                 synchronized (image) {
                     if (image.imageOpened()) {
                         if (image.modified()) image.saveImage(true);
-                        image.flush();
+                        image.freeMemory();
                         ++freed;
                     }
                 }
@@ -300,7 +304,8 @@ public class InputImagesImpl implements InputImages {
     public void deleteFromDAO() {
         for (int c = 0; c<getChannelNumber(); ++c) {
             for (int t = 0; t<imageCT[c].length; ++t) {
-                imageCT[c][t].deleteFromDAO();
+                imageCT[c][t].deleteFromDAO(false);
+                imageCT[c][t].deleteFromDAO(true);
             }
         }
     }
@@ -310,7 +315,8 @@ public class InputImagesImpl implements InputImages {
         imageCT[0][0].imageSources.flush();
         for (int c = 0; c<getChannelNumber(); ++c) {
             for (int t = 0; t<imageCT[c].length; ++t) {
-                imageCT[c][t].flush();
+                imageCT[c][t].freeMemory();
+                imageCT[c][t].deleteFromDAO(true);
             }
         }
         lastUsedImages.clear();
