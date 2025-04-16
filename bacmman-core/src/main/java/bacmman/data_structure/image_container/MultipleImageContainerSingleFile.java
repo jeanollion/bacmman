@@ -293,7 +293,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     }
 
     @Override 
-    public void flush() {
+    public void freeMemory() {
         if (reader!=null) reader.closeReader();
         reader = null;
     }

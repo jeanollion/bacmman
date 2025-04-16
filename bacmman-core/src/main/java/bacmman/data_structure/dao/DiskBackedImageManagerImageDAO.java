@@ -157,8 +157,14 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
 
     // image DAO
     @Override
-    public void flush() {
-        imageDAO.flush();
+    public void eraseAll() {
+        imageDAO.eraseAll();
+        clear(true);
+    }
+
+    @Override
+    public void freeMemory() {
+        imageDAO.freeMemory();
         clear(true);
     }
 

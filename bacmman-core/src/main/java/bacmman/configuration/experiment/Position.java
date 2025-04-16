@@ -232,26 +232,26 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         }
         return inputImages;
     }
-    
-    public void flushImages(boolean raw, boolean preProcessed, Position... avoidFlush) {
+    // free memory, do not erase images stored on disk (except for temp images)
+    public void freeMemoryImages(boolean raw, boolean preProcessed, Position... avoidFlush) {
         if (preProcessed && inputImages !=null) {
-            inputImages.flush();
+            inputImages.freeMemory();
             inputImages = null;
         }
         if (raw && sourceImages!=null) {
-            if (avoidFlush==null || avoidFlush.length==0 || Stream.of(avoidFlush).allMatch(p -> sourceImages!=p.sourceImages)) sourceImages.flush();
+            if (avoidFlush==null || avoidFlush.length==0 || Stream.of(avoidFlush).allMatch(p -> sourceImages!=p.sourceImages)) sourceImages.freeMemory();
             else logger.debug("avoided clear shared sourceImage: {} with {}", getName(), Stream.of(avoidFlush).map(Position::getName).collect(Collectors.toList()));
         }
         if (imageDAO!=null) {
-            imageDAO.flush();
+            imageDAO.freeMemory();
             imageDAO=null;
         }
         if (originalImageDAO !=null) {
-            originalImageDAO.flush();
+            originalImageDAO.freeMemory();
             originalImageDAO =null;
         }
         if (tempImageDAO != null) {
-            tempImageDAO.flush();
+            tempImageDAO.eraseAll();
             tempImageDAO = null;
         }
     }

@@ -526,7 +526,7 @@ public class PluginConfigurationUtils {
                         }
                     }
                 }
-                
+                position.getTempImageDAO().eraseAll();
             }
         });
         return item;

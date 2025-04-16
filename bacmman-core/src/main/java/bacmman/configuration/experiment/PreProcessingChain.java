@@ -113,7 +113,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
             Consumer<IntervalParameter> pl = sourceParameter -> {
                 Position pos = ParameterUtils.getMicroscopyField(sourceParameter);
                 if (pos != null) {
-                    pos.flushImages(true, true);
+                    pos.freeMemoryImages(true, true);
                     pos.setDefaultTimePointBounds();
                 }
             };

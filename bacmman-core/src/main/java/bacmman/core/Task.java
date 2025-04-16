@@ -826,7 +826,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                     } catch (Throwable e) {
                         errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
                     } finally {
-                        db.getExperiment().getPosition(position).flushImages(true, true);
+                        db.getExperiment().getPosition(position).freeMemoryImages(true, true);
                         db.getExperiment().getDLengineProvider().closeAllEngines();
                         Core.clearDiskBackedImageManagers();
                         db.clearCache(position);
@@ -917,7 +917,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 if (db.getExperiment().getPosition(position).inputImagesInstantiated()) db.getExperiment().getPosition(position).getInputImages().deleteFromDAO(); // erase pre-processed images that where temporarily saved
                 throw new RuntimeException(e);
             } finally {
-                db.getExperiment().getPosition(position).flushImages(true, true);
+                db.getExperiment().getPosition(position).freeMemoryImages(true, true);
                 System.gc();
                 incrementProgress();
                 publishMemoryUsage("After PreProcessing:");

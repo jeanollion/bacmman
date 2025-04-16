@@ -441,7 +441,7 @@ public class Processor {
             performMeasurements(db.getDao(position), mode, selection, pcb);
             //if (dao!=null) dao.clearCacheLater(xp.getPosition(i).getName());
             db.getDao(position).clearCache();
-            db.getExperiment().getPosition(position).flushImages(true, true);
+            db.getExperiment().getPosition(position).freeMemoryImages(true, true);
         }
     }
     

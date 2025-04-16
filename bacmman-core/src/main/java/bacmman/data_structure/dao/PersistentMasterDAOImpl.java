@@ -22,7 +22,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S extends SelectionDAO> implements PersistentMasterDAO<ID, T> {
     static final Logger logger = LoggerFactory.getLogger(PersistentMasterDAOImpl.class);
@@ -323,7 +322,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
     @Override
     public void clearCache(String position) {
-        if (getExperiment().getPosition(position)!=null) getExperiment().getPosition(position).flushImages(true, true); // input images
+        if (getExperiment().getPosition(position)!=null) getExperiment().getPosition(position).freeMemoryImages(true, true); // input images
         T dao = DAOs.get(position);
         if (dao!=null) dao.clearCache();
         if (selectionDAO != null) clearSelectionCache(position);

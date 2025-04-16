@@ -424,7 +424,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     }
 
     @Override
-    public void flush() {
+    public void freeMemory() {
         if (!fromOmero()) {
             fileCT=null;
             bufferPool.flush();

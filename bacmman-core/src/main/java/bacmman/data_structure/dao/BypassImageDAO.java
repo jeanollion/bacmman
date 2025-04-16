@@ -1,10 +1,7 @@
 package bacmman.data_structure.dao;
 
 import bacmman.configuration.experiment.Experiment;
-import bacmman.configuration.experiment.Position;
-import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.image_container.MultipleImageContainer;
-import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
@@ -12,8 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class BypassImageDAO implements ImageDAO {
     static Logger logger = LoggerFactory.getLogger(BypassImageDAO.class);
@@ -36,8 +31,11 @@ public class BypassImageDAO implements ImageDAO {
     }
 
     @Override
-    public void flush() {
-        sourceImages.flush();
+    public void eraseAll() {}
+
+    @Override
+    public void freeMemory() {
+        sourceImages.freeMemory();
     }
 
     @Override

@@ -300,7 +300,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
 
     public void flushImages(boolean raw, boolean preProcessed, Collection<String> positionsToFlush, String... avoidFlush) {
         Position[] avoidFlushP = avoidFlush == null ? new Position[0] : Stream.of(avoidFlush).map(this::getPosition).toArray(Position[]::new);
-        for (String p : positionsToFlush)  getPosition(p).flushImages(raw, preProcessed, avoidFlushP);
+        for (String p : positionsToFlush)  getPosition(p).freeMemoryImages(raw, preProcessed, avoidFlushP);
     }
    
     public SimpleListParameter<ChannelImage> getChannelImages() {

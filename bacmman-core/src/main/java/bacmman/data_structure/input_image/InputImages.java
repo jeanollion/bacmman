@@ -71,7 +71,7 @@ public interface InputImages {
     int getDefaultTimePoint();
     int getSourceSizeZ(int channelIdx);
     int getBestFocusPlane(int timePoint);
-    void flush();
+    void freeMemory();
     double getCalibratedTimePoint(int c, int t, int z);
     boolean singleFrameChannel(int channelIdx);
     void setMemoryProportionLimit(double memoryProportionLimit);

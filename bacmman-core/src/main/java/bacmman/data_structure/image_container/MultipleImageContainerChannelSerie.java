@@ -352,7 +352,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     }
 
     @Override
-    public void flush() {
+    public void freeMemory() {
         for (int i = 0; i<this.getChannelNumber(); ++i) {
             if (getImageReaders()[i]!=null) reader[i].closeReader();
             reader [i] = null;

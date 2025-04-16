@@ -2,7 +2,6 @@ package bacmman.core;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.ProcessingChain;
-import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
@@ -11,7 +10,6 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.FeatureExtractor;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import org.json.simple.JSONArray;
@@ -21,7 +19,6 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -219,7 +216,7 @@ public class Optimization {
                 } catch (Throwable e) {
                     errors.addExceptions(new Pair<>("Error while processing: pos: " + dao.getPositionName() + " oc: " + oc, e));
                 } finally {
-                    dao.getExperiment().getPosition(dao.getPositionName()).flushImages(true, true);
+                    dao.getExperiment().getPosition(dao.getPositionName()).freeMemoryImages(true, true);
                     dao.getExperiment().getDLengineProvider().closeAllEngines();
                     Core.clearDiskBackedImageManagers();
                 }

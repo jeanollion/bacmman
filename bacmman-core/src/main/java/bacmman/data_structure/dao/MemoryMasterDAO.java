@@ -123,7 +123,7 @@ public class MemoryMasterDAO<ID, T extends ObjectDAO<ID>> implements MasterDAO<I
     @Override
     public void clearCache(String position) {
         //this.DAOs.remove(position);
-        getExperiment().getPosition(position).flushImages(true, true);
+        getExperiment().getPosition(position).freeMemoryImages(true, true);
     }
     
     @Override

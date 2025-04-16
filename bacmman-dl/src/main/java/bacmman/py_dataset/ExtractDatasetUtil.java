@@ -219,7 +219,7 @@ public class ExtractDatasetUtil {
                 extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false, compression);
                 saveLabels = false;
             }
-            inputImages.flush();
+            inputImages.freeMemory();
             t.incrementProgress();
         }
     }

@@ -45,7 +45,7 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public abstract Image getImage(int timePoint, int channel) throws IOException;
     public abstract Image getPlane(int z, int timePoint, int channel) throws IOException;
     public abstract Image getImage(int timePoint, int channel, BoundingBox bounds) throws IOException;
-    public abstract void flush();
+    public abstract void freeMemory();
     public abstract String getName();
     public float getScaleXY() {return (float)scaleXY;}
     public float getScaleZ() {return (float)scaleZ;}

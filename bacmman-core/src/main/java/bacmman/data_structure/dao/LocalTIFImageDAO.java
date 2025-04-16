@@ -57,7 +57,12 @@ public class LocalTIFImageDAO implements ImageDAO {
     }
 
     @Override
-    public void flush() {}
+    public void eraseAll() {
+        Utils.deleteDirectory(Paths.get(directory, position, "pre_processed").toString());
+    }
+
+    @Override
+    public void freeMemory() {}
 
     @Override
     public String getImageExtension() {

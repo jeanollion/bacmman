@@ -62,7 +62,7 @@ public class SimpleInputImages implements InputImages {
     }
 
     @Override
-    public void flush() {
+    public void freeMemory() {
 
     }
 

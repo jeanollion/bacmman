@@ -29,7 +29,8 @@ import java.io.IOException;
  * @author Jean Ollion
  */
 public interface ImageDAO {
-    void flush();
+    void freeMemory();
+    void eraseAll();
     String getImageExtension();
     Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException;
     Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException;
