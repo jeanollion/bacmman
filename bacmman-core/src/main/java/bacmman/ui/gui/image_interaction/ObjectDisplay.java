@@ -23,7 +23,7 @@ public class ObjectDisplay implements Comparable<ObjectDisplay> {
     public ObjectDisplay(SegmentedObject object, Offset offset, int sliceIdx) {
         if (object==null) throw new IllegalArgumentException("Object cannot be null");
         if (offset==null) {
-            logger.error("Null offset for {}", object);
+            logger.error("Null offset for {} at slice: {}", object, sliceIdx);
             throw new IllegalArgumentException("Offset cannot be null");
         }
         this.object = object;

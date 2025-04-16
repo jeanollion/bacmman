@@ -946,12 +946,22 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     SegmentedObject o2Prev = o2.object.getPrevious();
                     //if (o1Next == null || o2Prev == null) logger.error("Error displaying over distinct slices: o1={} next={} o2={} prev={} s1={} s2={}", o1.object, o1.object.getNext(), o2.object, o2.object.getPrevious(), o1.sliceIdx, o2.sliceIdx);
                     if (o1Next!=null) {
-                        ObjectDisplay o1N = new ObjectDisplay(o1Next, i.getObjectOffset(o1Next, o1.sliceIdx), o1.sliceIdx);
-                        appendTrackArrow.accept(o1, o1N);
+                        BoundingBox off = i.getObjectOffset(o1Next, o1.sliceIdx);
+                        if (off != null) {
+                            ObjectDisplay o1N = new ObjectDisplay(o1Next, off, o1.sliceIdx);
+                            appendTrackArrow.accept(o1, o1N);
+                        } else {
+                            logger.debug("error displaying object: {} next from : {} @ slice: {}", o1Next, o1, o1.sliceIdx);
+                        }
                     }
                     if (o2Prev!=null) {
-                        ObjectDisplay o2P = new ObjectDisplay(o2Prev, i.getObjectOffset(o2Prev, o2.sliceIdx), o2.sliceIdx);
-                        appendTrackArrow.accept(o2P, o2);
+                        BoundingBox off = i.getObjectOffset(o2Prev, o2.sliceIdx);
+                        if (off != null) {
+                            ObjectDisplay o2P = new ObjectDisplay(o2Prev, off, o2.sliceIdx);
+                            appendTrackArrow.accept(o2P, o2);
+                        } else {
+                            logger.debug("error displaying object: {} prev from : {} @ slice: {}", o2Prev, o2, o2.sliceIdx);
+                        }
                     }
                 } else appendTrackArrow.accept(o1, o2);
             });
