@@ -4,6 +4,8 @@ import bacmman.core.DockerGateway;
 import bacmman.core.GithubGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.UUID;
+import bacmman.github.gist.NoAuth;
+import bacmman.github.gist.UserAuth;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configurationIO.GitCredentialPanel;
 import bacmman.ui.gui.objects.CollapsiblePanel;
@@ -18,6 +20,7 @@ import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +69,7 @@ public class DataAnalysisPanel {
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
         jupyterToken = UUID.get().toHexString();
+        gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
         Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> localNotebookSelectionCB = nb -> {
             if (nb == null || nb.isFolder()) {
                 localViewer = null;
@@ -78,16 +82,26 @@ public class DataAnalysisPanel {
                 return localViewer::getContent;
             }
         };
-        Function<JSONObject, Supplier<JSONObject>> remoteNotebookSelectionCB = content -> {
-            if (content == null) {
+        Function<NotebookGistTree.GistTreeNode, Supplier<JSONObject>> remoteNotebookSelectionCB = nb -> {
+            if (nb == null) {
                 localViewer = null;
                 localViewerJSP.setViewportView(null);
                 return null;
             } else {
-                JupyterNotebookViewer remoteViewer = new JupyterNotebookViewer(content);
-                remoteViewerJSP.setViewportView(remoteViewer.getTree());
-                this.remoteViewer = remoteViewer;
-                return remoteViewer::getContent;
+                try {
+                    JSONObject content = nb.getContent(false);
+                    JupyterNotebookViewer remoteViewer = new JupyterNotebookViewer(content);
+                    remoteViewerJSP.setViewportView(remoteViewer.getTree());
+                    this.remoteViewer = remoteViewer;
+                    return remoteViewer::getContent;
+                } catch (IOException e) {
+                    bacmmanLogger.setMessage("Error getting content: "+e);
+                    logger.error("Error getting content", e);
+                    localViewer = null;
+                    localViewerJSP.setViewportView(null);
+                    return null;
+                }
+
             }
         };
         Consumer<NotebookTree.NotebookTreeNode> doubleClickCB = nb -> {
@@ -100,8 +114,8 @@ public class DataAnalysisPanel {
                 }
             } else dockerImageLauncher.startContainer();
         };
-        localNotebooks = new NotebookTree(localNotebookSelectionCB, doubleClickCB, (name, content) -> remoteNotebooks.upload(name, content), bacmmanLogger);
-        remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, () -> localNotebooks.getFirstSelectedFolderOrNotebookFile(), () -> gitCredentialPanel.getAuth(), bacmmanLogger);
+        localNotebooks = new NotebookTree(localNotebookSelectionCB, () -> remoteNotebooks.getSelectedGistNode(), doubleClickCB, (n, c) -> remoteNotebooks.upload(n, c), (n, c) -> remoteNotebooks.updateRemote(n, c), bacmmanLogger);
+        remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, gitCredentialPanel::getAuth, bacmmanLogger);
         workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD,  this::updateWD);
         BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
             String serverURL = getServerURL(ports[0]);
@@ -125,11 +139,12 @@ public class DataAnalysisPanel {
 
         dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+ jupyterToken +"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
-        gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
+
 
         $$$setupUI$$$();
 
         localSelectorJSP.setViewportView(localNotebooks.getTree());
+        remoteSelectorJSP.setViewportView(remoteNotebooks.getTree());
         this.updateWD();
         dockerImageLauncher.updateButtons();
     }
@@ -170,7 +185,9 @@ public class DataAnalysisPanel {
     }
 
     protected void updateGitCredentials() {
-
+        UserAuth auth = gitCredentialPanel.getAuth();
+        if (auth instanceof NoAuth && gitCredentialPanel.hasPassword()) bacmmanLogger.setMessage("Token could not be loaded. Wrong configuration ? Only public items will be loaded");
+        remoteNotebooks.updateGists(auth);
     }
 
     public JPanel getMainPanel() {

@@ -89,6 +89,10 @@ public class GitCredentialPanel {
         return username.getText();
     }
 
+    public boolean hasPassword() {
+        return password.getPassword().length>0;
+    }
+
     public void persistUsername() {
         PropertyUtils.set("GITHUB_USERNAME", username.getText());
         PropertyUtils.addFirstStringToList("GITHUB_USERNAME", username.getText());

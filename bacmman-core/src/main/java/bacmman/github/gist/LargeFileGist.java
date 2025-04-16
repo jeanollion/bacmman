@@ -20,6 +20,7 @@ import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -42,6 +43,8 @@ public class LargeFileGist {
     boolean visible, wasZipped;
     List<String> subFileIds;
     Consumer<String> ensureChunkRetrieved;
+    String stringContent, stringContentId; // if LFG is a string
+
     public LargeFileGist(String id, UserAuth auth) throws IOException {
         if (id.startsWith(GIST_BASE_URL)) id=id.replace(GIST_BASE_URL, "");
         try {
@@ -134,7 +137,7 @@ public class LargeFileGist {
                 String masterFileUrl = (String) (master).get("raw_url");
                 String masterFileContent;
                 if (master.containsKey("content") && !(Boolean)master.getOrDefault("truncated", false)) masterFileContent =  (String)master.get("content");
-                else masterFileContent = new JSONQuery(masterFileUrl, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetchSilently();
+                else masterFileContent = new JSONQuery(masterFileUrl, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetch();
                 JSONObject masterFileJSON = null;
                 try {
                     masterFileJSON = JSONUtils.parse(masterFileContent);
@@ -176,23 +179,36 @@ public class LargeFileGist {
                     retrieveMD5((JSONArray) masterFileJSON.get("checksum_md5"));
                 }
             } else { // only one file not chunked
-                if (allFiles.size() != 1) throw  new IOException("Invalid LargeFileGist");
-                if (chunksURL.isEmpty()) {
-                    JSONObject file = (JSONObject)allFiles.get(0);
-                    chunksURL.put((String)file.get("filename"), (String)file.get("raw_url"));
-                }
-                nChunks = 1;
-                nChunksPerSubFile = 1;
+                if (allFiles.size() != 1 || !chunksURL.isEmpty()) throw  new IOException("Invalid LargeFileGist");
+                JSONObject file = (JSONObject)allFiles.values().iterator().next();
+                if (file.containsKey("content") && !(Boolean)file.getOrDefault("truncated", false)) stringContent = (String)file.get("content");
+                stringContentId = (String)file.get("raw_url");
+                nChunks = 0;
+                nChunksPerSubFile = 0;
                 chunkSize = (int)(1024*1024*MAX_CHUNK_SIZE_MB);
-                sizeMb = chunkSize; // max size
-                fullFileName = chunksURL.keySet().iterator().next();
+                sizeMb = stringContent == null ? chunkSize : stringContent.length() * 8 / ((double)1024*1024);
+                fullFileName = (String)file.get("filename");
                 fileType = fullFileName.contains(".") ? fullFileName.substring(fullFileName.indexOf(".")) : "";
                 wasZipped = false;
-                subFileIds = Collections.emptyList();
+                subFileIds = null;
                 ensureChunkRetrieved = id -> {};
             }
-
         }
+    }
+
+    public static String getFileName(JSONObject gist) {
+        Object files = gist.get("files");
+        if (files == null) return null;
+        JSONObject allFiles = (JSONObject) files;
+        String masterFileName = ((String) allFiles.values().stream().filter(f-> ((String)((JSONObject)f).get("filename")).endsWith("master_file.json")).findFirst().map(f -> ((JSONObject)f).get("filename")).orElse(null));
+        if (masterFileName != null) {
+            masterFileName = masterFileName.replace("_master_file.json", "");
+            if (masterFileName.startsWith("_")) return masterFileName.substring(1);
+            else return masterFileName;
+        } else if (allFiles.size() == 1) { // may be single file if small string was stored
+            JSONObject f = (JSONObject) allFiles.values().iterator().next();
+            return (String)f.get("filename");
+        } else return null;
     }
 
     protected void retrieveMD5(JSONArray md5) {
@@ -244,6 +260,12 @@ public class LargeFileGist {
         boolean willUnzip = unzipIfPossible && ( wasZipped || (fullFileName.endsWith(".zip") && !outputFile.getName().endsWith(".zip")) );
         File actualOutputFile = outputFile.isDirectory()? new File(outputFile, willUnzip? (fullFileName.endsWith(".zip") ? fullFileName.substring(0, fullFileName.length()-4) : fullFileName) : fullFileName) : outputFile;
         File targetFile = willUnzip ? new File(actualOutputFile.getParentFile(), actualOutputFile.getName()+".zip") : (wasZipped ? new File(outputFile, fullFileName+".zip") : actualOutputFile);
+        if (getStringContent(auth) != null) {
+            FileIO.TextFile f = new FileIO.TextFile(actualOutputFile.getAbsolutePath(), true, false);
+            f.write(stringContent, false);
+            if (callback != null) callback.accept(actualOutputFile);
+            return actualOutputFile;
+        }
         FileOutputStream fos = new FileOutputStream(targetFile,false);
         List<String> chunkNames = new ArrayList<>(this.chunksURL.keySet());
         Runnable unzipCallback = () -> {
@@ -289,7 +311,22 @@ public class LargeFileGist {
         retrieveString(getResult, true, auth, pcb);
     }
 
+    protected String getStringContent(UserAuth auth) throws IOException {
+        if (stringContent != null) return stringContent;
+        if (stringContentId != null) {
+            stringContent = new JSONQuery(stringContentId, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetch();
+            sizeMb = stringContent.length() * 8 / ((double)1024*1024);
+        }
+        return stringContent;
+    }
+
     protected void retrieveString(Consumer<String> getResult, boolean background, UserAuth auth, ProgressLogger pcb) throws IOException {
+        logger.debug("retrieve string: n chunks: {} content non null: {}", nChunks, stringContent!=null);
+        getStringContent(auth);
+        if (stringContent != null) {
+            getResult.accept(stringContent);
+            return;
+        }
         boolean willUnzip =  wasZipped || (fullFileName.endsWith(".zip") );
         PipedOutputStream outputStream = new PipedOutputStream();
         List<String> chunkNames = new ArrayList<>(this.chunksURL.keySet());
@@ -373,18 +410,35 @@ public class LargeFileGist {
         return storeInputStream(is, file.getName(), wasZipped, visible, description, fileType, auth, background, callback, pcb);
     }
 
+    public Pair<String, DefaultWorker> updateFile(File file, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
+        if (file==null || !file.exists()) return null;
+        InputStream is;
+        boolean wasZipped = false;
+        if (file.isDirectory()) { // start by zipping the file
+            if (pcb!=null) pcb.setMessage("zipping directory...");
+            is = ZipUtils.zipFile(file).getInputStream();
+            wasZipped = true;
+        } else is = new FileInputStream(file);
+        return updateInputStream(is, wasZipped, description, fileType, auth, background, callback, pcb);
+    }
+
+    protected static JSONObject getQueryObjectString(String name, String content, String description) {
+        JSONObject contentFile = new JSONObject();
+        contentFile.put("content", content);
+        JSONObject files = new JSONObject();
+        files.put(name, contentFile);
+        JSONObject gist = new JSONObject();
+        gist.put("files", files);
+        gist.put("description", description);
+        return gist;
+    }
+
     public static Pair<String, DefaultWorker> storeString(String name, String content, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
         int sizeOfChunk = (int) (1024 * 1024 * MAX_CHUNK_SIZE_MB);
         if (content.length() < sizeOfChunk) { // store string as single file
-            JSONObject contentFile = new JSONObject();
-            contentFile.put("content", content);
-            JSONObject files = new JSONObject();
-            files.put(name, contentFile);
-            JSONObject gist = new JSONObject();
-            gist.put("files", files);
-            gist.put("description", description);
+            JSONObject gist = getQueryObjectString(name, content, description);
             gist.put("public", visible);
-            String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
+            String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetch();
             JSONObject json = null;
             try {
                 json = JSONUtils.parse(res);
@@ -399,6 +453,101 @@ public class LargeFileGist {
             InputStream is = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
             return storeInputStream(is, name, false, visible, description, fileType, auth, background, callback, pcb);
         }
+    }
+
+    public void updateDescripton(String description, UserAuth auth) {
+        this.description = description;
+        JSONObject gist = new JSONObject();
+        gist.put("description", description);
+        String res = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
+    }
+
+    public Pair<String, DefaultWorker> updateString(String content, String description, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException {
+        int sizeOfChunk = (int) (1024 * 1024 * MAX_CHUNK_SIZE_MB);
+        if (content.length() < sizeOfChunk) { // store string as single file
+            JSONObject gist = getQueryObjectString(fullFileName, content, description);
+            String res = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
+            return new Pair<>(id, null);
+        } else {
+            InputStream is = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+            return updateInputStream(is, false, description, fileType, auth, background, callback, pcb);
+        }
+    }
+
+    public Pair<String, DefaultWorker> updateInputStream(InputStream is, boolean wasZipped, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException {
+        Map<String, byte[]> chunks = nameChunks(splitFile(is, MAX_CHUNK_SIZE_MB));
+        if (chunks==null) return new Pair<>(id, null);
+        List<String> md5 = getMD5(chunks.values());
+        JSONObject jsonContent = new JSONObject();
+
+        // if needed store subfiles and update current file
+        int nSubFiles = (int)Math.ceil((double)chunks.size() / MAX_CHUNKS_PER_SUBFILE);
+        List<String> allSubFileIds = new ArrayList<>(nSubFiles);
+        allSubFileIds.add(id);
+        Function<Integer, String> getFileId = idx -> allSubFileIds.get(idx/ MAX_CHUNKS_PER_SUBFILE);
+        Function<Integer, String> getGistURL = idx -> BASE_URL + "/gists/" + getFileId.apply(idx);
+
+        int oldSubFiles = subFileIds == null ? 1 : subFileIds.size() + 1;
+        if (nSubFiles > oldSubFiles) { // create new subfiles
+            if (subFileIds == null) subFileIds = new ArrayList<>(nSubFiles);
+            for (int i = oldSubFiles; i<nSubFiles; ++i) this.subFileIds.add(storeSubFile(fullFileName, i, md5, visible, description, auth));
+        } else if (nSubFiles < oldSubFiles) { // delete existing subfiles
+            for (int i = oldSubFiles - 1; i>=nSubFiles; --i) {
+                String id = this.subFileIds.remove(i-1);
+                delete(id, auth);
+                logger.debug("deleted subfile: {}, #{} / {} target: {}", id, i, oldSubFiles, nSubFiles);
+            }
+        }
+        if (nSubFiles>1) {
+            allSubFileIds.addAll(subFileIds);
+            jsonContent.put("sub_file_ids", this.subFileIds);
+            logger.debug("subfile ids: {}", this.subFileIds);
+        }
+        double size = chunks.values().stream().mapToLong(b -> b.length).sum()/((double)1024*1024);
+        jsonContent.put("chunk_size", chunks.values().iterator().next().length);
+        jsonContent.put("file_name", fullFileName);
+        jsonContent.put("size_mb",  size);
+        jsonContent.put("n_chunks", chunks.size());
+        jsonContent.put("n_chunks_per_subfile", MAX_CHUNKS_PER_SUBFILE);
+        jsonContent.put("file_type", fileType);
+        jsonContent.put("checksum_md5", md5);
+        jsonContent.put("was_zipped", wasZipped);
+        JSONObject files = new JSONObject();
+        JSONObject contentFile = new JSONObject();
+        files.put("_"+Utils.removeExtension(fullFileName)+"_master_file.json", contentFile); // leading underscore so it appears before chunks
+        contentFile.put("content", jsonContent.toJSONString());
+        JSONObject gist = new JSONObject();
+        gist.put("files", files);
+        gist.put("description", description);
+        gist.put("public", visible);
+        logger.debug("uploading master file {}", gist.toJSONString());
+        String res = new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
+        JSONObject json = null;
+        try {
+            json = JSONUtils.parse(res);
+        } catch (ParseException e) {
+            logger.error("Error parsing response @LargeFileGist store file. Error: {} response: {}", e, res);
+            throw new IOException(e);
+        }
+        if (json!=null) {
+            if (pcb!=null) pcb.setMessage("storing file: size: "+String.format("%.2f", size)+"Mb # chunks: "+chunks.size() +" #n subfiles: "+nSubFiles);
+            List<Map.Entry<String, byte[]>> chunkList = new ArrayList<>(chunks.entrySet());
+            DefaultWorker.WorkerTask task = i -> {
+                logger.debug("storing chunk {}/{}", i + 1, chunks.size());
+                storeBytes(getGistURL.apply(i), chunkList.get(i).getKey(), chunkList.get(i).getValue(), auth, ()->chunkUploaded(getFileId.apply(i), chunkList.get(i).getKey(), auth));
+                //sleep(1);
+                return null; // String.format("%.2f", chunkList.get(i).getValue().length / (1024d * 1024d)) + "MB stored";
+            };
+            if (background) {
+                DefaultWorker w = DefaultWorker.execute(task, chunks.size(), pcb).appendEndOfWork(callback==null?null:()->callback.accept(id));
+                return new Pair<>(id, w);
+            }
+            else {
+                DefaultWorker.executeInForeground(task, chunks.size());
+                if (callback!=null) callback.accept(id);
+                return new Pair<>(id, null);
+            }
+        } else throw new IOException("Error storing LargeFileGist");
     }
 
     public static Pair<String, DefaultWorker> storeInputStream(InputStream is, String fileName, boolean wasZipped, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
@@ -534,14 +683,22 @@ public class LargeFileGist {
     }
 
     public boolean delete(UserAuth auth) {
-        String url = BASE_URL + "/gists/" + getID();
+        return delete(getID(), auth);
+    }
+
+    public static boolean delete(String id, UserAuth auth) {
+        String url = BASE_URL + "/gists/" + id;
         return JSONQuery.delete(url, auth);
     }
 
-    public static Stream<LargeFileGist> fetch(UserAuth auth, ProgressLogger pcb) {
+    public static Stream<LargeFileGist> fetch(UserAuth auth, Predicate<String> filenameFiler, ProgressLogger pcb) {
         try {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
             return gists.stream().map(content -> {
+                String filename = getFileName(content);
+                logger.debug("gitst filename: {} from {}", filename, content);
+                if (filename == null) return null;
+                if (filenameFiler != null && !filenameFiler.test(filename)) return null;
                 try {
                     LargeFileGist lf = new LargeFileGist(content, auth);
                     if (lf.id == null) return null; // TODO test

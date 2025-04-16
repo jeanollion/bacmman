@@ -60,17 +60,21 @@ public class NotebookTree {
     final JTree tree;
     final Consumer<NotebookTreeNode> doubleClickCallback;
     final BiConsumer<String, JSONObject> upload;
+    final BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update;
     final Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback;
+    final Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier;
     final ProgressLogger bacmmanLogger;
     DefaultTreeModel treeModel;
     boolean expanding=false;
 
-    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, ProgressLogger bacmmanLogger) {
+    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback, Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update, ProgressLogger bacmmanLogger) {
         this.bacmmanLogger = bacmmanLogger;
         this.tree = new JTree();
         this.doubleClickCallback = doubleClickCallback;
         this.selectionCallback = selectionCallback;
+        this.selectedRemoteSupplier = selectedRemoteSupplier;
         this.upload = upload;
+        this.update = update;
         this.treeModel=new DefaultTreeModel(null);
         tree.setModel(treeModel);
         tree.setRootVisible(false);
@@ -110,7 +114,9 @@ public class NotebookTree {
                             doubleClickCallback.accept(node);
                         }
                     } else if (SwingUtilities.isRightMouseButton(e)) {
+                        TreePath oldSel = tree.getSelectionPath();
                         tree.setSelectionPath(path);
+                        selectionChanged(oldSel, path);
                         showPopupMenu(e, node);
                     }
                 }
@@ -136,20 +142,19 @@ public class NotebookTree {
                 }
             }
         });
-        tree.addTreeSelectionListener(e -> {
-            TreePath old = e.getNewLeadSelectionPath();
-            if (old != null && !((NotebookTreeNode)old.getLastPathComponent()).isFolder ) {
-                ((NotebookTreeNode)old.getLastPathComponent()).updateContent();
-            }
-            TreePath p = e.getNewLeadSelectionPath();
-            if (selectionCallback != null) {
-                if (p == null) selectionCallback.apply(null);
-                else {
-                    NotebookTreeNode newN = (NotebookTreeNode) p.getLastPathComponent();
-                    newN.contentUpdate = selectionCallback.apply(newN);
-                }
-            }
-        });
+        tree.addTreeSelectionListener(e -> selectionChanged(e.getOldLeadSelectionPath(), e.getNewLeadSelectionPath()));
+    }
+
+    protected void selectionChanged(TreePath oldSel, TreePath newSel) {
+        selectionChanged(oldSel == null ? null : (NotebookTreeNode)oldSel.getLastPathComponent(), newSel == null ? null : (NotebookTreeNode)newSel.getLastPathComponent());
+    }
+
+    protected void selectionChanged(NotebookTreeNode oldSel, NotebookTreeNode newSel) {
+        if (oldSel != null && !oldSel.isFolder) oldSel.updateContent();
+        if (selectionCallback != null) {
+            if (newSel == null) selectionCallback.apply(null);
+            else newSel.contentUpdate = selectionCallback.apply(newSel);
+        }
     }
 
     public JTree getTree() {
@@ -158,7 +163,7 @@ public class NotebookTree {
 
     public File getFirstSelectedFolderOrNotebookFile() {
         TreePath[] sel = tree.getSelectionPaths();
-        if (sel==null || sel.length==0) return null;
+        if (sel==null || sel.length==0) return getRoot().file;
         TreePath p = sel[0];
         NotebookTreeNode n = (NotebookTreeNode)p.getLastPathComponent();
         return n.file;
@@ -294,8 +299,8 @@ public class NotebookTree {
 
     public void removeEmptyFolders(boolean updateUI) {
         getExistingNodes().stream()
-                .filter(n->n.isFolder && n.childrenCreated() && n.getChildCount()==0 && !n.equals(getRoot()))
-                .forEach(treeModel::removeNodeFromParent);
+            .filter(n->n.isFolder && n.getChildCount()==0 && !n.equals(getRoot()))
+            .forEach(treeModel::removeNodeFromParent);
         if (updateUI) tree.updateUI();
     }
 
@@ -330,13 +335,14 @@ public class NotebookTree {
 
     private void showPopupMenu(MouseEvent e, NotebookTreeNode n) {
         JPopupMenu menu = new JPopupMenu();
+        NotebookGistTree.GistTreeNode remote = selectedRemoteSupplier.get();
         JMenuItem save = new JMenuItem(new AbstractAction("Save") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 saveNotebook(n);
             }
         });
-        JMenuItem saveAs = new JMenuItem(new AbstractAction("Save As...") {
+        JMenuItem saveAs = new JMenuItem(new AbstractAction("Save as...") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 saveNotebookAs(n);
@@ -348,7 +354,14 @@ public class NotebookTree {
                 upload(n);
             }
         });
-        JMenuItem reload = new JMenuItem(new AbstractAction("Reload") {
+        JMenuItem updateRemote = new JMenuItem(new AbstractAction("Update remote...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JSONObject content = n.contentUpdate != null ? n.contentUpdate.get() : n.getContent(false);
+                update.accept(remote, content);
+            }
+        });
+        JMenuItem reload = new JMenuItem(new AbstractAction("Reload from disk") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 reloadNotebook(n);
@@ -363,6 +376,9 @@ public class NotebookTree {
 
         menu.add(save);
         menu.add(saveAs);
+        menu.add(upload);
+        menu.add(updateRemote);
+        updateRemote.setEnabled(remote != null);
         menu.add(reload);
         menu.add(delete);
         menu.show(e.getComponent(), e.getX(), e.getY());
@@ -371,6 +387,16 @@ public class NotebookTree {
     public void saveNotebook(NotebookTreeNode n) {
         n.updateContent();
         JupyterNotebookViewer.saveNotebook(n.getFile().getAbsolutePath(), n.getContent(false));
+    }
+
+    public void reloadNotebook(File f) {
+        NotebookTreeNode n = getNotebookNode(generateRelativePath(f));
+        if (n==null) {
+            updateNotebookTree();
+            n = getNotebookNode(generateRelativePath(f));
+            if (n==null) return;
+        }
+        reloadNotebook(n);
     }
 
     public void reloadNotebook(NotebookTreeNode n) {

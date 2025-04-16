@@ -18,14 +18,19 @@
  */
 package bacmman.ui.gui.objects;
 
+import bacmman.configuration.parameters.TextParameter;
+import bacmman.core.DefaultWorker;
 import bacmman.github.gist.GistDLModel;
 import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.UserAuth;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.EnumerationUtils;
+import bacmman.utils.JSONUtils;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,8 +44,10 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -62,16 +69,19 @@ public class NotebookGistTree {
     protected JTree tree;
     protected DefaultTreeModel treeModel;
     List<LargeFileGist> gists;
-    final Function<JSONObject, Supplier<JSONObject>> selectionCallback;
+
+    final Function<GistTreeNode, Supplier<JSONObject>> selectionCallback;
     final ProgressLogger pcb;
     final Supplier<UserAuth> authSupplier;
     final Supplier<File> selectedLocalFileSupplier;
+    final Consumer<File> localFileUpdated;
 
-    public NotebookGistTree(Function<JSONObject, Supplier<JSONObject>> selectionCallback, Supplier<File> selectedLocalFileSupplier, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> selectionCallback, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
         this.selectionCallback=selectionCallback;
         this.pcb = pcb;
         this.authSupplier = authSupplier;
         this.selectedLocalFileSupplier = selectedLocalFileSupplier;
+        this.localFileUpdated = localFileUpdated;
     }
 
     public JTree getTree() {
@@ -83,8 +93,12 @@ public class NotebookGistTree {
         if (tree==null) return null;
         TreePath path = tree.getSelectionPath();
         if (path==null) return null;
-        if (path.getPathCount()<2) return null;
-        return path.getPath()[1].toString();
+        else if (path.getLastPathComponent() instanceof FolderNode) return ((FolderNode)path.getLastPathComponent()).name;
+        else if (path.getLastPathComponent() instanceof GistTreeNode) {
+            TreeNode p = ((GistTreeNode) path.getLastPathComponent()).getParent();
+            if (p instanceof FolderNode) return ((FolderNode)p).name;
+            else return null;
+        } else return null;
     }
 
     public LargeFileGist getSelectedGist() {
@@ -102,53 +116,87 @@ public class NotebookGistTree {
         if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent());
         else return null;
     }
-    
-    static String gistName(String folder, String name) {
-        return "notebook_" + folder+"_"+name + ".ipynb"; 
-    }
-    
-    static String folder(LargeFileGist gist) {
-        String n = gist.getFileName().replace("notebook_", "");
-        return n.substring(0, n.indexOf("_"));
-    }
-    
-    static String name(LargeFileGist gist) {
-        String n = gist.getFileName().replace("notebook_", "").replace(".ipynb", "");
-        return n.substring(n.indexOf("_")+1);
-    }
 
     public void setSelectedGist(LargeFileGist gist) {
+        TreePath oldPath = tree.getSelectionPath();
         if (gist == null) {
             tree.setSelectionPath(null);
+            selectionChanged(oldPath, null);
             return;
         }
         TreeNode root = getRoot();
         TreeNode folder = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(folder(gist))).findAny().orElse(null);
-        if (folder==null) return;
-        GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->name(g.gist).equals(name(gist))).findAny().orElse(null);
-        if (element==null) return;
-        tree.setSelectionPath(new TreePath(new Object[]{root, folder, element}));
+        if (folder==null) {
+            selectionChanged(oldPath, null);
+            return;
+        }
+        GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.name.equals(name(gist))).findAny().orElse(null);
+        if (element==null) {
+            selectionChanged(oldPath, null);
+            return;
+        }
+        TreePath newPath = new TreePath(new Object[]{root, folder, element});
+        tree.setSelectionPath(newPath);
+        selectionChanged(oldPath, newPath);
+    }
+
+    public void setSelectedGist(String folder, String name) {
+        TreePath oldPath = tree.getSelectionPath();
+        if (folder == null || name == null) {
+            tree.setSelectionPath(null);
+            selectionChanged(oldPath, null);
+            return;
+        }
+        TreeNode root = getRoot();
+        TreeNode folderN = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(folder)).findAny().orElse(null);
+        if (folderN==null) {
+            selectionChanged(oldPath, null);
+            return;
+        }
+        GistTreeNode element = IntStream.range(0, folderN.getChildCount()).mapToObj(i->(GistTreeNode)folderN.getChildAt(i)).filter(g->g.name.equals(name)).findAny().orElse(null);
+        if (element==null) {
+            selectionChanged(oldPath, null);
+            return;
+        }
+        TreePath newPath = new TreePath(new Object[]{root, folderN, element});
+        tree.setSelectionPath(newPath);
+        selectionChanged(oldPath, newPath);
     }
     
     protected DefaultMutableTreeNode getRoot() {
         return  (DefaultMutableTreeNode)tree.getModel().getRoot();
     }
 
+    public void updateGists(UserAuth auth) {
+        GistTreeNode sel = getSelectedGistNode();
+        fetchGists(auth);
+        if (tree == null) generateTree();
+        else populateRoot();
+        if (sel != null) setSelectedGist(folder(sel.gist), sel.name);
+        tree.updateUI();
+    }
+
     protected void fetchGists(UserAuth auth) {
-        gists = LargeFileGist.fetch(auth, pcb).filter(lf -> lf.getFileName().startsWith("notebook_")).collect(Collectors.toList());
+        gists = LargeFileGist.fetch(auth, fn -> fn.startsWith("jnb_"), pcb).collect(Collectors.toList());
+        logger.debug("fetched notebooks: {}", gists.size());
+    }
+
+    private void populateRoot() {
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode)treeModel.getRoot();
+        root.removeAllChildren();
+        if (gists == null) return;
+        gists.stream().map(NotebookGistTree::folder).distinct().sorted().map(FolderNode::new).forEach(f -> { // folder nodes
+            root.add(f);
+            gists.stream().filter(g -> folder(g).equals(f.getUserObject())).sorted(Comparator.comparing(NotebookGistTree::name)).forEach(g ->  f.add(new GistTreeNode(g))); //notebooks
+            logger.debug("adding folder: {} with notebooks: {}", f.getUserObject(), EnumerationUtils.toStream(f.children()).map(g->((GistTreeNode)g).name).collect(Collectors.toList()));
+        });
+        treeModel.reload();
     }
 
     private void generateTree() {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("Notebooks");
-        // folder nodes
-        if (gists == null) fetchGists(authSupplier.get());
-        gists.stream().map(NotebookGistTree::folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
-            root.add(f);
-            // actual content
-            gists.stream().filter(g -> folder(g).equals(f.getUserObject())).sorted(Comparator.comparing(NotebookGistTree::name)).forEach(g ->  f.add(new GistTreeNode(g)));
-        });
-
         treeModel = new DefaultTreeModel(root);
+        populateRoot();
         tree = new JTree(treeModel) {
             @Override
             public String getToolTipText(MouseEvent evt) {
@@ -177,20 +225,7 @@ public class NotebookGistTree {
         };
         ToolTipManager.sharedInstance().registerComponent(tree); // add tool tips to the tree
         setNullToolTipDelays(tree);
-        tree.addTreeSelectionListener(e -> {
-            TreePath old = e.getNewLeadSelectionPath();
-            if (old != null && old.getLastPathComponent() instanceof GistTreeNode ) {
-                ((GistTreeNode)old.getLastPathComponent()).updateContent();
-            }
-            TreePath p = e.getNewLeadSelectionPath();
-            if (selectionCallback != null) {
-                if (p == null || p.getLastPathComponent() instanceof FolderNode) selectionCallback.apply(null);
-                else {
-                    GistTreeNode newN = (GistTreeNode) p.getLastPathComponent();
-                    newN.contentUpdate = selectionCallback.apply(null); // TODO get content from LFG
-                }
-            }
-        });
+        tree.addTreeSelectionListener(e -> selectionChanged(e.getOldLeadSelectionPath(), e.getNewLeadSelectionPath()));
         final MouseListener ml = new MouseAdapter() {
             public void mousePressed(final MouseEvent e) {
                 final TreePath selPath = tree.getPathForLocation(e.getX(), e.getY());
@@ -199,7 +234,9 @@ public class NotebookGistTree {
                     if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 2) {
                         downloadGist(n.gist, selectedLocalFileSupplier.get());
                     } else if (SwingUtilities.isRightMouseButton(e)) {
+                        TreePath oldSel = tree.getSelectionPath();
                         tree.setSelectionPath(selPath);
+                        selectionChanged(oldSel, selPath);
                         showPopupMenu(e, n);
                     }
                 }
@@ -213,6 +250,21 @@ public class NotebookGistTree {
         DefaultTreeCellRenderer renderer = new NotebookTreeCellRenderer();
         tree.setCellRenderer(renderer);
         tree.setOpaque(false);
+    }
+
+    protected void selectionChanged(TreePath oldSel, TreePath newSel) {
+        selectionChanged(oldSel == null ? null : (TreeNode)oldSel.getLastPathComponent(), newSel == null ? null : (TreeNode)newSel.getLastPathComponent());
+    }
+
+    protected void selectionChanged(TreeNode oldSel, TreeNode newSel) {
+        if (oldSel != null && oldSel instanceof GistTreeNode) ((GistTreeNode)oldSel).updateContent();
+        if (selectionCallback != null) {
+            if (newSel == null || !(newSel instanceof GistTreeNode)) selectionCallback.apply(null);
+            else {
+                GistTreeNode newSelN = (GistTreeNode)newSel;
+                newSelN.contentUpdate = selectionCallback.apply(newSelN);
+            }
+        }
     }
 
     private void showPopupMenu(MouseEvent e, GistTreeNode n) {
@@ -245,16 +297,62 @@ public class NotebookGistTree {
         menu.show(e.getComponent(), e.getX(), e.getY());
     }
 
+    public boolean updateRemote(GistTreeNode node, JSONObject content) {
+        node.content = content;
+        node.contentUpdate = selectionCallback.apply(node);
+        return node.uploadContent(false);
+    }
+
     public boolean upload(String name, JSONObject content) {
-        // TODO create LFG, add to gistlist, update tree and select
+        String currentFolder = getSelectedFolder();
+        if (currentFolder == null) currentFolder = "folder";
+        String path = JOptionPane.showInputDialog(tree, "Notebook path: folder / name", currentFolder+"/"+Utils.removeExtension(name));
+        if (path == null) return false;
+        if (!path.contains("/")) {
+            Utils.displayTemporaryMessage("Path must contain folder / name", 5000);
+            return false;
+        }
+        String[] folderName = path.split("/");
+        if (folderName.length != 2) {
+            Utils.displayTemporaryMessage("Path must contain exactly one / character", 5000);
+            return false;
+        }
+        if (folderName[0].isEmpty()) {
+            Utils.displayTemporaryMessage("Folder cannot be empty", 5000);
+            return false;
+        }
+        if (folderName[1].isEmpty()) {
+            Utils.displayTemporaryMessage("Name cannot be empty", 5000);
+            return false;
+        }
+        String nbName = gistName(folderName[0], folderName[1]);
+        Consumer<String> cb = id -> {
+            try {
+                LargeFileGist gist = new LargeFileGist(id, authSupplier.get());
+                gists.add(gist);
+                populateRoot();
+                setSelectedGist(gist);
+                tree.updateUI();
+            } catch (IOException e) {
+                pcb.setMessage("Error uploading notebook: " + e.getMessage());
+                logger.error("Error uploading notebook", e);
+            }
+        };
+        try {
+            Pair<String, DefaultWorker> upload = LargeFileGist.storeString(nbName, content.toJSONString(), true, "", ".ipynb", authSupplier.get(), true, cb, pcb);
+        } catch (IOException e) {
+            pcb.setMessage("Error uploading notebook: " + e.getMessage());
+            logger.error("Error uploading notebook", e);
+        }
         return false;
     }
 
     public boolean downloadGist(LargeFileGist lf, File destFile) {
         if (destFile.isFile() && !Utils.promptBoolean("Overwrite local notebook ?", tree)) return false;
+        if (destFile.isDirectory()) destFile = Paths.get(destFile.getAbsolutePath(), name(lf)+".ipynb").toFile();
         try {
             UserAuth auth = authSupplier.get();
-            File notebookFile = lf.retrieveFile(destFile, true, true, auth, null, pcb);
+            File notebookFile = lf.retrieveFile(destFile, true, true, auth, localFileUpdated, pcb);
             if (notebookFile!=null) {
                 if (pcb!=null) pcb.setMessage("Notebook will be downloaded @:" + notebookFile);
                 return true;
@@ -313,6 +411,20 @@ public class NotebookGistTree {
         return streamFolders().flatMap(f -> EnumerationUtils.toStream(f.children())).map(g -> (GistTreeNode)g);
     }
 
+    static String gistName(String folder, String name) {
+        return "jnb_" + folder+"_"+name + ".ipynb";
+    }
+
+    static String folder(LargeFileGist gist) {
+        String n = gist.getFileName().replace("jnb_", "");
+        return n.substring(0, n.indexOf("_"));
+    }
+
+    static String name(LargeFileGist gist) {
+        String n = gist.getFileName().replace("jnb_", "").replace(".ipynb", "");
+        return n.substring(n.indexOf("_")+1);
+    }
+
     public class FolderNode extends DefaultMutableTreeNode {
         String name;
         public FolderNode(String name) {
@@ -336,15 +448,52 @@ public class NotebookGistTree {
 
     public class GistTreeNode extends DefaultMutableTreeNode {
         public final LargeFileGist gist;
+        JSONObject content;
+        final String name;
         Supplier<JSONObject> contentUpdate;
+        TextParameter description;
 
         public GistTreeNode(LargeFileGist gist) {
             super(gist);
             this.gist = gist;
+            this.name = name(gist);
+            description = new TextParameter("Description", gist.getDescription(), true);
+            description.addListener( tp -> uploadDescription() );
         }
 
         public void updateContent() {
-            if (contentUpdate != null) contentUpdate.get(); // TODO SET CONTENT TO LFG
+            if (contentUpdate != null) {
+                content = contentUpdate.get();
+            }
+        }
+
+        public boolean uploadContent(boolean update) {
+            if (update) updateContent();
+            try {
+                gist.updateString(content.toJSONString(), description.getValue(), authSupplier.get(), true, null, pcb);
+                return true;
+            } catch (IOException e) {
+                pcb.setMessage("Error updating notebook: "+e.getMessage());
+                logger.error("Error updating notebook", e);
+                return false;
+            }
+        }
+
+        public void uploadDescription() {
+            gist.updateDescripton(description.getValue(), authSupplier.get());
+        }
+
+        public JSONObject getContent(boolean forceReload) throws IOException {
+            if (forceReload) content = null;
+            if (content == null) {
+                String c = gist.retrieveString(authSupplier.get(), pcb);
+                try {
+                    content = JSONUtils.parse(c);
+                } catch (ParseException e) {
+                    throw new IOException(e);
+                }
+            }
+            return content;
         }
 
         @Override
@@ -354,9 +503,10 @@ public class NotebookGistTree {
 
         @Override
         public String toString() {
-            return name(gist);
+            return name;
         }
     }
+
     public void flush() {
         if (tree!=null) {
             ToolTipManager.sharedInstance().unregisterComponent(tree);

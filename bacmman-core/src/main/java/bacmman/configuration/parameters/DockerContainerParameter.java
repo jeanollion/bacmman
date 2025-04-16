@@ -98,15 +98,22 @@ public class DockerContainerParameter extends AbstractChoiceParameter<DockerGate
         else allContainers = new ArrayList<>();
         if (filter == null) filter = im -> true;
         if (gateway != null) {
-            gateway.listContainers()
-                    .filter(imageParameter == null ? i -> true : i -> imageParameter.getValue() == null || imageParameter.getValue().getTag().equals(i.getImage().getTag()))
-                    .filter(imageName == null ? i -> true : i -> i.getImage().getImageName().equals(imageName))
-                    .filter(versionPrefix == null ? i -> true : i -> Objects.equals(versionPrefix, i.getImage().getVersionPrefix()))
-                    .filter(minimalVersion == null ? i -> true : i -> i.getImage().compareVersionNumber(minimalVersion) >= 0)
-                    .filter(maximalVersion == null ? i -> true : i -> i.getImage().compareVersionNumber(maximalVersion) <= 0)
-                    .filter(filter)
-                    .distinct()
-                    .forEach(allContainers::add);
+            try {
+                gateway.listContainers()
+                        .filter(imageParameter == null ? i -> true : i -> imageParameter.getValue() == null || imageParameter.getValue().getTag().equals(i.getImage().getTag()))
+                        .filter(imageName == null ? i -> true : i -> i.getImage().getImageName().equals(imageName))
+                        .filter(versionPrefix == null ? i -> true : i -> Objects.equals(versionPrefix, i.getImage().getVersionPrefix()))
+                        .filter(minimalVersion == null ? i -> true : i -> i.getImage().compareVersionNumber(minimalVersion) >= 0)
+                        .filter(maximalVersion == null ? i -> true : i -> i.getImage().compareVersionNumber(maximalVersion) <= 0)
+                        .filter(filter)
+                        .distinct()
+                        .forEach(allContainers::add);
+            } catch (RuntimeException e) {
+                if (e.getMessage().toLowerCase().contains("permission denied")) {
+                    Core.userLog("Error trying to list docker images: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
+                    logger.error("Error trying to list docker images", e);
+                } else throw e;
+            }
             allContainers.sort(Comparator.comparing(DockerGateway.DockerContainer::getImage));
             if (selectedItem != null) {
                 DockerGateway.DockerContainer sel = allContainers.stream().filter(c -> c.getId().equals(selectedItem.getId())).findFirst().orElse(null);
