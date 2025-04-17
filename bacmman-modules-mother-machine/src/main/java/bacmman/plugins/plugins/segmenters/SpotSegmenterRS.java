@@ -221,7 +221,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         BoundingBox.loop(new SimpleBoundingBox(seedMap).resetOffset(),
                 (x, y, z)->seeds.add(new Point(x, y, z)),
                 (x, y, z)->seedMap.insideMask(x, y, z) && smooth.getPixel(x, y, z)>=intensityThreshold && radSym.getPixel(x, y, z)>=thresholdSeeds, parallel);
-
+        seeds.removeIf(Objects::isNull);
         //logger.debug("get seeds done (parallel: {})", parallel);
         if (stores!=null) {
             ImageOperations.fill(seedMap, 0, null);
