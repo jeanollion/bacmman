@@ -101,7 +101,6 @@ public class DataAnalysisPanel {
                     localViewerJSP.setViewportView(null);
                     return null;
                 }
-
             }
         };
         Consumer<NotebookTree.NotebookTreeNode> doubleClickCB = nb -> {
@@ -137,7 +136,7 @@ public class DataAnalysisPanel {
             }
         };
 
-        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/home/jovyan/work", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+ jupyterToken +"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
+        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/data", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+ jupyterToken +"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
 
 
@@ -155,7 +154,7 @@ public class DataAnalysisPanel {
 
     public String getNotebookURL(NotebookTree.NotebookTreeNode n, int port) {
         if (n == null) return getServerURL(port) + "?token=" + jupyterToken;
-        else return getServerURL(port) +  "/lab/tree/work/" + n.getRelativePath() + "?token=" + jupyterToken;
+        else return getServerURL(port) +  "/lab/tree/" + n.getRelativePath() + "?token=" + jupyterToken;
     }
 
     protected boolean isServerReady(String url) {

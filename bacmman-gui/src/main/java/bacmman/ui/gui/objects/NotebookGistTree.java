@@ -328,8 +328,10 @@ public class NotebookGistTree {
         String nbName = gistName(folderName[0], folderName[1]);
         Consumer<String> cb = id -> {
             try {
-                LargeFileGist gist = new LargeFileGist(id, authSupplier.get());
-                gists.add(gist);
+                UserAuth auth = authSupplier.get();
+                LargeFileGist gist = new LargeFileGist(id, auth);
+                if (gists == null) fetchGists(auth);
+                else gists.add(gist);
                 populateRoot();
                 setSelectedGist(gist);
                 tree.updateUI();
