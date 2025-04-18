@@ -148,7 +148,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
         for (int i = 1; i<inputNC.length; ++i) {
             if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
         }
-        int sizeZ = 1;
+        int sizeZ = DLEngine.getSizeZ(inputNC);
         switch (zAxis.getSelectedEnum()) {
             case Z:
             default: {
@@ -161,8 +161,6 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
                 break;
             }
             case BATCH: {
-                sizeZ = DLEngine.getSizeZ(inputNC);
-                logger.debug("Z to batch: size Z = {}", sizeZ);
                 if (sizeZ>1) {
                     for (int idx = 0; idx < inputNC.length; ++idx) {
                         inputNC[idx] = ResizeUtils.setZtoBatch(inputNC[idx]);

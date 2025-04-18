@@ -140,7 +140,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
             if (inputNC[i].length != nSamples)
                 throw new IllegalArgumentException("Input #" + i + " has #" + inputNC[i].length + " samples whereas input 0 has #" + nSamples + " samples");
         }
-        int sizeZ = 1;
+        int sizeZ = DLEngine.getSizeZ(inputNC);
         switch (zAxis.getSelectedEnum()) {
             case Z:
             default: {
@@ -153,8 +153,6 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
                 break;
             }
             case BATCH: {
-                sizeZ = DLEngine.getSizeZ(inputNC);
-                //logger.debug("Z to batch: size Z = {}", sizeZ);
                 if (sizeZ > 1) {
                     for (int idx = 0; idx < inputNC.length; ++idx) {
                         //logger.debug("before Z to batch : input: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", idx, inputNC[idx].length, inputNC[idx][0].length, inputNC[idx][0][0].sizeX(), inputNC[idx][0][0].sizeY(), inputNC[idx][0][0].sizeZ());
@@ -187,6 +185,29 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
                 ++curIdx;
             }
         }
+        switch (zAxis.getSelectedEnum()) {
+            case Z:
+            default: {
+                break;
+            }
+            case CHANNEL: {
+                for (int i = 0; i <res.length; ++i) {
+                    int nC = res[i][0].length;
+                    if (nC>1) res[i] = ResizeUtils.setChanneltoZ(res[i]);
+                }
+                break;
+            }
+            case BATCH: {
+                if (sizeZ>1) {
+                    for (int o = 0; o<res.length; ++o) {
+                        logger.debug("before batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                        res[o] = ResizeUtils.setBatchToZ(res[o], sizeZ);
+                        logger.debug("after batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                    }
+                }
+                break;
+            }
+        }
         return res;
 
     }
@@ -209,7 +230,6 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         int nIterMax = (int)Math.ceil(1000 * processTimeout.getDoubleValue() / (double)loopFreqMs);
         Path ds_path_out = dataDir.resolve(ds_name_out);
         Path ds_path_error = dataDir.resolve(ds_name.replace("h5", "error"));
-        int sizeZ = DLEngine.getSizeZ(inputINC);
         while(t++ < nIterMax) {
             if (Files.exists(ds_path_out)) {
                 try {
@@ -220,29 +240,6 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
                         resONC[i] = toImageArray(im);
                     }
                     reader.close();
-                    switch (zAxis.getSelectedEnum()) {
-                        case Z:
-                        default: {
-                            break;
-                        }
-                        case CHANNEL: {
-                            for (int i = 0; i <resONC.length; ++i) {
-                                int nC = resONC[i][0].length;
-                                if (nC>1) {
-                                    resONC[i] = ResizeUtils.setChanneltoZ(resONC[i]);
-                                }
-                            }
-                            break;
-                        }
-                        case BATCH: {
-                            if (sizeZ>1) {
-                                for (int o = 0; o<resONC.length; ++o) {
-                                    resONC[o] = ResizeUtils.setBatchToZ(resONC[o], sizeZ);
-                                }
-                            }
-                            break;
-                        }
-                    }
                     return resONC;
                 } catch (Exception e) {
                     deleteSilently(ds_path);
