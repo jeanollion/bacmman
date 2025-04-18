@@ -46,7 +46,7 @@ public class Optimization {
         }
     }
 
-    public void run(MasterDAO db, Selection selection, ProgressCallback pcb, String... runs) {
+    public void run(MasterDAO db, Selection selection, ProgressCallback pcb, String... runs) throws MultipleException {
         if (runs==null || runs.length==0) runs = steamRuns().map(Run::name).toArray(String[]::new);
         else for (String run : runs) if (!containsRun(run)) throw new RuntimeException("Unknown Run: "+run);
         boolean lock;
@@ -54,15 +54,18 @@ public class Optimization {
         if (selection == null) lock = db.lockPositions();
         else lock = db.lockPositions(selection.getAllPositions().toArray(new String[0]));
         if (!lock) throw new RuntimeException("Could not acquire lock on some positions");
+        MultipleException ex = new MultipleException();
         for (String run : runs) {
             try {
                 getRun(run).run(db, selection, pcb);
-            } catch (MultipleException e) {
-                throw e;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            } catch (Throwable t) {
+                ex.addException("Error at Run:"+run, t);
+            } finally {
+                db.getExperiment().getDLengineProvider().closeAllEngines();
+                Core.clearDiskBackedImageManagers();
             }
         }
+        if (!ex.isEmpty()) throw ex;
     }
 
     public int getCommonParentIdx(String... runs) {
@@ -363,8 +366,19 @@ public class Optimization {
             initDB();
             ProgressCallback pcb = ProgressCallback.get(ui);
             pcb.setTaskNumber(taskCounter[1]);
-            optimization.run(db, selectionName!=null?db.getSelectionDAO().getOrCreate(selectionName, false):null, pcb, runA);
-            db.clearCache(true, true, true);
+            try {
+                optimization.run(db, selectionName!=null?db.getSelectionDAO().getOrCreate(selectionName, false):null, pcb, runA);
+            } catch (MultipleException e) {
+                errors.addExceptions(e.getExceptions());
+                publishErrors();
+            } catch (Exception e) {
+                publishError("Error while running optimization", e);
+            } finally {
+                db.getExperiment().getDLengineProvider().closeAllEngines();
+                Core.clearDiskBackedImageManagers();
+                db.clearCache(true, true, true);
+            }
+
         }
 
         public void publish(String message) {

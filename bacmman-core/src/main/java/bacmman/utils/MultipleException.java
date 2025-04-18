@@ -43,6 +43,9 @@ public class MultipleException extends RuntimeException {
         if (ex.length == 1) addException(ex[0]);
         else addExceptions(Arrays.asList(ex));
     }
+    public void addException(String loc, Throwable t) {
+        addException(new Pair<>(loc, t));
+    }
     public void addExceptions(Collection<Pair<String, Throwable>> ex) {
         ex.forEach(p->addException(p));
     }
