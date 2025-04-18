@@ -165,9 +165,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
                 logger.debug("Z to batch: size Z = {}", sizeZ);
                 if (sizeZ>1) {
                     for (int idx = 0; idx < inputNC.length; ++idx) {
-                        logger.debug("before Z to batch : input: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", idx, inputNC[idx].length, inputNC[idx][0].length, inputNC[idx][0][0].sizeX(), inputNC[idx][0][0].sizeY(), inputNC[idx][0][0].sizeZ());
                         inputNC[idx] = ResizeUtils.setZtoBatch(inputNC[idx]);
-                        logger.debug("after Z to batch input: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", idx, inputNC[idx].length, inputNC[idx][0].length, inputNC[idx][0][0].sizeX(), inputNC[idx][0][0].sizeY(), inputNC[idx][0][0].sizeZ());
                         nSamples = inputNC[0].length;
                     }
                 }

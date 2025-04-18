@@ -209,6 +209,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         int nIterMax = (int)Math.ceil(1000 * processTimeout.getDoubleValue() / (double)loopFreqMs);
         Path ds_path_out = dataDir.resolve(ds_name_out);
         Path ds_path_error = dataDir.resolve(ds_name.replace("h5", "error"));
+        int sizeZ = DLEngine.getSizeZ(inputINC);
         while(t++ < nIterMax) {
             if (Files.exists(ds_path_out)) {
                 try {
@@ -219,6 +220,29 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
                         resONC[i] = toImageArray(im);
                     }
                     reader.close();
+                    switch (zAxis.getSelectedEnum()) {
+                        case Z:
+                        default: {
+                            break;
+                        }
+                        case CHANNEL: {
+                            for (int i = 0; i <resONC.length; ++i) {
+                                int nC = resONC[i][0].length;
+                                if (nC>1) {
+                                    resONC[i] = ResizeUtils.setChanneltoZ(resONC[i]);
+                                }
+                            }
+                            break;
+                        }
+                        case BATCH: {
+                            if (sizeZ>1) {
+                                for (int o = 0; o<resONC.length; ++o) {
+                                    resONC[o] = ResizeUtils.setBatchToZ(resONC[o], sizeZ);
+                                }
+                            }
+                            break;
+                        }
+                    }
                     return resONC;
                 } catch (Exception e) {
                     deleteSilently(ds_path);
