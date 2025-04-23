@@ -45,7 +45,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     ObjectClassParameter parentObjectClass = new ObjectClassParameter("Parent Object Class", -1, true, false)
         .setNoSelectionString("Viewfield")
         .setHint("Select object class that will define the frame (usually parent object class)");
-    EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. EXISTING: choose previously defined selection. NEW: will generate a selection");
+    EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. <br/>EXISTING: choose previously defined selection. NEW: will generate a selection<br/>In either case, all objets of the resulting selection must have identical spatial dimensions. <br>To include subsets that do not have same spatial dimension make one dataset per spatial dimension, and list them in the training configuration (DatasetList parameter)");
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ArrayNumberParameter extractDims = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
