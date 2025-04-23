@@ -74,7 +74,7 @@ public class OmeroGatewayI implements OmeroGateway {
         if (!gateway.isConnected()) {
             synchronized (gateway) {
                 if (!gateway.isConnected() && validCredentials()) connect();
-                logger.debug("current connection information: {}, {}, pwd:{}, is GUI: {}", hostname, username, password==null? "null" : password.length(), bacmmanLogger.isGUI());
+                //logger.debug("current connection information: {}, {}, pwd:{}, is GUI: {}", hostname, username, password==null? "null" : password.length(), bacmmanLogger.isGUI());
                 if (!gateway.isConnected() && bacmmanLogger!=null && bacmmanLogger.isGUI()) promptCredentials(serverPasswords, (s, u, p)-> {
                     setCredentials(s, u, p);
                     if (validCredentials()) connect();
@@ -116,6 +116,7 @@ public class OmeroGatewayI implements OmeroGateway {
         String decryptedPass = null;
         try {
             decryptedPass = OmeroGateway.decryptPassword(hostname, username, password.toCharArray());
+            if (decryptedPass != null) Core.userLog("Omero password decrypted successfully");
         } catch (GeneralSecurityException e) {
 
         }
@@ -149,6 +150,7 @@ public class OmeroGatewayI implements OmeroGateway {
         cred.getUser().setPassword(password);
         try {
             ExperimenterData user = gateway.connect(cred);
+            logger.debug("user : {}", user);
             ctx = new SecurityContext(user.getGroupId());
             ctx.setExperimenter(user);
             browse = gateway.getFacility(BrowseFacility .class);

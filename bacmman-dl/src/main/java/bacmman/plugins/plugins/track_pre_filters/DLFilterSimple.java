@@ -49,8 +49,12 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
     @Override
     public void configureFromMetadata(DLModelMetadata metadata) {
         int inputChannels = metadata.getInputs().get(0).getChannelNumber();
-        if (inputChannels == 1) this.timelapse.setSelected(false);
-        else if (inputChannels>1) {
+        if (inputChannels == 1) {
+            DLEngine.setZAxis(dlEngine, DLEngine.Z_AXIS.BATCH);
+            this.timelapse.setSelected(false);
+        }
+        else if (inputChannels>1) { // either timelapse OR ZToBatch
+
             this.timelapse.setSelected(true);
             BooleanParameter nextP = metadata.getOtherParameter("Next", BooleanParameter.class);
             if (nextP==null) {

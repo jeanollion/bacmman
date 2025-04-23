@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 public class ModePercentileScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center, scale;
-    BoundedNumberParameter percentile = new BoundedNumberParameter("Percentile", 3,  0.95, 0, 1).setEmphasized(true);
+    BoundedNumberParameter percentile = new BoundedNumberParameter("Percentile", 8,  0.95, 0, 1).setEmphasized(true);
     BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge");
     BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
     boolean transformInputImage = false;
@@ -30,15 +30,17 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
         this.percentile.setValue(percentile);
         return this;
     }
+
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
         double[] scale_center = getScaleCenter(histogram);
         this.scale = scale_center[0];
         this.center = scale_center[1];
+        //logger.debug("ModePercentile scaler: center: {}, percentile: {} scale {} (inv: {})", center, center+ 1./scale, 1./scale, scale);
         log(scale_center);
-        //logger.debug("ModePercentile scaler: center: {}, percentile: {} scale {}", center, center+ 1./scale, 1./scale);
     }
+
     public double[] getScaleCenter(Histogram histogram) {
         double per = histogram.getQuantiles(this.percentile.getValue().doubleValue())[0];
         double center = histogram.getModeExcludingTailEnds(modeExcludeEdgeLeft.getIntValue(), modeExcludeEdgeLeft.getIntValue());
@@ -46,6 +48,7 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
         double scale = 1.0/(per - center);
         return new double[] {scale, center};
     }
+
     @Override
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scale, -center);

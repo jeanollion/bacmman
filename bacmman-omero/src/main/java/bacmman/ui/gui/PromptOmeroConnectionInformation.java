@@ -169,13 +169,12 @@ public class PromptOmeroConnectionInformation extends JDialog {
     }
 
     private void updateOKButton() {
-        boolean canConnect = this.username.getText().length() > 0 && password.getPassword().length > 0 && hostname.getText().length() > 0;
+        boolean canConnect = !this.username.getText().isEmpty() && password.getPassword().length > 0 && !hostname.getText().isEmpty();
         connect.setEnabled(canConnect);
 
     }
 
     private void onOK() {
-        // add your code here
         saveCurrentConnectionParameters();
         callback.set(hostname.getText(), username.getText(), String.copyValueOf(password.getPassword()));
         dispose();
@@ -190,7 +189,6 @@ public class PromptOmeroConnectionInformation extends JDialog {
     }
 
     private void onCancel() {
-        // add your code here if necessary
         dispose();
     }
 

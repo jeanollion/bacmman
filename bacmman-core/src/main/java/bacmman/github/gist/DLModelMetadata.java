@@ -156,6 +156,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     public static class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {
         PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Intensity Scaling", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
         BoundedNumberParameter chanelNumber = new BoundedNumberParameter("Channel Number", 0, 1, 1, null).setEmphasized(true).setHint("Number of channel of input tensor");
+        BoundedNumberParameter frameNumber = new BoundedNumberParameter("Frame Number", 0, 1, 1, null).setEmphasized(true).setHint("Number of frame (time points) of input tensor");
         BooleanParameter fixedSize = new BooleanParameter("Fixed Size").setEmphasized(true).setHint("Whether the input must a a pre-defined size or not");
         ArrayNumberParameter shape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setEmphasized(true).setName("Shape").setHint("Tensor shape. 0 means no constraint on axis (None)");
         ConditionalParameter<Boolean> sizeCond = new ConditionalParameter<>(fixedSize).setActionParameters(true, shape);
@@ -207,13 +208,14 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
 
         public PluginParameter<HistogramScaler> getScaling() {return scaler;}
         public int getChannelNumber() {return chanelNumber.getValue().intValue();}
+        public int getFrameNumber() {return frameNumber.getValue().intValue();}
         public boolean fixedSize() {return fixedSize.getSelected();}
         public int[] getShape() {return shape.getArrayInt();}
         public boolean is3D() {return is3D.getSelected();}
 
         @Override
         protected void initChildList() {
-            super.initChildren(scaler, is3D, sizeCond, chanelNumber);
+            super.initChildren(scaler, is3D, sizeCond, chanelNumber, frameNumber);
         }
 
         @Override
@@ -221,6 +223,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
             JSONObject res = new JSONObject();
             res.put("scaling", scaler.toJSONEntry());
             res.put("channelNumber", chanelNumber.toJSONEntry());
+            res.put("frameNumber", frameNumber.toJSONEntry());
             res.put("fixedSize", fixedSize.toJSONEntry());
             res.put("shape", shape.toJSONEntry());
             res.put("is3D", is3D.toJSONEntry());
@@ -233,6 +236,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
                 JSONObject jsonO = (JSONObject) jsonEntry;
                 if (jsonO.containsKey("scaling")) scaler.initFromJSONEntry(jsonO.get("scaling"));
                 if (jsonO.containsKey("channelNumber")) chanelNumber.initFromJSONEntry(jsonO.get("channelNumber"));
+                if (jsonO.containsKey("frameNumber")) frameNumber.initFromJSONEntry(jsonO.get("frameNumber"));
                 if (jsonO.containsKey("fixedSize")) fixedSize.initFromJSONEntry(jsonO.get("fixedSize"));
                 if (jsonO.containsKey("shape")) shape.initFromJSONEntry(jsonO.get("shape"));
                 if (jsonO.containsKey("is3D")) is3D.initFromJSONEntry(jsonO.get("is3D"));

@@ -1,5 +1,9 @@
 package bacmman.plugins;
 
+import bacmman.configuration.parameters.ConditionalParameter;
+import bacmman.configuration.parameters.EnumChoiceParameter;
+import bacmman.configuration.parameters.ParameterUtils;
+import bacmman.configuration.parameters.PluginParameter;
 import bacmman.image.Image;
 import bacmman.processing.ResizeUtils;
 
@@ -40,4 +44,19 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
     int[] getGPUs();
 
     enum Z_AXIS {Z, CHANNEL, BATCH}
+
+    static boolean setZAxis(PluginParameter<DLEngine> pp, Z_AXIS zAxis) {
+        ConditionalParameter<Z_AXIS> zAxisParam = ParameterUtils.getParameter(ConditionalParameter.class, pp.getParameters(), p -> p.getName().toLowerCase().contains("z") && p.getName().toLowerCase().contains("ax"));
+        if (zAxisParam == null) {
+            EnumChoiceParameter<Z_AXIS> zAxisParamChoice = ParameterUtils.getParameter(EnumChoiceParameter.class, pp.getParameters(), p -> p.getName().toLowerCase().contains("z") && p.getName().toLowerCase().contains("ax"));
+            if (zAxisParamChoice!=null) {
+                zAxisParamChoice.setValue(zAxis);
+                return true;
+            }
+        } else {
+            zAxisParam.setActionValue(zAxis);
+            return true;
+        }
+        return false;
+    }
 }
