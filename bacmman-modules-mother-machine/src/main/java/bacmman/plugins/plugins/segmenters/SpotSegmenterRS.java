@@ -238,7 +238,8 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         BiConsumer<List<Spot>, List<Point>> removeSpotsFarFromSeeds = (spots, seedList) -> { // filter by distance from original seed
             Map<Spot, Double> distSqFromSeed = IntStream.range(0, spots.size()).mapToObj(i->i).collect(Collectors.toMap(spots::get, i->spots.get(i).getCenter().distSq(seedList.get((i)))));
             double maxDistSq = Math.pow(2 * typicalSigma.getValue().doubleValue(), 2);
-            spots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq || Double.isNaN(e.getValue()) || Double.isInfinite(e.getValue()) ).map(e->e.getKey()).collect(Collectors.toList()));
+            List<Spot> toRemove = distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq || Double.isNaN(e.getValue()) || Double.isInfinite(e.getValue()) ).map(Map.Entry::getKey).collect(Collectors.toList());
+            spots.removeAll(toRemove);
         };
 
         if (planeByPlane && seedMap.sizeZ()>1) {
@@ -273,7 +274,6 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         // filter by radius
         double[] sigmaRange = this.sigmaRange.getValuesAsDouble();
         segmentedSpots.removeIf(s->s.getRadius()>sigmaRange[1] || s.getRadius()<sigmaRange[0]);
-
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
 
@@ -311,7 +311,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                 .filter(s -> !Double.isNaN(s.getRadius()) || s.getRadius()<1)
                 .filter(s -> !Double.isNaN(s.getIntensity()))
                 .filter(s -> s.getCenter().isValid())
-                .filter(s->s.getBounds().isValid())
+                .filter(s-> s.getBounds().isValid())
                 .collect(Collectors.toList());
         if (off!=null) {
             allSeeds.forEach(p->p.translateRev(off)); // translate back

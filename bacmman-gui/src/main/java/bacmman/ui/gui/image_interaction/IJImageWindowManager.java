@@ -663,12 +663,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 r = new IJRoi3D(1).setIs2D(true);
                 r.put(0, roi);
             } else {
-                //logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
                 r = new IJRoi3D((int)Math.ceil(rad * 2)+1).setIs2D(false);
                 double scaleR = ((Spot)object.object.getRegion()).getAspectRatioZ();
                 double radZ = rad * scaleR;
-                for (int zz = (int)Math.max(Math.ceil(z-radZ), 0); zz<=(int)Math.ceil(z+radZ); ++zz) {
-                    double curRad = Math.sqrt(rad*rad - Math.pow((z-zz)/scaleR, 2)) ; // in order to take into anisotropy into account.
+                //logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {} z:[{}; {}]", x, y, z, object.sliceIdx+1, rad, (int)Math.floor(Math.max(z-radZ, 0)), (int)Math.ceil(z+radZ));
+                for (int zz = (int)Math.floor(Math.max(z-radZ, 0)); zz<=(int)Math.ceil(z+radZ); ++zz) {
+                    double curRad = Math.sqrt(rad*rad - (scaleR==0?0:Math.pow((z-zz)/scaleR, 2))) ; // in order to take into anisotropy into account.
                     if (curRad<0.01 * rad) continue;
                     Roi roi = new EllipseRoi(x + 0.5, y - curRad + 0.5, x + 0.5, y + curRad + 0.5, 1);
                     roi.setPosition(0, zz + 1, object.sliceIdx+1);

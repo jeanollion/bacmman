@@ -153,7 +153,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 if (pops.get(i)!=null) {
                     List<Region> objects =  parentObjectMap.getAndCreateIfNecessary(parent);
                     int label = objects.size();
-                    if (label>0) for (Region o : pops.get(i).getRegions()) o.setLabel(label++);
+                    for (Region o : pops.get(i).getRegions()) o.setLabel(label++);
                     objects.addAll(pops.get(i).getRegions());
                 }
                 else logger.debug("pop null for subParent: {}", allParents.get(i));

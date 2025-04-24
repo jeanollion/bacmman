@@ -116,8 +116,8 @@ public class Spot extends Region implements Analytical {
         double dy = y - center.get(1);
         if (is2D()) return (dx*dx + dy*dy)/radiusSq;
         double dz = z - center.get(2);
-        if (aspectRatioZ ==0) {
-            if (dz!=0) return Double.POSITIVE_INFINITY;
+        if (aspectRatioZ == 0) { // special case of flat spots : minimal thickness= 1 slice
+            if (Math.abs(dz)>1) return Double.POSITIVE_INFINITY;
             else return (dx*dx + dy*dy)/radiusSq;
         }
         return (dx*dx + dy*dy)/radiusSq + dz*dz/(aspectRatioZ * aspectRatioZ *radiusSq);
@@ -170,7 +170,7 @@ public class Spot extends Region implements Analytical {
 
     @Override
     public double size() {
-        return is2D() ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3) * aspectRatioZ;
+        return is2D() || aspectRatioZ==0 ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3) * aspectRatioZ;
     }
 
     @Override
