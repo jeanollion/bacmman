@@ -363,7 +363,7 @@ public class GaussianFit {
             if (ellipse) {
                 return 1;
             } else if (is3DAniso()) {
-                return 1 / Math.sqrt(parameters[nDims + 2]);
+                return parameters[nDims + 2] > 0 ? 1 / Math.sqrt(parameters[nDims + 2]) : 0;
             } else return getRadius();
         }
         public double getAxis(boolean major) {

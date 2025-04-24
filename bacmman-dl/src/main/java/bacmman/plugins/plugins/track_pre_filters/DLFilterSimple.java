@@ -132,14 +132,14 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
         ImageIO imageIO = new ImageIO() {
             @Override
             public Image get(int frame) throws IOException {
-                return inputImages.getImage(channelIdx, frame);
+                return inputImages.getImage(channelIdx, frame-minFrame);
             }
 
             @Override
-            public void set(int idx, Image img) throws IOException {
+            public void set(int frame, Image img) throws IOException {
                 SimpleDiskBackedImage sdbi = preProcessedImagesManager.createSimpleDiskBackedImage(img, false, false);
                 preProcessedImagesManager.storeSimpleDiskBackedImage(sdbi);
-                preProcessedImages.put(idx, sdbi);
+                preProcessedImages.put(frame-minFrame, sdbi);
             }
         };
         predict(imageIO, minFrame, minFrame+nFrames, getDLengine());
@@ -164,6 +164,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         SimpleDiskBackedImage sdbi = preProcessedImages.get(timePoint);
+        if (sdbi==null) throw new RuntimeException("Image not pre-processed: channel="+channelIdx+ "frame="+timePoint);
         Image res = sdbi.getImage();
         preProcessedImagesManager.detach(sdbi, true);
         return res;

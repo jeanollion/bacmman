@@ -43,7 +43,7 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         if (yMax==Integer.MIN_VALUE || yMax==Integer.MAX_VALUE) return false;
         if (zMin==Integer.MIN_VALUE || zMin==Integer.MAX_VALUE) return false;
         if (zMax==Integer.MIN_VALUE || zMax==Integer.MAX_VALUE) return false;
-        return true;
+        return sizeX()>0 && sizeY()>0 && sizeZ()>0;
     }
     public SimpleBoundingBox(int xMin, int xMax, int yMin, int yMax, int zMin, int zMax) {
         this.xMin = xMin;
