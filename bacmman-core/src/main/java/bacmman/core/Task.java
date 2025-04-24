@@ -861,7 +861,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 java.lang.reflect.Method m = clazz.getMethod("runTask", Task.class);
                 m.invoke(null, this);
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
-                errors.addExceptions(new Pair<>("Dataset extraction", new RuntimeException("Could not extract dataset.", e)));
+                errors.addExceptions(new Pair<>("Dataset extraction", new RuntimeException("Could not extract dataset, missing bacmman-dl module", e)));
             } catch (Throwable e) {
                 errors.addExceptions(new Pair<>("Dataset extraction", e));
             }
@@ -875,7 +875,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 java.lang.reflect.Method m = clazz.getMethod("runTaskRaw", Task.class);
                 m.invoke(null, this);
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
-                errors.addExceptions(new Pair<>("Raw Dataset extraction", new RuntimeException("Could not extract dataset.", e)));
+                errors.addExceptions(new Pair<>("Raw Dataset extraction", new RuntimeException("Could not extract dataset, missing bacmman-dl module", e)));
             } catch (Throwable e) {
                 errors.addExceptions(new Pair<>("Raw Dataset extraction", e));
             }

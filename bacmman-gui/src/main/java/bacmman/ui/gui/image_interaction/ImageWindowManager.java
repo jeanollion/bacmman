@@ -1195,7 +1195,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
             //SegmentedObject o = sel.isEmpty() ? null : sel.get(0); // only first selected object
             //Predicate<TestDataStore> storeWithinSel = s-> o == null || s.getParent().equals(o.getParent(s.getParent().getStructureIdx()));
             List<SegmentedObject> finalSel = sel;
-            Predicate<TestDataStore> storeWithinSel = s-> finalSel.isEmpty() || finalSel.stream().map(o -> o.getParent(s.getParent().getStructureIdx())).anyMatch(p->p.equals(s.getParent()));
+            Predicate<TestDataStore> storeWithinSel = s-> finalSel.isEmpty() || finalSel.stream().map(o -> o.getParent(s.getParent().getStructureIdx())).filter(Objects::nonNull).anyMatch(p->p.equals(s.getParent()));
             List<String> commands = stores.stream().filter(storeWithinSel).map(TestDataStore::getMiscCommands).flatMap(Set::stream).distinct().sorted().collect(Collectors.toList());
             if (!commands.isEmpty()) {
                 menu.addSeparator();
