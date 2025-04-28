@@ -69,7 +69,7 @@ public class DataAnalysisPanel {
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
         jupyterToken = UUID.get().toHexString();
-        gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, bacmmanLogger);
+        gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, "Notebooks", bacmmanLogger);
         Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> localNotebookSelectionCB = nb -> {
             if (nb == null || nb.isFolder()) {
                 localViewer = null;

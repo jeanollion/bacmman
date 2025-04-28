@@ -69,7 +69,7 @@ public class DLModelsLibrary {
             fetchGists();
             updateGistDisplay();
             updateEnableButtons();
-        }, pcb);
+        }, "Models", pcb);
         $$$setupUI$$$();
         updateEnableButtons();
 
