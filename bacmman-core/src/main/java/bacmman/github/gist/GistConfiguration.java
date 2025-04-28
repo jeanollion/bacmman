@@ -507,7 +507,7 @@ public class GistConfiguration implements Hint {
     public static List<GistConfiguration> getPublicConfigurations(String account, ProgressLogger pcb) {
         try {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL + "/users/" + account + "/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET));
-            return gists.stream().map(c -> new GistConfiguration(c, new NoAuth())).filter(gc -> gc.type != null).collect(Collectors.toList());
+            return gists.stream().map(c -> new GistConfiguration(c, new NoAuth(account))).filter(gc -> gc.type != null).collect(Collectors.toList());
         } catch (IOException | ParseException e) {
             logger.error("Error getting public configurations", e);
             if (pcb!=null) pcb.setMessage("Could not get public configurations: "+e.getMessage());

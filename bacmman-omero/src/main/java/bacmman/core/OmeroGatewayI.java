@@ -16,6 +16,7 @@ import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.FileIO;
 import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
+import omero.ClientError;
 import omero.ServerError;
 import omero.api.RawPixelsStorePrx;
 import omero.gateway.Gateway;
@@ -153,11 +154,11 @@ public class OmeroGatewayI implements OmeroGateway {
             logger.debug("user : {}", user);
             ctx = new SecurityContext(user.getGroupId());
             ctx.setExperimenter(user);
-            browse = gateway.getFacility(BrowseFacility .class);
+            browse = gateway.getFacility(BrowseFacility.class);
             return true;
-        } catch (DSOutOfServiceException|ExecutionException|Ice.SecurityException e) {
-            logger.debug("error while connecting: ", e);
-            logger.debug("Could not connect to OMERO Server: " + e.getLocalizedMessage());
+        } catch (DSOutOfServiceException | ExecutionException | Ice.SecurityException | ClientError e) {
+            logger.error("Error while connecting: ", e);
+            logger.error("Could not connect to OMERO Server: " + e.getLocalizedMessage());
             if (bacmmanLogger!=null) bacmmanLogger.setMessage("Connection error: "+e.getMessage());
             return false;
         }

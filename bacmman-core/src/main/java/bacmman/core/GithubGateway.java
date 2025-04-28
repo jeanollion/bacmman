@@ -54,7 +54,7 @@ public class GithubGateway {
     public void setCredentials(String username, char[] password) {
         this.username=username;
         this.password = password;
-        if (username!=null && username.length()>0) passwords.put(username, password);
+        if (username!=null && !username.isEmpty()) passwords.put(username, password);
     }
     public UserAuth getAuthentication(boolean promptIfNecessary) {
         return getAuthentication(promptIfNecessary, null);
@@ -69,7 +69,7 @@ public class GithubGateway {
                     if (password!=null && password.length>0 && username!=null && !username.isEmpty()) return getAuthentication(false);
                 }
             }
-            return new NoAuth();
+            return new NoAuth(username);
         }
         else {
             try {
@@ -86,7 +86,7 @@ public class GithubGateway {
                         if (password!=null && password.length>0 && username!=null && !username.isEmpty()) return getAuthentication(false);
                     }
                 }
-                return new NoAuth();
+                return new NoAuth(username);
             } catch (Throwable t) {
                 if (bacmmanLogger!=null && !promptIfNecessary) bacmmanLogger.setMessage("Token could not be retrieved. Wrong password ?");
                 if (promptIfNecessary) {
@@ -97,7 +97,7 @@ public class GithubGateway {
                         if (password!=null && password.length>0 && username!=null && !username.isEmpty()) return getAuthentication(false);
                     }
                 }
-                return new NoAuth();
+                return new NoAuth(username);
             }
         }
     }
@@ -106,7 +106,7 @@ public class GithubGateway {
     }
     public UserAuth promptCredentials(Consumer<String> error, String message) {
         Pair<String, char[]> cred = promptCredientialFunction.apply(this, message);
-        if (cred == null || cred.key.isEmpty() || cred.value.length==0) return new NoAuth();
+        if (cred == null || cred.key.isEmpty() || cred.value.length==0) return new NoAuth(cred==null? null : cred.key);
         else {
             try {
                 TokenAuth auth = new TokenAuth(cred.key, cred.value);
@@ -115,7 +115,7 @@ public class GithubGateway {
             } catch (GeneralSecurityException e) {
                 if (error!=null) error.accept("Could not retried Token. Has Token been stored ?");
                 logger.info("Authentication error", e);
-                return new NoAuth();
+                return new NoAuth(cred.key);
             }
         }
     }

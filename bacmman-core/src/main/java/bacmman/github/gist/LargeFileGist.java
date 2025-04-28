@@ -17,10 +17,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -693,7 +690,13 @@ public class LargeFileGist {
 
     public static Stream<LargeFileGist> fetch(UserAuth auth, Predicate<String> filenameFiler, ProgressLogger pcb) {
         try {
-            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
+            if (auth.getAccount() == null) {
+                logger.error("Cannot fetch gists: no account set");
+                return null;
+            }
+            IntFunction<JSONQuery> query = auth instanceof NoAuth ? p -> new JSONQuery(BASE_URL + "/users/" + auth.getAccount() + "/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET) :
+                p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth);
+            List<JSONObject> gists = JSONQuery.fetchAllPages(query);
             return gists.stream().map(content -> {
                 String filename = getFileName(content);
                 logger.debug("gitst filename: {} from {}", filename, content);
