@@ -182,9 +182,18 @@ public class DockerImageLauncher {
             return null;
         }
         bacmmanLogger.log("Building docker image: " + tag);
-        String imageId = gateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, bacmmanLogger::log, this::setProgress);
-        Utils.deleteDirectory(dockerDir);
-        return imageId != null ? image.getTag() : null;
+        try {
+            String imageId = gateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, bacmmanLogger::log, this::setProgress);
+            return imageId != null ? image.getTag() : null;
+        } catch (RuntimeException e) {
+            if (e.getMessage().toLowerCase().contains("permission denied")) {
+                Core.userLog("Could not build docker image: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
+                logger.error("Error connecting with Docker: Permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock", e);
+            }
+            throw e;
+        } finally {
+            Utils.deleteDirectory(dockerDir);
+        }
     }
 
     protected void parseBuildProgress(String message) {
