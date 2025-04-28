@@ -22,11 +22,13 @@ public class GitCredentialPanel {
     private JButton loadToken;
     private JPanel credentialPanel;
     private GithubGateway gateway;
+    private final String itemName;
     Runnable updateCredentialsCallback;
     ProgressLogger bacmmanLogger;
 
-    public GitCredentialPanel(GithubGateway gateway, Runnable updateCredentialsCallback, ProgressLogger bacmmanLogger) {
+    public GitCredentialPanel(GithubGateway gateway, Runnable updateCredentialsCallback, String itemName, ProgressLogger bacmmanLogger) {
         this.gateway = gateway;
+        this.itemName = itemName;
         this.bacmmanLogger = bacmmanLogger;
         this.updateCredentialsCallback = updateCredentialsCallback;
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
@@ -81,7 +83,7 @@ public class GitCredentialPanel {
             password.setText(String.valueOf(gateway.getPassword(u)));
             p = password.getPassword();
         }
-        if (p.length == 0) loadToken.setText("Load Public Configurations");
+        if (p.length == 0) loadToken.setText("Load Public " + itemName);
         else loadToken.setText("Connect");
     }
 
@@ -90,7 +92,7 @@ public class GitCredentialPanel {
     }
 
     public boolean hasPassword() {
-        return password.getPassword().length>0;
+        return password.getPassword().length > 0;
     }
 
     public void persistUsername() {
@@ -130,7 +132,7 @@ public class GitCredentialPanel {
         panel1.setBorder(BorderFactory.createTitledBorder(null, "Username", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         username = new JTextField();
         username.setText("bacmman");
-        username.setToolTipText("Enter the username of a github account containing configuration files. Right Click: display recent list");
+        username.setToolTipText("Enter the username of a github account containing files to browse. Right Click: display recent list");
         panel1.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         generateToken = new JButton();
         generateToken.setText("Generate Token");
@@ -141,7 +143,7 @@ public class GitCredentialPanel {
         credentialPanel.add(panel2, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         panel2.setBorder(BorderFactory.createTitledBorder(null, "Password", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         password = new JPasswordField();
-        password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
+        password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available files will be shown and saving or updating local files to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
         panel2.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         loadToken = new JButton();
         loadToken.setText("Connect");

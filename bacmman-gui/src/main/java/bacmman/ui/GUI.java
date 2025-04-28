@@ -150,7 +150,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter kymographDisplayTrackDistance = new NumberParameter<>("Display Track Distance", 0, 20).setHint("Minimal distance (in pixels) between displayed tracks by the command <em>display next/previous tracks</em>, along the axis perpenticular to the kymograph");
 
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
-    private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
+    private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 75, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("In case of HiDPI screen, a zoom factor is applied to the display, set here this factor");
     private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
     private NumberParameter arrowStrokeWidth = new BoundedNumberParameter("Arrow Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed arrows");

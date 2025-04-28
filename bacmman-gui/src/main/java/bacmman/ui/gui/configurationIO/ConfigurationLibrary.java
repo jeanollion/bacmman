@@ -83,7 +83,7 @@ public class ConfigurationLibrary {
         this.gitCredentialPanel = new GitCredentialPanel(gateway, () -> {
             gists = null;
             updateRemoteSelector();
-        }, bacmmanLogger);
+        }, "Configurations", bacmmanLogger);
         $$$setupUI$$$();
         updateEnableButtons();
         stepJCB.addItemListener(e -> {
