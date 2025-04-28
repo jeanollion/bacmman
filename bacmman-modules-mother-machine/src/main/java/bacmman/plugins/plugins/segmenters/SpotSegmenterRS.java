@@ -67,7 +67,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             .setHint("Spot with a sigma value (from the gaussian fit) outside this range will be erased.");
     enum LOCAL_MAX_MODE {RadialSymetry, Gaussian}
 
-    public EnumChoiceParameter<LOCAL_MAX_MODE> localMaxMode = new EnumChoiceParameter<>("Local Max Image", LOCAL_MAX_MODE.values(), LOCAL_MAX_MODE.RadialSymetry).setHint("On which image local max filter will be run to detects seeds");
+    public EnumChoiceParameter<LOCAL_MAX_MODE> localMaxMode = new EnumChoiceParameter<>("Local Max Image", LOCAL_MAX_MODE.values(), LOCAL_MAX_MODE.Gaussian).setHint("On which image local max filter will be run to detects seeds");
 
     //NumberParameter symmetryThresholdLegacy = new NumberParameter<>("Radial Symmetry Threshold", 2, 5).setEmphasized(true) // was 2.25
     PluginParameter<Thresholder> symmetryThreshold = new PluginParameter<>("Radial Symmetry Threshold", Thresholder.class, new BackgroundThresholder(3, 3, 2), false).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode");
@@ -126,6 +126,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
     private static class ProcessingVariables {
         Image input;
         Image smooth, radialSymmetry;
+        ImageByte localMax;
         boolean symScaled, smoothScaled;
         double[] ms;
         double smoothScale;
@@ -152,6 +153,13 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                 if (NORMALIZATION_MODE.PER_CELL_CENTER.equals(norm)) ms[1] = 1;
             }
         }
+
+        public ImageByte getLocalMaxMap() {
+            if (localMax==null) throw new RuntimeException("LocalMax map not initialized");
+            if (!localMax.sameDimensions(input)) localMax = localMax.cropWithOffset(input.getBoundingBox());
+            return localMax;
+        }
+
         public Image getScaledInput() {
             return ImageOperations.affineOperation2WithOffset(input, null, 1/ms[1], -ms[0]).setName("Scaled Input");
         }
@@ -191,7 +199,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
      */
     public RegionPopulation run(Image input, int objectClassIdx, SegmentedObject parent, Thresholder thresholderSeeds, Thresholder intensityThresholder) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin()) ;
+        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin());
         if (pv.smooth==null || pv.getRadialSymmetryMap()==null) throw new RuntimeException("Spot Segmenter not parametrized");//setMaps(computeMaps(input, input));
         //logger.debug("get maps..");
         Image smooth = pv.getSmoothedMap();
@@ -206,16 +214,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         }
 
         //logger.debug("local max...");
-        Neighborhood n = Filters.getNeighborhood(maxLocalRadius.getScaleXY(), maxLocalRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), radSym);
-        final ImageByte seedMap;
-        switch (localMaxMode.getSelectedEnum()) {
-            case RadialSymetry:
-            default:
-                seedMap = Filters.localExtrema(radSym, null, true, parentMask, n, parallel); // TODO from radialSymetry map of smoothed image ? parameter ?
-                break;
-            case Gaussian:
-                seedMap = Filters.localExtrema(smooth, null, true, parentMask, n, parallel); // TODO from radialSymetry map of smoothed image ? parameter ?
-        }
+        final ImageByte seedMap = pv.getLocalMaxMap();
         //logger.debug("get seeds...");
         List<Point> seeds = new ArrayList<>();
         BoundingBox.loop(new SimpleBoundingBox(seedMap).resetOffset(),
@@ -226,9 +225,9 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         seeds.removeIf(Objects::isNull);
         //logger.debug("get seeds done (parallel: {})", parallel);
         if (stores!=null) {
-            ImageOperations.fill(seedMap, 0, null);
-            seeds.forEach(p -> seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1));
-            //stores.get(parent).addIntermediateImage("Seeds", seedMap);
+            //Image seeMapDisplay = new ImageByte("Seeds", seedMap);
+            //seeds.forEach(p -> seeMapDisplay.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1));
+            //stores.get(parent).addIntermediateImage("Seeds", seeMapDisplay);
             stores.get(parent).addIntermediateImage("Gaussian", smooth);
             stores.get(parent).addIntermediateImage("RadialSymmetryTransform", radSym);
         }
@@ -372,7 +371,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedObjects) {
         this.pv.initPV(input, segmentationMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin());
-        if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(parent.getRawImage(objectClassIdx), input), Double.NaN);
+        if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(parent.getRawImage(objectClassIdx), input, parent.getMask(), false), Double.NaN);
         else logger.debug("manual seg: maps already set!");
         Image radialSymmetryMap = pv.getRadialSymmetryMap();
         Image smooth = pv.getSmoothedMap();
@@ -425,7 +424,12 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
     @Override
     public TrackConfigurer<SpotSegmenterRS> run(int structureIdx, List<SegmentedObject> parentTrack) {
         if (parentTrack.isEmpty()) return (p, s) -> {};
-        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
+        Function<SegmentedObject, ImageMask> getParentMask = p -> {
+            int segParent = p.getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
+            if (segParent == p.getStructureIdx()) return p.getMask();
+            return p.getChildRegionPopulation(segParent).getLabelMap();
+        };
+        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true)));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));
     }
 
@@ -434,13 +438,25 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
-    protected Image[] computeMaps(Image rawSource, Image filteredSource) {
+    protected Image[] computeMaps(Image rawSource, Image filteredSource, ImageMask parentMask, boolean localMax) {
         double smoothScale = this.smoothScale.getValue().doubleValue();
-        Image[] maps = new Image[2];
+        Image[] maps = new Image[3];
         Function<Image, Image> gaussF = smoothScale > 0 ? f->ImageDerivatives.gaussianSmooth(f, ImageDerivatives.getScaleArray(smoothScale, smoothScale * getAnisotropyRatio(rawSource), rawSource), parallel).setName("gaussian: "+smoothScale) : f -> TypeConverter.toFloat(f, null, true);
         maps[0] = planeByPlane && filteredSource.sizeZ()>1 && smoothScale > 0 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
         Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 0.5,1, 0, parallel, 1.5, 1.5 * getAnisotropyRatio(rawSource));
         maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);
+        if (parentMask.sizeZ() == 1 && filteredSource.sizeZ() > 1) parentMask = new ImageMask2D(parentMask);
+        if (localMax) {
+            Neighborhood n = Filters.getNeighborhood(maxLocalRadius.getScaleXY(), maxLocalRadius.getScaleZ(rawSource.getScaleXY(), rawSource.getScaleZ()), filteredSource);
+            switch (localMaxMode.getSelectedEnum()) {
+                case RadialSymetry:
+                default:
+                    maps[2] = Filters.localExtrema(maps[1], null, true, parentMask, n, false);
+                    break;
+                case Gaussian:
+                    maps[2] = Filters.localExtrema(maps[0], null, true, parentMask, n, false);
+            }
+        }
         return maps;
     }
 
@@ -480,10 +496,11 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
     
     protected void setMaps(Image[] maps, double scale) {
         if (maps==null) return;
-        if (maps.length!=2) throw new IllegalArgumentException("Maps should be of length 2");
+        if (maps.length!=3) throw new IllegalArgumentException("Maps should be of length 2");
         this.pv.smooth=maps[0];
         this.pv.radialSymmetry=maps[1];
         this.pv.globalScale = scale;
+        this.pv.localMax = maps[2]==null? null : (ImageByte)maps[2];
     }
 
     boolean parallel = false;
