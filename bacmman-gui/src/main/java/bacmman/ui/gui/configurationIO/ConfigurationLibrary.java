@@ -177,7 +177,7 @@ public class ConfigurationLibrary {
             gist.setDescription(form.description()); // only those fields can be modified
             JSONObject content = null;
             if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
-                switch (currentMode) {
+                switch (currentMode) { // remote is whole and local is not
                     case PROCESSING: {
                         Experiment xp = gist.getExperiment(getAuth());
                         int sIdx = remoteSelector.getSelectedGistNode().getObjectClassIdx();
@@ -200,7 +200,7 @@ public class ConfigurationLibrary {
                     }
                 }
             }
-            if (content == null) {
+            if (content == null) { // either remote and local are same type, or local is whole
                 if (localConfig.getRoot() instanceof Experiment) {
                     Experiment xp = ((Experiment) localConfig.getRoot()).duplicate();
                     xp.getPositionParameter().removeAllElements();

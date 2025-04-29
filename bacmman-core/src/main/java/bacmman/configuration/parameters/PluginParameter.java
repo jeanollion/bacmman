@@ -268,6 +268,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             bypassListeners=false;
             if (this instanceof ConfigIDAware && other instanceof ConfigIDAware) {
                 ((ConfigIDAware)this).setConfigID(((ConfigIDAware)other).getConfigID());
+                ConfigIDAware.setAutoUpdate((ConfigIDAware)other, (ConfigIDAware)this);
             }
         } //else throw new IllegalArgumentException("wrong parameter type");
     }

@@ -38,7 +38,6 @@ public class SaveGistForm {
                 }
             }
         };
-        logger.debug("name field null: {}", name == null);
         name.addKeyListener(ke);
         folder.addKeyListener(ke);
     }
