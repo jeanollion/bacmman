@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.measurements;
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.TextParameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
@@ -50,11 +51,12 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
-    protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria", -1, false, false);
+    protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria", -1, false, false).setHint("Reference object class. Must be Rod-shaped");
     protected ObjectClassParameter spot = new ObjectClassParameter("Spot", -1, false, false);
     protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", false).setHint(SCALED_TT);
-    protected BooleanParameter setSpineLengthToParent = new BooleanParameter("Set SpineLength to parent", true);
-    protected Parameter[] parameters = new Parameter[]{bacteria, spot, scaled, setSpineLengthToParent};
+    protected BooleanParameter setSpineLengthToParent = new BooleanParameter("Set SpineLength to parent", false);
+    protected TextParameter prefix = new TextParameter("Prefix", "", false);
+    protected Parameter[] parameters = new Parameter[]{bacteria, spot, scaled, prefix, setSpineLengthToParent};
     
     public SpineCoordinates() {}
     public SpineCoordinates(int spotIdx, int bacteriaIdx) {
@@ -82,17 +84,19 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        res.add(new MeasurementKeyObject("SpineCurvilinearCoord", spot.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("SpineRadialCoord", spot.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("SpineLength", spot.getSelectedClassIdx()));
-        if (setSpineLengthToParent.getSelected()) res.add(new MeasurementKeyObject("SpineLength", bacteria.getSelectedClassIdx())); // also set to bacteria
-        res.add(new MeasurementKeyObject("SpineRadius", spot.getSelectedClassIdx()));
+        String prefix = this.prefix.getValue();
+        res.add(new MeasurementKeyObject(prefix+"SpineCurvilinearCoord", spot.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"SpineRadialCoord", spot.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"SpineLength", spot.getSelectedClassIdx()));
+        if (setSpineLengthToParent.getSelected()) res.add(new MeasurementKeyObject(prefix+"SpineLength", bacteria.getSelectedClassIdx())); // also set to bacteria
+        res.add(new MeasurementKeyObject(prefix+"SpineRadius", spot.getSelectedClassIdx()));
         return res;
     }
 
     @Override
     public void performMeasurement(SegmentedObject parentTrackHead) {
         double scale = scaled.getSelected() ? parentTrackHead.getScaleXY() : 1d;
+        String prefix = this.prefix.getValue();
         List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<SegmentedObject, SegmentedObject> spotMapBacteria = new ConcurrentHashMap<>();
         parentTrack.parallelStream().forEach(parent -> {
@@ -107,17 +111,17 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
             BacteriaSpineCoord coord = e.getValue()==null? null : bacteriaMapLocalizer.get(e.getValue()).getSpineCoord(center);
             if (coord==null) {
-                e.getKey().getMeasurements().setValue("SpineCurvilinearCoord", null);
-                e.getKey().getMeasurements().setValue("SpineRadialCoord", null);
-                e.getKey().getMeasurements().setValue("SpineLength", null);
-                if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue("SpineLength", null); // also set to bacteria
-                e.getKey().getMeasurements().setValue("SpineRadius", null);
+                e.getKey().getMeasurements().setValue(prefix+"SpineCurvilinearCoord", null);
+                e.getKey().getMeasurements().setValue(prefix+"SpineRadialCoord", null);
+                e.getKey().getMeasurements().setValue(prefix+"SpineLength", null);
+                if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue(prefix+"SpineLength", null); // also set to bacteria
+                e.getKey().getMeasurements().setValue(prefix+"SpineRadius", null);
             } else {
-                e.getKey().getMeasurements().setValue("SpineCurvilinearCoord", coord.curvilinearCoord(false)*scale);
-                e.getKey().getMeasurements().setValue("SpineRadialCoord", coord.radialCoord(false)*scale);
-                e.getKey().getMeasurements().setValue("SpineLength", coord.spineLength()*scale);
-                if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue("SpineLength", coord.spineLength()*scale); // also set to bacteria
-                e.getKey().getMeasurements().setValue("SpineRadius", coord.spineRadius()*scale); // radius at spot position
+                e.getKey().getMeasurements().setValue(prefix+"SpineCurvilinearCoord", coord.curvilinearCoord(false)*scale);
+                e.getKey().getMeasurements().setValue(prefix+"SpineRadialCoord", coord.radialCoord(false)*scale);
+                e.getKey().getMeasurements().setValue(prefix+"SpineLength", coord.spineLength()*scale);
+                if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue(prefix+"SpineLength", coord.spineLength()*scale); // also set to bacteria
+                e.getKey().getMeasurements().setValue(prefix+"SpineRadius", coord.spineRadius()*scale); // radius at spot position
             }
         });
         if (!me.isEmpty()) throw me; // throw after measurement to indicate that there were errors on some objects, but do not block measurement for valid objects
