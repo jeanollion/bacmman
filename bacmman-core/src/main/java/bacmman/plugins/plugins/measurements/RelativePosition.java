@@ -54,7 +54,7 @@ public class RelativePosition implements Measurement, Hint {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setEmphasized(true);
     protected ObjectClassParameter reference = new ObjectClassParameter("Reference Objects", -1, true, false).setEmphasized(true).setHint("If no reference structure is selected the reference point will automatically be the upper left corner of the whole viewfield");
     protected BooleanParameter includeZ = new BooleanParameter("Include Z", true).setHint("If set to false, only X and Y coordinates will be saved");
-    private final static String REF_POINT_TT = "<ol>"
+    public final static String REF_POINT_TT = "<ol>"
             + "<li>"+ REF_POINT.UPPER_LEFT_CORNER +": Upper left corner of the bounding box of the object</li>"
             + "<li>"+ REF_POINT.GEOM_CENTER +": Geometrical center of the object</li>"
             + "<li>"+ REF_POINT.MASS_CENTER +": Intensity barycenter of the object</li>"
@@ -122,7 +122,12 @@ public class RelativePosition implements Measurement, Hint {
                 refObject = SegmentedObjectUtils.getContainer(object.getRegion(), object.getParent(refParent).getChildren(reference.getSelectedClassIdx()), null);
             }
         }
-        if (refObject == null && reference.getSelectedClassIdx()>=0) return; // no reference object found
+        if (refObject == null && reference.getSelectedClassIdx()>=0) { // no reference object found
+            object.getMeasurements().setValue(getKey("X"), null);
+            object.getMeasurements().setValue(getKey("Y"), null);
+            object.getMeasurements().setValue(getKey("Z"), null);
+            return;
+        }
         Point objectCenter=null;
         switch (this.objectCenter.getSelectedIndex()) {
             case 0: // mass center
