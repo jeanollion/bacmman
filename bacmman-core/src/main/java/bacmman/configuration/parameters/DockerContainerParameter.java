@@ -77,7 +77,7 @@ public class DockerContainerParameter extends AbstractChoiceParameter<DockerGate
     }
 
     public Stream<DockerGateway.DockerContainer> getAllContainers() {
-        if (allContainers == null) refreshContainerList();
+        refreshContainerList();
         return allContainers.stream();
     }
 

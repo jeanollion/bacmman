@@ -22,11 +22,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -95,7 +97,7 @@ public class DataAnalysisPanel {
                     this.remoteViewer = remoteViewer;
                     return remoteViewer::getContent;
                 } catch (IOException e) {
-                    bacmmanLogger.setMessage("Error getting content: "+e);
+                    bacmmanLogger.setMessage("Error getting content: " + e);
                     logger.error("Error getting content", e);
                     localViewer = null;
                     localViewerJSP.setViewportView(null);
@@ -107,7 +109,7 @@ public class DataAnalysisPanel {
             if (dockerImageLauncher.hasContainer(workingDirPanel.getCurrentWorkingDirectory())) { // server already started, simply open notebook
                 String notebookUrl = getNotebookURL(nb, dockerImageLauncher.getHostPorts()[0]);
                 try {
-                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
+                    Desktop.getDesktop().browse(URI.create(notebookUrl));
                 } catch (Exception e) {
                     bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
                 }
@@ -115,13 +117,13 @@ public class DataAnalysisPanel {
         };
         localNotebooks = new NotebookTree(localNotebookSelectionCB, () -> remoteNotebooks.getSelectedGistNode(), doubleClickCB, (n, c) -> remoteNotebooks.upload(n, c), (n, c) -> remoteNotebooks.updateRemote(n, c), bacmmanLogger);
         remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, gitCredentialPanel::getAuth, bacmmanLogger);
-        workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD,  this::updateWD);
+        workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD, this::updateWD);
         BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
             String serverURL = getServerURL(ports[0]);
             // Wait until the server is ready
             int i = 0;
             int limit = 20;
-            while (!isServerReady(serverURL) && i++<limit) {
+            while (!isServerReady(serverURL) && i++ < limit) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(500);
                 } catch (InterruptedException e) {}
@@ -129,14 +131,17 @@ public class DataAnalysisPanel {
             if (i < limit) {
                 String notebookUrl = getNotebookURL(localNotebooks.getSelectedNotebookIfOnlyOneSelected(), dockerImageLauncher.getHostPorts()[0]);
                 try {
-                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(notebookUrl));
+                    Desktop.getDesktop().browse(URI.create(notebookUrl));
                 } catch (Exception e) {
                     bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
                 }
             }
         };
 
-        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/data", false, new int[]{8888}, startContainer, wd -> {workingDirPanel.setWorkingDirectory(wd); this.updateWD();}, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='"+ jupyterToken +"'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
+        dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/data", false, new int[]{8888}, startContainer, wd -> {
+            workingDirPanel.setWorkingDirectory(wd);
+            this.updateWD();
+        }, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='" + jupyterToken + "'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, null, null);
 
 
@@ -154,7 +159,7 @@ public class DataAnalysisPanel {
 
     public String getNotebookURL(NotebookTree.NotebookTreeNode n, int port) {
         if (n == null) return getServerURL(port) + "?token=" + jupyterToken;
-        else return getServerURL(port) +  "/lab/tree/" + n.getRelativePath() + "?token=" + jupyterToken;
+        else return getServerURL(port) + "/lab/tree/" + n.getRelativePath() + "?token=" + jupyterToken;
     }
 
     protected boolean isServerReady(String url) {
@@ -169,7 +174,7 @@ public class DataAnalysisPanel {
     }
 
     protected boolean logsContain(java.util.List<String> logs, String target) {
-        for (int i = logs.size() - 1; i>=0; --i) if (logs.get(i).contains(target)) return true;
+        for (int i = logs.size() - 1; i >= 0; --i) if (logs.get(i).contains(target)) return true;
         return false;
     }
 
@@ -179,13 +184,14 @@ public class DataAnalysisPanel {
     }
 
     protected void updateWD() {
-        dockerImageLauncher.setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
+        if (dockerImageLauncher != null) dockerImageLauncher.setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
         localNotebooks.setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
     }
 
     protected void updateGitCredentials() {
         UserAuth auth = gitCredentialPanel.getAuth();
-        if (auth instanceof NoAuth && gitCredentialPanel.hasPassword()) bacmmanLogger.setMessage("Token could not be loaded. Wrong configuration ? Only public items will be loaded");
+        if (auth instanceof NoAuth && gitCredentialPanel.hasPassword())
+            bacmmanLogger.setMessage("Token could not be loaded. Wrong configuration ? Only public items will be loaded");
         remoteNotebooks.updateGists(auth);
     }
 
@@ -225,10 +231,12 @@ public class DataAnalysisPanel {
         selectorAndViewerSplitPane.setLeftComponent(selectorSplitPane);
         localSelectorJSP = new JScrollPane();
         selectorSplitPane.setLeftComponent(localSelectorJSP);
+        localSelectorJSP.setBorder(BorderFactory.createTitledBorder(null, "Local Notebooks", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         remoteSelectorJSP = new JScrollPane();
         selectorSplitPane.setRightComponent(remoteSelectorJSP);
+        remoteSelectorJSP.setBorder(BorderFactory.createTitledBorder(null, "Remote Notebooks", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         viewerSplitPane = new JSplitPane();
-        viewerSplitPane.setDividerLocation(500);
+        viewerSplitPane.setDividerLocation(486);
         selectorAndViewerSplitPane.setRightComponent(viewerSplitPane);
         localViewerJSP = new JScrollPane();
         viewerSplitPane.setLeftComponent(localViewerJSP);

@@ -25,10 +25,7 @@ import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.UserAuth;
 import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.EnumerationUtils;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -354,11 +351,9 @@ public class NotebookGistTree {
         if (destFile.isDirectory()) destFile = Paths.get(destFile.getAbsolutePath(), name(lf)+".ipynb").toFile();
         try {
             UserAuth auth = authSupplier.get();
-            File notebookFile = lf.retrieveFile(destFile, true, true, auth, localFileUpdated, pcb);
-            if (notebookFile!=null) {
-                if (pcb!=null) pcb.setMessage("Notebook will be downloaded @:" + notebookFile);
-                return true;
-            } else return false;
+            String s = lf.retrieveString(auth, pcb);
+            FileIO.writeToFile(destFile.getAbsolutePath(), Collections.singletonList(s), Function.identity());
+            return true;
         } catch (IOException ex) {
             logger.error("Error while downloading model", ex);
             if (pcb!=null) pcb.setMessage("Could not download model");
