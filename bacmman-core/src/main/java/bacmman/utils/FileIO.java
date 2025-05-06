@@ -84,7 +84,7 @@ public class FileIO {
             fstream = new java.io.FileWriter(output);
             out = new BufferedWriter(fstream);
             //out.flush();
-            List<String> toWrite = objects.stream().parallel().map(converter).filter(o->o!=null).collect(Collectors.toList());
+            List<String> toWrite = objects.stream().parallel().map(converter).filter(Objects::nonNull).collect(Collectors.toList());
             if (toWrite.size()!=objects.size()) logger.error("#{} objects could not be converted", objects.size()-toWrite.size());
             Iterator<String> it = toWrite.iterator();
             out.write(it.next());

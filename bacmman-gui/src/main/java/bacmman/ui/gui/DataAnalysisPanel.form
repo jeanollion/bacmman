@@ -70,7 +70,7 @@
                   <splitpane position="left"/>
                 </constraints>
                 <properties/>
-                <border type="none"/>
+                <border type="none" title="Local Notebooks"/>
                 <children/>
               </scrollpane>
               <scrollpane id="97877" binding="remoteSelectorJSP">
@@ -78,7 +78,7 @@
                   <splitpane position="right"/>
                 </constraints>
                 <properties/>
-                <border type="none"/>
+                <border type="none" title="Remote Notebooks"/>
                 <children/>
               </scrollpane>
             </children>
@@ -88,7 +88,7 @@
               <splitpane position="right"/>
             </constraints>
             <properties>
-              <dividerLocation value="500"/>
+              <dividerLocation value="486"/>
             </properties>
             <border type="none"/>
             <children>

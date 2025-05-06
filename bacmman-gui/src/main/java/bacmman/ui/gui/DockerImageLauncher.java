@@ -19,13 +19,13 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 
@@ -54,6 +54,7 @@ public class DockerImageLauncher {
 
     private String workingDir;
     protected DefaultWorker runner;
+    protected Map<String, String> containerIdMapWD = new HashMap<>();
 
     public DockerImageLauncher(DockerGateway gateway, String workingDir, String containerDir, boolean shm, int[] ports, BiConsumer<String, int[]> startCb, Consumer<String> changeWorkingDir, ProgressCallback bacmmanLogger, UnaryPair<String>... environmentVariables) {
         this.gateway = gateway;
@@ -70,7 +71,7 @@ public class DockerImageLauncher {
                 .addListener(d -> {
                     DockerGateway.DockerContainer c = d.getValue();
                     if (c != null) {
-                        String wd = c.getMounts().filter(m -> m.value.equals(containerDir)).findFirst().map(i -> i.key).orElse(null);
+                        String wd = getWorkingDir(c);
                         if (wd != null) {
                             setWorkingDirectory(workingDir);
                             if (changeWorkingDir != null) changeWorkingDir.accept(wd);
@@ -111,7 +112,33 @@ public class DockerImageLauncher {
     }
 
     public boolean hasContainer(String workingDir) {
-        return dockerContainer.getValue() != null && workingDir.equals(dockerContainer.getValue().getMounts().filter(m -> m.value.equals(containerDir)).findFirst().map(i -> i.key).orElse(null));
+        DockerGateway.DockerContainer container = dockerContainer.getValue();
+        if (container == null) return false;
+        else return workingDir.equals(getWorkingDir(container));
+    }
+
+    public synchronized String getWorkingDir(DockerGateway.DockerContainer container) {
+        String wd = containerIdMapWD.get(container.getId());
+        if (wd == null) { // container was created in another session. retrieve working dir from mount
+            wd = container.getMounts().filter(m -> m.value.equals(containerDir)).findFirst().map(i -> i.key).orElse(null);
+            if (Utils.isWindows()) wd = convertWSLPathToWindowsPath(wd);
+            containerIdMapWD.put(container.getId(), wd);
+        }
+        return wd;
+    }
+
+    public static String convertWSLPathToWindowsPath(String wslPath) {
+        if (wslPath == null || !wslPath.startsWith("/mnt/")) {
+            throw new IllegalArgumentException("Invalid WSL path");
+        }
+        // Split the path into parts
+        String[] parts = wslPath.split("/", 4);
+        if (parts.length < 4) {
+            throw new IllegalArgumentException("Invalid WSL path format");
+        }
+        String driveLetter = parts[2];
+        String remainingPath = parts[3];
+        return driveLetter.toUpperCase() + ":\\" + remainingPath.replace("/", "\\");
     }
 
     public void startContainer() {
@@ -129,6 +156,7 @@ public class DockerImageLauncher {
                 try {
                     String containerId = gateway.createContainer(image, useShm ? this.shm.getDoubleValue() : 0, null, portList, env, new UnaryPair<>(workingDir, containerDir));
                     dockerContainer.setContainer(containerId);
+                    containerIdMapWD.put(containerId, workingDir);
                     configurationGen.getTree().updateUI();
                     if (startCb != null) startCb.accept(containerId, exposedPorts);
                 } catch (Exception e) {
@@ -151,6 +179,7 @@ public class DockerImageLauncher {
         } finally {
             dockerContainer.setValue(null);
             configurationGen.getTree().updateUI();
+            containerIdMapWD.remove(containerId);
             updateButtons();
         }
     }
@@ -219,6 +248,19 @@ public class DockerImageLauncher {
         configurationGen.expandAll();
         configurationJSP.setViewportView(configurationGen.getTree());
         loadConfig();
+        // ensure selected container is consistent with current WD
+        DockerGateway.DockerContainer container = dockerContainer.getValue();
+        if (container != null) {
+            String wd = containerIdMapWD.get(container.getId());
+            if (!this.workingDir.equals(wd)) {
+                dockerContainer.setValue(null);
+                container = null;
+            }
+        }
+        if (container == null) { // search for one
+            container = dockerContainer.getAllContainers().filter( c -> this.workingDir.equals(getWorkingDir(c))).findFirst().orElse(null);
+            dockerContainer.setValue(container);
+        }
         return this;
     }
 
