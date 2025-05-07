@@ -188,7 +188,6 @@ public class NotebookTree {
         if (getRoot()==null || !getRoot().file.getAbsolutePath().equals(dir)) {
             addDir(null, new File(dir));
             getRoot().childrenStream().forEach(NotebookTreeNode::createChildrenIfNecessary);
-            logger.debug("populate notebook tree");
             tree.expandPath(getRootPath());
             removeEmptyFolders(true);
         } else updateNotebookTree();
@@ -201,10 +200,9 @@ public class NotebookTree {
         TreePath[] sel = tree.getSelectionPaths();
         addDir(null, getRoot().file);
         getRoot().childrenStream().forEach(NotebookTreeNode::createChildrenIfNecessary);
-        logger.debug("update notebooktree");
         exp.restoreExpandedPaths();
         removeEmptyFolders(false);
-        Utils.addToSelectionPaths(tree, sel); // TODO check that selection still in tree ?
+        Utils.addToSelectionPaths(tree, sel);
         tree.updateUI();
     }
 

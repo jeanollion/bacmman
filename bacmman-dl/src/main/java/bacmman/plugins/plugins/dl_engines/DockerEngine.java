@@ -69,6 +69,10 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         if (dc != null) dockerImage.setImageRequirement(dc.getDockerImageName(), dc.getVersionPrefix(), dc.minimalVersion(), dc.maximalVersion());
         else dockerImage.setImageRequirement("predict_dnn", null, null, null);
+        DockerGateway.DockerImage im = dockerImage.getAllImages()
+                .filter(DockerGateway.DockerImage::isInstalled).sorted().findFirst()
+                .orElse(dockerImage.getAllImages().sorted().findFirst().orElse(null));
+        if (im != null) dockerImage.setValue(im);
     }
 
     @Override
