@@ -161,9 +161,13 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
                     insert(newI);
                 }
             } else { // try to init with one single element (if element was replaced by list)
-                T newI = createChildInstance();
-                newI.initFromJSONEntry(json);
-                insert(newI);
+                try {
+                    T newI = createChildInstance();
+                    newI.initFromJSONEntry(json);
+                    insert(newI);
+                } catch (Throwable e) {
+
+                }
             }
             this.bypassListeners=false;
         }

@@ -55,16 +55,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
             .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(8, 8).setDefaultTargetShape(192, 192)
-            .setEmphasized(true);
+            .setEmphasized(false);
     BooleanParameter next = new BooleanParameter("Predict Next", true).addListener(b -> dlResizeAndScale.setOutputNumber(b.getSelected() ? 5 : 4))
             .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & category for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, category for current frame, category for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Frame Batch Size", 0, 4, 1, null).setHint("Defines how many frames are predicted at the same time within the frame window");
-    BoundedNumberParameter predictionFrameSegment = new BoundedNumberParameter("Frame Segment", 0, 200, 0, null).setHint("Defines how many frames are processed (prediction + segmentation + tracking + post-processing) at the same time. O means all frames");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Frame Batch Size", 0, 4, 1, null).setEmphasized(true).setHint("Defines how many frames are predicted at the same time within the frame window");
+    BoundedNumberParameter predictionFrameSegment = new BoundedNumberParameter("Frame Segment", 0, 200, 0, null).setEmphasized(true).setHint("Defines how many frames are processed (prediction + segmentation + tracking + post-processing) at the same time. O means all frames");
     BoundedNumberParameter inputWindow = new BoundedNumberParameter("Input Window", 0, 3, 1, null).setHint("Defines the number of frames fed to the network. The window is [t-N, t] or [t-N, t+N] if next==true");
 
-    BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> is greater than 1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1)");
+    BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> is greater than 1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1). <br/>Increase this parameter to provide more temporal context to the neural network, for instance if timesteps are shorter or growth is slower than expected.");
     // segmentation
-    BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas");
+    BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas. Set a threshold greater than 0 to erode objects.");
     BoundedNumberParameter minMaxEDM = new BoundedNumberParameter("Min Max EDM Threshold", 5, 1, 0, null).setEmphasized(false).setHint("Segmented Object with maximal EDM value lower than this threshold are merged or filtered out");
     BoundedNumberParameter gcdmSmoothRad = new BoundedNumberParameter("GCDM Smooth", 5, 0, 0, null).setEmphasized(false).setHint("Smooth radius for GCDM image. Set 0 to skip this step, or a radius in pixel (typically 2) if predicted GCDM image is not smooth a too many centers are detected");
     BoundedNumberParameter centerLapThld = new BoundedNumberParameter("Laplacian Threshold", 8, 1e-4, 1e-8, null).setEmphasized(true).setHint("Seed threshold for center segmentation on Laplacian");
@@ -77,7 +77,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     ConditionalParameter<Boolean> useGDCMGradientCriterionCond = new ConditionalParameter<>(useGDCMGradientCriterion).setActionParameters(true, minObjectSizeGDCMGradient);
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(true).setHint("GDCM gradient constraint do not apply to objects below this size (in pixels)");
     // tracking
-    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
+    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(false).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter linkDistanceTolerance = new BoundedNumberParameter("Link Distance Tolerance", 0, 3, 0, null).setEmphasized(true).setHint("Two objects are linked if the center of one object translated by the predicted displacement falls into an object at the previous frame. This parameter allows a tolerance (in pixel units) in case the center do not fall into any object at the previous frame");
 
     enum CONTACT_CRITERION {BACTERIA_POLE, CONTOUR_DISTANCE, NO_CONTACT}
@@ -93,32 +93,35 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             .setActionParameters(CONTACT_CRITERION.CONTOUR_DISTANCE, contactDistThld);
 
     // track post-processing
-    enum TRACK_POST_PROCESSING {NO_POST_PROCESSING, SOLVE_SPLIT_MERGE, SOLVE_SUCCESSIVE_DIVISIONS}
+    static class TrackPostProcessing extends ConditionalParameter<TrackPostProcessing.TRACK_POST_PROCESSING> {
+        enum TRACK_POST_PROCESSING {SOLVE_SPLIT_MERGE, SOLVE_SUCCESSIVE_DIVISIONS}
+        EnumChoiceParameter<TRACK_POST_PROCESSING> trackPostProcessing = new EnumChoiceParameter<>("Post-processing", TRACK_POST_PROCESSING.values(), TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE).setEmphasized(true);
+        BooleanParameter solveSplit = new BooleanParameter("Solve Split events", true).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
+        BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
+        IntegerParameter maxTrackLength = new IntegerParameter("Max Track Length", 0).setLowerBound(0).setEmphasized(true).setHint("Limit correction to small tracks under this limit. Set 0 for no limit.");
+        BooleanParameter mergeContact = new BooleanParameter("Merge tracks in contact", false).setEmphasized(false).setHint("If true: merge tracks whose objects are in contact from one end of the movie to the end of both tracks");
 
-    EnumChoiceParameter<TRACK_POST_PROCESSING> trackPostProcessing = new EnumChoiceParameter<>("Post-processing", TRACK_POST_PROCESSING.values(), TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE).setEmphasized(true);
+        enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
+        EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setEmphasized(false).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
+        enum SPLIT_MODE {FRAGMENT, SPLIT_IN_TWO}
+        EnumChoiceParameter<SPLIT_MODE> splitMode= new EnumChoiceParameter<>("Split Mode", SPLIT_MODE.values(), SPLIT_MODE.FRAGMENT).setHint("FRAGMENT: apply a seeded watershed on EDM using local maxima as seeds <br/> SPLIT_IN_TWO: same as fragment but merges fragments so that only two remain. Order of merging depend on the edm median value at the interface between fragment so that the interface with the lowest value remains last");
+        GroupParameter splitParameters = new GroupParameter("Split Parameters", splitMode).setHint("Parameters related to object splitting. ");
+
+        public TrackPostProcessing() {
+            super(new EnumChoiceParameter<>("Method", TRACK_POST_PROCESSING.values(), TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE).setEmphasized(true));
+            setActionParameters(TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE, solveMerge, solveSplit, maxTrackLength, mergeContact, splitParameters);
+        }
+    }
+
+    SimpleListParameter<TrackPostProcessing> trackPostProcessingList = new SimpleListParameter<>("Post-processing", new TrackPostProcessing());
     enum TRACK_POST_PROCESSING_WINDOW_MODE {WHOLE, INCREMENTAL, PER_SEGMENT}
-    EnumChoiceParameter<TRACK_POST_PROCESSING_WINDOW_MODE> trackPPRange = new EnumChoiceParameter<>("Range", TRACK_POST_PROCESSING_WINDOW_MODE.values(), TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE).setHint("WHOLE: post-processing is performed on the whole video. <br/>INCREMENTAL: post-processing is performed after each frame segment is processed, from the first processed frame to the last processed frame. <br/>PER_SEGMENT: post-processing is performed per window");
-    BooleanParameter solveSplit = new BooleanParameter("Solve Split events", true).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
-    BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
-    IntegerParameter maxTrackLength = new IntegerParameter("Max Track Length", 0).setLowerBound(0).setEmphasized(true).setHint("Limit correction to small tracks under this limit. Set 0 for no limit.");
-    BooleanParameter mergeContact = new BooleanParameter("Merge tracks in contact", false).setEmphasized(false).setHint("If true: merge tracks whose objects are in contact from one end of the movie to the end of both tracks");
-
-    enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
-    EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setEmphasized(false).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
-
-    enum SPLIT_MODE {FRAGMENT, SPLIT_IN_TWO}
-    EnumChoiceParameter<SPLIT_MODE> splitMode= new EnumChoiceParameter<>("Split Mode", SPLIT_MODE.values(), SPLIT_MODE.FRAGMENT).setHint("FRAGMENT: apply a seeded watershed on EDM using local maxima as seeds <br/> SPLIT_IN_TWO: same as fragment but merges fragments so that only two remain. Order of merging depend on the edm median value at the interface between fragment so that the interface with the lowest value remains last");
-
-    GroupParameter splitParameters = new GroupParameter("Split Parameters", splitMode).setHint("Parameters related to object splitting. ");
-
-    ConditionalParameter<TRACK_POST_PROCESSING> trackPostProcessingCond = new ConditionalParameter<>(trackPostProcessing).setEmphasized(true)
-            .setActionParameters(TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE, solveMerge, solveSplit, maxTrackLength, mergeContact, splitParameters, trackPPRange);
+    EnumChoiceParameter<TRACK_POST_PROCESSING_WINDOW_MODE> trackPPRange = new EnumChoiceParameter<>("Post-processing Range", TRACK_POST_PROCESSING_WINDOW_MODE.values(), TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE).setEmphasized(true).setHint("WHOLE: post-processing is performed on the whole video (more precise, more time consuming). <br/>INCREMENTAL: post-processing is performed after each frame segment is processed, from the first processed frame to the last processed frame. <br/>PER_SEGMENT: post-processing is performed per window (less time consuming but less precise at segment edges)");
 
     // misc
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
-    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling).setEmphasized(true);
-    GroupParameter segmentation = new GroupParameter("Segmentation", edmThreshold, minMaxEDM, objectThickness, minObjectSize, centerParameters, mergeCriterion, useGDCMGradientCriterionCond, manualCurationMargin).setEmphasized(true);
-    GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, trackPostProcessingCond, growthRateRange).setEmphasized(true).setHint("Since July 2024 link assignment has be modified to take into account inconsistencies that can arise between displacement/link multiplicity/segmentation.");
+    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling).setEmphasized(true).setHint("Parameters related to prediction by the neural network");
+    GroupParameter segmentation = new GroupParameter("Segmentation", edmThreshold, minMaxEDM, objectThickness, minObjectSize, centerParameters, mergeCriterion, useGDCMGradientCriterionCond, manualCurationMargin).setEmphasized(true).setHint("Segmentation parameters");
+    GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, trackPostProcessingList, trackPPRange, growthRateRange).setEmphasized(true).setHint("Link assignment parameters. Post-processing section allows to correct inconsistencies that can arise between displacement/link multiplicity/segmentation. The method SOLVE_SPLIT_MERGE only works if there are few errors, and can take a very long time otherwise. To reduce it's processing time, set the post-processing range to PER_SEGMENT");
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     // for test display
@@ -1106,8 +1109,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, boolean fullParentTrack, Set<UnaryPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<SegmentedObject, LinkMultiplicity> lmFW, Map<SegmentedObject, LinkMultiplicity> lmBW, TrackAssigner assigner, TrackLinkEditor editor, SegmentedObjectFactory factory) {
-        Function<SegmentedObject, List<Region>> sm = getPostProcessingSplitter(prediction);
-        trackPostProcessing(parentTrack, fullParentTrack, objectClassIdx, additionalLinks, lmFW, lmBW, sm, assigner, factory, editor);
+        trackPostProcessing(parentTrack, fullParentTrack, objectClassIdx, additionalLinks, lmFW, lmBW, prediction, assigner, factory, editor);
     }
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
@@ -1267,8 +1269,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    protected Function<SegmentedObject, List<Region>> getPostProcessingSplitter(PredictionResults prediction) {
-        switch (splitMode.getSelectedEnum()) {
+    protected Function<SegmentedObject, List<Region>> getPostProcessingSplitter(PredictionResults prediction, TrackPostProcessing.SPLIT_MODE splitMode, TrackPostProcessing.ALTERNATIVE_SPLIT alternativeSplit) {
+        switch (splitMode) {
             case FRAGMENT:
             default:
                 return toSplit -> {
@@ -1288,8 +1290,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 };
             case SPLIT_IN_TWO:
                 SegmenterSplitAndMerge seg = getSegmenter(prediction);
-                ALTERNATIVE_SPLIT as = altSPlit.getSelectedEnum();
-                WatershedObjectSplitter ws = ALTERNATIVE_SPLIT.DISABLED.equals(as)? null : new WatershedObjectSplitter(1, ALTERNATIVE_SPLIT.BRIGHT_OBJECTS.equals(as));
+                WatershedObjectSplitter ws = TrackPostProcessing.ALTERNATIVE_SPLIT.DISABLED.equals(alternativeSplit)? null : new WatershedObjectSplitter(1, TrackPostProcessing.ALTERNATIVE_SPLIT.BRIGHT_OBJECTS.equals(alternativeSplit));
                 return toSplit -> {
                     List<Region> res = new ArrayList<>();
                     SegmentedObject parent = toSplit.getParent();
@@ -1515,94 +1516,99 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         };
     }
 
-    protected void trackPostProcessing(List<SegmentedObject> parentTrack, boolean fullParentTrack, int objectClassIdx, Set<UnaryPair<SegmentedObject>> additionalLinks, Map<SegmentedObject, LinkMultiplicity> lmFW, Map<SegmentedObject, LinkMultiplicity> lmBW, Function<SegmentedObject, List<Region>> splitter, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void trackPostProcessing(List<SegmentedObject> parentTrack, boolean fullParentTrack, int objectClassIdx, Set<UnaryPair<SegmentedObject>> additionalLinks, Map<SegmentedObject, LinkMultiplicity> lmFW, Map<SegmentedObject, LinkMultiplicity> lmBW, PredictionResults prediction, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         Predicate<SegmentedObject> dividing = lmFW==null ? o -> false : o -> lmFW.get(o).lm.equals(MULTIPLE);
         Predicate<SegmentedObject> merging = lmBW==null ? o -> false : o -> lmBW.get(o).lm.equals(MULTIPLE);
-        switch (trackPostProcessing.getSelectedEnum()) {
-            case NO_POST_PROCESSING:
-            default:
-                return;
-            case SOLVE_SPLIT_MERGE: {
-                boolean solveSplit = this.solveSplit.getSelected();
-                boolean solveMerge= this.solveMerge.getSelected();
-                int maxTrackLength = this.maxTrackLength.getIntValue();
-                boolean mergeContact = this.mergeContact.getSelected();
-                boolean perSegment = trackPPRange.getSelectedEnum().equals(TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT);
-                if (!solveSplit && !solveMerge && !mergeContact) return;
-                TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, perSegment);
-                BiPredicate<Track, Track> gap = gapBetweenTracks();
-                if (maxTrackLength>0) gap = (t1, t2) -> t1.length() > maxTrackLength || t2.length() > maxTrackLength || gapBetweenTracks().test(t1, t2);
-                Predicate<Track> forbidSplit = maxTrackLength>0 ? t -> t.length() > maxTrackLength : t -> false;
-                if (solveMerge) trackPop.solveMergeEvents(gap, forbidSplit, merging, false, splitter, assigner, factory, editor);
-                if (solveSplit) trackPop.solveSplitEvents(gap, forbidSplit, dividing, false, splitter, assigner, factory, editor);
-                //trackPop.solveSupernumeraryMergeEvents(gap, false, splitter, assigner, factory, editor);
-                //trackPop.solveSupernumerarySplitEvents(gap, false, splitter, assigner, factory, editor);
-                if (fullParentTrack && mergeContact) {
-                    int startFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
-                    int endFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
-                    trackPop.mergeContact(startFrame, endFrame, tracksInContact(), factory);
-                }
-                // remove additional links that were consumed
-                if (!fullParentTrack) {
-                    Iterator<UnaryPair<SegmentedObject>> it = additionalLinks.iterator();
-                    while (it.hasNext()) {
-                        UnaryPair<SegmentedObject> l = it.next();
-                        if (!trackPop.isComplexLink(l)) it.remove();
+        for (TrackPostProcessing tpp : this.trackPostProcessingList.getActivatedChildren()) {
+            switch (tpp.getActionValue()) {
+                case SOLVE_SPLIT_MERGE: {
+                    Function<SegmentedObject, List<Region>> splitter = getPostProcessingSplitter(prediction, tpp.splitMode.getSelectedEnum(), tpp.altSPlit.getSelectedEnum());
+                    boolean solveSplit = tpp.solveSplit.getSelected();
+                    boolean solveMerge = tpp.solveMerge.getSelected();
+                    int maxTrackLength = tpp.maxTrackLength.getIntValue();
+                    boolean mergeContact = tpp.mergeContact.getSelected();
+                    boolean perSegment = trackPPRange.getSelectedEnum().equals(TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT);
+                    if (!solveSplit && !solveMerge && !mergeContact) return;
+                    TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, perSegment);
+                    BiPredicate<Track, Track> gap = gapBetweenTracks();
+                    if (maxTrackLength > 0)
+                        gap = (t1, t2) -> t1.length() > maxTrackLength || t2.length() > maxTrackLength || gapBetweenTracks().test(t1, t2);
+                    Predicate<Track> forbidSplit = maxTrackLength > 0 ? t -> t.length() > maxTrackLength : t -> false;
+                    if (solveMerge)
+                        trackPop.solveMergeEvents(gap, forbidSplit, merging, false, splitter, assigner, factory, editor);
+                    if (solveSplit)
+                        trackPop.solveSplitEvents(gap, forbidSplit, dividing, false, splitter, assigner, factory, editor);
+                    //trackPop.solveSupernumeraryMergeEvents(gap, false, splitter, assigner, factory, editor);
+                    //trackPop.solveSupernumerarySplitEvents(gap, false, splitter, assigner, factory, editor);
+                    if (fullParentTrack && mergeContact) {
+                        int startFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+                        int endFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
+                        trackPop.mergeContact(startFrame, endFrame, tracksInContact(), factory);
                     }
-                }
-                parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
-                    if (o.getRegion().getCenter() == null) o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
-                    o.getRegion().clearVoxels();
-                    o.getRegion().clearMask();
-                }));
-                return;
-            }
-            case SOLVE_SUCCESSIVE_DIVISIONS: {
-                boolean perSegment = trackPPRange.getSelectedEnum().equals(TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT);
-                TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, perSegment);
-                for (SegmentedObject parent: parentTrack) {
-                    trackPop.getAllTracksAt(parent.getFrame(), true)
-                        .filter(t->t.length()==1 && t.getNext().isEmpty() && t.getPrevious().size()==1 && t.getPrevious().get(0).getNext().size() == 2)
-                        .collect(Collectors.toList()).stream()
-                        .forEach(t -> {
-                            Track prev = t.getPrevious().get(0);
-                            Track sibling = prev.getNext().stream().filter(tt -> !tt.equals(t)).findAny().get();
-                            if (sibling.length() == 1 && sibling.getNext().size()==2) {
-                                TrackTree tt = trackPop.getTrackTree(t);
-                                if (tt != null) { // if null: was removed
-                                    // compare division scores. if first division is higher : relink otherwise merge t with siblings
-                                    double divProbPrev = lmFW != null && MULTIPLE.equals(lmFW.get(prev.tail()).lm) ? lmFW.get(prev.tail()).probability : 0;
-                                    double divProbT = lmFW != null && MULTIPLE.equals(lmFW.get(t.head()).lm) ? lmFW.get(t.head()).probability : 0;
-                                    double sizeT = t.head().getRegion().size();
-                                    double divProbSib = lmFW != null && MULTIPLE.equals(lmFW.get(sibling.head()).lm) ? lmFW.get(sibling.head()).probability : 0;
-                                    double sizeSib = sibling.head().getRegion().size();
-                                    double divProbCur = (divProbT * sizeT + divProbSib * sizeSib) / (sizeT + sizeSib);
-                                    logger.debug("successive div @{} ({}) p={} pnext={} -> {}", prev.tail(), t.head(), divProbPrev, divProbCur, divProbPrev >= divProbCur ? "relink" : "merge");
-                                    Consumer<Track> remove = tr -> tt.remove(tr.head());
-                                    Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
-                                    if (divProbPrev >= divProbCur) { // re-link
-                                        List<Track> nexts = new ArrayList<>(sibling.getNext());
-                                        nexts.forEach(sibling::removeNext);
-                                        List<Track> prevs = new ArrayList<Track>(2) {{
-                                            add(t);
-                                            add(sibling);
-                                        }};
-                                        assigner.assignTracks(prevs, nexts, null, null, editor);
-                                        t.simplifyTrack(editor, remove);
-                                        sibling.simplifyTrack(editor, remove);
-                                    } else { // merge
-                                        Track merged = Track.mergeTracks(t, sibling, factory, editor, remove, add);
-                                        if (merged != null) {
-                                            merged.head().getRegion().setCenter(Medoid.computeMedoid(merged.head().getRegion()));
-                                            merged.head().getRegion().clearVoxels();
-                                            merged.head().getRegion().clearMask();
-                                        }
-                                    }
-                                }  else logger.debug("successive div: tt null for: {} prev: {}", t.head(), prev.tail());
-                            }
+                    // remove additional links that were consumed
+                    if (!fullParentTrack) {
+                        Iterator<UnaryPair<SegmentedObject>> it = additionalLinks.iterator();
+                        while (it.hasNext()) {
+                            UnaryPair<SegmentedObject> l = it.next();
+                            if (!trackPop.isComplexLink(l)) it.remove();
                         }
-                    );
+                    }
+                    parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
+                        if (o.getRegion().getCenter() == null)
+                            o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
+                        o.getRegion().clearVoxels();
+                        o.getRegion().clearMask();
+                    }));
+                    return;
+                }
+                case SOLVE_SUCCESSIVE_DIVISIONS: {
+                    boolean perSegment = trackPPRange.getSelectedEnum().equals(TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT);
+                    TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, perSegment);
+                    for (SegmentedObject parent : parentTrack) {
+                        trackPop.getAllTracksAt(parent.getFrame(), true)
+                            .filter(t -> t.length() == 1 && t.getNext().isEmpty() && t.getPrevious().size() == 1 && t.getPrevious().get(0).getNext().size() == 2)
+                            .collect(Collectors.toList()).stream()
+                            .forEach(t -> {
+                                Track prev = t.getPrevious().get(0);
+                                Track sibling = prev.getNext().stream().filter(tt -> !tt.equals(t)).findAny().get();
+                                if (sibling.length() == 1 && sibling.getNext().size() == 2) {
+                                    TrackTree tt = trackPop.getTrackTree(t);
+                                    if (tt != null) { // if null: was removed
+                                        // compare division scores. if first division is higher : relink otherwise merge t with siblings
+                                        double divProbPrev = lmFW != null && MULTIPLE.equals(lmFW.get(prev.tail()).lm) ? lmFW.get(prev.tail()).probability : 0;
+                                        double divProbT = lmFW != null && MULTIPLE.equals(lmFW.get(t.head()).lm) ? lmFW.get(t.head()).probability : 0;
+                                        double sizeT = t.head().getRegion().size();
+                                        double divProbSib = lmFW != null && MULTIPLE.equals(lmFW.get(sibling.head()).lm) ? lmFW.get(sibling.head()).probability : 0;
+                                        double sizeSib = sibling.head().getRegion().size();
+                                        double divProbCur = (divProbT * sizeT + divProbSib * sizeSib) / (sizeT + sizeSib);
+                                        logger.debug("successive div @{} ({}) p={} pnext={} -> {}", prev.tail(), t.head(), divProbPrev, divProbCur, divProbPrev >= divProbCur ? "relink" : "merge");
+                                        Consumer<Track> remove = tr -> tt.remove(tr.head());
+                                        Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
+                                        if (divProbPrev >= divProbCur) { // re-link
+                                            List<Track> nexts = new ArrayList<>(sibling.getNext());
+                                            nexts.forEach(sibling::removeNext);
+                                            List<Track> prevs = new ArrayList<Track>(2) {{
+                                                add(t);
+                                                add(sibling);
+                                            }};
+                                            assigner.assignTracks(prevs, nexts, null, null, editor);
+                                            t.simplifyTrack(editor, remove);
+                                            sibling.simplifyTrack(editor, remove);
+                                        } else { // merge
+                                            Track merged = Track.mergeTracks(t, sibling, factory, editor, remove, add);
+                                            if (merged != null) {
+                                                merged.head().getRegion().setCenter(Medoid.computeMedoid(merged.head().getRegion()));
+                                                merged.head().getRegion().clearVoxels();
+                                                merged.head().getRegion().clearMask();
+                                            }
+                                        }
+                                    } else
+                                        logger.debug("successive div: tt null for: {} prev: {}", t.head(), prev.tail());
+                                }
+                            }
+                        );
+                    }
                 }
             }
         }
