@@ -65,7 +65,7 @@ public class ConfigurationLibrary {
     GistConfiguration.TYPE currentMode;
     ConfigurationTreeGenerator localConfig, remoteConfig;
     ConfigurationGistTreeGenerator remoteSelector;
-    List<GistConfiguration> gists;
+    List<GistConfiguration> gists = Collections.emptyList(); // init to avoid loading config when opening the tab
     JFrame displayingFrame;
     boolean loggedIn = false;
     GithubGateway gateway;

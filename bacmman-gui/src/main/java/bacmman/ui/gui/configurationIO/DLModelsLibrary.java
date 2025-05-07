@@ -307,10 +307,10 @@ public class DLModelsLibrary {
                 if (gist != null) configureParameterCallback.accept(gist.getModelID(), gist.getMetadata());
             }
         });
-        if (!gitCredentialPanel.getUsername().isEmpty()) {
+        /*if (!gitCredentialPanel.getUsername().isEmpty()) {
             fetchGists();
             updateGistDisplay();
-        }
+        }*/
     }
 
     public boolean setSelectedGist(String id, boolean modelID) {
