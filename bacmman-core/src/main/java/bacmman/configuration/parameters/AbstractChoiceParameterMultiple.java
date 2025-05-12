@@ -149,6 +149,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
             if (otherSel==null || otherSel.equals(otherC.getNoSelectionString()) || otherSel.isEmpty()) setSelectedItems();
             else setSelectedItem(otherSel);
         }
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
 
     // choosable parameter

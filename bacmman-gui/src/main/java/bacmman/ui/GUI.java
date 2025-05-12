@@ -2319,7 +2319,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         tabs.addTab("Configuration", configurationPanel);
         tabIndex.add(TAB.CONFIGURATION.name());
-        testSplitPane.setDividerLocation(500);
+        testSplitPane.setDividerLocation(750);
 
         testSplitPaneRight.setDividerLocation(250);
         testSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);

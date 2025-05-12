@@ -406,6 +406,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             Position otherP = (Position) other;
             if (otherP.sourceImages!=null) sourceImages = otherP.sourceImages.duplicate();
         }
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     @Override 
     public boolean sameContent(Parameter other) {

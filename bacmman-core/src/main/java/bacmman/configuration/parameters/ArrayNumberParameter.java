@@ -93,6 +93,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
         } else if (other instanceof NumberParameter) {
             setValue(((NumberParameter) other).getValue().doubleValue());
         } else throw new IllegalArgumentException("wrong parameter type");
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     public int[] getArrayInt() {
         return getActivatedChildren().stream().mapToInt(p -> (int)Math.round(p.getValue().doubleValue())).toArray();

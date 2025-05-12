@@ -29,7 +29,6 @@ import javax.swing.tree.TreeNode;
 
 import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.utils.Utils;
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.util.function.Consumer;
@@ -131,6 +130,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
                 ((ConfigIDAware)this).setConfigID(((ConfigIDAware)other).getConfigID());
                 ConfigIDAware.setAutoUpdate((ConfigIDAware)other, (ConfigIDAware)this);
             }
+            if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
         } else {
             //throw new IllegalArgumentException("wrong parameter type");
         }
@@ -142,9 +142,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
         dest.setSimpleHint(source.toolTipTextSimple);
         dest.addValidationFunction(source.additionalValidation);
         if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
-        if (source instanceof Deactivatable && dest instanceof Deactivatable) {
-            ((Deactivatable)dest).setActivated(((Deactivatable)source).isActivated());
-        }
+        if (source instanceof Deactivable && dest instanceof Deactivable) ((Deactivable)dest).setActivated(((Deactivable)source).isActivated());
     }
     @Override
     public P duplicate() {
@@ -177,8 +175,8 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     
     @Override
     public boolean sameContent(Parameter other) {
-        if (this instanceof Deactivatable && other instanceof Deactivatable) {
-            if (((Deactivatable)this).isActivated() != ((Deactivatable)other).isActivated()) return false;
+        if (this instanceof Deactivable && other instanceof Deactivable) {
+            if (((Deactivable)this).isActivated() != ((Deactivable)other).isActivated()) return false;
         }
         if (other instanceof ContainerParameter) {
             ContainerParameter otherLP = (ContainerParameter)other;

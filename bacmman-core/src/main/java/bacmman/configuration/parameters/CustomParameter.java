@@ -167,6 +167,7 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
         } else {
             //throw new IllegalArgumentException("wrong parameter type");
         }
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
 
 }

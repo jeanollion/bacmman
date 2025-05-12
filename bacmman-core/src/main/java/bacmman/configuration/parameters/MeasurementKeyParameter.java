@@ -56,6 +56,7 @@ public class MeasurementKeyParameter extends ParameterImpl<MeasurementKeyParamet
         if (other instanceof MeasurementKeyParameter) {
             selectedKey = ((MeasurementKeyParameter) other).getSelectedKey();
         }
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
 
     @Override

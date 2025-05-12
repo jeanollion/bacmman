@@ -91,6 +91,7 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
             //bypassListeners=false;
             //logger.debug("ICP: {} recieve from: {} -> {} ({})", name, otherP.getSelectedItems(), this.getSelectedItems(), this.getSelectedIndex());
         } else throw new IllegalArgumentException("wrong parameter type");
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     @Override
     public int getSelectedIndex() {

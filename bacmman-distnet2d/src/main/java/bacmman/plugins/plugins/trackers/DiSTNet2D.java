@@ -32,6 +32,7 @@ import bacmman.utils.geom.Vector;
 import net.imglib2.RealLocalizable;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,9 +94,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             .setActionParameters(CONTACT_CRITERION.CONTOUR_DISTANCE, contactDistThld);
 
     // track post-processing
-    static class TrackPostProcessing extends ConditionalParameter<TrackPostProcessing.TRACK_POST_PROCESSING> {
+    static class TrackPostProcessing extends ConditionalParameterAbstract<TrackPostProcessing.TRACK_POST_PROCESSING, TrackPostProcessing> implements Deactivable {
         enum TRACK_POST_PROCESSING {SOLVE_SPLIT_MERGE, SOLVE_SUCCESSIVE_DIVISIONS}
-        EnumChoiceParameter<TRACK_POST_PROCESSING> trackPostProcessing = new EnumChoiceParameter<>("Post-processing", TRACK_POST_PROCESSING.values(), TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE).setEmphasized(true);
         BooleanParameter solveSplit = new BooleanParameter("Solve Split events", true).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
         BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
         IntegerParameter maxTrackLength = new IntegerParameter("Max Track Length", 0).setLowerBound(0).setEmphasized(true).setHint("Limit correction to small tracks under this limit. Set 0 for no limit.");
@@ -111,9 +111,36 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             super(new EnumChoiceParameter<>("Method", TRACK_POST_PROCESSING.values(), TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE).setEmphasized(true));
             setActionParameters(TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE, solveMerge, solveSplit, maxTrackLength, mergeContact, splitParameters);
         }
+        // Deactivable interface
+        boolean activated = true;
+        @Override
+        public boolean isActivated() { return activated; }
+        @Override
+        public void setActivated(boolean activated) { this.activated = activated; }
+        @Override
+        public JSONObject toJSONEntry() {
+            JSONObject res= (JSONObject)super.toJSONEntry();
+            if (!activated) Deactivable.appendActivated(res, activated);
+            return res;
+        }
+        @Override
+        public void initFromJSONEntry(Object jsonEntry) {
+            activated = Deactivable.getActivated(jsonEntry);
+            super.initFromJSONEntry(jsonEntry);
+        }
+        // ConditionalParameterAbstract
+        @Override
+        public TrackPostProcessing duplicate() {
+            TrackPostProcessing res = new TrackPostProcessing();
+            res.getActionableParameter().setContentFrom(getActionableParameter());
+            res.parameters.forEach((v, p) -> res.setActionParameters(v, p.stream().map(Parameter::duplicate).toArray(Parameter[]::new)));
+            res.setContentFrom(this);
+            transferStateArguments(this, res);
+            return res;
+        }
     }
 
-    SimpleListParameter<TrackPostProcessing> trackPostProcessingList = new SimpleListParameter<>("Post-processing", new TrackPostProcessing());
+    SimpleListParameter<TrackPostProcessing> trackPostProcessingList = new SimpleListParameter<>("Post-processing", new TrackPostProcessing()).setEmphasized(true);
     enum TRACK_POST_PROCESSING_WINDOW_MODE {WHOLE, INCREMENTAL, PER_SEGMENT}
     EnumChoiceParameter<TRACK_POST_PROCESSING_WINDOW_MODE> trackPPRange = new EnumChoiceParameter<>("Post-processing Range", TRACK_POST_PROCESSING_WINDOW_MODE.values(), TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE).setEmphasized(true).setHint("WHOLE: post-processing is performed on the whole video (more precise, more time consuming). <br/>INCREMENTAL: post-processing is performed after each frame segment is processed, from the first processed frame to the last processed frame. <br/>PER_SEGMENT: post-processing is performed per window (less time consuming but less precise at segment edges)");
 

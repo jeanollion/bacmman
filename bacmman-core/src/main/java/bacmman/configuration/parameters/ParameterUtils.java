@@ -369,7 +369,7 @@ public class ParameterUtils {
     }
 
     public static boolean activated(Parameter p) {
-        if (p instanceof Deactivatable) return ((Deactivatable)p).isActivated();
+        if (p instanceof Deactivable) return ((Deactivable)p).isActivated();
         else return true;
     }
 }

@@ -22,7 +22,6 @@ import bacmman.configuration.parameters.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.utils.Utils;
-import org.checkerframework.checker.units.qual.C;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,7 +134,7 @@ public class SimpleListParameterUI implements ListParameterUI {
     public Object[] getDisplayComponent() {return actions;}
     
     public Component[] getChildDisplayComponent(final Parameter child) {
-        boolean deactivatable = child instanceof Deactivatable && list.allowDeactivate();
+        boolean deactivatable = child instanceof Deactivable && list.allowDeactivate();
         if (!list.allowModifications() && !deactivatable) return new Component[0];
         final int unMutableIdx = list.getUnMutableIndex();
         final int idx = list.getIndex(child);
@@ -239,7 +238,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                 new AbstractAction(childDeactivatableNames[0]) {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
-                        ((Deactivatable)child).setActivated(false);
+                        ((Deactivable)child).setActivated(false);
                         if (model !=null) model.nodeChanged(child);
                     }
                 }
@@ -249,12 +248,12 @@ public class SimpleListParameterUI implements ListParameterUI {
                     new AbstractAction(childDeactivatableNames[1]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            ((Deactivatable)child).setActivated(true);
+                            ((Deactivable)child).setActivated(true);
                             if (model !=null) model.nodeChanged(child);
                         }
                     }
             );
-            if (((Deactivatable)child).isActivated()) childActions[actionIdx+1].setEnabled(false); // activate
+            if (((Deactivable)child).isActivated()) childActions[actionIdx+1].setEnabled(false); // activate
             else childActions[actionIdx].setEnabled(false); // deactivate
             if (!mutable) {
                 childActions[actionIdx].setEnabled(false);

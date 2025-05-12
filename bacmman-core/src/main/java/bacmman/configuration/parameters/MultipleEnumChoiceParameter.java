@@ -137,6 +137,7 @@ public class MultipleEnumChoiceParameter<E extends Enum<E>> extends ParameterImp
             if (item!=null) this.selectedItems = new int[]{getIndex.applyAsInt(item)};
         } else throw new IllegalArgumentException("wrong parameter type");
         //bypassListeners=false;
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     
     @Override

@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory;
  * @author Jean Ollion
  * @param <T> type of plugin
  */
-public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivatable, ChoosableParameter<PluginParameter<T>> {
+public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivable, ChoosableParameter<PluginParameter<T>> {
     Logger logger = LoggerFactory.getLogger(PluginParameter.class);
     public final static HashMapGetCreate<Class<? extends Plugin>, List<String>> PLUGIN_NAMES=new HashMapGetCreate<Class<? extends Plugin>, List<String>>(c -> PluginFactory.getPluginNames(c));
     protected List<Parameter> pluginParameters;
@@ -60,15 +60,15 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         JSONObject res= new JSONObject();
         res.put("pluginName", pluginName);
         //res.put("pluginTypeName", pluginTypeName);
-        if (!activated) Deactivatable.appendActivated(res, activated);
+        if (!activated) Deactivable.appendActivated(res, activated);
         if (additionalParameters!=null && !additionalParameters.isEmpty()) res.put("addParams", JSONUtils.toJSONArrayMap(additionalParameters)); // was: toJSON
         if (pluginParameters!=null && !pluginParameters.isEmpty()) res.put("params", JSONUtils.toJSONArrayMap(pluginParameters)); // was: toJSON
         return res;
     }
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        activated = Deactivatable.getActivated(jsonEntry);
-        jsonEntry = Deactivatable.copyAndRemoveActivatedPropertyIfNecessary(jsonEntry);
+        activated = Deactivable.getActivated(jsonEntry);
+        jsonEntry = Deactivable.copyAndRemoveActivatedPropertyIfNecessary(jsonEntry);
         JSONObject jsonO = (JSONObject)jsonEntry;
         T instance = setPlugin((String)jsonO.get("pluginName"));
         if (jsonO.containsKey("addParams") && additionalParameters!=null) {
@@ -162,7 +162,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     }
     
     public boolean isOnePluginSet() {
-        if (pluginParameters==null && !NO_SELECTION.equals(pluginName) && pluginName!=null && pluginName.length()>0) setPlugin(pluginName); // case of constructor with default method
+        if (pluginParameters==null && !NO_SELECTION.equals(pluginName) && pluginName!=null && !pluginName.isEmpty()) setPlugin(pluginName); // case of constructor with default method
         return pluginName!=null && (!NO_SELECTION.equals(pluginName) || pluginParameters!=null);
     }
     @Override

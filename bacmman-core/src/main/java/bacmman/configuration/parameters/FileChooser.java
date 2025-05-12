@@ -261,6 +261,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
                 } else this.selectedFiles = Arrays.copyOf(otherFC.selectedFiles, (otherFC.selectedFiles.length));
             }
         } else throw new IllegalArgumentException("wrong parameter type");
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     
     @Override public String toString() {

@@ -37,10 +37,10 @@ import java.util.function.Supplier;
 
 public abstract class ConditionalParameterAbstract<V, T extends ConditionalParameterAbstract<V, T>> extends ContainerParameterImpl<T> implements ParameterWithLegacyInitialization<T, V>, Listenable<T> {
     ActionableParameter<V, ? extends ActionableParameter<V, ?>> action;
-    HashMap<V, List<Parameter>> parameters;
+    protected HashMap<V, List<Parameter>> parameters;
     HashMap<V, Supplier<List<Parameter>>> parameterSupplier = new HashMap<>();
-    List<Parameter> defaultParameters;
-    V currentValue;
+    protected List<Parameter> defaultParameters;
+    protected V currentValue;
 
     @Override
     public T setName(String name) {
@@ -189,6 +189,7 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
                 ParameterUtils.setContent(getOrCreateParameters(currentAction), currentParameters);
             }
             setActionValue(action.getValue());
+            if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
             bypassListeners=false;
         } else throw new IllegalArgumentException("wrong parameter type");
     }

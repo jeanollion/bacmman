@@ -89,6 +89,7 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
         if (other instanceof NumberParameter) {
             this.value=((NumberParameter)other).getValue();
         }
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     
     @Override public P duplicate() {

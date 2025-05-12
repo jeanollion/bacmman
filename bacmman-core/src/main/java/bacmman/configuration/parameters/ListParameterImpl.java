@@ -76,8 +76,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         dest.setHint(source.toolTipText);
         dest.setSimpleHint(source.toolTipTextSimple);
         dest.setListeners(source.listeners);
-        if (source instanceof Deactivatable && dest instanceof Deactivatable) {
-            ((Deactivatable)dest).setActivated(((Deactivatable)source).isActivated());
+        if (source instanceof Deactivable && dest instanceof Deactivable) {
+            ((Deactivable)dest).setActivated(((Deactivable)source).isActivated());
         }
     }
     @Override public boolean isEmpty() {return getChildren().isEmpty();}
@@ -269,7 +269,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     @Override
     public boolean isDeactivatable() {
         if (!allowDeactivate) return false;
-        return Deactivatable.class.isAssignableFrom(this.getChildClass());
+        return Deactivable.class.isAssignableFrom(this.getChildClass());
     }
     @Override
     public boolean allowDeactivate() {
@@ -279,14 +279,14 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     @Override
     public void setActivatedAll(boolean activated) {
         if (isDeactivatable()) {
-            for (Parameter p: getChildren()) ((Deactivatable)p).setActivated(activated);
+            for (Parameter p: getChildren()) ((Deactivable)p).setActivated(activated);
         }
     }
     
     @Override
     public List<T> getActivatedChildren() {
         if (!isDeactivatable()) return getChildren();
-        else return getChildren().stream().filter(p->((Deactivatable)p).isActivated()).collect(Collectors.toList());
+        else return getChildren().stream().filter(p->((Deactivable)p).isActivated()).collect(Collectors.toList());
     }
     
     public T createChildInstance(String name) {
@@ -355,9 +355,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
             ListParameter otherLP = (ListParameter)other;
             if (otherLP.getChildCount()==this.getChildCount()) {
                 for (int i = 0; i<getChildCount(); i++) {
-                    if (isDeactivatable() && ((Deactivatable)this.getChildAt(i)).isActivated() != ((Deactivatable)otherLP.getChildAt(i)).isActivated() ) return false;
+                    if (isDeactivatable() && ((Deactivable)this.getChildAt(i)).isActivated() != ((Deactivable)otherLP.getChildAt(i)).isActivated() ) return false;
                     if (!(this.getChildAt(i)).sameContent((Parameter)otherLP.getChildAt(i))) {
-                        logger.trace("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), (otherLP.getChildAt(i)).toString());
+                        //logger.trace("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), (otherLP.getChildAt(i)).toString());
                         return false;
                     }
                 }
@@ -536,7 +536,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     }
     public int getActivatedChildCount() {
         if (!isDeactivatable()) return getChildCount();
-        return (int)getChildren().stream().filter(c->(((Deactivatable)c).isActivated())).count();
+        return (int)getChildren().stream().filter(c->(((Deactivable)c).isActivated())).count();
     }
 
     @Override

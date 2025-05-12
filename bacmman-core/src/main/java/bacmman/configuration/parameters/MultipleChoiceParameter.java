@@ -132,6 +132,7 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
             if (i>=0) this.selectedItems=new int[]{i};
         } else throw new IllegalArgumentException("wrong parameter type");
         //bypassListeners=false;
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     
     @Override

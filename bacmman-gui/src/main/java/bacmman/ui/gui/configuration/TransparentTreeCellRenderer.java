@@ -18,7 +18,7 @@
  */
 package bacmman.ui.gui.configuration;
 
-import bacmman.configuration.parameters.Deactivatable;
+import bacmman.configuration.parameters.Deactivable;
 import bacmman.configuration.parameters.Parameter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,7 +69,7 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
             else if (isDifferent.test(((Parameter)value))) ret.setForeground(Color.BLUE);
             boolean bold = isExpertMode.getAsBoolean() && ((Parameter) value).isEmphasized();
             Map attributes = ret.getFont().getAttributes();
-            if (value instanceof Deactivatable && !((Deactivatable)value).isActivated()) attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
+            if (value instanceof Deactivable && !((Deactivable)value).isActivated()) attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
             else attributes.remove(TextAttribute.STRIKETHROUGH);
             attributes.put(TextAttribute.WEIGHT, bold ? TextAttribute.WEIGHT_BOLD : TextAttribute.WEIGHT_REGULAR);
             ret.setFont(new Font(attributes));

@@ -75,6 +75,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> implemen
         if (other instanceof IntervalParameter) {
             setValues(((IntervalParameter)other).values);
         }
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
 
     @Override

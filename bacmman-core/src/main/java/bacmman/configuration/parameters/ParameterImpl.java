@@ -112,9 +112,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
         dest.setListeners(source.listeners);
         dest.addValidationFunction(source.additionalValidation);
         dest.setEmphasized(source.isEmphasized);
-        if (source instanceof Deactivatable && dest instanceof Deactivatable) {
-            ((Deactivatable)dest).setActivated(((Deactivatable)source).isActivated());
-        }
+        if (source instanceof Deactivable && dest instanceof Deactivable) ((Deactivable)dest).setActivated(((Deactivable)source).isActivated());
     }
     
     @Override

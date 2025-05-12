@@ -28,10 +28,10 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public interface Deactivatable {
-    Logger logger = LoggerFactory.getLogger(Deactivatable.class);
-    public boolean isActivated();
-    public void setActivated(boolean activated);
+public interface Deactivable {
+    Logger logger = LoggerFactory.getLogger(Deactivable.class);
+    boolean isActivated();
+    void setActivated(boolean activated);
     static boolean needsRemoveActivatedProperty(Object entry) {
         if (entry instanceof JSONArray) {
             JSONArray ja = (JSONArray) entry;

@@ -70,7 +70,7 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
     }
     public List<T> getAll() {
         return this.getChildren().stream().map(pp->{
-            if (pp instanceof Deactivatable && !((Deactivatable)pp).isActivated()) return null;
+            if (pp instanceof Deactivable && !((Deactivable)pp).isActivated()) return null;
             else return pp.instantiatePlugin();
         }).collect(Collectors.toList());
     }

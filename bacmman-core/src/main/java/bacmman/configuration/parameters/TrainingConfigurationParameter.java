@@ -375,7 +375,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
     public enum TILE_NUMBER_MODE {CONSTANT, AUTOMATIC}
     enum DATASET_TYPE {TRAIN, TEST, EVAL}
-    public class DatasetParameter extends GroupParameterAbstract<DatasetParameter> implements PythonConfiguration, Deactivatable {
+    public class DatasetParameter extends GroupParameterAbstract<DatasetParameter> implements PythonConfiguration, Deactivable {
         FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_OR_DIRECTORY,false)
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
@@ -495,13 +495,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         @Override
         public JSONArray toJSONEntry() {
             JSONArray res = super.toJSONEntry();
-            if (!activated) Deactivatable.appendActivated(res, false);
+            if (!activated) Deactivable.appendActivated(res, false);
             return res;
         }
         @Override
         public void initFromJSONEntry(Object entry) {
-            this.activated = Deactivatable.getActivated(entry);
-            entry = Deactivatable.copyAndRemoveActivatedPropertyIfNecessary(entry);
+            this.activated = Deactivable.getActivated(entry);
+            entry = Deactivable.copyAndRemoveActivatedPropertyIfNecessary(entry);
             super.initFromJSONEntry(entry);
         }
     }

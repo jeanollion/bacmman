@@ -163,7 +163,7 @@ public class ConfigurationTreeGenerator {
         for (Object c : list) setNodeExpandedState((Parameter)c, expanded, levelLimit-1);
         if (expanded || !rootParameter.equals(node)) {
             TreePath path = new TreePath(node.getParameterPath().toArray());
-            if (node instanceof Deactivatable && !((Deactivatable)node).isActivated()) tree.collapsePath(path);
+            if (node instanceof Deactivable && !((Deactivable)node).isActivated()) tree.collapsePath(path);
             else {
                 if (expanded) tree.expandPath(path);
                 else tree.collapsePath(path);

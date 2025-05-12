@@ -71,6 +71,7 @@ public class TextParameter extends ParameterImpl<TextParameter> implements Liste
     public void setContentFrom(Parameter other) {
         if (other instanceof TextParameter) this.value=((TextParameter)other).getValue();
         else throw new IllegalArgumentException("wrong parameter type");
+        if (this instanceof Deactivable && other instanceof Deactivable) ((Deactivable)this).setActivated(((Deactivable)other).isActivated());
     }
     
     @Override public TextParameter duplicate() {
