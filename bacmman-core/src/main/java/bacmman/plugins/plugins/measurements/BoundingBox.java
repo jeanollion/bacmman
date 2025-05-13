@@ -73,6 +73,14 @@ public class BoundingBox implements Measurement, Hint {
                 refObject = SegmentedObjectUtils.getContainer(object.getRegion(), object.getParent(refParent).getChildren(reference.getSelectedClassIdx()), null);
             }
         }
+        if (refObject == null && include.getSelected()) {
+            object.getMeasurements().setValue(refprefix+"XMin", null);
+            object.getMeasurements().setValue(refprefix+"XMax", null);
+            object.getMeasurements().setValue(refprefix+"YMin", null);
+            object.getMeasurements().setValue(refprefix+"YMax", null);
+            object.getMeasurements().setValue(refprefix+"ZMin", null);
+            object.getMeasurements().setValue(refprefix+"ZMax", null);
+        }
         if (refObject == null && relative.getSelected()) { // no reference object found
             object.getMeasurements().setValue(prefix+"XMin", null);
             object.getMeasurements().setValue(prefix+"XMax", null);
@@ -80,20 +88,11 @@ public class BoundingBox implements Measurement, Hint {
             object.getMeasurements().setValue(prefix+"YMax", null);
             object.getMeasurements().setValue(prefix+"ZMin", null);
             object.getMeasurements().setValue(prefix+"ZMax", null);
-            
-            if (include.getSelected()) {
-                object.getMeasurements().setValue(refprefix+"XMin", null);
-                object.getMeasurements().setValue(refprefix+"XMax", null);
-                object.getMeasurements().setValue(refprefix+"YMin", null);
-                object.getMeasurements().setValue(refprefix+"YMax", null);
-                object.getMeasurements().setValue(refprefix+"ZMin", null);
-                object.getMeasurements().setValue(refprefix+"ZMax", null);
-            }
             return;
         }
-        bacmman.image.BoundingBox refBds = refObject.getBounds();
         Point relOff;
         if (relative.getSelected()) {
+            bacmman.image.BoundingBox refBds = refObject.getBounds();
             switch (refPoint.getSelectedEnum()) {
                 case UPPER_LEFT_CORNER:
                 default:
@@ -118,7 +117,8 @@ public class BoundingBox implements Measurement, Hint {
             object.getMeasurements().setValue(prefix+"ZMin", bds.zMin() - relOff.get(2));
             object.getMeasurements().setValue(prefix+"ZMax", bds.zMax() - relOff.get(2));
         }
-        if (include.getSelected()) {
+        if (include.getSelected() && relative.getSelected()) {
+            bacmman.image.BoundingBox refBds = refObject.getBounds();
             object.getMeasurements().setValue(refprefix+"XMin", refBds.xMin());
             object.getMeasurements().setValue(refprefix+"XMax", refBds.xMax());
             object.getMeasurements().setValue(refprefix+"YMin", refBds.yMin());
