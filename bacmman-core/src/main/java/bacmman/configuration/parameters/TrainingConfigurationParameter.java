@@ -471,7 +471,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public JSONObject getPythonConfiguration() {
             JSONObject res = new JSONObject();
             if (path.selectedFiles.length>0) res.put("path", path.selectedFiles[0]); // relative path if possible
-            res.put("channel_name", multipleChannel ? channels.toJSONEntry() : channel.toJSONEntry());
+            if (multipleChannel) {
+                if (channels.getChildCount()>1) res.put("channel_name", channels.toJSONEntry());
+                else res.put("channel_name", channels.getChildAt(0).toJSONEntry()); // retro compatibility
+            } else res.put("channel_name", channel.toJSONEntry());
             if (inputLabel) res.put("label_name", labels.toJSONEntry());
             res.put("keyword", keyword.toJSONEntry());
             res.put("type", type.toJSONEntry());
@@ -483,7 +486,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             if (scaling) {
                 String sp_key = scaler.getPythonConfigurationKey(); // same for 1 or several channels
                 if (multipleChannel) {
-                    dataAug.put(sp_key, scalers.getPythonConfiguration());
+                    if (scalers.getChildCount()>1) dataAug.put(sp_key, scalers.getPythonConfiguration());
+                    else dataAug.put(sp_key, scalers.getChildAt(0).getPythonConfiguration()); // retro compatibility
                 } else {
                     dataAug.put(sp_key, scaler.getPythonConfiguration());
                 }
