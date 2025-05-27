@@ -12,8 +12,10 @@ import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Triplet;
 import org.json.simple.JSONObject;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -28,13 +30,15 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, eraseEdgeCellSize, staticProba, new AffineTransformParameter("Affine Transform"), new ElasticDeformParameter("Elastic Deform"), new Swim1DParameter("Swim 1D"), new IlluminationParameter("Illumination Transform", true)};
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
-    enum CENTER_MODE {MEDOID, GEOMETRICAL, SKELETON, EDM_MAX}
-    EnumChoiceParameter<CENTER_MODE> center = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID);
-    GroupParameter datasetFeatures = new GroupParameter("Dataset Features", center);
+    public enum CENTER_MODE {MEDOID, GEOMETRICAL, SKELETON, EDM_MAX}
+    EnumChoiceParameter<CENTER_MODE> centerMode = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID).setHint("Defines how center is computed. MEDOID (point with minimal distance to other points in the object) is ensured to be inside the object is slower but recommended for non convex shapes. <br/>GEOMETRICAL is faster and recommended for convex shapes. <br/>SKELETON is the medoid of the skeleton. <br/>EDM_MAX is the maximal value of the EDM");
+    public enum CENTER_DISTANCE_MODE {GEODESIC, EUCLIDEAN}
+    EnumChoiceParameter<CENTER_DISTANCE_MODE> centerDistanceMode = new EnumChoiceParameter<>("Center Distance Mode", CENTER_DISTANCE_MODE.values(), CENTER_DISTANCE_MODE.GEODESIC).setHint("Defines the predicted DCM (distance to center) map: geodesic is the geodesic distance inside the objects, recommended for regular to big size objects especially with non convex shapes. <br/>EUCLIDEAN is the Euclidean distance to center, thus do not take shape into account but can be predicted outside the objects, thus recommended for small objects such as spots");
+    GroupParameter datasetFeatures = new GroupParameter("Dataset Features", centerMode, centerDistanceMode);
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE), datasetFeatures};
     Parameter[] otherParameters = new Parameter[]{arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
-    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
+    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(1000).setStepNumber(200)
             .setDockerImageRequirements(getDockerImageName(), null, null, null);
 
@@ -45,6 +49,36 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     ObjectClassParameter parentObjectClass = new ObjectClassParameter("Parent Object Class", -1, true, false)
         .setNoSelectionString("Viewfield")
         .setHint("Select object class that will define the frame (usually parent object class)");
+
+    static class OtherObjectClassParameter extends GroupParameterAbstract<OtherObjectClassParameter> {
+        ObjectClassParameter otherOC = new ObjectClassParameter("Object Class", -1, false, false);
+        BooleanParameter otherOCLabel = new BooleanParameter("Label", false).setHint("Extract label image if true otherwise raw image");
+        TextParameter otherOCKey = new TextParameter("Name", "", false, false);
+
+        public OtherObjectClassParameter(String name) {
+            super(name);
+            this.children = new ArrayList<>();
+            this.children.add(otherOC);
+            this.children.add(otherOCLabel);
+            this.children.add(otherOCKey);
+            initChildList();
+        }
+
+        @Override
+        public OtherObjectClassParameter duplicate() {
+            OtherObjectClassParameter res = new OtherObjectClassParameter(name);
+            ParameterUtils.setContent(res.children, children);
+            transferStateArguments(this, res);
+            return res;
+        }
+    }
+    SimpleListParameter<OtherObjectClassParameter> otherOCList = new SimpleListParameter<>("Other Channels", new OtherObjectClassParameter("Channel"))
+            .addValidationFunctionToChildren(g -> {
+                String k = g.otherOCKey.getValue();
+                SimpleListParameter<OtherObjectClassParameter> parent = (SimpleListParameter<OtherObjectClassParameter>)g.getParent();
+                return parent.getChildren().stream().filter(gg -> g != gg).map(gg -> gg.otherOCKey.getValue()).noneMatch(kk -> kk.equals(k));
+            }).setHint("Other object class label or raw input image to be extracted");
+
     EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. <br/>EXISTING: choose previously defined selection. NEW: will generate a selection<br/>In either case, all objets of the resulting selection must have identical spatial dimensions. <br>To include subsets that do not have same spatial dimension make one dataset per spatial dimension, and list them in the training configuration (DatasetList parameter)");
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
@@ -65,8 +99,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
     // store in a group so that parameters have same parent -> needed because of listener
-    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, extractDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
-
+    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, otherOCList, extractDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
 
     @Override
     public String getHintText() {
@@ -109,8 +142,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
-
+        List<Triplet<Integer, Boolean, String>> otherOC = otherOCList.getActivatedChildren().stream().map(g -> new Triplet<>( g.otherOC.getSelectedClassIdx(), g.otherOCLabel.getSelected(), g.otherOCKey.getValue() )).collect(Collectors.toList());
+        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, otherOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

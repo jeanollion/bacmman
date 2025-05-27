@@ -88,7 +88,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         setMinInputNumber(1);
         initOutput(singleOutput, noReverseScaling, noReverseResampling);
         setConditionalParameter();
-        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>SCALE_ONLY: Only performs intensity scaling (no resizing is performed). Shape of all input image provided must be equal to be processed by the dl engine.</li><li>RESAMPLE: Resize all images to a fixed size that must be compatible with the network input requirements. Choose this option to make a prediction on the whole image.</li><li>PAD: expand image either to a fixed user-defined size, or to a size compatible with the contraction level of the network</li><li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
+        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul>" +
+                "<li>SCALE_ONLY: Only performs intensity scaling (no resizing is performed). All input images must have the same shape to be processed by the DL engine. This shape must be compatible with the neural network.</li>" +
+                "<li>RESAMPLE: Resizes all images to a fixed size that must be compatible with the network input requirements.</li>" +
+                "<li>PAD: Expands image either to a fixed user-defined size, or to the nearest size compatible with the contraction level of the network</li>" +
+                "<li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
     }
     public DLResizeAndScale setScaleLogger(Consumer<String> scaleLogger) {
         this.scaleLogger = scaleLogger;

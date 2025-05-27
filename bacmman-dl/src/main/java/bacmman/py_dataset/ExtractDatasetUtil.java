@@ -17,6 +17,7 @@ import bacmman.plugins.plugins.feature_extractor.PreviousLinks;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Triplet;
 import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
@@ -86,7 +87,7 @@ public class ExtractDatasetUtil {
                 for (String position : sel.getAllPositions()) {
                     logger.debug("position: {}", position);
                     Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
-                        if (parent.getStructureIdx() == oc) return null; // this case is handled separately
+                        //if (parent.getStructureIdx() == oc) return null; // this case is handled separately
                         RegionPopulation pop = parent.getChildRegionPopulation(oc, false);
                         return resamplePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(oc));
                     }));
@@ -426,25 +427,30 @@ public class ExtractDatasetUtil {
         return resultingTask;
     }
 
-    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, int[] outputDimensions, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<Triplet<Integer, Boolean, String>> otherOCs, int[] outputDimensions, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
-        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3 + otherOCs.size());
         features.add(new FeatureExtractor.Feature( new RawImage(), objectClass ));
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
         features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass, selectionFilter ));
-
+        for (Triplet<Integer, Boolean, String> otherOC : otherOCs) {
+            features.add(new FeatureExtractor.Feature(otherOC.v3, otherOC.v2 ? new Labels() : new RawImage(), otherOC.v1));
+        }
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, int channelImage, Task.ExtractZAxis extractZMode, int extractZPlane, String selection, String filterSelection, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, int channelImage, Task.ExtractZAxis extractZMode, int extractZPlane, String selection, String filterSelection, List<Triplet<Integer, Boolean, String>> otherOCs, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         int rawOC = mDAO.getExperiment().experimentStructure.getObjectClassIdx(channelImage);
         if (rawOC<0) throw new RuntimeException("Channel: "+channelImage+ " has not associated object class");
         List<FeatureExtractor.Feature> features = new ArrayList<>(3);
         features.add(new FeatureExtractor.Feature( new RawImage().setExtractZ(extractZMode, extractZPlane), rawOC ));
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, filterSelection ));
+        for (Triplet<Integer, Boolean, String> otherOC : otherOCs) {
+            features.add(new FeatureExtractor.Feature(otherOC.v3, otherOC.v2 ? new Labels() : new RawImage(), otherOC.v1));
+        }
         int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, Collections.singletonList(selection), features, dims, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);

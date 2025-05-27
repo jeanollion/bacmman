@@ -41,7 +41,7 @@ import java.util.stream.Stream;
  * @param <L>
  */
 
-public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration {
+public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration, ParameterWithLegacyInitialization<L, T> {
 
     protected String name;
     protected ContainerParameter parent;
@@ -601,6 +601,52 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public boolean removeNewInstanceConfiguration(Consumer<T> configuration) {
         return configs.remove(configuration);
     }
+
+    // legacy init
+
+    /**
+     * When parameter cannot be initialized, this value is used as default. Useful when parametrization of a module has changed.
+     * @param value default value
+     * @return this parameter for convenience
+     */
+    @Override
+    public L setLegacyInitializationValue(T value) {
+        this.legacyInitItem = value;
+        return (L)this;
+    }
+
+    /**
+     * This method is run when a parameter cannot be initialized, meaning that the parametrization of the module has changed.
+     */
+    @Override
+    public void legacyInit() {
+        if (legacyInitItem != null) {
+            this.getChildren().clear();
+            this.insert(legacyInitItem);
+        }
+        if (legacyParameter!=null && setValue!=null) setValue.accept(legacyParameter, (L)this);
+    }
+    T legacyInitItem;
+    Parameter[] legacyParameter;
+    BiConsumer<Parameter[], L> setValue;
+
+    /**
+     * When a parameter A of a module has been replaced by B, this methods allows to initialize B using the former value of A
+     * @param p
+     * @param setValue
+     * @return
+     */
+    @Override
+    public L setLegacyParameter(BiConsumer<Parameter[], L> setValue, Parameter... p) {
+        this.legacyParameter = p;
+        this.setValue = setValue;
+        return (L)this;
+    }
+    @Override
+    public Parameter[] getLegacyParameters() {
+        return legacyParameter;
+    }
+
 
     // python configuration
     @Override

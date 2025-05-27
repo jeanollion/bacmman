@@ -26,17 +26,19 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     Parameter[] otherParameters;
     Supplier<Path> refPathFun;
 
-    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
-        this(name, multipleInputChannels, true, trainingParameters, globalDatasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testDataAugmentationParameters);
+    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean inputLabel, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
+        this(name, multipleInputChannels, inputLabel, true, trainingParameters, globalDatasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testDataAugmentationParameters);
     }
     
-    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean scaling, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
+    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean inputLabel, boolean scaling, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         super(name);
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);
         this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
-        this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, scaling, dataAugmentationParameters, otherDatasetParameters))
+        this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, inputLabel, scaling, dataAugmentationParameters, otherDatasetParameters))
             .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true)
-            .setChildrenNumber(1).addValidationFunction(l -> !l.getActivatedChildren().isEmpty());
+            .addchildrenPropertyValidation(DatasetParameter::getLabelNumber, true)
+            .setChildrenNumber(1)
+            .addValidationFunction(l -> !l.getActivatedChildren().isEmpty());
         if (otherParameters == null) otherParameters = new Parameter[0];
         this.otherParameters = otherParameters;
         List<Parameter> testAugParams = new ArrayList<>();
@@ -381,18 +383,24 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
         TextParameter channel = new TextParameter("Channel Name", "raw", false, false).setHint("Name of images / movies to consider within the dataset");
         EnumChoiceParameter<DATASET_TYPE> type = new EnumChoiceParameter<>("Dataset Type", DATASET_TYPE.values(), DATASET_TYPE.TRAIN).setHint("Puropose of dataset: training, test (loss computation during training), evaluation (metric computation)");
-        SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", channel).setMinChildCount(1).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0);
+        SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", channel)
+                .setMinChildCount(1).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0).setHint("Name of images / movies to consider within the dataset")
+                .setLegacyInitializationValue(channel); // in case switch from mono to multichannnel -> keep the parametrization
+        TextParameter label = new TextParameter("Label Name", "label", false, false).setHint("Name of images / movies corresponding to labeled objects to consider within the dataset");
+        SimpleListParameter<TextParameter> labels = new SimpleListParameter<>("Label Name", label)
+                .unique(TextParameter::getValue).setHint("Name of images / movies corresponding to labels to consider within the dataset");
         DLScalingParameter scaler = new DLScalingParameter("Intensity Scaling");
-        SimpleListParameter<DLScalingParameter> scalers = new SimpleListParameter<>("Intensity Scaling", scaler).setHint("Input channel scaling parameter (one per channel or one for all channels)")
-                .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(true))
+        SimpleListParameter<DLScalingParameter> scalers = new SimpleListParameter<>("Intensity Scaling", scaler)
+                .setHint("Input channel scaling parameter (one per channel or one for all channels)")
+                .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(false))
                 .setNewInstanceNameFunction((l, i) -> "Channel "+i).setChildrenNumber(1);
         BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch. <br /> e.g.: 0.5 means a batch has twice less chances to be picked from this dataset compared to 1.");
         ChoiceParameter loadInSharedMemory = new ChoiceParameter("Load in shared memory", new String[]{"true", "auto", "false"}, "auto", false).setHint("If true, the whole dataset will be loaded in shared memory, to improve access and memory management when using multiprocessing. <br/>Disable this option for large datasets that do not fit in shared memory. <br/>Amount of shared memory is set in the docker options. <br/> In auto mode, dataset is loaded only if Gb of shared memory for files smaller than 16Gb. When several datasets are concatenated, this test is performed independently for each dataset, so shared memory can be filled");
 
-        final boolean multipleChannel, scaling;
+        final boolean multipleChannel, scaling, inputLabel;
         final GroupParameter dataAug;
         final Parameter[] otherParameters;
-        protected DatasetParameter(String name, boolean multipleChannel, boolean scaling, Parameter[] dataAugParameters, Parameter[] otherParameters){
+        protected DatasetParameter(String name, boolean multipleChannel, boolean inputLabel, boolean scaling, Parameter[] dataAugParameters, Parameter[] otherParameters){
             super(name);
             path.setGetRefPathFunction(p -> refPathFun == null ? null : refPathFun.get());
             this.multipleChannel=multipleChannel;
@@ -401,6 +409,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             children.add(path);
             if (multipleChannel) children.add(channels);
             else children.add(channel);
+            this.inputLabel = inputLabel;
+            if (inputLabel) children.add(labels);
             children.add(keyword);
             children.add(type);
             children.add(concatProp);
@@ -421,6 +431,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public int getChannelNumber() {
             if (multipleChannel) return channels.getChildCount();
             else return 1;
+        }
+
+        public int getLabelNumber() {
+            if (inputLabel) return labels.getChildCount();
+            else return 0;
         }
 
         public DLScalingParameter getScalingParameter(int channel) {
@@ -447,7 +462,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
         @Override
         public DatasetParameter duplicate() {
-            DatasetParameter res = new DatasetParameter(name, multipleChannel, scaling, dataAug!=null ? ParameterUtils.duplicateArray(dataAug.children.toArray(new Parameter[0])) : null, ParameterUtils.duplicateArray(otherParameters));
+            DatasetParameter res = new DatasetParameter(name, multipleChannel, inputLabel, scaling, dataAug!=null ? ParameterUtils.duplicateArray(dataAug.children.toArray(new Parameter[0])) : null, ParameterUtils.duplicateArray(otherParameters));
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
@@ -457,6 +472,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             JSONObject res = new JSONObject();
             if (path.selectedFiles.length>0) res.put("path", path.selectedFiles[0]); // relative path if possible
             res.put("channel_name", multipleChannel ? channels.toJSONEntry() : channel.toJSONEntry());
+            if (inputLabel) res.put("label_name", labels.toJSONEntry());
             res.put("keyword", keyword.toJSONEntry());
             res.put("type", type.toJSONEntry());
             res.put("concat_proportion", concatProp.toJSONEntry());
@@ -465,10 +481,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             JSONObject dataAug = new JSONObject();
             res.put("data_augmentation", dataAug);
             if (scaling) {
+                String sp_key = scaler.getPythonConfigurationKey(); // same for 1 or several channels
                 if (multipleChannel) {
-                    dataAug.put(scaler.getPythonConfigurationKey(), scalers.getPythonConfiguration());
+                    dataAug.put(sp_key, scalers.getPythonConfiguration());
                 } else {
-                    dataAug.put(scaler.getPythonConfigurationKey(), scaler.getPythonConfiguration());
+                    dataAug.put(sp_key, scaler.getPythonConfiguration());
                 }
             }
             if (this.dataAug!=null) PythonConfiguration.putParameters(this.dataAug.children, dataAug);
@@ -651,8 +668,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public static <T extends ListParameter> Predicate<T> channelNumberValidation(boolean allowOneForAll) {
         return p -> {
             if (allowOneForAll && p.getChildCount() == 1) return true;
-            if (p.getParent() instanceof GroupParameter && p.getParent().getParent() instanceof DatasetParameter) {
-                return p.getChildCount() == ((DatasetParameter)p.getParent().getParent()).getChannelNumber();
+            if (p.getParent() instanceof DatasetParameter) {
+                return p.getChildCount() == ((DatasetParameter)p.getParent()).getChannelNumber();
             } else return true;
         };
     }
