@@ -1094,7 +1094,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             extractDatasetConfigurationJSP.setViewportView(null);
             updateExtractDisplay();
         } else {
-            logger.debug("creating extract config with experiment = {}", currentXP == null ? "false" : "true");
+            logger.debug("creating extract config with experiment = {}, trainer type: {}", currentXP == null ? "false" : "true", trainerParameter.getSelectedPluginClass());
             GroupParameter grp = new GroupParameter("Configuration", trainerParameter.instantiatePlugin().getDatasetExtractionParameters());
             grp.setParent(currentXP);
             if (extractConfig != null) extractConfig.unRegister();
@@ -1158,10 +1158,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (displayed) {
                 trainerParameter.initFromJSONEntry(config);
                 this.config.expandAll(1);
-                Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
-                if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
-                    updateExtractDatasetConfiguration();
-                }
+                updateExtractDatasetConfiguration();
             }
         }
     }
