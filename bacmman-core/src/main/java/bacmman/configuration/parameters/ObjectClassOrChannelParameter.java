@@ -32,7 +32,7 @@ import java.util.stream.IntStream;
  */
 public abstract class ObjectClassOrChannelParameter<T extends ObjectClassOrChannelParameter<T>> extends IndexChoiceParameter<T> {
     Consumer<T> autoConfiguration;
-    
+    String noSelection  ="NO SELECTION";
     public ObjectClassOrChannelParameter(String name) {
         super(name);
     }
@@ -97,7 +97,14 @@ public abstract class ObjectClassOrChannelParameter<T extends ObjectClassOrChann
             return super.getSelectedIndex();
         } else return idx;
     }
-    
-    
+
+    @Override
+    public String getNoSelectionString() {
+        return noSelection;
+    }
+    public T setNoSelectionString(String noSelection) {
+        this.noSelection = noSelection;
+        return (T)this;
+    }
     
 }

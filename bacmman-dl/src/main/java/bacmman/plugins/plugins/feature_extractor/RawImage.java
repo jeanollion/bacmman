@@ -15,6 +15,7 @@ import java.util.Map;
 public class RawImage implements FeatureExtractor, Hint {
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
+    boolean byChannel = false;
     public Task.ExtractZAxis getExtractZDim() {
         return this.extractZ.getExtractZDim();
     }
@@ -35,9 +36,14 @@ public class RawImage implements FeatureExtractor, Hint {
         return this;
     }
 
+    public RawImage setByChannel(boolean byChannel) {
+        this.byChannel = byChannel;
+        return this;
+    }
+
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
-        Image res = parent.getRawImage(objectClassIdx);
+        Image res = byChannel ? parent.getRawImageByChannel(objectClassIdx) : parent.getRawImage(objectClassIdx);
         return ExtractZAxisParameter.handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
     }
 
