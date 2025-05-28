@@ -10,9 +10,11 @@ import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.PropertyUtils;
+import bacmman.utils.Triplet;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,10 +25,14 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
     BooleanParameter excludeEmpty = new BooleanParameter("Exclude Empty Frames", true).setHint("When a timelapse dataset has sparesly annotated frames, only consider frames that contains annotations");
-    Parameter[] otherDatasetParameters = new Parameter[]{excludeEmpty, new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
+    enum CENTER_MODE {MEDOID, GEOMETRICAL}
+    EnumChoiceParameter<CENTER_MODE> centerMode = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID);
+    EnumChoiceParameter<DiSTNet2DTraining.CENTER_DISTANCE_MODE> centerDistanceMode = new EnumChoiceParameter<>("Center Distance Mode", DiSTNet2DTraining.CENTER_DISTANCE_MODE.values(), DiSTNet2DTraining.CENTER_DISTANCE_MODE.GEODESIC).setHint("Defines the predicted DCM (distance to center) map: geodesic is the geodesic distance inside the objects, recommended for regular to big size objects especially with non convex shapes. <br/>EUCLIDEAN is the Euclidean distance to center, thus do not take shape into account but can be predicted outside the objects, thus recommended for small objects such as spots");
+    GroupParameter datasetFeatures = new GroupParameter("Dataset Features", centerMode, centerDistanceMode);
+    Parameter[] otherDatasetParameters = new Parameter[]{excludeEmpty, new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE), datasetFeatures};
     Parameter[] otherParameters = new Parameter[]{arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
-    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
+    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(500).setStepNumber(200)
             .setDockerImageRequirements(getDockerImageName(), null, null, null);
 
@@ -35,6 +41,35 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false)
         .setHint("Select object class of reference segmented objects");
     ChannelImageParameter channel = new ChannelImageParameter("Channel Image").setHint("Input raw image channel");
+    static class OtherObjectClassParameter extends GroupParameterAbstract<OtherObjectClassParameter> {
+        ObjectClassParameter otherOC = new ObjectClassParameter("Object Class", -1, false, false);
+        BooleanParameter otherOCLabel = new BooleanParameter("Label", false).setHint("Extract label image if true otherwise raw image");
+        TextParameter otherOCKey = new TextParameter("Name", "", false, false);
+
+        public OtherObjectClassParameter(String name) {
+            super(name);
+            this.children = new ArrayList<>();
+            this.children.add(otherOC);
+            this.children.add(otherOCLabel);
+            this.children.add(otherOCKey);
+            initChildList();
+        }
+
+        @Override
+        public OtherObjectClassParameter duplicate() {
+            OtherObjectClassParameter res = new OtherObjectClassParameter(name);
+            ParameterUtils.setContent(res.children, children);
+            transferStateArguments(this, res);
+            return res;
+        }
+    }
+    SimpleListParameter<OtherObjectClassParameter> otherOCList = new SimpleListParameter<>("Other Channels", new OtherObjectClassParameter("Channel"))
+            .addValidationFunctionToChildren(g -> {
+                String k = g.otherOCKey.getValue();
+                SimpleListParameter<OtherObjectClassParameter> parent = (SimpleListParameter<OtherObjectClassParameter>)g.getParent();
+                return parent.getChildren().stream().filter(gg -> g != gg).map(gg -> gg.otherOCKey.getValue()).noneMatch(kk -> kk.equals(k));
+            }).setHint("Other object class label or raw input image to be extracted");
+
     ObjectClassParameter parentObjectClass = new ObjectClassParameter("Parent Object Class", -1, true, false)
         .setNoSelectionString("Viewfield")
         .addListener(poc -> {
@@ -58,7 +93,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.SPARSE_FRAMES, extractSel, frameInteval);
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZCond, selModeCond, spatialDownsampling);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZCond, otherOCList, selModeCond, spatialDownsampling);
 
 
     @Override
@@ -107,7 +142,8 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             }
         }
         if (selectionContainer != null) selectionContainer.add(selection);
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, outputFile, spatialDownsampling.getIntValue(), compression);
+        List<Triplet<Integer, Boolean, String>> otherOC = otherOCList.getActivatedChildren().stream().map(g -> new Triplet<>( g.otherOC.getSelectedClassIdx(), g.otherOCLabel.getSelected(), g.otherOCKey.getValue() )).collect(Collectors.toList());
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, otherOC, outputFile, spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

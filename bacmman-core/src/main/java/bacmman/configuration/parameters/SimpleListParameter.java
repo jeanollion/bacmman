@@ -20,6 +20,7 @@ package bacmman.configuration.parameters;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -62,5 +63,4 @@ public class SimpleListParameter<T extends Parameter> extends ListParameterImpl<
         transferStateArguments(this, res);
         return res;
     }
-
 }

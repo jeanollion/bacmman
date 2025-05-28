@@ -296,16 +296,23 @@ public class DockerTrainingWindow implements ProgressLogger {
             File tempDatasetFile = datasetDir.resolve(tempDatasetName).toFile();
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
             SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
+            // first activated dataset -> replace dataset file by temp dataset
             if (dsList.getChildCount() > 1) {
-                for (int i = dsList.getChildCount() - 1; i > 0; --i) dsList.remove(i);
+                int idx = 0;
+                for (int i = 0;i<dsList.getChildCount(); ++i) {
+                    if (dsList.getChildAt(i).isActivated()) {
+                        idx = i;
+                        break;
+                    }
+                }
+                for (int i = dsList.getChildCount() - 1; i > idx; --i) dsList.remove(i);
+                if (idx>0) for (int i = 0;i<idx; ++i) dsList.remove(0);
             }
             TrainingConfigurationParameter.DatasetParameter dataset = dsList.getChildAt(0);
             dataset.setActivated(true);
-            //dataset.setRefPath(Paths.get("/dataTemp"));
             dataset.setRefPathFun(() -> null); // absolute
-            dataset.setFilePath("/dataTemp/temp_dataset.h5");
-            //dataset.setFilePath(tempDatasetFile.getAbsolutePath());
-
+            dataset.setFilePath(tempDatasetFile.getAbsolutePath());
+            Map<String, String> mounts = fixDirectories(trainer);
             pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
             currentProgressBar = extractProgressBar;
             runLater(() -> {
@@ -322,7 +329,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
 
                 String[] dataTemp = new String[1];
-                currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
+                currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, mounts, false);
                 File outputFile = Paths.get(dataTemp[0], "metrics.csv").toFile();
                 if (currentContainer != null) {
                     try {
@@ -787,10 +794,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             return dataTemp;
         }
     }
-
     protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount, boolean export) {
+        return getContainer(trainer, dockerGateway, mountTempData, tempMount, null, export);
+    }
+
+    protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount, Map<String, String> dirMapMountDir, boolean export) {
         String image = ensureImage(trainer, dockerGateway, export);
-        logger.debug("docker image: {}", image);
+        logger.debug("get container: docker image: {}", image);
         try {
             List<UnaryPair<String>> mounts = new ArrayList<>();
             mounts.add(new UnaryPair<>(workingDirPanel.getCurrentWorkingDirectory(), "/data"));
@@ -799,7 +809,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            Map<String, String> dirMapMountDir = fixDirectories(trainer);
+            if(dirMapMountDir==null) dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
@@ -822,27 +832,34 @@ public class DockerTrainingWindow implements ProgressLogger {
         Path curPath = Paths.get(workingDirPanel.getCurrentWorkingDirectory()).normalize().toAbsolutePath();
         dsList.getChildren().forEach(dsParam -> {
             String relPath = dsParam.getFilePath();
-            Path path = curPath.resolve(relPath).normalize().toAbsolutePath();
-            if (!curPath.startsWith(path)) { // workingDirPanel.getCurrentWorkingDirectory() is not parent of this dataset -> generate new mount
-                dsParam.setRefPathFun(() -> null); // absolute
-                String parentDir = path.getParent().toString();
-                String mountParent = dirMapMountDir.get(parentDir);
-                String fileName = path.getFileName().toString();
-                dsParam.setFilePath(mountParent + "/" + fileName);
-                //logger.debug("new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
+            logger.debug("fixing ds directories: {}", relPath);
+            if (relPath != null) {
+                Path path = curPath.resolve(relPath).normalize().toAbsolutePath();
+                if (!curPath.startsWith(path)) { // workingDirPanel.getCurrentWorkingDirectory() is not parent of this dataset -> generate new mount
+                    dsParam.setRefPathFun(() -> null); // absolute
+                    String parentDir = path.getParent().toString();
+                    String mountParent = dirMapMountDir.get(parentDir);
+                    String fileName = path.getFileName().toString();
+                    dsParam.setFilePath(mountParent + "/" + fileName);
+                    logger.debug("new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
+                }
             }
         });
         MLModelFileParameter loadModel = trainer.getConfiguration().getTrainingParameters().getLoadModelFile();
         String loadModelFile = loadModel.getSelectedPath();
+        logger.debug("fixing load model file: {}", loadModelFile);
         if (loadModelFile != null) {
             Path path = curPath.resolve(loadModelFile).normalize().toAbsolutePath();
+            logger.debug("curpath: {} load model file path: {}", curPath, path);
             if (!curPath.startsWith(path)) {
                 loadModel.setGetRefPathFunction(p -> null); // absolute
                 String parentDir = path.getParent().toString();
                 String mountParent = dirMapMountDir.get(parentDir);
                 String fileName = path.getFileName().toString();
                 loadModel.setSelectedFilePath(mountParent + "/" + fileName);
+                logger.debug("load model: new mount: {} -> {} for dataset: {}", parentDir, mountParent, fileName);
             }
+
         }
         return dirMapMountDir;
     }
@@ -1085,7 +1102,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             extractDatasetConfigurationJSP.setViewportView(null);
             updateExtractDisplay();
         } else {
-            logger.debug("creating extract config with experiment = {}", currentXP == null ? "false" : "true");
+            logger.debug("creating extract config with experiment = {}, trainer type: {}", currentXP == null ? "false" : "true", trainerParameter.getSelectedPluginClass());
             GroupParameter grp = new GroupParameter("Configuration", trainerParameter.instantiatePlugin().getDatasetExtractionParameters());
             grp.setParent(currentXP);
             if (extractConfig != null) extractConfig.unRegister();
@@ -1149,10 +1166,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (displayed) {
                 trainerParameter.initFromJSONEntry(config);
                 this.config.expandAll(1);
-                Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
-                if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
-                    updateExtractDatasetConfiguration();
-                }
+                updateExtractDatasetConfiguration();
             }
         }
     }

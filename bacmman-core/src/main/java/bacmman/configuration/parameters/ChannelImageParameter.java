@@ -62,10 +62,5 @@ public class ChannelImageParameter extends ObjectClassOrChannelParameter<Channel
             return new String[0];
         }
     }
-
-    @Override
-    public String getNoSelectionString() {
-        return "No selection";
-    }
     
 }
