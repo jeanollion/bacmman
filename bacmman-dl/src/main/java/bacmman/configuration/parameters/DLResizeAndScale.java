@@ -10,6 +10,7 @@ import bacmman.processing.Resize;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.*;
 import net.imglib2.interpolation.InterpolatorFactory;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +27,7 @@ import java.util.stream.IntStream;
 public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndScale.MODE, DLResizeAndScale> implements DLMetadataConfigurable {
     static Logger logger = LoggerFactory.getLogger(DLResizeAndScale.class);
 
-    public enum MODE {SCALE_ONLY, RESAMPLE, PAD, TILE}
+    public enum MODE {INTENSITY_ONLY, RESAMPLE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
     ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Total Shape Contraction").setHint("Size ratio between the smallest tensor in the network and the input tensor. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by the contraction. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis");
 
@@ -89,7 +90,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         initOutput(singleOutput, noReverseScaling, noReverseResampling);
         setConditionalParameter();
         setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul>" +
-                "<li>SCALE_ONLY: Only performs intensity scaling (no resizing is performed). All input images must have the same shape to be processed by the DL engine. This shape must be compatible with the neural network.</li>" +
+                "<li>INTENSITY_ONLY: Only performs intensity scaling (no resizing is performed). All input images must have the same shape to be processed by the DL engine. This shape must be compatible with the neural network.</li>" +
                 "<li>RESAMPLE: Resizes all images to a fixed size that must be compatible with the network input requirements.</li>" +
                 "<li>PAD: Expands image either to a fixed user-defined size, or to the nearest size compatible with the contraction level of the network</li>" +
                 "<li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
@@ -209,11 +210,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         oS.setEmphasized(true);
         iIS.setEmphasized(true);
         if (noReverseScaling) {
-            this.setActionParameters(MODE.SCALE_ONLY, iS, scaleImageByImage);
+            this.setActionParameters(MODE.INTENSITY_ONLY, iS, scaleImageByImage);
             this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, scaleImageByImage);
             this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, scaleImageByImage);
         } else {
-            this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleImageByImage);
+            this.setActionParameters(MODE.INTENSITY_ONLY, iS, oS, scaleImageByImage);
             this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, oS, scaleImageByImage);
             this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleImageByImage);
         }
@@ -248,7 +249,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         List<DLModelMetadata.DLModelOutputParameter> outputs = metadata.getOutputs();
         contraction.setValue(metadata.getContraction());
         if (inputs.get(0).fixedSize()) {
-            if (getActionableParameter().getValue().equals(MODE.SCALE_ONLY)) getActionableParameter().setValue(MODE.TILE);
+            if (getActionableParameter().getValue().equals(MODE.INTENSITY_ONLY)) getActionableParameter().setValue(MODE.TILE);
             targetShape.setValue(inputs.get(0).getShape());
             tileShape.setValue(inputs.get(0).getShape());
         } else {
@@ -351,7 +352,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> getNetworkInput(Image[][][] inputINC) {
         switch (getMode()) {
-            case SCALE_ONLY: {
+            case INTENSITY_ONLY: {
                 int nInputs = this.inputScaling.getActivatedChildCount();
                 if (inputINC.length < nInputs) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
@@ -451,7 +452,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public Image[][][] processPrediction(Image[][][] predictionsONC, Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> input) {
         switch (getMode()) {
-            case SCALE_ONLY: {
+            case INTENSITY_ONLY: {
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
                     int scalerIndex = getOutputScalerIndex(false, i);
@@ -643,11 +644,23 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 return res;
             }
             case RESAMPLE:
-            case SCALE_ONLY:
+            case INTENSITY_ONLY:
             default: {
                 return globalBoundingBox;
                 //return new MutableBoundingBox(minimalBouningBox).translateInto(globalBoundingBox);
             }
         }
+    }
+
+    // overwrite initFromJSONEntry for retro-compatibility: SCALE_ONLY was renamed INTENSITY_ONLY
+    @Override
+    public void initFromJSONEntry(Object json) {
+        if (json instanceof JSONObject) {
+            JSONObject jsonO = (JSONObject)json;
+            if (jsonO.get("action").equals("SCALE_ONLY")) jsonO.put("action", "INTENSITY_ONLY");
+        } else if (json instanceof String && json.equals("SCALE_ONLY")) { // only action
+            json = "INTENSITY_ONLY";
+        }
+        super.initFromJSONEntry(json);
     }
 }
