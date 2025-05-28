@@ -28,7 +28,7 @@ import static bacmman.image.BoundingBox.loop;
 import bacmman.utils.DoubleStatistics;
 
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.*;
 
 import bacmman.utils.Utils;
 import static bacmman.utils.Utils.parallel;
@@ -37,9 +37,6 @@ import ij.process.StackProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.function.BinaryOperator;
-import java.util.function.DoublePredicate;
-import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -84,6 +81,14 @@ public class ImageOperations {
         BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> output.setPixel(x, y, z, fun.applyAsDouble((double)image.getPixel(x, y, z))));
         return output;
     }
+
+    public static Image applyFunction2(Image image1, Image image2, ToDoubleBiFunction<Double, Double> fun, boolean inplace) {
+        Image output = inplace ? image1 : new ImageFloat(image1.getName(), image1);
+        if (!image1.sameBounds(image2)) throw new RuntimeException("Image1 and Image2 must have same bounds");
+        BoundingBox.loop(image1.getBoundingBox().resetOffset(), (x, y, z) -> output.setPixel(x, y, z, fun.applyAsDouble(image1.getPixel(x, y, z), image2.getPixel(x, y, z))));
+        return output;
+    }
+
     public static Image applyPlaneByPlane(Image image, Function<Image, Image> function, boolean parallel) {
         if (image.sizeZ()==1) return function.apply(image);
         else {
@@ -785,7 +790,7 @@ public class ImageOperations {
         else if (!output.sameDimensions(properties)) output = Image.createEmptyImage("mean Z projection", output, properties);
         float size = input.sizeZ();
         for (int xy = 0; xy<input.sizeXY(); ++xy) {
-            float sum = 0;
+            double sum = 0;
             for (int z = 0; z<input.sizeZ(); ++z) sum+=input.getPixel(xy, z);
             output.setPixel(xy, 0, sum/size);
         }
