@@ -40,7 +40,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
     }
 
     MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. Set 0 to process all samples at once.");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
     EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z)
             .setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");
@@ -177,7 +177,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         DataBufferContainer bufferContainer = new DataBufferContainer();
         long wrapTime = 0, predictTime = 0;
-        int increment = (int)Math.max(1, Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) ));
+        int increment = batchSize == 0 ? nSamples : (int)Math.max(1, Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) ));
         logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, increment, nSamples);
         for (int idx = 0; idx<nSamples; idx+=increment) {
             int idxMax = Math.min(idx+increment, nSamples);
