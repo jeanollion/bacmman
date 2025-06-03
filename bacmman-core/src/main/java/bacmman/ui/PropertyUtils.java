@@ -75,6 +75,7 @@ public class PropertyUtils {
     public final static String DOCKER_GPU_LIST ="docker_visible_gpu_list";
     public final static String DOCKER_SHM_GB ="docker_shm_gb";
     public final static String DOCKER_MEM_GB ="docker_mem_gb";
+    public final static String DEFAULT_DL_ENGINE ="default_dl_engine";
     public static Properties getProps() { 
         if (props == null) { 
             props = new Properties();  

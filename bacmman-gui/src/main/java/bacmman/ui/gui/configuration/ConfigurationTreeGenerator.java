@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.swing.*;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
@@ -678,8 +679,13 @@ public class ConfigurationTreeGenerator {
         } else if (p instanceof ListParameter) {
             addToMenuList((ListParameter)p, menu, showMenu, updateOnSelect, null, otherMenuItems);
             return null;
+        } else if (p instanceof PluginParameter) {
+            addToMenuPluginParameter(((PluginParameter)p), menu, showMenu, updateOnSelect, null, otherMenuItems);
+            return null;
         } else {
-            Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
+            ParameterUI parameterUI = ParameterUIBinder.getUI(p);
+            if (parameterUI == null) logger.debug("null UI for parameter: {} class: {}", p.toStringFull(), p.getClass());
+            Object[] UIElements = parameterUI!=null ? parameterUI.getDisplayComponent() : new Object[0];
             if (p instanceof BoundedNumberParameter && UIElements.length == 2)
                 UIElements = new Object[]{UIElements[0]}; // do not insert slider
             String hint = p.getHintText();
@@ -709,7 +715,7 @@ public class ConfigurationTreeGenerator {
         menu.add(subMenu);
         addToMenu(parameter, subMenu, false, showMenu, ()->subMenu.setText(parameter.toString()), otherItems);
         String hint = parameter.getHintText();
-        if (hint!=null && hint.length()>0) subMenu.setToolTipText(formatHint(hint, true));
+        if (hint!=null && !hint.isEmpty()) subMenu.setToolTipText(formatHint(hint, true));
         return subMenu;
     }
 
@@ -737,7 +743,7 @@ public class ConfigurationTreeGenerator {
             }
         });
         String hint = choice.getHintText();
-        if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
+        if (hint!=null && !hint.isEmpty()) menu.setToolTipText(formatHint(hint, true));
         return choiceUI[0];
     }
     public static ChoiceParameterUI addToMenuCond(ConditionalParameterAbstract cond, JMenu menu, String actionMenuTitle, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
@@ -769,12 +775,51 @@ public class ConfigurationTreeGenerator {
             }
         });
         String hint = cond.getHintText();
-        if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
+        if (hint!=null && !hint.isEmpty()) menu.setToolTipText(formatHint(hint, true));
         return choiceUI;
     }
+
+    public static ChoiceParameterUI addToMenuPluginParameter(PluginParameter pp, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Predicate<Parameter> parameterFilter, Object... otherMenuItem) {
+        ChoiceParameterUI choiceUI = new ChoiceParameterUI(pp, "Module", null, showMenu);
+        menu.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent menuEvent) {
+                choiceUI.refreshArming();
+                ConfigurationTreeGenerator.addToMenu(choiceUI.getDisplayComponent(), menu);
+                List<Parameter> curParams= pp.getParameters();
+                if (pp.getAdditionalParameters() != null) {
+                    Stream<Parameter> pstream = Stream.concat(curParams.stream(), pp.getAdditionalParameters().stream());
+                    if (parameterFilter != null) pstream = pstream.filter(parameterFilter);
+                    curParams = pstream.collect(Collectors.toList());
+                } else if (parameterFilter != null) curParams = curParams.stream().filter(parameterFilter).collect(Collectors.toList());
+                JMenu subMenu = new JMenu("Parameters");
+                curParams.forEach(p -> addToMenu(p, subMenu, true, showMenu, updateOnSelect));
+                menu.add(subMenu);
+                if (otherMenuItem!=null && otherMenuItem.length>0) {
+                    menu.addSeparator();
+                    addToMenu(otherMenuItem, menu);
+                }
+                if (updateOnSelect!=null) updateOnSelect.run();
+            }
+            @Override
+            public void menuDeselected(MenuEvent menuEvent) {
+                menu.removeAll();
+            }
+            @Override
+            public void menuCanceled(MenuEvent menuEvent) {
+                menu.removeAll();
+            }
+        });
+        String hint = pp.getHintText();
+        if (hint!=null && !hint.isEmpty()) menu.setToolTipText(formatHint(hint, true));
+        return choiceUI;
+    }
+
+
     public static ListParameterUI addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Object... otherMenuItem) {
         return addToMenuList(list, menu, null, null, null, otherMenuItem);
     }
+
     public static ListParameterUI addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object[][] childOtherMenuItem, Object[] otherMenuItem) {
         ListParameterUI listUI = new SimpleListParameterUI(list, null, showMenu);
         menu.addMenuListener(new MenuListener() {

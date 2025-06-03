@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import bacmman.configuration.experiment.ConfigIDAware;
 import bacmman.configuration.experiment.Experiment;
@@ -43,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * @author Jean Ollion
  * @param <T> type of plugin
  */
-public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivable, ChoosableParameter<PluginParameter<T>> {
+public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivable, ChoosableParameter<PluginParameter<T>>, Listenable<PluginParameter<T>> {
     Logger logger = LoggerFactory.getLogger(PluginParameter.class);
     public final static HashMapGetCreate<Class<? extends Plugin>, List<String>> PLUGIN_NAMES=new HashMapGetCreate<Class<? extends Plugin>, List<String>>(c -> PluginFactory.getPluginNames(c));
     protected List<Parameter> pluginParameters;
@@ -54,6 +56,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     protected boolean activated=true;
     protected List<Parameter> additionalParameters;
     protected Consumer<T> newInstanceConfiguration;
+    protected Predicate<String> pluginFilter;
 
     @Override
     public JSONObject toJSONEntry() {
@@ -105,6 +108,12 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         this(name, pluginType, allowNoSelection);
         setPlugin(pluginInstance);
     }
+
+    public PluginParameter<T> setPluginFilter(Predicate<String> pluginFilter) {
+        this.pluginFilter = pluginFilter;
+        return this;
+    }
+
     public PluginParameter<T> setNewInstanceConfiguration(Consumer<T> newInstanceConfiguration) {
         this.newInstanceConfiguration = newInstanceConfiguration;
         return this;
@@ -305,13 +314,15 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     }
     
     public List<String> getPluginNames() {
-        return PLUGIN_NAMES.getAndCreateIfNecessarySync(getPluginType());
+        List<String> res = PLUGIN_NAMES.getAndCreateIfNecessarySync(getPluginType());
+        if (pluginFilter != null) res = res.stream().filter(pluginFilter).collect(Collectors.toList());
+        return res;
     }
 
     @Override
     public String[] getChoiceList() {
-        List<String> res = PLUGIN_NAMES.getAndCreateIfNecessarySync(getPluginType());
-        return res.toArray(new String[res.size()]);
+        List<String> res = getPluginNames();
+        return res.toArray(new String[0]);
     }
 
     @Override
