@@ -33,10 +33,9 @@ import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.LazyImage5D;
-import bacmman.plugins.Hint;
-import bacmman.plugins.HintSimple;
-import bacmman.plugins.Plugin;
-import bacmman.plugins.PluginFactory;
+import bacmman.plugins.*;
+import bacmman.plugins.plugins.dl_engines.DefaultEngine;
+import bacmman.plugins.plugins.dl_engines.DockerEngine;
 import bacmman.ui.gui.*;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
@@ -209,6 +208,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             "     for more information.");
     private TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
     private IntegerParameter dockerShmSizeMb = new IntegerParameter("Shared Memory Size", 2000).setHint("Shared Memory Size (MB)");
+    private PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, new DockerEngine(), false)
+            .setPluginFilter(pn -> !pn.equals("DefaultEngine"));
+
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
     private NumberParameter subsamplingCTC = new BoundedNumberParameter("Temporal subsampling", 0, 1, 1, null).setHint("1=no sub-sampling, 2= 1 frame out of 2 etc...");
     private EnumChoiceParameter<CTB_IO_MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", CTB_IO_MODE.values(), CTB_IO_MODE.RESULTS);
@@ -577,6 +579,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_GB);
         ConfigurationTreeGenerator.addToMenu(dockerVisibleGPUList, dockerMenu);
         ConfigurationTreeGenerator.addToMenu(dockerShmSizeMb, dockerMenu);
+
+        // default DLEngine
+        PropertyUtils.setPersistent(defaultDLEngine, PropertyUtils.DEFAULT_DL_ENGINE);
+        String hint = defaultDLEngine.getHintText();
+        if (hint!=null && !hint.isEmpty()) defaultDLEngineMenu.setToolTipText(formatHint(hint, true));
+        Parameter[] defDLEngineParams = new DefaultEngine().getParameters();
+        ConfigurationTreeGenerator.addToMenuPluginParameter(defaultDLEngine, defaultDLEngineMenu, ()->optionMenu.setPopupMenuVisible(true), ()->defaultDLEngineMenu.setText(defaultDLEngine.toString()), p -> Arrays.stream(defDLEngineParams).noneMatch(pp->pp.getClass().equals(p.getClass()) && pp.getName().equals(p.getName())));
 
         // python gateway
         PropertyUtils.setPersistent(pyGatewayPort, "py_gateway_port");
@@ -2143,6 +2152,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         localZoomMenu = new javax.swing.JMenu();
         tensorflowMenu = new javax.swing.JMenu();
         dockerMenu = new javax.swing.JMenu();
+        defaultDLEngineMenu = new javax.swing.JMenu();
         roiMenu = new javax.swing.JMenu();
         manualCuration = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
@@ -3332,7 +3342,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         optionMenu.add(tensorflowMenu);
         dockerMenu.setText("Docker Options");
         optionMenu.add(dockerMenu);
-
+        defaultDLEngineMenu.setText("Default DLEngine");
+        optionMenu.add(defaultDLEngineMenu);
         logMenu.setText("Log");
 
         setLogFileMenuItem.setText("Set Log File");
@@ -5594,7 +5605,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private javax.swing.JMenu pyGatewayMenu;
     private javax.swing.JButton linkObjectsButton;
     private javax.swing.JMenu localZoomMenu;
-    private javax.swing.JMenu tensorflowMenu, dockerMenu;
+    private javax.swing.JMenu tensorflowMenu, dockerMenu, defaultDLEngineMenu;
     private javax.swing.JMenu roiMenu;
     private javax.swing.JMenu manualCuration;
     private JMenuItem rollback;

@@ -1,6 +1,10 @@
 package bacmman.core;
 
+import bacmman.configuration.parameters.PluginParameter;
 import bacmman.plugins.DLEngine;
+import bacmman.ui.PropertyUtils;
+import bacmman.utils.JSONUtils;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,7 +15,7 @@ import java.util.stream.IntStream;
 import static bacmman.configuration.parameters.ParameterUtils.sameClassAndParameters;
 
 public class DLEngineProvider {
-    Logger logger = LoggerFactory.getLogger(DLEngineProvider.class);
+    static Logger logger = LoggerFactory.getLogger(DLEngineProvider.class);
     List<DLEngine> engines = new ArrayList<>();
     //private boolean loadTFFijiAttempt = false;
     public synchronized <T extends DLEngine> T getEngine(T defaultEngine) {
@@ -57,5 +61,18 @@ public class DLEngineProvider {
             logger.debug("engine closed successfully");
         }
         engines.clear();
+    }
+
+    public static DLEngine getDefaultEngine() {
+        PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, false);
+        String params = PropertyUtils.get(PropertyUtils.DEFAULT_DL_ENGINE, null);
+        logger.debug("default DL Engine parameters: {}", params);
+        if (params == null) return null;
+        try {
+            defaultDLEngine.initFromJSONEntry(JSONUtils.parseJSON(params));
+            return defaultDLEngine.instantiatePlugin();
+        } catch (ParseException e) {
+            return null;
+        }
     }
 }

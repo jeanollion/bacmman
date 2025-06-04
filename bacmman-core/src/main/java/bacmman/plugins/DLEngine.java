@@ -39,7 +39,7 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
     int getNumOutputArrays();
     int getNumInputArrays();
     DLEngine setOutputNumber(int outputNumber);
-    DLEngine setInputNumber(int outputNumber);
+    DLEngine setInputNumber(int inputNumber);
     void close();
     int[] getGPUs();
 

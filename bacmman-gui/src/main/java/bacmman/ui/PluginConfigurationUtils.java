@@ -561,7 +561,11 @@ public class PluginConfigurationUtils {
                             if (s.parent.is2D() && s.images.get(name).sizeZ()>1) {
                                 sourceMask = new ImageMask2D(s.parent.getMask()).setZMin(0).setSizeZ(s.images.get(name).sizeZ());
                             } else sourceMask = s.parent.getMask();
-                            Image.pasteImage(TypeConverter.cast(source, type_), sourceMask, res, off);
+                            try {
+                                Image.pasteImage(TypeConverter.cast(source, type_), sourceMask, res, off);
+                            } catch (IllegalArgumentException e) {
+                                logger.error("Error pasting image sub-segmentation. parent={} bds={} channel {} image: {} image parent: {} bds: {}", p, p.getBounds(), channel, name, s.parent, s.parent.getBounds());
+                            }
                         }
                     }
                     res.translate(props);
