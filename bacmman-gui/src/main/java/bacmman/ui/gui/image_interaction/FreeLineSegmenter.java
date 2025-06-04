@@ -104,6 +104,9 @@ public class FreeLineSegmenter {
             r.translate(parent.getBounds());
             r.setIsAbsoluteLandmark(true);
         }
+        if (!BoundingBox.isIncluded(r.getBounds(), parent.getBounds())) {
+            r = r.getIntersection(parent.getRegion());
+        }
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         SegmentedObject so = new SegmentedObject(parent.getFrame(), objectClassIdx, r.getLabel() - 1, r, parent);
         List<SegmentedObject> children = parent.getChildren(objectClassIdx).collect(Collectors.toList());

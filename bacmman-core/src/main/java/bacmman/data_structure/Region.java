@@ -505,6 +505,7 @@ public class Region {
     }
 
     public synchronized void clearMask() {
+        createBoundsFromMask();
         if (voxels==null && roi == null) createRoi();
         mask = null;
         if (roi==null) this.bounds=null;
@@ -910,19 +911,51 @@ public class Region {
         this.roi=null;
         regionModified=true;
     }
-    
+
+    protected void createBoundsFromMask() {
+        MutableBoundingBox bounds_  = new MutableBoundingBox();
+        ImageMask.loopWithOffset(mask, bounds_::union);
+        bounds= bounds_;
+    }
+
     protected void createBoundsFromVoxels() {
         MutableBoundingBox bounds_  = new MutableBoundingBox();
         for (Voxel v : voxels) bounds_.union(v);
         bounds= bounds_;
     }
 
+    protected boolean maskHasVoidEdges() {
+        boolean left=false, right=false, up=false, down=false, top=false, bottom=false;
+        for (int z = 0; z<mask.sizeZ(); ++z) {
+            for (int x = 0; x<mask.sizeX(); ++x) {
+                if (mask.insideMask(x, 0, z)) up=true;
+                if (mask.insideMask(x, mask.sizeY()-1, z)) down=true;
+            }
+            for (int y = 0; y<mask.sizeY(); ++y) {
+                if (mask.insideMask(0, y, z)) left=true;
+                if (mask.insideMask(mask.sizeX()-1, y, z)) right=true;
+            }
+        }
+        if (!left || !right || !up || !down) return false; // at least one edge is void
+        if (mask.sizeZ()>1) {
+            for (int y = 0; y<mask.sizeY(); ++y) {
+                for (int x = 0; x<mask.sizeX(); ++x) {
+                    if (mask.insideMask(x, y, 0)) bottom=true;
+                    if (mask.insideMask(x, y, mask.sizeZ()-1)) top=true;
+                }
+            }
+        }
+        if (!top || !bottom) return false;
+        return true;
+    }
+
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {
         if (bounds==null) {
             synchronized(this) { // "Double-Checked Locking"
                 if (bounds==null) {
-                    if (mask!=null) bounds=new SimpleBoundingBox(mask);
-                    else if (voxels!=null) createBoundsFromVoxels();
+                    if (mask!=null) {
+                        bounds=new SimpleBoundingBox(mask); // needs to be mask bb, even if mask has black borders
+                    } else if (voxels!=null) createBoundsFromVoxels();
                 }
             }
         }
@@ -995,7 +1028,7 @@ public class Region {
 
     public Region getIntersection(Region other) {
         ImageMask mask = getIntersectionMask(other);
-        return new Region(mask, 1, is2D() && other.is2D());
+        return new Region(mask, 1, is2D() && other.is2D()).setIsAbsoluteLandmark(isAbsoluteLandMark());
     }
 
     public boolean boundsIntersect(Region other) {
