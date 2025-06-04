@@ -266,7 +266,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return parent object (object of same frame in which this element is contained) of this object, or null if this object is root
      */
     public SegmentedObject getParent() {
-        if (parent==null && parentId!=null) parent = dao.getById(getExperiment().getStructure(structureIdx).getParentStructure(), parentId, timePoint, null);
+        if (parent==null && parentId!=null) {
+            int parentOCidx = getExperiment().getStructure(structureIdx).getParentStructure();
+            parent = dao.getById(parentOCidx, parentId, timePoint, null);
+        }
         if (parent!=null && parent.getStructureIdx()==getStructureIdx()) {
             logger.error("parent {} has same object class idx as {}. oc idx: {}, position: {}", parent.toStringShort(), this.toStringShort(), structureIdx, getPositionName());
             throw new RuntimeException("parent has same object class idx");
