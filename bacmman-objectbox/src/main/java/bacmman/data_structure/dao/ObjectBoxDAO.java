@@ -125,8 +125,6 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         }
     }
 
-
-
     @Override
     public Experiment getExperiment() {
         return mDAO.getExperiment();
@@ -141,6 +139,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public void clearCache() {
         cache.clear();
         measurementCache.clear();
+        objectBoxes.clear();
+        measurementBoxes.clear();
         for (BoxStore objectStore : objectStores.values()) {
             if (objectStore!=null && !objectStore.isClosed()) {
                 objectStore.cleanStaleReadTransactions();
@@ -156,8 +156,6 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             }
         }
         objectStores.clear();
-        objectBoxes.clear();
-        measurementBoxes.clear();
         measurementStores.clear();
     }
 
@@ -269,7 +267,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         closeThreadResources();
         cache.clear();
         measurementCache.clear();
-        for (int oc : streamObjectClasses(false).toArray()) {
+        for (int oc : streamObjectClasses(true).toArray()) {
             BoxStore s = objectStores.get(oc);
             if (s != null) {
                 s.close();
@@ -557,7 +555,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public void deleteAllMeasurements() {
         closeThreadResources();
-        for (int oc : streamObjectClasses(false).toArray()) {
+        for (int oc : streamObjectClasses(true).toArray()) {
             BoxStore s = measurementStores.get(oc);
             if (s != null) {
                 s.close();
