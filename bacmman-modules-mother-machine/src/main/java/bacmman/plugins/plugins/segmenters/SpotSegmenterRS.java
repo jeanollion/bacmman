@@ -429,7 +429,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             if (segParent == p.getStructureIdx()) return p.getMask();
             return p.getChildRegionPopulation(segParent).getLabelMap();
         };
-        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true)));
+        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true)));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));
     }
 

@@ -513,7 +513,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             RegionPopulation bactPop = p.getChildRegionPopulation(segParent);
             if (bactPop.getRegions().isEmpty()) return new double[0];
             snr.setUp(p, structureIdx, bactPop);
-            if (p.getFrame()<10) logger.info("PER FRAME NORM: F= {} mean sd = {}", p.getFrame(), snr.getBackgroundMeanSD(bactPop.getRegions().get(0)));
+            // if (p.getFrame()<10) logger.info("PER FRAME NORM: F= {} mean sd = {}", p.getFrame(), snr.getBackgroundMeanSD(bactPop.getRegions().get(0)));
             //return snr.getBackgroundMeanSD(bactPop.getRegions().get(0));
             return new double[]{snr.getBackgroundMeanSD(bactPop.getRegions().get(0))[0], 1};
         })) : null;

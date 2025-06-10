@@ -9,7 +9,7 @@
         <version>3.8.4</version>
     </parent>
     <properties>
-        <objectbox.version>4.0.3</objectbox.version>
+        <objectbox.version>4.3.0</objectbox.version>
         <objectbox.platform>linux</objectbox.platform>
         <!--objectbox.platform>windows</objectbox.platform-->
         <!--objectbox.platform>macos</objectbox.platform-->
