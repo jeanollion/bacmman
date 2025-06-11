@@ -15,14 +15,19 @@ import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
-public class IntensityPiecewiseTransformation implements PreFilter, TrackPreFilter, TestableProcessingPlugin {
+public class IntensityPiecewiseTransformation implements PreFilter, TrackPreFilter, TestableProcessingPlugin, Hint {
 
     SimplePluginParameterList<ThresholderHisto> breaks = new SimplePluginParameterList<>("Intensity Breaks", "Break", ThresholderHisto.class, false)
             .addListener(l -> {
                 SimpleListParameter<?> ts = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, l, p -> p.getName().equals("Transformations"));
                 ts.setChildrenNumber(l.getChildCount() + 1);
             })
-            .setHint("Break point that defines segments in the intensity range");
+            .setHint("The breaks parameter sets points that divide the intensity range into segments. For example, one break point creates two segments, two break points create three segments, and so on.");
+
+    @Override
+    public String getHintText() {
+        return "This module applies a piecewise (non-linear) transformation to the intensity values of an image, on user-defined intensity ranges. ";
+    }
 
     enum MODE {LINEAR, POWER, LOG}
     EnumChoiceParameter<MODE> mode = new EnumChoiceParameter<>("Transformation", MODE.values(), MODE.LINEAR);
@@ -34,7 +39,7 @@ public class IntensityPiecewiseTransformation implements PreFilter, TrackPreFilt
                 SimplePluginParameterList<?> b = ParameterUtils.getParameterFromSiblings(SimplePluginParameterList.class, l, p -> p.getName().equals("Intensity Breaks"));
                 return l.getChildCount() - 1 == b.getChildCount();
             })
-            .setHint("Transformation per intensity segment");
+            .setHint("Specifies the adjustments to be made for each segment of the image's intensity range. The number of transformations provided should be one more than the number of break points used. For instance, if there is one break point, two transformations need to be specified.");
 
     // pre-filter
     @Override

@@ -180,10 +180,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, LinkMultiplicity> lwFW=null, lmBW=null;
         Map<SegmentedObject, LinkMultiplicity>[] linkMultiplicityMapContainer = new Map[2];
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(linkDistanceTolerance.getIntValue());
-        if (trackPreFilters!=null) {
-            trackPreFilters.filter(objectClassIdx, parentTrack);
-            if (stores != null && !trackPreFilters.isEmpty()) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("Input after prefilters", o.getPreFilteredImage(objectClassIdx)));
-        }
+        if (trackPreFilters!=null) trackPreFilters.filter(objectClassIdx, parentTrack);
         Map<Integer, Image> allImages = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> p.getPreFilteredImage(objectClassIdx)));
         int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
         int increment = predictionFrameSegment.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / predictionFrameSegment.getIntValue()) );
