@@ -250,11 +250,6 @@ public class TrackTreeGenerator {
                     menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
                 }
             } else if (SwingUtilities.isLeftMouseButton(e) && !e.isShiftDown() && !e.isControlDown()) {
-                if (tree.isCollapsed(path)) { // expand & select all children
-                    ArrayList<TreePath> pathToSelect = new ArrayList<TreePath>();
-                    Utils.expandAll(tree, path, pathToSelect);
-                    //Utils.addToSelectionPaths(tree, pathToSelect);
-                } //else Utils.addToSelectionPaths(tree, path);
                 if (e.getClickCount()==2) { // open default image
                     Object o = path.getLastPathComponent();
                     Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();

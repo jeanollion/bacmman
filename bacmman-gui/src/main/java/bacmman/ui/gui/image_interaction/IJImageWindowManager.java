@@ -281,7 +281,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             SegmentedObject parent = od.object;
                             Offset parentOffset = new SimpleOffset(od.offset);
                             Consumer<Collection<SegmentedObject>> store = l -> parent.dao.store(l);
-                            Consumer<Collection<SegmentedObject>> delete = l -> parent.dao.delete(l, true, true, GUI.getInstance().getManualEditionRelabel());
+                            Consumer<Collection<SegmentedObject>> delete = l -> {
+                                parent.dao.delete(l, true, true, GUI.getInstance().getManualEditionRelabel());
+                                removeObjects(l, false); // delete from windows manager cache
+                            };
 
                             if (brush) {
                                 Region brushRegion = new Region(roi.duplicate(), 1, roi.getBounds().duplicate(), parent.getScaleXY(), parent.getScaleZ());
@@ -294,7 +297,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                     //logger.debug("Eraser: children of {} are {}", parent, parent.getChildren(interactiveObjectClassIdx).map(o -> o+"="+o.getBounds()).collect(Collectors.toList()));
                                     brushRegion.translate(parent.getBounds());
                                     brushRegion.setIsAbsoluteLandmark(true);
-                                    List<SegmentedObject> modified = new ArrayList<>();
+                                    Set<SegmentedObject> modified = new HashSet<>();
                                     List<SegmentedObject> toDelete = new ArrayList<>();
                                     parent.getChildren(getInteractiveObjectClass())
                                         .filter(o -> o.getRegion().intersect(brushRegion))
@@ -316,22 +319,32 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                             if (regions.size() > 1) { // erasing has generated several objects
                                                 RegionPopulation splitPop = new RegionPopulation(regions, new SimpleImageProperties(o.getMask()).resetOffset());
                                                 splitPop.translate(o.getBounds(), true);
+                                                List<SegmentedObject> toLink = new ArrayList<>();
                                                 factory.split(o, splitPop, null).forEach(newO -> {
-                                                    if (eraseSizeThld==0 || newO.getRegion().size() > eraseSizeThld) modified.add(newO);
-                                                    else factory.removeFromParent(newO);
+                                                    if (newO.getRegion().size() > eraseSizeThld) {
+                                                        modified.add(newO);
+                                                        toLink.add(newO);
+                                                    } else factory.removeFromParent(newO);
                                                 });
                                                 if (o.getRegion().size() <= eraseSizeThld) {
                                                     modified.remove(o);
                                                     toDelete.add(o);
+                                                } else toLink.add(o);
+                                                if (!toLink.isEmpty()) {
+                                                    SegmentedObjectEditor.getPrevious(o).forEach(toLink::add);
+                                                    SegmentedObjectEditor.getNext(o).forEach(toLink::add);
+                                                    ManualEdition.modifyObjectLinks(toLink, false, false, true, true, modified);
                                                 }
                                             }
                                         });
                                         //logger.debug("After split: modified: {} and will delete: {}", modified, toDelete);
-                                        if (modified.stream().anyMatch(o -> o.getRegion().size()==0)) { // TODO check if bug remains
-                                            logger.error("EMPTY OBJECT GENERATED: {}", modified.stream().filter(o -> o.getRegion().size()==0).map(o -> o+" Area:"+o.getBounds()).collect(Collectors.toList()));
-                                            modified.removeIf(o -> o.getRegion().size()==0);
+                                        modified.removeAll(toDelete);
+                                        if (modified.stream().anyMatch(o -> o.getRegion().size()<=eraseSizeThld)) { // TODO check if bug remains
+                                            logger.error("EMPTY OBJECT GENERATED: {}", modified.stream().filter(o -> o.getRegion().size()<=eraseSizeThld).map(o -> o+" Area:"+o.getBounds()).collect(Collectors.toList()));
+                                            modified.removeIf(o -> o.getRegion().size()<=eraseSizeThld);
                                         }
                                         store.accept(modified);
+                                        modified.removeIf(o -> o.getFrame() != parent.getFrame());
                                         toDisplay.addAll(modified);
                                     }
                                     if (!toDelete.isEmpty()) {
@@ -780,19 +793,20 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 r = r.duplicate().setHyperstackPosition();
                 r.setColor(getTransparentColor(color, edge), edge);
             }
-            // TODO : check if bug remains
             if (r.values().stream().anyMatch(Objects::isNull)) {
                 List<Integer> nullFrames = r.entrySet().stream().filter(e -> e.getValue()==null).map(Map.Entry::getKey).collect(Collectors.toList());
-                logger.error("track: {} object: {} loc {} size: {} has null ROI at frames={}", track.get(0).object, p.object, p.offset, p.object.getRegion().size(), nullFrames);
+                logger.debug("track: {} object: {} loc {} size: {} has null ROI at frames={}", track.get(0).object, p.object, p.offset, p.object.getRegion().size(), nullFrames);
             }
-            if (r.is2D() && r.get(0)==null) {
-                logger.error("track: {} object: {} loc {} size: {}, slices: {} is2D but has no ROI at slice 0", track.get(0).object, p.object, p.offset, p.object.getRegion().size(), r.keySet());
+            if (r.is2D() && r.get(0)==null) { // TODO why can this happen
+                logger.debug("track: {} object: {} loc {} size: {}, slices: {} is2D but has no ROI at slice 0", track.get(0).object, p.object, p.offset, p.object.getRegion().size(), r.keySet());
             }
             return r;
         };
 
         track.stream().map(getRoi)
-            .flatMap(r -> r.is2D() ? Stream.of(r.get(0)) : r.values().stream()).forEach(trackRoi::addObject);
+            .flatMap(r -> r.is2D() ? Stream.of(r.get(0)).filter(Objects::nonNull) // TODO why can this happen ?
+                    : r.values().stream())
+                .forEach(trackRoi::addObject);
         // add flag when track links have been edited
         if (flags && displayCorrections) {
             Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
