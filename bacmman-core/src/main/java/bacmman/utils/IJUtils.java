@@ -7,6 +7,17 @@ import java.util.Arrays;
 import java.util.function.Function;
 
 public class IJUtils {
+
+    public static void plot(double[] x, double[] y, String title, String xLabel, String yLabel) {
+        if (y.length<=1) return;
+        new Plot(title, xLabel, yLabel, x, y).show();
+    }
+
+    public static void plot(float[] x, float[] y, String title, String xLabel, String yLabel) {
+        if (y.length<=1) return;
+        new Plot(title, xLabel, yLabel, x, y).show();
+    }
+
     public static void plotProfile(Image image, int z, int coord, boolean alongX, String... axisLabels) {
         double[] x;
         double[] y;

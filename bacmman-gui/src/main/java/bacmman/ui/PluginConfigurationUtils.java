@@ -82,8 +82,8 @@ public class PluginConfigurationUtils {
             throw new RuntimeException("Could not create track link editor", e);
         }
     }
-
-    public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode) {
+    public enum STEP {PRE_FILTER, TRACK_PRE_FILTER, SEGMENTATION_TRACKING, POST_FILTER, TRACK_POST_FILTER}
+    public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, STEP step, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode) {
         Core.clearDiskBackedImageManagers();
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
         SegmentedObjectAccessor accessor = getAccessor();
@@ -99,7 +99,7 @@ public class PluginConfigurationUtils {
         DuplicateMasterDAO<?, String> mDAOdup = new DuplicateMasterDAO<>(accessor.getDAO(o).getMasterDAO(), UUID.generator(), excludeOCIdx);
         DuplicateObjectDAO<?, String> dupDAO = mDAOdup.getDao(o.getPositionName());
 
-        boolean needToDuplicateWholeParentTrack = ((plugin instanceof Tracker) && !((Tracker)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPostFilter) && !((TrackPostFilter)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPreFilter) && !((TrackPreFilter)plugin).parentTrackMode().allowIntervals());
+        boolean needToDuplicateWholeParentTrack = ((step.equals(STEP.SEGMENTATION_TRACKING) && plugin instanceof Tracker) && !((Tracker)plugin).parentTrackMode().allowIntervals()) || ((step.equals(STEP.TRACK_POST_FILTER ) && plugin instanceof TrackPostFilter) && !((TrackPostFilter)plugin).parentTrackMode().allowIntervals()) || (step.equals(STEP.TRACK_PRE_FILTER ) && (plugin instanceof TrackPreFilter) && !((TrackPreFilter)plugin).parentTrackMode().allowIntervals());
         Function<SegmentedObject, SegmentedObject> getParent = c -> (c.getStructureIdx()>parentStrutureIdx) ? c.getParent(parentStrutureIdx) : c.getChildren(parentStrutureIdx).findFirst().get();
         List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead());
         if (!needToDuplicateWholeParentTrack) wholeParentTrack = parentSelection.stream().map(getParent).distinct().sorted().collect(Collectors.toList());
@@ -114,16 +114,15 @@ public class PluginConfigurationUtils {
         psc.setTestDataStore(stores);
         //logger.debug("test processing: sel {} dup: {}, test parent dao : {}", parentSelection, parentTrackDup, parentTrackDup.get(0).dao.getClass());
         try {
-        if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
-            boolean pf = plugin instanceof PostFilter;
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
+        if ((step.equals(STEP.SEGMENTATION_TRACKING) || step.equals(STEP.POST_FILTER)) && (plugin instanceof Segmenter || plugin instanceof PostFilter)) { // case segmenter -> segment only & call to test method
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(step.equals(STEP.POST_FILTER) ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
             Segmenter segmenter= null;
             if (psc instanceof ProcessingPipelineWithSegmenter) segmenter = ((ProcessingPipelineWithSegmenter)psc).getSegmenter();
-            else if (pf) {
+            else if (step.equals(STEP.POST_FILTER)) {
                 GUI.log("WARNING: Cannot test post-filter only with this processing pipeline");
                 return storeList;
             }
-            if (segmenter == null && !pf) {
+            if (segmenter == null && !step.equals(STEP.POST_FILTER)) {
                 GUI.log("WARNING: Segmentation may differ from the context of selected pipeline");
                 segmenter = (Segmenter)plugin;
             }
@@ -144,7 +143,7 @@ public class PluginConfigurationUtils {
             TrackConfigurer apply = new TrackConfigurer() {
                 @Override
                 public void apply(SegmentedObject parent, Object plugin) {
-                    if (!pf && plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
+                    if (!step.equals(STEP.POST_FILTER) && plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
                     if (applyToSeg!=null) applyToSeg.apply(parent, plugin);
                 }
                 @Override
@@ -154,7 +153,7 @@ public class PluginConfigurationUtils {
             };
             so.segmentAndTrack(structureIdx, parentTrackDup, apply, getFactory(structureIdx)); // won't run pre-filters
 
-            if (pf) { // perform test of post-filters
+            if (step.equals(STEP.POST_FILTER)) { // perform test of post-filters
 
                 // converting post-filters in track post filters
                 Function<PostFilter, bacmman.plugins.plugins.track_post_filter.PostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
@@ -191,7 +190,7 @@ public class PluginConfigurationUtils {
                 tpf.filter(structureIdx, parentTrackDup2, factory, editor);
             }
 
-        } else if (plugin instanceof Tracker) {
+        } else if (step.equals(STEP.SEGMENTATION_TRACKING) && plugin instanceof Tracker) {
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
             // get continuous parent track
             int minF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
@@ -221,7 +220,7 @@ public class PluginConfigurationUtils {
                 //TrackPostFilterSequence tpf= (psc instanceof ProcessingPipelineWithTracking) ? ((ProcessingPipelineWithTracking)psc).getTrackPostFilters() : null;
                 //if (tpf!=null) tpf.filter(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
             }
-        } else if (plugin instanceof TrackPostFilter) {
+        } else if (step.equals(STEP.TRACK_POST_FILTER) && plugin instanceof TrackPostFilter) {
 
             // get continuous parent track
             int minF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
@@ -275,16 +274,17 @@ public class PluginConfigurationUtils {
             tpf.filter(structureIdx, parentTrackDup2, factory, editor);
 
 
-        } else if (plugin instanceof PreFilter || plugin instanceof TrackPreFilter) {
+        } else if ((step.equals(STEP.PRE_FILTER) || step.equals(STEP.TRACK_PRE_FILTER) ) && (plugin instanceof PreFilter || plugin instanceof TrackPreFilter)) {
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
-            boolean runPreFiltersOnWholeTrack = plugin instanceof TrackPreFilter && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals());
+            boolean runPreFiltersOnWholeTrack = step.equals(STEP.TRACK_PRE_FILTER) && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals());
             List<SegmentedObject> parentTrack = runPreFiltersOnWholeTrack ? wholeParentTrackDup : parentTrackDup; // if track pre-filters need to compute on whole parent track
             // remove children of structureIdx
             SegmentedObjectFactory facto = getFactory(structureIdx);
             parentTrack.forEach(p->facto.setChildren(p, null));
-            if (plugin instanceof TrackPreFilter) pluginIdx+=psc.getPreFilters().getActivatedChildCount();
+            if (step.equals(STEP.TRACK_PRE_FILTER)) pluginIdx+=psc.getPreFilters().getActivatedChildCount();
             TrackPreFilterSequence seq = psc.getTrackPreFilters(true);
             List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(PluginParameter::isActivated).map(PluginParameter::instantiatePlugin).collect(Collectors.toList());
+            logger.debug("step: {} idx: {} total transfo: {}, transfo before: {}", step, pluginIdx, seq.getActivatedChildCount(), before.size());
             TrackPreFilterSequence seqBefore = new TrackPreFilterSequence("Track Pre-filter before").add(before);
             SegmentedObjectImageMap filteredImages = seqBefore.filterImages(structureIdx, parentTrack);
             if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", filteredImages.getImage(p).duplicate())); // add images before processing
@@ -323,7 +323,7 @@ public class PluginConfigurationUtils {
             publishError(t.getCause());
         }
     }
-    public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int objectClassIdx, boolean expertMode) {
+    public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, int pluginIdx, STEP step, Experiment xp, int objectClassIdx, boolean expertMode) {
         Consumer<Boolean> performTest = b-> {
             List<SegmentedObject> sel;
             if (GUI.hasInstance()) {
@@ -343,11 +343,11 @@ public class PluginConfigurationUtils {
             //if (sel==null) sel = new ArrayList<>(1);
             //if (sel.isEmpty()) sel.add(GUI.getDBConnection().getDao(pos).getRoot(0));
 
-            List<Map<SegmentedObject, TestDataStore>> stores = testImageProcessingPlugin(plugin, pluginIdx, xp, objectClassIdx, sel, b, expertMode);
-            if (stores!=null) stores.forEach(s -> displayIntermediateImages(s, objectClassIdx, plugin instanceof PreFilter || plugin instanceof TrackPreFilter));
+            List<Map<SegmentedObject, TestDataStore>> stores = testImageProcessingPlugin(plugin, pluginIdx, step, xp, objectClassIdx, sel, b, expertMode);
+            if (stores!=null) stores.forEach(s -> displayIntermediateImages(s, objectClassIdx, step.equals(STEP.PRE_FILTER) || step.equals(STEP.TRACK_PRE_FILTER)));
         };
         List<JMenuItem> res = new ArrayList<>();
-        if (plugin instanceof Tracker) {
+        if (step.equals(STEP.SEGMENTATION_TRACKING) && plugin instanceof Tracker) {
             JMenuItem trackOnly = new JMenuItem("Test Track Only");
             trackOnly.setAction(new AbstractAction(trackOnly.getActionCommand()) {
                 @Override
@@ -364,7 +364,7 @@ public class PluginConfigurationUtils {
                 }
             });
             res.add(segTrack);
-        } else if (plugin instanceof Segmenter) {
+        } else if (step.equals(STEP.SEGMENTATION_TRACKING) && plugin instanceof Segmenter) {
             JMenuItem item = new JMenuItem("Test Segmenter");
             item.setAction(new AbstractAction(item.getActionCommand()) {
                 @Override
@@ -373,7 +373,7 @@ public class PluginConfigurationUtils {
                 }
             });
             res.add(item);
-        } else if (plugin instanceof PreFilter) {
+        } else if (step.equals(STEP.PRE_FILTER) && plugin instanceof PreFilter) {
             JMenuItem item = new JMenuItem("Test Pre-Filter");
             item.setAction(new AbstractAction(item.getActionCommand()) {
                 @Override
@@ -382,7 +382,7 @@ public class PluginConfigurationUtils {
                 }
             });
             res.add(item);
-        } else if (plugin instanceof TrackPreFilter) {
+        } else if (step.equals(STEP.TRACK_PRE_FILTER) && plugin instanceof TrackPreFilter) {
             JMenuItem item = new JMenuItem("Test Track Pre-Filter");
             item.setAction(new AbstractAction(item.getActionCommand()) {
                 @Override
@@ -391,7 +391,7 @@ public class PluginConfigurationUtils {
                 }
             });
             res.add(item);
-        } else if (plugin instanceof PostFilter) {
+        } else if (step.equals(STEP.POST_FILTER) && plugin instanceof PostFilter) {
             JMenuItem item = new JMenuItem("Test Post-Filter");
             item.setAction(new AbstractAction(item.getActionCommand()) {
                 @Override
@@ -401,7 +401,7 @@ public class PluginConfigurationUtils {
             });
             if (!(xp.getStructure(objectClassIdx).getProcessingScheme() instanceof ProcessingPipelineWithSegmenter)) item.setEnabled(false);
             res.add(item);
-        } else if (plugin instanceof TrackPostFilter) {
+        } else if (step.equals(STEP.TRACK_POST_FILTER) && plugin instanceof TrackPostFilter) {
             JMenuItem segTrack = new JMenuItem("Test Track Post-Filter");
             segTrack.setAction(new AbstractAction(segTrack.getActionCommand()) {
                 @Override

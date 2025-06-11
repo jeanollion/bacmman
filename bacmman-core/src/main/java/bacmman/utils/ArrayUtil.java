@@ -529,6 +529,18 @@ public class ArrayUtil {
         for (int i = 0; i<res.length; ++i) res[i] = start+i;
         return res;
     }
+    public static double[] linspaceDouble(double min, double max, int n) {
+        double[] res = new double[n];
+        double inc = (max - min) / (n-1);
+        for (int i = 0; i<n; ++i) res[i] = min + inc * i;
+        return res;
+    }
+    public static float[] linspaceFloat(double min, double max, int n) {
+        float[] res = new float[n];
+        double inc = (max - min) / (n-1);
+        for (int i = 0; i<n; ++i) res[i] = (float)(min + inc * i);
+        return res;
+    }
     public static int[] generateIntegerArray(int size) {
         return IntStream.range(0, size).toArray();
     }

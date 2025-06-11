@@ -100,7 +100,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
     }
 
     @Override public TrackPreFilterSequence addAtFirst(TrackPreFilter... instances) {
-        super.add(instances);
+        super.addAtFirst(instances);
         return this;
     }
     @Override public TrackPreFilterSequence add(TrackPreFilter... instances) {

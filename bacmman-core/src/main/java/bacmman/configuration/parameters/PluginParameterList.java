@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import bacmman.plugins.Plugin;
 
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -52,10 +53,11 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
         return (L)this;
     }
     public L addAtFirst(T... instances) {
+        int i = 0;
         for (T t : instances) {
             PluginParameter<T> pp = super.createChildInstance(childLabel).setPlugin(t);
             pp.setParent(this);
-            super.getChildren().add(0, pp);
+            super.getChildren().add(i++, pp);
         }
         return (L)this;
     }
@@ -66,7 +68,7 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
     }
     
     public List<T> get() {
-        return this.getActivatedChildren().stream().map(pp->pp.instantiatePlugin()).filter(p->p!=null).collect(Collectors.toList());
+        return this.getActivatedChildren().stream().map(PluginParameter::instantiatePlugin).filter(Objects::nonNull).collect(Collectors.toList());
     }
     public List<T> getAll() {
         return this.getChildren().stream().map(pp->{
@@ -75,6 +77,6 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
         }).collect(Collectors.toList());
     }
     public boolean isEmpty() {
-        return this.children.stream().noneMatch((pp) -> (pp.isActivated()));
+        return this.children.stream().noneMatch(PluginParameter::isActivated);
     }
 }

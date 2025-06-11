@@ -505,7 +505,7 @@ public class Region {
     }
 
     public synchronized void clearMask() {
-        createBoundsFromMask();
+        if (mask!=null) createBoundsFromMask();
         if (voxels==null && roi == null) createRoi();
         mask = null;
         if (roi==null) this.bounds=null;

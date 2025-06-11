@@ -55,7 +55,7 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
-    public static PreFilter[] splitPreFilterSequence(PreFilterSequence preFilters) {
+    public static PreFilter[] getPreFilterArray(PreFilterSequence preFilters) {
         PreFilter[] pfs = new PreFilter[preFilters.getChildCount()];
         for (int i = 0; i<pfs.length; ++i) pfs[i] = new PreFilter().setFilter(preFilters.getChildAt(i));
         return pfs;

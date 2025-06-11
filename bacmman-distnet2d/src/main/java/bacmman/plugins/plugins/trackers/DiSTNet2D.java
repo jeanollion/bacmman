@@ -56,7 +56,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
             .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(8, 8).setDefaultTargetShape(192, 192)
-            .setEmphasized(false);
+            .setEmphasized(true);
     BooleanParameter next = new BooleanParameter("Predict Next", true).addListener(b -> dlResizeAndScale.setOutputNumber(b.getSelected() ? 5 : 4))
             .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & category for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, category for current frame, category for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Frame Batch Size", 0, 4, 1, null).setEmphasized(true).setHint("Defines how many frames are predicted at the same time within the frame window");
@@ -171,6 +171,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (im instanceof DiskBackedImage) imageManager.detach((DiskBackedImage)im, true);
         };
         boolean testMode = stores != null;
+        if (testMode) dlResizeAndScale.setScaleLogger( Core::userLog );
         boolean segment = factory != null;
         if (factory==null) factory = getFactory(objectClassIdx); // in case called from track only method -> for post-processing
         PredictionResults prevPrediction = null;

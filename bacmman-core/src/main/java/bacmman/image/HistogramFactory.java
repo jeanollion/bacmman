@@ -72,6 +72,21 @@ public class HistogramFactory {
         Supplier<Histogram> supplier = () -> new Histogram(new long[nBins], binSize, min);
         return stream.collect(supplier ,cons, combiner);
     }
+
+    public static Histogram getHistogramImageStream(Supplier<Stream<Image>> streamSupplier, BIN_SIZE_METHOD method) {
+        double[] mmbs = getMinAndMaxAndBinSize(() -> streamSupplier.get().flatMapToDouble(Image::stream), method);
+        double min = mmbs[0];
+        double binSize = mmbs[2];
+        int nBins = getNBins(min, mmbs[1], binSize);
+        BiConsumer<Histogram, Histogram> combiner = Histogram::add;
+        BiConsumer<Histogram, Image> cons = (Histogram h, Image im) -> {
+            Histogram hh = getHistogram(im.stream(), binSize, nBins, min);
+            combiner.accept(h, hh);
+        };
+        Supplier<Histogram> supplier = () -> new Histogram(new long[nBins], binSize, min);
+        return streamSupplier.get().collect(supplier ,cons, combiner);
+    }
+
     /**
      * Automatic bin size computation
      * @param streamSupplier value distribution used for the histogram
@@ -79,7 +94,7 @@ public class HistogramFactory {
      * @return {min, max bin size}
      */
     public static double[] getMinAndMaxAndBinSize(Supplier<DoubleStream> streamSupplier, BIN_SIZE_METHOD method) {
-        // stats -> 0-2: Sum of Square with compensation variables, 3: count, 4: sum, 5 : min; 6: max; 7: max decimal place 
+        // stats -> 0-2: Sum of Square with compensation variables, 3: count, 4: sum, 5 : min; 6: max; 7: max decimal place
         BiConsumer<double[], double[]> combiner = (stats1, stats2)-> {
             stats1[4]+=stats2[4];
             stats1[3]+=stats2[3];

@@ -25,7 +25,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
     protected void log(double[] scaleOff) {
         double scale = scaleOff[0];
         double offset = scaleOff[1];
-        if (scaleLogger!=null) scaleLogger.accept("Percentiles Scaler : percentiles=["+(-offset)+"; "+(-offset+ 1./scale)+"] range="+(1./scale)+"scale="+scale);
+        if (scaleLogger!=null) scaleLogger.accept("Percentiles Scaler : percentiles=["+(-offset)+"; "+(-offset+ 1./scale)+"] range="+(1./scale));
     }
     public PercentileScaler setPercentiles(double[] percentiles) {
         if (percentiles.length!=2) throw new IllegalArgumentException("2 percentiles (min/max) must be provided");

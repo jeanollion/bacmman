@@ -82,7 +82,7 @@ public abstract class SegmentationProcessingPipeline<T extends SegmentationProce
 
     @Override public TrackPreFilterSequence getTrackPreFilters(boolean addPreFilters) {
         if (addPreFilters && !preFilters.isEmpty()) {
-            TrackPreFilterSequence res= trackPreFilters.duplicate().addAtFirst(PreFilter.splitPreFilterSequence(preFilters));
+            TrackPreFilterSequence res= trackPreFilters.duplicate().addAtFirst(PreFilter.getPreFilterArray(preFilters));
             for (int i = 0; i< preFilters.getChildCount(); ++i) res.getChildAt(i).setActivated(preFilters.getChildAt(i).isActivated());
             return res;
         } else return trackPreFilters;
