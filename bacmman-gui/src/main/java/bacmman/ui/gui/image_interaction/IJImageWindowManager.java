@@ -291,6 +291,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                 Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
                                 brushRegion.translate(revOff);
                                 if (!freeHandErase) {
+                                    if (!parent.getExperimentStructure().allowOverlap(getInteractiveObjectClass())) { // honnot overlap parameter
+                                        brushRegion.translate(parent.getBounds());
+                                        brushRegion.setIsAbsoluteLandmark(true);
+                                        parent.getChildren(getInteractiveObjectClass())
+                                            .filter(o -> o.getRegion().intersect(brushRegion))
+                                            .forEach(o -> brushRegion.remove(o.getRegion()));
+                                    }
                                     if (brushRegion.size()>0) toDisplay.addAll(FreeLineSegmenter.createSegmentedObject(brushRegion, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store));
                                     else logger.error("brush has generated empty object");
                                 } else { // eraser
@@ -303,7 +310,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                         .filter(o -> o.getRegion().intersect(brushRegion))
                                         .forEach(o -> {
                                             double size = o.getRegion().size();
-                                            BoundingBox bds= new SimpleBoundingBox(o.getBounds());
                                             o.getRegion().remove(brushRegion);
                                             double newSize = o.getRegion().size();
                                             //logger.debug("intersecting object: {} bounds={}->{}, size: {}->{}", o, bds, o.getBounds(), size, newSize);
