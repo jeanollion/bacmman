@@ -2,7 +2,6 @@ package bacmman.plugins.plugins.dl_engines;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.core.DLEngineProvider;
 import bacmman.image.Image;
 import bacmman.plugins.DLEngine;
@@ -32,19 +31,23 @@ public class DefaultEngine implements DLEngine {
 
     @Override
     public void init() {
-        DLEngine engine = DLEngineProvider.getDefaultEngine();
-        if (engine == null) engine = new DockerEngine();
-        // parametrize
-        ParameterUtils.setContent(engine.getParameters(), this.parameters);
-        if (inputNumber >= 0) engine.setInputNumber(inputNumber);
-        if (outputNumber >= 0) engine.setOutputNumber(outputNumber);
-        // share instance
-        Experiment xp = ParameterUtils.getExperiment(this.modelFile);
-        if (xp==null) this.engine = engine;
-        else {
-            DLEngineProvider dlEngineProvider = xp.getDLengineProvider();
-            this.engine = dlEngineProvider.getEngine(engine);
+        if (this.engine == null) {
+            DLEngine engine = DLEngineProvider.getDefaultEngine();
+            if (engine == null)
+                throw new RuntimeException("No Default DL Engine defined. Define it in menu Option > Default DL Engine");
+            // parametrize
+            ParameterUtils.setContent(engine.getParameters(), this.parameters);
+            if (inputNumber >= 0) engine.setInputNumber(inputNumber);
+            if (outputNumber >= 0) engine.setOutputNumber(outputNumber);
+            // share instance
+            Experiment xp = ParameterUtils.getExperiment(this.modelFile);
+            if (xp == null) this.engine = engine;
+            else {
+                DLEngineProvider dlEngineProvider = xp.getDLengineProvider();
+                this.engine = dlEngineProvider.getEngine(engine);
+            }
         }
+        this.engine.init();
     }
 
     @Override
@@ -74,11 +77,12 @@ public class DefaultEngine implements DLEngine {
     @Override
     public void close() {
         if (engine != null) engine.close();
+        engine = null;
     }
 
     @Override
     public int[] getGPUs() {
-        return engine.getGPUs(); // NULL !!!
+        return engine.getGPUs();
     }
 
     @Override

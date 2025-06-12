@@ -69,20 +69,6 @@ public class ParameterUtils {
         return null;
     }
     
-    public static boolean setContent(Parameter[] recieve, Parameter[] give) {
-        if (recieve==null || give== null || recieve.length!=give.length) return false;
-        boolean ok = true;
-        for (int i = 0; i < recieve.length; i++) {
-            try {
-                recieve[i].setContentFrom(give[i]);
-            } catch (Error e) {
-                logger.debug("set content list error @ {} : r={} / s={}", i, recieve[i]!=null ? recieve[i].getName() : "null", give[i]!=null ? give[i].getName() : "null");
-                logger.error("set content error :", e);
-                ok = false;
-            }
-        }
-        return ok;
-    }
     public static boolean sameContent(Parameter[] p1, Parameter[] p2) {
         return sameContent(Arrays.asList(p1), Arrays.asList(p2));
     }
@@ -109,6 +95,11 @@ public class ParameterUtils {
         }
         return true;
     }
+
+    public static boolean setContent(Parameter[] recieve, Parameter[] give) {
+        return setContent(Arrays.asList(recieve), Arrays.asList(give));
+    }
+
     public static boolean setContent(List<Parameter> recieve, List<Parameter> give) {
         if (recieve==null || give== null || recieve.size()!=give.size()) {
             setContentMap(recieve, give);
