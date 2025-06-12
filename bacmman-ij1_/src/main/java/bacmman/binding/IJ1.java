@@ -20,6 +20,7 @@ package bacmman.binding;
 
 import bacmman.core.Core;
 import bacmman.data_structure.MasterDAOFactory;
+import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.gui.image_interaction.IJImageDisplayer;
 import bacmman.ui.gui.image_interaction.IJImageWindowManager;
@@ -30,6 +31,7 @@ import bacmman.utils.Palette;
 import bacmman.utils.Utils;
 import ij.IJ;
 import ij.ImageJ;
+import ij.gui.Toolbar;
 import ij.plugin.PlugIn;
 
 import java.awt.*;
@@ -157,9 +159,13 @@ public class IJ1 implements PlugIn {
                     gui.setVisible(true);
                     gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
                     IJ.setTool("freeline");
-                    IJ.setTool("ellipse");
+                    IJ.setTool("brush");
+                    Toolbar.setBrushSize(PropertyUtils.get("ij_brush_size", 5));
                     IJ.setTool("rect");
-                    Runtime.getRuntime().addShutdownHook(new Thread(() -> gui.closeDataset(true)));
+                    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                        PropertyUtils.set("ij_brush_size", Toolbar.getBrushSize());
+                        gui.closeDataset(true);
+                    }));
                 } else {
                     IJ.log("Another instance of BACMMAN is already running");
                     return;

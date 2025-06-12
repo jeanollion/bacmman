@@ -28,6 +28,7 @@ public class FreeLineSegmenter {
         if (xContour.length!=yContour.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
         Offset revOff = new SimpleOffset(parentOffset).reverseOffset(); // translate to offset relative to parent
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
+        boolean allowOverlap = parent.getExperimentStructure().allowOverlap(objectClassIdx);
         boolean isClosed = Math.pow(xContour[0]-xContour[xContour.length-1], 2) + Math.pow(yContour[0]-yContour[xContour.length-1], 2) <=1;
         int modifyObjectLabel;
         if (!isClosed) { // check that the 2 extremities touch the same object & only one object -> close this object
@@ -68,7 +69,7 @@ public class FreeLineSegmenter {
             ImageMask parentMask = parent.getMask();
             ImageInteger previousLabels = pop.getLabelMap();
             r.loop((x, y, zz) -> {
-                if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || previousLabels.insideMask(x, y, zz)) mask.setPixelWithOffset(x, y, zz, 0);
+                if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || (!allowOverlap && previousLabels.insideMask(x, y, zz))) mask.setPixelWithOffset(x, y, zz, 0);
             });
             r.clearMask();
             //logger.debug("region size after overlap with other objects {}", r.size());
@@ -91,7 +92,7 @@ public class FreeLineSegmenter {
             //logger.debug("region size after add voxels {}, bb: {}", r.size(), r.getBounds());
             ImageMask parentMask = parent.getMask();
             r.loop((x, y, zz) -> {
-                if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || previousLabels.insideMask(x, y, zz)) mask.setPixelWithOffset(x, y, zz, 0);
+                if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || (!allowOverlap && previousLabels.insideMask(x, y, zz))) mask.setPixelWithOffset(x, y, zz, 0);
             });
             r.clearMask();
             //logger.debug("region size after modify {}, bb: {}", r.size(), r.getBounds());

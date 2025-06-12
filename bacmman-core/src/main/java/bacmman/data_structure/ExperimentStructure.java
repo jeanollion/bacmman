@@ -227,6 +227,10 @@ public class ExperimentStructure {
         return xp.getStructure(objectClassIdx).allowSplit();
     }
 
+    public boolean allowOverlap(int objectClassIdx) {
+        return xp.getStructure(objectClassIdx).allowOverlap();
+    }
+
     public Structure.TRACK_DISPLAY getTrackDisplay(int objectClassIdx) {
         return xp.getStructure(objectClassIdx).getTrackDisplay();
     }

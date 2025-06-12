@@ -35,7 +35,7 @@ import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.LazyImage5D;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.dl_engines.DefaultEngine;
-import bacmman.plugins.plugins.dl_engines.DockerEngine;
+import bacmman.plugins.plugins.dl_engines.TF2engine;
 import bacmman.ui.gui.*;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
@@ -208,7 +208,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             "     for more information.");
     private TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
     private IntegerParameter dockerShmSizeMb = new IntegerParameter("Shared Memory Size", 2000).setHint("Shared Memory Size (MB)");
-    private PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, new DockerEngine(), false)
+    private PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, new TF2engine(), false)
             .setPluginFilter(pn -> !pn.equals("DefaultEngine"));
 
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");

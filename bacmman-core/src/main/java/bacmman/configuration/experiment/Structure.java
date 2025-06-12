@@ -48,8 +48,9 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
     ProcessingChain processingPipeline = new ProcessingChain("Processing Pipeline");
     PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object by pressing ctrl + F");
-    BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>true</em> is set, a track can divide in several tracks");
-    BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
+    BooleanParameter allowOverlap = new BooleanParameter("Allow Overlap", "yes", "no", false).setHint("If <em>yesy</em> is set, objects can overlap during manual curation");
+    BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>yesy</em> is set, a track can divide in several tracks");
+    BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>yesy</em> is set, several tracks can merge in one single track");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Global Scaling", HistogramScaler.class, true).setHint("Define here a method to scale raw input images, using the histogram of all images of the parent structure in the same position");
     private Map<String, HistogramScaler> scalerP = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(p->scaler.instantiatePlugin());
     public enum TRACK_DISPLAY {DEFAULT, CONTOUR}
@@ -74,6 +75,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         res.put("manualSegmenter", manualSegmenter.toJSONEntry());
         res.put("processingScheme", processingPipeline.toJSONEntry());
         res.put("manualPostFilters", manualPostFilters.toJSONEntry());
+        res.put("allowOverlap", allowOverlap.toJSONEntry());
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
         res.put("scaler", scaler.toJSONEntry());
@@ -95,6 +97,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         if (jsonO.containsKey("manualPostFilters")) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
+        if (jsonO.containsKey("allowOverlap")) allowOverlap.initFromJSONEntry(jsonO.get("allowOverlap"));
         if (jsonO.containsKey("scaler")) scaler.initFromJSONEntry(jsonO.get("scaler"));
         if (jsonO.containsKey("trackDisplay")) trackDisplay.initFromJSONEntry(jsonO.get("trackDisplay"));
         if (jsonO.containsKey("displayColor")) color.initFromJSONEntry(jsonO.get("displayColor"));
@@ -155,8 +158,13 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowMerge, allowSplit, trackDisplay, color); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
     }
+
+    public boolean allowOverlap() {
+        return allowOverlap.getSelected();
+    }
+
     public boolean allowSplit() {
         return allowSplit.getSelected();
     }
