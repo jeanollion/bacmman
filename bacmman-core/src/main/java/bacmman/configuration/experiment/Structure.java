@@ -48,6 +48,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
     ProcessingChain processingPipeline = new ProcessingChain("Processing Pipeline");
     PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object by pressing ctrl + F");
+    ChoiceParameter objectDimension = new ChoiceParameter("Dimension Mode", new String[]{"2D", "3D", "Auto"}, "Auto", false).setHint("Determines if manually created objects are 2D or 3D. When set to 2D, objects will appear on all slices. If set to <em>Auto</em>, objects will be 3D if the associated channel contains multiple slices; otherwise, they will be 2D. Note that for a specific object class, all segmented objects must uniformly be either 2D or 3D, and this consistency takes precedence over other rules.");
     BooleanParameter allowOverlap = new BooleanParameter("Allow Overlap", "yes", "no", false).setHint("If <em>yesy</em> is set, objects can overlap during manual curation");
     BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>yesy</em> is set, a track can divide in several tracks");
     BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>yesy</em> is set, several tracks can merge in one single track");
@@ -78,6 +79,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         res.put("allowOverlap", allowOverlap.toJSONEntry());
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
+        res.put("objectDimension", objectDimension.getValue());
         res.put("scaler", scaler.toJSONEntry());
         res.put("trackDisplay", trackDisplay.toJSONEntry());
         res.put("displayColor", color.toJSONEntry());
@@ -95,6 +97,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         manualSegmenter.initFromJSONEntry(jsonO.get("manualSegmenter"));
         processingPipeline.initFromJSONEntry(jsonO.get("processingScheme"));
         if (jsonO.containsKey("manualPostFilters")) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
+        if (jsonO.containsKey("objectDimension")) objectDimension.initFromJSONEntry(jsonO.get("objectDimension"));
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
         if (jsonO.containsKey("allowOverlap")) allowOverlap.initFromJSONEntry(jsonO.get("allowOverlap"));
@@ -158,7 +161,21 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, objectDimension, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
+    }
+
+    public boolean is2D(String position) {
+        if (objectDimension.getSelectedItem().equals("2D")) return true;
+        else if (objectDimension.getSelectedItem().equals("3D")) return false;
+        else { // auto
+            Experiment xp = ParameterUtils.getExperiment(this);
+            if (xp == null) {
+                logger.warn("Experiment not found in parameter tree. objects will be 2D by default");
+                return true;
+            }
+            int nSlices = xp.getPosition(position).getSizeZ(getChannelImage());
+            return nSlices == 1;
+        }
     }
 
     public boolean allowOverlap() {

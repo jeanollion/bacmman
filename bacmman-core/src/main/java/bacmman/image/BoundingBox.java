@@ -176,6 +176,10 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         return point.get(0)+tolerance>=container.xMin() && point.get(0)-tolerance<=container.xMax() && point.get(1)+tolerance>=container.yMin() && point.get(1)-tolerance<=container.yMax();
     }
 
+    static boolean containsZ(BoundingBox bds, int z) {
+        return bds.zMin()<=z && bds.zMax()>=z;
+    }
+
     static double outterDistanceSq2D(Point point, BoundingBox bds) {
         return Math.pow(outterDistance1D(point.get(0), bds, 0), 2) + Math.pow(outterDistance1D(point.get(1), bds, 1), 2);
     }

@@ -295,7 +295,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             Path datasetDir = getTempDirectory(); // Paths.get(workingDirPanel.getCurrentWorkingDirectory())
             File tempDatasetFile = datasetDir.resolve(tempDatasetName).toFile();
             DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
-            SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
+            SimpleListParameter<? extends TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
             // first activated dataset -> replace dataset file by temp dataset
             if (dsList.getChildCount() > 1) {
                 int idx = 0;
@@ -828,7 +828,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected Map<String, String> fixDirectories(DockerDLTrainer trainer) {
         int[] counter = new int[1];
         Map<String, String> dirMapMountDir = HashMapGetCreate.getRedirectedMap(dir -> "/data" + counter[0]++, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
-        SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
+        SimpleListParameter<? extends TrainingConfigurationParameter.DatasetParameter> dsList = trainer.getConfiguration().getDatasetList();
         Path curPath = Paths.get(workingDirPanel.getCurrentWorkingDirectory()).normalize().toAbsolutePath();
         dsList.getChildren().forEach(dsParam -> {
             String relPath = dsParam.getFilePath();

@@ -94,20 +94,20 @@ public class TrackTreeGenerator {
     public void updateTree() {
         if (tree==null) return;
         TreeNode root = (TreeNode)treeModel.getRoot();
-        logger.debug("updating tree: for oc:{}, parentTH: {}, root is xp: {}", getStructureIdx(), getParentTrackHead(), root instanceof TrackExperimentNode);
+        //logger.debug("updating tree: for oc:{}, parentTH: {}, root is xp: {}", getStructureIdx(), getParentTrackHead(), root instanceof TrackExperimentNode);
         Enumeration<TreePath> expandedState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{root}));
         TreePath[] sel = tree.getSelectionPaths();
-        logger.debug("updating nodes");
+        //logger.debug("updating nodes");
         if (root instanceof TrackExperimentNode) ((TrackExperimentNode)root).update();
         else if (root instanceof RootTrackNode) ((RootTrackNode)root).update();
-        logger.debug("nodes updated");
+        //logger.debug("nodes updated");
         tree.setSelectionPaths(sel);
         if (expandedState!=null) EnumerationUtils.toStream(expandedState).forEach(p -> tree.expandPath(p));
         resetHighlightedObjects();
         //treeModel.nodeChanged(root);
         //treeModel.nodeStructureChanged(root);
         tree.updateUI();
-        logger.debug("tree updated");
+        //logger.debug("tree updated");
     }
 
     public void collapseAll() {

@@ -1,5 +1,6 @@
 package bacmman.github.gist;
 
+import bacmman.core.Core;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
@@ -9,9 +10,15 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
@@ -221,7 +228,8 @@ public class JSONQuery {
             try {
                 return querySupplier.get().fetch();
             } catch (IOException e) {
-                if (tryouts==0 || !e.getMessage().contains("HTTP response code: 50")) throw e;
+                if (e.getMessage().contains("unable to find valid certification path")) trustAllCertificates();
+                else if (tryouts==0 || !e.getMessage().contains("HTTP response code: 50")) throw e;
                 else {
                     logger.debug("error {} -> try again, remaining tryouts: {}", e.getMessage(), tryouts);
                     sleep(sleep);
@@ -293,4 +301,28 @@ public class JSONQuery {
         return (String)json.get("access_token");
     }
 
+    public static void trustAllCertificates() { // dirty fix, on some networks  custom TrustManager that trusts all certificates
+        TrustManager[] trustAllCerts = new TrustManager[] {
+            new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+                public void checkClientTrusted(
+                        java.security.cert.X509Certificate[] certs, String authType) {
+                }
+                public void checkServerTrusted(
+                        java.security.cert.X509Certificate[] certs, String authType) {
+                }
+            }
+        };
+        Core.userLog("Trust cert. enabled");
+        SSLContext sc = null;
+        try {
+            sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            logger.error("Unable to trust all certificates", e);
+        }
+    }
 }

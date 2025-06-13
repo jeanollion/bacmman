@@ -174,18 +174,22 @@ public class Ellipse2D extends Region implements Analytical {
             return equation(p.get(0)-bounds.xMin(), p.get(1)-bounds.yMin(), 0) <= 1;
         }
     }
-    @Override
-    public Ellipse2D intersectWithZPlane(int z) {
-        Ellipse2D res = new Ellipse2D(center.duplicate().translate(new Voxel(0, 0, z - center.zMin())), major, minor, theta, intensity, label, false, scaleXY, scaleZ);
-        res.setQuality(quality);
-        res.setIsAbsoluteLandmark(absoluteLandmark);
-        return res;
-    }
+
     @Override
     public Ellipse2D duplicate(boolean duplicateVoxels) {
         Ellipse2D res = new Ellipse2D(center.duplicate(), major, minor, theta, intensity, label, is2D, scaleXY, scaleZ);
         res.setQuality(quality);
         res.setIsAbsoluteLandmark(absoluteLandmark);
+        return res;
+    }
+
+    @Override
+    public Ellipse2D intersectWithZPlane(int z, boolean return2D) {
+        if (is2D() && return2D) return duplicate(true);
+        if (!is2D() && BoundingBox.containsZ(getBounds(), z)) return null;
+        Point newCenter = return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z);
+        Ellipse2D res = new Ellipse2D(newCenter, major, minor, theta, intensity, label, return2D, scaleXY, scaleZ);
+        res.setQuality(quality).setIsAbsoluteLandmark(absoluteLandmark);
         return res;
     }
 
@@ -310,6 +314,7 @@ public class Ellipse2D extends Region implements Analytical {
 
     @Override
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther, double overlapLimit) {
+        if (other == null) return 0;
         return Analytical.getOverlapArea(this, other, offset, offsetOther, overlapLimit);
     }
 

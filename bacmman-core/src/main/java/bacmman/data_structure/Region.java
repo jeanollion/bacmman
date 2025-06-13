@@ -167,36 +167,59 @@ public class Region {
     /**
      *
      * @param z plane to intersect with. Should be in the same landmark as the region
+     * @param return2D if true returns a 2D object, otherwise a 3D object located at slice Z
      * @return a new object that correspond to the intersection of this region with the plane, or null if intersection is empty.
      */
-    public Region intersectWithZPlane(int z) { // return a new object. Z should be relative to the landmark of the object.
-        if (this.is2D) { // simply turn into 3D object at desired plane
-            if (voxels!=null) {
-                Set<Voxel> vox = voxels.stream().map(v -> new Voxel(v.x, v.y, z)).collect(Collectors.toSet());
-                return new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
-            } else {
-                ImageInteger m = getMaskAsImageInteger().duplicate();
-                if (m.sizeZ()>1) throw new RuntimeException("2D object with 3D mask");
-                m.translate(0, 0, z - m.zMin());
-                return new Region(m, label, false).setIsAbsoluteLandmark(absoluteLandmark);
-            }
-        } else {
-            if (getBounds().zMin() > z || getBounds().zMax() < z) return null;
-            if (voxels != null) {
-                Set<Voxel> vox = voxels.stream().filter(v -> v.z == z).collect(Collectors.toSet());
-                return new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
-            } else {
-                Set<Voxel> vox = new HashSet<>();
-                loop((x, y, zz) -> {
-                    if (z==zz) vox.add(new Voxel(x, y, z));
-                });
-                if (vox.isEmpty()) {
-                    //logger.debug("Empty intersection: z={} bounds={}", z, getBounds()); // this should not happen, unless object has been modified and bounds not updated
-                    return null;
+    public Region intersectWithZPlane(int z, boolean return2D) {
+        if (is2D) {
+            if (return2D) return duplicate();
+            else {
+                Point newCenter = center == null ? null : new Point(center.get(0), center.get(1), z);
+                if (roi != null) {
+                    IJRoi3D newRoi = this.roi.duplicate().setIs2D(is2D).translate(new SimpleOffset(0, 0, z));
+                    return new Region(newRoi, label, new MutableBoundingBox(bounds).setzMin(z).setzMax(z), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                } else if (voxels!=null) {
+                    Set<Voxel> vox = voxels.stream().map(v -> new Voxel(v.x, v.y, z)).collect(Collectors.toSet());
+                    return new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
+                } else {
+                    ImageInteger<?> newMask;
+                    if (mask instanceof ImageInteger) newMask = ((ImageInteger<?>) mask).duplicate();
+                    else newMask = getMaskAsImageInteger();
+                    if (newMask.sizeZ()>1) throw new RuntimeException("2D object with 3D mask");
+                    newMask.translate(0, 0, z - newMask.zMin());
+                    return new Region(newMask, label, false).setIsAbsoluteLandmark(absoluteLandmark);
                 }
-                Region res = new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
-                res.clearVoxels();
-                return res;
+            }
+        } else { // 3D
+            BoundingBox bds = getBounds();
+            if (z < bds.zMin() || z > bds.zMax()) return null;
+            Point newCenter = center == null ? null : (return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z) );
+            if (roi != null) {
+                IJRoi3D newROI = roi.duplicateZ(z);
+                if (!return2D) newROI.setIs2D(false).translate(new SimpleOffset(0, 0, z));
+                Region r = new Region(newROI, label, new MutableBoundingBox(bounds).setzMin(0).setzMax(0), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                r.clearRoi(); // creates mask
+                if (r.size()==0) return null;
+                r.resetMask(); // so that bounding box corresponds to mask
+                r.clearMask(); // creates ROI
+                return r;
+            } else if (mask != null) {
+                ImageInteger<?> newMask;
+                if (mask instanceof ImageInteger) {
+                    newMask = ((ImageInteger<?>)mask).splitZPlanes(z, z).get(0).duplicate();
+                } else {
+                    newMask = TypeConverter.toByteMaskZ(mask, null, 1, z);
+                }
+                if (return2D) newMask.translate(0, 0, -z);
+                Region r = new Region(newMask, label, return2D).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                if (r.size() == 0) return null;
+                r.resetMask(); // so that bounding box corresponds to mask
+                return r;
+            } else {
+                int newZ = return2D ? 0 : z;
+                Set<Voxel> vox = getVoxels().stream().filter(v -> v.z == z).map(v -> new Voxel(v.x, v.y, newZ)).collect(Collectors.toSet());
+                if (vox.isEmpty()) return null;
+                return new Region(vox, label, return2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
             }
         }
     }
@@ -225,7 +248,7 @@ public class Region {
     public Region duplicate() {
         return duplicate(true);
     }
-    
+
     public int getLabel() {
         return label;
     }
@@ -1028,6 +1051,7 @@ public class Region {
 
     public Region getIntersection(Region other) {
         ImageMask mask = getIntersectionMask(other);
+        if (mask == null) return null;
         return new Region(mask, 1, is2D() && other.is2D()).setIsAbsoluteLandmark(isAbsoluteLandMark());
     }
 
@@ -1057,6 +1081,7 @@ public class Region {
      * @return overlap (in voxels) between this region and {@param other}
      */
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther, double overlapLimit) {
+        if (other == null) return 0;
         if (other instanceof Analytical) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
         BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
         BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);

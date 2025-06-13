@@ -19,7 +19,7 @@ import static bacmman.configuration.parameters.PythonConfiguration.toSnakeCase;
 public class TrainingConfigurationParameter extends GroupParameterAbstract<TrainingConfigurationParameter> implements PythonConfiguration {
     TrainingParameter trainingParameters;
     GlobalDatasetParameters globalDatasetParameters;
-    SimpleListParameter<DatasetParameter> datasetList;
+    SimpleListParameter<? extends DatasetParameter> datasetList;
     BooleanParameter testConstantView;
     ArrayNumberParameter testInputShape;
     GroupParameter testDataAug;
@@ -106,7 +106,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return this;
     }
 
-    protected TrainingConfigurationParameter(String name, TrainingParameter tp, GlobalDatasetParameters gdp,  SimpleListParameter<DatasetParameter> dl, Parameter[] otherParameters, GroupParameter testDataAug) {
+    protected TrainingConfigurationParameter(String name, TrainingParameter tp, GlobalDatasetParameters gdp,  SimpleListParameter<? extends DatasetParameter> dl, Parameter[] otherParameters, GroupParameter testDataAug) {
         super(name);
         this.trainingParameters = tp.duplicate();
         this.globalDatasetParameters = gdp.duplicate();
@@ -180,7 +180,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return globalDatasetParameters;
     }
 
-    public SimpleListParameter<DatasetParameter> getDatasetList() {
+    public SimpleListParameter<? extends DatasetParameter> getDatasetList() {
         return datasetList;
     }
 

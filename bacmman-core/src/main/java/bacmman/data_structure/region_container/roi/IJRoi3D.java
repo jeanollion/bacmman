@@ -182,6 +182,13 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
         super.forEach((z, r)->res.put(z, (Roi)r.clone()));
         return res;
     }
+
+    public IJRoi3D duplicateZ(int z) {
+        IJRoi3D res = new IJRoi3D(1).setIs2D(true).setFrame(frame).setLocDelta(locdx, locdy);
+        res.put(0, (Roi)get(z).clone());
+        return res;
+    }
+
     public int sizeZ() {
         return (int)keySet().stream().filter(z->z>=0).count();
     }

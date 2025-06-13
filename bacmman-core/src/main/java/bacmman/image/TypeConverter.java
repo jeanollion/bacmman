@@ -271,6 +271,25 @@ public class TypeConverter {
         return output;
     }
 
+    public static ImageByte toByteMaskZ(ImageMask image, ImageByte output, int value, int z) {
+        BoundingBox targetBounds = new MutableBoundingBox(image).setzMin(z).setzMax(z);
+        if (output==null || !output.sameDimensions(targetBounds) ) output = new ImageByte(image.getName(), new SimpleImageProperties(targetBounds, image.getScaleXY(), image.getScaleZ()));
+        if (value>255) value = 255;
+        if (value<0) value = 0;
+        byte  v = (byte)value;
+        byte[][] newPixels = output.getPixelArray();
+        if (image instanceof BlankMask) {
+            Arrays.fill(newPixels[0], (byte)value);
+        } else {
+            if (BoundingBox.containsZ(image, z)) {
+                for (int xy = 0; xy < image.sizeXY(); ++xy) {
+                    if (image.insideMask(xy, z)) newPixels[0][xy] = v;
+                }
+            }
+        }
+        return output;
+    }
+
     public static <T extends Image<T>> T convert(Image source, T output, boolean forceCopy) {
         if (forceCopy && source.getClass().equals(output.getClass())) return ((T)source.duplicate(source.getName()));
         else return cast(source, output);

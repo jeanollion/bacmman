@@ -58,7 +58,7 @@ public class IntensityMeasurementCore {
     }
     public IntensityMeasurements getIntensityMeasurements(Region o) {
         if (z>=0) {
-            return new IntensityMeasurements(o.intersectWithZPlane(z));
+            return new IntensityMeasurements(o.intersectWithZPlane(z, false));
         }
         return values.get(o);
     }

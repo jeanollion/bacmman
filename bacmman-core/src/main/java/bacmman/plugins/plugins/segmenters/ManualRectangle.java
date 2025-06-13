@@ -31,7 +31,7 @@ public class ManualRectangle implements SegmenterNoRelabel, TrackerSegmenter, Hi
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         List<BoundingBox> bounds = objects.getActivatedChildren().stream()
                 .map(bds -> bds.withinFrameWindow(parent.getFrame()) ? bds.getBoundingBox(parent.getBounds()) : null).collect(Collectors.toList());
-        boolean is2D = parent.is2D();
+        boolean is2D = parent.getExperimentStructure().is2D(objectClassIdx, parent.getPositionName());
         List<Region> regions = IntStream.range(0, bounds.size()).mapToObj(i -> bounds.get(i)==null ? null : new Region(new BlankMask(bounds.get(i), parent.getScaleXY(), parent.getScaleZ()), i+1, is2D)).filter(Objects::nonNull).collect(Collectors.toList());
         return new RegionPopulation(regions, parent.getMaskProperties());
     }

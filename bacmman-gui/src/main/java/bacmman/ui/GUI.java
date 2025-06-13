@@ -1987,7 +1987,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     
     private boolean checkConnection() {
         if (this.db==null) {
-            log("Open Experiment first (GUI:"+hashCode());
+            log("Open Experiment first (GUI:"+hashCode()+")");
             return false;
         } else return true;
     }
