@@ -256,7 +256,7 @@ public class SegmentedObjectEditor {
             Set<SegmentedObject> toRemove = new HashSet<>();
             Map<SegmentedObject, List<SegmentedObject>> mergeOperations = new HashMap<>();
             objectsByParent.keySet().stream().forEach( parent -> {
-                List<SegmentedObject> objectsToMerge = new ArrayList<>(objectsByParent.get(parent));
+                List<SegmentedObject> objectsToMerge = objectsByParent.get(parent).stream().distinct().collect(Collectors.toList());
                 Collections.sort(objectsToMerge); // final object = lowest label
                 //logger.debug("merge @ {} : {} objects", parent, objectsToMerge.size());
                 if (objectsToMerge.size() <= 1) {}//logger.warn("Merge Objects: select several objects from same parent!");}

@@ -220,6 +220,10 @@ public class ExperimentStructure {
         return xp.getObjectColors();
     }
 
+    public boolean is2D(int objectClassIdx, String positionName) {
+        return xp.getStructure(objectClassIdx).is2D(positionName);
+    }
+
     public boolean allowMerge(int objectClassIdx) {
         return xp.getStructure(objectClassIdx).allowMerge();
     }

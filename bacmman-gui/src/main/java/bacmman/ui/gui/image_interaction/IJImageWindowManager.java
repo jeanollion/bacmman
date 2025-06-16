@@ -269,7 +269,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                         RegionPopulation pop = ObjectDisplay.getObjectList(selectedParentObjects).stream()
                                 .filter(p -> !Utils.streamIsNullOrEmpty(p.getChildren(getInteractiveObjectClass())) )
                                 .map(p -> p.getChildRegionPopulation(getInteractiveObjectClass())).findAny().orElse(null);
-                        boolean is2D = pop == null ? selectedParentObjects.get(0).object.is2D() : pop.getRegions().get(0).is2D();
+                        SegmentedObject po = selectedParentObjects.get(0).object;
+                        boolean is2D = pop == null ? po.getExperimentStructure().is2D(getInteractiveObjectClass(), po.getPositionName()) : pop.getRegions().get(0).is2D();
                         roi.setIs2D(is2D);
                         int z = is2D ? 0 : ip.getZ() - 1;
                         roi.put(z, r);
@@ -285,7 +286,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                 parent.dao.delete(l, true, true, GUI.getInstance().getManualEditionRelabel());
                                 removeObjects(l, false); // delete from windows manager cache
                             };
-
+                            SegmentedObject newObject;
                             if (brush) {
                                 Region brushRegion = new Region(roi.duplicate(), 1, roi.getBounds().duplicate(), parent.getScaleXY(), parent.getScaleZ());
                                 Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
@@ -298,8 +299,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                             .filter(o -> o.getRegion().intersect(brushRegion))
                                             .forEach(o -> brushRegion.remove(o.getRegion()));
                                     }
-                                    if (brushRegion.size()>0) toDisplay.addAll(FreeLineSegmenter.createSegmentedObject(brushRegion, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store));
-                                    else logger.error("brush has generated empty object");
+                                    if (brushRegion.size()>0) {
+                                        newObject = FreeLineSegmenter.createSegmentedObject(brushRegion, parent, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
+                                        toDisplay.add(newObject);
+                                    } else {
+                                        newObject = null;
+                                        logger.error("brush has generated empty object");
+                                    }
                                 } else { // eraser
                                     //logger.debug("Eraser: children of {} are {}", parent, parent.getChildren(interactiveObjectClassIdx).map(o -> o+"="+o.getBounds()).collect(Collectors.toList()));
                                     brushRegion.translate(parent.getBounds());
@@ -363,12 +369,24 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                         logger.error("EMPTY CHILDREN REMAINING IN PARENT={}: {}", parent,  Arrays.stream(nullObjects).map(o -> o+" Area:"+o.getBounds()).collect(Collectors.toList()));
                                         factory.removeFromParent(nullObjects);
                                     }
+                                    newObject = null;
                                 }
                             } else {
                                 FloatPolygon p = r.getInterpolatedPolygon(-1, true);
-                                toDisplay.addAll(FreeLineSegmenter.segment(parent, parentOffset, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), ip.getZ() - 1, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store));
+                                newObject = FreeLineSegmenter.segment(parent, parentOffset, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), ip.getZ() - 1, getInteractiveObjectClass(), GUI.getInstance().getManualEditionRelabel(), store);
+                                toDisplay.add(newObject);
                             }
-
+                            if (newObject != null && !newObject.is2D() && freeHandDrawMerge) { // also add touching objects on adjacent slices
+                                BoundingBox newObjectBds = newObject.getBounds();
+                                parent.getChildren(newObject.getStructureIdx())
+                                        .filter( c -> !c.equals(newObject) && BoundingBox.intersect2D(c.getBounds(), newObjectBds)
+                                                && (BoundingBox.containsZ(c.getBounds(), newObjectBds.zMin() - 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMin()-1, true)) || BoundingBox.containsZ(c.getBounds(), newObjectBds.zMax() + 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMax()+1, true))) )
+                                        .forEach(c -> {
+                                            logger.debug("object touching in Z: {}", c);
+                                            toDisplay.add(c);
+                                            selectedObjects.add(i.toObjectDisplay(c, sliceIdx));
+                                        });
+                            }
                         }
                         if (freeHandErase) {
                             if (!displayObjectClasses && (!toDisplay.isEmpty() || erasedObjects)) {

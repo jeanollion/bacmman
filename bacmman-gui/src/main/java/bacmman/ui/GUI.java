@@ -1987,7 +1987,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     
     private boolean checkConnection() {
         if (this.db==null) {
-            log("Open Experiment first (GUI:"+hashCode());
+            log("Open Experiment first (GUI:"+hashCode()+")");
             return false;
         } else return true;
     }
@@ -4178,8 +4178,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!checkConnection()) return;
         if (db.isConfigurationReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        ManualEdition.prune(db, sel, SegmentedObjectEditor.ALWAYS_MERGE(), relabel.getSelected(), true);
-        logger.debug("prune: {}", Utils.toStringList(sel));
+        if (sel.size()<=10 || Utils.promptBoolean("Prune tracks from "+sel.size()+ " selected objects ? ", null)) ManualEdition.prune(db, sel, SegmentedObjectEditor.ALWAYS_MERGE(), relabel.getSelected(), true);
     }
     
     private void compactLocalDBMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_compactLocalDBMenuItemActionPerformed
@@ -4920,7 +4919,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             logger.warn("Select at least one object to modify its links");
             return;
         }
-        ManualEdition.resetObjectLinks(db, sel, true);
+        if (sel.size()<=20 || Utils.promptBoolean("Reset links for "+sel.size()+ " objects ? ", null)) ManualEdition.resetObjectLinks(db, sel, true);
     }//GEN-LAST:event_resetLinksButtonActionPerformed
 
     private void unlinkObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_unlinkObjectsButtonActionPerformed
@@ -4931,14 +4930,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 logger.warn("Select at least one track to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinksTracks(db, sel, true, true, true);
+            if (sel.size()<=10 || Utils.promptBoolean("Unlink "+sel.size()+ " tracks ? ", null)) ManualEdition.modifyObjectLinksTracks(db, sel, true, true, true);
         } else {
             List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
             if (sel.isEmpty()) {
                 logger.warn("Select at least one object to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinks(db, sel, true, true, true);
+            if (sel.size()<=20 || Utils.promptBoolean("Unlink "+sel.size()+ " objects ? ", null)) ManualEdition.modifyObjectLinks(db, sel, true, true, true);
         }
     }//GEN-LAST:event_unlinkObjectsButtonActionPerformed
 
@@ -4950,14 +4949,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 logger.warn("Select at least one track to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinksTracks(db, sel, false, true, true);
+            if (sel.size()<=10 || Utils.promptBoolean("Link "+sel.size()+ " tracks ? ", null)) ManualEdition.modifyObjectLinksTracks(db, sel, false, true, true);
         } else {
             List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
             if (sel.isEmpty()) {
                 logger.warn("Select at least one object to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinks(db, sel, false, true, true);
+            if (sel.size()<=20 || Utils.promptBoolean("Link "+sel.size()+ " objects ? ", null)) ManualEdition.modifyObjectLinks(db, sel, false, true, true);
         }
     }//GEN-LAST:event_linkObjectsButtonActionPerformed
 
@@ -4970,14 +4969,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 logger.warn("Select at least one track to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinksTracks(db, sel, false, false, true);
+            if (sel.size()<=10 || Utils.promptBoolean("Link "+sel.size()+ " tracks ? ", null)) ManualEdition.modifyObjectLinksTracks(db, sel, false, false, true);
         } else {
             List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
             if (sel.isEmpty()) {
                 logger.warn("Select at least one object to modify its links");
                 return;
             }
-            ManualEdition.modifyObjectLinks(db, sel, false, false, true);
+            if (sel.size()<=20 || Utils.promptBoolean("Link "+sel.size()+ " objects ? ", null)) ManualEdition.modifyObjectLinks(db, sel, false, false, true);
         }
     }//GEN-LAST:event_appendLinkObjectsButtonActionPerformed
 
@@ -5000,7 +4999,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         logger.info("delete: evt source {}, evt: {}, ac: {}, param: {}", evt.getSource(), evt, evt.getActionCommand(), evt.paramString());
         //if (db.isReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
-        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE(), relabel.getSelected(), true);
+        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE(), relabel.getSelected(), true);
     }//GEN-LAST:event_deleteObjectsButtonActionPerformed
 
     private void deleteObjectsButtonMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_deleteObjectsButtonMousePressed
@@ -5017,15 +5016,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action delAfter = new AbstractAction("Delete All objects after first selected object") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    ManualEdition.deleteAllObjectsFromFrame(db, true);
-                    logger.debug("will delete all after");
+                    if (Utils.promptBoolean("Delete all objects after selected object ?", null)) ManualEdition.deleteAllObjectsFromFrame(db, true);
+
                 }
             };
             Action delBefore = new AbstractAction("Delete All objects before first selected object") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    ManualEdition.deleteAllObjectsFromFrame(db, false);
-                    logger.debug("will delete all after");
+                    if (Utils.promptBoolean("Delete all objects before selected object ?", null)) ManualEdition.deleteAllObjectsFromFrame(db, false);
                 }
             };
             menu.add(prune);

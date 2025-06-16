@@ -1158,8 +1158,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (children==null) children = Stream.empty();
         List<Region> regions = children.map(SegmentedObject::getRegion).collect(Collectors.toList());
         ImageProperties ip = this.getMaskProperties();
-        if (!regions.isEmpty()) {
-            if (regions.get(0).is2D() && ip.sizeZ()>1) ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
+        boolean is2D;
+        if (!regions.isEmpty()) is2D = regions.get(0).is2D();
+        else is2D = getExperimentStructure().is2D(structureIdx, getPositionName());
+        if (is2D && ip.sizeZ()>1) ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
+        else if (!is2D) { // ensure sizeZ corresponds
+            int sizeZ = getExperimentStructure().sizeZ(getPositionName(), getExperimentStructure().getChannelIdx(structureIdx));
+            if (ip.sizeZ() != sizeZ) ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), sizeZ, ip.getScaleXY(), ip.getScaleZ());
         }
         return new RegionPopulation(regions, ip);
     }

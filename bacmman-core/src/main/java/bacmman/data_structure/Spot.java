@@ -153,18 +153,24 @@ public class Spot extends Region implements Analytical {
             return equation(p.get(0), p.get(1), p.get(2))<=1;
         }
     }
-    @Override
-    public Spot intersectWithZPlane(int z) {
-        Spot res = new Spot(center.duplicate().translate(new Voxel(0, 0, z - center.zMin())), radius, 0, intensity, label, false, scaleXY, scaleZ);
-        res.setIsAbsoluteLandmark(absoluteLandmark);
-        return res;
-    }
 
     @Override
     public Spot duplicate(boolean duplicateVoxels) {
         Spot res = new Spot(center.duplicate(), radius, aspectRatioZ, intensity, label, is2D, scaleXY, scaleZ);
         res.setQuality(quality);
         res.setIsAbsoluteLandmark(absoluteLandmark);
+        return res;
+    }
+
+    @Override
+    public Spot intersectWithZPlane(int z, boolean return2D) {
+        if (is2D() && return2D) return duplicate(true);
+        if (!is2D() && BoundingBox.containsZ(getBounds(), z)) return null;
+        double newRadius = z == center.zMin() ? radius : Math.sqrt(radius*radius - (aspectRatioZ==0?0:Math.pow((z-center.zMin())/aspectRatioZ, 2))) ;
+        if (newRadius <= 0) return null;
+        Point newCenter = return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z);
+        Spot res = new Spot(newCenter, newRadius, 0, intensity, label, return2D, scaleXY, scaleZ);
+        res.setQuality(quality).setIsAbsoluteLandmark(absoluteLandmark);
         return res;
     }
 
@@ -298,6 +304,7 @@ public class Spot extends Region implements Analytical {
 
     @Override
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther, double overlapLimit) {
+        if (other == null) return 0;
         return Analytical.getOverlapArea(this, other, offset, offsetOther, overlapLimit);
     }
 

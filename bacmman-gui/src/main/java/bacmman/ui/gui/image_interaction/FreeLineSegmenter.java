@@ -24,7 +24,7 @@ import java.util.stream.IntStream;
 
 public class FreeLineSegmenter {
     public final static Logger logger = LoggerFactory.getLogger(FreeLineSegmenter.class);
-    public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, int[] xContour, int[] yContour, int z, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
+    public static SegmentedObject segment(SegmentedObject parent, Offset parentOffset, int[] xContour, int[] yContour, int z, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (xContour.length!=yContour.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
         Offset revOff = new SimpleOffset(parentOffset).reverseOffset(); // translate to offset relative to parent
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
@@ -37,10 +37,10 @@ public class FreeLineSegmenter {
                 n.setPixels(v, pop.getLabelMap(), null);
                 return ArrayUtil.stream(n.getPixelValues()).filter(d->d>0).distinct().mapToInt(d->(int)d).toArray();
             };
-            int[] n1 = getTouchingLabels.apply(new Voxel(xContour[0], yContour[0], 0).translate(revOff));
+            int[] n1 = getTouchingLabels.apply(new Voxel(xContour[0], yContour[0], z).translate(revOff));
             logger.debug("touching labels 1: {}", n1);
             if (n1.length==1) {
-                int[] n2 = getTouchingLabels.apply(new Voxel(xContour[xContour.length-1], yContour[xContour.length-1], 0).translate(revOff));
+                int[] n2 = getTouchingLabels.apply(new Voxel(xContour[xContour.length-1], yContour[xContour.length-1], z).translate(revOff));
                 logger.debug("touching labels 2: {}", n2);
                 if (n2.length==1 && n2[0]==n1[0]) modifyObjectLabel = n1[0];
                 else modifyObjectLabel = 0;
@@ -49,15 +49,15 @@ public class FreeLineSegmenter {
         Set<Voxel> voxels = IntStream.range(0, xContour.length).mapToObj(i->new Voxel(xContour[i], yContour[i], z)).map(v->v.translate(revOff)).collect(Collectors.toSet());
         if (modifyObjectLabel==0) { // create a new object
             if (!isClosed) { // close the object by tracing a line between 2 extremities
-                Point start = new Point(xContour[0], yContour[0]).translate(revOff);
-                Point end = new Point(xContour[xContour.length - 1], yContour[xContour.length - 1]).translate(revOff);
+                Point start = new Point(xContour[0], yContour[0], z).translate(revOff);
+                Point end = new Point(xContour[xContour.length - 1], yContour[xContour.length - 1], z).translate(revOff);
                 Vector dir = Vector.vector(start, end).normalize().multiply(0.5);
                 while (start.distSq(end) > 1) {
                     start.translate(dir);
                     voxels.add(start.asVoxel());
                 }
             }
-            boolean is2D = pop.getRegions().isEmpty() ? parent.is2D() : pop.getRegions().get(0).is2D();
+            boolean is2D = pop.getRegions().isEmpty() ? parent.getExperimentStructure().is2D(objectClassIdx, parent.getPositionName()) : pop.getRegions().get(0).is2D();
             if (is2D) voxels.forEach(v -> v.z = 0);
             Region r = new Region(voxels, pop.getRegions().size() + 1, is2D, pop.getImageProperties().getScaleXY(), pop.getImageProperties().getScaleZ());
             r.ensureMaskIsImageInteger();
@@ -66,14 +66,14 @@ public class FreeLineSegmenter {
             FillHoles2D.fillHoles(mask, 2);
             //Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
             //logger.debug("region size {} bb: {}", r.size(), r.getBounds());
-            ImageMask parentMask = parent.getMask();
+            ImageMask parentMask = !is2D && parent.is2D()  ? new ImageMask2D(parent.getMask()) : parent.getMask();
             ImageInteger previousLabels = pop.getLabelMap();
             r.loop((x, y, zz) -> {
                 if (!parentMask.contains(x, y, zz) || !parentMask.insideMask(x, y, zz) || (!allowOverlap && previousLabels.insideMask(x, y, zz))) mask.setPixelWithOffset(x, y, zz, 0);
             });
             r.clearMask();
             //logger.debug("region size after overlap with other objects {}", r.size());
-            if (r.getVoxels().isEmpty()) return Collections.emptyList();
+            if (r.getVoxels().isEmpty()) return null;
             return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         } else { // close the object using border of touching object
             Region rOld = pop.getRegions().stream().filter(rr->rr.getLabel()==modifyObjectLabel).findAny().get();
@@ -100,13 +100,17 @@ public class FreeLineSegmenter {
         }
     }
 
-    public static Collection<SegmentedObject> createSegmentedObject(Region r, SegmentedObject parent, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
+    public static SegmentedObject createSegmentedObject(Region r, SegmentedObject parent, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (!r.isAbsoluteLandMark()) {
             r.translate(parent.getBounds());
             r.setIsAbsoluteLandmark(true);
         }
         if (!BoundingBox.isIncluded(r.getBounds(), parent.getBounds())) {
             r = r.getIntersection(parent.getRegion());
+            if (r == null) {
+                logger.debug("cannot create object : no intersection with parent mask");
+                return null;
+            }
         }
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         SegmentedObject so = new SegmentedObject(parent.getFrame(), objectClassIdx, r.getLabel() - 1, r, parent);
@@ -135,9 +139,7 @@ public class FreeLineSegmenter {
             factory.setChildren(parent, children);
         }
         saveToDB.accept(modified);
-        return new ArrayList<SegmentedObject>() {{
-            add(so);
-        }};
+        return so;
     }
 
     private static SegmentedObjectFactory getFactory(int objectClassIdx) {

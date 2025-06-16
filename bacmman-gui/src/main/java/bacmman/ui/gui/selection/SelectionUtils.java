@@ -54,6 +54,7 @@ public class SelectionUtils {
     public static final Logger logger = LoggerFactory.getLogger(SelectionUtils.class);
 
     public static boolean validSelectionName(MasterDAO db, String name, boolean ignoreDuplicate, boolean prompteOverwriteDuplicate) {
+        if (name == null) return false;
         if (!Utils.isValid(name, false)) {
             logger.error("Selection name should not contain special characters");
             if (GUI.hasInstance()) GUI.getInstance().setMessage("Selection name should not contain special characters");
