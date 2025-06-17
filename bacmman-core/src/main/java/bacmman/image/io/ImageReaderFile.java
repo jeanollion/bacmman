@@ -196,7 +196,10 @@ public class ImageReaderFile implements ImageReader {
     }
 
     public Image openImage(ImageIOCoordinates coords) throws IOException {
-        if (reader==null) throw new IOException("Reader not initialized");
+        if (reader==null) {
+            if (!imageExists()) throw new IOException("Image not found: "+getImagePath());
+            else throw new IOException("Reader not initialized");
+        }
         Image res = null;
         /*if (reader==null && extension==ImageFormat.TIF) { // try IJ's method
             res = ImageReader.openIJTif(fullPath);
