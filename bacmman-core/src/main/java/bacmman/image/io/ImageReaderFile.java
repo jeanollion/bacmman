@@ -477,7 +477,7 @@ public class ImageReaderFile implements ImageReader {
     }
 
     public static Image openImage(String filePath, ImageIOCoordinates ioCoords, boolean invertTZ, byte[][] buffer) throws IOException {
-        if (filePath.toLowerCase().endsWith(".tif") || filePath.toLowerCase().endsWith(".tiff")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
+        if ((filePath.toLowerCase().endsWith(".tif") || filePath.toLowerCase().endsWith(".tiff")) && !filePath.toLowerCase().endsWith(".ome.tiff")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
             if (ioCoords.getSerie()==0 && ioCoords.getChannel()==0 && ioCoords.getTimePoint()==0) { // this only works when
                 int[] slices = ioCoords.getBounds()==null ? null : ArrayUtil.generateIntegerArray(ioCoords.getBounds().zMin(), ioCoords.getBounds().zMax()+1);
                 //long t0 = System.currentTimeMillis();
@@ -501,7 +501,7 @@ public class ImageReaderFile implements ImageReader {
         long t2 = System.currentTimeMillis();
         reader.closeReader();
         long t3 = System.currentTimeMillis();
-        logger.debug("opening with image reader : init {}ms, open: {}ms, close: {}ms", t1-t0, t2-t1, t3-t2);
+        //logger.debug("opening with image reader : init {}ms, open: {}ms, close: {}ms", t1-t0, t2-t1, t3-t2);
         return im;
     }
     public static Pair<int[][], double[]> getImageInfo(String filePath) {

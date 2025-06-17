@@ -32,7 +32,8 @@ public class DefaultEngine implements DLEngine {
     @Override
     public void init() {
         if (this.engine == null) {
-            DLEngine engine = DLEngineProvider.getDefaultEngine();
+            Experiment xp = ParameterUtils.getExperiment(this.modelFile);
+            DLEngine engine = DLEngineProvider.getDefaultEngine(xp);
             if (engine == null)
                 throw new RuntimeException("No Default DL Engine defined. Define it in menu Option > Default DL Engine");
             // parametrize
@@ -40,7 +41,6 @@ public class DefaultEngine implements DLEngine {
             if (inputNumber >= 0) engine.setInputNumber(inputNumber);
             if (outputNumber >= 0) engine.setOutputNumber(outputNumber);
             // share instance
-            Experiment xp = ParameterUtils.getExperiment(this.modelFile);
             if (xp == null) this.engine = engine;
             else {
                 DLEngineProvider dlEngineProvider = xp.getDLengineProvider();
