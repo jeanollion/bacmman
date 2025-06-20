@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  */
 public class ParentThresholder implements Thresholder {
     public ParentObjectClassParameter parent = new ParentObjectClassParameter("Run Thresholder On Parent:").setAutoConfiguration(ParentObjectClassParameter.defaultAutoConfigurationParent());
-    public ParentObjectClassParameter structureIdx = new ParentObjectClassParameter("Run Thresholder On Image:").setAutoConfiguration((p)->{int s = ObjectClassParameter.structureInParents().applyAsInt(p); p.setMaxStructureIdx(s+1); p.setSelectedIndex(s);}).setAllowNoSelection(false);
+    public ParentObjectClassParameter structureIdx = new ParentObjectClassParameter("Run Thresholder On Image:").setAutoConfiguration((p)->{int s = ObjectClassParameter.objectClassInParents().applyAsInt(p); p.setMaxStructureIdx(s+1); p.setSelectedIndex(s);}).setAllowNoSelection(false);
     public BooleanParameter runThresholderOnWholeTrack = new BooleanParameter("Run On:", "Whole Track", "Each Object Separately", true);
     public PluginParameter<Thresholder> thresholder = new PluginParameter("Thresholder", Thresholder.class, false);
     public PluginParameter<ThresholderHisto> thresholderHisto = new PluginParameter("Thresholder", ThresholderHisto.class, false);

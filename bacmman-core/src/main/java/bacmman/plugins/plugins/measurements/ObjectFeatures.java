@@ -49,9 +49,8 @@ public class ObjectFeatures implements Measurement, Hint {
             .setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
             .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
-                if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityStructure(structure.getSelectedClassIdx());
-                // TODO find a way to set name as default name ...
-            });;
+                if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityObjectClass(structure.getSelectedClassIdx());
+            });
     SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");
     enum MODE_3D {ALL_PLANES, SINGLE_PLANE, CENTER_PLANE}
@@ -68,11 +67,11 @@ public class ObjectFeatures implements Measurement, Hint {
     public ObjectFeatures() {
         features.addNewInstanceConfiguration(pp -> {
             pp.addListener( s -> {
-                TextParameter tp = ((TextParameter)s.getAdditionalParameters().get(0));
+                TextParameter tp = s.getAdditionalParameter(TextParameter.class);
                 if (s.isOnePluginSet()) tp.setValue(s.instantiatePlugin().getDefaultName());
                 else tp.setValue("");
             });
-            ((TextParameter)pp.getAdditionalParameters().get(0)).addValidationFunction((t)-> t.getValue().length()>0);
+            pp.getAdditionalParameter(TextParameter.class).addValidationFunction((t)-> !t.getValue().isEmpty());
         });
     }
 
@@ -85,10 +84,10 @@ public class ObjectFeatures implements Measurement, Hint {
         for (ObjectFeature f : features) {
             if (f instanceof IntensityMeasurement) { // autoconfiguration of intensity measurements
                 IntensityMeasurement im = ((IntensityMeasurement)f);
-                if (im.getIntensityStructure()<0) im.setIntensityStructure(structure.getSelectedClassIdx());
+                if (im.getIntensityChannel()<0) im.setIntensityObjectClass(structure.getSelectedClassIdx());
             }
             PluginParameter<ObjectFeature> dup = def.duplicate().setPlugin(f);
-            ((TextParameter)dup.getAdditionalParameters().get(0)).setValue(f.getDefaultName());
+            dup.getAdditionalParameter(TextParameter.class).setValue(f.getDefaultName());
             this.features.insert(dup);
         }
         return this;
@@ -96,7 +95,7 @@ public class ObjectFeatures implements Measurement, Hint {
     public ObjectFeatures addFeature(ObjectFeature feature, String key) {
         PluginParameter<ObjectFeature> f = def.duplicate().setPlugin(feature);
         this.features.insert(f);
-        ((TextParameter)f.getAdditionalParameters().get(0)).setValue(key);
+        f.getAdditionalParameter(TextParameter.class).setValue(key);
         return this;
     }
     public ObjectFeatures addPreFilter(PreFilter... prefilters) {
@@ -114,7 +113,7 @@ public class ObjectFeatures implements Measurement, Hint {
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res=  new ArrayList<>(features.getChildCount());
-        for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) res.add(new MeasurementKeyObject(((TextParameter)ofp.getAdditionalParameters().get(0)).getValue(), structure.getSelectedIndex()));
+        for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) res.add(new MeasurementKeyObject(ofp.getAdditionalParameter(TextParameter.class).getValue(), structure.getSelectedIndex()));
         return res;
     }
     @Override
@@ -134,25 +133,30 @@ public class ObjectFeatures implements Measurement, Hint {
                         });
                 }
                 if (feature instanceof IntensityMeasurement && mode3D.getSelectedEnum().equals(MODE_3D.CENTER_PLANE) && zMinMax[0]!=zMinMax[1]) { // compute for each plane and measure intensity
-                    //logger.debug("center intensity measurement: [{}; {}]", zMinMax[0], zMinMax[1]);
                     List<SegmentedObject> children = parent.getChildren(structureIdx).collect(Collectors.toList());
-                    double[][] measurements = new double[zMinMax[1] - zMinMax[0] + 1][children.size()];
-                    ObjectFeature fz = feature;
-                    for (int z = zMinMax[0]; z<=zMinMax[1]; ++z) {
-                        ((IntensityMeasurement) fz).limitToZ(z);
-                        fz.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
-                        ((ObjectFeatureWithCore) fz).setUpOrAddCore(cores, pf);
-                        for (int i = 0; i<measurements[z].length; ++i) {
-                            if (bacmman.image.BoundingBox.containsZ(children.get(i).getBounds(), z)) measurements[z][i] = fz.performMeasurement(children.get(i).getRegion());
+                    if (!children.isEmpty()) {
+                        double[][] measurements = new double[zMinMax[1] - zMinMax[0] + 1][children.size()];
+                        ObjectFeature fz = feature;
+                        for (int z = zMinMax[0]; z <= zMinMax[1]; ++z) {
+                            ((IntensityMeasurement) fz).limitToZ(z);
+                            fz.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
+                            ((ObjectFeatureWithCore) fz).setUpOrAddCore(cores, pf);
+                            for (int i = 0; i < measurements[z - zMinMax[0]].length; ++i) {
+                                if (bacmman.image.BoundingBox.containsZ(children.get(i).getBounds(), z)) {
+                                    double cz = children.get(i).getRegion().getCenterOrGeomCenter().get(2);
+                                    if (Math.abs(z - cz)<1) measurements[z - zMinMax[0]][i] = fz.performMeasurement(children.get(i).getRegion());
+                                }
+                            }
+                            if (z < zMinMax[1]) fz = ofp.instantiatePlugin();
                         }
-                        if (z<zMinMax[1]) fz = ofp.instantiatePlugin();
-                    }
-                    for (int i = 0; i<measurements[0].length; ++i) {
-                        double z = children.get(i).getRegion().getCenterOrGeomCenter().get(2);
-                        int z1 = (int)z;
-                        int z2 = (int)Math.ceil(z);
-                        double m = measurements[z1][i] * (z2 - z) + measurements[z2][i] * (z - z1);
-                        children.get(i).getMeasurements().setValue(((TextParameter) ofp.getAdditionalParameters().get(0)).getValue(), m);
+                        for (int i = 0; i < measurements[0].length; ++i) {
+                            double z = children.get(i).getRegion().getCenterOrGeomCenter().get(2);
+                            int z1 = (int) z;
+                            int z2 = (int) Math.ceil(z);
+                            double dZ = z - z1;
+                            double m = measurements[z1 - zMinMax[0]][i] * (1 - dZ) + measurements[z2 - zMinMax[0]][i] * dZ;
+                            children.get(i).getMeasurements().setValue(ofp.getAdditionalParameter(TextParameter.class).getValue(), m);
+                        }
                     }
                 } else {
                     if (feature instanceof IntensityMeasurement && mode3D.getSelectedEnum().equals(MODE_3D.SINGLE_PLANE))
@@ -162,7 +166,7 @@ public class ObjectFeatures implements Measurement, Hint {
                     if (feature instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore) feature).setUpOrAddCore(cores, pf);
                     parent.getChildren(structureIdx).forEach(o -> {
                         double m = feature.performMeasurement(o.getRegion());
-                        o.getMeasurements().setValue(((TextParameter) ofp.getAdditionalParameters().get(0)).getValue(), m);
+                        o.getMeasurements().setValue(ofp.getAdditionalParameter(TextParameter.class).getValue(), m);
                     });
                 }
             }

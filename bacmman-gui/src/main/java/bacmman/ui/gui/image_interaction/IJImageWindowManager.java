@@ -380,7 +380,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                 BoundingBox newObjectBds = newObject.getBounds();
                                 parent.getChildren(newObject.getStructureIdx())
                                         .filter( c -> !c.equals(newObject) && BoundingBox.intersect2D(c.getBounds(), newObjectBds)
-                                                && (BoundingBox.containsZ(c.getBounds(), newObjectBds.zMin() - 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMin()-1, true)) || BoundingBox.containsZ(c.getBounds(), newObjectBds.zMax() + 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMax()+1, true))) )
+                                                && (BoundingBox.containsZ(c.getBounds(), newObjectBds.zMin() - 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMin()-1, true, false)) || BoundingBox.containsZ(c.getBounds(), newObjectBds.zMax() + 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMax()+1, true, false))) )
                                         .forEach(c -> {
                                             logger.debug("object touching in Z: {}", c);
                                             toDisplay.add(c);

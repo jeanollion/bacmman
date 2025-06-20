@@ -180,7 +180,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
             setSelectedItem((String)json);
         } else if (json instanceof JSONArray) {
             selectedItems = JSONUtils.fromStringArray(((JSONArray)json));
-        } else logger.error("Error init: {} with {}", this, json);//else throw new IllegalArgumentException("JSON Entry is not String");
+        } else throw new IllegalArgumentException("JSON Entry is not String or String array");
     }
 
 }

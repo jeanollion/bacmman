@@ -170,9 +170,9 @@ public class Region {
      * @param return2D if true returns a 2D object, otherwise a 3D object located at slice Z
      * @return a new object that correspond to the intersection of this region with the plane, or null if intersection is empty.
      */
-    public Region intersectWithZPlane(int z, boolean return2D) {
+    public Region intersectWithZPlane(int z, boolean return2D, boolean forceDuplicate) {
         if (is2D) {
-            if (return2D) return duplicate();
+            if (return2D) return forceDuplicate ? duplicate() : this;
             else {
                 Point newCenter = center == null ? null : new Point(center.get(0), center.get(1), z);
                 if (roi != null) {
@@ -193,6 +193,7 @@ public class Region {
         } else { // 3D
             BoundingBox bds = getBounds();
             if (z < bds.zMin() || z > bds.zMax()) return null;
+            else if (z == bds.zMin() && z == bds.zMax() && !return2D) return forceDuplicate ? duplicate() : this; // already 1-slice object
             Point newCenter = center == null ? null : (return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z) );
             if (roi != null) {
                 IJRoi3D newROI = roi.duplicateZ(z);
@@ -206,7 +207,11 @@ public class Region {
             } else if (mask != null) {
                 ImageInteger<?> newMask;
                 if (mask instanceof ImageInteger) {
-                    newMask = ((ImageInteger<?>)mask).splitZPlanes(z, z).get(0).duplicate();
+                    List<ImageInteger<?>> planes = ((ImageInteger)mask).splitZPlanes(z, z);
+                    if (planes.isEmpty()) {
+                        logger.error("bounds and mask not consistent. bds:{} mask bounds: {}", getBounds(), ((ImageInteger<?>) mask).getBounds(false));
+                    }
+                    newMask = planes.get(0).duplicate();
                 } else {
                     newMask = TypeConverter.toByteMaskZ(mask, null, 1, z);
                 }

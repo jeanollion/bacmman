@@ -184,9 +184,9 @@ public class Ellipse2D extends Region implements Analytical {
     }
 
     @Override
-    public Ellipse2D intersectWithZPlane(int z, boolean return2D) {
-        if (is2D() && return2D) return duplicate(true);
-        if (!is2D() && BoundingBox.containsZ(getBounds(), z)) return null;
+    public Ellipse2D intersectWithZPlane(int z, boolean return2D, boolean forceDuplicate) {
+        if (is2D() && return2D) return forceDuplicate ? duplicate(true) : this;
+        if (!is2D() && !BoundingBox.containsZ(getBounds(), z)) return null;
         Point newCenter = return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z);
         Ellipse2D res = new Ellipse2D(newCenter, major, minor, theta, intensity, label, return2D, scaleXY, scaleZ);
         res.setQuality(quality).setIsAbsoluteLandmark(absoluteLandmark);

@@ -40,7 +40,12 @@ public class IntensityMeasurementCore {
     static int sizeLimitMedian = 512 * 512;
     Image intensityMap, transformedMap;
     Map<Region, IntensityMeasurements> values = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(IntensityMeasurements::new);
+    protected Map<Region, Region> regionMapSlice = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
+        if (getZ() >= 0 && !r.is2D()) return r.intersectWithZPlane(getZ(), false, false);
+        else return r;
+    });
     int z = -1;
+    protected int getZ() {return z;}
     public IntensityMeasurementCore limitToZ(int z) {
         this.z = z;
         return this;
@@ -57,9 +62,7 @@ public class IntensityMeasurementCore {
         return transformed ? transformedMap : intensityMap;
     }
     public IntensityMeasurements getIntensityMeasurements(Region o) {
-        if (z>=0) {
-            return new IntensityMeasurements(o.intersectWithZPlane(z, false));
-        }
+        if (z>=0 && o!=null) o = regionMapSlice.get(o);
         return values.get(o);
     }
     

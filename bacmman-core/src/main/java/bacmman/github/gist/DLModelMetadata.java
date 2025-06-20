@@ -240,7 +240,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
                 if (jsonO.containsKey("fixedSize")) fixedSize.initFromJSONEntry(jsonO.get("fixedSize"));
                 if (jsonO.containsKey("shape")) shape.initFromJSONEntry(jsonO.get("shape"));
                 if (jsonO.containsKey("is3D")) is3D.initFromJSONEntry(jsonO.get("is3D"));
-            }
+            } else throw new IllegalArgumentException("Invalid json entry");
         }
 
         @Override

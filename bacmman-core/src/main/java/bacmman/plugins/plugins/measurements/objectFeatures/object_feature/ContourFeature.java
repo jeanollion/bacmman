@@ -39,6 +39,10 @@ public class ContourFeature extends IntensityMeasurement implements Hint {
 
     @Override
     public double performMeasurement(Region object) {
+        if (z>=0) {
+            object = regionSlice.get(object);
+            if (object == null) return Double.NaN;
+        }
         switch (stat.getSelectedEnum()) {
             case MEAN:
             default:
@@ -61,6 +65,6 @@ public class ContourFeature extends IntensityMeasurement implements Hint {
         return "Statistics on intensity value at the contour of segmented objects";
     }
 
-    @Override public Parameter[] getParameters() {return new Parameter[]{intensity, statCond};}
+    @Override public Parameter[] getParameters() {return new Parameter[]{channel, statCond};}
 
 }

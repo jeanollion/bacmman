@@ -30,10 +30,13 @@ import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -42,6 +45,7 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class SNR extends IntensityMeasurement implements Hint {
+    final static Logger logger = LoggerFactory.getLogger(SNR.class);
     public enum FORMULA{AMPLITUDE_NORM_STD("(F-B)/std(B)"), AMPLITUDE("F-B");
         public final String name;
         FORMULA(String name) {
@@ -70,7 +74,7 @@ public class SNR extends IntensityMeasurement implements Hint {
     protected EnumChoiceParameter<FOREGROUND_FORMULA> foregroundFormula = new EnumChoiceParameter<>("Foreground", FOREGROUND_FORMULA.values(), FOREGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Foreground estimation method");
     protected EnumChoiceParameter<BACKGROUND_FORMULA> backgroundFormula = new EnumChoiceParameter<>("Background", BACKGROUND_FORMULA.values(), BACKGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Background estimation method");
 
-    @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, backgroundFormula, dilateExcluded, erodeBorders};}
+    @Override public Parameter[] getParameters() {return new Parameter[]{channel, backgroundStructure, formula, foregroundFormula, backgroundFormula, dilateExcluded, erodeBorders};}
     HashMap<Region, Region> foregroundMapBackground;
     Offset foregroundOffset;
     Offset parentOffsetRev;
@@ -108,22 +112,31 @@ public class SNR extends IntensityMeasurement implements Hint {
             backgroundObjects.add(parent.getRegion());
         }
         if (backgroundObjects.get(0).is2D() && !foregroundPopulation.getRegions().get(0).is2D()) { // background is 2D and foreground is 3D: make background objects 3D
-            Image raw = parent.getRawImage(getIntensityStructure());
-            int nZ = raw.sizeZ();
-            int offZ = raw.zMin();
-            backgroundObjects = backgroundObjects.stream().map(b -> {
-                ImageInteger plane = b.getMaskAsImageInteger();
-                ImageInteger<?> mask = Image.mergeZPlanes(IntStream.range(0, nZ).mapToObj(i -> plane).collect(Collectors.toList()));
-                mask.translate(0, 0, offZ);
-                Region res = new Region(mask, b.getLabel(), false).setIsAbsoluteLandmark(b.isAbsoluteLandMark());
-                //logger.debug("inflate background: {} -> {} size: {} -> {}", b.getBounds(), res.getBounds(), b.size(), res.size());
-                return res;
-            }).collect(Collectors.toList());
+            if (z<0) {
+                int nZ = parent.getExperimentStructure().sizeZ(parent.getPositionName(), getIntensityChannel());
+                backgroundObjects = backgroundObjects.stream().map(b -> {
+                    boolean dup0 = b.getMask() instanceof ImageInteger;
+                    ImageInteger plane = b.getMaskAsImageInteger();
+                    ImageInteger<?> mask = Image.mergeZPlanes(IntStream.range(0, nZ).mapToObj(i -> dup0 || i>0 ? plane.duplicate("") : plane).collect(Collectors.toList()));
+                    mask.resetOffset().translate(b.getBounds());
+                    Region res = new Region(mask, b.getLabel(), false).setIsAbsoluteLandmark(b.isAbsoluteLandMark());
+                    //logger.debug("inflate background: {} -> {} size: {} -> {}", b.getBounds(), res.getBounds(), b.size(), res.size());
+                    return res;
+                }).collect(Collectors.toList());
+            } else {
+                backgroundObjects = backgroundObjects.stream().map(b -> {
+                    ImageInteger mask  = b.getMask() instanceof ImageInteger ? ((ImageInteger)b.getMask()).duplicate("Mask") : b.getMaskAsImageInteger();
+                    mask.resetOffset().translate(b.getBounds()).translate(0, 0, z - b.getBounds().zMin());
+                    Region res = new Region(mask, b.getLabel(), false).setIsAbsoluteLandmark(b.isAbsoluteLandMark());
+                    return res;
+                }).collect(Collectors.toList());
+            }
         }
+        if (z>=0) backgroundObjects = backgroundObjects.stream().map(regionSlice::get).filter(Objects::nonNull).collect(Collectors.toList());
         double erodeRad= this.erodeBorders.getScaleXY();
-        double erodeRadZ = this.erodeBorders.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        double erodeRadZ = z<=0 ? this.erodeBorders.getScaleZ(parent.getScaleXY(), parent.getScaleZ()) : 0;
         double dilRad = this.dilateExcluded.getScaleXY();
-        double dilRadZ = this.dilateExcluded.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        double dilRadZ = z<0 ? this.dilateExcluded.getScaleZ(parent.getScaleXY(), parent.getScaleZ()) : 0;
         // assign parents to children by inclusion
         HashMapGetCreate<Region, List<UnaryPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory<>());
         for (Region o : foregroundPopulation.getRegions()) {
@@ -151,6 +164,7 @@ public class SNR extends IntensityMeasurement implements Hint {
                     if (maskErode.count()>0) mask = maskErode;
                 }
                 Region modifiedBackgroundRegion = new Region(mask, backgroundRegion.getLabel(), backgroundRegion.is2D()).setIsAbsoluteLandmark(true);
+                //if (z>=0 && modifiedBackgroundRegion.getBounds().sizeZ()>1) logger.error("error while creating bck: {} -> {}", backgroundRegion.getBounds(), modifiedBackgroundRegion.getBounds());
                 for (Pair<Region, Region> o : children) foregroundMapBackground.put(o.key, modifiedBackgroundRegion);
                 
                 //ImageWindowManagerFactory.showImage( mask);
@@ -161,11 +175,14 @@ public class SNR extends IntensityMeasurement implements Hint {
     }
     @Override
     public double performMeasurement(Region object) {
-
         if (core==null) synchronized(this) {
             if (core==null) {
                 setUpOrAddCore(null, null);
             }
+        }
+        if (z>=0) {
+            object = regionSlice.get(object);
+            if (object == null) return Double.NaN;
         }
         Region bckObject;
         if (foregroundMapBackground==null) bckObject = super.parent.getRegion();

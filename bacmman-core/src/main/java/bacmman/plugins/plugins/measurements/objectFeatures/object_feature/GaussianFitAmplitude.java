@@ -40,6 +40,10 @@ public class GaussianFitAmplitude extends IntensityMeasurement {
 
     @Override
     public double performMeasurement(Region region) {
+        if (z>=0) {
+            region = regionSlice.get(region);
+            if (region == null) return Double.NaN;
+        }
         double[] fitParams = getAmplitudes().get(region);
         if (fitParams==null) return Double.NaN;
         else return fitParams[fitParams.length - 3];
@@ -51,6 +55,6 @@ public class GaussianFitAmplitude extends IntensityMeasurement {
     }
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{intensity, fitEllipse, fitBackground, fitCenter, radius};
+        return new Parameter[]{channel, fitEllipse, fitBackground, fitCenter, radius};
     }
 }

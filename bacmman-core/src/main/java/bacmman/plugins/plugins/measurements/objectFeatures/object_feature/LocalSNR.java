@@ -20,16 +20,13 @@ package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
-import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.image.ImageByte;
 import bacmman.image.Offset;
 import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
-import bacmman.measurement.BasicMeasurements;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
-import bacmman.plugins.Plugin;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +39,7 @@ public class LocalSNR extends SNR {
     public final static Logger logger = LoggerFactory.getLogger(LocalSNR.class);
     protected BoundedNumberParameter localBackgroundRadius = new BoundedNumberParameter("Local background radius", 1, 8, 0, null).setHint("Defines the local background area, by dilating the foreground region with this radius and removing the foreground region from the dilated region");
     public static boolean debug=false;
-    @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, dilateExcluded, erodeBorders, localBackgroundRadius};}
+    @Override public Parameter[] getParameters() {return new Parameter[]{channel, backgroundStructure, formula, foregroundFormula, dilateExcluded, erodeBorders, localBackgroundRadius};}
     public LocalSNR() {}
     
     public LocalSNR(int backgroundStructureIdx) {
@@ -52,8 +49,12 @@ public class LocalSNR extends SNR {
         localBackgroundRadius.setValue(backgroundRadius);
         return this;
     }
-    @Override public double performMeasurement(final Region object) {
+    @Override public double performMeasurement(Region object) {
         if (core==null) synchronized(this) {setUpOrAddCore(null, null);}
+        if (z>=0) {
+            object = regionSlice.get(object);
+            if (object == null) return Double.NaN;
+        }
         Offset offset = object.isAbsoluteLandMark() ? new SimpleOffset(0, 0, 0) : super.parent.getBounds();
         final Region backgroundObject; 
         if (foregroundMapBackground==null) backgroundObject = super.parent.getRegion();
@@ -74,7 +75,6 @@ public class LocalSNR extends SNR {
             //Core.showImage(localBackgroundMask);
         }
         return d;
-        
     }
     
     @Override 

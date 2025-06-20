@@ -157,16 +157,19 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
                 JSONArray list = json instanceof JSONArray ? (JSONArray)json : (JSONArray)((JSONObject)json).get("list");
                 for (Object o : list) {
                     T newI = createChildInstance();
+                    newI.setParent(this); // may be necessary for initFromJSONEntry
                     newI.initFromJSONEntry(o);
                     insert(newI);
                 }
             } else { // try to init with one single element (if element was replaced by list)
                 try {
                     T newI = createChildInstance();
+                    newI.setParent(this);
                     newI.initFromJSONEntry(json);
                     insert(newI);
                 } catch (Throwable e) {
-
+                    this.bypassListeners=false;
+                    throw e;
                 }
             }
             this.bypassListeners=false;

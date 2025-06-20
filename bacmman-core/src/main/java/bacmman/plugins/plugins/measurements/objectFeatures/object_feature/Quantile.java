@@ -21,6 +21,6 @@ public class Quantile extends IntensityMeasurement {
     }
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{intensity, quantile};
+        return new Parameter[]{channel, quantile};
     }
 }

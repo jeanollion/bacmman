@@ -30,6 +30,7 @@ import bacmman.plugins.ObjectFeature;
 public abstract class SimpleObjectFeature implements ObjectFeature {
     protected SegmentedObject parent;
     protected int childStructureIdx;
+
     @Override public Parameter[] getParameters() {
         return new Parameter[0];
     }

@@ -87,6 +87,7 @@ public class BoundingBoxParameter extends ContainerParameterImpl<BoundingBoxPara
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         if (jsonEntry==null) return;
+        if (!(jsonEntry instanceof JSONArray) || ((JSONArray)jsonEntry).size()!=parameters.size()) throw new IllegalArgumentException("Invalid json entry");
         if (JSONUtils.isJSONArrayMap(jsonEntry)) JSONUtils.fromJSONArrayMap(parameters, (JSONArray)jsonEntry);
         else JSONUtils.fromJSON(parameters, (JSONArray)jsonEntry);
     }

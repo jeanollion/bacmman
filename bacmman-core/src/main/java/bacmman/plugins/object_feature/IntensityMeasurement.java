@@ -18,19 +18,21 @@
  */
 package bacmman.plugins.object_feature;
 
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PreFilterSequence;
-import bacmman.configuration.parameters.ObjectClassParameter;
+import bacmman.configuration.parameters.*;
+import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
+
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import bacmman.image.ImageMask;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SimpleObjectFeature;
+import bacmman.utils.HashMapGetCreate;
 
 /**
  *
@@ -38,38 +40,55 @@ import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Simple
  */
 public abstract class IntensityMeasurement extends SimpleObjectFeature implements ObjectFeatureWithCore {
     protected IntensityMeasurementCore core;
-    protected ObjectClassParameter intensity = new ObjectClassParameter("Intensity").setEmphasized(true).setAutoConfiguration(ObjectClassParameter.defaultAutoConfiguration()).setHint("The channel image associated to the selected object class will be used for the intensity measurement");
+    protected ChannelImageParameter channel = new ChannelImageParameter("Channel").setEmphasized(true)
+            .setLegacyParameter( (params, cp) -> {
+                ObjectClassParameter oc = (ObjectClassParameter)params[0];
+                logger.debug("channel legacy init: {} -> {} ", oc.getSelectedClassIdx(), ParameterUtils.getExperiment(cp).experimentStructure.getChannelIdx(oc.getSelectedClassIdx()));
+                cp.setChannelFromObjectClass(oc.getSelectedClassIdx());
+            },  new ObjectClassParameter("Intensity"))
+            .setAutoConfiguration( ChannelImageParameter.defaultAutoConfiguration() );
     protected Image intensityMap;
     protected int z = -1;
-    protected boolean usePreFilteredImage = false;
-    public IntensityMeasurement setIntensityStructure(int structureIdx) {
-        this.intensity.setSelectedClassIdx(structureIdx);
+    protected Map<Region, Region> regionSlice = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
+        if (z >= 0 && !r.is2D()) return r.intersectWithZPlane(z, false, false);
+        else return r;
+    });
+    public IntensityMeasurement setIntensityObjectClass(int structureIdx) {
+        this.channel.setChannelFromObjectClass(structureIdx);
         return this;
     }
-    public IntensityMeasurement setUsePreFilteredImage(boolean preFilteredImage) {
-        this.usePreFilteredImage = preFilteredImage;
+    public IntensityMeasurement setIntensityChannel(int channelIdx) {
+        this.channel.setSelectedIndex(channelIdx);
         return this;
     }
 
     public IntensityMeasurement limitToZ(int z) {
+        if (intensityMap != null) throw new RuntimeException("Limit to z should be called before setUp method");
         this.z = z;
         return this;
     }
 
     @Override
-    public int getIntensityStructure() {
-        return this.intensity.getSelectedClassIdx();
+    public int getIntensityChannel() {
+        return this.channel.getSelectedClassIdx();
     }
     @Override public IntensityMeasurement setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         super.setUp(parent, childStructureIdx, childPopulation);
+        if (z >= 0 && !childPopulation.getRegions().isEmpty() && !childPopulation.getRegions().get(0).is2D()) {
+            List<Region> regions = childPopulation.getRegions().stream()
+                    .map(regionSlice::get)
+                    .filter(Objects::nonNull).collect(Collectors.toList());
+            childPopulation.clearLabelMap();
+            childPopulation.getRegions().clear();
+            childPopulation.addObjects(regions, false);
+        }
         this.parent=parent;
-        if (intensity.getSelectedIndex()==-1) intensity.setSelectedIndex(childStructureIdx);
-        this.intensityMap=usePreFilteredImage ? parent.getPreFilteredImage(intensity.getSelectedIndex()) : parent.getRawImage(intensity.getSelectedIndex());
-        if (this.intensityMap==null) throw new RuntimeException("Could not open image of object class "+intensity.getSelectedIndex()+". Maybe experiment structure was modified after pre-processing was run ? ");
+        this.intensityMap= parent.getRawImageByChannel(channel.getSelectedIndex());
+        if (this.intensityMap==null) throw new RuntimeException("Could not open image of channel "+channel.getSelectedIndex()+". Maybe experiment structure was modified after pre-processing was run ? ");
         return this;
     }
     
-    @Override public Parameter[] getParameters() {return new Parameter[]{intensity};}
+    @Override public Parameter[] getParameters() {return new Parameter[]{channel};}
 
     @Override
     public void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> filters) {
@@ -77,9 +96,10 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         if (existingCore==null || z>=0) {
             if (core==null) {
                 core = new IntensityMeasurementCore().limitToZ(z);
+                core.regionMapSlice = regionSlice;
                 core.setUp(intensityMap, filters==null ? null : filters.apply(intensityMap, parent.getMask()));
             }
-            if (availableCores!=null && z==-1) availableCores.put(intensityMap, core);
+            if (availableCores!=null && z<0) availableCores.put(intensityMap, core); // only set if no z, for reuse
         } else core=existingCore;
     }
 }
