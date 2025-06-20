@@ -18,6 +18,11 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.experiment.Structure;
+
+import java.util.function.Consumer;
+
 /**
  *
  * @author Jean Ollion
@@ -54,6 +59,17 @@ public class ChannelImageParameter extends ObjectClassOrChannelParameter<Channel
         return this;
     }
 
+    public ChannelImageParameter setChannelFromObjectClass(int ocIdx) {
+        if (ocIdx < 0) setSelectedIndex(-1);
+        else {
+            Experiment xp = ParameterUtils.getExperiment(this);
+            if (xp != null) setSelectedIndex(xp.experimentStructure.getChannelIdx(ocIdx));
+            else
+                throw new RuntimeException("Cannot set channel from object class: no experiment found in parameter tree");
+        }
+        return this;
+    }
+
     @Override
     public String[] getChoiceList() {
         if (getXP()!=null) {
@@ -62,5 +78,14 @@ public class ChannelImageParameter extends ObjectClassOrChannelParameter<Channel
             return new String[0];
         }
     }
-    
+
+    public static <T extends ObjectClassOrChannelParameter<T>> Consumer<T> defaultAutoConfiguration() {
+        return p -> {
+            int ocIdx = objectClassInParents().applyAsInt(p);
+            if (ocIdx >= 0) {
+                Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, p, false);
+                p.setSelectedClassIdx(s.getChannelImage());
+            }
+        };
+    }
 }

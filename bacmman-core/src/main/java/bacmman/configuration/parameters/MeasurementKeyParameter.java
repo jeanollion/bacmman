@@ -74,6 +74,6 @@ public class MeasurementKeyParameter extends ParameterImpl<MeasurementKeyParamet
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        if (jsonEntry instanceof String) this.selectedKey = (String)jsonEntry;
+        this.selectedKey = (String)jsonEntry;
     }
 }

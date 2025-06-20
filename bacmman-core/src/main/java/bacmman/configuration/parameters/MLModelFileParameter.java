@@ -216,6 +216,6 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
             id.initFromJSONEntry(jsonO.get("id"));
         } else if (jsonEntry instanceof String) {
             modelFile.initFromJSONEntry(jsonEntry);
-        }
+        } else throw new IllegalArgumentException("Invalid json entry");
     }
 }

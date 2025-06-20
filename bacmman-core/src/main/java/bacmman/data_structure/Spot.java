@@ -163,10 +163,11 @@ public class Spot extends Region implements Analytical {
     }
 
     @Override
-    public Spot intersectWithZPlane(int z, boolean return2D) {
-        if (is2D() && return2D) return duplicate(true);
-        if (!is2D() && BoundingBox.containsZ(getBounds(), z)) return null;
-        double newRadius = z == center.zMin() ? radius : Math.sqrt(radius*radius - (aspectRatioZ==0?0:Math.pow((z-center.zMin())/aspectRatioZ, 2))) ;
+    public Spot intersectWithZPlane(int z, boolean return2D, boolean forceDuplicate) {
+        if (is2D() && return2D) return forceDuplicate ? duplicate(true) : this;
+        if (!is2D() && !BoundingBox.containsZ(getBounds(), z)) return null;
+        else if (!is2D() && !return2D && z==center.get(2) && aspectRatioZ == 0) return forceDuplicate ? duplicate(true) : this;
+        double newRadius = is2D() || z == center.get(2) ? radius : Math.sqrt(radius*radius - (aspectRatioZ==0?0:Math.pow((z-center.get(2))/aspectRatioZ, 2))) ;
         if (newRadius <= 0) return null;
         Point newCenter = return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z);
         Spot res = new Spot(newCenter, newRadius, 0, intensity, label, return2D, scaleXY, scaleZ);

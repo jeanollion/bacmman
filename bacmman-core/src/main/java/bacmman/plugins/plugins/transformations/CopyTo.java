@@ -58,7 +58,7 @@ public class CopyTo implements ConfigurableTransformation, MultichannelTransform
             } case INTERVAL: {
                 int[] interval = planeInterval.getValuesAsInt();
                 return im -> {
-                    Image[] ims = IntStream.range(interval[0], interval[1]).mapToObj((int idxZ) -> im.getZPlane(idxZ)).toArray(Image[]::new);
+                    Image[] ims = IntStream.range(interval[0], interval[1]).mapToObj((int idxZ) -> im.getZPlane(idxZ).duplicate()).toArray(Image[]::new);
                     return Image.mergeZPlanes(ims);
                 };
             } case AVERAGE: {

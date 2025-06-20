@@ -150,7 +150,7 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
                 currentParameter.initFromJSONEntry(jsonO.get("parameters"));
             }
             if (jsonO.get("key")!=null) key.initFromJSONEntry(jsonO.get("key"));
-        }
+        } else throw new IllegalArgumentException("Invalid JSON Entry");
     }
 
     @Override

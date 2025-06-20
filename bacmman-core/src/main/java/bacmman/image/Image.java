@@ -186,9 +186,22 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         planes = Utils.transform(planes, p -> p.getBoundingBox().resetOffset().equals(bds) ? p : p.crop(bds.duplicate().center(p.getBoundingBox().resetOffset())));
         return mergeZPlanes(planes);
     }
+    /**
+     *
+     * @param planes
+     * @return images with planes merged in Z axis. data is not duplicated when possible so changes on resulting image will change planes
+     * @param <T>
+     */
     public static <T extends Image<T>> T mergeZPlanes(T... planes) {
         return mergeZPlanes(Arrays.asList(planes));
     }
+
+    /**
+     *
+     * @param planes
+     * @return images with planes merged in Z axis. data is not duplicated when possible so changes on resulting image will change planes
+     * @param <T>
+     */
     public static <T extends Image<T>> T mergeZPlanes(List<T> planes) {
         if (planes==null || planes.isEmpty()) return null;
         int maxZ  = planes.stream().mapToInt(SimpleImageProperties::sizeZ).max().getAsInt();

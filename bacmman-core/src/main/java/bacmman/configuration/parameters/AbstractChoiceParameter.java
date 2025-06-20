@@ -165,6 +165,9 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     }
 
     // legacy init
+    V legacyInitItem;
+    Parameter[] legacyParameter;
+    BiConsumer<Parameter[], P> setValue;
 
     /**
      * When parameter cannot be initialized, this value is used as default. Useful when parametrization of a module has changed.
@@ -185,9 +188,6 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         if (legacyInitItem != null) setSelectedItem(toString.apply(legacyInitItem));
         if (legacyParameter!=null && setValue!=null) setValue.accept(legacyParameter, (P)this);
     }
-    V legacyInitItem;
-    Parameter[] legacyParameter;
-    BiConsumer<Parameter[], P> setValue;
 
     /**
      * When a parameter A of a module has been replaced by B, this methods allows to initialize B using the former value of A

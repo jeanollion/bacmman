@@ -23,7 +23,6 @@ import bacmman.configuration.experiment.Structure;
 
 import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
-import java.util.stream.IntStream;
 
 /**
  *
@@ -60,10 +59,8 @@ public abstract class ObjectClassOrChannelParameter<T extends ObjectClassOrChann
         this.autoConfiguration=autoConfiguration;
         return (T)this;
     }
-    public static <T extends ObjectClassOrChannelParameter<T>> Consumer<T> defaultAutoConfiguration() {
-        return p -> p.setSelectedClassIdx(structureInParents().applyAsInt(p));
-    }
-    public static ToIntFunction<ObjectClassOrChannelParameter> structureInParents() {
+
+    public static ToIntFunction<ObjectClassOrChannelParameter> objectClassInParents() {
         return p->{
             Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, p, false);
             int sIdx = (s!=null) ? s.getIndex(): -1;

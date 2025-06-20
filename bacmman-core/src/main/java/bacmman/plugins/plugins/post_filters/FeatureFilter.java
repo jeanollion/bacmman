@@ -40,10 +40,9 @@ public class FeatureFilter implements PostFilterFeature, Hint {
     NumberParameter threshold = new NumberParameter<>("Threshold", 4, 0).setEmphasized(true);
     BooleanParameter keepOverThreshold = new BooleanParameter("Keep over threshold", true).setEmphasized(true).setHint("<ul><li>If set to <em>true</em>, only segmented object that have a value of the feature (as defined in the <em>Feature</em> parameter) larger than the threshold will be kept</li><li>If set to <em>false</em>, only segmented object that have a value of the feature smaller than the threshold will be kept</li></ul>");
     BooleanParameter strict = new BooleanParameter("Strict comparison with threshold", true);
-    BooleanParameter preFiltered = new BooleanParameter("Use Pre-filtered Image", true);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All features computed on image intensity will be computed on the image filtered by the operations defined in this parameter.");
 
-    Parameter[] parameters = new Parameter[]{feature, threshold, keepOverThreshold, strict, preFiltered, preFilters};
+    Parameter[] parameters = new Parameter[]{feature, threshold, keepOverThreshold, strict, preFilters};
     
     @Override
     public String getHintText() {
@@ -65,7 +64,6 @@ public class FeatureFilter implements PostFilterFeature, Hint {
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         ObjectFeature f = feature.instantiatePlugin();
         f.setUp(parent, childStructureIdx, childPopulation);
-        if (f instanceof IntensityMeasurement) ((IntensityMeasurement)f).setUsePreFilteredImage(preFiltered.getSelected());
         if (f instanceof ObjectFeatureWithCore) {
             BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
             ((ObjectFeatureWithCore)f).setUpOrAddCore(null, pf);

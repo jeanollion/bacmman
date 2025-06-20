@@ -23,13 +23,14 @@ import org.json.simple.JSONArray;
 import bacmman.utils.Utils;
 
 import java.util.Arrays;
+import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 
 /**
  *
  * @author Jean Ollion
  */
-public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> extends ParameterImpl<P> implements ChoosableParameter<P>, ChoosableParameterMultiple<P> {
+public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> extends ParameterImpl<P> implements ChoosableParameter<P>, ChoosableParameterMultiple<P>, ParameterWithLegacyInitialization<P, Integer> {
     protected int[] selectedIndices;
     protected boolean allowNoSelection, multipleSelection;
     
@@ -185,6 +186,48 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
         } else if (jsonEntry instanceof Number) {
             int idx = ((Number)jsonEntry).intValue();
             setSelectedIndex(idx);
-        }
+        } else throw new IllegalArgumentException("Invalid json entry");
     }
+
+    // legacy init
+    Integer legacyInitItem;
+    Parameter[] legacyParameter;
+    BiConsumer<Parameter[], P> setValue;
+    /**
+     * When parameter cannot be initialized, this value is used as default. Useful when parametrization of a module has changed.
+     * @param value default value
+     * @return this parameter for convenience
+     */
+    @Override
+    public P setLegacyInitializationValue(Integer value) {
+        this.legacyInitItem = value;
+        return (P)this;
+    }
+
+    /**
+     * This method is run when a parameter cannot be initialized, meaning that the parametrization of the module has changed.
+     */
+    @Override
+    public void legacyInit() {
+        if (legacyInitItem != null) setSelectedIndex(legacyInitItem);
+        if (legacyParameter!=null && setValue!=null) setValue.accept(legacyParameter, (P)this);
+    }
+
+    /**
+     * When a parameter A of a module has been replaced by B, this methods allows to initialize B using the former value of A
+     * @param p
+     * @param setValue
+     * @return
+     */
+    @Override
+    public P setLegacyParameter(BiConsumer<Parameter[], P> setValue, Parameter... p) {
+        this.legacyParameter = p;
+        this.setValue = setValue;
+        return (P)this;
+    }
+    @Override
+    public Parameter[] getLegacyParameters() {
+        return legacyParameter;
+    }
+
 }

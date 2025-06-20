@@ -93,8 +93,8 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
     }
 
     @Override
-    public int getIntensityStructure() {
-        if (currentFeature instanceof ObjectFeatureWithCore) return ((ObjectFeatureWithCore)currentFeature).getIntensityStructure();
+    public int getIntensityChannel() {
+        if (currentFeature instanceof ObjectFeatureWithCore) return ((ObjectFeatureWithCore)currentFeature).getIntensityChannel();
         else return -1;
     }
 }

@@ -18,6 +18,8 @@
  */
 package bacmman.configuration.parameters;
 
+import java.util.function.Consumer;
+
 /**
  *
  * @author Jean Ollion
@@ -48,5 +50,7 @@ public abstract class ObjectClassParameterAbstract<T extends ObjectClassParamete
         }
         else return getXP().experimentStructure.getFirstCommonParentObjectClassIdx(getSelectedIndex(), otherStructureIdx);
     }
-
+    public static <T extends ObjectClassOrChannelParameter<T>> Consumer<T> defaultAutoConfiguration() {
+        return p -> p.setSelectedClassIdx(objectClassInParents().applyAsInt(p));
+    }
 }

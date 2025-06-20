@@ -39,5 +39,11 @@ public interface Offset<T extends Offset<T>> {
     static boolean offsetNull(Offset offset) {
         return offset.xMin()==0 && offset.yMin() == 0 && offset.zMin()==0;
     }
+    static boolean offsetEquals(Offset off1, Offset off2) {
+        return off1.xMin() == off2.xMin() && off1.yMin() == off2.yMin() && off1.zMin() == off2.zMin();
+    }
+    static boolean offsetEquals2D(Offset off1, Offset off2) {
+        return off1.xMin() == off2.xMin() && off1.yMin() == off2.yMin();
+    }
     Offset<T> duplicate();
 }

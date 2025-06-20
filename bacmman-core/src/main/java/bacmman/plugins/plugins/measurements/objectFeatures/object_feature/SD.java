@@ -73,6 +73,6 @@ public class SD extends IntensityMeasurement implements Hint {
         return "Computed the standard deviation of pixel values within the segmented object";
     }
     @Override public Parameter[] getParameters() {
-        return new Parameter[]{intensity, removePrefiltered, normalize};
+        return new Parameter[]{channel, removePrefiltered, normalize};
     }
 }

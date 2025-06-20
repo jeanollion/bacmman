@@ -509,7 +509,6 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         logger.debug("track config: norm mode: {}", normMode.getSelectedEnum());
         Map<SegmentedObject, double[]> parentMapMeanAndSigma = NORMALIZATION_MODE.PER_FRAME_CENTER.equals(normMode.getSelectedEnum()) ? parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p -> {
             SNR snr = new SNR();
-            snr.setUsePreFilteredImage(true);
             RegionPopulation bactPop = p.getChildRegionPopulation(segParent);
             if (bactPop.getRegions().isEmpty()) return new double[0];
             snr.setUp(p, structureIdx, bactPop);

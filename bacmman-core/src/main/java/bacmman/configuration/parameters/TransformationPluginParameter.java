@@ -162,17 +162,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         //System.out.println("init child list! for: "+toString()+ " number of pp:"+(pluginParameters==null?0:pluginParameters.length)+" number total:"+p.size());
         super.initChildren(p);
     }
-    
-    @Override
-    public T instantiatePlugin() {
-        T instance = super.instantiatePlugin();
-        if (instance!=null) {
-            //List target = instance.getConfigurationData();
-            //if (target!=null && configurationData!=null) for (Object o : configurationData) target.add(ParameterUtils.duplicateConfigurationData(o));
-            //logger.debug("copied configuration data to transformation: {}: config:{}", instance.getClass().getSimpleName(), instance.getConfigurationData());
-        }
-        return instance;
-    }
+
     @Override
     public boolean isValid() {
         if (inputChannel!=null && inputChannel.getSelectedIndex()<0) return false; 

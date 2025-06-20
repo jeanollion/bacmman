@@ -18,14 +18,11 @@
  */
 package bacmman.plugins.object_feature;
 
-import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  *
@@ -33,5 +30,5 @@ import java.util.function.Function;
  */
 public interface ObjectFeatureWithCore {
     void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> preFilters);
-    int getIntensityStructure();
+    int getIntensityChannel();
 }

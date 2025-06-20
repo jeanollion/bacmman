@@ -96,31 +96,31 @@ public class ParameterUtils {
         return true;
     }
 
-    public static boolean setContent(Parameter[] recieve, Parameter[] give) {
-        return setContent(Arrays.asList(recieve), Arrays.asList(give));
+    public static boolean setContent(Parameter[] target, Parameter[] source) {
+        return setContent(Arrays.asList(target), Arrays.asList(source));
     }
 
-    public static boolean setContent(List<Parameter> recieve, List<Parameter> give) {
-        if (recieve==null || give== null || recieve.size()!=give.size()) {
-            setContentMap(recieve, give);
+    public static boolean setContent(List<Parameter> target, List<Parameter> source) {
+        if (target==null || source== null || target.size()!=source.size()) {
+            setContentMap(target, source);
             return false;
         }
         boolean ok = true;
-        for (int i = 0; i < recieve.size(); i++) {
+        for (int i = 0; i < target.size(); i++) {
             try {
-                recieve.get(i).setContentFrom(give.get(i));
+                target.get(i).setContentFrom(source.get(i));
             } catch (IllegalArgumentException e) {
-                logger.debug("set content list error @{} : r={} / s={}", i, recieve.get(i)!=null ? recieve.get(i).getName() : "null", give.get(i)!=null ? give.get(i).getName() : "null");
+                logger.debug("set content list error @{} : r={} / s={}", i, target.get(i)!=null ? target.get(i).getName() : "null", source.get(i)!=null ? source.get(i).getName() : "null");
                 logger.error("set content list error : ", e);
                 ok = false;
             }
         }
         return ok;
     }
-    static void setContentMap(List<Parameter> recieve, List<Parameter> give) {
-        if (recieve==null || recieve.isEmpty() || give==null || give.isEmpty()) return;
-        Map<String, Parameter> recieveMap = recieve.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
-        for (Parameter p : give) {
+    static void setContentMap(List<Parameter> target, List<Parameter> source) {
+        if (target==null || target.isEmpty() || source==null || source.isEmpty()) return;
+        Map<String, Parameter> recieveMap = target.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
+        for (Parameter p : source) {
             if (recieveMap.containsKey(p.getName())) {
                 Parameter r = recieveMap.get(p.getName());
                 if (r.getClass()==p.getClass()) r.setContentFrom(p);

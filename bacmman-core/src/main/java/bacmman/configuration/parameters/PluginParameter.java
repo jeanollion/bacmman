@@ -134,7 +134,16 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     public List<Parameter> getAdditionalParameters() {
         return additionalParameters;
     }
-    
+
+    public <P extends Parameter<P>> P getAdditionalParameter(Class<P> clazz) {
+        return getAdditionalParameter(clazz, null);
+    }
+
+    public <P extends Parameter<P>> P getAdditionalParameter(Class<P> clazz, Predicate<P> filter) {
+        if (additionalParameters == null) return null;
+        return ParameterUtils.getParameter(clazz, additionalParameters, filter);
+    }
+
     public List<Parameter> getParameters() {
         return this.pluginParameters;
     }
@@ -194,8 +203,8 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 this.pluginParameters=null;
                 return null;
             }
-            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             setPlugin(instance);
+            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             return instance;
         }
         return null;
@@ -207,12 +216,10 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
             //Parameter.logger.debug("instantiating plugin: type {}, name {} instance==null? {} current parameters {}", pluginType, pluginName, instance==null, pluginParameters.size());
             if (instance==null) return null;
-            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             Parameter[] params = instance.getParameters();
-            if (params !=null) {
-                for (Parameter p : params) p.setParent(this);
-                ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
-            }
+            if (params !=null) for (Parameter p : params) p.setParent(this);
+            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
+            if (params !=null) ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
             return instance;
         };
         if (DLEngine.class.isAssignableFrom(this.getPluginType()) && !this.getSelectedPluginClass().equals(DefaultEngine.class)) { // shared instance of DL engine in order to avoid re-loading the model each time

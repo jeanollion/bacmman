@@ -16,7 +16,6 @@ import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 import bacmman.utils.ArrayUtil;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,7 +38,7 @@ public class ObjectFeatureGroupedBy implements Measurement, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
             .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
-                if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityStructure(objectClass.getSelectedClassIdx());
+                if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityObjectClass(objectClass.getSelectedClassIdx());
             });
     SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");

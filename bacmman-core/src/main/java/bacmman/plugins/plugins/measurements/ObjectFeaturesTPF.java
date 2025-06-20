@@ -45,8 +45,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
     ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
             .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
-                if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityStructure(structure.getSelectedClassIdx());
-                // TODO find a way to set name as default name ...
+                if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityObjectClass(structure.getSelectedClassIdx());
             });
     SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);
     TrackPreFilterSequence preFilters = new TrackPreFilterSequence("Track Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");
@@ -77,7 +76,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
         for (ObjectFeature f : features) {
             if (f instanceof IntensityMeasurement) { // autoconfiguration of intensity measurements
                 IntensityMeasurement im = ((IntensityMeasurement)f);
-                if (im.getIntensityStructure()<0) im.setIntensityStructure(structure.getSelectedClassIdx());
+                if (im.getIntensityChannel()<0) im.setIntensityObjectClass(structure.getSelectedClassIdx());
             }
             PluginParameter<ObjectFeature> dup = def.duplicate().setPlugin(f);
             ((TextParameter)dup.getAdditionalParameters().get(0)).setValue(f.getDefaultName());
@@ -129,7 +128,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
         }
         if (parentTrack.isEmpty()) return;
         Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
-        Set<Integer> allChildOC = features.getActivatedChildren().stream().map(PluginParameter::instantiatePlugin).filter(o -> o instanceof IntensityMeasurement).map(o -> ((IntensityMeasurement)o).getIntensityStructure()).collect(Collectors.toSet());;
+        Set<Integer> allChildOC = features.getActivatedChildren().stream().map(PluginParameter::instantiatePlugin).filter(o -> o instanceof IntensityMeasurement).map(o -> ((IntensityMeasurement)o).getIntensityChannel()).collect(Collectors.toSet());;
         Map<Integer, BiFunction<Image, ImageMask, Image>> preFilterSequenceMapByOC = new HashMap<>();
         for (int oc : allChildOC) {
             SegmentedObjectImageMap preFiltered = preFilters.filterImages(oc, parentTrack);
@@ -141,7 +140,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
                 ObjectFeature f = ofp.instantiatePlugin();
                 if (f!=null) {
                     f.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
-                    if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(cores, preFilterSequenceMapByOC.get(((ObjectFeatureWithCore)f).getIntensityStructure()));
+                    if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(cores, preFilterSequenceMapByOC.get(((ObjectFeatureWithCore)f).getIntensityChannel()));
                     parent.getChildren(structureIdx).forEach(o-> {
                         double m = f.performMeasurement(o.getRegion());
                         o.getMeasurements().setValue(((TextParameter)ofp.getAdditionalParameters().get(0)).getValue(), m);

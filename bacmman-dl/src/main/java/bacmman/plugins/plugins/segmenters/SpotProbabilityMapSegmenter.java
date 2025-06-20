@@ -108,7 +108,7 @@ public class SpotProbabilityMapSegmenter implements DevPlugin, Segmenter, TrackC
 
     private void setQualitySNR(SegmentedObject parent, int ocIdx, Image prediction, RegionPopulation pop) {
         LocalSNR snr = new LocalSNR(bacteriaObjectClass.getSelectedClassIdx());
-        snr.setIntensityStructure(ocIdx);
+        snr.setIntensityObjectClass(ocIdx);
         snr.setFormula(SNR.FORMULA.AMPLITUDE, SNR.FOREGROUND_FORMULA.MEDIAN, SNR.BACKGROUND_FORMULA.MEDIAN);
         snr.setLocalBackgroundRadius(4);
         snr.setRadii(0, 1);

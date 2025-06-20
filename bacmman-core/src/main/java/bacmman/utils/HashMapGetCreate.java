@@ -101,6 +101,7 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
      * @return 
      */
     public V getAndCreateIfNecessarySyncOnKey(Object key) {
+        if (key == null) return getAndCreateIfNecessarySync(null);
         if (allowNull) {
             if (super.containsKey(key)) return super.get(key);
             synchronized(key) {
