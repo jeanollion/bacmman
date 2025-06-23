@@ -5,7 +5,7 @@
     <parent>
         <artifactId>bacmman</artifactId>
         <groupId>com.github.jeanollion.bacmman</groupId>
-        <version>3.8.4</version>
+        <version>3.8.5</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <properties>
@@ -31,44 +31,22 @@
             <artifactId>bacmman-dl</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
-        <!--dependency>
-            <groupId>org.tensorflow</groupId>
-            <artifactId>ndarray</artifactId>
-            <version>0.3.3</version>
-        </dependency-->
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
-            <version>0.4.2</version>
-            <!--exclusions>
-                <exclusion>
-                    <groupId>com.google.protobuf</groupId>
-                    <artifactId>protobuf-java</artifactId>
-                </exclusion>
-            </exclusions-->
+            <version>0.4.1</version>
         </dependency>
         <dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-native</artifactId>
-            <version>1.0.0-rc.2</version>
+            <artifactId>tensorflow-core-api</artifactId>
+            <version>0.4.1</version>
             <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency>
         <!--dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-api</artifactId>
-            <version>0.4.2</version>
-            <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
-        </dependency-->
-        <!--dependency>
-            <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-platform</artifactId>
-            <version>0.5.0</version>
-        </dependency-->
-        <!--dependency>
-            <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-native</artifactId>
-            <version>0.5.0</version>
-            <classifier>macosx-arm64</classifier>
+            <version>1.0.0</version>
+            <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency-->
         <!--dependency>
             <groupId>com.google.protobuf</groupId>
