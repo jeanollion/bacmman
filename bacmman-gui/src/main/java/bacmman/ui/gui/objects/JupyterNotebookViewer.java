@@ -102,7 +102,8 @@ public class JupyterNotebookViewer {
 
         public CellNode(JSONObject data, String codeLanguage) {
             super("");
-            this.type = CELL_TYPE.valueOf(((String)data.get("cell_type")).toUpperCase());
+            String type= ((String)data.get("cell_type")).toUpperCase().replace("RAW", "MARKDOWN");
+            this.type = CELL_TYPE.valueOf(type);
             this.data = data;
             this.language = codeLanguage;
             createCodeNode(getCodeString());
