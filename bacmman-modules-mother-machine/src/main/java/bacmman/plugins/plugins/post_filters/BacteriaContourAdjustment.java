@@ -29,6 +29,7 @@ public class BacteriaContourAdjustment implements PostFilter {
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         Image input = parent.getPreFilteredImage(childStructureIdx);
+        if (input == null) input = parent.getRawImage(childStructureIdx);
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_IQR:
                 childPopulation=localThresholdIQR(input, childPopulation);
@@ -47,6 +48,7 @@ public class BacteriaContourAdjustment implements PostFilter {
     }
 
     protected RegionPopulation localThresholdMeanSD(Image erodeMap, RegionPopulation pop) {
+        if (erodeMap == null) throw new IllegalArgumentException("Erode Map cannot be null");
         double sigmaFactor = localThresholdFactor.getValue().doubleValue();
         Function<Region, Double> thldFct = o -> {
             double[] values = o.streamValues(erodeMap).toArray();
