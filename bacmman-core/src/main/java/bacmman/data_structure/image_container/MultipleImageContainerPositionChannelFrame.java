@@ -462,7 +462,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     private void createFileMap() throws IOException {
         if (fromOmero()) return;
         File in = new File(inputDir);
-        Pattern positionPattern = positionKey==null || positionKey.isEmpty() ? Pattern.compile("[\\."+extension+"]$") : Pattern.compile(".*"+positionKey+".*[\\."+extension+"]$");
+        Pattern positionPattern = positionKey==null || positionKey.isEmpty() ? Pattern.compile("[\\."+extension+"]$") : Pattern.compile(".*" + positionKey + "(?!\\d)[^\\.]*\\." + extension + "$"); // char after positionKey cannot be a digit to avoid confusin 1 and 10 fon instance
         File[] allImages = in.listFiles((f, name) -> name.charAt(0)!='.' ); //(f, name) -> !isIgnoredFile(name)
         if (allImages==null) throw new IOException("No Images found in directory:"+in.getAbsolutePath());
         List<File> files = Arrays.stream(allImages).filter( f -> positionPattern.matcher(f.getName()).find()).collect(Collectors.toList());

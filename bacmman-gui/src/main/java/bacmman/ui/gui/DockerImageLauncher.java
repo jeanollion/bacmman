@@ -23,6 +23,8 @@ import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -72,9 +74,11 @@ public class DockerImageLauncher {
                     DockerGateway.DockerContainer c = d.getValue();
                     if (c != null) {
                         String wd = getWorkingDir(c);
-                        if (wd != null) {
+                        if (wd != null && new File(wd).exists()) {
                             setWorkingDirectory(workingDir);
                             if (changeWorkingDir != null) changeWorkingDir.accept(wd);
+                        } else {
+                            bacmmanLogger.log("Error could not parse wsl working dir: "+c+ " got: "+wd);
                         }
                         port.setValue(c.getPorts().findFirst().map(p -> p.key).orElse(port.getIntValue()));
                     }
@@ -128,17 +132,21 @@ public class DockerImageLauncher {
     }
 
     public static String convertWSLPathToWindowsPath(String wslPath) {
-        if (wslPath == null || !wslPath.startsWith("/mnt/")) {
-            throw new IllegalArgumentException("Invalid WSL path");
+        Pattern[] patterns = {
+            //Pattern.compile("^/mnt/([a-zA-Z])/(.*)"), // Standard WSL mount point
+            //Pattern.compile("^/run/desktop/mnt/host/([a-zA-Z])/(.*)"), // Alternative mount point
+            Pattern.compile(".*?/mnt/(?:host/)?([a-zA-Z])/(.*)")
+        };
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(wslPath);
+            if (matcher.matches()) {
+                String driveLetter = matcher.group(1).toUpperCase();
+                String path = matcher.group(2);
+                path = path.replace('/', '\\');
+                return driveLetter + ":\\" + path;
+            }
         }
-        // Split the path into parts
-        String[] parts = wslPath.split("/", 4);
-        if (parts.length < 4) {
-            throw new IllegalArgumentException("Invalid WSL path format");
-        }
-        String driveLetter = parts[2];
-        String remainingPath = parts[3];
-        return driveLetter.toUpperCase() + ":\\" + remainingPath.replace("/", "\\");
+        return null;
     }
 
     public void startContainer() {

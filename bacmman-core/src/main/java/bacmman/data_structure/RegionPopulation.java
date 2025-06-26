@@ -355,6 +355,7 @@ public class RegionPopulation {
      * @return
      */
     public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
+        if (erodeMap == null) throw new IllegalArgumentException("Erode Map cannot be null");
         Function<Region, Double> thldFct = o -> {
             List<Double> values = new ArrayList<>();
             o.loop((x, y, z) -> values.add((double)erodeMap.getPixel(x, y, z)));
