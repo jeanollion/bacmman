@@ -94,7 +94,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
         int[] channels = this.channels.getSelectedIndices().length==0 ? this.objects.getSelectedIndices() : this.channels.getSelectedIndices();
         Image[][][] chans = IntStream.concat(IntStream.of(-1), IntStream.of(channels))
                 .mapToObj(i -> parentMapChildren.keySet().stream()
-                .map(p->i>=0 ? p.getRawImage(i) : createPop.apply(p).getEDM(true))
+                .map(p->i>=0 ? p.getRawImage(i) : createPop.apply(p).getEDM(true, true))
                 .map(im -> new Image[]{im})// per channel per object
                 .toArray(Image[][]::new)) // per channel
                 .toArray(Image[][][]::new);

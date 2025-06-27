@@ -45,6 +45,7 @@ import bacmman.processing.watershed.WatershedTransform.WatershedConfiguration;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
+import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -720,7 +721,8 @@ public class RegionPopulation {
         //Image ltmap = LocalThickness.localThickness(this.getLabelMap(), 1, 1, true, 1);
         return ltmap;
     }
-    public Image getEDM(boolean correctionForObjectsTouchingBorder) {
+
+    public Image getEDM(boolean correctionForObjectsTouchingBorder, boolean parallel) {
         Image edm = new ImageFloat("EDM"+getImageProperties().getScaleXY()+ " z:"+getImageProperties().getScaleZ(), getImageProperties());
         for (Region r : getRegions()) {
             EDT edt = new EDT();
@@ -730,12 +732,46 @@ public class RegionPopulation {
                 edt.outOfBoundPolicy().setY(!touchingBorders[2], !touchingBorders[3]);
                 edt.outOfBoundPolicy().setZ(!touchingBorders[4], !touchingBorders[5]);
             }
-            Image edmR = edt.run(r.getMask(), true, 1, getImageProperties().getScaleZ()/getImageProperties().getScaleXY(), false);
+            Image edmR = edt.run(r.getMask(), true, 1, getImageProperties().getScaleZ()/getImageProperties().getScaleXY(), parallel);
             ImageMask.loopWithOffset(r.getMask(), (x, y, z)->{
                 edm.setPixelWithOffset(x, y, z, edmR.getPixelWithOffset(x, y, z));
             });
         }
         return edm;
+    }
+
+    // euclidean distance to center
+    public ImageFloat getECDM() {
+        ImageFloat ecdm = new ImageFloat("ECDM"+getImageProperties().getScaleXY()+ " z:"+getImageProperties().getScaleZ(), getImageProperties());
+        for (Region r : getRegions()) {
+            Point center = r.getCenterOrGeomCenter();
+            if (r.is2D()) {
+                ImageMask.loopWithOffset(r.getMask(), (x, y, z) -> {
+                    ecdm.setPixelWithOffset(x, y, z,  center.distXY(new Point(x, y)));
+                });
+            } else {
+                double scale = getImageProperties().getScaleZ()/getImageProperties().getScaleXY();
+                Point c = new Point(center.get(0), center.get(1), center.getWithDimCheck(2));
+                ImageMask.loopWithOffset(r.getMask(), (x, y, z) -> {
+                    ecdm.setPixelWithOffset(x, y, z,  c.dist(new Point(x, y, z * scale)));
+                });
+            }
+        }
+        return ecdm;
+    }
+
+    // geodesic distance to center
+    public ImageFloat getGCDM(boolean parallel) {
+        ImageFloat gcdm = new ImageFloat("GCDM"+getImageProperties().getScaleXY()+ " z:"+getImageProperties().getScaleZ(), getImageProperties());
+        List<Image> gdcmList = Utils.parallel(getRegions().stream(),parallel).map(r -> GCDM.run(r.getCenterOrGeomCenter(), r.getMask(), 1, getImageProperties().getScaleZ()/getImageProperties().getScaleXY())).collect(Collectors.toList());
+        for (int i = 0; i<gdcmList.size(); ++i) {
+            Image gdcmR = gdcmList.get(i);
+            Region r = getRegions().get(i);
+            ImageMask.loopWithOffset(r.getMask(), (x, y, z)-> {
+                gcdm.setPixelWithOffset(x, y, z, gdcmR.getPixelWithOffset(x, y, z));
+            });
+        }
+        return gcdm;
     }
 
     public RegionPopulation eraseTouchingContours(boolean lowConnectivity) {
