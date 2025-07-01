@@ -530,8 +530,7 @@ public class ManualEdition {
             // selected newly segmented objects on image
             InteractiveImage i = iwm.getInteractiveImage(image);
             if (i!=null) {
-                iwm.displayObjects(image, i.toObjectDisplay(segmentedObjects.stream()).collect(Collectors.toList()), Color.ORANGE, true, true, false);
-                GUI.updateRoiDisplayForSelections(image, i);
+                updateDisplayAndSelectObjects(segmentedObjects, true);
             }
         }
     }
@@ -749,7 +748,7 @@ public class ManualEdition {
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         SegmentedObjectFactory factory = getFactory(structureIdx);
         List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor, relabel);
-        if (updateDisplay) updateDisplayAndSelectObjects(newObjects);
+        if (updateDisplay) updateDisplayAndSelectObjects(newObjects, false);
         return newObjects;
     }
 
@@ -771,7 +770,7 @@ public class ManualEdition {
         });
         SegmentedObjectEditor.deleteObjects(db, toRemoveAll, SegmentedObjectEditor.ALWAYS_MERGE(), factory, editor, relabel);
         db.getDao(position).store(modifiedObjectAll);
-        if (updateDisplay) updateDisplayAndSelectObjects(modifiedObjectAll);
+        if (updateDisplay) updateDisplayAndSelectObjects(modifiedObjectAll, false);
     }
 
     public static void relabelAll(MasterDAO db, Image image) {
@@ -798,7 +797,7 @@ public class ManualEdition {
         db.getDao(i.getParent().getPositionName()).store(modifiedObjects);
     }
 
-    public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects) {
+    public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects, boolean fill) {
         logger.debug("hide labile objects...");
         ImageWindowManagerFactory.getImageManager().hideLabileObjects(null, false);
         logger.debug("remove tracks...");
@@ -819,8 +818,8 @@ public class ManualEdition {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(null);
             logger.debug("display : {} objects from structure: {}, IOI null ? {}", e.getValue().size(), e.getKey(), i==null);
             if (i!=null) {
-                ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(e.getValue().stream()).collect(Collectors.toList()), Color.orange, false, true, false);
-                GUI.updateRoiDisplayForSelections();
+                ImageWindowManagerFactory.getImageManager().displayObjects(null, i.toObjectDisplay(e.getValue().stream()).collect(Collectors.toList()), Color.orange, fill, true, false);
+                GUI.updateRoiDisplayForSelections(null, i);
             }
         }
         // update trackTree

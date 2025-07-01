@@ -136,6 +136,7 @@ public class SelectionUtils {
     }
 
     public static void displayObjects(Selection s, Image image, InteractiveImage i) {
+        if (s==null) return;
         ImageWindowManager<?, ?, ?> iwm = ImageWindowManagerFactory.getImageManager();
         if (i!=null) {
             Consumer<Image> consumer= im -> {
