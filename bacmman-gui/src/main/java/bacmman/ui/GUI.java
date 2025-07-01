@@ -1606,7 +1606,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     public void populateSelections() {
         List<Selection> selectedValues = selectionList.getSelectedValuesList();
-        Map<String, Selection> state = selectionModel.isEmpty() ? Collections.EMPTY_MAP : Utils.asList(selectionModel).stream().collect(Collectors.toMap(s->s.getName(), s->s));
+        Map<String, Selection> state = selectionModel.isEmpty() ? Collections.EMPTY_MAP : Utils.asList(selectionModel).stream().collect(Collectors.toMap(Selection::getName, s->s));
         this.selectionModel.removeAllElements();
         if (!checkConnection()) return;
         SelectionDAO dao = this.db.getSelectionDAO();
@@ -1622,6 +1622,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         }
         Utils.setSelectedValues(selectedValues, selectionList, selectionModel);
         resetSelectionHighlight();
+        updateRoiDisplayForSelections();
         SwingUtilities.invokeLater(()->selectionList.updateUI());
     }
     

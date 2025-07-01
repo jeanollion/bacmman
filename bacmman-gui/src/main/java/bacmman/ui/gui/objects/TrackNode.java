@@ -443,7 +443,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             final int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                            GUI.logger.debug("create selection for structure: {} of idx: {}, within track: {}", ae.getActionCommand(), structureIdx, trackHead);
+                            logger.debug("create selection for structure: {} of idx: {}, within track: {}", ae.getActionCommand(), structureIdx, trackHead);
                             List<TrackNode> selectedNodes = root.generator.getSelectedTrackNodes();
                             Set<SegmentedObject> objectsToAdd = selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(structureIdx, true)).collect(Collectors.toSet());
                             Selection s = root.generator.db.getSelectionDAO().getOrCreate(ae.getActionCommand(), true);
@@ -453,6 +453,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             root.generator.db.getSelectionDAO().store(s);
                             GUI.getInstance().populateSelections();
                             GUI.getInstance().getSelections().stream().filter(ss->ss.getName().equals(ae.getActionCommand())).findAny().get().setIsDisplayingObjects(true);
+                            GUI.updateRoiDisplayForSelections();
                         }
                     }
                 );

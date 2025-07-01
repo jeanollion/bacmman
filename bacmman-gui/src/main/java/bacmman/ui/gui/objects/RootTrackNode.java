@@ -106,13 +106,13 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     public SegmentedObject getParentTrackHead() {
         if (parentTrackHead==null) {
             if (position==null) {
-                GUI.logger.warn("No track head or fieldName defined for RootTrackNode instance");
+                logger.warn("No track head or fieldName defined for RootTrackNode instance");
                 return null;
             }
             List<SegmentedObject> roots = getParentTrack();
-            if (roots==null || roots.isEmpty()) GUI.logger.error("No root found for position: {}, please run pre-processing", position);
+            if (roots==null || roots.isEmpty()) logger.error("No root found for position: {}, please run pre-processing", position);
             else parentTrackHead = roots.get(0);
-            if (parentTrackHead!=null) GUI.logger.trace("parentTrackHead id:"+parentTrackHead.getId());
+            if (parentTrackHead!=null) logger.trace("parentTrackHead id:"+parentTrackHead.getId());
         }
         return parentTrackHead;
     }
@@ -376,18 +376,17 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
-                            GUI.logger.debug("create selection for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
+                            logger.debug("create selection for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
                             List<RootTrackNode> selectedNodes = generator.getSelectedRootTrackNodes();
-                            GUI.logger.debug("selected nodes: {}", selectedNodes);
                             Selection s = generator.db.getSelectionDAO().getOrCreate(ae.getActionCommand(), true);
                             s.setColor("Grey");
                             // execute in background
                             DefaultWorker.execute(i->{
                                 synchronized (s) {
                                     s.addElements(SegmentedObjectUtils.getAllObjectsAsStream(generator.db.getDao(selectedNodes.get(i).position), structureIdx).collect(Collectors.toList()));
-                                    GUI.logger.debug("current objects: {}", s.getAllElementStrings().size());
-                                    if (i == 1 || (selectedNodes.size() > 10 && i % (selectedNodes.size() / 10) == 0) || i == (selectedNodes.size() - 1)) {
-                                        GUI.logger.debug("saving sel {}", s.getAllElementStrings().size());
+                                    logger.debug("current objects: {}", s.getAllElementStrings().size());
+                                    if (i == 1 || (selectedNodes.size() > 10 && i % (selectedNodes.size() / 10) == 0) || i == (selectedNodes.size() - 1)) { // save intermediate for big selections
+                                        logger.debug("saving sel {}", s.getAllElementStrings().size());
                                         generator.db.getSelectionDAO().store(s);
                                     }
                                 }
@@ -395,6 +394,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                             }, selectedNodes.size()).setEndOfWork(()->{
                                 GUI.getInstance().populateSelections();
                                 GUI.getInstance().getSelections().stream().filter(ss->ss.getName().equals(ae.getActionCommand())).findAny().ifPresent(sel -> sel.setIsDisplayingObjects(true));
+                                GUI.updateRoiDisplayForSelections();
                             });
                             
                         }
