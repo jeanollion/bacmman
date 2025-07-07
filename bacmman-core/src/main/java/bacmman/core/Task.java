@@ -19,6 +19,7 @@
 package bacmman.core;
 
 import bacmman.configuration.experiment.PreProcessingChain;
+import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.configuration.parameters.MLModelFileParameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.configuration.parameters.PluginParameter;
@@ -67,7 +68,6 @@ import java.util.stream.Stream;
  */
 public class Task implements TaskI<Task>, ProgressCallback {
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
-        public enum ExtractZAxis {IMAGE3D, CHANNEL, SINGLE_PLANE, MIDDLE_PLANE, BATCH}
         String dbName, dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
         MEASUREMENT_MODE measurementMode = MEASUREMENT_MODE.ERASE_ALL;
@@ -98,7 +98,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         Map<String, List<Integer>> extractDSRawPositionMapFrames;
         int[] extractDSRawChannels;
         int extractDSCompression = 4;
-        ExtractZAxis extractZAxis = ExtractZAxis.IMAGE3D;
+        ExtractZAxisParameter.ExtractZAxis extractZAxis = ExtractZAxisParameter.ExtractZAxis.IMAGE3D;
         int extractZAxisPlaneIdx;
         boolean extractByPosition;
 
@@ -245,7 +245,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                     extractDSRawBounds = new SimpleBoundingBox();
                     extractDSRawBounds.initFromJSONEntry(extractRawDS.get("bounds"));
                 }
-                extractZAxis = ExtractZAxis.valueOf((String)extractRawDS.getOrDefault("extractZAxis", ExtractZAxis.IMAGE3D.toString()));
+                extractZAxis = ExtractZAxisParameter.ExtractZAxis.valueOf((String)extractRawDS.getOrDefault("extractZAxis", ExtractZAxisParameter.ExtractZAxis.IMAGE3D.toString()));
                 extractZAxisPlaneIdx = ((Number)extractRawDS.getOrDefault("extractZAxisPlaneIdx", 0)).intValue();
                 JSONObject pf = (JSONObject)extractRawDS.get("positionMapFrame");
                 extractDSRawPositionMapFrames = new HashMap<>();
@@ -424,7 +424,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
     public boolean isExtractDSTracking() {return extractDSTracking;}
     public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
-    public ExtractZAxis getExtractRawZAxis() {return extractZAxis; }
+    public ExtractZAxisParameter.ExtractZAxis getExtractRawZAxis() {return extractZAxis; }
     public int getExtractRawZAxisPlaneIdx() {return extractZAxisPlaneIdx; }
     public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
     public int[] getExtractRawDSChannels() {return extractDSRawChannels;}
@@ -493,7 +493,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             return extractDSTracking;
     }
 
-    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames, int compression) {
+    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxisParameter.ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames, int compression) {
         this.extractRawDSFile = extractDSFile;
         this.extractDSRawPositionMapFrames = positionMapFrames;
         this.extractDSRawBounds = bounds;
@@ -1116,7 +1116,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             sb.append("ExtractRawDSFile:").append(extractRawDSFile);
             addSep.run();
             sb.append("ExtractRawZAxis:").append(extractZAxis);
-            if (getExtractRawZAxis().equals(ExtractZAxis.SINGLE_PLANE)) {
+            if (getExtractRawZAxis().equals(ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE)) {
                 addSep.run();
                 sb.append("ExtractRawZAxisPlaneIDx:").append(extractZAxisPlaneIdx);
             }

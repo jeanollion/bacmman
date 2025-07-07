@@ -1,10 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.ParameterUtils;
-import bacmman.configuration.parameters.SelectionParameter;
-import bacmman.core.Task;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
@@ -46,9 +42,9 @@ public class Category implements FeatureExtractorConfigurable, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (maxObjectIdx <0) throw new RuntimeException("Feature not configured");
-        ImageShort res=new ImageShort("category", maxObjectIdx + 1, 1, 1);
+        ImageShort res=new ImageShort("category", 1, maxObjectIdx + 1, 1);
         List<Selection> selections = selection.getSelectedSelections().collect(Collectors.toList());
-        parent.getChildren(objectClassIdx).sorted().forEach(c -> res.setPixel( c.getIdx(), 0, 0, getCategory(c, selections)));
+        parent.getChildren(objectClassIdx).sorted().forEach(c -> res.setPixel( 0, c.getIdx(), 0, getCategory(c, selections)));
         return res;
     }
 
@@ -86,7 +82,7 @@ public class Category implements FeatureExtractorConfigurable, Hint {
     }
 
     @Override
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return null;
     }
 

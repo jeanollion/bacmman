@@ -6,6 +6,7 @@ import bacmman.core.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
+import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
@@ -102,13 +103,13 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected ConfigurationTreeGenerator config, configRef, extractConfig, dockerOptions, dockerOptionsRef;
 
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
-            .setNewInstanceConfiguration(i -> {
-                if (workingDirPanel.getCurrentWorkingDirectory() != null)
-                    i.getConfiguration().setReferencePathFunction(() -> Paths.get(workingDirPanel.getCurrentWorkingDirectory()));
-            }).addListener(tp -> {
-                updateExtractDatasetConfiguration();
-                updateDisplayRelatedToWorkingDir();
-            });
+        .setNewInstanceConfiguration(i -> {
+            if (workingDirPanel.getCurrentWorkingDirectory() != null)
+                i.getConfiguration().setReferencePathFunction(() -> Paths.get(workingDirPanel.getCurrentWorkingDirectory()));
+        }).addListener(tp -> {
+            updateExtractDatasetConfiguration();
+            updateDisplayRelatedToWorkingDir();
+        });
 
     protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.");
     protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 8).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB)");
@@ -678,6 +679,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected Task getDatasetExtractionTask(Path dir, String fileName, List<String> selectionList) {
+        MasterDAO mDAO = GUI.getDBConnection();
+        trainerParameter.setParent(mDAO.getExperiment());
         DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
         ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
         String extractFileName = fileName == null ? datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5" : fileName;

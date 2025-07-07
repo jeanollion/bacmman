@@ -168,7 +168,7 @@ public class ExtractRawDataset extends JDialog {
         return dialog.resultingTask;
     }
 
-    public void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, ExtractRawDatasetParameter.FRAME_CHOICE_MODE mode, int nFrames, Task.ExtractZAxis zAXis, int extractZPlaneIdx) {
+    public void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, ExtractRawDatasetParameter.FRAME_CHOICE_MODE mode, int nFrames, ExtractZAxisParameter.ExtractZAxis zAXis, int extractZPlaneIdx) {
         if (channels != null) channelSelector.setSelectedIndices(channels);
         extractParameter.setDefaultValues(outputFile, channels, bounds, mode, nFrames, zAXis, extractZPlaneIdx);
         outputConfigTree.getTree().updateUI();

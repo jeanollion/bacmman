@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
@@ -25,10 +24,10 @@ public class Labels implements FeatureExtractor, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res= resampledPopulations.get(objectClassIdx).get(parent).getLabelMap();
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
     }
 
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return this.extractZ.getExtractZDim();
     }
 

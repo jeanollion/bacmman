@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -25,7 +24,7 @@ public class PreviousLabels implements FeatureExtractorTemporal, Hint {
         return new Parameter[]{extractZ};
     }
 
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return this.extractZ.getExtractZDim();
     }
 
@@ -56,7 +55,7 @@ public class PreviousLabels implements FeatureExtractorTemporal, Hint {
                 }
             });
         }
-        return handleZ(prevLabel, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        return handleZ(prevLabel, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
     }
 
     @Override

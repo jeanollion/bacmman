@@ -12,9 +12,16 @@ public class CategoryParameter extends ConditionalParameterAbstract<Boolean, Cat
     });
     BooleanParameter addDefaultCategory = new BooleanParameter("Add Default Category", true).setHint("If true, all objects that are in no selection are assigned to category 0, and categories associated to selections start from index one. One object cannot belong to 2 selected selections<br/>If false, there must be at least 2 selected selections and all objects must belong to one and only one selection");
 
+    public CategoryParameter(String name) {
+        this(name, true);
+    }
 
-    public CategoryParameter(boolean predictCategory) {
-        super(new BooleanParameter("Predict Category", predictCategory));
+    public CategoryParameter(boolean category) {
+        this("Category", category);
+    }
+
+    public CategoryParameter(String name, boolean category) {
+        super(new BooleanParameter(name, category));
         setActionParameters(true, categorySelection, addDefaultCategory);
     }
 

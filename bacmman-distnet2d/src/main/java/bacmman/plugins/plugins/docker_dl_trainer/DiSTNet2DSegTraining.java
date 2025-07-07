@@ -10,11 +10,9 @@ import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.PropertyUtils;
-import bacmman.utils.Triplet;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,35 +39,18 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false)
         .addListener(poc -> {
             ParameterUtils.getParameterFromSiblings(CategoryParameter.class, poc, null).setSelectionObjectClass(poc.getSelectedClassIdx());
+            ChannelImageParameter chan = ParameterUtils.getParameterFromSiblings(ChannelImageParameter.class, poc, null);
+            if (chan.getSelectedIndex() < 0 && ParameterUtils.getExperiment(chan) != null) chan.setChannelFromObjectClass(poc.getSelectedClassIdx());
         }).setHint("Select object class of reference segmented objects");
     ChannelImageParameter channel = new ChannelImageParameter("Channel Image").setHint("Input raw image channel");
-    static class OtherObjectClassParameter extends GroupParameterAbstract<OtherObjectClassParameter> {
-        ObjectClassParameter otherOC = new ObjectClassParameter("Object Class", -1, false, false);
-        BooleanParameter otherOCLabel = new BooleanParameter("Label", false).setHint("Extract label image if true otherwise raw image");
-        TextParameter otherOCKey = new TextParameter("Name", "", false, false);
+    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.CHANNEL, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.CHANNEL);
 
-        public OtherObjectClassParameter(String name) {
-            super(name);
-            this.children = new ArrayList<>();
-            this.children.add(otherOC);
-            this.children.add(otherOCLabel);
-            this.children.add(otherOCKey);
-            initChildList();
-        }
-
-        @Override
-        public OtherObjectClassParameter duplicate() {
-            OtherObjectClassParameter res = new OtherObjectClassParameter(name);
-            ParameterUtils.setContent(res.children, children);
-            transferStateArguments(this, res);
-            return res;
-        }
-    }
-    SimpleListParameter<OtherObjectClassParameter> otherOCList = new SimpleListParameter<>("Other Channels", new OtherObjectClassParameter("Channel"))
+    SimpleListParameter<DiSTNet2DTraining.OtherObjectClassParameter> otherOCList = new SimpleListParameter<>("Other Channels", new DiSTNet2DTraining.OtherObjectClassParameter())
             .addValidationFunctionToChildren(g -> {
-                String k = g.otherOCKey.getValue();
-                SimpleListParameter<OtherObjectClassParameter> parent = (SimpleListParameter<OtherObjectClassParameter>)g.getParent();
-                return parent.getChildren().stream().filter(gg -> g != gg).map(gg -> gg.otherOCKey.getValue()).noneMatch(kk -> kk.equals(k));
+                String k = g.key.getValue();
+                if (k.equals("raw") || k.equals("regionLabels") || k.equals("/raw") || k.equals("/regionLabels")) return false;
+                SimpleListParameter<DiSTNet2DTraining.OtherObjectClassParameter> parent = (SimpleListParameter<DiSTNet2DTraining.OtherObjectClassParameter>)g.getParent();
+                return parent.getChildren().stream().filter(gg -> g != gg).map(gg -> gg.key.getValue()).noneMatch(kk -> kk.equals(k));
             }).setHint("Other object class label or raw input image to be extracted");
 
     CategoryParameter predictCategory = new CategoryParameter(false);
@@ -84,20 +65,13 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             ((SelectionParameter)selModeCond.getParameters(SELECTION_MODE.SPARSE_FRAMES).get(0)).setSelectionObjectClass(poc.getSelectedClassIdx());
         })
         .setHint("Select object class that will define the frame (usually parent object class)");
-
     EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.SPARSE_FRAMES).setHint("Which subset of the current dataset should be included into the extracted dataset. SPARSE_FRAMES: choose a previously defined selection of frames that are entirely annotated. Those frames do not need to be contiguous.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, false).setSelectionObjectClass(parentObjectClass.getSelectedClassIdx());
-    EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
-    BoundedNumberParameter extractZPlane = new BoundedNumberParameter("Plane Index", 0, 0, 0, null).setHint("Choose plane idx (0-based) to extract");
     IntegerParameter frameInteval = new IntegerParameter("Frame Interval", 0).setHint("Frames to include before and after frames located in the selected selection. If any segmented object is present in the newly included frames but not in the selection, it will be ignored");
     IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
-
-    ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
-            .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, extractZPlane)
-            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.SPARSE_FRAMES, extractSel, frameInteval);
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZCond, otherOCList, predictCategory, selModeCond, spatialDownsampling);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZAxisParameter, otherOCList, predictCategory, selModeCond, spatialDownsampling);
 
 
     @Override
@@ -146,8 +120,9 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             }
         }
         if (selectionContainer != null) selectionContainer.add(selection);
-        List<Triplet<Integer, Boolean, String>> otherOC = otherOCList.getActivatedChildren().stream().map(g -> new Triplet<>( g.otherOC.getSelectedClassIdx(), g.otherOCLabel.getSelected(), g.otherOCKey.getValue() )).collect(Collectors.toList());
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), predictCategory.getCategorySelections(), predictCategory.addDefaultCategory(), selection, selectionFilter, otherOC, outputFile, spatialDownsampling.getIntValue(), compression);
+        List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxisMode(), g.getExtractZAxisPlane() )).collect(Collectors.toList());
+        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, "raw", extractZAxisParameter.getExtractZDim(), extractZAxisParameter.getPlaneIdx()));
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, predictCategory.getCategorySelections(), predictCategory.addDefaultCategory(), selection, selectionFilter, outputFile, spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

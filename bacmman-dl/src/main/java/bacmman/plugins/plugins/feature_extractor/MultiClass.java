@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
@@ -37,7 +36,7 @@ public class MultiClass implements FeatureExtractor {
             int label = i + 1;
             ImageMask.loop(mask, (x, y, z)->res.setPixel(x, y, z, label));
         }
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
     }
 
     @Override
@@ -51,7 +50,7 @@ public class MultiClass implements FeatureExtractor {
     }
 
     @Override
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return extractZ.getExtractZDim();
     }
 

@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
@@ -66,10 +65,10 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
                 r.getContour().forEach(v -> res.setPixel(v.x, v.y, v.z, 0));
             });
         }
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
     }
 
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return extractZ.getExtractZDim();
     }
 
