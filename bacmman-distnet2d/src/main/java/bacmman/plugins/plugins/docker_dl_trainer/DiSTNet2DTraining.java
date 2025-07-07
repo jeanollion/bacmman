@@ -44,7 +44,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     // dataset extraction
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false)
-        .addListener(poc -> ParameterUtils.getParameterFromSiblings(SelectionParameter.class, poc, p->p.getName().equals("Subset")).setSelectionObjectClass(poc.getSelectedClassIdx()))
+        .addListener(poc -> {
+            ParameterUtils.getParameterFromSiblings(SelectionParameter.class, poc, p->p.getName().equals("Subset")).setSelectionObjectClass(poc.getSelectedClassIdx());
+            ParameterUtils.getParameterFromSiblings(CategoryParameter.class, poc, null).setSelectionObjectClass(poc.getSelectedClassIdx());
+        })
         .setHint("Select object class of reference segmented objects");
     ObjectClassParameter parentObjectClass = new ObjectClassParameter("Parent Object Class", -1, true, false)
         .setNoSelectionString("Viewfield")
@@ -79,6 +82,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 return parent.getChildren().stream().filter(gg -> g != gg).map(gg -> gg.otherOCKey.getValue()).noneMatch(kk -> kk.equals(k));
             }).setHint("Other object class label or raw input image to be extracted");
 
+    CategoryParameter predictCategory = new CategoryParameter(false);
+
     EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. <br/>EXISTING: choose previously defined selection. NEW: will generate a selection<br/>In either case, all objets of the resulting selection must have identical spatial dimensions. <br>To include subsets that do not have same spatial dimension make one dataset per spatial dimension, and list them in the training configuration (DatasetList parameter)");
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
@@ -99,7 +104,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
     // store in a group so that parameters have same parent -> needed because of listener
-    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, otherOCList, extractDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
+    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, otherOCList, predictCategory, extractDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
 
     @Override
     public String getHintText() {
@@ -143,7 +148,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<Triplet<Integer, Boolean, String>> otherOC = otherOCList.getActivatedChildren().stream().map(g -> new Triplet<>( g.otherOC.getSelectedClassIdx(), g.otherOCLabel.getSelected(), g.otherOCKey.getValue() )).collect(Collectors.toList());
-        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, otherOC, ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
+        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, otherOC, predictCategory.getCategorySelections(), predictCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

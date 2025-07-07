@@ -39,7 +39,9 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     // dataset extraction
     enum SELECTION_MODE {SPARSE_FRAMES}
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false)
-        .setHint("Select object class of reference segmented objects");
+        .addListener(poc -> {
+            ParameterUtils.getParameterFromSiblings(CategoryParameter.class, poc, null).setSelectionObjectClass(poc.getSelectedClassIdx());
+        }).setHint("Select object class of reference segmented objects");
     ChannelImageParameter channel = new ChannelImageParameter("Channel Image").setHint("Input raw image channel");
     static class OtherObjectClassParameter extends GroupParameterAbstract<OtherObjectClassParameter> {
         ObjectClassParameter otherOC = new ObjectClassParameter("Object Class", -1, false, false);
@@ -70,6 +72,8 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
                 return parent.getChildren().stream().filter(gg -> g != gg).map(gg -> gg.otherOCKey.getValue()).noneMatch(kk -> kk.equals(k));
             }).setHint("Other object class label or raw input image to be extracted");
 
+    CategoryParameter predictCategory = new CategoryParameter(false);
+
     ObjectClassParameter parentObjectClass = new ObjectClassParameter("Parent Object Class", -1, true, false)
         .setNoSelectionString("Viewfield")
         .addListener(poc -> {
@@ -93,7 +97,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.SPARSE_FRAMES, extractSel, frameInteval);
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZCond, otherOCList, selModeCond, spatialDownsampling);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, parentObjectClass, channel, extractZCond, otherOCList, predictCategory, selModeCond, spatialDownsampling);
 
 
     @Override
@@ -143,7 +147,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         }
         if (selectionContainer != null) selectionContainer.add(selection);
         List<Triplet<Integer, Boolean, String>> otherOC = otherOCList.getActivatedChildren().stream().map(g -> new Triplet<>( g.otherOC.getSelectedClassIdx(), g.otherOCLabel.getSelected(), g.otherOCKey.getValue() )).collect(Collectors.toList());
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), selection, selectionFilter, otherOC, outputFile, spatialDownsampling.getIntValue(), compression);
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, channel.getSelectedClassIdx(), extractZ.getSelectedEnum(), extractZPlane.getIntValue(), predictCategory.getCategorySelections(), predictCategory.addDefaultCategory(), selection, selectionFilter, otherOC, outputFile, spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

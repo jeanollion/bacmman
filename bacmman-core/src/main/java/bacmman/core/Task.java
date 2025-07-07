@@ -404,6 +404,11 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     public List<FeatureExtractor.Feature> getExtractDSFeatures() {
+        if (db!=null && extractDSFeatures !=null) { // set Experiment as parent in case needed
+            extractDSFeatures.stream()
+                .flatMap(f-> f.getFeatureExtractor().getParameters()==null? Stream.empty() : Arrays.stream(f.getFeatureExtractor().getParameters()))
+                .forEach(p->p.setParent(db.getExperiment()));
+        }
         return extractDSFeatures;
     }
 
@@ -861,7 +866,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 java.lang.reflect.Method m = clazz.getMethod("runTask", Task.class);
                 m.invoke(null, this);
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
-                errors.addExceptions(new Pair<>("Dataset extraction", new RuntimeException("Could not extract dataset, missing bacmman-dl module", e)));
+                errors.addExceptions(new Pair<>("Dataset extraction", new RuntimeException("Could not extract dataset", e)));
             } catch (Throwable e) {
                 errors.addExceptions(new Pair<>("Dataset extraction", e));
             }

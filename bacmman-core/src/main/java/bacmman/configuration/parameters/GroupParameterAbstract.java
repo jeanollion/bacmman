@@ -51,9 +51,9 @@ public abstract class GroupParameterAbstract<T extends GroupParameterAbstract<T>
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         if (jsonEntry==null) return;
-        if (!(jsonEntry instanceof JSONArray) || ((JSONArray)jsonEntry).size()!=children.size()) throw new IllegalArgumentException("Invalid json entry");
-        if (JSONUtils.isJSONArrayMap(jsonEntry) ) JSONUtils.fromJSONArrayMap(children, (JSONArray)jsonEntry);
-        else JSONUtils.fromJSON(children, (JSONArray)jsonEntry);
+        boolean init = JSONUtils.isJSONArrayMap(jsonEntry) ? JSONUtils.fromJSONArrayMap(children, (JSONArray)jsonEntry) :
+            JSONUtils.fromJSON(children, (JSONArray)jsonEntry);
+        if (!init)  throw new IllegalArgumentException("Error initializing group parameter");
     }
 
 }

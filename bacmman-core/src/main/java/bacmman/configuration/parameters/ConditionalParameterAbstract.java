@@ -220,6 +220,8 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     public T duplicate() {
         ConditionalParameterAbstract<V, T> res = super.duplicate();
         res.parameterSupplier.putAll(parameterSupplier);
+        res.setContentFrom(this);
+        transferStateArguments(this, res);
         return (T)res;
     }
 
