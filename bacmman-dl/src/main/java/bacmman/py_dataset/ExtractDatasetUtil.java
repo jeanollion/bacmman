@@ -194,7 +194,7 @@ public class ExtractDatasetUtil {
                 image = image.crop(bds);
                 //logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
             }
-            return ExtractZAxisParameter.handleZ(image, t.getExtractRawZAxis(), t.getExtractRawZAxisPlaneIdx(), true);
+            return t.getExtractRawZAxis().handleZ(image);
         };
         for (String position : positionMapFrames.keySet()) {
             //logger.debug("position: {}", position);
@@ -425,20 +425,18 @@ public class ExtractDatasetUtil {
         final int idx;
         final boolean isLabel;
         final String name;
-        final ExtractZAxisParameter.ExtractZAxis extractZMode;
-        final int extractZPlane;
+        final ExtractZAxisParameter.ExtractZAxisConfig zAxis;
 
-        public ExtractOCParameters(int idx, boolean isLabel, String name, ExtractZAxisParameter.ExtractZAxis extractZMode, int extractZPlane) {
+        public ExtractOCParameters(int idx, boolean isLabel, String name, ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
             this.idx = idx;
             this.isLabel = isLabel;
             this.name = name;
-            this.extractZMode = extractZMode;
-            this.extractZPlane = extractZPlane;
+            this.zAxis = zAxis;
         }
 
         public FeatureExtractor.Feature getFeatureExtractor() {
             if (isLabel) return new FeatureExtractor.Feature(name, new Labels(), idx);
-            else return new FeatureExtractor.Feature(name, new RawImage().setByChannel(true).setExtractZ(extractZMode, extractZPlane), idx);
+            else return new FeatureExtractor.Feature(name, new RawImage().setByChannel(true).setExtractZ(zAxis), idx);
         }
     }
 
@@ -456,7 +454,7 @@ public class ExtractDatasetUtil {
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, String selection, String filterSelection, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, List<String> selections, String filterSelection, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
@@ -464,9 +462,8 @@ public class ExtractDatasetUtil {
         if (categorySelection != null && !categorySelection.isEmpty()) {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
-        int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, Collections.singletonList(selection), features, dims, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 
@@ -481,7 +478,7 @@ public class ExtractDatasetUtil {
         features.add(new FeatureExtractor.Feature( new RawImage(), objectClasses[0] ));
         features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
 
-        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), ExtractZAxisParameter.ExtractZAxis.BATCH, 0,  positionMapFrames, compression);
+        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), new ExtractZAxisParameter.BATCH(), positionMapFrames, compression);
         return resultingTask;
     }
 

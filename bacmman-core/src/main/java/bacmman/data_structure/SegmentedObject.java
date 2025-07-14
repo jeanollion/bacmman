@@ -896,6 +896,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                     if (attributes!=null) {
                         if (attributes.containsKey("Quality")) region.setQuality((Double)attributes.get("Quality"));
                         if (!(region instanceof Analytical) && attributes.containsKey("Center")) region.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
+                        if (attributes.containsKey("Category")) region.setCategory((Integer)attributes.get("Category"), (Double)attributes.getOrDefault("CategoryProbability", 1.));
                     }
                     region.regionModified = false; // setters modify region
                 }
@@ -927,6 +928,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             attributes.remove("MinorAxis");
             attributes.remove("Theta");
             attributes.remove("AspectRatio");
+            attributes.remove("Category");
+            attributes.remove("CategoryProbability");
         }
         if (region!= null) {
             if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());
@@ -944,6 +947,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             if (region.getCenter() != null) {
                 Point c = region.getCenter();
                 setAttributeList("Center", IntStream.range(0, c.numDimensions()).mapToObj(i -> (double) c.get(i)).collect(Collectors.toList()));
+            }
+            if (region.getCategory() >= 0) {
+                setAttribute("Category", region.getCategory());
+                if (!Double.isNaN(region.getCategoryProbability())) setAttribute("CategoryProbability", region.getCategoryProbability());
             }
         }
     }

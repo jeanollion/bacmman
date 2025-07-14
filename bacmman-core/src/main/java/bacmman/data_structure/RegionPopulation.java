@@ -115,6 +115,23 @@ public class RegionPopulation {
         this.properties = new BlankMask(properties);
     }
 
+    // bds absolute offset
+    public RegionPopulation getCroppedRegionPopulation(BoundingBox bds, boolean relabel) {
+        RegionPopulation res;
+        if (labelImage == null) {
+            ImageProperties resProps = new SimpleImageProperties(bds, properties.getScaleXY(), properties.getScaleZ());
+            List<Region> resObj = objects.stream().filter(r -> BoundingBox.intersect(bds, r.getBounds())).collect(Collectors.toList());
+            res = new RegionPopulation(resObj, resProps);
+            res.constructLabelImage();
+            res.objects = null;
+        } else { // from label map
+            ImageInteger newImage = labelImage.cropWithOffset(bds);
+            res = new RegionPopulation(newImage, true);
+        }
+        if (relabel) res.relabel(false);
+        return res;
+    }
+
     private void checkObjectValidity() {
         if (!objectsAllHaveSameProperty(objects, o -> o.isAbsoluteLandMark()))
             throw new IllegalArgumentException("Regions should all have same landmark");

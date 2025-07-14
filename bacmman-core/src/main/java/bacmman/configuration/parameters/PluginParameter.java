@@ -191,7 +191,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     }
     public T setPlugin(String pluginName) {
         //System.out.println(toString()+ ": set plugin: "+pluginName+ " currentStatus: pluginSet?"+pluginSet+" plugin name: "+pluginName);
-        if (pluginName==null || NO_SELECTION.equals(pluginName)) {
+        if (pluginName==null || NO_SELECTION.equals(pluginName) || NO_SELECTION.toLowerCase().equals(pluginName)) {
             this.pluginParameters=null;
             this.pluginName=NO_SELECTION;
             super.initChildren();

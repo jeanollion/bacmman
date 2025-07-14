@@ -53,16 +53,20 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2D.class);
     // prediction
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
+    SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
-            .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
-            .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(8, 8).setDefaultTargetShape(192, 192)
+            .setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
+            .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(8, 8).setDefaultTargetShape(256, 256)
+            .addInputNumberValidation( () -> 1 + additionalInputChannels.getActivatedChildCount() )
             .setEmphasized(true);
-    BooleanParameter next = new BooleanParameter("Predict Next", true).addListener(b -> dlResizeAndScale.setOutputNumber(b.getSelected() ? 5 : 4))
-            .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & category for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, category for current frame, category for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
+    BooleanParameter predictCategory = new BooleanParameter("Predict Category", false)
+            .setHint("Whether the network predicts a category for each segmented objects or not");
+    BooleanParameter next = new BooleanParameter("Predict Next", true)
+            .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & link multiplicity for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, link multiplicity for current frame, link multiplicity for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Frame Batch Size", 0, 4, 1, null).setEmphasized(true).setHint("Defines how many frames are predicted at the same time within the frame window");
     BoundedNumberParameter predictionFrameSegment = new BoundedNumberParameter("Frame Segment", 0, 200, 0, null).setEmphasized(true).setHint("Defines how many frames are processed (prediction + segmentation + tracking + post-processing) at the same time. O means all frames");
     BoundedNumberParameter inputWindow = new BoundedNumberParameter("Input Window", 0, 3, 1, null).setHint("Defines the number of frames fed to the network. The window is [t-N, t] or [t-N, t+N] if next==true");
-
     BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> is greater than 1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1). <br/>Increase this parameter to provide more temporal context to the neural network, for instance if timesteps are shorter or growth is slower than expected.");
     // segmentation
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas. Set a threshold greater than 0 to erode objects.");
@@ -146,13 +150,19 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     // misc
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
-    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling).setEmphasized(true).setHint("Parameters related to prediction by the neural network");
+    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling, predictCategory).setEmphasized(true).setHint("Parameters related to prediction by the neural network");
     GroupParameter segmentation = new GroupParameter("Segmentation", edmThreshold, minMaxEDM, objectThickness, minObjectSize, centerParameters, mergeCriterion, useGDCMGradientCriterionCond, manualCurationMargin).setEmphasized(true).setHint("Segmentation parameters");
     GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, trackPostProcessingList, trackPPRange, growthRateRange).setEmphasized(true).setHint("Link assignment parameters. Post-processing section allows to correct inconsistencies that can arise between displacement/link multiplicity/segmentation. The method SOLVE_SPLIT_MERGE only works if there are few errors, and can take a very long time otherwise. To reduce it's processing time, set the post-processing range to PER_SEGMENT");
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     // for test display
     protected final Map<SegmentedObject, Color> colorMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(t -> Palette.getColor(150, new Color(0, 0, 0), new Color(0, 0, 0), new Color(0, 0, 0)));
+
+    public DiSTNet2D() {
+        Consumer<BooleanParameter> lis = b -> dlResizeAndScale.setOutputNumber( 4 + (b.getSelected() ? 1 : 0) + ( next.getSelected() ? 1 : 0) ) ;
+        predictCategory.addListener( lis );
+        next.addListener( lis );
+    }
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -162,6 +172,34 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     @Override
     public void track(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         segmentTrack(objectClassIdx, parentTrack, null, null, null, editor);
+    }
+    
+    public static List<Map<Integer, Image>> getInputImageList(int objectClassIdx, int[] additionalInputChannels, int[] additionalInputLabels, List<SegmentedObject> parentTrack, BoundingBox bds) {
+        List<Map<Integer, Image>> allImages = new ArrayList<>();
+        UnaryOperator<Image> crop = bds == null ? im -> im : im -> im.crop(bds);
+        allImages.add(parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> crop.apply(p.getPreFilteredImage(objectClassIdx)))));
+        for (int c  : additionalInputChannels) allImages.add(parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> crop.apply(p.getRawImageByChannel(c)))));
+        for (int l : additionalInputLabels) {
+            Map<Integer, Image> edm = new HashMap<>(parentTrack.size());
+            Map<Integer, Image> gcdm = new HashMap<>(parentTrack.size());
+            allImages.add(edm);
+            allImages.add(gcdm);
+            parentTrack.stream().parallel().forEach(p -> {
+                RegionPopulation pop = p.getChildRegionPopulation(l);
+                if (bds != null) pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
+                edm.put(p.getFrame(), pop.getEDM(true, false));
+                gcdm.put(p.getFrame(), pop.getGCDM(false));
+            });
+        }
+        return allImages;
+    }
+
+    private int[] getAdditionalChannels() {
+        return additionalInputChannels.getActivatedChildren().stream().mapToInt(IndexChoiceParameter::getSelectedIndex).toArray();
+    }
+    
+    private int[] getAdditionalLabels() {
+        return additionalInputLabels.getActivatedChildren().stream().mapToInt(IndexChoiceParameter::getSelectedIndex).toArray();
     }
 
     public void segmentTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -181,8 +219,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, LinkMultiplicity>[] linkMultiplicityMapContainer = new Map[2];
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(linkDistanceTolerance.getIntValue());
         if (trackPreFilters!=null) trackPreFilters.filter(objectClassIdx, parentTrack);
-        Map<Integer, Image> allImages = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> p.getPreFilteredImage(objectClassIdx)));
-        int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
+        List<Map<Integer, Image>> allImages = getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, null);
+        int[] sortedFrames = allImages.get(0).keySet().stream().sorted().mapToInt(i->i).toArray();
         int increment = predictionFrameSegment.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / predictionFrameSegment.getIntValue()) );
 
         for (int i = 0; i<parentTrack.size(); i+=increment) { // divide by frame window
@@ -422,7 +460,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             Image edmI = prediction.edm.get(p);
             Image gcdmI = prediction.gdcm.get(p);
             RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), postFilters, stores);
-            factory.setChildObjects(p, pop);
+            List<SegmentedObject> segObjects = factory.setChildObjects(p, pop);
+            if (predictCategory.getSelected()) {
+                for (SegmentedObject o : segObjects) {
+                    double[] cat = prediction.getCategoryProba(o);
+                    int catIdx = ArrayUtil.max(cat);
+                    o.setAttribute("Category", catIdx);
+                    o.setAttribute("CategoryProbability", cat[catIdx]);
+                    if (stores != null) o.setAttribute("categoryProbabilities", cat);
+                }
+            }
             //logger.debug("parent: {} segmented!", p);
         };
         ThreadRunner.execute(parentTrack, false, ta);
@@ -682,8 +729,36 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (metaNext!=null) next.setSelected(metaNext.getSelected());
         logger.debug("configure distnet from metadata : input: {}", metadata.getInputs());
         if (!metadata.getInputs().isEmpty()) {
-            DLModelMetadata.DLModelInputParameter input = metadata.getInputs().get(0);
+            List<DLModelMetadata.DLModelInputParameter> inputs = metadata.getInputs();
+            DLModelMetadata.DLModelInputParameter input = inputs.get(0);
             this.inputWindow.setValue(next.getSelected()? (input.getChannelNumber() -1) / 2 : input.getChannelNumber() - 1 );
+            if (inputs.size() > 1) {
+                int labelIdx = -1;
+                for (int i = 0; i < inputs.size(); ++i) {
+                    if (!inputs.get(i).getScaling().isOnePluginSet()) {
+                        labelIdx = i;
+                        break;
+                    }
+                }
+                if (labelIdx > 0) {
+                    int nLabels = ( inputs.size() - labelIdx ) / 2; // two inputs per label
+                    additionalInputChannels.setChildrenNumber( inputs.size() - 1 - nLabels * 2 );
+                    additionalInputLabels.setChildrenNumber( nLabels );
+                } else {
+                    additionalInputChannels.setChildrenNumber( inputs.size() - 1 );
+                    additionalInputLabels.setChildrenNumber( 0 );
+                }
+            } else {
+                additionalInputChannels.setChildrenNumber(0);
+                additionalInputLabels.setChildrenNumber(0);
+            }
+            dlResizeAndScale.setInputNumber( 1 + additionalInputChannels.getActivatedChildCount() );
+            for (int i = 0; i<additionalInputChannels.getActivatedChildCount()+1; ++i) {
+                dlResizeAndScale.setScaler(i, inputs.get(i).getScaling().instantiatePlugin());
+            }
+        }
+        if (!metadata.getOutputs().isEmpty()) {
+            predictCategory.setSelected(metadata.getOutputs().size() - (next.getSelected()?1:0) == 5);
         }
     }
 
@@ -1165,10 +1240,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 n = n.getNext();
             }
         }
-        Map<Integer, Image> allImages = parentTrack.stream()
-                //.peek(p->{if (p.getPreFilteredImage(objectClassIdx)==null) logger.debug("null pf for {}", p);} )
-                .collect(Collectors.toMap(SegmentedObject::getFrame, p -> minimalBounds==null ? p.getPreFilteredImage(objectClassIdx) : p.getPreFilteredImage(objectClassIdx).crop(minimalBounds)));
-        int[] sortedFrames = allImages.keySet().stream().sorted().mapToInt(i->i).toArray();
+        List<Map<Integer, Image>> allImages = getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds);
+        int[] sortedFrames = allImages.get(0).keySet().stream().sorted().mapToInt(i->i).toArray();
         return predict(allImages, sortedFrames, parentTrack, null, minimalBounds).edm.get(parent);
     }
     // flaw : input image is not used -> prefiltered image is used instead because a temporal neighborhood is required
@@ -1426,11 +1499,17 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         return res;
     }
-    public static Image[][] getInputs(Map<Integer, Image> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval) {
+    public static Image[][] getInput(Map<Integer, Image> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval) {
         return IntStream.of(frames).mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval)
                 .stream().map(images::get)
                 .toArray(Image[]::new))
                 .toArray(Image[][]::new);
+    }
+
+    public static Image[][][] getInputs(List<Map<Integer, Image>> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval) {
+        Image[][][] res = new Image[images.size()][][];
+        for (int i = 0; i<images.size(); ++i) res[i] = getInput(images.get(i), allFrames, frames, inputWindow, addNext, frameInterval);
+        return res;
     }
 
     @Override
@@ -1727,6 +1806,19 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             TrackAssigner.setLinks(otherNextTracks, false, editor);
         }
     }
+
+    protected DLResizeAndScale getDlResizeAndScale() {
+        int nchannels = 1 + getAdditionalChannels().length;
+        int nlabels = getAdditionalLabels().length;
+        if (nlabels == 0) return dlResizeAndScale;
+        else { // add scaling for EDM and GDCM for each label
+            DLResizeAndScale res = dlResizeAndScale.duplicate().setScaleLogger(dlResizeAndScale.getScaleLogger());
+            res.setInputNumber( nchannels + 2 * nlabels );
+            for (int i = 0; i<nlabels; ++i) res.setScaler(nlabels + i, null); // no intensity scaling for EDM and GDCM
+            return res;
+        }
+    }
+
     /// DL prediction
     private class PredictedChannels {
         Image[] edm;
@@ -1734,6 +1826,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Image[] dyBW, dyFW;
         Image[] dxBW, dxFW;
         Image[] multipleLinkFW, multipleLinkBW, noLinkBW, noLinkFW;
+        Image[][] catNC;
         boolean next;
         int inputWindow;
         PredictedChannels(int inputWindow, boolean next) {
@@ -1754,15 +1847,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             noLinkFW = new Image[n];
         }
 
-        void predict(DLEngine engine, Map<Integer, Image> images, int[] allFrames, int[] framesToPredict, int frameInterval) {
+        void predict(DLEngine engine, List<Map<Integer, Image>> images, int[] allFrames, int[] framesToPredict, int frameInterval) {
             init(framesToPredict.length);
             double interval = framesToPredict.length;
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = 0; i < framesToPredict.length; i += increment ) {
                 int idxMax = Math.min(i + increment, framesToPredict.length);
-                Image[][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval);
+                Image[][][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval);
                 logger.debug("input: [{}; {}] / [{}; {}]", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
-                Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
+                Image[][][] predictions = getDlResizeAndScale().predict(engine, input); // output 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
                 appendPrediction(predictions, i);
             }
         }
@@ -1779,9 +1872,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
             System.arraycopy(ResizeUtils.getChannel(predictions[4], 1), 0, this.multipleLinkBW, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[4], 2), 0, this.noLinkBW, idx, n);
-            int nChanCat = predictions[4][0].length;
-            System.arraycopy(ResizeUtils.getChannel(predictions[4], 1 + nChanCat/2), 0, this.multipleLinkFW, idx, n);
-            System.arraycopy(ResizeUtils.getChannel(predictions[4], 2 + nChanCat/2), 0, this.noLinkFW, idx, n);
+            int nChanLM = predictions[4][0].length;
+            System.arraycopy(ResizeUtils.getChannel(predictions[4], 1 + nChanLM/2), 0, this.multipleLinkFW, idx, n);
+            System.arraycopy(ResizeUtils.getChannel(predictions[4], 2 + nChanLM/2), 0, this.noLinkFW, idx, n);
+            if (predictCategory.getSelected()) catNC = predictions[5];
         }
 
         void decreaseBitDepth() {
@@ -1798,11 +1892,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 if (noLinkBW !=null) noLinkBW[i] = TypeConverter.toFloatU8(noLinkBW[i], proba);
                 if (multipleLinkBW !=null) multipleLinkBW[i] = TypeConverter.toFloatU8(multipleLinkBW[i], proba);
                 if (noLinkFW !=null) noLinkFW[i] = TypeConverter.toFloatU8(noLinkFW[i], proba);
+                if (catNC != null) {
+                    for (int c = 0; c<catNC[0].length; ++c) catNC[i][c] = TypeConverter.toFloatU8(catNC[i][c], proba);
+                }
             }
         }
     }
 
-    private PredictionResults predict(Map<Integer, Image> images, int[] sortedFrames, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, Offset offset) {
+    private PredictionResults predict(List<Map<Integer, Image>> images, int[] sortedFrames, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, Offset offset) {
         long t0 = System.currentTimeMillis();
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
@@ -1817,10 +1914,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         // resampling
         Consumer<Map.Entry<SegmentedObject, Image>> resample, resampleDX, resampleDY;
+        Consumer<Map.Entry<SegmentedObject, Image[]>> resampleCat;
         if (dlResizeAndScale.getMode().equals(DLResizeAndScale.MODE.RESAMPLE)) {
             int[][] dim = parentTrack.stream().map(SegmentedObject::getBounds).map(bds -> new int[]{bds.sizeX(), bds.sizeY()}).toArray(int[][]::new);
             InterpolatorFactory linInterp = new NLinearInterpolatorFactory();
             resample = e -> e.setValue(Resize.resample(e.getValue(), linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY()));
+            resampleCat = e -> e.setValue(Arrays.stream(e.getValue()).map(im -> Resize.resample(im, linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY())).toArray(Image[]::new));
             resampleDX = e -> {
                 ImageOperations.affineOpMulAdd(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeX() / e.getValue().sizeX(), 0);
                 resample.accept(e);
@@ -1833,13 +1932,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             resample = e -> {};
             resampleDX = resample;
             resampleDY = resample;
+            resampleCat = e -> {};
         }
         // offset & calibration
         Offset off = offset==null ? new SimpleOffset(0, 0, 0) : offset;
         Consumer<Map.Entry<SegmentedObject, Image>> setCalibration = e -> e.getValue().setCalibration(e.getKey().getMaskProperties()).resetOffset().translate(e.getKey().getMaskProperties()).translate(off);
+        Consumer<Map.Entry<SegmentedObject, Image[]>> setCalibrationCat = e -> Arrays.stream(e.getValue()).forEach(im -> im.setCalibration(e.getKey().getMaskProperties()).resetOffset().translate(e.getKey().getMaskProperties()).translate(off));
 
         Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.edm[i]));
         Map<SegmentedObject, Image> gcdmM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.gcdm[i]));
+        Map<SegmentedObject, Image[]> catM = predictCategory.getSelected() ? IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.catNC[i])) : null;
         int start = firstSegment ? 1 : 0;
         Map<SegmentedObject, Image> noLinkBWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.noLinkBW[i]));
         Map<SegmentedObject, Image> multipleLinkBWM = IntStream.range(start, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.multipleLinkBW[i]));
@@ -1853,6 +1955,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         edmM.entrySet().forEach( e-> {resample.accept(e); setCalibration.accept(e);});
         gcdmM.entrySet().forEach( e-> {resample.accept(e); setCalibration.accept(e);});
+        if (catM != null) catM.entrySet().forEach( e-> {resampleCat.accept(e); setCalibrationCat.accept(e);});
         noLinkBWM.entrySet().forEach( e-> {resample.accept(e); setCalibration.accept(e);});
         multipleLinkBWM.entrySet().forEach( e-> {resample.accept(e); setCalibration.accept(e);});
         dyBWM.entrySet().forEach( e-> {resampleDY.accept(e); setCalibration.accept(e);});
@@ -1868,6 +1971,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 .setMultipleLinkBW(multipleLinkBWM).setNoLinkBW(noLinkBWM)
                 .setDxFW(dxFWM).setDyFW(dyFWM)
                 .setMultipleLinkFW(multipleLinkFWM).setNoLinkFW(noLinkFWM);
+        if (catM != null) res.setCat(catM);
         return res;
     }
 
@@ -1881,6 +1985,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     private static class PredictionResults {
         Map<SegmentedObject, Image> edm, gdcm, dxBW, dxFW, dyBW, dyFW, multipleLinkBW, multipleLinkFW, noLinkBW, noLinkFW;
+        Map<SegmentedObject, Image[]> cat;
 
         public PredictionResults setEdm(Map<SegmentedObject, Image> edm) {
             if (this.edm == null) this.edm = edm;
@@ -1891,6 +1996,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         public PredictionResults setGCDM(Map<SegmentedObject, Image> gcdm) {
             if (this.gdcm == null) this.gdcm = gcdm;
             else this.gdcm.putAll(gcdm);
+            return this;
+        }
+
+        public PredictionResults setCat(Map<SegmentedObject, Image[]> cat) {
+            if (this.cat == null) this.cat = cat;
+            else this.cat.putAll(cat);
             return this;
         }
 
@@ -1940,6 +2051,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (this.noLinkFW == null) this.noLinkFW = noLinkFW;
             else this.noLinkFW.putAll(noLinkFW);
             return this;
+        }
+
+        public double[] getCategoryProba(SegmentedObject o) {
+            Image[] cat = this.cat.get(o.getParent());
+            return Arrays.stream(cat).mapToDouble(im -> BasicMeasurements.getQuantileValue(o.getRegion(), im, 0.5)[0]).toArray();
         }
     }
 

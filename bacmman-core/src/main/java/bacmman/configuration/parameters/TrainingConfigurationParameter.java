@@ -381,19 +381,25 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_OR_DIRECTORY,false)
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
-        TextParameter channel = new TextParameter("Channel Name", "raw", false, false).setHint("Name of images / movies to consider within the dataset");
+        TextParameter channel = new TextParameter("Channel Name", "raw", false, false)
+                .setHint("Name of images / movies to consider within the dataset");
         EnumChoiceParameter<DATASET_TYPE> type = new EnumChoiceParameter<>("Dataset Type", DATASET_TYPE.values(), DATASET_TYPE.TRAIN).setHint("Puropose of dataset: training, test (loss computation during training), evaluation (metric computation)");
         SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", channel)
                 .setMinChildCount(1).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0).setHint("Name of images / movies to consider within the dataset")
+                .setNewInstanceConfigurationFunction((l,i,t)-> {if (i>0) t.setValue("");})
                 .setLegacyInitializationValue(channel); // in case switch from mono to multichannnel -> keep the parametrization
-        TextParameter label = new TextParameter("Label Name", "label", false, false).setHint("Name of images / movies corresponding to labeled objects to consider within the dataset");
-        SimpleListParameter<TextParameter> labels = new SimpleListParameter<>("Label Name", label)
-                .unique(TextParameter::getValue).setHint("Name of images / movies corresponding to labels to consider within the dataset");
+        TextParameter label = new TextParameter("Label Name", "", false, false).setHint("Name of images / movies corresponding to labeled objects to consider within the dataset");
+        SimpleListParameter<TextParameter> labels = new SimpleListParameter<>("Label Names", label)
+                .unique(TextParameter::getValue).setHint("Name of images / movies corresponding to labels to consider within the dataset, usually used as input labels (depending on the application)");
         DLScalingParameter scaler = new DLScalingParameter("Intensity Scaling");
         SimpleListParameter<DLScalingParameter> scalers = new SimpleListParameter<>("Intensity Scaling", scaler)
-                .setHint("Input channel scaling parameter (one per channel or one for all channels)")
-                .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(false))
-                .setNewInstanceNameFunction((l, i) -> "Channel "+i).setChildrenNumber(1);
+            .setHint("Input channel scaling parameter (one per channel or one for all channels)")
+            .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(false))
+            .setNewInstanceNameFunction((l, idx) -> {
+                SimpleListParameter<TextParameter> channelNames = l.getParent()==null?null:ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, l, cn -> cn.getName().equals("Channel Names"));
+                if ( channelNames != null && channelNames.getChildCount() > idx ) return channelNames.getChildAt(idx).getValue();
+                else return "Channel "+idx;
+            });
         BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch. <br /> e.g.: 0.5 means a batch has twice less chances to be picked from this dataset compared to 1.");
         ChoiceParameter loadInSharedMemory = new ChoiceParameter("Load in shared memory", new String[]{"true", "auto", "false"}, "auto", false).setHint("If true, the whole dataset will be loaded in shared memory, to improve access and memory management when using multiprocessing. <br/>Disable this option for large datasets that do not fit in shared memory. <br/>Amount of shared memory is set in the docker options. <br/> In auto mode, dataset is loaded only if Gb of shared memory for files smaller than 16Gb. When several datasets are concatenated, this test is performed independently for each dataset, so shared memory can be filled");
 
@@ -426,6 +432,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 children.add(dataAug);
             } else dataAug = null;
             initChildList();
+            scalers.setChildrenNumber(1);
         }
 
         public int getChannelNumber() {

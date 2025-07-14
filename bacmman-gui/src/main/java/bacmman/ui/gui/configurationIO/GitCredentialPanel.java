@@ -74,6 +74,10 @@ public class GitCredentialPanel {
         });
     }
 
+    public void connect() {
+        this.updateCredentialsCallback.run();
+    }
+
     private void enableTokenButtons(boolean modifyingPassword) {
         String u = username.getText();
         char[] p = password.getPassword();

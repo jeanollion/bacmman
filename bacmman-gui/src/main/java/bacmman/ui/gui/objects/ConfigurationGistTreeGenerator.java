@@ -270,7 +270,7 @@ public class ConfigurationGistTreeGenerator {
                 for (int oIdx = 0; oIdx<g.getExperiment(getAuth()).getStructureCount(); ++oIdx) {
                     GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
                     Stream<GistTreeNode> stream = EnumerationUtils.toStream(f.children()).map(gg->(GistTreeNode)gg);
-                    if (stream.anyMatch(gg -> gg.gist.getType().equals(GistConfiguration.TYPE.PROCESSING) && gg.getID().equals(n.getID()) )) { // do not add if existing processing block
+                    if (stream.noneMatch(gg -> gg.gist.getType().equals(GistConfiguration.TYPE.PROCESSING) && gg.getID().equals(n.getID()) )) { // do not add if existing processing block
                         if (sorted) insertSorted(f, n);
                         else f.add(n);
                     }

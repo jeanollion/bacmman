@@ -155,7 +155,7 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
     // choosable parameter multiple
     @Override
     public void setSelectedIndices(int[] selectedItems) {
-        this.selectedIndices=selectedItems;
+        this.selectedIndices=selectedItems==null?new int[0]:selectedItems;
         fireListeners();
     }
     @Override
@@ -187,6 +187,14 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
             int idx = ((Number)jsonEntry).intValue();
             setSelectedIndex(idx);
         } else throw new IllegalArgumentException("Invalid json entry");
+    }
+
+    @Override
+    public P duplicate() {
+        P dup = super.duplicate();
+        dup.allowNoSelection = allowNoSelection;
+        dup.multipleSelection = multipleSelection;
+        return dup;
     }
 
     // legacy init

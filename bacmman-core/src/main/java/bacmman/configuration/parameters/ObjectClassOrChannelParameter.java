@@ -99,6 +99,7 @@ public abstract class ObjectClassOrChannelParameter<T extends ObjectClassOrChann
     public String getNoSelectionString() {
         return noSelection;
     }
+
     public T setNoSelectionString(String noSelection) {
         this.noSelection = noSelection;
         return (T)this;

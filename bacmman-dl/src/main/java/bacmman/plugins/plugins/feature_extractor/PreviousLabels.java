@@ -14,8 +14,6 @@ import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
-
 public class PreviousLabels implements FeatureExtractorTemporal, Hint {
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
 
@@ -55,7 +53,8 @@ public class PreviousLabels implements FeatureExtractorTemporal, Hint {
                 }
             });
         }
-        return handleZ(prevLabel, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return prevLabel; // handled later
+        else return extractZ.getConfig().handleZ(prevLabel);
     }
 
     @Override

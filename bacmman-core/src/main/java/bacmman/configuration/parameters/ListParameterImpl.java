@@ -140,12 +140,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
 
     @Override
     public JSONAware toJSONEntry() {
-        //JSONObject res= new JSONObject();
         JSONArray list= new JSONArray();
         for (T p : children) list.add(p.toJSONEntry());
         return list;
-        //res.put("list", list);
-        //return res;
     }
 
     @Override
@@ -153,26 +150,38 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         synchronized(this) {
             this.bypassListeners = true;
             removeAllElements();
+            Throwable el=null;
             if (json instanceof JSONArray || (json instanceof JSONObject && ((JSONObject)json).containsKey("list") )) {
-                JSONArray list = json instanceof JSONArray ? (JSONArray)json : (JSONArray)((JSONObject)json).get("list");
-                for (Object o : list) {
-                    T newI = createChildInstance();
-                    newI.setParent(this); // may be necessary for initFromJSONEntry
-                    newI.initFromJSONEntry(o);
-                    insert(newI);
-                }
-            } else { // try to init with one single element (if element was replaced by list)
                 try {
-                    T newI = createChildInstance();
-                    newI.setParent(this);
-                    newI.initFromJSONEntry(json);
-                    insert(newI);
-                } catch (Throwable e) {
+                    JSONArray list = json instanceof JSONArray ? (JSONArray)json : (JSONArray)((JSONObject)json).get("list");
+                    for (Object o : list) {
+                        T newI = createChildInstance();
+                        newI.setParent(this); // may be necessary for initFromJSONEntry
+                        newI.initFromJSONEntry(o);
+                        insert(newI);
+                    }
                     this.bypassListeners=false;
-                    throw e;
+                    return;
+                } catch (Throwable e) {
+                    if (!isEmpty()) {
+                        this.bypassListeners=false;
+                        throw e;
+                    } else el = e;
                 }
             }
-            this.bypassListeners=false;
+
+            // try to init with one single element (if element was replaced by list)
+            try {
+                T newI = createChildInstance();
+                newI.setParent(this);
+                newI.initFromJSONEntry(json);
+                insert(newI);
+                this.bypassListeners = false;
+            } catch (Throwable e) {
+                this.bypassListeners = false;
+                if (el != null) throw new RuntimeException(el);
+                else throw e;
+            }
         }
     }
     

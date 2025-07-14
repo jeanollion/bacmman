@@ -182,6 +182,9 @@ public class ExperimentStructure {
     public boolean singleFrame(String positionName, int objectClassIdx) {
         return xp.getPosition(positionName).singleFrame(objectClassIdx);
     }
+    public boolean singleFrameChannel(String positionName, int channelIdx) {
+        return xp.getPosition(positionName).singleFrameChannel(channelIdx);
+    }
     public int sizeZ(String positionName, int channelIdx) {
         return xp.getPosition(positionName).getSizeZ(channelIdx);
     }

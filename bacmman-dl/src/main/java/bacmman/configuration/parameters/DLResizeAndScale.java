@@ -99,6 +99,9 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         this.scaleLogger = scaleLogger;
         return this;
     }
+    public Consumer<String> getScaleLogger() {
+        return scaleLogger;
+    }
     public DLResizeAndScale addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         inputScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());

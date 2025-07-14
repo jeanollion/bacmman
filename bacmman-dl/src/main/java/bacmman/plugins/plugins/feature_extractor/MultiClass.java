@@ -15,8 +15,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
-
 public class MultiClass implements FeatureExtractor {
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     ObjectClassParameter classes = new ObjectClassParameter("Classes", -1, false, true).setEmphasized(true).setHint("Select class to be extracted. A label will be assigned to each class in the defined order");
@@ -36,7 +34,8 @@ public class MultiClass implements FeatureExtractor {
             int label = i + 1;
             ImageMask.loop(mask, (x, y, z)->res.setPixel(x, y, z, label));
         }
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
     @Override

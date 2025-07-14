@@ -11,8 +11,6 @@ import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory
 
 import java.util.Map;
 
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
-
 public class Labels implements FeatureExtractor, Hint {
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
 
@@ -24,7 +22,8 @@ public class Labels implements FeatureExtractor, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res= resampledPopulations.get(objectClassIdx).get(parent).getLabelMap();
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
     public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {

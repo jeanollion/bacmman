@@ -25,6 +25,7 @@ public interface PythonConfiguration {
     static void putParameters(Parameter[] parameters, JSONObject container) {
         putParameters(Arrays.asList(parameters), container);
     }
+
     static void putParameters(Collection<Parameter> parameters, JSONObject container) {
         for (Parameter p : parameters) {
             if (p instanceof PythonConfiguration) {
@@ -37,8 +38,8 @@ public interface PythonConfiguration {
                 if (conf!=null) container.put(toSnakeCase(p.getName()), conf);
             }
         }
-
     }
+
     static String imageToPythonString(Image image) { // z, y, x order
         StringBuilder sb = new StringBuilder();
         BiConsumer<Integer, Integer> appendLine = (y, z) -> {

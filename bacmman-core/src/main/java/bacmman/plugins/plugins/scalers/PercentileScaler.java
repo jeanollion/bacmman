@@ -1,8 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.IntervalParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
@@ -12,12 +10,16 @@ import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
 import java.util.function.Consumer;
+import java.util.function.ToDoubleFunction;
 
 public class PercentileScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double offset, scale;
     IntervalParameter percentile = new IntervalParameter("Min/Max Percentiles", 5, 0, 1, 0.01, 0.99).setEmphasized(true);
-    BooleanParameter saturate = new BooleanParameter("Saturate", true).setEmphasized(true).setHint("If true, values under min percentile and values over max percentile are set to 0 and 1 respectively");
+    FloatParameter powerLaw = new FloatParameter("Power Law", 0.1).setLowerBound(0).setUpperBound(1)
+            .setHint("Values greater than 1 after scaling are transformed with a power law in order to saturate smoothly high values. 0 is equivalent to hard saturation");
+    BooleanParameter saturate = new BooleanParameter("Saturate", true).setEmphasized(true).setHint("If true, values under min percentile are set to 0. Values over max percentile are set to 1 except if a power is defined, in that case the power law is used to saturate high values instead");
+
     boolean transformInputImage = false;
     Consumer<String> scaleLogger;
     @Override
@@ -37,6 +39,10 @@ public class PercentileScaler implements HistogramScaler, Hint {
     }
     public PercentileScaler setSaturate(boolean saturate) {
         this.saturate.setSelected(saturate);
+        return this;
+    }
+    public PercentileScaler setPowerLaw(double powerLaw) {
+        this.powerLaw.setValue(powerLaw);
         return this;
     }
 
@@ -63,10 +69,32 @@ public class PercentileScaler implements HistogramScaler, Hint {
             log(scaleOff);
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }
-        if (saturate.getSelected()) {
-            ImageOperations.applyFunction(image, v -> Math.max(0, Math.min(1, v)), true);
+        ToDoubleFunction<Double> saturateFun = getDoubleToDoubleFunction();
+        if (saturateFun != null) {
+            ImageOperations.applyFunction(image, saturateFun, true);
         }
         return image;
+    }
+
+    protected ToDoubleFunction<Double> getDoubleToDoubleFunction() {
+        double powerLaw = this.powerLaw.getDoubleValue();
+        ToDoubleFunction<Double> saturateFun;
+        if (powerLaw < 1 && powerLaw > 0) {
+            if (saturate.getSelected()) {
+                saturateFun = v -> {
+                    if (v > 1) return Math.pow(v, powerLaw);
+                    return Math.max(0, v);
+                };
+            } else {
+                saturateFun = v -> {
+                    if (v > 1) return Math.pow(v, powerLaw);
+                    return v;
+                };
+            }
+
+        } else if (saturate.getSelected()) saturateFun = v -> Math.max(0, Math.min(1, v));
+        else saturateFun = null;
+        return saturateFun;
     }
 
     @Override
@@ -87,7 +115,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[] {percentile , saturate};
+        return new Parameter[] {percentile , saturate, powerLaw};
     }
 
     @Override

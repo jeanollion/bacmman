@@ -680,11 +680,11 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected Task getDatasetExtractionTask(Path dir, String fileName, List<String> selectionList) {
         MasterDAO mDAO = GUI.getDBConnection();
-        trainerParameter.setParent(mDAO.getExperiment());
         DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
         ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
+        for (Parameter p : trainer.getDatasetExtractionParameters()) p.setParent(mDAO.getExperiment());
         String extractFileName = fileName == null ? datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5" : fileName;
-        return trainer.getDatasetExtractionTask(GUI.getDBConnection(), dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
+        return trainer.getDatasetExtractionTask(mDAO, dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
     }
 
     protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel) {
@@ -740,6 +740,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             };
         }
         dlModelLibrary.setConfigureParameterCallback(newConfigureCB);
+        dlModelLibrary.connect();
         return dlModelLibrary;
     }
 
@@ -804,6 +805,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount, Map<String, String> dirMapMountDir, boolean export) {
         String image = ensureImage(trainer, dockerGateway, export);
         logger.debug("get container: docker image: {}", image);
+        if (image == null) return null;
         try {
             List<UnaryPair<String>> mounts = new ArrayList<>();
             mounts.add(new UnaryPair<>(workingDirPanel.getCurrentWorkingDirectory(), "/data"));

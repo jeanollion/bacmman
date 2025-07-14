@@ -18,14 +18,8 @@ public class RawImage implements FeatureExtractor, Hint {
         return this.extractZ.getExtractZDim();
     }
 
-    public RawImage setExtractZ(ExtractZAxisParameter.ExtractZAxis mode, int planeIdx) {
-        this.extractZ.setPlaneIdx(planeIdx);
-        this.extractZ.setExtractZDim(mode);
-        return this;
-    }
-
-    public RawImage setExtractZ(ExtractZAxisParameter.ExtractZAxis mode) {
-        this.extractZ.setExtractZDim(mode);
+    public RawImage setExtractZ(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+        this.extractZ.fromConfig(zAxis);
         return this;
     }
 
@@ -42,7 +36,8 @@ public class RawImage implements FeatureExtractor, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res = byChannel ? parent.getRawImageByChannel(objectClassIdx) : parent.getRawImage(objectClassIdx);
-        return ExtractZAxisParameter.handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
     @Override

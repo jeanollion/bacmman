@@ -12,8 +12,6 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import java.util.Arrays;
 import java.util.Map;
 
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
-
 public class UnetWeightMap implements FeatureExtractor, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 2, 5, 0.1, null).setHint("Controls the value between segmented regions");
     BoundedNumberParameter wo = new BoundedNumberParameter("wo", 2, 10, 0, null).setHint("Controls the value between regions. If 0: value at contours of a segmented region do not depend on neighboring segmented regions.");
@@ -65,7 +63,8 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
                 r.getContour().forEach(v -> res.setPixel(v.x, v.y, v.z, 0));
             });
         }
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx(), false);
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
     public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {

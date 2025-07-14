@@ -83,6 +83,8 @@ public class Region {
     protected double scaleXY=1, scaleZ=1;
     protected boolean absoluteLandmark=false; // false = coordinates relative to the direct parent
     protected double quality=Double.NaN;
+    protected double categoryProbability = Double.NaN;
+    protected int category = -1;
     protected Point center;
     protected boolean is2D;
     boolean regionModified;
@@ -155,13 +157,29 @@ public class Region {
         this.bounds = new SimpleBoundingBox(bounds);
         return this;
     }
+
     public Region setQuality(double quality) {
         this.quality=quality;
         regionModified=true;
         return this;
     }
+
     public double getQuality() {
         return quality;
+    }
+
+    public Region setCategory(int categoryIdx, double probability) {
+        this.category=categoryIdx;
+        this.categoryProbability = probability;
+        regionModified=true;
+        return this;
+    }
+
+    public double getCategoryProbability() {
+        return categoryProbability;
+    }
+    public int getCategory() {
+        return category;
     }
 
     /**

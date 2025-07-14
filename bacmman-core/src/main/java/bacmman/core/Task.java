@@ -98,8 +98,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         Map<String, List<Integer>> extractDSRawPositionMapFrames;
         int[] extractDSRawChannels;
         int extractDSCompression = 4;
-        ExtractZAxisParameter.ExtractZAxis extractZAxis = ExtractZAxisParameter.ExtractZAxis.IMAGE3D;
-        int extractZAxisPlaneIdx;
+        ExtractZAxisParameter.ExtractZAxisConfig extractRawZAxis = new ExtractZAxisParameter.IMAGE3D();
         boolean extractByPosition;
 
         @Override
@@ -166,8 +165,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 JSONObject pf = new JSONObject();
                 for (String p : extractDSRawPositionMapFrames.keySet()) pf.put(p, JSONUtils.toJSONArray(extractDSRawPositionMapFrames.get(p)));
                 extractRawDS.put("positionMapFrame", pf);
-                extractRawDS.put("extractZAxis", extractZAxis.toString());
-                extractRawDS.put("extractZAxisPlaneIdx", extractZAxisPlaneIdx);
+                extractRawDS.put("extractZAxis", extractRawZAxis.toJSONEntry());
                 res.put("extractRawDataset", extractRawDS);
             }
             return res;
@@ -245,8 +243,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                     extractDSRawBounds = new SimpleBoundingBox();
                     extractDSRawBounds.initFromJSONEntry(extractRawDS.get("bounds"));
                 }
-                extractZAxis = ExtractZAxisParameter.ExtractZAxis.valueOf((String)extractRawDS.getOrDefault("extractZAxis", ExtractZAxisParameter.ExtractZAxis.IMAGE3D.toString()));
-                extractZAxisPlaneIdx = ((Number)extractRawDS.getOrDefault("extractZAxisPlaneIdx", 0)).intValue();
+                extractRawZAxis = ExtractZAxisParameter.getConfigFromJSONEntry(extractRawDS.getOrDefault("extractZAxis", ExtractZAxisParameter.ExtractZAxis.IMAGE3D.toString()));
                 JSONObject pf = (JSONObject)extractRawDS.get("positionMapFrame");
                 extractDSRawPositionMapFrames = new HashMap<>();
                 for (Object k: pf.keySet()) extractDSRawPositionMapFrames.put((String)k, JSONUtils.fromIntArrayToList((JSONArray)pf.get(k)));
@@ -424,8 +421,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
     public boolean isExtractDSTracking() {return extractDSTracking;}
     public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
-    public ExtractZAxisParameter.ExtractZAxis getExtractRawZAxis() {return extractZAxis; }
-    public int getExtractRawZAxisPlaneIdx() {return extractZAxisPlaneIdx; }
+    public ExtractZAxisParameter.ExtractZAxisConfig getExtractRawZAxis() {return extractRawZAxis; }
     public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
     public int[] getExtractRawDSChannels() {return extractDSRawChannels;}
     public int getExtractDSCompression() {return extractDSCompression;}
@@ -493,13 +489,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
             return extractDSTracking;
     }
 
-    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxisParameter.ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames, int compression) {
+    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxisParameter.ExtractZAxisConfig zAxis, Map<String, List<Integer>> positionMapFrames, int compression) {
         this.extractRawDSFile = extractDSFile;
         this.extractDSRawPositionMapFrames = positionMapFrames;
         this.extractDSRawBounds = bounds;
         this.extractDSRawChannels = channels;
-        this.extractZAxis = zAxis;
-        this.extractZAxisPlaneIdx = zAxisPlaneIdx;
+        this.extractRawZAxis = zAxis;
         this.extractDSCompression = compression;
         return this;
     }
@@ -1115,11 +1110,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             addSep.run();
             sb.append("ExtractRawDSFile:").append(extractRawDSFile);
             addSep.run();
-            sb.append("ExtractRawZAxis:").append(extractZAxis);
-            if (getExtractRawZAxis().equals(ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE)) {
-                addSep.run();
-                sb.append("ExtractRawZAxisPlaneIDx:").append(extractZAxisPlaneIdx);
-            }
+            sb.append("ExtractRawZAxis:").append(extractRawZAxis.toJSONEntry().toString());
         }
         if (extractDSRawChannels!=null) {
             addSep.run();
