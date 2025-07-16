@@ -1,6 +1,5 @@
 package bacmman.configuration.parameters;
 
-import bacmman.core.Task;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
@@ -79,7 +78,7 @@ public class ExtractRawDatasetParameter extends GroupParameterAbstract<ExtractRa
         }
     }
 
-    public void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, FRAME_CHOICE_MODE mode, int nFrames, Task.ExtractZAxis zAXis, int extractZPlaneIdx) {
+    public void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, FRAME_CHOICE_MODE mode, int nFrames, ExtractZAxisParameter.ExtractZAxisConfig zAXis) {
         if (outputFile != null && this.outputFile!=null) this.outputFile.setSelectedFilePath(outputFile);
         if (channels != null && this.extractChannelImage!=null) this.extractChannelImage.setSelectedIndices(channels);
         if (bounds != null) {
@@ -92,8 +91,7 @@ public class ExtractRawDatasetParameter extends GroupParameterAbstract<ExtractRa
         }
         frameChoiceMode.setSelectedEnum(mode);
         this.nFrames.setValue(nFrames);
-        extractZ.setExtractZDim(zAXis);
-        extractZ.setPlaneIdx(extractZPlaneIdx);
+        extractZ.fromConfig(zAXis);
         frameChoiceChannelImage.setSelectedClassIdx(-1);
     }
 }

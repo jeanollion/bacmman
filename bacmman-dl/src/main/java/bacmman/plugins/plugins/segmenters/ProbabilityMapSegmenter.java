@@ -54,7 +54,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         if (params.containsKey("model") && params.containsKey("ResizeAndScale") && params.containsKey("Split Threshold")) {
             splitThreshold.initFromJSONEntry(params.get("Split Threshold"));
             splitThreshold.setValue(1./splitThreshold.getDoubleValue());
-            logger.debug("legacy initialization : split threshold becomes: {}", splitThreshold.getDoubleValue());
+            //logger.debug("legacy initialization : split threshold becomes: {}", splitThreshold.getDoubleValue());
         }
     }
     @Override

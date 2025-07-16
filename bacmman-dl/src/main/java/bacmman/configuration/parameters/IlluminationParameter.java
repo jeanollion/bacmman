@@ -47,6 +47,7 @@ public class IlluminationParameter extends ConditionalParameterAbstract<Boolean,
     public JSONObject getPythonConfiguration() {
         if (this.getActionValue()) {
             JSONObject res = (JSONObject) super.getPythonConfiguration();
+            res.remove("mode"); // conditional parameter adds mode, not necessary here because boolean
             res.put("histogram_elasticdeform_n_points", res.remove(PythonConfiguration.toSnakeCase(histoElasticDeformNPoints.getName())));
             res.put("illumination_variation_n_points", res.remove(PythonConfiguration.toSnakeCase(illuVariationNPoints.getName())));
             return res;

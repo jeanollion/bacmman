@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
@@ -11,8 +10,6 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 
 import java.util.Map;
-
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
 
 public class Labels implements FeatureExtractor, Hint {
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
@@ -25,10 +22,11 @@ public class Labels implements FeatureExtractor, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res= resampledPopulations.get(objectClassIdx).get(parent).getLabelMap();
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return this.extractZ.getExtractZDim();
     }
 

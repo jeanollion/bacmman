@@ -72,6 +72,14 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         } else throw new IllegalArgumentException("JSON Entry is not JSONObject");
     }
 
+    @Override
+    public Object getPythonConfiguration() {
+        JSONObject json = (JSONObject)super.getPythonConfiguration();
+        Object actionConfig = (action instanceof PythonConfiguration) ? ((PythonConfiguration)action).getPythonConfiguration() : action.toJSONEntry();
+        json.put("mode", actionConfig);
+        return json;
+    }
+
     public ConditionalParameterAbstract(ActionableParameter<V, ? extends ActionableParameter<V, ?>> action) {
         this(action, new HashMap<>(), null);
     }
@@ -220,6 +228,8 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     public T duplicate() {
         ConditionalParameterAbstract<V, T> res = super.duplicate();
         res.parameterSupplier.putAll(parameterSupplier);
+        res.setContentFrom(this);
+        transferStateArguments(this, res);
         return (T)res;
     }
 

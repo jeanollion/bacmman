@@ -94,16 +94,6 @@ public class SelectionParameter extends AbstractChoiceParameterMultiple<String, 
         else return selectionSupp.get().filter(selectionFilter==null ? s->true:selectionFilter).map(Selection::getName).toArray(String[]::new);
     }
 
-    @Override
-    public boolean isValid() {
-        if (!super.isValid()) return false;
-        List<String> choice = Arrays.asList(getChoiceList());
-        for (String s : getSelectedItems()) {
-            if (!choice.contains(s)) return false;
-        }
-        return true;
-    }
-
     protected Experiment getXP() {
         return ParameterUtils.getExperiment(this);
     }

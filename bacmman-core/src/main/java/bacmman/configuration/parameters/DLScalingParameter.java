@@ -20,7 +20,9 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
     BoundedNumberParameter minCentile = new BoundedNumberParameter("Min Centile", 6, 0.1, 0, 100).setHint("Default min centile used to scale images at test time, for active learning etc.. <br/>Zero (min value) of scaled image will correspond to this centile");
     BoundedNumberParameter maxCentile = new BoundedNumberParameter("Max Centile", 6, 99.9, 0, 100).setHint("Default max centile used to scale images at test time, for active learning etc.. <br/>One (max value) of scaled image will correspond to this centile");
 
-    BooleanParameter saturate = new BooleanParameter("Saturate", true).setHint("whether values lower than min centile and greater than max centile are saturated");
+    FloatParameter powerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(1)
+            .setHint("Values greater than 1 after scaling are transformed with a power law in order to saturate smoothly high values. 0 is equivalent to hard saturation");
+    BooleanParameter saturate = new BooleanParameter("Saturate", true).setHint("If true, values under min percentile are set to 0. Values over max percentile are set to 1 except if a power is defined, in that case the power law is used to saturate high values instead");
     BoundedNumberParameter minRange = new BoundedNumberParameter("Min Range", 5, 0.1, 1e-5, 1).setHint("Image will be scaled to a random range [min, max] drawn in [0, 1] so that max - min >= this value");
     BooleanParameter perImage = new BooleanParameter("Per Image", true).setHint("whether center and scale are computed per image or on the whole dataset");
 
@@ -33,7 +35,7 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
         BooleanSupplier centileRangeIsValid = () -> minCentileRange.getValuesAsDouble()[0] < maxCentileRange.getValuesAsDouble()[1];
         minCentileRange.addValidationFunction(i -> centileRangeIsValid.getAsBoolean());
         maxCentileRange.addValidationFunction(i -> centileRangeIsValid.getAsBoolean());
-        this.setActionParameters(MODE.RANDOM_CENTILES, minCentileRange, maxCentileRange, saturate, minCentile, maxCentile);
+        this.setActionParameters(MODE.RANDOM_CENTILES, minCentileRange, maxCentileRange, saturate, powerLaw, minCentile, maxCentile);
         this.setActionParameters(MODE.RANDOM_MIN_MAX, minRange);
         this.setActionParameters(MODE.BRIGHT_FIELD, bfSdFactor, perImage);
         this.setActionParameters(MODE.FLUORESCENCE, fluoCenterRange, fluoScaleRange);
@@ -52,7 +54,8 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
         switch (this.getActionValue()) {
             case RANDOM_CENTILES:
             default: {
-                return new PercentileScaler().setPercentiles(new double[]{minCentile.getDoubleValue()/100., maxCentile.getDoubleValue()/100.});
+                return new PercentileScaler().setPowerLaw(powerLaw.getDoubleValue())
+                        .setPercentiles(new double[]{minCentile.getDoubleValue()/100., maxCentile.getDoubleValue()/100.});
             }
             case RANDOM_MIN_MAX: {
                 return new MinMaxScaler();

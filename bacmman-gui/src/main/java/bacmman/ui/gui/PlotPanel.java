@@ -415,16 +415,6 @@ public class PlotPanel {
         }
 
         @Override
-        public boolean isValid() {
-            if (!super.isValid()) return false;
-            List<String> choice = Arrays.asList(getChoiceList());
-            for (String s : getSelectedItems()) {
-                if (!choice.contains(s)) return false;
-            }
-            return true;
-        }
-
-        @Override
         public FileListParameter duplicate() {
             FileListParameter dup = new FileListParameter(name);
             dup.setContentFrom(this);
@@ -458,16 +448,6 @@ public class PlotPanel {
                     .flatMap(header -> Arrays.stream(header.split(getParseRegex())))
                     .filter(c -> excludeCols == null || !excludeCols.contains(c))
                     .distinct().sorted().toArray(String[]::new);
-        }
-
-        @Override
-        public boolean isValid() {
-            if (!super.isValid()) return false;
-            List<String> choice = Arrays.asList(getChoiceList());
-            for (String s : getSelectedItems()) {
-                if (!choice.contains(s)) return false;
-            }
-            return true;
         }
 
         @Override

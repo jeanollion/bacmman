@@ -242,8 +242,8 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
     }
-    private void predict(Image[][][] inputNC, int idx, int idxMaxExcl, DataBufferContainer bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
-        Tensor[] input = IntStream.range(0, inputNC.length).mapToObj(i ->  TensorWrapper.fromImagesNC(inputNC[i], idx, idxMaxExcl, bufferContainer.getDataBufferContainer(i), flipXYZ)).toArray(Tensor[]::new);
+    private void predict(Image[][][] inputINC, int idx, int idxMaxExcl, DataBufferContainer bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
+        Tensor[] input = IntStream.range(0, inputINC.length).mapToObj(i ->  TensorWrapper.fromImagesNC(inputINC[i], idx, idxMaxExcl, bufferContainer.getDataBufferContainer(i), flipXYZ)).toArray(Tensor[]::new);
         TFloat32[] output = predict(input);
         if (flipXYZ==null || flipXYZ.length==0) {
             for (int io = 0; io < outputNames.length; ++io) {

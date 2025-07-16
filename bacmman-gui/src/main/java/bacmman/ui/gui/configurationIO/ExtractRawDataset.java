@@ -150,7 +150,7 @@ public class ExtractRawDataset extends JDialog {
         int[] channels = channelSelector.getSelectedIndices();
         SimpleBoundingBox bounds = extractParameter.getBounds();
         Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> extractParameter.getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), extractParameter.frameChoiceChannelImage.getSelectedIndex())));
-        resultingTask.setExtractRawDS(extractParameter.outputFile.getFirstSelectedFilePath(), channels, bounds, extractParameter.extractZ.getExtractZDim(), extractParameter.extractZ.getPlaneIdx(), positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setExtractRawDS(extractParameter.outputFile.getFirstSelectedFilePath(), channels, bounds, extractParameter.extractZ.getConfig(), positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 
@@ -161,16 +161,16 @@ public class ExtractRawDataset extends JDialog {
             int nFrames = 0;
             if (selectedTask.getExtractRawDSFrames() != null && !selectedTask.getExtractRawDSFrames().isEmpty())
                 nFrames = selectedTask.getExtractRawDSFrames().values().iterator().next().size();
-            dialog.setDefaultValues(selectedTask.getExtractRawDSFile(), selectedTask.getExtractRawDSChannels(), selectedTask.getExtractRawDSBounds(), null, nFrames, selectedTask.getExtractRawZAxis(), selectedTask.getExtractRawZAxisPlaneIdx());
+            dialog.setDefaultValues(selectedTask.getExtractRawDSFile(), selectedTask.getExtractRawDSChannels(), selectedTask.getExtractRawDSBounds(), null, nFrames, selectedTask.getExtractRawZAxis());
         }
         dialog.pack();
         dialog.setVisible(true);
         return dialog.resultingTask;
     }
 
-    public void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, ExtractRawDatasetParameter.FRAME_CHOICE_MODE mode, int nFrames, Task.ExtractZAxis zAXis, int extractZPlaneIdx) {
+    public void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, ExtractRawDatasetParameter.FRAME_CHOICE_MODE mode, int nFrames, ExtractZAxisParameter.ExtractZAxisConfig zAXis) {
         if (channels != null) channelSelector.setSelectedIndices(channels);
-        extractParameter.setDefaultValues(outputFile, channels, bounds, mode, nFrames, zAXis, extractZPlaneIdx);
+        extractParameter.setDefaultValues(outputFile, channels, bounds, mode, nFrames, zAXis);
         outputConfigTree.getTree().updateUI();
     }
 

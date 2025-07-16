@@ -390,31 +390,32 @@ public class DLModelsLibrary {
         if (form.canceled) {
             boolean del = JSONQuery.delete(BASE_URL + "/gists/" + form.id(), modelAuth);
             return;
-        } else if (update && gist.getModelID() != null && !gist.getModelID().isEmpty()) { // delete current model file
+        } else if (update && gist.getModelID() != null && !gist.getModelID().isEmpty()) { // delete previous model file
             JSONQuery.delete(BASE_URL + "/gists/" + gist.getModelID(), modelAuth);
         }
         if (!update) {
-            if (!Utils.isValid(form.name(), false)) {
-                if (pcb != null) {
-                    pcb.setMessage("Invalid name (no special chars allowed except underscores)");
-                    pcb.setMessage("Uploaded Model URL : " + form.url());
+            boolean validName = false;
+            while(!validName) {
+                if (!Utils.isValid(form.name(), false)) {
+                    if (pcb != null) pcb.setMessage("Invalid name (no special chars allowed except underscores)");
+                    Utils.displayTemporaryMessage("Invalid name (no special chars allowed except underscores)", 6000);
                 }
-                return;
-            }
-            if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
-                if (pcb != null) {
-                    pcb.setMessage("Invalid folder name (no special chars allowed)");
-                    pcb.setMessage("Uploaded Model URL : " + form.url());
+                if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
+                    if (pcb != null) pcb.setMessage("Invalid folder name (no special chars allowed)");
+                    Utils.displayTemporaryMessage("Invalid folder name (no special chars allowed)", 6000);
                 }
-                return;
-            }
-            boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
-            if (exists) {
-                if (pcb != null) {
-                    pcb.setMessage("Model already exists.");
-                    pcb.setMessage("Uploaded Model URL : " + form.url());
+                boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
+                if (exists) {
+                    if (pcb != null) pcb.setMessage("Model already exists.");
+                    Utils.displayTemporaryMessage("Model already exists.", 6000);
+                } else validName = true;
+                if (!validName) { // re-ask name
+                    form.display(displayingFrame, "Upload model...");
+                    if (form.canceled) {
+                        boolean del = JSONQuery.delete(BASE_URL + "/gists/" + form.id(), modelAuth);
+                        return;
+                    }
                 }
-                return;
             }
             gist = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             try {
@@ -456,6 +457,9 @@ public class DLModelsLibrary {
         configureParameterButton.setEnabled(gistSel && configureParameterCallback != null);
     }
 
+    public void connect() {
+        gitCredentialPanel.connect();
+    }
 
     private void fetchGists() {
         String account = gitCredentialPanel.getUsername();

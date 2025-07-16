@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static bacmman.github.gist.GistConfiguration.TYPE.PROCESSING;
 import static bacmman.plugins.Hint.formatHint;
 import static bacmman.ui.gui.Utils.getDisplayedImage;
 
@@ -96,7 +97,7 @@ public class ConfigurationLibrary {
                     setPreProcessing();
                     break;
                 case 2:
-                    setProcessing();
+                    setProcessing(null);
                     break;
                 case 3:
                     setMeasurements();
@@ -253,7 +254,7 @@ public class ConfigurationLibrary {
                 return;
             }
             GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-            if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
+            if (currentMode.equals(PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                 List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
                 if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
             } else {
@@ -320,7 +321,7 @@ public class ConfigurationLibrary {
                                         }
                                     }
                                     GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
+                                    if (currentMode.equals(PROCESSING) && gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                                         List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
                                         if (otherThumb != null)
                                             for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
@@ -402,7 +403,7 @@ public class ConfigurationLibrary {
         saveToRemote.setToolTipText(formatHint("Saves the local configuration to the remote server.<br />A password must be provided to perform this action", true));
         updateRemote.setToolTipText(formatHint("Updates the configuration edited in the <em>Remote Configuration panel</em> to the remote server.<br />A password must be provided to perform this action", true));
         deleteRemote.setToolTipText(formatHint("If a configuration is selected: deletes the configuration on the remote server. If a folder is selected: delete all configuration files contained in the folder on the remote server.<br />A password must be provided to perform this action", true));
-        remoteSelectorJSP.setToolTipText(formatHint("Select the configuration file to edit. First level of the tree corresponds to the folders. If no password is provided, only the public configuration files of the account are listed", true));
+        remoteSelectorJSP.setToolTipText(formatHint("Choose the configuration file you wish to edit or download. <br/>The first level of the tree represents the folders. <br/>When the Step is not set to <em>Whole configuration</em>, entries can be either standalone blocks or part of a complete configuration entry. A suffix is added to the name to indicate the type of configuration block: <ul> <li>[PP] for a pre-processing block</li> <li>[P] for a processing block</li> <li>[M] for a measurement block</li> <li>If the step is <em>Pre-Processing</em> or <em>Measurement</em>, the corresponding block from <em>Whole configuration</em> entries is added without a suffix.</li> <li>If the step is <em>Processing</em>, for each object class of each <em>Whole configuration</em> entry, a processing block is added with the name of the object class as a suffix.</li> </ul> <br/>If no password is provided, only the public configuration files of the account will be displayed.", true));
         localConfigJSP.setToolTipText(formatHint("Configuration tree of the current dataset. Differences with the selected remote configuration are displayed in blue (particular case: processing pipeline of each position is compared to the remote processing pipeline template)", true));
         remoteConfigJSP.setToolTipText(formatHint("Configuration tree of the selected remote file. Differences with the configuration of the local current dataset are are displayed in blue. <br/>Modifications in this tree are not taken into account: to modify this configuration, modify the local one and click <em>Update Remote</em>", true));
     }
@@ -447,7 +448,7 @@ public class ConfigurationLibrary {
     }
 
     public void focusGained() {
-
+        if (PROCESSING.equals(currentMode)) setProcessing((String)localSelectorJCB.getSelectedItem()); // update object class list
     }
 
     public void focusLost() {
@@ -501,7 +502,7 @@ public class ConfigurationLibrary {
                 setMeasurements();
                 break;
             case PROCESSING:
-                setProcessing();
+                setProcessing(null);
                 break;
         }
     }
@@ -683,20 +684,24 @@ public class ConfigurationLibrary {
         if (stepJCB.getSelectedIndex() != 1) stepJCB.setSelectedIndex(1);
     }
 
-    private void setProcessing() {
-        if (GistConfiguration.TYPE.PROCESSING.equals(currentMode)) return;
+    private void setProcessing(String selectedItem) {
+        if (PROCESSING.equals(currentMode) && selectedItem == null) return;
         currentMode = null;
         localSelectorJCB.removeAllItems();
         if (xp != null) {
-            for (Structure s : xp.getStructures().getChildren()) localSelectorJCB.addItem(s.getName());
-            currentMode = GistConfiguration.TYPE.PROCESSING;
+            List<String> ocNames = xp.getStructures().getChildren().stream().map(Structure::getName).collect(Collectors.toList());;
+            for (String s : ocNames) localSelectorJCB.addItem(s);
+            currentMode = PROCESSING;
             localSelectorJCB.setSelectedIndex(-1);
-            if (localSelectorJCB.getItemCount() > 0) localSelectorJCB.setSelectedIndex(0);
+            if (localSelectorJCB.getItemCount() > 0) {
+                if (selectedItem != null && ocNames.contains(selectedItem)) localSelectorJCB.setSelectedIndex(ocNames.indexOf(selectedItem));
+                else localSelectorJCB.setSelectedIndex(0);
+            }
             updateRemoteSelector();
             updateEnableButtons();
             ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Object Class");
         } else {
-            currentMode = GistConfiguration.TYPE.PROCESSING;
+            currentMode = PROCESSING;
             updateRemoteSelector();
             updateEnableButtons();
         }
@@ -730,7 +735,7 @@ public class ConfigurationLibrary {
     public void setLocalItemIdx(int idx) {
         if (currentMode.equals(GistConfiguration.TYPE.PRE_PROCESSING))
             localSelectorJCB.setSelectedIndex(idx + 1); // zero is template
-        else if (currentMode.equals(GistConfiguration.TYPE.PROCESSING)) localSelectorJCB.setSelectedIndex(idx);
+        else if (currentMode.equals(PROCESSING)) localSelectorJCB.setSelectedIndex(idx);
     }
 
     public void updateRemoteConfigTree(GistConfiguration gist, int objectClass) {

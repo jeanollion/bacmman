@@ -88,22 +88,21 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     @Override
     public P duplicate() {
         try {
-                ParameterImpl p = this.getClass().getDeclaredConstructor(String.class).newInstance(name);
+            ParameterImpl p = this.getClass().getDeclaredConstructor(String.class).newInstance(name);
+            p.setContentFrom(this);
+            transferStateArguments(this, p);
+            return (P)p;
+        } catch (Exception ex) {
+            try {
+                ParameterImpl p = this.getClass().newInstance();
+                p.setName(name);
                 p.setContentFrom(this);
                 transferStateArguments(this, p);
-                return (P)p;
-            } catch (Exception ex) {
-                try {
-                    ParameterImpl p = this.getClass().newInstance();
-                    p.setName(name);
-                    p.setContentFrom(this);
-                    transferStateArguments(this, p);
-                return (P)p;
-                } catch (Exception ex2) {
-                    logger.error("duplicate Simple Parameter", ex2);
-                }
+            return (P)p;
+            } catch (Exception ex2) {
+                throw new RuntimeException(ex);
             }
-        return null;
+        }
     }
 
     public static void transferStateArguments(ParameterImpl source, ParameterImpl dest) {

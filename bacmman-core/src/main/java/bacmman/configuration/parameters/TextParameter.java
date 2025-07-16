@@ -75,7 +75,7 @@ public class TextParameter extends ParameterImpl<TextParameter> implements Liste
     }
     
     @Override public TextParameter duplicate() {
-        TextParameter res =  new TextParameter(name, value, allowSpecialCharacters);
+        TextParameter res =  new TextParameter(name, value, allowSpecialCharacters, allowBlank);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         res.setHint(toolTipText);

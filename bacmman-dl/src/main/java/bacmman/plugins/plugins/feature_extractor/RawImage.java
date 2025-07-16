@@ -1,13 +1,11 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.Hint;
-import ij.plugin.Raw;
 import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Map;
@@ -16,18 +14,12 @@ public class RawImage implements FeatureExtractor, Hint {
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     boolean byChannel = false;
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return this.extractZ.getExtractZDim();
     }
 
-    public RawImage setExtractZ(Task.ExtractZAxis mode, int planeIdx) {
-        this.extractZ.setPlaneIdx(planeIdx);
-        this.extractZ.setExtractZDim(mode);
-        return this;
-    }
-
-    public RawImage setExtractZ(Task.ExtractZAxis mode) {
-        this.extractZ.setExtractZDim(mode);
+    public RawImage setExtractZ(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+        this.extractZ.fromConfig(zAxis);
         return this;
     }
 
@@ -44,7 +36,8 @@ public class RawImage implements FeatureExtractor, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res = byChannel ? parent.getRawImageByChannel(objectClassIdx) : parent.getRawImage(objectClassIdx);
-        return ExtractZAxisParameter.handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
     @Override

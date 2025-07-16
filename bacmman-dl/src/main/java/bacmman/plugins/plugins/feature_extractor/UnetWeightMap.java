@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
@@ -12,8 +11,6 @@ import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Arrays;
 import java.util.Map;
-
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
 
 public class UnetWeightMap implements FeatureExtractor, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 2, 5, 0.1, null).setHint("Controls the value between segmented regions");
@@ -66,10 +63,11 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
                 r.getContour().forEach(v -> res.setPixel(v.x, v.y, v.z, 0));
             });
         }
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return extractZ.getExtractZDim();
     }
 

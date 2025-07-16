@@ -23,6 +23,7 @@ import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -89,6 +90,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
         if (selectedItems.length == 0) return null;
         else return selectedItems[0];
     }
+
     public String[] getSelectedItems() {
         return Arrays.copyOf(selectedItems, selectedItems.length);
     }
@@ -118,8 +120,14 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
     @Override
     public boolean isValid() {
         if (!super.isValid()) return false;
-        return allowNoSelection || selectedItems.length>0;
+        if (!allowNoSelection && selectedItems.length==0) return false;
+        List<String> choiceList = Arrays.asList(getChoiceList());
+        for (String p : getSelectedItems()) {
+            if (!choiceList.contains(p)) return false;
+        }
+        return true;
     }
+
     @Override
     public boolean sameContent(Parameter other) {
         if (other instanceof AbstractChoiceParameterMultiple) {

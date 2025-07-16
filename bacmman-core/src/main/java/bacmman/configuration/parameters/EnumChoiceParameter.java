@@ -44,11 +44,17 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
                 selectedItem==null ? null : selectedItem.toString(), s->Arrays.stream(enumChoiceList).filter(e->e.toString().equals(s)).findAny().get(), Enum::toString, false);
         this.enumChoiceList=enumChoiceList;
     }
+
     public EnumChoiceParameter<E> setEnumChoiceList(E... enumChoiceList) {
         this.enumChoiceList = enumChoiceList;
         this.listChoice = Arrays.stream(enumChoiceList).map(toString).toArray(String[]::new);
         return this;
     }
+
+    public E[] getEnumChoiceList() {
+        return Arrays.copyOf(enumChoiceList, enumChoiceList.length);
+    }
+
     @Override public EnumChoiceParameter<E> duplicate() {
         EnumChoiceParameter<E> res = new EnumChoiceParameter<E>(name, enumChoiceList ,getSelectedEnum(), toString);
         res.setListeners(listeners);

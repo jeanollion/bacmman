@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -54,8 +53,8 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
         });
         return res;
     }
-    public Task.ExtractZAxis getExtractZDim() {
-        return Task.ExtractZAxis.IMAGE3D;
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
+        return ExtractZAxisParameter.ExtractZAxis.IMAGE3D;
     }
 
     @Override

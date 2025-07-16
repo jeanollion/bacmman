@@ -302,7 +302,7 @@ public class JSONUtils {
     }
 
     private static <P extends Parameter> boolean initParameterMap(List<P> list, JSONArray json) {
-        int count = 0;
+        int[] count = new int[1];
         Map<String, P> targetMap = list.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
         String[] targetNameIndex = list.stream().map(Parameter::getName).toArray(String[]::new);
         Map<String, Integer> sourceNameIndex = IntStream.range(0, json.size()).boxed().collect(Collectors.toMap(i->(String)((JSONObject)json.get(i)).keySet().iterator().next(), Function.identity()));
@@ -330,7 +330,7 @@ public class JSONUtils {
         };
         for (Object o : json) {
             if (!(o instanceof JSONObject)) {
-                logger.info("Could not initialize parameters: {} with json entry: {}", list, json);
+                logger.debug("Could not initialize parameters: {} with json entry: {}", list, json);
                 return false;
             }
             Entry e = (Entry)((JSONObject)o).entrySet().iterator().next();
@@ -339,11 +339,13 @@ public class JSONUtils {
             if (target!=null) {
                 try {
                     target.initFromJSONEntry(e.getValue());
-                    ++count;
+                    ++count[0];
                     initP.add(target);
                 } catch(Throwable ex) {
-                    logger.debug("Error While initializing parameter: {} (class: {}) with: {}", target, target.getClass(), e);
-                    logger.debug("Error while init:" ,ex);
+                    if (!initLPFun.test(e)) {
+                        logger.debug("Error While initializing parameter: {} (class: {}) with: {}", target, target.getClass(), e);
+                        logger.debug("Error while init:", ex);
+                    }
                 }
             } else {
                 if (!initLPFun.test(e)) { // if no legacy init, parameter may have been renamed. try to get name by order
@@ -353,24 +355,20 @@ public class JSONUtils {
                         if (!initP.contains(target)) {
                             try {
                                 target.initFromJSONEntry(e.getValue());
-                                ++count;
+                                ++count[0];
                                 initP.add(target);
-                            } catch(Throwable ex) {
-                                logger.debug("Error While initializing parameter: {} (class: {}) with: {}", target, target.getClass(), e);
-                                logger.debug("Error while init:" ,ex);
-                            }
+                            } catch(Throwable ex) { }
                         }
-
                     }
                 }
             }
         }
-        if (count<list.size()) {
+        if (count[0]<list.size()) {
             List<ParameterWithLegacyInitialization> lps = listLI.stream().filter(p->!initP.contains(p)).collect(Collectors.toList());
-            lps.forEach(ParameterWithLegacyInitialization::legacyInit);
-            count+=lps.size();
+            for (ParameterWithLegacyInitialization pli : lps) pli.legacyInit();
+            count[0]+=lps.size();
         }
-        return count==json.size()||count==list.size();
+        return count[0]==json.size()||count[0]==list.size();
     }
     
     public static JSONObject toJSONMap(Collection<? extends Parameter> coll) {

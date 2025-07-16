@@ -1,12 +1,11 @@
 package bacmman.plugins.plugins.feature_extractor;
 
+import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.configuration.parameters.Parameter;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.image.Image;
-import bacmman.image.ImageInt;
 import bacmman.image.ImageShort;
 import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorTemporal;
@@ -50,7 +49,7 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
     }
 
     @Override
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return null;
     }
 

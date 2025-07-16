@@ -11,10 +11,7 @@ import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.FeatureExtractorTemporal;
-import bacmman.plugins.plugins.feature_extractor.Labels;
-import bacmman.plugins.plugins.feature_extractor.MultiClass;
-import bacmman.plugins.plugins.feature_extractor.PreviousLinks;
-import bacmman.plugins.plugins.feature_extractor.RawImage;
+import bacmman.plugins.plugins.feature_extractor.*;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
@@ -161,8 +158,7 @@ public class ExtractDatasetUtil {
                                 if (configurable)
                                     ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
                                 extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), curResamplePops, spatialDownsamplingFactor, dimensions);
-                                boolean ZtoBatch = feature.getFeatureExtractor().getExtractZDim() == Task.ExtractZAxis.BATCH;
-                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
+                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
                             }
                             saveLabels = false;
                         }
@@ -198,7 +194,7 @@ public class ExtractDatasetUtil {
                 image = image.crop(bds);
                 //logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
             }
-            return ExtractZAxisParameter.handleZ(image, t.getExtractRawZAxis(), t.getExtractRawZAxisPlaneIdx());
+            return t.getExtractRawZAxis().handleZ(image);
         };
         for (String position : positionMapFrames.keySet()) {
             //logger.debug("position: {}", position);
@@ -211,7 +207,7 @@ public class ExtractDatasetUtil {
                 for (int fIdx : frames) {
                     images.add(extract.apply(inputImages.getImage(channel, fIdx).setName(getLabel(fIdx+inputImages.getMinFrame()))));
                 }
-                if (t.getExtractRawZAxis().equals(Task.ExtractZAxis.BATCH)) {
+                if (t.getExtractRawZAxis().equals(ExtractZAxisParameter.ExtractZAxis.BATCH)) {
                     logger.debug("before ZToBatch: {}", images.size());
                     Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());
                     images = s.collect(Collectors.toList());
@@ -275,14 +271,15 @@ public class ExtractDatasetUtil {
     public static String getLabel(int frame) {
         return "f" + String.format("%05d", frame);
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
         logger.debug("resampling..");
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);
-            int[] dimensions_ = getDimensions(e.is2D() ? new int[]{e.getBounds().sizeX(), e.getBounds().sizeY()} : new int[]{e.getBounds().sizeX(), e.getBounds().sizeY(), e.getBounds().sizeZ()}, dimensions, downsamplingFactor);
+            int[] dimensions_ = getDimensions(im.dimensions(), dimensions, downsamplingFactor);
             Image out = resample(im, interpolation, dimensions_);
             out.setName(getLabel(e));
+            if (ExtractZAxisParameter.ExtractZAxis.CHANNEL.equals(zAxisMode)) out = ExtractZAxisParameter.transposeZ(out);
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
         logger.debug("resampling done");
@@ -290,14 +287,11 @@ public class ExtractDatasetUtil {
             if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
             else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};
         }).toArray(int[][]::new) : null;
-        if (zToBatch) {
-            logger.debug("before ZToBatch: {}", images.size());
+        if (ExtractZAxisParameter.ExtractZAxis.BATCH.equals(zAxisMode)) {
             Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());
             images = s.collect(Collectors.toList());
-            logger.debug("after ZToBatch: {}", images.size());
             if (saveDimensions) {
                 originalDimensions = streamSupplier.get().sorted(Comparator.comparing(ExtractDatasetUtil::getLabel)).flatMap(o -> Collections.nCopies(o.getBounds().sizeZ(), o).stream() ).map(o-> new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()}).toArray(int[][]::new);
-                logger.debug("after ZToBatch: dimensions {}", originalDimensions.length);
             }
         }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
@@ -427,33 +421,49 @@ public class ExtractDatasetUtil {
         return resultingTask;
     }
 
-    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<Triplet<Integer, Boolean, String>> otherOCs, int[] outputDimensions, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
+    public static class ExtractOCParameters {
+        final int idx;
+        final boolean isLabel;
+        final String name;
+        final ExtractZAxisParameter.ExtractZAxisConfig zAxis;
+
+        public ExtractOCParameters(int idx, boolean isLabel, String name, ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+            this.idx = idx;
+            this.isLabel = isLabel;
+            this.name = name;
+            this.zAxis = zAxis;
+        }
+
+        public FeatureExtractor.Feature getFeatureExtractor() {
+            if (isLabel) return new FeatureExtractor.Feature(name, new Labels(), idx);
+            else return new FeatureExtractor.Feature(name, new RawImage().setByChannel(true).setExtractZ(zAxis), idx);
+        }
+    }
+
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
-        List<FeatureExtractor.Feature> features = new ArrayList<>(3 + otherOCs.size());
-        features.add(new FeatureExtractor.Feature( new RawImage(), objectClass ));
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3 + labelsAndChannels.size());
+        for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
         features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass, selectionFilter ));
-        for (Triplet<Integer, Boolean, String> otherOC : otherOCs) {
-            features.add(new FeatureExtractor.Feature(otherOC.v3, otherOC.v2 ? new Labels() : new RawImage(), otherOC.v1));
+        if (categorySelection != null && !categorySelection.isEmpty()) {
+            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, int channelImage, Task.ExtractZAxis extractZMode, int extractZPlane, String selection, String filterSelection, List<Triplet<Integer, Boolean, String>> otherOCs, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, List<String> selections, String filterSelection, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
-        int rawOC = mDAO.getExperiment().experimentStructure.getObjectClassIdx(channelImage);
-        if (rawOC<0) throw new RuntimeException("Channel: "+channelImage+ " has not associated object class");
-        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
-        features.add(new FeatureExtractor.Feature( new RawImage().setExtractZ(extractZMode, extractZPlane), rawOC ));
+        List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
+        for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, filterSelection ));
-        for (Triplet<Integer, Boolean, String> otherOC : otherOCs) {
-            features.add(new FeatureExtractor.Feature(otherOC.v3, otherOC.v2 ? new Labels() : new RawImage(), otherOC.v1));
+        if (categorySelection != null && !categorySelection.isEmpty()) {
+            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
-        int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, Collections.singletonList(selection), features, dims, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 
@@ -468,7 +478,7 @@ public class ExtractDatasetUtil {
         features.add(new FeatureExtractor.Feature( new RawImage(), objectClasses[0] ));
         features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
 
-        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), Task.ExtractZAxis.BATCH, 0,  positionMapFrames, compression);
+        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), new ExtractZAxisParameter.BATCH(), positionMapFrames, compression);
         return resultingTask;
     }
 

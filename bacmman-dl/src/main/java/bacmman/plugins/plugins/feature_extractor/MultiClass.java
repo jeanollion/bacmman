@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
@@ -15,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static bacmman.configuration.parameters.ExtractZAxisParameter.handleZ;
 
 public class MultiClass implements FeatureExtractor {
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
@@ -37,7 +34,8 @@ public class MultiClass implements FeatureExtractor {
             int label = i + 1;
             ImageMask.loop(mask, (x, y, z)->res.setPixel(x, y, z, label));
         }
-        return handleZ(res, extractZ.getExtractZDim(), extractZ.getPlaneIdx());
+        if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
+        else return extractZ.getConfig().handleZ(res);
     }
 
     @Override
@@ -51,7 +49,7 @@ public class MultiClass implements FeatureExtractor {
     }
 
     @Override
-    public Task.ExtractZAxis getExtractZDim() {
+    public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return extractZ.getExtractZDim();
     }
 
