@@ -103,20 +103,20 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected ConfigurationTreeGenerator config, configRef, extractConfig, dockerOptions, dockerOptionsRef;
 
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
-        .setNewInstanceConfiguration(i -> {
-            if (workingDirPanel.getCurrentWorkingDirectory() != null)
-                i.getConfiguration().setReferencePathFunction(() -> Paths.get(workingDirPanel.getCurrentWorkingDirectory()));
-        }).addListener(tp -> {
-            updateExtractDatasetConfiguration();
-            updateDisplayRelatedToWorkingDir();
-        });
+            .setNewInstanceConfiguration(i -> {
+                if (workingDirPanel.getCurrentWorkingDirectory() != null)
+                    i.getConfiguration().setReferencePathFunction(() -> Paths.get(workingDirPanel.getCurrentWorkingDirectory()));
+            }).addListener(tp -> {
+                updateExtractDatasetConfiguration();
+                updateDisplayRelatedToWorkingDir();
+            });
 
     protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.");
     protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 8).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB)");
     //protected FloatParameter dockerMemorySizeGb = new FloatParameter("Memory Limit", 0).setLowerBound(0).setHint("Memory Limit (GB). Set zero to set no limit");
 
     protected PluginParameter<DockerDLTrainer> trainerParameterRef = trainerParameter.duplicate();
-    
+
     protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig, dockerConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
@@ -127,9 +127,11 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps = Double.NaN;
 
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
+    ProgressCallback bacmmanLogger;
 
-    public DockerTrainingWindow(DockerGateway dockerGateway) {
+    public DockerTrainingWindow(DockerGateway dockerGateway, ProgressCallback bacmmanLogger) {
         this.dockerGateway = dockerGateway;
+        this.bacmmanLogger = bacmmanLogger;
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
         PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
         String defWD;
@@ -300,14 +302,14 @@ public class DockerTrainingWindow implements ProgressLogger {
             // first activated dataset -> replace dataset file by temp dataset
             if (dsList.getChildCount() > 1) {
                 int idx = 0;
-                for (int i = 0;i<dsList.getChildCount(); ++i) {
+                for (int i = 0; i < dsList.getChildCount(); ++i) {
                     if (dsList.getChildAt(i).isActivated()) {
                         idx = i;
                         break;
                     }
                 }
                 for (int i = dsList.getChildCount() - 1; i > idx; --i) dsList.remove(i);
-                if (idx>0) for (int i = 0;i<idx; ++i) dsList.remove(0);
+                if (idx > 0) for (int i = 0; i < idx; ++i) dsList.remove(0);
             }
             TrainingConfigurationParameter.DatasetParameter dataset = dsList.getChildAt(0);
             dataset.setActivated(true);
@@ -322,9 +324,11 @@ public class DockerTrainingWindow implements ProgressLogger {
                 boolean trackingDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
                 if (selections.isEmpty() || !tempDatasetFile.isFile()) {
                     logger.error("no dataset could be extracted");
+                    if (bacmmanLogger != null) bacmmanLogger.log("Dataset could not be extracted");
                     return;
                 }
                 if (selections.size() > 1) {
+                    if (bacmmanLogger != null) bacmmanLogger.log("Only one selection allowed");
                     logger.debug("Only one selection allowed");
                     return;
                 }
@@ -390,8 +394,15 @@ public class DockerTrainingWindow implements ProgressLogger {
                                     selHS.addElements(allObjects);
                                     selDAO.store(selHS);
                                     GUI.getInstance().populateSelections();
-                                } else logger.debug("no HardSamplingParameter found");
+                                } else {
+                                    logger.debug("No Hard sample mining parameter found");
+                                    if (bacmmanLogger != null) bacmmanLogger.log("No Hard sample mining parameter found");
+                                }
+                            } else {
+                                if (bacmmanLogger != null) bacmmanLogger.log("Selection "+ selections.get(0) + " has "+sel.count()+ " entries whereas "+metrics.size()+ " where computed");
                             }
+                        } else {
+                            if (bacmmanLogger!=null) bacmmanLogger.log("Metric File not found at "+outputFile.getAbsolutePath());
                         }
                     } catch (InterruptedException ignored) { //InterruptedException
 
@@ -635,7 +646,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
             }
         });
-        
+
         if (workingDirPanel.workingDirectoryIsValid()) {
             setWorkingDirectory();
             try {
@@ -798,6 +809,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             return dataTemp;
         }
     }
+
     protected String getContainer(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean mountTempData, String[] tempMount, boolean export) {
         return getContainer(trainer, dockerGateway, mountTempData, tempMount, null, export);
     }
@@ -814,7 +826,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (tempMount != null) tempMount[0] = dataTemp.toString();
                 mounts.add(new UnaryPair<>(dataTemp.toString(), "/dataTemp"));
             }
-            if(dirMapMountDir==null) dirMapMountDir = fixDirectories(trainer);
+            if (dirMapMountDir == null) dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
@@ -1138,7 +1150,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void setConfigurationFile(boolean loadJavaConf, boolean loadextractConf, boolean loadDockerConf) throws IOException {
-        if (workingDirPanel.getCurrentWorkingDirectory() == null) throw new RuntimeException("Working Directory is not set");
+        if (workingDirPanel.getCurrentWorkingDirectory() == null)
+            throw new RuntimeException("Working Directory is not set");
         closeFiles();
         boolean lock = !Utils.isWindows();
         pythonConfig = new FileIO.TextFile(Paths.get(workingDirPanel.getCurrentWorkingDirectory(), "training_configuration.json").toString(), true, lock);
@@ -1461,7 +1474,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         panel1.add(extractButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         computeMetricsButton = new JButton();
         computeMetricsButton.setText("Compute Hard Samples");
-        computeMetricsButton.setToolTipText("Compute metrics on all samples of the current dataset, stores them as measurements and generates selection of the hardest samples (with lowest metrics values). Use this command to inspect samples that are not well processed by the current model. It is critical to curate hardest samples when using Hard Sample Mining during training. This option is only available on methods that can compute metrics. ");
+        computeMetricsButton.setToolTipText("Compute metrics on all samples of the current dataset (defined in the Extract Dataset Panel), stores them as measurements and generates selection of the hardest samples (with lowest metrics values). Use this command to inspect samples that are not well processed by the current model. It is critical to curate hardest samples when using Hard Sample Mining during training. This option is only available on methods that can compute metrics. Dataset to be extracted must contain only one Selection, and all samples must have same size");
         panel1.add(computeMetricsButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
         trainingPanel.setLayout(new GridLayoutManager(6, 2, new Insets(0, 0, 0, 0), -1, -1));
@@ -1578,7 +1591,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     public static void main(String[] args) {
         Core.getCore();
-        DockerTrainingWindow win = new DockerTrainingWindow(Core.getCore().getDockerGateway());
+        DockerTrainingWindow win = new DockerTrainingWindow(Core.getCore().getDockerGateway(), null);
         win.display(null);
     }
 

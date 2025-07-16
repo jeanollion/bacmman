@@ -129,7 +129,7 @@
                         </constraints>
                         <properties>
                           <text value="Compute Hard Samples"/>
-                          <toolTipText value="Compute metrics on all samples of the current dataset, stores them as measurements and generates selection of the hardest samples (with lowest metrics values). Use this command to inspect samples that are not well processed by the current model. It is critical to curate hardest samples when using Hard Sample Mining during training. This option is only available on methods that can compute metrics. "/>
+                          <toolTipText value="Compute metrics on all samples of the current dataset (defined in the Extract Dataset Panel), stores them as measurements and generates selection of the hardest samples (with lowest metrics values). Use this command to inspect samples that are not well processed by the current model. It is critical to curate hardest samples when using Hard Sample Mining during training. This option is only available on methods that can compute metrics. Dataset to be extracted must contain only one Selection, and all samples must have same size"/>
                         </properties>
                       </component>
                     </children>

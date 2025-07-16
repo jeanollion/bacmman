@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion.bacmman</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>3.8.5</version>
+    <version>3.8.6</version>
 
     <licenses>
         <license>
@@ -18,7 +18,7 @@
         </license>
     </licenses>
     <properties>
-        <bacmman.version>3.8.5</bacmman.version>
+        <bacmman.version>3.8.6</bacmman.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>8</maven.compiler.source>

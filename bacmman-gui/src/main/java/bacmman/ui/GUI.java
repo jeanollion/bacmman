@@ -1205,7 +1205,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     } // end of constructor
 
     public void ensureTrainTab() {
-        if (dockerTraining == null) dockerTraining = new DockerTrainingWindow(Core.getCore().getDockerGateway());
+        if (dockerTraining == null) dockerTraining = new DockerTrainingWindow(Core.getCore().getDockerGateway(), ProgressCallback.get(this));
         if (!tabIndex.contains(TAB.TRAINING.name())) {
             tabs.addTab("Training", dockerTraining.getMainPanel());
             dockerTraining.setParent(INSTANCE);

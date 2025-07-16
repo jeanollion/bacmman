@@ -794,9 +794,9 @@ public class ConfigurationTreeGenerator {
                     Stream<Parameter> pstream = Stream.concat(curParams.stream(), pp.getAdditionalParameters().stream());
                     if (parameterFilter != null) pstream = pstream.filter(parameterFilter);
                     curParams = pstream.collect(Collectors.toList());
-                } else if (parameterFilter != null) curParams = curParams.stream().filter(parameterFilter).collect(Collectors.toList());
+                } else if (parameterFilter != null && curParams!=null) curParams = curParams.stream().filter(parameterFilter).collect(Collectors.toList());
                 JMenu subMenu = new JMenu("Parameters");
-                curParams.forEach(p -> addToMenu(p, subMenu, true, showMenu, updateOnSelect));
+                if (curParams != null) curParams.forEach(p -> addToMenu(p, subMenu, true, showMenu, updateOnSelect));
                 menu.add(subMenu);
                 if (otherMenuItem!=null && otherMenuItem.length>0) {
                     menu.addSeparator();
