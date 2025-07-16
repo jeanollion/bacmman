@@ -392,6 +392,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             if (!displayObjectClasses && (!toDisplay.isEmpty() || erasedObjects)) {
                                 resetObjects(i.getParent().getPositionName(), interactiveObjectClassIdx);
                                 displayObjects(image, i.toObjectDisplay(toDisplay, sliceIdx), Color.orange, false, true, false);
+                                GUI.updateRoiDisplayForSelections(image, i);
                             }
                         } else {
                             if (!toDisplay.isEmpty()) {
