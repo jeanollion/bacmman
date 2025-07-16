@@ -9,13 +9,13 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <properties>
-        <!--javacpp.platform>macosx-arm64</javacpp.platform-->
+        <!--javacpp.platform>linux-x86_64</javacpp.platform-->
         <!--javacpp.platform>macosx-x86_64</javacpp.platform-->
         <!--javacpp.platform>macosx-arm64</javacpp.platform-->
         <!--javacpp.platform>windows-x86_64</javacpp.platform-->
         <javacpp.platform>linux-x86_64</javacpp.platform>
 
-        <!--javacpp.platform.extension></javacpp.platform.extension-->
+        <!--javacpp.platform.extension>-gpu</javacpp.platform.extension-->
         <javacpp.platform.extension>-gpu</javacpp.platform.extension>
         <!-->set "-gpu" for gpu support <-->
     </properties>

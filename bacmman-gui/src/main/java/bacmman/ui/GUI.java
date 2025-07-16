@@ -154,7 +154,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter arrowStrokeWidth = new BoundedNumberParameter("Arrow Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed arrows");
     private NumberParameter roiSmooth = new BoundedNumberParameter("Roi Smooth Radius", 0, 0, 0, null).setHint("Smooth Roi (smooth radius in pixels)");
 
-    private BooleanParameter relabel = new BooleanParameter("Relabel objects", true).setHint("Ater manual curation, relabel all objects of the same parent to ensure continuous labels. This operation can be time consuming when many objects are present.");
+    private BooleanParameter relabel = new BooleanParameter("Relabel objects", false).setHint("Ater manual curation, relabel all objects of the same parent to ensure continuous labels. <br>This operation can be time consuming when many objects are present.<br>CAUTION: as selections are lists of object labels, setting relabel to True can modify the content of existing selections.");
     private BooleanParameter safeMode = new BooleanParameter("Safe Mode (undo)", false);
     private BooleanParameter importMetadata = new BooleanParameter("Import Image Metadata", false).setHint("When importing images, choose this option to extract image metadata in the folder ./SourceImageMetadata");
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);

@@ -405,6 +405,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                     hideLabileObjects(image, false);
                                     displayObjects(image, i.toObjectDisplay(toDisplay, sliceIdx), Color.orange, false, true, false);
                                     displayObjects(image, selectedObjects, null, false, true, false);
+                                    GUI.updateRoiDisplayForSelections(image, i);
                                 }
                             } else {
                                 Utils.displayTemporaryMessage("No object could be segmented", 3000);

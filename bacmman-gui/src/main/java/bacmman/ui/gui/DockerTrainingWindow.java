@@ -347,31 +347,38 @@ public class DockerTrainingWindow implements ProgressLogger {
                                     .map(DockerTrainingWindow::pythonToJavaDouble).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
                             String[] metricsNames = header[0] != null ? header[0].replace("# ", "").split(";") : (metrics.isEmpty() ? new String[0] : IntStream.range(0, metrics.get(0).length).mapToObj(i -> "metric_" + i).toArray(String[]::new));
                             logger.debug("found metrics: {} for : {} samples", metricsNames, metrics.size());
+                            if (bacmmanLogger != null) bacmmanLogger.log("found metrics: "+Utils.toStringArray(metricsNames) + " for "+metrics.size() + " samples");
                             SelectionDAO selDAO = GUI.getDBConnection().getSelectionDAO();
                             Selection sel = selDAO.getOrCreate(selections.get(0), false);
                             logger.debug("selection has: {} samples", sel.count());
                             if (sel.count() == metrics.size()) { // assign metrics values to samples
                                 int[] counter = new int[1];
-                                sel.getAllPositions().stream().sorted().forEach(p -> {
+                                List<String> positions = sel.getAllPositions().stream().sorted().collect(Collectors.toList());
+                                if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
+                                for (String p : positions) {
                                     List<SegmentedObject> elems = sel.getElements(p);
-                                    Stream<List<SegmentedObject>> sortedElems;
+                                    if (bacmmanLogger != null) bacmmanLogger.log("position: "+p+ " #elements: "+elems.size());
+                                    Collection<List<SegmentedObject>> sortedElems;
                                     if (trackingDataset) {
                                         Map<SegmentedObject, List<SegmentedObject>> sortedMap = new TreeMap<>(Comparator.comparing(SegmentedObject::toStringShort)); // alphabetical ordering
                                         sortedMap.putAll(SegmentedObjectUtils.splitByContiguousTrackSegment(elems));
-                                        sortedElems = sortedMap.values().stream();
-                                    } else sortedElems = Stream.of(elems);
-                                    sortedElems.forEach(track -> {
+                                        sortedElems = sortedMap.values();
+                                        if (bacmmanLogger != null) bacmmanLogger.log("position: "+p+" #tracks: "+sortedElems.size());
+                                    } else sortedElems = Collections.singletonList(elems);
+                                    for (List<SegmentedObject> track : sortedElems) {
                                         logger.debug("assigning values for track: {} (size: {})", track.get(0), track.size());
+                                        if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
                                         track.stream().sorted().forEach(o -> {
                                             double[] values = metrics.get(counter[0]++);
                                             for (int i = 0; i < values.length; ++i) {
                                                 o.getMeasurements().setValue(metricsNames[i], values[i]);
                                             }
                                         });
-                                    });
+                                    }
                                     logger.debug("storing: {} measurements at position: {}", elems.size(), p);
+                                    if (bacmmanLogger != null) bacmmanLogger.log("storing: "+elems.size() + " measurements at position: " + p + "....");
                                     GUI.getDBConnection().getDao(p).store(elems);
-                                });
+                                }
                                 HardSampleMiningParameter p = trainer.getConfiguration().getTrainingParameters().getParameter(HardSampleMiningParameter.class, null);
                                 if (p != null) {
                                     double minQuantile = p.getMinQuantile();
@@ -383,9 +390,11 @@ public class DockerTrainingWindow implements ProgressLogger {
                                         double[] values = metrics.stream().mapToDouble(v -> v[ii]).toArray();
                                         double threshold = ArrayUtil.quantiles(values, minQuantile)[0];
                                         logger.debug("metric: {} threshold: {} quantile: {}", metricsNames[i], threshold, minQuantile);
+                                        if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " threshold: "+threshold+ " quantile: "+minQuantile);
                                         if (!Double.isNaN(threshold)) {
                                             List<SegmentedObject> objects = sel.getAllElementsAsStream().filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
                                             selHS.addElements(objects);
+                                            if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " #objects: "+objects.size());
                                             selDAO.store(selHS);
                                             allObjects.addAll(objects);
                                         }
