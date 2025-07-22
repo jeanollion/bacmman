@@ -52,6 +52,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         FloatParameter cdmLossRadius = new FloatParameter("CDM Loss Radius", 5).setLowerBound(0).setHint("if greater than zero: center loss is computed in an area around the center defined by this radius. This is useful for small objects such as spots. <br/>If zero, loss is computed within the objects (default)");
         ConditionalParameter<CENTER_DISTANCE_MODE> centerDistanceModeCond = new ConditionalParameter<>(centerDistanceMode).setActionParameters(CENTER_DISTANCE_MODE.EUCLIDEAN, cdmLossRadius);
         BooleanParameter scaleEDM = new BooleanParameter("Scale EDM", false).setHint("If true, for each object EDM is normalized so that maximal value is 1. Recommended for small objects if size do not matter");
+        BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
+        BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
 
         public SegmentationParameters(String name, CENTER_MODE... allowedCenterModes) {
             super(name);
@@ -60,7 +62,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             for (CENTER_MODE mode : allowedCenterModes) hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
             hint.append("</ul>");
             centerMode.setHint(hint.toString());
-            setChildren(scaleEDM, centerMode, centerDistanceModeCond);
+            setChildren(scaleEDM, centerMode, centerDistanceModeCond, EDMderivatives, CDMderivatives);
         }
 
         @Override
@@ -77,6 +79,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put(PythonConfiguration.toSnakeCase(centerMode.getName()), centerMode.toJSONEntry());
             res.put(PythonConfiguration.toSnakeCase(centerDistanceMode.getName()), centerDistanceMode.toJSONEntry());
             if (centerDistanceMode.getSelectedEnum().equals(CENTER_DISTANCE_MODE.EUCLIDEAN)) res.put(PythonConfiguration.toSnakeCase(cdmLossRadius.getName()), cdmLossRadius.toJSONEntry());
+            res.put(PythonConfiguration.toSnakeCase(EDMderivatives.getName()), EDMderivatives.toJSONEntry());
+            res.put(PythonConfiguration.toSnakeCase(CDMderivatives.getName()), CDMderivatives.toJSONEntry());
             return res;
         }
     }
