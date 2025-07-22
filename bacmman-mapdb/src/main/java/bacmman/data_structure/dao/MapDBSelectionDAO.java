@@ -143,6 +143,11 @@ public class MapDBSelectionDAO implements SelectionDAO {
     }
 
     @Override
+    public synchronized void clearSelectionCache(String... positions) {
+        idCache.values().forEach(s -> s.freeMemoryForPositions(positions));
+    }
+
+    @Override
     public synchronized void store(Selection s) {
         idCache.put(s.getName(), s);
         s.setMasterDAO(this.mDAO);

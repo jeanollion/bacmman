@@ -43,7 +43,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     protected ChannelImageParameter channel = new ChannelImageParameter("Channel").setEmphasized(true)
             .setLegacyParameter( (params, cp) -> {
                 ObjectClassParameter oc = (ObjectClassParameter)params[0];
-                logger.debug("channel legacy init: {} -> {} ", oc.getSelectedClassIdx(), ParameterUtils.getExperiment(cp).experimentStructure.getChannelIdx(oc.getSelectedClassIdx()));
+                //logger.debug("channel legacy init: {}/{} -> {} ({})", oc.getSelectedClassIdx(), ParameterUtils.getExperiment(cp).getStructureCount(), ParameterUtils.getExperiment(cp).experimentStructure.getChannelIdx(oc.getSelectedClassIdx()), ParameterUtils.getExperiment(cp).getStructureToChannelCorrespondance());
                 cp.setChannelFromObjectClass(oc.getSelectedClassIdx());
             },  new ObjectClassParameter("Intensity"))
             .setAutoConfiguration( ChannelImageParameter.defaultAutoConfiguration() );

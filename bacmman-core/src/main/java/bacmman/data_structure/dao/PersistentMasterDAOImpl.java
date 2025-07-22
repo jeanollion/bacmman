@@ -30,7 +30,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
 
     protected final String dbName;
     final HashMap<String, T> DAOs = new HashMap<>();
-    final LinkedList<T> openDAOs = new LinkedList<>();
+    final LinkedList<T> openDAO = new LinkedList<>();
     final Set<String> positionLock = new HashSet<>();
     protected Experiment xp;
     java.nio.channels.FileLock xpFileLock;
@@ -40,9 +40,6 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     boolean readOnly = true; // default is read only
     boolean safeMode;
     private final SegmentedObjectAccessor accessor;
-    public List<T> getOpenObjectDAOs() {
-        return new ArrayList<>(new ArrayList<>(openDAOs));
-    }
     protected final ObjectDAOFactory<ID, T> factory;
     protected final SelectionDAOFactory<S> selectionDAOFactory;
     @FunctionalInterface public interface ObjectDAOFactory<ID, T extends ObjectDAO<ID>> {
@@ -75,7 +72,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     @Override
-    public boolean lockPositions(String... positionNames) {
+    public synchronized boolean lockPositions(String... positionNames) {
         if (positionNames==null || positionNames.length==0) {
             if (getExperiment()==null) return false;
             positionNames = getExperiment().getPositionsAsString();
@@ -84,10 +81,14 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         boolean success = true;
         for (String p : positionNames) {
             if (DAOs.containsKey(p) && DAOs.get(p).isReadOnly()) { //
-                DAOs.get(p).clearCache();
-                DAOs.get(p).unlock();
-                T dao = DAOs.remove(p);
-                if (dao != null) openDAOs.remove(dao);
+                T dao = DAOs.get(p);
+                //logger.debug("close dao: {} {} [lock + read only]", p, dao.hashCode());
+                Core.getCore().closePosition(p);
+                dao.clearCache();
+                dao.unlock();
+                clearSelectionCache(p);
+                DAOs.remove(p);
+                openDAO.remove(dao);
             }
             T dao = getDao(p);
             success = success && !dao.isReadOnly();
@@ -97,28 +98,39 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     @Override
-    public void unlockPositions(String... positionNames) {
+    public synchronized void unlockPositions(String... positionNames) {
         if (positionNames==null || positionNames.length==0) {
             if (getExperiment()==null) return;
             positionNames = getExperiment().getPositionsAsString();
         }
         this.positionLock.removeAll(Arrays.asList(positionNames));
+        if (safeMode && !openDAO.isEmpty()) { // one commit message for all positions
+            Boolean commit = Core.userPrompt("Safe mode is ON. Changes may have been made, commit them?");
+            for (T dao : openDAO) {
+                if (commit == null || commit) dao.commit();
+                else dao.rollback();
+            }
+        }
         for (String p : positionNames) {
             if (this.DAOs.containsKey(p)) {
-                this.getDao(p).clearCache();
-                this.getDao(p).unlock();
-                T dao = DAOs.remove(p);
-                if (dao != null) openDAOs.remove(dao);
+                T dao = this.getDao(p);
+                //logger.debug("close dao: {} {} [unlock]", p, dao.hashCode());
+                Core.getCore().closePosition(p);
+                dao.clearCache();
+                dao.unlock();
+                clearSelectionCache(p);
+                DAOs.remove(p);
+                openDAO.remove(dao);
             }
         }
     }
-
 
     @Override
     public boolean isConfigurationReadOnly() {
         if (cfg==null) accessConfigFileAndLockXP();
         return readOnly;
     }
+
     @Override
     public boolean setConfigurationReadOnly(boolean readOnly) {
         if (readOnly) {
@@ -171,37 +183,52 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                     String op = getOutputPath();
                     if (op==null) throw new RuntimeException("No output path set, cannot create DAO");
                     //logger.debug("requesting dao: {} already open: {}", positionName, openDAOs.stream().map(ObjectDAO::getPositionName).collect(Collectors.toList()));
-                    if (openDAOs.size()>=MAX_OPEN_DAO) {
-                        T toClose = openDAOs.pollFirst();
+                    if (openDAO.size()>=MAX_OPEN_DAO) {
+                        T toClose = openDAO.pollFirst();
+                        //logger.debug("close dao: {} {} [open dao limit]", toClose.getPositionName(), toClose.hashCode());
                         Core.getCore().closePosition(toClose.getPositionName());
-                        toClose.commit(); // TODO : in GUI mode + safe mode + modifications prompt user
+                        commit(toClose);
                         toClose.clearCache();
-                        toClose.unlock();
-                        DAOs.remove(toClose.getPositionName());
-                        openDAOs.remove(toClose);
                         clearSelectionCache(toClose.getPositionName());
+                        openDAO.remove(toClose); // keep dao object in DAOs map but not in openDAO list to avoid creating several time dao's
                     }
                     res = factory.makeDAO(this, positionName, op, !positionLock.contains(positionName) && readOnly);
                     res.setSafeMode(safeMode);
-                    //logger.debug("creating DAO: {} po
-                    // position lock: {}, read only: {}", positionName, positionLock.contains(positionName), res.isReadOnly());
+                    //logger.debug("{} creating DAO: {}@{} position lock: {}, read only: {}", hashCode(), res.hashCode(), positionName, positionLock.contains(positionName), res.isReadOnly());
                     DAOs.put(positionName, res);
-                    openDAOs.addLast(res);
+                    openDAO.addLast(res);
                 }
             }
         }
-        if (openDAOs.isEmpty() || !res.equals(openDAOs.getLast())) {
-            synchronized (openDAOs) { // put in last position
-                openDAOs.remove(res);
-                openDAOs.addLast(res);
+        if (openDAO.isEmpty() || !res.equals(openDAO.getLast())) {
+            synchronized (openDAO) { // put in last position
+                openDAO.remove(res);
+                openDAO.addLast(res);
             }
         }
         return res;
     }
 
+    @Override
+    public void commit() {
+        openDAO.forEach(ObjectDAO::commit);
+    }
+
+    @Override
+    public void rollback() {
+        openDAO.forEach(ObjectDAO::rollback);
+    }
+
+    protected void commit(T dao) {
+        if (safeMode && openDAO.contains(dao)) {
+            Boolean commit = Core.userPrompt("Safe mode is ON. Changes may have been made on position "+dao.getPositionName()+ " commit them?");
+            if (commit == null || commit) dao.commit();
+            else dao.rollback();
+        } else dao.commit();
+    }
+
     protected void clearSelectionCache(String... positions) {
-        SelectionDAO dao = getSelectionDAO();
-        dao.getSelections().forEach(s -> s.freeMemoryForPositions(positions));
+        getSelectionDAO().clearSelectionCache(positions);
     }
 
     @Override
@@ -321,7 +348,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         }
     }
     @Override
-    public void clearCache(String position) {
+    public synchronized void clearCache(String position) {
         if (getExperiment().getPosition(position)!=null) getExperiment().getPosition(position).freeMemoryImages(true, true); // input images
         T dao = DAOs.get(position);
         if (dao!=null) dao.clearCache();
@@ -502,7 +529,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     public void setSafeMode(boolean safeMode) {
         if (this.safeMode!=safeMode) {
             this.safeMode = safeMode;
-            for (ObjectDAO dao : getOpenObjectDAOs()) dao.setSafeMode(safeMode);
+            for (ObjectDAO dao : DAOs.values()) dao.setSafeMode(safeMode);
         }
     }
     @Override

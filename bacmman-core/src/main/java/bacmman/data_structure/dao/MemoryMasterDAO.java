@@ -160,9 +160,15 @@ public class MemoryMasterDAO<ID, T extends ObjectDAO<ID>> implements MasterDAO<I
     public void unlockPositions(String... positionNames) {
         
     }
+
     @Override
-    public List<T> getOpenObjectDAOs() {
-        return new ArrayList<>(this.DAOs.values());
+    public void commit() {
+        this.DAOs.values().forEach(ObjectDAO::commit);
+    }
+
+    @Override
+    public void rollback() {
+        this.DAOs.values().forEach(ObjectDAO::rollback);
     }
 
     ProgressLogger bacmmanLogger;

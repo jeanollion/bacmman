@@ -73,6 +73,10 @@ public class SelectionBox {
         return selection;
     }
 
+    public void freeMemoryForPositions(String... positions) {
+        if (selection != null) selection.freeMemoryForPositions(positions);
+    }
+
     public void setJsonContent() {
         if (selection == null) jsonContent = null;
         else jsonContent = selection.toJSONEntry().toJSONString();
