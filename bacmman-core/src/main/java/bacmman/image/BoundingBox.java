@@ -46,6 +46,10 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     int sizeY();
     int sizeZ();
     int size(int dim);
+    default int[] dimensions() {
+        if (sizeZ() == 1 && sizeY() == 1) return new int[]{sizeX()}; // 1D case
+        return sizeZ()>1 ? new int[]{sizeX(), sizeY(), sizeZ()}:new int[]{sizeX(), sizeY()};
+    }
     int volume();
     double xMean();
     double yMean();

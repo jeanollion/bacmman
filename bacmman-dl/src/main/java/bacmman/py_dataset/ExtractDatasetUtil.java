@@ -85,7 +85,9 @@ public class ExtractDatasetUtil {
                     logger.debug("position: {}", position);
                     Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                         //if (parent.getStructureIdx() == oc) return null; // this case is handled separately
+                        //logger.debug("resampling pop for parent: {} oc: {}", parent, oc);
                         RegionPopulation pop = parent.getChildRegionPopulation(oc, false);
+                        //logger.debug("resampling pop for parent: {} -> #{} dimensions: {} -> {}", parent, pop.getRegions().size(), pop.getImageProperties().dimensions(), dimensions);
                         return resamplePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(oc));
                     }));
                     String curSelName = sel.getName();
@@ -243,10 +245,12 @@ public class ExtractDatasetUtil {
     }
 
     private static RegionPopulation resamplePopulation(RegionPopulation pop, int[] dimensions, int downsamplingFactor, boolean eraseTouchingContours) {
-        Image mask = pop.getLabelMap();
+        logger.debug("resampling population: {} -> {}", pop.getImageProperties().dimensions(), dimensions);
+        ImageInteger mask = pop.getLabelMap();
         ImageInteger maskR;
         dimensions = getDimensions(mask.dimensions(), dimensions, downsamplingFactor);
-        if (mask instanceof ImageShort) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
+        if (mask instanceof ImageShort) maskR = TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
+        else if (mask instanceof ImageInt) maskR = TypeConverter.toInt(resample(mask, true, dimensions), null).resetOffset();
         else maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
         RegionPopulation res = new RegionPopulation(maskR, true);
         if (eraseTouchingContours) res.eraseTouchingContours(false);
@@ -273,7 +277,7 @@ public class ExtractDatasetUtil {
     }
     public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
-        logger.debug("resampling..");
+        logger.debug("extract + resample dataset: {}...", dsName);
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);
             int[] dimensions_ = getDimensions(im.dimensions(), dimensions, downsamplingFactor);
@@ -282,7 +286,7 @@ public class ExtractDatasetUtil {
             if (ExtractZAxisParameter.ExtractZAxis.CHANNEL.equals(zAxisMode)) out = ExtractZAxisParameter.transposeZ(out);
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
-        logger.debug("resampling done");
+        logger.debug("extract done");
         int[][] originalDimensions = saveDimensions ? streamSupplier.get().sorted(Comparator.comparing(ExtractDatasetUtil::getLabel)).map(o->{
             if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
             else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};

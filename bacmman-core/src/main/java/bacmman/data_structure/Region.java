@@ -1264,6 +1264,8 @@ public class Region {
             List<Image> planes = image.splitZPlanes();
             for (Image p : planes) draw(p, value);
         }
+        boolean intersect = isAbsoluteLandMark() ? ( is2D() ? BoundingBox.intersect2D(this.getBounds(), image.getBoundingBox()): BoundingBox.intersect(this.getBounds(), image.getBoundingBox())) : (is2D() ? BoundingBox.intersect2D(this.getBounds(), image.getBoundingBox().resetOffset()) : BoundingBox.intersect(this.getBounds(), image.getBoundingBox().resetOffset()));
+        if (!intersect) return;
         boolean included = isAbsoluteLandMark() ? ( is2D() ? BoundingBox.isIncluded2D(this.getBounds(), image.getBoundingBox()): BoundingBox.isIncluded(this.getBounds(), image.getBoundingBox())) : (is2D() ? BoundingBox.isIncluded2D(this.getBounds(), image.getBoundingBox().resetOffset()) : BoundingBox.isIncluded(this.getBounds(), image.getBoundingBox().resetOffset()));
         if (voxels !=null) {
             //logger.trace("drawing from VOXELS of object: {} with label: {} on image: {} ", this, label, image);
