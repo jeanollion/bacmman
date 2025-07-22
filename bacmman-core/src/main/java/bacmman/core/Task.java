@@ -77,7 +77,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         List<Pair<String, int[]>> extractMeasurementDir = new ArrayList<>();
         MultipleException errors = new MultipleException();
         MasterDAO db;
-        final boolean keepDB;
+        boolean ownDB;
         int[] taskCounter;
         double subtaskNumber=0, subtaskCounter =0;
         double preProcessingMemoryThreshold = 0.5;
@@ -346,14 +346,14 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
     public Task() {
         setUI(Core.getProgressLogger());
-        keepDB = false;
+        ownDB = true;
     }
     public Task(MasterDAO db) {
         setUI(Core.getProgressLogger());
         this.db=db;
         this.dbName=db.getDBName();
         this.dir=db.getDatasetDir().toFile().getAbsolutePath();
-        keepDB = true;
+        ownDB = false;
     }
     public Task(String dbName) {
         this(dbName, null);
@@ -366,13 +366,29 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
     public Task setDBName(String dbName) {
         if (dbName!=null && dbName.equals(this.dbName)) return this;
-        this.db=null;
+        if (db!=null) {
+            if (ownDB) {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+            }
+            this.db=null;
+        }
+        this.ownDB = false;
         this.dbName=dbName;
         return this;
     }
     public Task setDir(String dir) {
         if (dir!=null && dir.equals(this.dir)) return this;
-        this.db=null;
+        if (db!=null) {
+            if (ownDB) {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+            }
+            this.db=null;
+        }
+        this.ownDB = false;
         this.dir=dir;
         return this;
     }
@@ -384,7 +400,13 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     public Task setDB(MasterDAO db) {
+        if (db!=null && ownDB) {
+            this.db.unlockPositions();
+            this.db.unlockConfiguration();
+            this.db.clearCache(true, true, true);
+        }
         this.db = db;
+        ownDB = false;
         return this;
     }
 
@@ -528,8 +550,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
     @Override
     public void initDB() {
         if (db==null) {
-            if (dir==null) throw new RuntimeException("XP not found");
-            if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.getDAO(dbName, dir);
+            synchronized (this) {
+                if (db == null) {
+                    if (dir==null) throw new RuntimeException("XP not found");
+                    if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.getDAO(dbName, dir);
+                }
+            }
         }
     }
 
@@ -539,7 +565,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
             if (initDB) initDB();
             this.positions=new ArrayList<>(positions.length);
             for (int i = 0; i<positions.length; ++i) this.positions.add(db.getExperiment().getPositionIdx(positions[i]));
-            if (initDB) db=null; // only set to null if no db was set before, to be able to run on GUI db without lock issues
+            if (initDB) {  // only set to null if no db was set before, to be able to run on GUI db without lock issues
+                db.unlockConfiguration();
+                db.unlockPositions();
+                db.clearCache(true, true, true);
+                db=null;
+            };
         }
         return this;
     }
@@ -592,7 +623,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (db.getExperiment()==null) {
             errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
             printErrors();
-            if (!keepDB) db = null;
+            if (ownDB) {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+                db=null;
+            }
             return false;
         }
         if (structures!=null) checkArray(structures, 0, db.getExperiment().getStructureCount(), "Invalid structure: ");
@@ -706,12 +742,13 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 errors.addExceptions(new Pair<>("Task validity check", new IOException("Missing dl model files")));
             }
         }
-        logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
-        if (!keepDB) {
+        logger.info("task : {}, isValid: {}, config read only {} own db: {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly(), ownDB);
+        if (ownDB) {
+            db.unlockPositions();
             db.unlockConfiguration();
             db.clearCache(true, true, true);
             db=null;
-        }
+        } else db.clearCache(false, false,true);
         return errors.isEmpty();
     }
     private void checkArray(int[] array, int minValueIncl, int maxValueExcl, String message) {
@@ -881,11 +918,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
             }
         }
         logger.debug("unlocking positions...");
-        if (!keepDB) {
+        if (ownDB) {
             db.unlockPositions(positionsToProcess.toArray(new String[0]));
+            db.unlockConfiguration();
             db.clearCache(true, true, true);
-        }
-        else {
+            db=null;
+        } else {
             logger.debug("clearing cache...");
             for (String position:positionsToProcess) db.clearCache(position);
             logger.debug("cache cleared...");
@@ -894,8 +932,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     public void flush(boolean errors) {
         if (db!=null) {
-            db.clearCache(true, true, true);
-            db=null;
+            if (ownDB) {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+                db=null;
+            } else db.clearCache(false, false, true);
         }
         if (errors) {
             this.errors.getExceptions().clear();
@@ -1139,7 +1181,14 @@ public class Task implements TaskI<Task>, ProgressCallback {
     //@Override
     public void done() {
         //logger.debug("EXECUTING DONE FOR : {}", this.toJSON().toJSONString());
-        if (db!=null && !keepDB) db=null;
+        if (db !=null) {
+            if (ownDB) {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+                db = null;
+            } else db.clearCache(false, false, true);
+        }
         this.publish("Task done.");
         publishErrors();
         this.printErrors();
@@ -1276,6 +1325,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             t.setUI(ui);
             totalSubtasks+=t.countSubtasks();
         }
+        logger.debug("all tasks are valid");
         if (ui!=null) ui.setMessage("Total subTasks: "+totalSubtasks);
         int[] taskCounter = new int[]{0, totalSubtasks};
         for (TaskI t : tasks) t.setTaskCounter(taskCounter);

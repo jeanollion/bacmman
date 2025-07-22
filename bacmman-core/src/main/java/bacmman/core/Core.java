@@ -41,6 +41,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static bacmman.plugins.PluginFactory.getClasses;
 
@@ -71,6 +72,8 @@ public class Core {
     public double tfPerProcessGpuMemoryFraction=1;
     final List<Runnable> toFront = new ArrayList<>();
     protected Consumer<String> closePosition;
+    protected Function<String, Boolean> userPrompt;
+
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {
@@ -81,6 +84,7 @@ public class Core {
         }
         return core;
     }
+
     private Core() {
         initIJ2();
         PluginFactory.findPlugins("bacmman.plugins.plugins", false);
@@ -102,6 +106,7 @@ public class Core {
         ij = new ImageJ();
         opService = ij.op();
     }
+
     public static ImageJ imagej2() {
         return ij;
     }
@@ -153,6 +158,17 @@ public class Core {
     public static void userLog(String message) {
         if (progressLogger !=null) progressLogger.setMessage(message);
     }
+
+    public void setUserPrompt(Function<String, Boolean> userPrompt) {
+        this.userPrompt = userPrompt;
+    }
+
+    public static Boolean userPrompt(String question) {
+        if (core == null || core.userPrompt == null) return null;
+        return core.userPrompt.apply(question);
+    }
+
+
     public static void setImageDisplayer(Consumer<Image> imageDisp) {
         imageDisplayer=imageDisp;
     }

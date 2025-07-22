@@ -169,6 +169,11 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
     }
 
     @Override
+    public synchronized void clearSelectionCache(String... positions) {
+        nameCache.values().forEach(sb -> sb.freeMemoryForPositions(positions));
+    }
+
+    @Override
     public synchronized void store(Selection s) {
         SelectionBox sb = nameCache.get(s.getName());
         if (sb == null) {

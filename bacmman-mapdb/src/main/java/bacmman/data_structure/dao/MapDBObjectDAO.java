@@ -193,6 +193,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     protected DB makeDB(int structureIdx) {
         if (readOnly && !Files.exists(Paths.get(getDBFile(structureIdx)))) return null;
         try {
+            //logger.debug("{} WILL MAKE DB, parent: {} xp: {} : dbs contains db: {} ? {}", this.hashCode(), this.mDAO.hashCode(), this.mDAO.getExperiment().hashCode(), structureIdx, dbS.containsKey(structureIdx));
             return MapDBUtils.createFileDB(getDBFile(structureIdx), readOnly, safeMode);
         } catch (org.mapdb.DBException ex) {
             logger.error("Could not create DB readOnly: "+readOnly + " dir "+dir.toFile()+", created: "+dir.toFile().exists(), ex);
@@ -491,7 +492,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     @Override
     public void clearCache() {
-        //logger.debug("clearing cache for Dao: {} / objects: {}, measurements: {}", this.positionName, this.dbS.keySet(), this.measurementdbS.keySet());
+        //logger.debug("{} parent: {} xp: {} clearing cache for Dao: {} / objects: {}, measurements: {}", this.hashCode(), this.mDAO.hashCode(), this.mDAO.getExperiment().hashCode(), this.positionName, this.dbS.keySet(), this.measurementdbS.keySet());
         applyOnAllOpenedObjects(o->{
             getMasterDAO().getAccess().flushImages(o);
             if (o.hasRegion()) o.getRegion().clearVoxels();
@@ -500,8 +501,9 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         allObjectsRetrievedInCache.clear();
         trackHeads.clear();
         frameIndex.clear();
-        closeAllFiles(true);
+        closeAllFiles(!safeMode);
     }
+
     @Override
     public void erase() {
         deleteAllObjects(true);
@@ -531,21 +533,24 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         for (DB db : dbS.values()) {
             if (db==null) continue;
             if (!readOnly && commit&&!db.isClosed()) db.commit();
-            //logger.debug("closing object file : {} ({})", db, Utils.toStringList(Utils.getKeys(dbS, db), i->this.getDBFile(i)));
+            //logger.debug("closing object file : {} ({})", db, Utils.toStringList(Utils.getKeys(dbS, db), this::getDBFile));
             db.close();
         }
         dbS.clear();
         dbMaps.clear();
     }
+
     public void closeAllFiles(boolean commit) {
         closeAllObjectFiles(commit);
         closeAllMeasurementFiles(commit);
     }
+
     public synchronized void compactDBs(boolean onlyOpened) {
         if (readOnly) return;
         compactObjectDBs(onlyOpened);
         compactMeasurementDBs(onlyOpened);
     }
+
     public synchronized void compactObjectDBs(boolean onlyOpened) {
         if (readOnly) return;
         if (onlyOpened) {
@@ -560,6 +565,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             }
         }
     }
+
     public synchronized void compactMeasurementDBs(boolean onlyOpened) {
         if (readOnly) return;
         if (onlyOpened) {
@@ -574,11 +580,13 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             }
         }
     }
+
     @Override
     public void delete(SegmentedObject o, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings) {
         if (readOnly) return;
         delete(new ArrayList(1){{add(o);}}, deleteChildren, deleteFromParent, relabelSiblings);
     }
+
     @Override
     public void delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings) {
         delete(list, deleteChildren, deleteFromParent, relabelSiblings, !safeMode);

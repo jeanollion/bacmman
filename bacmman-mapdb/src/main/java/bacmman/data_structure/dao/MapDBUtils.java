@@ -59,6 +59,7 @@ public class MapDBUtils {
         if (readOnly) m=m.fileLockDisable().readOnly();
         else if (safeMode) m=m.transactionEnable();
         try {
+            //logger.debug("creating db file: {}", path);
             DB db = m.make();
             //db.getStore().fileLoad(); //optionally preload file content into disk cache
             return db;

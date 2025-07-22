@@ -33,6 +33,8 @@ public interface SelectionDAO {
     
     List<Selection> getSelections();
         
+    void clearSelectionCache(String... positions);
+
     void store(Selection s);
     
     void delete(String id);

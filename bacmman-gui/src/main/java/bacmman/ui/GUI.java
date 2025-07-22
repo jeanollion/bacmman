@@ -512,7 +512,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         commit.setText("Commit Changes");
         commit.addActionListener(evt -> {
             if (db!=null) {
-                db.getOpenObjectDAOs().forEach(ObjectDAO::commit);
+                db.commit();
                 setMessage("Changes committed");
             }
         });
@@ -523,8 +523,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             if (db!=null) {
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 iwm.stopAllRunningWorkers();
-                int oc= iwm.getInteractiveObjectClass();
-                db.getOpenObjectDAOs().forEach(ObjectDAO::rollback);
+                db.rollback();
                 iwm.flush();
                 trackTreeController.updateTrackTree();
                 setMessage("Changes reverted");
@@ -1510,9 +1509,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (db.getSafeMode()) {
             boolean save = Utils.promptBoolean("Safe mode is ON. Unsaved manual edition may exist. Keep them ?", this);
             if (save) {
-                db.getOpenObjectDAOs().forEach(ObjectDAO::commit);
+                db.commit();
             } else {
-                db.getOpenObjectDAOs().forEach(ObjectDAO::rollback);
+                db.rollback();
             }
             safeMode.setSelected(false);
         }

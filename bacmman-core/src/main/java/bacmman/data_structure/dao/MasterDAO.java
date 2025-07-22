@@ -52,8 +52,8 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
     boolean isConfigurationReadOnly();
     boolean setConfigurationReadOnly(boolean readOnly);
     void unlockConfiguration();
-
-    List<T> getOpenObjectDAOs();
+    void commit();
+    void rollback();
     /**
      * tries to lock all positions contained in {@param positionNames}. if the array is empty or null, all positions are locked
      * @param positionNames

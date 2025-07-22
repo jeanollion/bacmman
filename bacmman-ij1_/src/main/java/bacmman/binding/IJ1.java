@@ -158,6 +158,7 @@ public class IJ1 implements PlugIn {
                     Core.getCore().getGithubGateway().setLogger(gui);
                     gui.setVisible(true);
                     gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                    Core.getCore().setUserPrompt( question -> Utils.promptBoolean(question, gui));
                     IJ.setTool("freeline");
                     IJ.setTool("brush");
                     Toolbar.setBrushSize(PropertyUtils.get("ij_brush_size", 5));
