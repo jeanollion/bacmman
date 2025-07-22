@@ -392,8 +392,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     }
                 }
                 PropertyUtils.set(PropertyUtils.DATABASE_TYPE, defaultDBType); // do not override database type when converting current database
-            } else {
-                logger.debug("new default target type : {}", dbType.getSelectedItem());
+            } else { // changed manually when no db is open
+                //logger.debug("new default target type : {}", dbType.getSelectedItem());
                 MasterDAOFactory.setDefaultDBType(dbType.getSelectedItem());
             }
         });
@@ -1463,10 +1463,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             else db.clearCache(false, false, true);
         });
 
-        if (db!=null) {
+        if (db!=null) { // opening a database do not change default db type
             String currentDBType = PropertyUtils.get(PropertyUtils.DATABASE_TYPE);
             dbType.setSelectedItem(MasterDAOFactory.getType(db));
-            //if (currentDBType!=null) PropertyUtils.set(PropertyUtils.DATABASE_TYPE, currentDBType); // TODO RESTORE do not override default db type
+            if (currentDBType!=null) PropertyUtils.set(PropertyUtils.DATABASE_TYPE, currentDBType);
         }
     }
     Consumer<String> moduleSelectionCallBack;
