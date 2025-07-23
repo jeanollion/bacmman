@@ -18,11 +18,13 @@
  */
 package bacmman.data_structure.dao;
 
+import bacmman.core.Core;
 import bacmman.data_structure.MyObjectBox;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SelectionBox;
 import bacmman.data_structure.SelectionBox_;
 import bacmman.utils.FileIO;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
 import io.objectbox.Box;
@@ -127,39 +129,50 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
         }
         // local files
         File dirFile = dir.toFile();
-        File[] files = dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"));
+        File[] files = dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json")||n.endsWith(".csv"));
         if (files == null) return;
-        List<SelectionBox> toStore = new ArrayList<>(files.length);
+        List<SelectionBox> toStore = new ArrayList<>();
         for (File f : files) {
-            List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> {
-                try {
-                    return JSONUtils.parse(Selection.class, s);
-                } catch (ParseException e) {
-                    logger.error("Error parsing selection: {}", e.toString());
-                    throw new RuntimeException(e);
-                }
-            }, s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
-            sels.stream().map(s -> {
+            List<Selection> sels;
+            try {
+                sels = SelectionDAO.readFile(f);
+            } catch (IOException e) {
+                logger.error("Error reading selection file: "+f, e);
+                continue;
+            }
+            List<Selection> unreadSel = new ArrayList<>();
+            for (Selection s : sels) {
                 s.setMasterDAO(mDAO);
-                SelectionBox sb;
                 if (nameCache.containsKey(s.getName())) {
-                    logger.info("Selection: {} found in file: {} will be overwritten in local database", s.getName(), f.getAbsolutePath());
-                    // copy metadata
-                    sb = nameCache.get(s.getName());
-                    Selection source = sb.getSelection(mDAO);
-                    s.setHighlightingTracks(source.isHighlightingTracks());
-                    s.setColor(source.getColor());
-                    s.setIsDisplayingObjects(source.isDisplayingObjects());
-                    s.setIsDisplayingTracks(source.isHighlightingTracks());
+                    Boolean prompt = Core.userPrompt("Selection "+s.getName()+ " found in file: "+f.getName()+ " will overwrite existing selection in database. Proceed ?");
+                    if (prompt==null || prompt) {
+                        if (prompt == null) logger.info("Selection: {} found in file: {} will overwrite existing selection", s.getName(), f.getAbsolutePath());
+                        // copy metadata
+                        SelectionBox sb = nameCache.get(s.getName());
+                        Selection source = sb.getSelection(mDAO);
+                        s.setHighlightingTracks(source.isHighlightingTracks());
+                        s.setColor(source.getColor());
+                        s.setIsDisplayingObjects(source.isDisplayingObjects());
+                        s.setIsDisplayingTracks(source.isHighlightingTracks());
+                        sb.updateSelection(s);
+                        toStore.add(sb);
+                    } else {
+                        unreadSel.add(s);
+                    }
                 } else {
-                    sb = new SelectionBox(0, s.getName(), s.getObjectClassIdx(), s.toJSONEntry().toJSONString());
+                    SelectionBox sb = new SelectionBox(0, s.getName(), s.getObjectClassIdx(), s.toJSONEntry().toJSONString());
                     nameCache.put(s.getName(), sb);
+                    toStore.add(sb);
                 }
-                if (!readOnly) f.delete();
-                return sb;
-            }).forEach(toStore::add);
+                if (!readOnly) {
+                    f.delete();
+                    if (!unreadSel.isEmpty()) {
+                        FileIO.writeToFile(f.getAbsolutePath().replace(".csv", ".json"), unreadSel, ss->ss.toJSONEntry().toJSONString());
+                    }
+                }
+            }
         }
-        if (!readOnly) getBox().put(toStore);
+        if (!readOnly && !toStore.isEmpty()) getBox().put(toStore);
     }
     @Override
     public synchronized List<Selection> getSelections() {

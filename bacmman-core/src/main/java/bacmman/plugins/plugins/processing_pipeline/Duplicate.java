@@ -24,6 +24,7 @@ import bacmman.configuration.parameters.ParentObjectClassParameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
+import bacmman.image.MutableBoundingBox;
 import bacmman.plugins.*;
 import bacmman.utils.StreamConcatenation;
 import bacmman.utils.Utils;
@@ -113,10 +114,11 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
             BoundingBox pBounds = p.getBounds();
             p.getChildren(objectClassIdx)
                 .filter(c -> !(c.getRegion() instanceof Analytical)) // cannot perform intersection with parent on analytical regions.
-                .filter(c -> c.is2D() ? !BoundingBox.isIncluded2D(c.getBounds(), pBounds) : !BoundingBox.isIncluded(c.getBounds(), p.getBounds()))
+                .filter(c -> (c.is2D()||p.is2D()) ? !BoundingBox.isIncluded2D(c.getBounds(), pBounds) : !BoundingBox.isIncluded(c.getBounds(), p.getBounds()))
                 .forEach(c -> {
-                    BoundingBox inter = c.is2D() ? BoundingBox.getIntersection2D(c.getBounds(), pBounds) : BoundingBox.getIntersection(c.getBounds(), pBounds);
-                    if (inter.sizeX()<=0 || inter.sizeY()<=0 || inter.sizeZ()<=0) logger.error("Error trim: parent: {} object : {} bounds: {} parent bounds: {} inter: {}", p, c, c.getBounds(), pBounds, inter);
+                    BoundingBox inter = (c.is2D()||p.is2D()) ? BoundingBox.getIntersection2D(c.getBounds(), pBounds) : BoundingBox.getIntersection(c.getBounds(), pBounds);
+                    if (inter.sizeX()<=0 || inter.sizeY()<=0 || (!c.is2D() && !p.is2D() && inter.sizeZ()<=0) ) logger.error("Error trim: parent: {} object : {} bounds: {} parent bounds: {} inter: {}", p, c, c.getBounds(), pBounds, inter);
+                    if (c.is2D()||p.is2D()) inter = new MutableBoundingBox(inter).setzMin(c.getBounds().zMin()).setzMax(c.getBounds().zMax());
                     c.getRegion().setMask(c.getRegion().getMaskAsImageInteger().cropWithOffset(inter));
                 });
         });

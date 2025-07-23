@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 
 public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
-    protected ObjectClassParameter channels = new ObjectClassParameter("Channels", -1, true, true)
+    protected ChannelImageParameter channels = new ChannelImageParameter("Channels", true, true)
             .setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
     protected BoundedNumberParameter classNumber = new BoundedNumberParameter("Class number", 0, -1, 0, null).setHint("Number of predicted classes");
@@ -77,6 +77,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
 
     @Override
     public void performMeasurement(SegmentedObject parentTrackHead) {
+        //dlResizeAndScale.setScaleLogger(Core::userLog);
         Map<SegmentedObject, List<SegmentedObject>> parentMapChildren = SegmentedObjectUtils.getTrack(parentTrackHead).stream().collect(Collectors.toMap(i->i, i->i.getChildren(objects.getSelectedClassIdx()).collect(Collectors.toList())));
         parentMapChildren.entrySet().removeIf(e -> e.getValue().isEmpty()); // do not predict when no objects
         SegmentedObject[] parentArray = parentMapChildren.keySet().toArray(new SegmentedObject[0]);
@@ -91,10 +92,10 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
             }
             return res;
         };
-        int[] channels = this.channels.getSelectedIndices().length==0 ? this.objects.getSelectedIndices() : this.channels.getSelectedIndices();
-        Image[][][] chans = IntStream.concat(IntStream.of(-1), IntStream.of(channels))
+        int[] channels = this.channels.getSelectedIndices().length==0 ? new int[]{parentTrackHead.getExperimentStructure().getChannelIdx(this.objects.getSelectedClassIdx())} : this.channels.getSelectedIndices();
+        Image[][][] chans = IntStream.concat(IntStream.of(channels), IntStream.of(-1))
                 .mapToObj(i -> parentMapChildren.keySet().stream()
-                .map(p->i>=0 ? p.getRawImage(i) : createPop.apply(p).getEDM(true, true))
+                .map(p->i>=0 ? p.getRawImageByChannel(i) : (i==-1 ? createPop.apply(p).getEDM(true, true) : createPop.apply(p).getGCDM(true) ) )
                 .map(im -> new Image[]{im})// per channel per object
                 .toArray(Image[][]::new)) // per channel
                 .toArray(Image[][][]::new);
