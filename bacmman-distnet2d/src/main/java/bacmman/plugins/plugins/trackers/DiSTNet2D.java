@@ -220,6 +220,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(linkDistanceTolerance.getIntValue());
         if (trackPreFilters!=null) trackPreFilters.filter(objectClassIdx, parentTrack);
         List<Map<Integer, Image>> allImages = getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, null);
+        if (false && stores != null && allImages.size()>1 && stores.get(parentTrack.get(0)).isExpertMode()) {
+            Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, Function.identity()));
+            int[] addC = getAdditionalChannels();
+            for (int i = 0; i<addC.length; ++i) for (Map.Entry<Integer, Image> e : allImages.get(i+1).entrySet())  stores.get(parentMap.get(e.getKey())).addIntermediateImage("InputChannel #"+i, e.getValue());
+            int[] addL = getAdditionalLabels();
+            for (int i = 0; i<addL.length * 2; ++i) for (Map.Entry<Integer, Image> e : allImages.get(i+1+addC.length).entrySet()) stores.get(parentMap.get(e.getKey())).addIntermediateImage("Input "+ (i%2==0? "EDM":"GDCM") +" #" +i, e.getValue());
+        }
         int[] sortedFrames = allImages.get(0).keySet().stream().sorted().mapToInt(i->i).toArray();
         int increment = predictionFrameSegment.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / predictionFrameSegment.getIntValue()) );
 
@@ -1814,7 +1821,9 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         else { // add scaling for EDM and GDCM for each label
             DLResizeAndScale res = dlResizeAndScale.duplicate().setScaleLogger(dlResizeAndScale.getScaleLogger());
             res.setInputNumber( nchannels + 2 * nlabels );
-            for (int i = 0; i<nlabels; ++i) res.setScaler(nlabels + i, null); // no intensity scaling for EDM and GDCM
+            for (int i = 0; i<nlabels * 2; ++i) {
+                res.setScaler(nlabels + i, null); // no intensity scaling for EDM and GDCM
+            }
             return res;
         }
     }
