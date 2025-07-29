@@ -1543,7 +1543,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         this.trackSubPanel.removeAll(); // this must be called before releasing locks because this methods somehow calls db.getExperiment() and thus re-lock(toString method)
         String xp = db!=null ? db.getDBName() : null;
         if (db!=null) {
-            db.getExperiment().getDLengineProvider().closeAllEngines();
+            if (db.getExperiment() != null) db.getExperiment().getDLengineProvider().closeAllEngines();
             db.unlockPositions();
             db.unlockConfiguration();
             db.clearCache(true, true, true);

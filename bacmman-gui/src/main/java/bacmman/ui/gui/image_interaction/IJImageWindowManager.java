@@ -292,7 +292,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                                 Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
                                 brushRegion.translate(revOff);
                                 if (!freeHandErase) {
-                                    if (!parent.getExperimentStructure().allowOverlap(getInteractiveObjectClass())) { // honnot overlap parameter
+                                    if (!parent.getExperimentStructure().allowOverlap(getInteractiveObjectClass())) { // honor overlap parameter
                                         brushRegion.translate(parent.getBounds());
                                         brushRegion.setIsAbsoluteLandmark(true);
                                         parent.getChildren(getInteractiveObjectClass())

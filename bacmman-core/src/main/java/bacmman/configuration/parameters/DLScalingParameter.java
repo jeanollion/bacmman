@@ -8,21 +8,30 @@ import bacmman.plugins.plugins.scalers.ModeSdScaler;
 import bacmman.plugins.plugins.scalers.PercentileScaler;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.ToDoubleFunction;
 
 public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingParameter.MODE, DLScalingParameter> implements PythonConfiguration, Hint {
+    Logger logger = LoggerFactory.getLogger(DLScalingParameter.class);
 
     enum MODE {RANDOM_CENTILES, RANDOM_MIN_MAX, BRIGHT_FIELD, FLUORESCENCE}
     IntervalParameter minCentileRange = new IntervalParameter("Min Centile Range", 6, 0, 100, 0.01, 5.).setHint("Zero (min value) of scaled image will correspond to a random centile drawn in this interval");
     IntervalParameter maxCentileRange = new IntervalParameter("Max Centile Range", 6, 0, 100, 95., 99.9).setHint("One (max value) of scaled image will correspond to a random centile drawn in this interval");
     BoundedNumberParameter minCentile = new BoundedNumberParameter("Min Centile", 6, 0.1, 0, 100).setHint("Default min centile used to scale images at test time, for active learning etc.. <br/>Zero (min value) of scaled image will correspond to this centile");
     BoundedNumberParameter maxCentile = new BoundedNumberParameter("Max Centile", 6, 99.9, 0, 100).setHint("Default max centile used to scale images at test time, for active learning etc.. <br/>One (max value) of scaled image will correspond to this centile");
-
-    FloatParameter powerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(1)
-            .setHint("Values greater than 1 after scaling are transformed with a power law in order to saturate smoothly high values. 0 is equivalent to hard saturation");
-    BooleanParameter saturate = new BooleanParameter("Saturate", true).setHint("If true, values under min percentile are set to 0. Values over max percentile are set to 1 except if a power is defined, in that case the power law is used to saturate high values instead");
+    FloatParameter saturateHigh = new FloatParameter("Saturate", 1).setLowerBound(0).setUpperBound(1)
+            .setHint("Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.");
+    ArrayNumberParameter saturate = new ArrayNumberParameter("Saturate", 1, new BoundedNumberParameter("Power Law", 5, 1, 0, 1)).setLegacyParameter((lp, a) -> {
+        if (((BooleanParameter)lp[0]).getSelected()) a.setValue(0, 0); // hard saturation on both tails
+        else a.setValue(1, 1);
+    }, new BooleanParameter("Saturate", false)).setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2).setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +
+            "It consists of two components: <ul>" +
+            "<li>Lower Tail: Values below 0 are smoothly saturated using a power law to ensure gradual transitions. This transformation helps to handle low values gently, preventing abrupt changes. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li>" +
+            "<li>Higher Tail: Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li></ul> " +
+            "Together, these parameters allow for controlled saturation of both low and high values, ensuring smooth handling of outliers in the data.");
     BoundedNumberParameter minRange = new BoundedNumberParameter("Min Range", 5, 0.1, 1e-5, 1).setHint("Image will be scaled to a random range [min, max] drawn in [0, 1] so that max - min >= this value");
     BooleanParameter perImage = new BooleanParameter("Per Image", true).setHint("whether center and scale are computed per image or on the whole dataset");
 
@@ -35,10 +44,10 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
         BooleanSupplier centileRangeIsValid = () -> minCentileRange.getValuesAsDouble()[0] < maxCentileRange.getValuesAsDouble()[1];
         minCentileRange.addValidationFunction(i -> centileRangeIsValid.getAsBoolean());
         maxCentileRange.addValidationFunction(i -> centileRangeIsValid.getAsBoolean());
-        this.setActionParameters(MODE.RANDOM_CENTILES, minCentileRange, maxCentileRange, saturate, powerLaw, minCentile, maxCentile);
+        this.setActionParameters(MODE.RANDOM_CENTILES, minCentileRange, maxCentileRange, saturate, minCentile, maxCentile);
         this.setActionParameters(MODE.RANDOM_MIN_MAX, minRange);
         this.setActionParameters(MODE.BRIGHT_FIELD, bfSdFactor, perImage);
-        this.setActionParameters(MODE.FLUORESCENCE, fluoCenterRange, fluoScaleRange);
+        this.setActionParameters(MODE.FLUORESCENCE, fluoCenterRange, fluoScaleRange, saturateHigh, maxCentile);
     }
     @Override
     public String getHintText() {
@@ -54,7 +63,7 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
         switch (this.getActionValue()) {
             case RANDOM_CENTILES:
             default: {
-                return new PercentileScaler().setPowerLaw(powerLaw.getDoubleValue())
+                return new PercentileScaler().setSaturation(saturate.getArrayDouble())
                         .setPercentiles(new double[]{minCentile.getDoubleValue()/100., maxCentile.getDoubleValue()/100.});
             }
             case RANDOM_MIN_MAX: {
@@ -64,7 +73,7 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
                 return new ModeSdScaler();
             }
             case FLUORESCENCE: {
-                return new ModePercentileScaler().setPercentile(getMid.applyAsDouble(fluoScaleRange.getValuesAsDouble()) / 100.);
+                return new ModePercentileScaler().setPercentile(maxCentile.getDoubleValue()/100.).setSaturation(saturateHigh.getDoubleValue());
             }
         }
     }

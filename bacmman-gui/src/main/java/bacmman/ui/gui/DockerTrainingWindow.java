@@ -339,7 +339,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         if (outputFile.exists()) outputFile.delete();
-                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, false, "python", "train.py", "/data", "--compute_metrics");
+                        dockerGateway.exec(currentContainer, this::printError, this::printError, false, "python", "train.py", "/data", "--compute_metrics");
                         logger.debug("metrics file found: {}", outputFile.isFile());
                         if (outputFile.exists()) { // read metrics and set metrics as measurement
                             String[] header = new String[1];

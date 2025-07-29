@@ -302,7 +302,6 @@ public class JSONUtils {
     }
 
     private static <P extends Parameter> boolean initParameterMap(List<P> list, JSONArray json) {
-        int[] count = new int[1];
         Map<String, P> targetMap = list.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
         String[] targetNameIndex = list.stream().map(Parameter::getName).toArray(String[]::new);
         Map<String, Integer> sourceNameIndex = IntStream.range(0, json.size()).boxed().collect(Collectors.toMap(i->(String)((JSONObject)json.get(i)).keySet().iterator().next(), Function.identity()));
@@ -339,11 +338,10 @@ public class JSONUtils {
             if (target!=null) {
                 try {
                     target.initFromJSONEntry(e.getValue());
-                    ++count[0];
                     initP.add(target);
                 } catch(Throwable ex) {
                     if (!initLPFun.test(e)) {
-                        logger.debug("Error While initializing parameter: {} (class: {}) with: {}", target, target.getClass(), e);
+                        logger.debug("Error while initializing parameter: {} (class: {}) with: {}", target, target.getClass(), e);
                         logger.debug("Error while init:", ex);
                     }
                 }
@@ -355,7 +353,6 @@ public class JSONUtils {
                         if (!initP.contains(target)) {
                             try {
                                 target.initFromJSONEntry(e.getValue());
-                                ++count[0];
                                 initP.add(target);
                             } catch(Throwable ex) { }
                         }
@@ -363,12 +360,22 @@ public class JSONUtils {
                 }
             }
         }
-        if (count[0]<list.size()) {
+        //logger.debug("initP: {} total: {} parameters with legacy: {} already init: {}", initP.size(), list.size(), listLI, initP);
+        if (initP.size()<list.size()) {
             List<ParameterWithLegacyInitialization> lps = listLI.stream().filter(p->!initP.contains(p)).collect(Collectors.toList());
-            for (ParameterWithLegacyInitialization pli : lps) pli.legacyInit();
-            count[0]+=lps.size();
+            for (ParameterWithLegacyInitialization pli : lps) {
+                if (!initP.contains(pli)) {
+                    try {
+                        //logger.debug("calling legacy init on parameter: {}", pli);
+                        pli.legacyInit();
+                        initP.add((Parameter) pli);
+                    } catch (Throwable e) {
+                        logger.debug("Error while executing legacy init on parameter " + pli, e);
+                    }
+                }
+            }
         }
-        return count[0]==json.size()||count[0]==list.size();
+        return initP.size()==json.size()||initP.size()==list.size();
     }
     
     public static JSONObject toJSONMap(Collection<? extends Parameter> coll) {

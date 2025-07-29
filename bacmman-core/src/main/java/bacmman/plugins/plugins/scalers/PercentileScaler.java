@@ -16,9 +16,14 @@ public class PercentileScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double offset, scale;
     IntervalParameter percentile = new IntervalParameter("Min/Max Percentiles", 5, 0, 1, 0.01, 0.99).setEmphasized(true);
-    FloatParameter powerLaw = new FloatParameter("Power Law", 0.1).setLowerBound(0).setUpperBound(1)
-            .setHint("Values greater than 1 after scaling are transformed with a power law in order to saturate smoothly high values. 0 is equivalent to hard saturation");
-    BooleanParameter saturate = new BooleanParameter("Saturate", true).setEmphasized(true).setHint("If true, values under min percentile are set to 0. Values over max percentile are set to 1 except if a power is defined, in that case the power law is used to saturate high values instead");
+    ArrayNumberParameter saturate = new ArrayNumberParameter("Saturate", 1, new BoundedNumberParameter("Power Law", 5, 1, 0, 1)).setLegacyParameter((lp, a) -> {
+        if (((BooleanParameter)lp[0]).getSelected()) a.setValue(0, 0);
+        else a.setValue(1, 1);
+    }, new BooleanParameter("Saturate", true)).setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2).setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +
+            "It consists of two components: <ul>" +
+            "<li>Lower Tail: Values below 0 are smoothly saturated using a power law to ensure gradual transitions. This transformation helps to handle low values gently, preventing abrupt changes. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li>" +
+            "<li>Higher Tail: Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li></ul> " +
+            "Together, these parameters allow for controlled saturation of both low and high values, ensuring smooth handling of outliers in the data.");
 
     boolean transformInputImage = false;
     Consumer<String> scaleLogger;
@@ -37,12 +42,9 @@ public class PercentileScaler implements HistogramScaler, Hint {
         percentile.setValues(percentiles[0], percentiles[1]);
         return this;
     }
-    public PercentileScaler setSaturate(boolean saturate) {
-        this.saturate.setSelected(saturate);
-        return this;
-    }
-    public PercentileScaler setPowerLaw(double powerLaw) {
-        this.powerLaw.setValue(powerLaw);
+
+    public PercentileScaler setSaturation(double[] powerLaw) {
+        this.saturate.setValue(powerLaw);
         return this;
     }
 
@@ -63,38 +65,63 @@ public class PercentileScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
+        boolean isFloatingPoint = image.floatingPoint();
         if (isConfigured()) image = ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else { // perform on single image
             double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
             log(scaleOff);
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }
-        ToDoubleFunction<Double> saturateFun = getDoubleToDoubleFunction();
-        if (saturateFun != null) {
-            ImageOperations.applyFunction(image, saturateFun, true);
-        }
+        ToDoubleFunction<Double> saturateFun = getSaturateFun();
+        if (saturateFun != null) image = ImageOperations.applyFunction(image, saturateFun, !isFloatingPoint || transformInputImage);
         return image;
     }
 
-    protected ToDoubleFunction<Double> getDoubleToDoubleFunction() {
-        double powerLaw = this.powerLaw.getDoubleValue();
-        ToDoubleFunction<Double> saturateFun;
-        if (powerLaw < 1 && powerLaw > 0) {
-            if (saturate.getSelected()) {
-                saturateFun = v -> {
-                    if (v > 1) return Math.pow(v, powerLaw);
-                    return Math.max(0, v);
-                };
-            } else {
-                saturateFun = v -> {
-                    if (v > 1) return Math.pow(v, powerLaw);
+    protected ToDoubleFunction<Double> getSaturateFun() {
+        double[] powerLaw = this.saturate.getArrayDouble();
+        if (powerLaw[0]==1) { // only higher tail
+            if (powerLaw[1] < 1 && powerLaw[1] > 0) { // soft saturation on higher tail
+                double pl = powerLaw[1];
+                return v -> {
+                    if (v > 1) return Math.pow(v, pl);
                     return v;
                 };
+            } else if (powerLaw[1] == 0) { // hard saturation on higher tail
+                return v -> Math.min(1, v);
+            } else return null; // no saturation
+        } else if (powerLaw[0]==0) { // hard saturation on lower tail
+            if (powerLaw[1] < 1 && powerLaw[1] > 0) { // soft saturation on higher tail and hard saturation on lower tail
+                double pl = powerLaw[1];
+                return v -> {
+                    if (v > 1) return Math.pow(v, pl);
+                    return Math.max(0, v);
+                };
+            } else if (powerLaw[1] == 0) { // hard saturation on both tails
+                return v -> Math.max(0, Math.min(1, v));
+            } else return v -> Math.max(0, v); // hard saturation on lower tail only
+        } else { // soft saturation on lower tail
+            if (powerLaw[1] < 1 && powerLaw[1] > 0) { // soft saturation on both tails
+                double plH = powerLaw[1];
+                double plL = powerLaw[0];
+                return v -> {
+                    if (v > 1) return Math.pow(v, plH);
+                    else if (v < 0) return -Math.pow(-v, plL);
+                    else return v;
+                };
+            } else if (powerLaw[1] == 0) { // soft saturation on lower tail hard saturation on higher tail
+                double plL = powerLaw[0];
+                return v -> {
+                    if (v < 0) return -Math.pow(-v, plL);
+                    else return Math.min(1, v);
+                };
+            } else { // soft saturation on lower tail only
+                double plL = powerLaw[0];
+                return v -> {
+                    if (v < 0) return -Math.pow(-v, plL);
+                    else return v;
+                };
             }
-
-        } else if (saturate.getSelected()) saturateFun = v -> Math.max(0, Math.min(1, v));
-        else saturateFun = null;
-        return saturateFun;
+        }
     }
 
     @Override
@@ -115,7 +142,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[] {percentile , saturate, powerLaw};
+        return new Parameter[] {percentile, saturate};
     }
 
     @Override
