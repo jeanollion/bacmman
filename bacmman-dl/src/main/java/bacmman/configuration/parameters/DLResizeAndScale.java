@@ -620,7 +620,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     @Override
     public DLResizeAndScale duplicate() {
-        DLResizeAndScale res = new DLResizeAndScale(name);
+        DLResizeAndScale res = new DLResizeAndScale(name, this.singleOutput, this.noReverseScaling, this.noReverseResampling);
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;
