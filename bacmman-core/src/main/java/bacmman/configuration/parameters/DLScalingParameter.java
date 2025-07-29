@@ -22,12 +22,14 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
     IntervalParameter maxCentileRange = new IntervalParameter("Max Centile Range", 6, 0, 100, 95., 99.9).setHint("One (max value) of scaled image will correspond to a random centile drawn in this interval");
     BoundedNumberParameter minCentile = new BoundedNumberParameter("Min Centile", 6, 0.1, 0, 100).setHint("Default min centile used to scale images at test time, for active learning etc.. <br/>Zero (min value) of scaled image will correspond to this centile");
     BoundedNumberParameter maxCentile = new BoundedNumberParameter("Max Centile", 6, 99.9, 0, 100).setHint("Default max centile used to scale images at test time, for active learning etc.. <br/>One (max value) of scaled image will correspond to this centile");
-    FloatParameter saturateHigh = new FloatParameter("Saturate", 1).setLowerBound(0).setUpperBound(1)
+    FloatParameter saturateHigh = new FloatParameter("Saturate", 0.5).setLowerBound(0).setUpperBound(1).setLegacyInitializationValue(1)
             .setHint("Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.");
     ArrayNumberParameter saturate = new ArrayNumberParameter("Saturate", 1, new BoundedNumberParameter("Power Law", 5, 1, 0, 1)).setLegacyParameter((lp, a) -> {
         if (((BooleanParameter)lp[0]).getSelected()) a.setValue(0, 0); // hard saturation on both tails
         else a.setValue(1, 1);
-    }, new BooleanParameter("Saturate", false)).setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2).setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +
+    }, new BooleanParameter("Saturate", false)).setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2)
+            .setValue(0.5, 0.5)
+            .setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +
             "It consists of two components: <ul>" +
             "<li>Lower Tail: Values below 0 are smoothly saturated using a power law to ensure gradual transitions. This transformation helps to handle low values gently, preventing abrupt changes. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li>" +
             "<li>Higher Tail: Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li></ul> " +
