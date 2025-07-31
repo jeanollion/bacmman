@@ -25,7 +25,7 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (maxLinkNumber <0) throw new RuntimeException("Feature not configured");
         int[] idx = new int[1];
-        ImageShort res=new ImageShort("linksPrev", 2, maxLinkNumber, 1);
+        ImageShort res=new ImageShort("linksPrev", 3, maxLinkNumber, 1);
         parent.getChildren(objectClassIdx).sorted().forEach(c -> {
             int count = idx[0];
             SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).sorted().forEach(p -> {
@@ -33,9 +33,25 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
                 res.setPixel(0, idx[0], 0, c.getIdx() + 1);
                 res.setPixel(1, idx[0]++, 0, p.getIdx() + 1);
             });
-            if (idx[0]==count) res.setPixel(0, idx[0]++, 0, c.getIdx() + 1); // no previous was found : set a null link
+            if (idx[0]==count) { // check if there is a gap
+                SegmentedObject p = getPreviousWithGap(c, subsamplingFactor);
+                if (p != null) {
+                    res.setPixel(0, idx[0], 0, c.getIdx() + 1);
+                    res.setPixel(1, idx[0], 0, p.getIdx() + 1);
+                    int gap = (c.getFrame() - p.getFrame()) / subsamplingFactor - 1;
+                    res.setPixel(2, idx[0]++, 0, gap);
+                } else res.setPixel(0, idx[0]++, 0, c.getIdx() + 1); // no previous was found : set a null link
+            }
         });
         return res;
+    }
+
+    // get previous object, including gaps and taking into account subsampling factor: previous must fall in a subsampled frame.
+    private static SegmentedObject getPreviousWithGap(SegmentedObject c, int subsamplingFactor) {
+        SegmentedObject p = c.getPrevious();
+        while(p != null && (c.getFrame() - p.getFrame()) % subsamplingFactor != 0) {p = p.getPrevious();}
+        if (p == null || (c.getFrame() - p.getFrame()) % subsamplingFactor != 0) return null;
+        else return p;
     }
 
     @Override
@@ -60,7 +76,7 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
 
     @Override
     public String getHintText() {
-        return "Extract Links as an array of dimension (2, L), L begin the number of links, at X=0, label at current frame and at X=1 label at previous frame. Only links to previous contiguous frame are extracted";
+        return "Extract Links as an array of dimension (3, L), L begin the number of links, at X=0, label at current frame, at X=1 label at previous frame and at X=3 number of gaps (0=adjacent frame). There can be either zero, one or several previous links at adjacent frame (gap=0) or zero or a single previous link with a gap.";
     }
 
     int subsamplingFactor = 1;

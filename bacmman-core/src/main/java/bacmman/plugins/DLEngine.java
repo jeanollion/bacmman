@@ -38,6 +38,8 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
     void init();
     int getNumOutputArrays();
     int getNumInputArrays();
+    default String[] getOutputNames() {return null;} // can return null
+    default String[] getInputNames() {return null;} // can return null
     DLEngine setOutputNumber(int outputNumber);
     DLEngine setInputNumber(int inputNumber);
     void close();

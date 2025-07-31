@@ -85,6 +85,7 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
         JSONObject json = new JSONObject();
         json.put("mode", this.action.getValue().toString());
         for (Parameter p : getCurrentParameters()) {
+            if (this.action.getValue().equals(MODE.FLUORESCENCE) && p.getName().equals("Max Centile")) continue;
             if (p.equals(bfSdFactor)) {
                 json.put("bf_sd_factor", bfSdFactor.toJSONEntry());
                 json.put("per_image", perImage.toJSONEntry());

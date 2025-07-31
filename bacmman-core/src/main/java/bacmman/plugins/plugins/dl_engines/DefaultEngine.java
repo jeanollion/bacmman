@@ -61,6 +61,12 @@ public class DefaultEngine implements DLEngine {
     }
 
     @Override
+    public String[] getOutputNames() {return engine.getOutputNames();}
+
+    @Override
+    public String[] getInputNames() {return engine.getInputNames();}
+
+    @Override
     public DLEngine setOutputNumber(int outputNumber) {
         this.outputNumber = outputNumber;
         if (engine != null) engine.setOutputNumber(outputNumber);

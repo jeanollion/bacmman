@@ -121,6 +121,12 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
     }
 
     @Override
+    public String[] getOutputNames() {return outputNames;}
+
+    @Override
+    public String[] getInputNames() {return inputNames;}
+
+    @Override
     public TF2engine setOutputNumber(int outputNumber) {
         return this;
     }

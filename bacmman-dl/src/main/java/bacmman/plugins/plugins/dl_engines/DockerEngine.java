@@ -337,6 +337,12 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
+    public String[] getOutputNames() {return outputNames;}
+
+    @Override
+    public String[] getInputNames() {return inputNames;}
+
+    @Override
     public DLEngine setOutputNumber(int outputNumber) { // TODO can this method be removed ?
         return this;
     }

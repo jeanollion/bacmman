@@ -298,9 +298,13 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
         IntegerParameter categoryNumber = new IntegerParameter("Category Number", 0).setLowerBound(0).setHint("If greater than 1, a category will be predicted. <br/>Each dataset must contain an array named <em>category</em> that maps label to a category");
+        IntegerParameter nGaps = new IntegerParameter("Gap Number", 0).setLowerBound(0)
+                .setHint("Maximal Gap size (in frame number) allowed gap closing procedure at tracking. Must be lower than <em>Input Window</em>.<br>This parameter only impacts model export.")
+                .addValidationFunction( g -> frameWindow.getIntValue() > g.getIntValue());
+
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
-            setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, filters, blendingFilterFactor, attention, selfAttention, categoryNumber);
+            setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, filters, blendingFilterFactor, attention, selfAttention, categoryNumber);
         }
         public int getContraction() {
             switch (getActionValue()) {
@@ -327,6 +331,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("architecture_type", getActionValue().toString());
             res.put("frame_window", frameWindow.toJSONEntry());
             res.put("next", next.toJSONEntry());
+            res.put("inference_gap_number", nGaps.toJSONEntry());
+
             if (categoryNumber.getIntValue() > 1) res.put("category_number", categoryNumber.getIntValue());
             switch (getActionValue()) {
                 case BLEND:
