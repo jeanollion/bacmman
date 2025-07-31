@@ -76,6 +76,7 @@ public class FreeLineSplitter implements ObjectSplitter {
             }
         }
         List<Region> objects = ImageLabeller.labelImageListLowConnectivity(splitMask);
+        objects.forEach(r -> r.setIs2D(object.is2D()));
         RegionPopulation res = new RegionPopulation(objects, splitMask);
         res.filterAndMergeWithConnected(o->o.size()>1); // connect 1-pixels objects, artifacts of low connectivity labelling
         if (objects.size()>2) { // merge smaller & connected

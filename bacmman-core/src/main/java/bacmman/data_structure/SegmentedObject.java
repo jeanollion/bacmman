@@ -826,6 +826,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     List<SegmentedObject> split(RegionPopulation pop, Collection<SegmentedObject> modifiedObjects) {
         if (isRoot()) throw new RuntimeException("Cannot split root object");
         if (pop.getRegions().isEmpty()) throw new IllegalArgumentException("Split: no objects");
+        pop.getRegions().forEach(r -> r.setIs2D(is2D()));
         pop.getRegions().forEach(r -> r.regionModified = true);
         if (!pop.isAbsoluteLandmark()) { // set landmark
             pop.translate(getParent().getBounds(), true);
