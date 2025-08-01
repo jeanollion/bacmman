@@ -44,7 +44,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
     DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
     protected TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "-1", true, true).setEmphasized(true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices. <br>GPU order identical as given by nvidia-smi command.<br/>Leave blank to run on CPU, set -1 to use default GPU (from Option menu)");
-    protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 0).setLowerBound(1).setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d).setHint("Shared Memory Size (GB). Set 0 to use default value (set in Option menu)");
+    protected FloatParameter dockerShmSizeGb = new FloatParameter("Shared Memory Size", 0).setLowerBound(1).setHint("Shared Memory Size (GB). Set 0 to use default value (set in Option menu)"); //.setUpperBound(0.5 * ((1024 * 1024 / (1000d * 1000d)) * (Utils.getTotalMemory() / (1000d * 1000))) / 1000d)
     FloatParameter initTimeout = new FloatParameter("Init TimeOut", 60).setHint("Maximum time (in s) to initialize the engine.");
     FloatParameter processTimeout = new FloatParameter("Processing TimeOut", 480).setHint("Maximum time (in s) for the engine to process each batch");
     EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z)

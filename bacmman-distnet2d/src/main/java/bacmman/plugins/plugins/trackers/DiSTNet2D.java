@@ -1885,7 +1885,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.arraycopy(ResizeUtils.getChannel(predictions[0], 0), 0, this.edm, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[1], 0), 0, this.gcdm, idx, n);
             for (int i = idx; i<idx+n; ++i) ImageOperations.applyFunction(this.gcdm[i], c -> c<0 ? 0 : c, true);
-            if (predictCategory.getSelected()) catNC = predictions[5];
+            if (predictCategory.getSelected()) {
+                if (catNC == null) catNC = new Image[edm.length][predictions[5][0].length];
+                System.arraycopy(predictions[5], 0, this.catNC, idx, n);
+            }
             int totalFramePairs = predictions[2][0].length / 2;
             //logger.debug("total frame pairs: {}", totalFramePairs);
             if (nGaps >= totalFramePairs) throw new RuntimeException("Model predicts only "+(totalFramePairs - 1)+" gaps");
@@ -1968,7 +1971,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             res.entrySet().forEach( e-> {resampleFun.accept(e); setCalibration.accept(e);});
             return res;
         };
-        int end = lastSegment ? parentTrack.size() : parentTrack.size() - 1;
+        int end = lastSegment ? parentTrack.size() - 1 : parentTrack.size();
         BiFunction<Image[], Consumer<Map.Entry<SegmentedObject, Image>>, Map<SegmentedObject, Image>> getFWMapNew = (imA, resampleFun) -> {
             Map<SegmentedObject, Image> res = IntStream.range(0, end).boxed().collect(Collectors.toMap(i -> parentTrack.get(i), i -> imA[i]));
             res.entrySet().forEach( e-> {resampleFun.accept(e); setCalibration.accept(e);});
