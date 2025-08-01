@@ -166,7 +166,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
     private BoundedNumberParameter dbConcurrencyScale = new BoundedNumberParameter("Database Concurrency Scale", 0, 8, 1, ThreadRunner.getMaxCPUs());
 
-    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAvailableDBTypes().toArray(new String[0]), "ObjectBox", false).setHint("Database structure to store objects and measurements. <br/>Note that with MapDB, it is not safe to manually edit parent objects that already have children objects");
+    private ChoiceParameter dbType = new ChoiceParameter("Database type", MasterDAOFactory.getAvailableDBTypes().toArray(new String[0]), "ObjectBox", false).setHint("Database structure to store objects and measurements. <br/>Note that MapDB is not supported anymore and left for retro-compatibility. With MapDB, it is not safe to manually edit parent objects that already have children objects");
+    private NumberParameter openDBLimit = new BoundedNumberParameter("Open Position Limit", 0, 5, 0, null).setHint("Limits the number of positions that can be accessed simultaneously in order to free resources");
+
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
     private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
     private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
@@ -397,6 +399,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 MasterDAOFactory.setDefaultDBType(dbType.getSelectedItem());
             }
         });
+        PropertyUtils.setPersistent(this.openDBLimit, PropertyUtils.OPEN_DB_LIMIT);
+        PersistentMasterDAOImpl.MAX_OPEN_DAO = openDBLimit.getIntValue();
+        this.openDBLimit.addListener( e -> PersistentMasterDAOImpl.MAX_OPEN_DAO = openDBLimit.getIntValue() );
+
+        ConfigurationTreeGenerator.addToMenu(openDBLimit, databaseMenu);
 
         String path = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH);
         if (path!=null) workingDirectory.setText(path);

@@ -183,15 +183,6 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                     String op = getOutputPath();
                     if (op==null) throw new RuntimeException("No output path set, cannot create DAO");
                     //logger.debug("requesting dao: {} already open: {}", positionName, openDAOs.stream().map(ObjectDAO::getPositionName).collect(Collectors.toList()));
-                    if (openDAO.size()>=MAX_OPEN_DAO) {
-                        T toClose = openDAO.pollFirst();
-                        //logger.debug("close dao: {} {} [open dao limit]", toClose.getPositionName(), toClose.hashCode());
-                        Core.getCore().closePosition(toClose.getPositionName());
-                        commit(toClose);
-                        toClose.clearCache();
-                        clearSelectionCache(toClose.getPositionName());
-                        openDAO.remove(toClose); // keep dao object in DAOs map but not in openDAO list to avoid creating several time dao's
-                    }
                     res = factory.makeDAO(this, positionName, op, !positionLock.contains(positionName) && readOnly);
                     res.setSafeMode(safeMode);
                     //logger.debug("{} creating DAO: {}@{} position lock: {}, read only: {}", hashCode(), res.hashCode(), positionName, positionLock.contains(positionName), res.isReadOnly());
@@ -204,6 +195,17 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             synchronized (openDAO) { // put in last position
                 openDAO.remove(res);
                 openDAO.addLast(res);
+            }
+        }
+        if (MAX_OPEN_DAO>0) {
+            while (openDAO.size() > MAX_OPEN_DAO) {
+                T toClose = openDAO.pollFirst();
+                //logger.debug("close dao: {} {} [open dao limit: {}/{}]", toClose.getPositionName(), toClose.hashCode(), openDAO.size()+1, MAX_OPEN_DAO);
+                Core.getCore().closePosition(toClose.getPositionName());
+                commit(toClose);
+                toClose.clearCache();
+                clearSelectionCache(toClose.getPositionName());
+                openDAO.remove(toClose); // keep dao object in DAOs map but not in openDAO list to avoid creating several time dao's
             }
         }
         return res;

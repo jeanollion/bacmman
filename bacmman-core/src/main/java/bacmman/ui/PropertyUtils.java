@@ -68,7 +68,7 @@ public class PropertyUtils {
     public final static String LOCAL_DATA_PATH = "local_data_path";
     public final static String HOSTNAME = "hostname";
     public final static String DATABASE_TYPE = "database_type";
-
+    public final static String OPEN_DB_LIMIT = "open_db_limit";
     public final static String TF_GPU_MEM ="tf_per_process_gpu_memory_fraction";
     public final static String TF_GROWTH ="tf_set_allow_growth";
     public final static String TF_DEVICES ="tf_visible_device_list";
@@ -320,7 +320,7 @@ public class PropertyUtils {
         if (listener == null) {
             JSONSerializable jp = ((JSONSerializable) parameter);
             String jsonString = get(key, "");
-            if (jsonString.length() > 0) {
+            if (!jsonString.isEmpty()) {
                 try {
                     Object o = new JSONParser().parse(jsonString);
                     jp.initFromJSONEntry(o);

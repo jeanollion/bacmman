@@ -87,7 +87,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             BoxStore b = objectBuilder.build();
             return b;
         } catch (DbException e) {
-            logger.error("Too many db may be open");
+            logger.error("Error creating BoxStore. Too many db may be open.", e);
             throw e;
         }
     }
