@@ -1,6 +1,8 @@
 package bacmman.core;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.plugins.DLEngine;
 import bacmman.ui.PropertyUtils;
@@ -64,7 +66,7 @@ public class DLEngineProvider {
         engines.clear();
     }
 
-    public static DLEngine getDefaultEngine(Experiment xp) {
+    public static DLEngine getDefaultEngine(Experiment xp, List<Parameter> parameters) {
         PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, false);
         defaultDLEngine.setParent(xp);
         String params = PropertyUtils.get(PropertyUtils.DEFAULT_DL_ENGINE, null);
@@ -72,6 +74,9 @@ public class DLEngineProvider {
         if (params == null) return null;
         try {
             defaultDLEngine.initFromJSONEntry(JSONUtils.parseJSON(params));
+            if (parameters != null && !parameters.isEmpty()) {
+                ParameterUtils.setContent(defaultDLEngine.getParameters(), parameters);
+            }
             return defaultDLEngine.instantiatePlugin();
         } catch (ParseException e) {
             return null;

@@ -5,8 +5,12 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.DLEngineProvider;
 import bacmman.image.Image;
 import bacmman.plugins.DLEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.util.Arrays;
 
 public class DefaultEngine implements DLEngine {
+    final static Logger logger = LoggerFactory.getLogger(DefaultEngine.class);
 
     MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. O : process all samples");
@@ -33,19 +37,11 @@ public class DefaultEngine implements DLEngine {
     public void init() {
         if (this.engine == null) {
             Experiment xp = ParameterUtils.getExperiment(this.modelFile);
-            DLEngine engine = DLEngineProvider.getDefaultEngine(xp);
+            this.engine = DLEngineProvider.getDefaultEngine(xp, Arrays.asList(this.parameters));
             if (engine == null)
                 throw new RuntimeException("No Default DL Engine defined. Define it in menu Option > Default DL Engine");
-            // parametrize
-            ParameterUtils.setContent(engine.getParameters(), this.parameters);
             if (inputNumber >= 0) engine.setInputNumber(inputNumber);
             if (outputNumber >= 0) engine.setOutputNumber(outputNumber);
-            // share instance
-            if (xp == null) this.engine = engine;
-            else {
-                DLEngineProvider dlEngineProvider = xp.getDLengineProvider();
-                this.engine = dlEngineProvider.getEngine(engine);
-            }
         }
         this.engine.init();
     }
