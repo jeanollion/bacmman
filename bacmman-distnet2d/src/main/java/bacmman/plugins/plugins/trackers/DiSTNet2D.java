@@ -823,78 +823,78 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
         Map<SegmentedObject, LinkMultiplicity> lmFW = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                prediction==null ? o->new LinkMultiplicity(SINGLE, 1) : o -> {
-                    if (o.getParent().getNext()==null || prediction.multipleLinkFW[0].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
-                    Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkFW[0].get(o.getParent()), prediction.noLinkFW[0].get(o.getParent()));
-                    BoundingBox bds = o.getRegion().getBounds();
-                    if (o.getRegion().isAbsoluteLandMark() && !BoundingBox.isIncluded(bds, singleLinkProbImage.getBoundingBox()) || !o.getRegion().isAbsoluteLandMark() && !BoundingBox.isIncluded(bds, singleLinkProbImage.getBoundingBox().duplicate().resetOffset())) {
-                        logger.error("region : {} bds: {} not included in {} absolute: {}", o, bds, singleLinkProbImage.getBoundingBox(), o.getRegion().isAbsoluteLandMark());
+            parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            prediction==null ? o->new LinkMultiplicity(SINGLE, 1) : o -> {
+                if (o.getParent().getNext()==null || prediction.multipleLinkFW[0].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
+                Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkFW[0].get(o.getParent()), prediction.noLinkFW[0].get(o.getParent()));
+                BoundingBox bds = o.getRegion().getBounds();
+                if (o.getRegion().isAbsoluteLandMark() && !BoundingBox.isIncluded(bds, singleLinkProbImage.getBoundingBox()) || !o.getRegion().isAbsoluteLandMark() && !BoundingBox.isIncluded(bds, singleLinkProbImage.getBoundingBox().duplicate().resetOffset())) {
+                    logger.error("region : {} bds: {} not included in {} absolute: {}", o, bds, singleLinkProbImage.getBoundingBox(), o.getRegion().isAbsoluteLandMark());
+                }
+                double singleProb = BasicMeasurements.getQuantileValue(o.getRegion(), singleLinkProbImage, 0.5)[0];
+                double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkFW[0].get(o.getParent()), 0.5)[0];
+                double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkFW[0].get(o.getParent()), 0.5)[0];
+                if (singleProb>=multipleProb && singleProb>=nullProb) {
+                    if (verbose) {
+                        o.setAttribute("Link Multiplicity FW", SINGLE.toString());
+                        o.setAttribute("Link Multiplicity FW Proba", singleProb);
+                    };
+                    return new LinkMultiplicity(SINGLE, singleProb);
+                } else {
+                    if (verbose) {
+                        o.setAttribute("Link Multiplicity FW", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
+                        o.setAttribute("Link Multiplicity FW Proba", Math.max(multipleProb, nullProb));
                     }
-                    double singleProb = BasicMeasurements.getQuantileValue(o.getRegion(), singleLinkProbImage, 0.5)[0];
-                    double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkFW[0].get(o.getParent()), 0.5)[0];
-                    double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkFW[0].get(o.getParent()), 0.5)[0];
-                    if (singleProb>=multipleProb && singleProb>=nullProb) {
-                        if (verbose) {
-                            o.setAttribute("Link Multiplicity FW", SINGLE.toString());
-                            o.setAttribute("Link Multiplicity FW Proba", singleProb);
-                        };
-                        return new LinkMultiplicity(SINGLE, singleProb);
-                    } else {
-                        if (verbose) {
-                            o.setAttribute("Link Multiplicity FW", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
-                            o.setAttribute("Link Multiplicity FW Proba", Math.max(multipleProb, nullProb));
-                        }
-                        return nullProb>=multipleProb ? new LinkMultiplicity(NULL, nullProb) : new LinkMultiplicity(MULTIPLE, multipleProb);
-                    }
-                },
-                HashMapGetCreate.Syncronization.SYNC_ON_KEY
+                    return nullProb>=multipleProb ? new LinkMultiplicity(NULL, nullProb) : new LinkMultiplicity(MULTIPLE, multipleProb);
+                }
+            },
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, LinkMultiplicity> lmBW = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                prediction==null ? o->new LinkMultiplicity(SINGLE, 1) : o -> {
-                    if (o.getParent().getPrevious()==null || prediction.multipleLinkBW[0].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
-                    Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkBW[0].get(o.getParent()), prediction.noLinkBW[0].get(o.getParent()));
-                    double singleProb = BasicMeasurements.getQuantileValue(o.getRegion(), singleLinkProbImage, 0.5)[0];
-                    double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkBW[0].get(o.getParent()), 0.5)[0];
-                    double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkBW[0].get(o.getParent()), 0.5)[0];
-                    if (singleProb>=multipleProb && singleProb>=nullProb) {
-                        if (verbose) {
-                            o.setAttribute("Link Multiplicity BW", SINGLE.toString());
-                            o.setAttribute("Link Multiplicity BW Proba", singleProb);
-                        };
-                        return new LinkMultiplicity(SINGLE, singleProb);
-                    } else {
-                        if (verbose) {
-                            o.setAttribute("Link Multiplicity BW", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
-                            o.setAttribute("Link Multiplicity BW Proba", Math.max(multipleProb, nullProb));
-                        }
-                        return nullProb>=multipleProb ? new LinkMultiplicity(NULL, nullProb) : new LinkMultiplicity(MULTIPLE, multipleProb);
+            parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            prediction==null ? o->new LinkMultiplicity(SINGLE, 1) : o -> {
+                if (o.getParent().getPrevious()==null || prediction.multipleLinkBW[0].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
+                Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkBW[0].get(o.getParent()), prediction.noLinkBW[0].get(o.getParent()));
+                double singleProb = BasicMeasurements.getQuantileValue(o.getRegion(), singleLinkProbImage, 0.5)[0];
+                double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkBW[0].get(o.getParent()), 0.5)[0];
+                double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkBW[0].get(o.getParent()), 0.5)[0];
+                if (singleProb>=multipleProb && singleProb>=nullProb) {
+                    if (verbose) {
+                        o.setAttribute("Link Multiplicity BW", SINGLE.toString());
+                        o.setAttribute("Link Multiplicity BW Proba", singleProb);
+                    };
+                    return new LinkMultiplicity(SINGLE, singleProb);
+                } else {
+                    if (verbose) {
+                        o.setAttribute("Link Multiplicity BW", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
+                        o.setAttribute("Link Multiplicity BW Proba", Math.max(multipleProb, nullProb));
                     }
-                },
-                HashMapGetCreate.Syncronization.SYNC_ON_KEY
+                    return nullProb>=multipleProb ? new LinkMultiplicity(NULL, nullProb) : new LinkMultiplicity(MULTIPLE, multipleProb);
+                }
+            },
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         linkMultiplicityMapContainer[0] = lmFW;
         linkMultiplicityMapContainer[1] = lmBW;
         Map<SegmentedObject, Double> dyBWMap = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[0].get(o.getParent()), 0.5)[0],
-                HashMapGetCreate.Syncronization.SYNC_ON_KEY
+            parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[0].get(o.getParent()), 0.5)[0],
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, Double> dyFWMap = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                prediction==null || prediction.dyFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[0].get(o.getParent()), 0.5)[0],
-                HashMapGetCreate.Syncronization.SYNC_ON_KEY
+            parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            prediction==null || prediction.dyFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[0].get(o.getParent()), 0.5)[0],
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, Double> dxBWMap = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxBW[0].get(o.getParent()), 0.5)[0],
-                HashMapGetCreate.Syncronization.SYNC_ON_KEY
+            parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxBW[0].get(o.getParent()), 0.5)[0],
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, Double> dxFWMap = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                prediction==null || prediction.dxFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[0].get(o.getParent()), 0.5)[0],
-                HashMapGetCreate.Syncronization.SYNC_ON_KEY
+            parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            prediction==null || prediction.dxFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[0].get(o.getParent()), 0.5)[0],
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         boolean assignNext = prediction != null && prediction.dxFW != null;
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
@@ -1091,8 +1091,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             assignOneWay(nextByLM.get(SINGLE), prev, graph, nextTranslatedCenter, 0, contour, growthRateRange);
             if (nextByLM.get(SINGLE).isEmpty()) nextByLM.remove(SINGLE);
         }
+
+        // link unliked source multiple object with unlinked target multiple objects : in case of inconsistency between segmentation and tracking
+        if (prevByLM.containsKey(MULTIPLE) && nextByLM.containsKey(MULTIPLE)) {
+            List<SegmentedObject> unlinkedNextM = nextByLM.get(MULTIPLE).stream().filter(o -> !graph.hasPrevious(o)).collect(Collectors.toList());
+            List<SegmentedObject> unlinkedPrevM = prevByLM.get(MULTIPLE).stream().filter(o -> !graph.hasNext(o)).collect(Collectors.toList());
+            assignOneWay(unlinkedNextM, unlinkedPrevM, graph, nextTranslatedCenter, linkDistTolerance, contour, null);
+        }
     }
 
+    // for each source object: create a link with a target object if no links are present, and remove from source list if a link has been created
     static void assignOneWay(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Point> translatedCenter, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange) {
         Iterator<SegmentedObject> it = source.iterator();
         while(it.hasNext()) {
