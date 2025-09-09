@@ -897,7 +897,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                     if (attributes!=null) {
                         if (attributes.containsKey("Quality")) region.setQuality((Double)attributes.get("Quality"));
                         if (!(region instanceof Analytical) && attributes.containsKey("Center")) region.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
-                        if (attributes.containsKey("Category")) region.setCategory((Integer)attributes.get("Category"), (Double)attributes.getOrDefault("CategoryProbability", 1.));
+                        if (attributes.containsKey("Category")) region.setCategory(((Number)attributes.get("Category")).intValue(), (Double)attributes.getOrDefault("CategoryProbability", 1.));
                     }
                     region.regionModified = false; // setters modify region
                 }
@@ -929,8 +929,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             attributes.remove("MinorAxis");
             attributes.remove("Theta");
             attributes.remove("AspectRatio");
-            attributes.remove("Category");
-            attributes.remove("CategoryProbability");
         }
         if (region!= null) {
             if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());
@@ -1179,31 +1177,31 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     public RegionPopulation getChildRegionPopulation(int structureIdx) {
         return getChildRegionPopulation(structureIdx, true);
     }
-    public void setAttributeList(String key, List<Double> value) {
+    public synchronized void setAttributeList(String key, List<Double> value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, value);
     }
-    public void setAttributeArray(String key, double[] value) {
+    public synchronized void setAttributeArray(String key, double[] value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, Utils.toList(value));
     }
-    public void setAttributeArray(String key, float[] value) {
+    public synchronized void setAttributeArray(String key, float[] value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, Utils.toList(value));
     }
-    public void setAttribute(String key, boolean value) {
+    public synchronized void setAttribute(String key, boolean value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, value);
     }
-    public void setAttribute(String key, Object value) {
+    public synchronized void setAttribute(String key, Object value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, value);
     }
-    public void setAttribute(String key, double value) {
+    public synchronized void setAttribute(String key, double value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, value);
     }
-    public void setAttribute(String key, String value) {
+    public synchronized void setAttribute(String key, String value) {
         if (value==null) {
             if (attributes==null) return;
             attributes.remove(key);
@@ -1218,7 +1216,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         Object v = attributes.get(key);
         if (v == null) return null;
         if (v instanceof Number || v instanceof String || v instanceof Boolean) return v;
-        if ("center".equals(key)) return new Point(JSONUtils.fromFloatArray((List)v));
+        if ("Center".equals(key)) return new Point(JSONUtils.fromFloatArray((List)v));
         return v;
     }
     public <T> T getAttribute(String key, T defaultValue) {

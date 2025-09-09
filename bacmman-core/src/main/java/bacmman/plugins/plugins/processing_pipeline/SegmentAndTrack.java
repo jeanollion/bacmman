@@ -28,12 +28,16 @@ import java.util.List;
 
 import bacmman.data_structure.TrackLinkEditor;
 import bacmman.plugins.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<SegmentAndTrack, TrackerSegmenter> implements Hint {
+    final static Logger logger = LoggerFactory.getLogger(SegmentAndTrack.class);
+
     PluginParameter<TrackerSegmenter> tracker = new PluginParameter<>("Tracker", TrackerSegmenter.class, true);
     Parameter[] parameters= new Parameter[]{preFilters, trackPreFilters, tracker, postFilters, trackPostFilters};
     
@@ -66,9 +70,11 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
         TrackerSegmenter t = getTracker();
         TrackPreFilterSequence tpf = getTrackPreFilters(true);
         t.segmentAndTrack(structureIdx, parentTrack, tpf, postFilters, factory, editor);
-        logger.debug("executing #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getChildren().size(), parentTrack.get(0), structureIdx);
-        trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
-        logger.debug("executed #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getChildren().size(), parentTrack.get(0), structureIdx);
+        if (trackPostFilters.getActivatedChildCount() > 0) {
+            logger.debug("executing #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getActivatedChildCount(), parentTrack.get(0), structureIdx);
+            trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
+            logger.debug("executed #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getActivatedChildCount(), parentTrack.get(0), structureIdx);
+        }
     }
 
     @Override

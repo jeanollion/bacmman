@@ -176,7 +176,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public void track(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         segmentTrack(objectClassIdx, parentTrack, null, null, null, editor);
     }
-    
+
     public static List<Map<Integer, Image>> getInputImageList(int objectClassIdx, int[] additionalInputChannels, int[] additionalInputLabels, List<SegmentedObject> parentTrack, BoundingBox bds) {
         List<Map<Integer, Image>> allImages = new ArrayList<>();
         UnaryOperator<Image> crop = bds == null ? im -> im : im -> im.crop(bds);
@@ -460,6 +460,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return pop;
     }
 
+    private void setCategory(SegmentedObject o, PredictionResults prediction) {
+        double[] cat = prediction.getCategoryProba(o);
+        int catIdx = ArrayUtil.max(cat);
+        o.setAttribute("Category", catIdx);
+        o.setAttribute("CategoryProbability", cat[catIdx]);
+        if (stores != null) o.setAttribute("CategoryProbabilities", cat);
+    }
+
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores != null);
         if (stores != null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("edm", prediction.edm.get(o)));
@@ -472,13 +480,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), postFilters, stores);
             List<SegmentedObject> segObjects = factory.setChildObjects(p, pop);
             if (predictCategory.getSelected()) {
-                for (SegmentedObject o : segObjects) {
-                    double[] cat = prediction.getCategoryProba(o);
-                    int catIdx = ArrayUtil.max(cat);
-                    o.setAttribute("Category", catIdx);
-                    o.setAttribute("CategoryProbability", cat[catIdx]);
-                    if (stores != null) o.setAttribute("categoryProbabilities", cat);
-                }
+                for (SegmentedObject o : segObjects) setCategory(o, prediction);
             }
             //logger.debug("parent: {} segmented!", p);
         };
@@ -1676,8 +1678,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         }
                     }
                     parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
-                        if (o.getRegion().getCenter() == null)
-                            o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
+                        if (o.getRegion().getCenter() == null) o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
+                        if (predictCategory.getSelected() && o.getAttribute("Category")==null) setCategory(o, prediction);
                         o.getRegion().clearVoxels();
                         o.getRegion().clearMask();
                     }));
@@ -1720,12 +1722,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                                             Track merged = Track.mergeTracks(t, sibling, factory, editor, remove, add);
                                             if (merged != null) {
                                                 merged.head().getRegion().setCenter(Medoid.computeMedoid(merged.head().getRegion()));
+                                                if (predictCategory.getSelected() && merged.head().getAttribute("Category")==null) setCategory(merged.head(), prediction);
                                                 merged.head().getRegion().clearVoxels();
                                                 merged.head().getRegion().clearMask();
                                             }
                                         }
-                                    } else
-                                        logger.debug("successive div: tt null for: {} prev: {}", t.head(), prev.tail());
+                                    } else logger.debug("successive div: tt null for: {} prev: {}", t.head(), prev.tail());
                                 }
                             }
                         );

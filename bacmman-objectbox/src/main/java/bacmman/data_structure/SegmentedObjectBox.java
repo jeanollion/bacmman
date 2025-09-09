@@ -105,7 +105,6 @@ public class SegmentedObjectBox {
         return trackHeadId;
     }
 
-
     public long getPreviousId() {
         return previousId;
     }
