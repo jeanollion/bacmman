@@ -20,7 +20,7 @@ public class PixMClass implements DockerDLTrainer {
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
 
-    ChannelImageParameter extractChannels = new ChannelImageParameter("Channel", new int[0]).unique().setHint("Select object class associated to the channel that will be used for segmentation");
+    ChannelImageParameter extractChannels = new ChannelImageParameter("Channel", new int[0]).unique().setHint("Select object class associated to the channel that will be used for segmentation. Channel name in the extracted dataset are identical as the selected channels image");
     ObjectClassParameter extractClasses = new ObjectClassParameter("Classification classes", new int[0], false).unique()
             .setHint("Select object classes that represent background, foreground (and contour)").addValidationFunction(oc -> oc.getSelectedIndices().length>=2);
     ObjectClassParameter extractParentClass = new ObjectClassParameter("Parent Class", -1, true, false)
@@ -31,8 +31,9 @@ public class PixMClass implements DockerDLTrainer {
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.EXISTING, extractSel)
             .setActionParameters(SELECTION_MODE.NEW, extractParentClass, extractPos);
+    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.BATCH, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.BATCH);
 
-    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", extractChannels, extractClasses, selModeCond, selModeCond);
+    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", extractChannels, extractClasses, extractZAxisParameter, selModeCond);
 
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, null, null)
             .setEpochNumber(500).setStepNumber(100).setDockerImageRequirements(getDockerImageName(), null, null, null);
@@ -74,7 +75,7 @@ public class PixMClass implements DockerDLTrainer {
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, selections, outputFile, compression);
+        return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, extractZAxisParameter.getConfig(), selections, outputFile, compression);
     }
 
     public String getDockerImageName() {

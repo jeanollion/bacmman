@@ -12,26 +12,37 @@ import bacmman.plugins.FeatureExtractorTemporal;
 import bacmman.plugins.Hint;
 import net.imglib2.interpolation.InterpolatorFactory;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtractorTemporal, Hint {
     int maxLinkNumber = -1;
     @Override
     public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx) {
-        maxLinkNumber = Math.max(1, parentTrack.mapToInt(p -> p.getChildren(objectClassIdx).mapToInt(c -> (int)Math.max(1, SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).count())).sum()).max().orElse(1));
+        maxLinkNumber = Math.max(1, parentTrack.mapToInt(p -> {
+            SegmentedObject prevParent = p.getPreviousAtFrame(p.getFrame() - subsamplingFactor, false);
+            Set<SegmentedObject> remainingPreviousObjects = prevParent != null ? prevParent.getChildren(objectClassIdx).collect(Collectors.toSet()) : new HashSet<>(0);
+            int count = p.getChildren(objectClassIdx).mapToInt(c -> (int)Math.max(1, SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).peek(remainingPreviousObjects::remove).count())).sum();
+            return count + remainingPreviousObjects.size();
+        }).max().orElse(1));
     }
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (maxLinkNumber <0) throw new RuntimeException("Feature not configured");
         int[] idx = new int[1];
         ImageShort res=new ImageShort("linksPrev", 3, maxLinkNumber, 1);
+        SegmentedObject prevParent = parent.getPreviousAtFrame(parent.getFrame() - subsamplingFactor, false);
+        Set<SegmentedObject> remainingPreviousObjects = prevParent != null ? prevParent.getChildren(objectClassIdx).collect(Collectors.toSet()) : new HashSet<>(0);
         parent.getChildren(objectClassIdx).sorted().forEach(c -> {
             int count = idx[0];
             SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).sorted().forEach(p -> {
                 if (p.getFrame() != c.getFrame() - subsamplingFactor) throw new RuntimeException("ERROR GET PREVIOUS: " + c + " has prev: " + p + " sub factor:" + subsamplingFactor);
                 res.setPixel(0, idx[0], 0, c.getIdx() + 1);
                 res.setPixel(1, idx[0]++, 0, p.getIdx() + 1);
+                remainingPreviousObjects.remove(p);
             });
             if (idx[0]==count) { // check if there is a gap
                 SegmentedObject p = getPreviousWithGap(c, subsamplingFactor);
@@ -43,6 +54,12 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
                 } else res.setPixel(0, idx[0]++, 0, c.getIdx() + 1); // no previous was found : set a null link
             }
         });
+        if (!remainingPreviousObjects.isEmpty()) { // also add null links for previous objects that where not linked
+            for (SegmentedObject p : remainingPreviousObjects) {
+                SegmentedObject n = getNextWithGap(p, subsamplingFactor);
+                if (n == null) res.setPixel(1, idx[0]++, 0, p.getIdx() + 1); // no next was found : set a null link
+            }
+        }
         return res;
     }
 
@@ -52,6 +69,14 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
         while(p != null && (c.getFrame() - p.getFrame()) % subsamplingFactor != 0) {p = p.getPrevious();}
         if (p == null || (c.getFrame() - p.getFrame()) % subsamplingFactor != 0) return null;
         else return p;
+    }
+
+    // get next object, including gaps and taking into account subsampling factor: next must fall in a subsampled frame.
+    private static SegmentedObject getNextWithGap(SegmentedObject c, int subsamplingFactor) {
+        SegmentedObject n = c.getNext();
+        while(n != null && (c.getFrame() - n.getFrame()) % subsamplingFactor != 0) {n = n.getNext();}
+        if (n == null || (c.getFrame() - n.getFrame()) % subsamplingFactor != 0) return null;
+        else return n;
     }
 
     @Override

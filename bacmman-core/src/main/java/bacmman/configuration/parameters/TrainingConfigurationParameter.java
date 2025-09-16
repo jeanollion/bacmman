@@ -381,7 +381,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_OR_DIRECTORY,false)
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
-        TextParameter channel = new TextParameter("Channel Name", "raw", false, false)
+        TextParameter channel = new TextParameter("Channel Name", "", false, false)
                 .setHint("Name of images / movies to consider within the dataset");
         EnumChoiceParameter<DATASET_TYPE> type = new EnumChoiceParameter<>("Dataset Type", DATASET_TYPE.values(), DATASET_TYPE.TRAIN).setHint("Puropose of dataset: training, test (loss computation during training), evaluation (metric computation)");
         SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", channel)

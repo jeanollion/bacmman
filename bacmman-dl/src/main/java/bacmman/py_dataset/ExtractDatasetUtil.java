@@ -401,13 +401,11 @@ public class ExtractDatasetUtil {
         logger.debug("saving done.");
     }
 
-    public static Task getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
+    public static Task getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, ExtractZAxisParameter.ExtractZAxisConfig extractZ, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
         if (objectClasses.length!=2 && objectClasses.length!=3) throw new IllegalArgumentException("Select 2 or 3 object classes: background, foreground (and contours)");
         if (!Utils.objectsAllHaveSameProperty(Arrays.stream(objectClasses).boxed().collect(Collectors.toList()), mDAO.getExperiment().experimentStructure::getParentObjectClassIdx)) {
             throw new IllegalArgumentException("All selected object classes must have same parent object class");
         }
-
-
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>();
         ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
@@ -415,9 +413,9 @@ public class ExtractDatasetUtil {
         for (int c : channelIndices) {
             int oc = xp.getObjectClassIdx(c);
             if (oc<0) throw new RuntimeException("Channel: "+c+ " has not associated object class");
-            features.add(new FeatureExtractor.Feature( channelIndices.length == 1 ? new RawImage().defaultName() : channelNames.get(c), new RawImage(), oc));
+            features.add(new FeatureExtractor.Feature( channelNames.get(c), new RawImage().setExtractZ(extractZ), oc));
         }
-        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
+        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses).setExtractZ(extractZ), objectClasses[0] ));
 
         int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];

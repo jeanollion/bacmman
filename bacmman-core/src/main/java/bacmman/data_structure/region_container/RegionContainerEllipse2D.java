@@ -24,7 +24,7 @@ public class RegionContainerEllipse2D extends RegionContainer {
 
     @Override
     public Region getRegion() {
-        return new Ellipse2D(new Point(JSONUtils.fromFloatArray((List) segmentedObject.getAttribute("Center"))),
+        return new Ellipse2D((Point) segmentedObject.getAttribute("Center"),
                 ((Number) segmentedObject.getAttribute("MajorAxis", Double.valueOf(1d))).doubleValue(),
                 ((Number) segmentedObject.getAttribute("MinorAxis", Double.valueOf(1d))).doubleValue(),
                 ((Number) segmentedObject.getAttribute("Theta", Double.valueOf(1d))).doubleValue(),

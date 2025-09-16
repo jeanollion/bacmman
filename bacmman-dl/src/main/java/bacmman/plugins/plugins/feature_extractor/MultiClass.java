@@ -25,6 +25,11 @@ public class MultiClass implements FeatureExtractor {
         classes.setSelectedIndices(objectClasses);
     }
 
+    public MultiClass setExtractZ(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+        this.extractZ.fromConfig(zAxis);
+        return this;
+    }
+
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         List<ImageMask> images = IntStream.of(classes.getSelectedIndices()).mapToObj(oc -> resampledPopulations.get(oc).get(parent).getLabelMap()).collect(Collectors.toList());
