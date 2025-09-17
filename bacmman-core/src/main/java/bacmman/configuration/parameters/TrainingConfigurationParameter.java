@@ -247,8 +247,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new IntervalParameter("Epsilon Range", 8, Math.min(10e-8, defaultMinValue), null, defaultMinValue, defaultMaxValue).setHint("Epsilon parameter used by optimiser (such as Adam). Default is usually a low value such as 1e-7 but values close to 1 can improve training efficiency in some cases. If a range is given, epsilon will start at the maximal value and end at the lower value.");
     }
 
-    public static IntervalParameter getLossWeightRangeParameter(double defaultMaxValue, double defaultMinValue) {
-        return new IntervalParameter("Loss Weight Range", 8, Math.min(10e-8, defaultMinValue), null, defaultMinValue, defaultMaxValue).setHint("Category imbalance is corrected by loss weights that correspond to inverse class frequency. This parameter limits weigh values.");
+    public static BoundedNumberParameter getLossMaxWeightParameter(double defaultMaxValue) {
+        return new BoundedNumberParameter("Max Loss Weight", 5, 10, 0, null)
+                .setLegacyParameter((i, p) -> p.setValue(((IntervalParameter)i[0]).getValuesAsDouble()[1]), new IntervalParameter("Loss Weight Range", 8, 1/defaultMaxValue, null, 1/defaultMaxValue, defaultMaxValue))
+                .setHint("Category imbalance is corrected by loss weights that correspond to inverse class frequency. This parameter limits weigh values.");
     }
 
     public static BooleanParameter getUseSharedMemParameter(boolean defaultValue) {

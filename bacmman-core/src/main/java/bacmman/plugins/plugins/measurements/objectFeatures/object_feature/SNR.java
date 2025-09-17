@@ -111,6 +111,7 @@ public class SNR extends IntensityMeasurement implements Hint {
             backgroundObjects = new ArrayList<>(1);
             backgroundObjects.add(parent.getRegion());
         }
+        if (backgroundObjects.isEmpty()) return this;
         if (backgroundObjects.get(0).is2D() && !foregroundPopulation.getRegions().get(0).is2D()) { // background is 2D and foreground is 3D: make background objects 3D
             if (z<0) {
                 int nZ = parent.getExperimentStructure().sizeZ(parent.getPositionName(), getIntensityChannel());

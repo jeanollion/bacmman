@@ -18,7 +18,6 @@
  */
 package bacmman.data_structure;
 
-import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.dao.MemoryObjectDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.MemoryMasterDAO;
@@ -33,7 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -81,13 +79,10 @@ public class SegmentedObjectUtils {
         }
     }
 
-    public static List<SegmentedObject> getDaugtherObjectsAtNextFrame(SegmentedObject o, List<SegmentedObject> bucket) { // look only in next timePoint
+    public static List<SegmentedObject> getDaughterObjectsAtNextFrame(SegmentedObject o, List<SegmentedObject> bucket) { // look only in next timePoint
         List<SegmentedObject> res = bucket==null ? new ArrayList<>() : bucket;
         if (bucket!=null) bucket.clear();
-        if (o.getParent()==null) {
-            //if (o.getNext()!=null) bucket.add(o.getNext());
-            return bucket;
-        }
+        if (o.getParent()==null) return res;
         SegmentedObject nextParent = o.getParent().getNext();
         if (nextParent==null) return res;
         nextParent.getChildren(o.getStructureIdx())

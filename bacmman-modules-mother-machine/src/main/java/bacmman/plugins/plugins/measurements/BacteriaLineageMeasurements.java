@@ -74,7 +74,7 @@ public class BacteriaLineageMeasurements implements Measurement, Hint {
         return true;
     }
     private static List<SegmentedObject> getAllNextSortedY(SegmentedObject o, List<SegmentedObject> bucket) {
-        bucket = SegmentedObjectUtils.getDaugtherObjectsAtNextFrame(o, bucket);
+        bucket = SegmentedObjectUtils.getDaughterObjectsAtNextFrame(o, bucket);
         Collections.sort(bucket, Comparator.comparingDouble(o2 -> o2.getBounds().yMin()));
         return bucket;
     }
@@ -108,7 +108,8 @@ public class BacteriaLineageMeasurements implements Measurement, Hint {
                             int idx = sib.indexOf(o);
                             if (idx==sib.size()-1) o.getMeasurements().setStringValue(key, o.getPrevious().getMeasurements().getValueAsString(key)+lineageName[1]); // tail
                             else {
-                                if (idx>lineageError.length) o.getMeasurements().setStringValue(key, o.getPrevious().getMeasurements().getValueAsString(key)+lineageErrorSymbol); // IF TOO MANY ERRORS: WILL GENERATE DUPLICATE LINEAGE
+                                if (idx == -1) ex.addExceptions(new Pair<>(o.toString(), new RuntimeException("Invalid bacteria lineage (2)")));
+                                else if (idx>lineageError.length) o.getMeasurements().setStringValue(key, o.getPrevious().getMeasurements().getValueAsString(key)+lineageErrorSymbol); // IF TOO MANY ERRORS: WILL GENERATE DUPLICATE LINEAGE
                                 else o.getMeasurements().setStringValue(key, o.getPrevious().getMeasurements().getValueAsString(key)+lineageError[idx-1]);
                             }
                             
