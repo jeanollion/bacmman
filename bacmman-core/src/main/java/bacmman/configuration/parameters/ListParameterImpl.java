@@ -41,7 +41,7 @@ import java.util.stream.Stream;
  * @param <L>
  */
 
-public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration, ParameterWithLegacyInitialization<L, T> {
+public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration, ParameterWithLegacyInitialization<L, List<T>> {
 
     protected String name;
     protected ContainerParameter parent;
@@ -622,8 +622,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
      * @return this parameter for convenience
      */
     @Override
-    public L setLegacyInitializationValue(T value) {
-        this.legacyInitItem = value;
+    public L setLegacyInitializationValue(List<T> value) {
+        this.legacyInitItems = value;
         return (L)this;
     }
 
@@ -632,13 +632,13 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
      */
     @Override
     public void legacyInit() {
-        if (legacyInitItem != null) {
+        if (legacyInitItems != null) {
             this.getChildren().clear();
-            this.insert(legacyInitItem);
+            legacyInitItems.forEach(this::insert);
         }
         if (legacyParameter!=null && setValue!=null) setValue.accept(legacyParameter, (L)this);
     }
-    T legacyInitItem;
+    List<T> legacyInitItems;
     Parameter[] legacyParameter;
     BiConsumer<Parameter[], L> setValue;
 

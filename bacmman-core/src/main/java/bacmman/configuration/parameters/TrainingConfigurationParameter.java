@@ -389,7 +389,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", channel)
                 .setMinChildCount(1).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0).setHint("Name of images / movies to consider within the dataset")
                 .setNewInstanceConfigurationFunction((l,i,t)-> {if (i>0) t.setValue("");})
-                .setLegacyInitializationValue(channel); // in case switch from mono to multichannnel -> keep the parametrization
+                .setLegacyInitializationValue(Collections.singletonList(channel)); // in case switch from mono to multichannnel -> keep the parametrization
         TextParameter label = new TextParameter("Label Name", "", false, false).setHint("Name of images / movies corresponding to labeled objects to consider within the dataset");
         SimpleListParameter<TextParameter> labels = new SimpleListParameter<>("Label Names", label)
                 .unique(TextParameter::getValue).setHint("Name of images / movies corresponding to labels to consider within the dataset, usually used as input labels (depending on the application)");

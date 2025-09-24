@@ -9,10 +9,13 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.PropertyUtils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.IntSupplier;
 
 public class PixMClass implements DockerDLTrainer {
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1)};
@@ -32,11 +35,24 @@ public class PixMClass implements DockerDLTrainer {
             .setActionParameters(SELECTION_MODE.EXISTING, extractSel)
             .setActionParameters(SELECTION_MODE.NEW, extractParentClass, extractPos);
     ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.BATCH, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.BATCH);
+    ArchitectureParameter arch = new ArchitectureParameter("Architecture");
 
     GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", extractChannels, extractClasses, extractZAxisParameter, selModeCond);
 
-    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, null, null)
+    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, new Parameter[]{arch}, null)
             .setEpochNumber(500).setStepNumber(100).setDockerImageRequirements(getDockerImageName(), null, null, null);
+
+    public PixMClass() {
+        configuration.getDatasetList().addValidationFunctionToChildren(d -> d.getChannelNumber() == arch.inputNumber.getIntValue());
+        arch.channelNumberSupplier = () -> configuration.getChannelNumber(); // for legacy initialization
+        arch.inputNumber.addValidationFunction(i -> {
+            for (TrainingConfigurationParameter.DatasetParameter p : configuration.getDatasetList().getChildren()) {
+                if (i.getIntValue() != p.getChannelNumber()) return false;
+            }
+            return true;
+        });
+    }
+
     @Override
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
@@ -84,7 +100,8 @@ public class PixMClass implements DockerDLTrainer {
 
     @Override
     public DLModelMetadata getDLModelMetadata(String workingDirectory) {
-        DLModelMetadata.DLModelInputParameter[] inputs = new DLModelMetadata.DLModelInputParameter[this.configuration.getChannelNumber()];
+        ArchitectureParameter archP = (ArchitectureParameter)getConfiguration().getOtherParameters()[0];
+        DLModelMetadata.DLModelInputParameter[] inputs = new DLModelMetadata.DLModelInputParameter[archP.inputNumber.getIntValue()];
         for (int i = 0; i<inputs.length; ++i) inputs[i] = new DLModelMetadata.DLModelInputParameter("Input")
             .setChannelNumber(1).setShape(0)
             .setScaling(configuration.getDatasetList().getChildAt(0).getScalingParameter(i).getScaler());
@@ -92,7 +109,78 @@ public class PixMClass implements DockerDLTrainer {
         return new DLModelMetadata()
             .setInputs(inputs)
             .setOutputs(output)
-            .setContraction(16); // TODO change when architecture is parametrized
+            .setContraction(archP.getContraction());
+    }
+
+    enum ARCH_TYPE {UNET}
+    public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration, ParameterWithLegacyInitialization<ArchitectureParameter, ARCH_TYPE> {
+        IntegerParameter inputNumber = new IntegerParameter("Input Number", 1).setLowerBound(1).setHint("Input number. Must be consistent with dataset input channel");
+        BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 256, 32, 1024).setHint("Number of filters at the feature level");
+        BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 4, 2, 5).addListener(p-> {
+            SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);
+            list.setChildrenNumber(p.getIntValue());
+        });
+        SimpleListParameter<BooleanParameter> skip = new SimpleListParameter<>("Skip Connections", new BooleanParameter("Skip Connection", true))
+                .setNewInstanceNameFunction((l, i) -> "Level: "+i).setAllowDeactivable(false).setAllowMoveChildren(false).setAllowModifications(false)
+                .setChildrenNumber(downsamplingNumber.getIntValue())
+                .setHint("Define which level includes a skip connection");
+        BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
+        IntSupplier channelNumberSupplier;
+
+        protected ArchitectureParameter(String name) {
+            super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
+            setActionParameters(ARCH_TYPE.UNET, inputNumber, downsamplingNumber, filters, skip, maxpool);
+        }
+
+        public int getContraction() {
+            switch (getActionValue()) {
+                case UNET:
+                default:
+                    return (int)Math.pow(2, downsamplingNumber.getIntValue());
+            }
+        }
+
+        @Override
+        public ArchitectureParameter duplicate() {
+            ArchitectureParameter res = new ArchitectureParameter(name);
+            ParameterUtils.setContent(res.children, children);
+            transferStateArguments(this, res);
+            return res;
+        }
+
+        @Override
+        public String getPythonConfigurationKey() {
+            return "model_architecture";
+        }
+        @Override
+        public JSONObject getPythonConfiguration() {
+            JSONObject res = new JSONObject();
+            res.put("architecture_type", getActionValue().toString());
+            res.put("n_inputs", inputNumber.getIntValue());
+            JSONArray sc = new JSONArray();
+            for (int i = 0; i<skip.getChildCount(); ++i) {
+                if (!skip.getChildAt(i).getSelected()) sc.add(i);
+            }
+
+            switch (getActionValue()) {
+                case UNET:
+                default: {
+                    res.put("maxpool", maxpool.getSelected());
+                    res.put("skip_omit", sc);
+                    res.put("n_downsampling", downsamplingNumber.getIntValue());
+                    res.put("filters", filters.getIntValue());
+                    break;
+                }
+            }
+            return res;
+        }
+
+        // legacy init
+        @Override
+        public void legacyInit() {
+            if (channelNumberSupplier != null) inputNumber.setValue(channelNumberSupplier.getAsInt());
+            skip.getChildAt(0).setValue(false);
+        }
     }
 
 }
