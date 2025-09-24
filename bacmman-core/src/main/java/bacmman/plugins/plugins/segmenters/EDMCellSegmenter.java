@@ -170,11 +170,11 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         return inter;
     }
     @Override
-    public double split(Image input, SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
+    public double split(Image input, SegmentedObject parent, int objectClassIdx, Region o, List<Region> result) {
         result.clear();
-        if (input==null) parent.getPreFilteredImage(structureIdx);
+        if (input==null) parent.getPreFilteredImage(objectClassIdx);
         SplitAndMerge<I> sm = initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent));
-        RegionPopulation pop =  splitObject(input, parent, structureIdx, o, sm); // after this step pop is in same landmark as o's landmark
+        RegionPopulation pop =  splitObject(input, parent, objectClassIdx, o, sm); // after this step pop is in same landmark as o's landmark
         if (pop.getRegions().size()<=1) return Double.POSITIVE_INFINITY;
         else {
             result.addAll(pop.getRegions());
@@ -188,9 +188,9 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
 
     }
 
-    @Override public double computeMergeCost(Image input, SegmentedObject parent, int structureIdx, List<Region> objects) {
+    @Override public double computeMergeCost(Image input, SegmentedObject parent, int objectClassIdx, List<Region> objects) {
         if (objects.isEmpty() || objects.size()==1) return 0;
-        if (input==null) input = parent.getPreFilteredImage(structureIdx);
+        if (input==null) input = parent.getPreFilteredImage(objectClassIdx);
         RegionPopulation mergePop = new RegionPopulation(objects, objects.get(0).isAbsoluteLandMark() ? input : new BlankMask(input).resetOffset());
         mergePop.relabel(false); // ensure distinct labels , if not cluster cannot be found
         SplitAndMerge<I> sm = initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent));

@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProcessingPlugin, TrackConfigurable<DiSTNet2DSegmenter>, DLMetadataConfigurable, ObjectSplitter, ManualSegmenter, Hint {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2DSegmenter.class);
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DL Model", DLEngine.class, false)
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DL Model", DLEngine.class, "DefaultEngine", false)
             .setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: EDM and GCDM");
     SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
@@ -132,12 +132,12 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
 
 
     @Override
-    public double split(Image input, SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
+    public double split(Image input, SegmentedObject parent, int objectClassIdx, Region o, List<Region> result) {
         return 0;
     }
 
     @Override
-    public double computeMergeCost(Image input, SegmentedObject parent, int structureIdx, List<Region> objects) {
+    public double computeMergeCost(Image input, SegmentedObject parent, int objectClassIdx, List<Region> objects) {
         return 0;
     }
     Map<SegmentedObject, TestDataStore> stores;
@@ -195,7 +195,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         int increment = (int)Math.ceil( interval / Math.ceil( interval /batchSize.getIntValue() ) );
         for (int idx = 0; idx < allFrames.length; idx += increment ) {
             int idxMax = Math.min(idx + increment, allFrames.length);
-            Image[][][] input = DiSTNet2D.getInputs(inputMap, allFrames, Arrays.copyOfRange(allFrames, idx, idxMax), 0, false, 0);
+            Image[][][] input = DiSTNet2D.getInputs(inputMap, allFrames, Arrays.copyOfRange(allFrames, idx, idxMax), 0, false, 0, 0);
             logger.debug("input: [{}; {}) / [{}; {}]", idx, idxMax, allFrames[0], allFrames[allFrames.length-1]);
             Image[][][] predictionONC = dlResizeAndScale.predict(engine, input); // 0=edm, 1=gcdm, 2 = cat
 

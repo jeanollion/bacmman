@@ -19,6 +19,7 @@ import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
+import org.apache.commons.lang.ArrayUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -31,20 +32,28 @@ import java.util.stream.Stream;
 
 public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
     public final static Logger logger = LoggerFactory.getLogger(ProbabilityMapSegmenter.class);
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, "DefaultEngine", false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Limit the number of frames predicted at once");
-    BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
+    SimpleListParameter<ChannelImageParameter> inputChannels = new SimpleListParameter<>("Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Input channel fed to the neural network. If None is selected, the channel associated to the current object class is used. <br>Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
+    BoundedNumberParameter outputChannel = new BoundedNumberParameter("Output Channel", 0, 0, 0, null).setLegacyParameter((leg, p) -> p.setValue(((NumberParameter)leg[0]).getValue()), new BoundedNumberParameter("Channel", 0, 0, 0, null)).setHint("In case the model predicts several channel, set here the channel to be used");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 5, 0.99, 0.00001, 2 ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Decrease to reduce over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 5, 0.75, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setEmphasized(true).setHint("Region with size (in pixels) inferior to this value will be erased");
     BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 5, 1, 0, null ).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
-    DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
+    DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale", true, true, false)
+            .addInputNumberValidation(() -> Math.max(1, inputChannels.getChildCount()))
+            .setEmphasized(true);
 
     BooleanParameter predict = new BooleanParameter("Predict Probability", true).setHint("If true probability map will be computed otherwise prefiltered images will be considered as probability map.");
     ConditionalParameter<Boolean> predictCond = new ConditionalParameter<>(predict).setEmphasized(true)
-            .setActionParameters(true, dlEngine, dlResample, channel, frameWindow);
+            .setActionParameters(true, dlEngine, inputChannels, dlResample, outputChannel, frameWindow);
 
     Parameter[] parameters = new Parameter[]{predictCond, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
+
+    public ProbabilityMapSegmenter() {
+        inputChannels.addValidationFunction(cp -> Math.max(cp.getChildCount(), 1) == dlResample.getInputNumber());
+    }
+
     @Override
     public void legacyInit(JSONArray parameters) {
         Stream<JSONObject> s = parameters.stream();
@@ -109,16 +118,34 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         }
         // perform prediction on single image
         logger.warn("Segmenter not configured! Prediction will be performed one by one, performance might be reduced.");
-        return predict.getSelected() ? predict(input)[0] : input;
+        return predict.getSelected() ? predict(getInputImages(input, objectClassIdx, parent))[0] : input;
     }
 
-    private Image[] predict(Image... inputImages) {
+    private Image[] getInputImages(Image input, int objectClassIdx, SegmentedObject parent) {
+        int[] inputChans = inputChannels.getChildren().stream().mapToInt(IndexChoiceParameter::getSelectedIndex).toArray();
+        if (inputChans.length == 0) return new Image[]{input==null?parent.getPreFilteredImage(objectClassIdx):input};
+        int curChan = parent.getExperimentStructure().getChannelIdx(objectClassIdx);
+        int curChanIdx = ArrayUtils.indexOf(inputChans, curChan);
+        Image[] res = new Image[inputChans.length];
+        for (int i = 0; i<inputChans.length; ++i) {
+            if (i == curChanIdx) res[i] = input==null?parent.getPreFilteredImage(objectClassIdx):input;
+            else res[i] = parent.getRawImageByChannel(inputChans[i]);
+        }
+        return res;
+    }
+
+    private Image[] predict(Image[]... inputImagesNI) {
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
-        Image[][][] input = new Image[1][inputImages.length][1];
-        for (int i = 0; i<inputImages.length; ++i) input[0][i][0] = inputImages[i];
-        Image[][][] predictionONC = dlResample.predict(engine, input);
-        return ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
+        int nI = Math.max(inputChannels.getChildCount(), 1);
+        Image[][][] inputINC = new Image[nI][inputImagesNI.length][1];
+        for (int i = 0; i<nI; ++i) {
+            for (int n = 0; n < inputImagesNI.length; ++n) {
+                inputINC[i][n][0] = inputImagesNI[n][i];
+            }
+        }
+        Image[][][] predictionONC = dlResample.predict(engine, inputINC);
+        return ResizeUtils.getChannel(predictionONC[0], outputChannel.getIntValue());
     }
 
     Map<SegmentedObject, Image> segmentedImageMap;
@@ -133,13 +160,17 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            Image[] in = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
+            Image[][] inputNI = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> getInputImages(null, structureIdx, p)).toArray(Image[][]::new);
             Image[] out;
-            if (Utils.objectsAllHaveSameProperty(Arrays.asList(in), Image::sameDimensions)) out = predict(in);
-            else out = Arrays.stream(in).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
-            for (int ii = 0; ii<subParentTrack.size(); ++ii) segM.put(subParentTrack.get(ii), imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false, false));
+            if (Utils.objectsAllHaveSameProperty(Arrays.asList(inputNI), inI -> inI[0].dimensions())) out = predict(inputNI);
+            else out = Arrays.stream(inputNI).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
+            for (int ii = 0; ii<subParentTrack.size(); ++ii) {
+                logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
+                segM.put(subParentTrack.get(ii), imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false, false));
+            }
             if (singleFrame) break;
         }
+
         return new TrackConfigurer<ProbabilityMapSegmenter>() {
             @Override public void apply(SegmentedObject parent, ProbabilityMapSegmenter plugin) {plugin.segmentedImageMap = segM;}
             @Override public void close() {
@@ -175,8 +206,8 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         return "Performs a watershed transform on a predicted probability map. Can optionally run a deep learning model that predicts the probability map";
     }
 
-    protected SplitAndMergeEDM initSplitAndMerge(Image input) {
-        Image probaMap = predict.getSelected() ? predict(input)[0] : input;
+    protected SplitAndMergeEDM initSplitAndMerge(Image input, int objectClassIdx, SegmentedObject parent) {
+        Image probaMap = predict.getSelected() ? predict(getInputImages(input, objectClassIdx, parent))[0] : input;
         return (SplitAndMergeEDM)new SplitAndMergeEDM(probaMap, probaMap, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
     }
@@ -188,7 +219,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         this.verboseManualSeg=verbose;
     }
     @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-        Image probaMap = predict.getSelected() ? predict(input)[0] : input;
+        Image probaMap = predict.getSelected() ? predict(getInputImages(input, objectClassIdx, parent))[0] : input;
         PredicateMask mask = new PredicateMask(probaMap, minimalProba.getValue().doubleValue(), true, true);
         if (probaMap.sizeZ()==1 && input.sizeZ()>1) { // handle a special case: 2D objects from a 3D image
             segmentationMask = new ImageMask2D(segmentationMask);
@@ -204,11 +235,11 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
 
     // Object Splitter implementation
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        return splitObject(input, parent, structureIdx, object, initSplitAndMerge(input) );
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
+        return splitObject(input, parent, objectClassIdx, object, initSplitAndMerge(input, objectClassIdx, parent) );
     }
 
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMergeEDM sm) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object, SplitAndMergeEDM sm) {
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
@@ -237,11 +268,11 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         return inter;
     }
     @Override
-    public double split(Image input, SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
+    public double split(Image input, SegmentedObject parent, int objectClassIdx, Region o, List<Region> result) {
         result.clear();
-        if (input==null) parent.getPreFilteredImage(structureIdx);
-        SplitAndMergeEDM sm = initSplitAndMerge(input);
-        RegionPopulation pop =  splitObject(input, parent, structureIdx, o, sm); // after this step pop is in same landmark as o's landmark
+        if (input==null) parent.getPreFilteredImage(objectClassIdx);
+        SplitAndMergeEDM sm = initSplitAndMerge(input, objectClassIdx, parent);
+        RegionPopulation pop =  splitObject(input, parent, objectClassIdx, o, sm); // after this step pop is in same landmark as o's landmark
         if (pop.getRegions().size()<=1) return Double.POSITIVE_INFINITY;
         else {
             result.addAll(pop.getRegions());
@@ -254,12 +285,12 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         }
     }
 
-    @Override public double computeMergeCost(Image input, SegmentedObject parent, int structureIdx, List<Region> objects) {
+    @Override public double computeMergeCost(Image input, SegmentedObject parent, int objectClassIdx, List<Region> objects) {
         if (objects.isEmpty() || objects.size()==1) return 0;
-        if (input==null) input = parent.getPreFilteredImage(structureIdx);
+        if (input==null) input = parent.getPreFilteredImage(objectClassIdx);
         RegionPopulation mergePop = new RegionPopulation(objects, objects.get(0).isAbsoluteLandMark() ? input : new BlankMask(input).resetOffset());
         mergePop.relabel(false); // ensure distinct labels , if not cluster cannot be found
-        SplitAndMergeEDM sm = initSplitAndMerge(input);
+        SplitAndMergeEDM sm = initSplitAndMerge(input, objectClassIdx, parent);
 
         RegionCluster c = new RegionCluster(mergePop, true, sm.getFactory());
         List<Set<Region>> clusters = c.getClusters();
