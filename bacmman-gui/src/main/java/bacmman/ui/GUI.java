@@ -77,6 +77,7 @@ import javax.swing.text.*;
 
 import bacmman.utils.*;
 import bacmman.utils.Utils;
+import ij.IJ;
 import ij.gui.Toolbar;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -945,6 +946,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 int newSize = Toolbar.getBrushSize() + 1;
                 Toolbar.setBrushSize(newSize);
+                IJ.setTool("brush");
                 PropertyUtils.set("ij_brush_size", newSize);
                 Utils.displayTemporaryMessage("Brush tool size: "+newSize, 2000);
             }
@@ -955,6 +957,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 int newSize = Math.max(1, Toolbar.getBrushSize() - 1);
                 Toolbar.setBrushSize(newSize);
+                IJ.setTool("brush");
                 PropertyUtils.set("ij_brush_size", newSize);
                 Utils.displayTemporaryMessage("Brush tool size: "+newSize, 2000);
             }

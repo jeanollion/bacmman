@@ -410,11 +410,7 @@ public class ExtractDatasetUtil {
         List<FeatureExtractor.Feature> features = new ArrayList<>();
         ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
         List<String> channelNames = IntStream.of(channelIndices).mapToObj(c -> xp.getChannelNames()[c]).collect(Collectors.toList());
-        for (int c : channelIndices) {
-            int oc = xp.getObjectClassIdx(c);
-            if (oc<0) throw new RuntimeException("Channel: "+c+ " has not associated object class");
-            features.add(new FeatureExtractor.Feature( channelNames.get(c), new RawImage().setExtractZ(extractZ), oc));
-        }
+        for (int c : channelIndices) features.add(new FeatureExtractor.Feature( channelNames.get(c), new RawImage().setExtractZ(extractZ).setByChannel(true), c));
         features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses).setExtractZ(extractZ), objectClasses[0] ));
 
         int[] dims = new int[]{0, 0};
