@@ -84,8 +84,14 @@ public class Shortcuts {
 
         ADD_TO_SEL0("Add selected object(s) to active selection group 0"), REM_FROM_SEL0("Remove selected object(s) from active selection group 0"), REM_ALL_FROM_SEL0("Remove all objects contained in active image from active selection group 0"), TOGGLE_DISPLAY_SEL0("Toggle Display Objects for active selection group 0"),
         ADD_TO_SEL1("Add selected object(s) to active selection group 1"), REM_FROM_SEL1("Remove selected object(s) from active selection group 1"), REM_ALL_FROM_SEL1("Remove all objects contained in active image from active selection group 1"), TOGGLE_DISPLAY_SEL1("Toggle Display Objects for active selection group 1"),
+
         TOGGLE_SAFE_MODE("Toggle Safe Mode (undo: menu Misc > Manual Curation > Revert Changes)"),
+
+        INCREASE_BRUSH_SIZE("Increase Brush tool size"),
+        DECREASE_BRUSH_SIZE("Decrease Brush tool size"),
+
         SHORTCUT_TABLE("Display shortcut table");
+
         public final String description, shortcut;
         ACTION(String description) {
             this.description=description;
@@ -192,6 +198,9 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.ALT_DOWN_MASK), ACTION.REM_FROM_SEL1);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.ALT_GRAPH_DOWN_MASK), ACTION.REM_ALL_FROM_SEL1);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.CTRL_DOWN_MASK), ACTION.TOGGLE_DISPLAY_SEL1);
+
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0), INCREASE_BRUSH_SIZE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_N, 0), DECREASE_BRUSH_SIZE);
                 break;
             case QWERTY:
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), TO_FRONT);
@@ -233,6 +242,9 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.ALT_DOWN_MASK), ACTION.REM_FROM_SEL1);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.ALT_GRAPH_DOWN_MASK), ACTION.REM_ALL_FROM_SEL1);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.CTRL_DOWN_MASK), ACTION.TOGGLE_DISPLAY_SEL1);
+
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0), INCREASE_BRUSH_SIZE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_N, 0), DECREASE_BRUSH_SIZE);
                 break;
         }
         actionMapKey.clear();
@@ -279,7 +291,7 @@ public class Shortcuts {
                 @Override
                 public void windowLostFocus(WindowEvent windowEvent) {
                     if (displayedFrame!=null && displayedFrame.isVisible()) {
-                        displayedFrame.setVisible(false);
+                        //displayedFrame.setVisible(false);
                     }
                 }
             });
@@ -345,7 +357,7 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Manual Curation: all action are performed on active image</b>", TOGGLE_SAFE_MODE,
             "<b>Object Edition:</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MERGE, SPLIT, POST_FILTER,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MERGE, SPLIT, POST_FILTER, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
             "<b>Lineage Edition:</b>",
             RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK
         };

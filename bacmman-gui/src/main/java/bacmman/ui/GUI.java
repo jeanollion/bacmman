@@ -77,6 +77,7 @@ import javax.swing.text.*;
 
 import bacmman.utils.*;
 import bacmman.utils.Utils;
+import ij.gui.Toolbar;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -938,6 +939,27 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 deleteObjectsButtonActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.INCREASE_BRUSH_SIZE, new AbstractAction("Brush Size +") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                int newSize = Toolbar.getBrushSize() + 1;
+                Toolbar.setBrushSize(newSize);
+                PropertyUtils.set("ij_brush_size", newSize);
+                Utils.displayTemporaryMessage("Brush tool size: "+newSize, 2000);
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.DECREASE_BRUSH_SIZE, new AbstractAction("Brush Size -") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                int newSize = Math.max(1, Toolbar.getBrushSize() - 1);
+                Toolbar.setBrushSize(newSize);
+                PropertyUtils.set("ij_brush_size", newSize);
+                Utils.displayTemporaryMessage("Brush tool size: "+newSize, 2000);
+            }
+        });
+
         EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY);
         PropertyUtils.setPersistent(shortcutPreset, "shortcut_preset");
         
