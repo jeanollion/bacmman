@@ -156,7 +156,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling, predictCategory).setEmphasized(true).setHint("Parameters related to prediction by the neural network");
     GroupParameter segmentation = new GroupParameter("Segmentation", edmThreshold, minMaxEDM, objectThickness, minObjectSize, centerParameters, mergeCriterion, useGDCMGradientCriterionCond, manualCurationMargin).setEmphasized(true).setHint("Segmentation parameters");
-    GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, trackPostProcessingList, trackPPRange, growthRateRange).setEmphasized(true).setHint("Link assignment parameters. Post-processing section allows to correct inconsistencies that can arise between displacement/link multiplicity/segmentation. The method SOLVE_SPLIT_MERGE only works if there are few errors, and can take a very long time otherwise. To reduce it's processing time, set the post-processing range to PER_SEGMENT");
+    GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, nGaps, contactCriterionCond, trackPostProcessingList, trackPPRange, growthRateRange).setEmphasized(true).setHint("Link assignment parameters. Post-processing section allows to correct inconsistencies that can arise between displacement/link multiplicity/segmentation. The method SOLVE_SPLIT_MERGE only works if there are few errors, and can take a very long time otherwise. To reduce it's processing time, set the post-processing range to PER_SEGMENT");
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     // for test display
@@ -244,17 +244,23 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 logger.debug("Segmentation window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size() - 1).getFrame());
                 segment(objectClassIdx, subParentTrack, prediction, postFilters, factory);
             }
+            int nGaps = this.nGaps.getIntValue();
             if (i>0) subParentTrack = parentTrack.subList(i-1, maxIdx); // add last frame of previous window for tracking (in order to have overlap)
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            Set<UnaryPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, linkMultiplicityMapContainer);
+            Set<UnaryPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, 0, editor, linkMultiplicityMapContainer, null);
             if (lwFW==null || TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT.equals(ppMode)) lwFW = linkMultiplicityMapContainer[0];
             else lwFW.putAll(linkMultiplicityMapContainer[0]);
             if (lmBW==null || TRACK_POST_PROCESSING_WINDOW_MODE.PER_SEGMENT.equals(ppMode)) lmBW = linkMultiplicityMapContainer[1];
             else lmBW.putAll(linkMultiplicityMapContainer[1]);
+            logger.debug("additional links detected: {}", additionalLinks);
+            allAdditionalLinks.addAll(additionalLinks);
+            for (int gap = 1; gap<=nGaps; ++gap) {
+                track(objectClassIdx, subParentTrack, prediction, gap, editor, linkMultiplicityMapContainer, additionalLinks);
+            }
             // clear images / voxels / masks to free-memory and leave the last item for next prediction
             int maxF = subParentTrack.get(0).getFrame();
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1));
-            for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
+            for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1 + nGaps); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.edm.get(p), null), false, false));
                 prediction.gdcm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.gdcm.get(p), null), false, false));
@@ -279,13 +285,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 p.flushImages(true, trackPreFilters==null || trackPreFilters.isEmpty());
             }
             System.gc();
-            logger.debug("additional links detected: {}", additionalLinks);
-            allAdditionalLinks.addAll(additionalLinks);
             switch (ppMode) {
                 case PER_SEGMENT: {
                     postFilterTracking(objectClassIdx, subParentTrack, false, allAdditionalLinks, prediction, lwFW, lmBW, assigner, editor, factory);
                     if (!testMode) {
-                        for (int j = 0; j < subParentTrack.size() - (last ? 0 : 1); ++j) { // free memory
+                        for (int j = 0; j < subParentTrack.size() - (last ? 0 : 1 + nGaps); ++j) { // free memory
                             SegmentedObject p = subParentTrack.get(j);
                             detach.accept(prediction.edm.remove(p));
                             detach.accept(prediction.gdcm.remove(p));
@@ -784,25 +788,19 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.probability = probability;
         }
     }
-    protected Set<UnaryPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, Map<SegmentedObject, LinkMultiplicity>[] linkMultiplicityMapContainer) {
-        logger.debug("tracking : test mode: {}", stores != null);
-        if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
-            parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy bw", prediction.dyBW[0].get(o)));
-        if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
-            parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx bw", prediction.dxBW[0].get(o)));
-        if (prediction!=null && prediction.dyFW !=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
-            parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy fw", prediction.dyFW[0].get(o)));
-        if (prediction!=null && prediction.dxFW !=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
-            parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx fw", prediction.dxFW[0].get(o)));
-        if (false && nGaps.getIntValue() >= 1 && prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
-            for (int gap = 1; gap<nGaps.getIntValue(); ++gap) {
-                int g=gap;
-                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy fw g"+g, prediction.dyFW[g].get(o)));
-                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy bw g"+g, prediction.dyBW[g].get(o)));
-            }
+    protected Set<UnaryPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, int gap, TrackLinkEditor editor, Map<SegmentedObject, LinkMultiplicity>[] linkMultiplicityMapContainer, Set<UnaryPair<SegmentedObject>> previousAdditionalLinks) {
+        if (gap == 0) {
+            logger.debug("tracking : test mode: {}", stores != null);
+            if (prediction != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy bw", prediction.dyBW[gap].get(o)));
+            if (prediction != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx bw", prediction.dxBW[gap].get(o)));
+            if (prediction != null && prediction.dyFW != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy fw", prediction.dyFW[gap].get(o)));
+            if (prediction != null && prediction.dxFW != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx fw", prediction.dxFW[gap].get(o)));
         }
-        boolean verbose = stores != null;
-        logger.debug("track: length: {}, container length: {}, prediction null ?: {}", parentTrack.size(), linkMultiplicityMapContainer.length, prediction ==null);
+        boolean verbose = stores != null && gap == 0;
         if (verbose && false) {
             for (SegmentedObject p : parentTrack) {
                 Image fwMul = prediction.multipleLinkFW[0].get(p);
@@ -825,15 +823,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, LinkMultiplicity> lmFW = HashMapGetCreate.getRedirectedMap(
             parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
             prediction==null ? o->new LinkMultiplicity(SINGLE, 1) : o -> {
-                if (o.getParent().getNext()==null || prediction.multipleLinkFW[0].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
-                Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkFW[0].get(o.getParent()), prediction.noLinkFW[0].get(o.getParent()));
+                if (o.getParent().getNext()==null || prediction.multipleLinkFW[gap].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
+                Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkFW[gap].get(o.getParent()), prediction.noLinkFW[gap].get(o.getParent()));
                 BoundingBox bds = o.getRegion().getBounds();
                 if (o.getRegion().isAbsoluteLandMark() && !BoundingBox.isIncluded(bds, singleLinkProbImage.getBoundingBox()) || !o.getRegion().isAbsoluteLandMark() && !BoundingBox.isIncluded(bds, singleLinkProbImage.getBoundingBox().duplicate().resetOffset())) {
                     logger.error("region : {} bds: {} not included in {} absolute: {}", o, bds, singleLinkProbImage.getBoundingBox(), o.getRegion().isAbsoluteLandMark());
                 }
                 double singleProb = BasicMeasurements.getQuantileValue(o.getRegion(), singleLinkProbImage, 0.5)[0];
-                double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkFW[0].get(o.getParent()), 0.5)[0];
-                double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkFW[0].get(o.getParent()), 0.5)[0];
+                double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkFW[gap].get(o.getParent()), 0.5)[0];
+                double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkFW[gap].get(o.getParent()), 0.5)[0];
                 if (singleProb>=multipleProb && singleProb>=nullProb) {
                     if (verbose) {
                         o.setAttribute("Link Multiplicity FW", SINGLE.toString());
@@ -853,11 +851,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, LinkMultiplicity> lmBW = HashMapGetCreate.getRedirectedMap(
             parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
             prediction==null ? o->new LinkMultiplicity(SINGLE, 1) : o -> {
-                if (o.getParent().getPrevious()==null || prediction.multipleLinkBW[0].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
-                Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkBW[0].get(o.getParent()), prediction.noLinkBW[0].get(o.getParent()));
+                if (o.getParent().getPrevious()==null || prediction.multipleLinkBW[gap].get(o.getParent())==null) return new LinkMultiplicity(NULL, 1);
+                Image singleLinkProbImage = new ImageFormula(values -> 1 - values[0] - values[1], prediction.multipleLinkBW[gap].get(o.getParent()), prediction.noLinkBW[gap].get(o.getParent()));
                 double singleProb = BasicMeasurements.getQuantileValue(o.getRegion(), singleLinkProbImage, 0.5)[0];
-                double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkBW[0].get(o.getParent()), 0.5)[0];
-                double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkBW[0].get(o.getParent()), 0.5)[0];
+                double multipleProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.multipleLinkBW[gap].get(o.getParent()), 0.5)[0];
+                double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkBW[gap].get(o.getParent()), 0.5)[0];
                 if (singleProb>=multipleProb && singleProb>=nullProb) {
                     if (verbose) {
                         o.setAttribute("Link Multiplicity BW", SINGLE.toString());
@@ -874,26 +872,28 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             },
             HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
-        linkMultiplicityMapContainer[0] = lmFW;
-        linkMultiplicityMapContainer[1] = lmBW;
+        if (linkMultiplicityMapContainer != null) {
+            linkMultiplicityMapContainer[0] = lmFW;
+            linkMultiplicityMapContainer[1] = lmBW;
+        }
         Map<SegmentedObject, Double> dyBWMap = HashMapGetCreate.getRedirectedMap(
             parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-            prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[0].get(o.getParent()), 0.5)[0],
+            prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[gap].get(o.getParent()), 0.5)[0],
             HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, Double> dyFWMap = HashMapGetCreate.getRedirectedMap(
             parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-            prediction==null || prediction.dyFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[0].get(o.getParent()), 0.5)[0],
+            prediction==null || prediction.dyFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[gap].get(o.getParent()), 0.5)[0],
             HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, Double> dxBWMap = HashMapGetCreate.getRedirectedMap(
             parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-            prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxBW[0].get(o.getParent()), 0.5)[0],
+            prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxBW[gap].get(o.getParent()), 0.5)[0],
             HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         Map<SegmentedObject, Double> dxFWMap = HashMapGetCreate.getRedirectedMap(
             parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-            prediction==null || prediction.dxFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[0].get(o.getParent()), 0.5)[0],
+            prediction==null || prediction.dxFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[gap].get(o.getParent()), 0.5)[0],
             HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
         boolean assignNext = prediction != null && prediction.dxFW != null;
@@ -905,15 +905,30 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         ObjectGraph<SegmentedObject> graph = new ObjectGraph<>(new GraphObjectMapper.SegmentedObjectMapper(), true);
         //objectsF.values().forEach(l -> l.forEach(o -> graph.graphObjectMapper.add(o.getRegion(), o)));
         Map<SegmentedObject, Set<Voxel>> contour = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().getContour());
-        for (int f = minFrame+1; f<=maxFrame; ++f) {
-            List<SegmentedObject> prev= objectsF.get(f-1);
+
+        for (int f = minFrame+gap+1; f<=maxFrame; ++f) {
+            int prevF = f-1-gap;
+            List<SegmentedObject> prev= objectsF.get(prevF);
             List<SegmentedObject> cur = objectsF.get(f);
-            assignV2(prev, cur, graph, dxFWMap::get, dxBWMap::get, dyFWMap::get, dyBWMap::get, linkDistanceTolerance.getIntValue(), o->lmFW.get(o).lm, o->lmBW.get(o).lm, contour, growthRateRange.getValuesAsDouble(), verbose);
+            if (prev == null || cur == null) continue;
+            if (gap > 0) { // remove objects that are already linked
+                prev = new ArrayList<>(prev);
+                cur = new ArrayList<>(cur);
+                prev.removeIf( p -> p.getNext() != null);
+                objectsF.get(prevF+1).stream().map(SegmentedObject::getPrevious).filter(Objects::nonNull).forEach(prev::remove); // in case of division link, it is set in objects at next frame
+                cur.removeIf(c -> c.getPrevious() != null);
+                objectsF.get(f-1).stream().map(SegmentedObject::getNext).filter(Objects::nonNull).forEach(cur::remove); // in case of merge link, it is set in objects at previous frame
+                for (UnaryPair<SegmentedObject> p : previousAdditionalLinks) {
+                    if (p.key.getFrame() == prevF) prev.remove(p.key);
+                    if (p.value.getFrame() == f) cur.remove(p.value);
+                }
+            }
+            assignV2(prev, cur, graph, dxFWMap::get, dxBWMap::get, dyFWMap::get, dyBWMap::get, linkDistanceTolerance.getIntValue(), o->lmFW.get(o).lm, o->lmBW.get(o).lm, contour, growthRateRange.getValuesAsDouble(), gap>0, verbose);
             prev.forEach(contour::remove); // save memory
         }
-        logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
-        Set<UnaryPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor);
-        if (stores!=null) {
+        logger.debug("After linking {}: edges: {} (total number of objects: {})", gap==0?"":"(gap=={"+gap+"})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
+        Set<UnaryPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor, true, true, gap==0);
+        if (stores!=null && gap == 0) {
             parentTrack.forEach(p -> {
                 stores.get(p).addMisc("Display Previous Contours", sel -> {
                     if (p.getPrevious()==null) return;
@@ -984,10 +999,17 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return addLinks;
     }
 
-    static void assign(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxMap, ToDoubleFunction<SegmentedObject> dyMap, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, boolean nextToPrev, Predicate<SegmentedObject> noTarget, boolean onlyUnlinked, boolean verbose) {
+    // used in TrackAssignerDistnet
+    static void assign(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, ToDoubleBiFunction<SegmentedObject, Integer> dx, ToDoubleBiFunction<SegmentedObject, Integer> dy, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, boolean nextToPrev, Predicate<SegmentedObject> noTarget, boolean onlyUnlinked, boolean verbose) {
         if (target==null || target.isEmpty() || source==null || source.isEmpty()) return;
         Offset trans = target.iterator().next().getParent().getBounds().duplicate().translate(source.iterator().next().getParent().getBounds().duplicate().reverseOffset());
+        int targetFrame = target.iterator().next().getFrame();
+        boolean sameTargetFrame = Utils.objectsAllHaveSameProperty(target, o -> o.getFrame() == targetFrame);
         for (SegmentedObject s : source) {
+            if (verbose) {
+                s.setAttribute("Center", s.getRegion().getCenter());
+                s.setAttribute("Center Translated", getTranslatedCenter(s, dx.applyAsDouble(s, 0), dy.applyAsDouble(s, 0), trans));
+            }
             if (onlyUnlinked) {
                 if (nextToPrev) {
                     if (graph.getAllPreviousAsStream(s).findAny().isPresent()) continue;
@@ -996,29 +1018,41 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             }
             if (noTarget.test(s)) continue;
-            Point centerTrans = getTranslatedCenter(s, dxMap, dyMap, trans);
-            if (verbose) {
-                s.setAttribute("Center", s.getRegion().getCenter());
-                s.setAttribute("Center Translated", centerTrans);
-            }
             SegmentedObject t;
-            if (linkDistTolerance>0) {
-                t = getTarget(centerTrans, target.stream(), linkDistTolerance, contour).findFirst().orElse(null);
+            if (sameTargetFrame) { // TODO: test with correction + gaps
+                int gap = Math.abs(s.getFrame() - targetFrame) - 1;
+                Point centerTrans = getTranslatedCenter(s, dx.applyAsDouble(s, gap), dy.applyAsDouble(s, gap), trans);
+                if (centerTrans == null) t = null; // gap not supported
+                else {
+                    if (linkDistTolerance > 0) {
+                        t = getTarget(centerTrans, target.stream(), linkDistTolerance, contour).findFirst().orElse(null);
+                    } else {
+                        t = getTarget(centerTrans, target.stream());
+                    }
+                }
             } else {
-                t = getTarget(centerTrans, target.stream());
+                Map<Integer, Point> centerTrans = new HashMapGetCreate.HashMapGetCreateRedirected<>(currentTargetFrame -> {
+                    int gap = Math.abs(s.getFrame() - currentTargetFrame) - 1;
+                    return getTranslatedCenter(s, dx.applyAsDouble(s, gap), dy.applyAsDouble(s, gap), trans);
+                });
+                if (linkDistTolerance > 0) {
+                    t = getTarget(centerTrans, target.stream(), linkDistTolerance, contour).findFirst().orElse(null);
+                } else {
+                    t = getTarget(centerTrans, target.stream());
+                }
             }
             if (t != null) graph.addEdge(t, s);
         }
     }
 
-    static void assignV2(Collection<SegmentedObject> prev, Collection<SegmentedObject> next, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange, boolean verbose) {
+    static void assignV2(Collection<SegmentedObject> prev, Collection<SegmentedObject> next, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange, boolean gap, boolean verbose) {
         if (next==null || next.isEmpty() || prev==null || prev.isEmpty()) return;
         Offset transFW = next.iterator().next().getParent().getBounds().duplicate().translate(prev.iterator().next().getParent().getBounds().duplicate().reverseOffset());
         Offset transBW = prev.iterator().next().getParent().getBounds().duplicate().translate(next.iterator().next().getParent().getBounds().duplicate().reverseOffset());
         Map<LINK_MULTIPLICITY, List<SegmentedObject>> prevByLM = prev.stream().collect(Collectors.groupingBy(lmFW));
         Map<LINK_MULTIPLICITY, List<SegmentedObject>> nextByLM = next.stream().collect(Collectors.groupingBy(lmBW));
-        Map<SegmentedObject, Point> prevTranslatedCenter = prev.stream().collect(Collectors.toMap(Function.identity(), o->getTranslatedCenter(o, dxFW, dyFW, transFW)));
-        Map<SegmentedObject, Point> nextTranslatedCenter = next.stream().collect(Collectors.toMap(Function.identity(), o->getTranslatedCenter(o, dxBW, dyBW, transBW)));
+        Map<SegmentedObject, Point> prevTranslatedCenter = prev.stream().collect(Collectors.toMap(Function.identity(), o->getTranslatedCenter(o, dxFW.applyAsDouble(o), dyFW.applyAsDouble(o), transFW)));
+        Map<SegmentedObject, Point> nextTranslatedCenter = next.stream().collect(Collectors.toMap(Function.identity(), o->getTranslatedCenter(o, dxBW.applyAsDouble(o), dyBW.applyAsDouble(o), transBW)));
 
         // link single objects that point to each other mutually
         if (prevByLM.containsKey(SINGLE) && nextByLM.containsKey(SINGLE)) {
@@ -1051,6 +1085,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (prevSingle.isEmpty()) prevByLM.remove(SINGLE);
             if (nextSingle.isEmpty()) nextByLM.remove(SINGLE);
         }
+        if (gap) return; // in case of GAP : no multiple links allowed, and no corrections allowed
         // link source multiple object
         if (prevByLM.containsKey(MULTIPLE) && nextByLM.containsKey(SINGLE)) {
             assignOneWay(nextByLM.get(SINGLE), prevByLM.get(MULTIPLE), graph, nextTranslatedCenter, linkDistTolerance, contour, null);
@@ -1129,15 +1164,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return targetIsNext ? sourceSize * growthRateRange[0] <= neighSize : neighSize * growthRateRange[1] >= sourceSize;
     }
 
-    static Point getTranslatedCenter(SegmentedObject o, ToDoubleFunction<SegmentedObject> dx, ToDoubleFunction<SegmentedObject> dy, Offset trans) {
+    static Point getTranslatedCenter(SegmentedObject o, double dx, double dy, Offset trans) {
+        if (Double.isNaN(dx) || Double.isNaN(dy)) return null; // gap not supported
         return o.getRegion().getCenterOrGeomCenter().duplicate()
-                .translateRev(new Vector(dx.applyAsDouble(o), dy.applyAsDouble(o))) // translate by predicted displacement
+                .translateRev(new Vector(dx, dy)) // translate by predicted displacement
                 .translate(trans);
     }
+
     static SegmentedObject getTarget(Point center, Stream<SegmentedObject> candidates) {
-        Voxel centerV = center.asVoxel();
         return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds()))
-                .filter(o -> o.getRegion().contains(centerV)).findAny().orElse(null);
+                .filter(o -> o.getRegion().contains(center)).findAny().orElse(null);
     }
 
     static Stream<SegmentedObject> getTarget(Point center, Stream<SegmentedObject> candidates, int tolerance, Map<SegmentedObject, Set<Voxel>> contour) {
@@ -1152,6 +1188,38 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 double thld = tolerance * tolerance;
                 for (Voxel v : contour.get(o)) {
                     double d2 = center.distSq((Offset)v);
+                    if (d2 <= thld) {
+                        distance.put(o, Math.sqrt(d2));
+                        return true;
+                    }
+                }
+                return false;
+            }).sorted(Comparator.comparingDouble(distance::get));
+    }
+
+    // candidates do not necessarily belong to same frame // TODO: test with correction + gaps
+    static SegmentedObject getTarget(Map<Integer, Point> center, Stream<SegmentedObject> candidates) {
+        return candidates
+                .filter(o -> center.get(o.getFrame()) != null) // if null -> gap not supported
+                .filter(o -> BoundingBox.isIncluded2D(center.get(o.getFrame()), o.getBounds()))
+                .filter(o -> o.getRegion().contains(center.get(o.getFrame()))).findAny().orElse(null);
+    }
+
+    // candidates do not necessarily belong to same frame // TODO: test with correction + gaps
+    static Stream<SegmentedObject> getTarget(Map<Integer, Point> center, Stream<SegmentedObject> candidates, int tolerance, Map<SegmentedObject, Set<Voxel>> contour) {
+        if (tolerance == 0) {
+            SegmentedObject target = getTarget(center, candidates);
+            if (target == null) return Stream.empty();
+            else return Stream.of(target);
+        }
+        Map<SegmentedObject, Double> distance = new HashMap<>();
+        return candidates.filter(o -> BoundingBox.isIncluded2D(center.get(o.getFrame()), o.getBounds(), tolerance))
+            .filter(o -> {
+                Point currentCenter = center.get(o.getFrame());
+                if (currentCenter == null) return false; // gap not supported
+                double thld = tolerance * tolerance;
+                for (Voxel v : contour.get(o)) {
+                    double d2 = currentCenter.distSq((Offset)v);
                     if (d2 <= thld) {
                         distance.put(o, Math.sqrt(d2));
                         return true;
@@ -1404,12 +1472,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     Image edm = new ImageView(prediction.edm.get(parent), toSplitR.getBounds());
                     ImageMask mask = toSplitR.getMask();
                     double localMaxThld = Math.max(minMaxEDM.getDoubleValue(), edmThreshold.getDoubleValue());
-                    SplitAndMergeEDM smEDM = new SplitAndMergeEDM(edm, edm, edmThreshold.getDoubleValue(), SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, 1, localMaxThld, false); // TODO was 0
+                    SplitAndMergeEDM smEDM = new SplitAndMergeEDM(edm, edm, edmThreshold.getDoubleValue(), SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, 1, localMaxThld, false);
                     smEDM.setMapsProperties(false, false);
                     RegionPopulation pop = smEDM.split(mask, 5, objectThickness.getDoubleValue()/2);
                     pop.translate(toSplitR.getBounds(), true); // reference offset is mask (=edm view) -> go to parent reference
                     List<Region> res = pop.getRegions();
-                    res.forEach(r -> r.setCenter(Medoid.computeMedoid(r)));
+                    if (res.isEmpty()) res.add(toSplitR);
+                    else res.forEach(r -> r.setCenter(Medoid.computeMedoid(r)));
                     res.forEach(Region::clearVoxels);
                     return res;
                 };
@@ -1431,7 +1500,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         logger.error("Split in two @{} generated {} fragments", toSplit, res.size());
                         throw new RuntimeException("Error split in two");
                     }
-                    res.forEach(r -> r.setCenter(Medoid.computeMedoid(r)));
+                    if (res.isEmpty()) res.add(toSplit.getRegion());
+                    else res.forEach(r -> r.setCenter(Medoid.computeMedoid(r)));
                     res.forEach(Region::clearVoxels);
                     return res;
                 };
@@ -1455,6 +1525,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores = stores;
     }
+
     protected static int search(int[] sortedValues, int fromIdx, double targetValue, double tolerance) {
         int idx = fromIdx;
         if (sortedValues[idx] == targetValue) return idx;
@@ -1483,59 +1554,51 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    protected static List<Integer> getNeighborhood(int[] sortedFrames, int frame, int inputWindow, boolean addNext, int gap) {
+    public static List<Integer> getNeighborhood(int[] sortedFrames, int frame, int inputWindow, boolean addNext, int frameInterval, int gapClosing) {
         int idx = Arrays.binarySearch(sortedFrames, frame);
-        double tol = Math.max(1, gap-1);
         if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames");
         List<Integer> res = new ArrayList<>(inputWindow * 2 + 1);
-        // backward
-        if (inputWindow == 1) {
-            res.add(sortedFrames[search(sortedFrames, idx, frame - gap, tol)]);
-        } else if (inputWindow>1) {
-            int firstNeighborIdx = search(sortedFrames, idx, frame - 1, tol);
-            int endFrameIdx = search(sortedFrames, firstNeighborIdx, frame - 1 - gap * (inputWindow-1), tol);
-            int endFrame = sortedFrames[endFrameIdx];
-            res.add(endFrame);
-            double newGap = Math.max(1, (double)( frame -1 - endFrame )/(inputWindow-1));
-            int lastIdx = endFrameIdx;
-            //logger.debug("frames: [{},{}] gap {} -> {}", endFrame, sortedFrames[firstNeighborIdx], gap, newGap);
-            for (int i = inputWindow-2; i>0; --i ) {
-                lastIdx = search(sortedFrames, lastIdx, frame - 1 - newGap * i, tol);
-                res.add(sortedFrames[lastIdx]);
-            }
-            res.add(sortedFrames[firstNeighborIdx]);
-        }
-
+        getNeighborhoodDir(sortedFrames, frame, inputWindow, frameInterval, gapClosing, false, res);
         res.add(frame);
-        if (addNext) { // forward
-            if (inputWindow == 1) {
-                res.add(sortedFrames[search(sortedFrames, idx, frame + gap, tol)]);
-            } else if (inputWindow > 1) {
-                int firstNeighborIdx = search(sortedFrames, idx, frame + 1, tol);
-                int endFrameIdx = search(sortedFrames, firstNeighborIdx, frame + 1 + gap * (inputWindow-1), tol);
-                int endFrame = sortedFrames[endFrameIdx];
-                res.add(sortedFrames[firstNeighborIdx]);
-                double newGap = Math.max(1, (double)( endFrame - (frame + 1) )/(inputWindow-1));
-                int lastIdx = endFrameIdx;
-                for (int i = 1; i<inputWindow-1; ++i ) {
-                    lastIdx = search(sortedFrames, lastIdx, frame + 1 + newGap * i, tol);
-                    res.add(sortedFrames[lastIdx]);
-                }
-                res.add(endFrame);
-            }
-        }
+        if (addNext) getNeighborhoodDir(sortedFrames, frame, inputWindow, frameInterval, gapClosing, true, res);
+        //logger.debug("getNeigh: interval: {} gc: {} res: {}",frameInterval, gapClosing, res);
         return res;
     }
-    public static Image[][] getInput(Map<Integer, Image> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval) {
-        return IntStream.of(frames).mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval)
+
+    protected static void getNeighborhoodDir(int[] sortedFrames, int frame, int inputWindow, int frameInterval, int gapClosing, boolean forward, List<Integer> res) {
+        int idx = Arrays.binarySearch(sortedFrames, frame);
+        double tol = Math.max(1, frameInterval-1);
+        if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames");
+        int mul = forward ? 1 : -1;
+        if (inputWindow == 1) {
+            res.add(sortedFrames[search(sortedFrames, idx, frame + mul * frameInterval, tol)]);
+        } else if (inputWindow>1) {
+            int lastIdx = idx;
+            int lastFrame = frame;
+            for (int i = 0; i<gapClosing+1; ++i ) { // within normal tracking / gap closing procedure: force adjacent frame
+                lastIdx=Math.min(Math.max(0, lastIdx + mul), sortedFrames.length-1);
+                lastFrame = sortedFrames[lastIdx];
+                res.add(lastFrame);
+            }
+            for (int i = 1; i<inputWindow-gapClosing; ++i ) { // insert a gap between input frames in order to increase input frame window
+                lastIdx = search(sortedFrames, lastIdx, lastFrame + mul * frameInterval, tol);
+                lastFrame = sortedFrames[lastIdx];
+                res.add(lastFrame);
+            }
+            if (!forward) Collections.sort(res);
+        }
+    }
+
+    public static Image[][] getInput(Map<Integer, Image> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval, int gapClosing) {
+        return IntStream.of(frames).mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval, gapClosing)
                 .stream().map(images::get)
                 .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
 
-    public static Image[][][] getInputs(List<Map<Integer, Image>> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval) {
+    public static Image[][][] getInputs(List<Map<Integer, Image>> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval, int gapClosing) {
         Image[][][] res = new Image[images.size()][][];
-        for (int i = 0; i<images.size(); ++i) res[i] = getInput(images.get(i), allFrames, frames, inputWindow, addNext, frameInterval);
+        for (int i = 0; i<images.size(); ++i) res[i] = getInput(images.get(i), allFrames, frames, inputWindow, addNext, frameInterval, gapClosing);
         return res;
     }
 
@@ -1751,17 +1814,21 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.dTol = dTol;
         }
         PredictionResults prediction;
-        private double getDx(SegmentedObject o) {
-            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxBW[0].get(o.getParent()), 0.5)[0];
+        private double getDx(SegmentedObject o, int gap) {
+            if (gap >= prediction.dxBW.length ) return Double.NaN; // gap not supported
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxBW[gap].get(o.getParent()), 0.5)[0];
         }
-        private double getDy(SegmentedObject o) {
-            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[0].get(o.getParent()), 0.5)[0];
+        private double getDy(SegmentedObject o, int gap) {
+            if (gap >= prediction.dyBW.length ) return Double.NaN; // gap not supported
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[gap].get(o.getParent()), 0.5)[0];
         }
-        private double getDxN(SegmentedObject o) {
-            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[0].get(o.getParent()), 0.5)[0];
+        private double getDxN(SegmentedObject o, int gap) {
+            if (gap >= prediction.dxFW.length ) return Double.NaN; // gap not supported
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[gap].get(o.getParent()), 0.5)[0];
         }
-        private double getDyN(SegmentedObject o) {
-            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[0].get(o.getParent()), 0.5)[0];
+        private double getDyN(SegmentedObject o, int gap) {
+            if (gap >= prediction.dyFW.length ) return Double.NaN; // gap not supported
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[gap].get(o.getParent()), 0.5)[0];
         }
         public void setPrediction(PredictionResults prediction) {
             this.prediction = prediction;
@@ -1773,6 +1840,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (otherNextTracks == null) otherNextTracks = Collections.emptyList();
             if (otherPrevTracks == null) otherPrevTracks = Collections.emptyList();
             TrackAssigner.removeLinks(prevTracks, nextTracks);
+            /* // commented to allow gaps
             if (!Utils.objectsAllHaveSameProperty(prevTracks, Track::getLastFrame)) {
                 logger.error("Error assigning tracks: {} with {} bbox: {}", prevTracks, nextTracks, BoundingBox.getMergedBoundingBox(Stream.concat(prevTracks.stream().map(t -> t.tail().getBounds()), nextTracks.stream().map(t -> t.head().getBounds()))));
                 throw new IllegalArgumentException("prev tracks do not end at same frame");
@@ -1787,6 +1855,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 logger.error("TrackAssigner: non successive tracks: {} + {}", prevTracks, nextTracks);
                 throw new IllegalArgumentException("frame should be successive");
             }
+            */
             List<SegmentedObject> prev = prevTracks.stream().map(Track::tail).collect(Collectors.toList());
             List<SegmentedObject> next = nextTracks.stream().map(Track::head).collect(Collectors.toList());
             Set<SegmentedObject> allPrev = otherPrevTracks.stream().map(Track::tail).collect(Collectors.toSet());
@@ -1883,7 +1952,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = 0; i < framesToPredict.length; i += increment ) {
                 int idxMax = Math.min(i + increment, framesToPredict.length);
-                Image[][][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval);
+                Image[][][] input = getInputs(images, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval, nGaps);
                 logger.debug("input: [{}; {}] / [{}; {}]", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
                 Image[][][] predictions = getDlResizeAndScale().predict(engine, input); // output 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
                 appendPrediction(predictions, i);
@@ -1992,7 +2061,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 .setEdm(getSegMap.apply(pred.edm)).setGCDM(getSegMap.apply(pred.gcdm)).setCat(predictCategory.getSelected() ? getCatMap.apply(pred.catNC) : null);
         for (int g = 0; g<=nGaps.getIntValue(); ++g) {
             res.setDxBW(getBWMap.apply(pred.dxBW[g], resampleDX), g).setDyBW(getBWMap.apply(pred.dyBW[g], resampleDY), g)
-            .setMultipleLinkBW(getBWMap.apply(pred.multipleLinkBW[g], resample), 0).setNoLinkBW(getBWMap.apply(pred.noLinkBW[g], resample), g)
+            .setMultipleLinkBW(getBWMap.apply(pred.multipleLinkBW[g], resample), g).setNoLinkBW(getBWMap.apply(pred.noLinkBW[g], resample), g)
             .setDxFW(getFWMap.apply(pred.dxFW[g], resampleDX), g).setDyFW(getFWMap.apply(pred.dyFW[g], resampleDX), g)
             .setMultipleLinkFW(getFWMap.apply(pred.multipleLinkFW[g], resample), g).setNoLinkFW(getFWMap.apply(pred.noLinkFW[g], resample), g);
         }

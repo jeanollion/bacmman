@@ -46,6 +46,9 @@ public class Track implements Comparable<Track> {
     }
     public Track setSplitRegions(Function<SegmentedObject, List<Region>> splitter) {
         splitRegions = Utils.parallel(objects.stream(), parallel).collect(Collectors.toMap(Function.identity(), splitter));
+        splitRegions.forEach((so, l) -> { // if split didn't work, set 1 single object to distinguish with empty list which means track had been merged before
+            if (l.isEmpty()) l.add(so.getRegion());
+        });
         return this;
     }
     public Track eraseSplitRegions() {
@@ -315,13 +318,13 @@ public class Track implements Comparable<Track> {
     public static boolean split(Track track, boolean forward, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor, Consumer<Track> removeTrack, Consumer<Track> addTrack, BiFunction<Integer, Boolean, Stream<Track>> getAllTracksAtFrame) {
         Map<SegmentedObject, List<Region>> regions = track.getSplitRegions();
         if (regions.size() != track.objects.size()) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
-        List<Region> impossible=regions.values().stream().filter(t -> t.size()<=1).findAny().orElse(null);
+        List<Region> impossible=regions.values().stream().filter(t -> t.size()==1).findAny().orElse(null); // if a track had been merged before, it is flagged with an empty object list. If split is impossible splitter returns a list with the same object
         if (impossible!=null) {
             logger.debug("cannot split track: {} center: {} (objects could not be split: {})", track, track.head().getRegion().getGeomCenter(false), regions.entrySet().stream().filter(e->e.getValue().size()<=1).map(Map.Entry::getKey).collect(Collectors.toList()));
             return false;
         }
         //logger.debug("Splitting {} track: {}", forward?"fw" : "bw",  Utils.toStringList(track.objects, SegmentedObject::toStringShort));
-
+        Predicate<Track> unassigned = forward ? t->t.next.isEmpty() : t->t.previous.isEmpty();
         Predicate<Track> singleNeigh = forward ? t->t.previous.size()==1 : t->t.next.size()==1;
         Predicate<Track> singleNeigh2 = t->t.next.size()==1 || t.previous.size()==1;
         Set<Track> neighborTracks = forward ? new HashSet<>(track.previous) : new HashSet<>(track.next);
@@ -337,6 +340,7 @@ public class Track implements Comparable<Track> {
             int frame = forward ? track.getFirstFrame() + i : track.getLastFrame() - i;
             boolean split = i < track.length();
             boolean start = i==0;
+            boolean gap = false;
             //logger.debug("Split: {}  frame: {}", track, frame);
             Set<Track> currentTracks;
             if (!split) {
@@ -344,23 +348,28 @@ public class Track implements Comparable<Track> {
             } else {
                 SegmentedObject toSplit = track.objects.get(ii);
                 trackEditor.setTrackHead(toSplit, toSplit, true, false);
-                List<SegmentedObject> splitSO = regionToSO(regions.get(toSplit), toSplit, factory);
-                currentTracks = splitSO.stream().map(Track::new).collect(Collectors.toSet());
+                List<Region> currentRegions = regions.get(toSplit);
+                if (currentRegions.isEmpty()) { // track has been merged, but there has been a gap
+                    currentTracks = new HashSet<Track>(){{add(new Track(toSplit));}};
+                    gap = true;
+                } else {
+                    List<SegmentedObject> splitSO = regionToSO(currentRegions, toSplit, factory);
+                    currentTracks = splitSO.stream().map(Track::new).collect(Collectors.toSet());
+                }
             }
             if (forward) {
                 Collection<Track> otherPrevTracks = split ? getAllTracksAtFrame.apply(frame-1, false).collect(Collectors.toList()) : null;
                 Collection<Track> otherCurrentTracks = start ? null : getAllTracksAtFrame.apply(frame, true).collect(Collectors.toList());
                 assigner.assignTracks(neighborTracks, currentTracks, otherPrevTracks, otherCurrentTracks, trackEditor);
                 //logger.debug("assigned prevs: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getPrevious())));
-            }
-            else {
+            } else {
                 Collection<Track> otherNextTracks = split ? getAllTracksAtFrame.apply(frame+1, true).collect(Collectors.toList()) : null;
                 Collection<Track> otherCurrentTracks = start ? null : getAllTracksAtFrame.apply(frame, false).collect(Collectors.toList());
                 assigner.assignTracks(currentTracks, neighborTracks, otherCurrentTracks, otherNextTracks, trackEditor);
                 //logger.debug("assigned nexts: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getNext())));
             }
             if (split) {
-                // merge tracks that have been assigned to the same track
+                // merge tracks that have been assigned to the same track (avoid fragmentation)
                 Map<Track, List<Track>> trackByNeigh = currentTracks.stream().filter(singleNeigh).collect(Collectors.groupingBy(forward ? t -> t.previous.get(0) : t -> t.next.get(0)));
                 trackByNeigh.forEach((n, group) -> Track.mergeTracks(group, factory, currentTracks::remove));
 
@@ -395,6 +404,9 @@ public class Track implements Comparable<Track> {
             });
             newTracks.addAll(currentTracks);
             //logger.debug("result of split. neighbors: {} currentTracks: {}", neighborTracks, currentTracks);
+            if (gap) { // all unassigned neighborTracks remain neighbors
+                neighborTracks.stream().filter(unassigned).forEach(currentTracks::add);
+            }
             neighborTracks = currentTracks;
         }
         logger.debug("Split: {} new tracks {}", track, newTracks);
@@ -492,12 +504,16 @@ public class Track implements Comparable<Track> {
         }
         // merge regions
         Utils.parallel(IntStream.rangeClosed(track1.getFirstFrame(), track1.getLastFrame()), parallel).forEach(f -> {
-            List<SegmentedObject> objects = tracks.stream().map(t -> t.getObject(f)).collect(Collectors.toList());
-            List<Region> regions = objects.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-            SegmentedObject o1 = objects.remove(0);
-            track1.splitRegions.put(o1, regions);
-            factory.setRegion(o1, Region.merge(regions, true));
-            factory.removeFromParent(objects.toArray(new SegmentedObject[0]));
+            List<SegmentedObject> objects = tracks.stream().map(t -> t.getObject(f)).filter(Objects::nonNull).collect(Collectors.toList());
+            if (objects.size()>1) {
+                List<Region> regions = objects.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                SegmentedObject o1 = objects.remove(0);
+                track1.splitRegions.put(o1, regions);
+                factory.setRegion(o1, Region.merge(regions, true));
+                factory.removeFromParent(objects.toArray(new SegmentedObject[0]));
+            } else { // a gap in one of the tracks -> only one object. flag with an empty list
+                track1.splitRegions.put(objects.get(0), Collections.emptyList());
+            }
         });
         for (Track t : otherTracks) {
             removeTrack.accept(t); // do this before next step because trackHead can be track2.head()
