@@ -286,6 +286,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         return getConfiguration().getChildParameters();
     }
     enum ARCH_TYPE {BLEND}
+    enum ATTENTION_POS_ENC_MODE {EMBEDDING, EMBEDDING_2D, RoPE, RoPE_2D, SINE, SINE_2D}
     public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration {
         // blend mode
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 128, 64, 1024).setHint("Number of filters at the feature level");
@@ -297,6 +298,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter selfAttention = new IntegerParameter("Self-Attention", 0).setLowerBound(0)
                 .setLegacyParameter((p,i)->i.setValue(((BooleanParameter)p[0]).getSelected() ? 1 : 0), new BooleanParameter("Self-Attention", false))
                 .setHint("Include a self-attention layer at the feature layer of the encoder. If 0 no self-attention is included. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
+        EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.RoPE_2D).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
         IntegerParameter categoryNumber = new IntegerParameter("Category Number", 0).setLowerBound(0).setHint("If greater than 1, a category will be predicted. <br/>Each dataset must contain an array named <em>category</em> that maps label to a category");
@@ -306,7 +308,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
-            setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, filters, blendingFilterFactor, attention, selfAttention, categoryNumber);
+            setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, filters, blendingFilterFactor, attention, selfAttention, attentionPosEncMode, categoryNumber);
         }
         public int getContraction() {
             switch (getActionValue()) {
@@ -344,6 +346,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     res.put("blending_filter_factor", blendingFilterFactor.getDoubleValue());
                     res.put("attention", attention.getValue());
                     res.put("self_attention", selfAttention.getValue());
+                    res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
                     break;
                 }
             }
