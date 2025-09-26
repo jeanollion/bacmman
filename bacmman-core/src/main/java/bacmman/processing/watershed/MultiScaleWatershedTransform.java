@@ -75,7 +75,7 @@ public class MultiScaleWatershedTransform { // TODO USE COORDSET
     
     public MultiScaleWatershedTransform(Image[] watershedMaps, ImageMask mask, List<Region>[] regionalExtrema, boolean decreasingPropagation, PropagationCriterion propagationCriterion, FusionCriterion fusionCriterion) {
         if (watershedMaps.length!= regionalExtrema.length) throw new IllegalArgumentException("Watershed maps should have same number of planes as seeds");
-        if (!Image.sameSize((List<Image>)Arrays.asList(watershedMaps))) throw new IllegalArgumentException("WatershedMaps should be of same dimensions");
+        if (!Image.allHaveSameDimensions((List<Image>)Arrays.asList(watershedMaps))) throw new IllegalArgumentException("WatershedMaps should be of same dimensions");
         if (mask==null) mask=new BlankMask( watershedMaps[0]);
         this.decreasingPropagation = decreasingPropagation;
         heap = decreasingPropagation ? new TreeSet<>(Voxel.getInvertedComparator()) : new TreeSet<>(Voxel.getComparator());

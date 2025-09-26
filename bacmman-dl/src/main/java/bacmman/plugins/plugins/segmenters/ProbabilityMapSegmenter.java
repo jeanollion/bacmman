@@ -17,7 +17,6 @@ import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.apache.commons.lang.ArrayUtils;
 import org.json.simple.JSONArray;
@@ -162,7 +161,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             Image[][] inputNI = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> getInputImages(null, structureIdx, p)).toArray(Image[][]::new);
             Image[] out;
-            if (Utils.objectsAllHaveSameProperty(Arrays.asList(inputNI), inI -> inI[0].dimensions())) out = predict(inputNI);
+            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(inputNI);
             else out = Arrays.stream(inputNI).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
             for (int ii = 0; ii<subParentTrack.size(); ++ii) {
                 //logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));

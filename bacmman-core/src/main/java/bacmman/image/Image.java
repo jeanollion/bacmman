@@ -241,7 +241,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
      */
     public static <T extends Image<T>> List<T> mergeImagesInZ(List<T> images) {
         if (images==null || images.isEmpty()) return Collections.EMPTY_LIST;
-        if (!sameSize(images)) throw new IllegalArgumentException("All images should have same size");
+        if (!allHaveSameDimensions(images)) throw new IllegalArgumentException("All images should have same size");
         int sizeZ = images.get(0).sizeZ();
         if (sizeZ==1) return new ArrayList<T>(){{add(mergeZPlanes(images));}};
         else {
@@ -255,7 +255,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
             return res;
         }
     }
-    public static <T extends Image<T>> boolean sameSize(Collection<T> images) {
+    public static <T extends Image<T>> boolean allHaveSameDimensions(Collection<T> images) {
         if (images==null || images.isEmpty()) return true;
         Iterator<T> it = images.iterator();
         T ref=it.next();
@@ -264,6 +264,18 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         }
         return true;
     }
+    public static <T extends Image<?>> boolean allHaveSameDimensionsArray(Collection<T[]> images) {
+        if (images==null || images.isEmpty()) return true;
+        Iterator<T[]> it = images.iterator();
+        T[] ref = it.next();
+        for (Image im : ref) if (!im.sameDimensions(ref[0])) return false;
+        while(it.hasNext()) {
+            for (Image im : it.next()) if (!im.sameDimensions(ref[0])) return false;
+        }
+        return true;
+    }
+
+
     @Override
     public boolean sameDimensions(BoundingBox other) {
         return sizeX==other.sizeX() && sizeY==other.sizeY() && sizeZ==other.sizeZ();

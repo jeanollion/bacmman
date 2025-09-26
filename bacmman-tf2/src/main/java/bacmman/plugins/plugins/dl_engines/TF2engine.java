@@ -184,7 +184,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
         DataBufferContainer bufferContainer = new DataBufferContainer();
         long wrapTime = 0, predictTime = 0;
         int increment = batchSize == 0 ? nSamples : (int)Math.max(1, Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) ));
-        logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, increment, nSamples);
+        logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, nSamples, increment);
         for (int idx = 0; idx<nSamples; idx+=increment) {
             int idxMax = Math.min(idx+increment, nSamples);
             logger.debug("batch: [{};{}) / [0;{})", idx, idxMax, nSamples);
