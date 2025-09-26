@@ -277,7 +277,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        BoundingBox parentBds = useParentBounds.getSelected() ? new SimpleBoundingBox(parent.getBounds()).resetOffset() : parent.getRoot().getBounds(); // post-filter: relative to parent
+        BoundingBox parentBds = useParentBounds.getSelected() ? new SimpleBoundingBox(parent.getBounds()).resetOffset() : (BoundingBox)parent.getRoot().getBounds().duplicate().translateReverse(parent.getBounds()); // post-filter: relative to parent
         childPopulation.ensureEditableRegions();
         childPopulation.getRegions().forEach(r->{
             MutableBoundingBox bds = new MutableBoundingBox(r.getBounds());

@@ -7,13 +7,20 @@ import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.Offset;
 import bacmman.plugins.ObjectFeature;
+import bacmman.plugins.Plugin;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.ToDoubleBiFunction;
 import java.util.stream.DoubleStream;
 
 public class OverlapArea implements ObjectFeature {
+    final static Logger logger = LoggerFactory.getLogger(OverlapArea.class);
+
     ParentObjectClassParameter otherOC = new ParentObjectClassParameter("Other object class", -1, -1, false, false)
             .setAutoConfiguration(ParentObjectClassParameter.autoconfigStructureInParentOtherwiseAll()) // used in processing: only parent, used in measurement: all structures are possible
             .setEmphasized(true);
@@ -22,6 +29,7 @@ public class OverlapArea implements ObjectFeature {
     enum NORM {NO_NORM, CURRENT_SIZE, OTHER_SIZE, AVERAGE_SIZE}
     EnumChoiceParameter<NORM> norm = new EnumChoiceParameter<>("Normalization", NORM.values(), NORM.CURRENT_SIZE).setEmphasized(true).setHint("OTHER_SIZE :divides overlap value by the size of the other object class.");
     RegionPopulation otherPop;
+    Offset offset;
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{otherOC, mode, norm};
@@ -30,6 +38,7 @@ public class OverlapArea implements ObjectFeature {
     @Override
     public ObjectFeature setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         otherPop = parent.getChildRegionPopulation(otherOC.getSelectedClassIdx());
+        offset = childPopulation.isAbsoluteLandmark() ? null : parent.getBounds();
         return this;
     }
 
@@ -51,7 +60,7 @@ public class OverlapArea implements ObjectFeature {
                 getNorm = (r1, r2) -> 0.5 * (r1.size() + r2.size());
         }
         double[] overlaps = otherPop.getRegions().stream()
-                .mapToDouble(r -> r.getOverlapArea(region) / getNorm.applyAsDouble(region, r)).toArray();
+                .mapToDouble(r -> r.getOverlapArea(region, null, offset) / getNorm.applyAsDouble(region, r)).toArray();
         switch (mode.getSelectedEnum()) {
             case MAX:
             default:

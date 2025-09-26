@@ -39,7 +39,7 @@ import java.util.function.BiFunction;
  * @author Jean Ollion
  * @param <T> type of ProcessingScheme
  */
-public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin { //Multithreaded
+public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin, PersistentConfiguration { //Multithreaded
     T addPreFilters(PreFilter... preFilters);
     T addPostFilters(PostFilter... postFilters);
     T addTrackPreFilters(TrackPreFilter... trackPreFilters);

@@ -278,7 +278,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 toInit = false;
                 this.setPlugin(otherPP.pluginName);
                 if (isOnePluginSet() && !ParameterUtils.setContent(pluginParameters, otherPP.pluginParameters)) {
-                    logger.warn("pluginParameter ({}): parameters for: {}({}) could not be loaded (current: {}/source:{}) (c:{}/s:{})", pluginTypeName, name, otherPP.pluginName, pluginParameters!=null?pluginParameters.size():null, otherPP.pluginParameters!=null?otherPP.pluginParameters.size():null, Utils.toStringList(pluginParameters), Utils.toStringList(otherPP.pluginParameters));
+                    logger.warn("pluginParameter ({}): parameters for: {}({}) could not be loaded (current: {}/source:{}) (c:{}/s:{})", pluginTypeName, name, otherPP.pluginName, pluginParameters!=null?pluginParameters.size():null, otherPP.pluginParameters!=null?otherPP.pluginParameters.size():null, Utils.toStringList(pluginParameters), otherPP.pluginParameters==null ? "null" : Utils.toStringList(otherPP.pluginParameters));
                 }
             }
             if (toInit) initChildList();

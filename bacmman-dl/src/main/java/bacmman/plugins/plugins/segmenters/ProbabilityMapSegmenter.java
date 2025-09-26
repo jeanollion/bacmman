@@ -165,7 +165,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
             if (Utils.objectsAllHaveSameProperty(Arrays.asList(inputNI), inI -> inI[0].dimensions())) out = predict(inputNI);
             else out = Arrays.stream(inputNI).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
             for (int ii = 0; ii<subParentTrack.size(); ++ii) {
-                logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
+                //logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
                 segM.put(subParentTrack.get(ii), imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false, false));
             }
             if (singleFrame) break;
