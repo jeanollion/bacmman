@@ -800,7 +800,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (prediction != null && prediction.dxFW != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
                 parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx fw", prediction.dxFW[gap].get(o)));
         }
-        boolean verbose = stores != null && gap == 0;
+        boolean verbose = stores != null;
         if (verbose && false) {
             for (SegmentedObject p : parentTrack) {
                 Image fwMul = prediction.multipleLinkFW[0].get(p);
@@ -834,14 +834,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkFW[gap].get(o.getParent()), 0.5)[0];
                 if (singleProb>=multipleProb && singleProb>=nullProb) {
                     if (verbose) {
-                        o.setAttribute("Link Multiplicity FW", SINGLE.toString());
-                        o.setAttribute("Link Multiplicity FW Proba", singleProb);
+                        o.setAttribute(gap==0?"Link Mul.FW" : "Link Mul.FW (gap="+gap+")", SINGLE.toString());
+                        o.setAttribute(gap==0?"Link Mul.FW Proba" : "Link Mul.FW Proba (gap="+gap+")", singleProb);
                     };
                     return new LinkMultiplicity(SINGLE, singleProb);
                 } else {
                     if (verbose) {
-                        o.setAttribute("Link Multiplicity FW", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
-                        o.setAttribute("Link Multiplicity FW Proba", Math.max(multipleProb, nullProb));
+                        o.setAttribute(gap==0?"Link Mul.FW" : "Link Mul.FW (gap="+gap+")", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
+                        o.setAttribute(gap==0?"Link Mul.FW Proba" : "Link Mul.FW Proba (gap="+gap+")", Math.max(multipleProb, nullProb));
                     }
                     return nullProb>=multipleProb ? new LinkMultiplicity(NULL, nullProb) : new LinkMultiplicity(MULTIPLE, multipleProb);
                 }
@@ -858,14 +858,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 double nullProb = BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noLinkBW[gap].get(o.getParent()), 0.5)[0];
                 if (singleProb>=multipleProb && singleProb>=nullProb) {
                     if (verbose) {
-                        o.setAttribute("Link Multiplicity BW", SINGLE.toString());
-                        o.setAttribute("Link Multiplicity BW Proba", singleProb);
+                        o.setAttribute(gap==0?"Link Mul.BW" : "Link Mul.BW (gap="+gap+")", SINGLE.toString());
+                        o.setAttribute(gap==0?"Link Mul.BW Proba" : "Link Mul.BW Proba (gap="+gap+")", singleProb);
                     };
                     return new LinkMultiplicity(SINGLE, singleProb);
                 } else {
                     if (verbose) {
-                        o.setAttribute("Link Multiplicity BW", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
-                        o.setAttribute("Link Multiplicity BW Proba", Math.max(multipleProb, nullProb));
+                        o.setAttribute(gap==0?"Link Mul.BW" : "Link Mul.BW (gap="+gap+")", (nullProb>=multipleProb ? NULL : MULTIPLE).toString());
+                        o.setAttribute(gap==0?"Link Mul.BW Proba" : "Link Mul.BW Proba (gap="+gap+")", Math.max(multipleProb, nullProb));
                     }
                     return nullProb>=multipleProb ? new LinkMultiplicity(NULL, nullProb) : new LinkMultiplicity(MULTIPLE, multipleProb);
                 }
