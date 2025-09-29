@@ -553,9 +553,9 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         if (seg instanceof ObjectSplitter) { // Predict EDM and delegate method to segmenter
             ObjectSplitter splitter = new ObjectSplitter() {
                 @Override
-                public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-                    Image EDM = predictEDM(parent, structureIdx);
-                    return ((ObjectSplitter)seg).splitObject(EDM, parent, structureIdx, object);
+                public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
+                    Image EDM = predictEDM(parent, objectClassIdx);
+                    return ((ObjectSplitter)seg).splitObject(EDM, parent, objectClassIdx, object);
                 }
 
                 @Override

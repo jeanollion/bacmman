@@ -66,7 +66,7 @@ public class WatershedObjectSplitter implements ObjectSplitter, MultiThreaded {
         this.splitVerbose=verbose;
     }
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
         double sScale = smoothScale.getValue().doubleValue();
         if (sScale>0) input = ImageFeatures.gaussianSmooth(input, sScale, false);
         input = object.isAbsoluteLandMark() ? input.cropWithOffset(object.getBounds()) : input.crop(object.getBounds());

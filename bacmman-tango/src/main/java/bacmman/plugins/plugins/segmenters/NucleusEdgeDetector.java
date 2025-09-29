@@ -113,7 +113,7 @@ public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, Tes
     }
 
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
         input = object.isAbsoluteLandMark() ? input.cropWithOffset(object.getBounds()) : input.crop(object.getBounds());
         input = getSmoothedImage(input);
         RegionPopulation res= WatershedObjectSplitter.splitInTwoInterface(input, object.getMask(), true, splitVerbose);

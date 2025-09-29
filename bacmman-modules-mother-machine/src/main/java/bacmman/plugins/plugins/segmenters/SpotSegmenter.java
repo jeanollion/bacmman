@@ -477,7 +477,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
 
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
         double scaleXY = DoubleStream.of(scale.getArrayDouble()).min().orElse(1.5);
         double scaleZ  = scaleZRatio.getDoubleValue()==0 ? scaleXY*input.getScaleXY()/input.getScaleZ() : scaleXY * scaleZRatio.getDoubleValue();
         double[] scaleA = ImageDerivatives.getScaleArray(scaleXY, scaleZ, input);

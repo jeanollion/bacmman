@@ -1432,22 +1432,22 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
         @Override
-        public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+        public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
             MutableBoundingBox minimalBounds = new MutableBoundingBox(object.getBounds());
             if (manualCurationMargin>0) {
                 BoundingBox expand = new SimpleBoundingBox(-manualCurationMargin, manualCurationMargin, -manualCurationMargin, manualCurationMargin, 0, 0);
                 minimalBounds.extend(expand);
             }
             if (object.isAbsoluteLandMark()) minimalBounds.translate(parent.getBounds().duplicate().reverseOffset());
-            Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(structureIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
+            Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(objectClassIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
             if (key == null) {
                 BoundingBox optimalBB = getOptimalPredictionBoundingBox.apply(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
                 //logger.debug("Semi automatic split : minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
-                key = new Triplet<>(parent, structureIdx, optimalBB);
+                key = new Triplet<>(parent, objectClassIdx, optimalBB);
             }
             Image edm = predictions.get(key);
             synchronized (seg) {
-                RegionPopulation pop = ((ObjectSplitter) seg).splitObject(edm, parent, structureIdx, object);
+                RegionPopulation pop = ((ObjectSplitter) seg).splitObject(edm, parent, objectClassIdx, object);
                 pop.getRegions().forEach(Region::clearVoxels);
                 if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
                 return pop;

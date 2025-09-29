@@ -96,16 +96,19 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         if (parentTrack.isEmpty()) return;
         //int parentStorage = parentTrack.get(0).getExperimentStructure().getParentObjectClassIdx(structureIdx); // always parentTrack oc idx
         int parentObjectClassIdx = parentTrack.get(0).getStructureIdx();
-        if (dup.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected structure to duplicate");
+        if (dup.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected object class to duplicate");
         logger.debug("dup: {} dup parent: {}, parentTrack: {}", dup.getSelectedClassIdx(), dup.getParentObjectClassIdx(), parentTrack.get(0).getStructureIdx());
         int sourceObjectClassIdx = dup.getSelectedClassIdx();
-        //if (dup.getParentStructureIdx()!=parentTrack.get(0).getStructureIdx() && dup.getSelectedStructureIdx()!=parentTrack.get(0).getStructureIdx()) throw new IllegalArgumentException("Parent Structure should be the same as duplicated's parent strucutre");
+        //if (dup.getParentStructureIdx()!=parentTrack.get(0).getStructureIdx() && dup.getSelectedStructureIdx()!=parentTrack.get(0).getStructureIdx()) throw new IllegalArgumentException("Parent objectClass should be the same as duplicated's parent objectClass");
         Map<SegmentedObject, SegmentedObject> sourceMapParent = getSourceMapParents(parentTrack.stream(), parentObjectClassIdx, sourceObjectClassIdx);
         Map<SegmentedObject, SegmentedObject> sourceMapDup = duplicate(sourceMapParent.keySet().stream().parallel(), structureIdx, factory, editor);
         logger.debug("duplicate for parentTrack: {} structure: {}: #{} duplicated objects, null parents: {}", parentTrack.get(0), structureIdx, sourceMapDup.size(), sourceMapParent.values().stream().filter(Objects::isNull).count());
         setParents(sourceMapDup, sourceMapParent, parentObjectClassIdx, sourceObjectClassIdx, false, factory);
         logger.debug("objects set to parents: {}", parentTrack.stream().flatMap(p -> StreamConcatenation.emptyIfNull(p.getChildren(structureIdx))).count());
         if (trimObjects.getSelected()) trimToParentBounds(parentTrack, structureIdx);
+        if (parentObjectClassIdx != dup.getParentObjectClassIdx()) { // relabel if parent changes
+            parentTrack.forEach(factory::relabelChildren);
+        }
         getTrackPreFilters(true).filter(structureIdx, parentTrack);
     }
 

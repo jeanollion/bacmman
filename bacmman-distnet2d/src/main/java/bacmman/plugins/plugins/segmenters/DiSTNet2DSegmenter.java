@@ -285,10 +285,10 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     }
     // flaw : input image is not used -> prefiltered image is used instead, which is usually equivalent
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
         ObjectSplitter splitter = getObjectSplitter();
         splitter.setSplitVerboseMode(splitVerbose);
-        return splitter.splitObject(input, parent, structureIdx, object);
+        return splitter.splitObject(input, parent, objectClassIdx, object);
     }
     // flaw : input image is not used -> prefiltered image is used instead, which is usually equivalent
     @Override

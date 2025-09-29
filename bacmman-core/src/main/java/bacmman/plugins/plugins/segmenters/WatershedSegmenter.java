@@ -236,9 +236,9 @@ public class WatershedSegmenter implements Segmenter, SegmenterSplitAndMerge, Ob
 
     // Object Splitter implementation
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
         SplitAndMergeEdge sm = new SplitAndMergeEdge(getEdgeMap(input, parent), input, mergeThreshold.getValue().doubleValue(), normalizeEdgeValues.getSelected());
-        return splitObject(input, parent, structureIdx, object, sm );
+        return splitObject(input, parent, objectClassIdx, object, sm );
     }
     boolean smVerbose;
     @Override

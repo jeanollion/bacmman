@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.post_filters;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
@@ -60,6 +61,48 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
             .setNewInstanceNameFunction((l, idx)-> "XYZ".charAt(idx)+" axis")
             .setEmphasized(true).setMaxChildCount(3).setChildrenNumber(2)
             .addValidationFunction(l -> !l.getActivatedChildren().isEmpty());
+
+    public ConvertToBoundingBox setUseParentBounds(boolean useParentBounds) {
+        this.useParentBounds.setSelected(useParentBounds);
+        return this;
+    }
+
+    public ConvertToBoundingBox resetAxisModifications() {
+        axisCond.removeAllElements();
+        return this;
+    }
+
+    public ConvertToBoundingBox addConstantAxisModification(METHOD method, int size, OUT_OF_BOUNDS_CONDITION oob, CONSTANT_SIZE_CONDITION constantSizeCondition) {
+        if (method == null || method.equals(METHOD.EXTEND_ON_SIDES) || method.equals(METHOD.FROM_OBJECT_CLASS)) throw new IllegalArgumentException("Invalid method");
+        ConditionalParameter<METHOD> c = axisCond.createChildInstance();
+        c.setActionValue(method);
+        List<Parameter> params = c.getCurrentParameters();
+        ((BoundedNumberParameter)params.get(0)).setValue(size);
+        ((EnumChoiceParameter<OUT_OF_BOUNDS_CONDITION>)params.get(1)).setSelectedEnum(oob);
+        ((EnumChoiceParameter<CONSTANT_SIZE_CONDITION>)params.get(2)).setSelectedEnum(constantSizeCondition);
+        axisCond.insert(c);
+        return this;
+    }
+
+    public ConvertToBoundingBox addExtendAxisModification(int addBefore, int addAfter, OUT_OF_BOUNDS_CONDITION oob) {
+        ConditionalParameter<METHOD> c = axisCond.createChildInstance();
+        c.setActionValue(METHOD.EXTEND_ON_SIDES);
+        List<Parameter> params = c.getCurrentParameters();
+        ((BoundedNumberParameter)params.get(0)).setValue(addBefore);
+        ((BoundedNumberParameter)params.get(1)).setValue(addAfter);
+        ((EnumChoiceParameter<OUT_OF_BOUNDS_CONDITION>)params.get(2)).setSelectedEnum(oob);
+        axisCond.insert(c);
+        return this;
+    }
+
+    public ConvertToBoundingBox addFromObjectClassAxisModification(int objectClassIdx) {
+        ConditionalParameter<METHOD> c = axisCond.createChildInstance();
+        c.setActionValue(METHOD.FROM_OBJECT_CLASS);
+        List<Parameter> params = c.getCurrentParameters();
+        ((ParentObjectClassParameter)params.get(0)).setSelectedClassIdx(objectClassIdx);
+        axisCond.insert(c);
+        return this;
+    }
 
     private static void modifyBoundingBox(SegmentedObject parent, MutableBoundingBox toModify, BoundingBox parentBounds, ConditionalParameter<METHOD> axisParameter, int axisNumber) {
         METHOD method = ((EnumChoiceParameter<METHOD>)axisParameter.getActionableParameter()).getSelectedEnum();
@@ -285,6 +328,22 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
             r.setMask(new BlankMask(new SimpleImageProperties(bds, r.getScaleXY(), r.getScaleZ())));
         });
         return childPopulation;
+    }
+
+    public Region transform(SegmentedObject parent, Region region) {
+        BoundingBox bds = transformToBox(parent, region);
+        Region res = new Region(new BlankMask(new SimpleImageProperties(bds, region.getScaleXY(), region.getScaleZ())), region.getLabel(), region.is2D());
+        res.setIsAbsoluteLandmark(region.isAbsoluteLandMark());
+        return res;
+    }
+
+    public BoundingBox transformToBox(SegmentedObject parent, Region region) {
+        BoundingBox parentBds = useParentBounds.getSelected() ? new SimpleBoundingBox(parent.getBounds()).resetOffset() : (BoundingBox)parent.getRoot().getBounds().duplicate().translateReverse(parent.getBounds()); // post-filter: relative to parent
+        MutableBoundingBox bds = new MutableBoundingBox(region.getBounds());
+        if (region.isAbsoluteLandMark()) bds.translateReverse(parent.getBounds());
+        this.axisCond.getActivatedChildren().forEach(axisParam -> modifyBoundingBox(parent, bds, parentBds, axisParam, getAxis(axisParam.getName())));
+        if (region.isAbsoluteLandMark()) bds.translate(parent.getBounds());
+        return bds;
     }
 
     @Override

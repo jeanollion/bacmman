@@ -28,7 +28,7 @@ import bacmman.image.Image;
  * @author Jean Ollion
  */
 public interface ObjectSplitter extends ImageProcessingPlugin.ImageProcessingPluginTemporalNeighborhood {
-    RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object);
+    RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object);
     void setSplitVerboseMode(boolean verbose);
 
 }

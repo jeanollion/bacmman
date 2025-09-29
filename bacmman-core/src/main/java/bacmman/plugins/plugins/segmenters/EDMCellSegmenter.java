@@ -137,8 +137,8 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
 
     // Object Splitter implementation
     @Override
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        return splitObject(input, parent, structureIdx, object, initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent)) );
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
+        return splitObject(input, parent, objectClassIdx, object, initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent)) );
     }
 
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMerge sm) {
