@@ -70,4 +70,27 @@ public interface ImageMask<I extends ImageMask<I>> extends ImageProperties<I> {
             };
         }
     }
+
+    static ImageMask crop(ImageMask mask, BoundingBox box) {
+        // box coordinates are relative to mask .
+        return cropWithOffset(mask, box.duplicate().translate(mask));
+    }
+
+    static ImageMask cropWithOffset(ImageMask mask, BoundingBox box) {
+        // box & mask coordinates are absolute
+        ImageProperties props = new SimpleImageProperties(box, mask.getScaleXY(), mask.getScaleZ());
+        PredicateMask.InsideMaskFunction insideMask = (x, y, z) -> { // x, y, z relative to box
+            if (!box.contains(x, y, z)) return false;
+            return mask.containsWithOffset(x + box.xMin(), y + box.yMin(), z + box.zMin());
+        };
+        PredicateMask.InsideMaskXYFunction insideMaskXY = (xy, z) -> { // xy, z relative to box
+            int y = xy / box.sizeX();
+            int x = xy % box.sizeX();
+            if (!box.contains(x, y, z)) return false;
+            return mask.containsWithOffset(x + box.xMin(), y + box.yMin(), z + box.zMin());
+        };
+        boolean is2D = box.sizeZ()==1 && mask.sizeZ()==1;
+        return new PredicateMask(props, insideMask, insideMaskXY, is2D);
+    }
+
 }
