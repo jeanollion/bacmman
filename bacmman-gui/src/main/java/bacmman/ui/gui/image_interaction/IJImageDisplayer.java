@@ -553,7 +553,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     }
 
     @Override
-    public void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
+    public void displayArrow(Point start, Vector direction, int frameStart, int frameEnd, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
         Image im = getCurrentImage();
         if (im == null) return;
         int displayedSlice = getFrame(im);
@@ -561,10 +561,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, displayedSlice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().TRACK_ARROW_STROKE_WIDTH;
-        if (additionalOffset != null) start = start.duplicate().translate(additionalOffset);
         Point end = start.duplicate().translate(direction);
+        Offset additionalOffsetStart = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frameStart, displayedSlice) : null;
+        if (additionalOffsetStart != null) start = start.duplicate().translate(additionalOffsetStart);
+        Offset additionalOffsetEnd = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frameEnd, displayedSlice) : null;
+        if (additionalOffsetEnd != null) end = end.translate(additionalOffsetEnd);
         if (arrowStart && !arrowEnd) {
             Point temp = start;
             start = end;

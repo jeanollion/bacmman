@@ -544,8 +544,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(0), off), avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(1), off)).reverse();
                             Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(0), off), avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(1), off)).reverse();
                             logger.debug("Gradient vector: o={} center: {} p1={} grad={}, norm={} p2={} grad={}, norm={}", o, center, v1Max, v1, v1.norm(), v2Max, v2, v2.norm());
-                            disp.displayArrow(Point.asPoint((Offset)v1Max), v1, o.getFrame(), false, true, 0, colorMap.get(o));
-                            disp.displayArrow(Point.asPoint((Offset)v2Max), v2, o.getFrame(), false, true, 0, colorMap.get(o));
+                            disp.displayArrow(Point.asPoint((Offset)v1Max), v1, o.getFrame(), o.getFrame(), false, true, 0, colorMap.get(o));
+                            disp.displayArrow(Point.asPoint((Offset)v2Max), v2, o.getFrame(), o.getFrame(), false, true, 0, colorMap.get(o));
                         });
                         disp.updateDisplay();
                     }
@@ -928,7 +928,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         logger.debug("After linking {}: edges: {} (total number of objects: {})", gap==0?"":"(gap=={"+gap+"})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
         Set<UnaryPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor, true, true, gap==0);
-        if (stores!=null && gap == 0) {
+        if (stores!=null) {
             parentTrack.forEach(p -> {
                 stores.get(p).addMisc("Display Previous Contours", sel -> {
                     if (p.getPrevious()==null) return;
@@ -971,10 +971,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     OverlayDisplayer disp = stores.get(p).overlayDisplayer;
                     if (disp != null) {
                         sel.forEach(o -> {
-                            Offset off = o.getParent().getBounds().duplicate().reverseOffset();
-                            Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translate(off);
-                            Vector vector = new Vector(dxBWMap.get(o), dyBWMap.get(o)).reverse();
-                            disp.displayArrow(start, vector, o.getFrame(), false, true, 0, colorMap.get(o));
+                            if ((gap == 0 && SINGLE.equals(lmBW.get(o).lm) ) || (o.getPrevious() != null && o.getPrevious().getFrame() == o.getFrame() - 1 - gap)) {
+                                Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translateRev(o.getParent().getBounds());
+                                Vector vector = new Vector(dxBWMap.get(o), dyBWMap.get(o)).reverse();
+                                int frameEnd = o.getPrevious() != null ? o.getPrevious().getFrame() : o.getFrame() - 1;
+                                disp.displayArrow(start, vector, o.getFrame(), o.getFrame() - 1 - gap, false, true, 0, colorMap.get(o));
+                            }
                         });
                         disp.updateDisplay();
                     }
@@ -986,10 +988,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     OverlayDisplayer disp = stores.get(p).overlayDisplayer;
                     if (disp != null) {
                         sel.forEach(o -> {
-                            Offset off = o.getParent().getBounds().duplicate().reverseOffset();
-                            Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translate(off);
-                            Vector vector = new Vector(dxFWMap.get(o), dyFWMap.get(o)).reverse();
-                            disp.displayArrow(start, vector, o.getFrame(), false, true, 0, colorMap.get(o));
+                            if ((gap == 0 && SINGLE.equals(lmFW.get(o).lm) ) || (o.getNext() != null && o.getNext().getFrame() == o.getFrame() + 1 + gap)) {
+                                Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translateRev(o.getParent().getBounds());
+                                Vector vector = new Vector(dxFWMap.get(o), dyFWMap.get(o)).reverse();
+                                int frameEnd = o.getNext() != null ? o.getNext().getFrame() : o.getFrame() + 1;
+                                disp.displayArrow(start, vector, o.getFrame(), o.getFrame() + 1 + gap, false, true, 0, colorMap.get(o));
+                            }
                         });
                         disp.updateDisplay();
                     }
