@@ -127,7 +127,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
         int nFrames = inputImages.singleFrameChannel(channelIdx) ? 1 : inputImages.getFrameNumber();
         int minFrame = inputImages.getMinFrame();
         preProcessedImagesManager = Core.getDiskBackedManager(inputImages.getTmpDirectory());
-        preProcessedImagesManager.startDaemon(0.75, 2000);
+        preProcessedImagesManager.startDaemon(0.75, 500);
         preProcessedImages = new HashMap<>(nFrames);
         ImageIO imageIO = new ImageIO() {
             @Override

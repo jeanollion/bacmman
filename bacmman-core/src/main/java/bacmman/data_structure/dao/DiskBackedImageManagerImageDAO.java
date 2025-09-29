@@ -13,6 +13,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     final ImageDAO imageDAO;
     final String position;
     Thread daemon;
+    double memoryFraction;
     long daemonTimeInterval;
     boolean stopDaemon = false;
     boolean freeingMemory = false;
@@ -29,6 +30,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     @Override
     public synchronized boolean startDaemon(double memoryFraction, long timeInterval) {
         if (daemon != null ) return false;
+        this.memoryFraction=memoryFraction;
         Runnable run = () -> {
             while(true) {
                 freeMemory(memoryFraction, true);
@@ -133,7 +135,8 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     protected void freeMemory(double memoryFraction, boolean fromDaemon) {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
-        if (used <= maxUsed) return;
+        if (used <= maxUsed || freeingMemory) return;
+        maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
         freeingMemory = true;
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
             if (!queue.isEmpty()) {
@@ -195,6 +198,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 }
             }
         }
+        freeMemory(memoryFraction);
         return im;
     }
 

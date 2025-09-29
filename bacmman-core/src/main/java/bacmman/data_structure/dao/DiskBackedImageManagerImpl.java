@@ -21,6 +21,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     Map<DiskBackedImage, File> files = new ConcurrentHashMap<>();
     Thread daemon;
     long daemonTimeInterval;
+    double memoryFraction;
     boolean stopDaemon = false;
     boolean freeingMemory = false;
     final String directory;
@@ -30,6 +31,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     @Override
     public synchronized boolean startDaemon(double memoryFraction, long timeInterval) {
         if (daemon != null ) return false;
+        this.memoryFraction=memoryFraction;
         Runnable run = () -> {
             while(true) {
                 freeMemory(memoryFraction, true);
@@ -74,7 +76,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     protected void freeMemory(double memoryFraction, boolean fromDaemon) {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
-        if (used <= maxUsed) return;
+        if (used <= maxUsed || freeingMemory) return;
+        maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
         long toFree = used - maxUsed;
         freeingMemory = true;
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
@@ -111,6 +114,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             queue.remove(fmi);
             queue.add(fmi);
         }
+        freeMemory(memoryFraction);
         return res;
     }
 

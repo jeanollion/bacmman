@@ -37,7 +37,7 @@ public class DiskBackedImageManagerProvider {
     }
     public synchronized DiskBackedImageManager getManager(String directory) {
         DiskBackedImageManager manager = managers.get(directory);
-        manager.startDaemon(0.75, 2000);
+        manager.startDaemon(0.75, 500);
         return manager;
     }
 
@@ -50,7 +50,7 @@ public class DiskBackedImageManagerProvider {
                     if (manager!=null) manager.clear(true);
                     manager = new DiskBackedImageManagerImageDAO(position, imageDAO);
                     managers.put(position, manager);
-                    manager.startDaemon(0.75, 2000);
+                    manager.startDaemon(0.75, 500);
                 }
             }
         }
