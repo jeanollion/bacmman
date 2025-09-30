@@ -240,6 +240,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int minFrameIdx = search(sortedFrames, 0, minFrame, 0);
             int maxFrame = getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), nGaps.getIntValue()).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
             int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), search(sortedFrames, maxIdx, maxFrame, 0) + 1);
+            //logger.debug("frame: [{}; {}] idx: [{}; {}]", minFrame, maxFrame, minFrameIdx, maxFrameIdx);
             List<Map<Integer, Image>> allImages = getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), null);
             PredictionResults prediction = predict(allImages, sortedFrames, subParentTrack, prevPrediction, null); // actually appends to prevPrediction
             assigner.setPrediction(prediction);
@@ -262,22 +263,20 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             // clear images / voxels / masks to free-memory and leave the last item for next prediction
             int maxF = subParentTrack.get(0).getFrame();
-            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1));
+            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1 + nGaps));
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1 + nGaps); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.edm.get(p), null), false, false));
                 prediction.gdcm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.gdcm.get(p), null), false, false));
-                if (i>0 || j>0) {
-                    prediction.dxBW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxBW[0].get(p), null), false, false));
-                    prediction.dyBW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyBW[0].get(p), null), false, false));
-                    prediction.noLinkBW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkBW[0].get(p), new ImageFloatU8Scale("noLinkBW", prediction.noLinkBW[0].get(p), 255.)), false, false));
-                    prediction.multipleLinkBW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkBW[0].get(p), new ImageFloatU8Scale("multipleLinkBW", prediction.multipleLinkBW[0].get(p), 255.)), false, false));
-                }
-                if (!last || j<subParentTrack.size()-1) {
-                    prediction.noLinkFW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkFW[0].get(p), new ImageFloatU8Scale("noLinkFW", prediction.noLinkFW[0].get(p), 255.)), false, false));
-                    prediction.multipleLinkFW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkFW[0].get(p), new ImageFloatU8Scale("multipleLinkFW", prediction.multipleLinkFW[0].get(p), 255.)), false, false));
-                    prediction.dxFW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxFW[0].get(p), null), false, false));
-                    prediction.dyFW[0].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyFW[0].get(p), null), false, false));
+                for (int g = 0; g<nGaps; ++g) {
+                    prediction.dxBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxBW[g].get(p), null), false, false));
+                    prediction.dyBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyBW[g].get(p), null), false, false));
+                    prediction.noLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkBW[g].get(p), new ImageFloatU8Scale("noLinkBW", prediction.noLinkBW[g].get(p), 255.)), false, false));
+                    prediction.multipleLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkBW[g].get(p), new ImageFloatU8Scale("multipleLinkBW", prediction.multipleLinkBW[g].get(p), 255.)), false, false));
+                    prediction.noLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkFW[g].get(p), new ImageFloatU8Scale("noLinkFW", prediction.noLinkFW[g].get(p), 255.)), false, false));
+                    prediction.multipleLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkFW[g].get(p), new ImageFloatU8Scale("multipleLinkFW", prediction.multipleLinkFW[g].get(p), 255.)), false, false));
+                    prediction.dxFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxFW[g].get(p), null), false, false));
+                    prediction.dyFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyFW[g].get(p), null), false, false));
                 }
                 if (p.getFrame()>maxF) maxF = p.getFrame();
                 p.getChildren(objectClassIdx).forEach(o -> { // save memory
@@ -285,7 +284,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     o.getRegion().clearVoxels();
                     o.getRegion().clearMask();
                 });
-                p.flushImages(true, trackPreFilters==null || trackPreFilters.isEmpty());
+                int nextMinFrame = last ? -1 : getNeighborhood(sortedFrames, sortedFrames[maxIdx], inputWindow.getIntValue(), false, frameSubsampling.getIntValue(), nGaps).stream().mapToInt(f->f).min().orElse(-1);
+                if (last || p.getFrame()<nextMinFrame) p.flushImages(true, trackPreFilters==null || trackPreFilters.isEmpty());
             }
             System.gc();
             switch (ppMode) {
