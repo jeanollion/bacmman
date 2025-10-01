@@ -211,7 +211,7 @@ public class ExtractDataset extends JDialog {
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
         int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
-        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, false, eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 

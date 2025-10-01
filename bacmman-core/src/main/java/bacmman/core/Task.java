@@ -89,6 +89,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         List<FeatureExtractor.Feature> extractDSFeatures;
         List<String> extractDSSelections;
         int[] extractDSDimensions;
+        boolean extractDSExtend;
         int[] extractDSEraseTouchingContoursOC;
         boolean extractDSTracking;
         int extractDSSubsamplingFactor=1;
@@ -137,6 +138,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 for (String s : extractDSSelections) extractDSSels.add(s);
                 extractDS.put("selections", extractDSSels);
                 extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
+                extractDS.put("extendToDimensions", extractDSExtend);
                 JSONArray extractDSFeats = new JSONArray();
                 for (FeatureExtractor.Feature feature: extractDSFeatures) {
                     JSONObject feat = new JSONObject();
@@ -227,6 +229,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                             feat.containsKey("selectionFilter")?(String)feat.get("selectionFilter"):null));
                 }
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
+                extractDSExtend = (Boolean)extractDS.getOrDefault("extendToDimensions", false);
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
                 else extractDSEraseTouchingContoursOC = new int[0];
                 if (extractDS.containsKey("extractDSSubsamplingFactor")) extractDSSubsamplingFactor = ((Number)extractDS.get("extractDSSubsamplingFactor")).intValue();
@@ -438,6 +441,11 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public int[] getExtractDSDimensions() {
         return extractDSDimensions;
     }
+
+    public boolean getExtractDSExtend() {
+        return extractDSExtend;
+    }
+
     public int[] getExtractDSEraseTouchingContoursOC() {
         return extractDSEraseTouchingContoursOC;
     }
@@ -493,11 +501,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
         return measurements;
     }
 
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, boolean tracking, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, boolean extendToDimensions, int[] eraseTouchingContoursOC, boolean tracking, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
+        this.extractDSExtend = extendToDimensions;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         this.extractDSSpatialDownsamplingFactor = spatialDownSamplingFactor;
         this.extractDSSubsamplingFactor = subsamplingFactor;
@@ -695,6 +704,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (extractDSFile!=null || extractDSFeatures!=null || extractDSSelections!=null || extractDSDimensions!=null) {
             if (extractDSDimensions==null || extractDSDimensions.length!=2) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
+            }
+            if (extractDSExtend && IntStream.of(extractDSDimensions).anyMatch(d->d==0)) {
+                errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions (extend mode):"+ Utils.toStringArray(extractDSDimensions))));
+            }
+            if (extractDSExtend && extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).getObjectClassIdx()==-1)) {
+                errors.addExceptions(new Pair(dbName, new Exception("Parent objects cannot be root in extend mode")));
             }
             if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("No features to extract")));
             if (extractDSFeatures.stream().anyMatch(f->f.getName()==null || f.getName().isEmpty())) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid features names")));
@@ -1143,6 +1158,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (extractDSDimensions!=null) {
             addSep.run();
             sb.append("ExtractDSDimensions:").append(Utils.toStringArray(extractDSDimensions));
+            if (extractDSExtend) sb.append("(extend)");
         }
         if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) {
             addSep.run();

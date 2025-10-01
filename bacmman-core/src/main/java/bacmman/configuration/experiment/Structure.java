@@ -278,7 +278,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         return Math.max(segmentationParent.getSelectedIndex(), parentStructure.getSelectedIndex());
     }
     
-    public void setParentStructure(int parentIdx) {
+    public Structure setParentStructure(int parentIdx) {
         if (parentStructure.getSelectedIndex()!=parentIdx) parentStructure.setSelectedIndex(parentIdx); // test to avoid loop with listeners
         int segParent = segmentationParent.getSelectedIndex();
         if (segParent<parentIdx) segmentationParent.setSelectedIndex(parentIdx);
@@ -288,11 +288,18 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
                 if (!p.includeCurrent()) p.setMaxStructureIdx(getIndex());
             });
         }
+        return this;
     }
 
-    public void setSegmentationParentStructure(int segmentationParentStructureIdx) {
+    public Structure setSegmentationParentStructure(int segmentationParentStructureIdx) {
         if (segmentationParentStructureIdx<parentStructure.getSelectedClassIdx()) segmentationParentStructureIdx = parentStructure.getSelectedClassIdx();
         if (segmentationParentStructureIdx != segmentationParent.getSelectedClassIdx()) segmentationParent.setSelectedIndex(segmentationParentStructureIdx);
+        return this;
+    }
+
+    public Structure setChannelImage(int channelImageIdx) {
+        this.channelImage.setSelectedIndex(channelImageIdx);
+        return this;
     }
 
     public int getChannelImage() {

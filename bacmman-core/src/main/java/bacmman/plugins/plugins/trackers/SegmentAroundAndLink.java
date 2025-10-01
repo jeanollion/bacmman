@@ -1,11 +1,10 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.*;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.image.Offset;
+import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
@@ -15,14 +14,13 @@ import bacmman.utils.geom.Point;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
+public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessingPlugin, Hint {
 
-    protected ObjectClassParameter referenceObjectClass = new ObjectClassParameter("Reference Object Class");
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, false).setEmphasized(true);
     FloatParameter minOverlap = new FloatParameter("Min Overlap", 0.5).setLowerBound(0).setUpperBound(1).setHint("Segmented objects with overlap fraction to reference object lower than this value are discarded");
     ArrayNumberParameter box = new ArrayNumberParameter("Box", 1, new BoundedNumberParameter("Axis", 0, 0, 1, null)).setMaxChildCount(3).setMinChildCount(2)
             .setNewInstanceNameFunction((a,i)->"XYZ".charAt(i) + " axis").setHint("Bounds around the reference object class");
-    Parameter[] parameters = new Parameter[] {referenceObjectClass, segmenter, box, minOverlap};
+    Parameter[] parameters = new Parameter[] {segmenter, box, minOverlap};
 
 
     protected ConvertToBoundingBox getBoxConverter() {
@@ -34,13 +32,24 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        int referenceObjectClass = this.referenceObjectClass.getSelectedClassIdx();
+        if (parentTrack.isEmpty()) return;
+        int referenceObjectClass = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(objectClassIdx);
+        if (referenceObjectClass < 0) throw new IllegalArgumentException("Segmentation parent cannot be root");
+        int parentOC = parentTrack.get(0).getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
+        if (parentOC != referenceObjectClass) { // temporarily change parent object class
+            Structure s = parentTrack.get(0).dao.getExperiment().getStructure(objectClassIdx);
+            s.setParentStructure(referenceObjectClass);
+        }
         Map<SegmentedObject, List<SegmentedObject>> refTracks = SegmentedObjectUtils.getAllTracks(parentTrack, referenceObjectClass);
         SegmentOnly ps = new SegmentOnly(segmenter).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
         Map<SegmentedObject, SegmentedObject> refMapSegmentedObject = new HashMap<>();
         ConvertToBoundingBox boxConverter = getBoxConverter();
         for (List<SegmentedObject> refTrack : refTracks.values()) {
             segment(objectClassIdx, refTrack, ps, boxConverter, refMapSegmentedObject, factory, editor);
+        }
+        if (parentOC != referenceObjectClass) { // reset parent object class
+            Structure s = parentTrack.get(0).dao.getExperiment().getStructure(objectClassIdx);
+            s.setParentStructure(parentOC);
         }
         // set children to parents
         for (SegmentedObject p : parentTrack) {
@@ -49,9 +58,9 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
         // set links : copy ref links
         refMapSegmentedObject.forEach((ref, o) -> {
             if (ref.getPrevious() != null) o.setPrevious(refMapSegmentedObject.get(ref.getPrevious())); // single link
-            else SegmentedObjectEditor.getPrevious(ref).map(refMapSegmentedObject::get).forEach(prev -> prev.setNext(o)); // split link
+            else SegmentedObjectEditor.getPrevious(ref).map(refMapSegmentedObject::get).filter(Objects::nonNull).forEach(prev -> prev.setNext(o)); // split link
             if (ref.getNext() != null) o.setNext(refMapSegmentedObject.get(ref.getNext())); // single link
-            else SegmentedObjectEditor.getNext(ref).map(refMapSegmentedObject::get).forEach(next -> next.setPrevious(o)); // merge link
+            else SegmentedObjectEditor.getNext(ref).map(refMapSegmentedObject::get).filter(Objects::nonNull).forEach(next -> next.setPrevious(o)); // merge link
             o.setTrackHead(refMapSegmentedObject.get(ref.getTrackHead()));
         });
     }
@@ -60,15 +69,11 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
     protected void segment(int objectClassIdx, List<SegmentedObject> refTrack, SegmentOnly ps, ConvertToBoundingBox boxConverter, Map<SegmentedObject, SegmentedObject> refMapsegmentedObject, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (refTrack.isEmpty()) return;
         int parentOC = refTrack.get(0).getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
-        boolean needCreateParentOC = parentOC < 0; // parent is root -> need to create a temp parent object class.
-        //if (needCreateParentOC) {
-        //    refTrack.get(0).dao.getExperiment()
-        //}
-
+        int segParentOC = refTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(objectClassIdx);
         // parent track = box around reference object
         List<SegmentedObject> segmentationParentTrack = refTrack.stream().map(o -> {
             Region r = boxConverter.transform(o.getParent(), o.getRegion());
-            return new SegmentedObject(o.getFrame(), parentOC, o.getIdx(), r, o.getRoot());
+            return new SegmentedObject(o.getFrame(), segParentOC, o.getIdx(), r, o.getParent());
         }).collect(Collectors.toList());
         ps.segmentAndTrack(objectClassIdx, segmentationParentTrack, factory, editor);
         // in case there are several segmented object : compute maximal overlap between segmented object and ref object
@@ -76,9 +81,23 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
             SegmentedObject p = segmentationParentTrack.get(i);
             SegmentedObject ref = refTrack.get(i);
             List<SegmentedObject> cList = p.getChildren(objectClassIdx).collect(Collectors.toList());
+            if (stores != null) {
+                List<Region> regions = cList.stream().map(o -> o.getRegion().duplicate()).collect(Collectors.toList());
+                ImageProperties props = new SimpleImageProperties(p.getMask());
+                //ref.getParent()
+                stores.get(ref.getParent(parentOC)).addMisc("Display Raw Segmentation", sel -> {
+                    //logger.debug("disp raw seg: {}+{} -> {}", ref, cList, sel);
+                    if (sel.stream().anyMatch(o -> o.equals(ref) || cList.contains(o))) {
+                        Core.showImage(new RegionPopulation(regions, props).getLabelMap().setName("Raw Seg @" + ref.toString()));
+                        Core.showImage(p.getRawImage(objectClassIdx).setName("Frame @" + ref.toString()));
+                    }
+                });
+            }
             SegmentedObject o = null;
             if (!cList.isEmpty()) {
-                double[] overlap = cList.stream().mapToDouble(c -> c.getRegion().getOverlapArea(ref.getRegion())).toArray();
+                double size = ref.getRegion().size();
+                double[] overlap = cList.stream().mapToDouble(c -> c.getRegion().getOverlapArea(ref.getRegion())).map(d -> d/size).toArray();
+                //logger.debug("ref: {} overlaps: {}", ref, overlap);
                 int maxOverlap = ArrayUtil.max(overlap);
                 if (overlap[maxOverlap] >= minOverlap.getDoubleValue()) {
                     o = cList.get(maxOverlap);
@@ -87,8 +106,9 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
             }
             // if no object or no overlapping objects -> copy ref object // TODO as option
             if (o == null) o = new SegmentedObject(ref.getFrame(), objectClassIdx, ref.getIdx(), ref.getRegion().duplicate(true), p);
-            refMapsegmentedObject.put(ref, o);
+            if (o != null) refMapsegmentedObject.put(ref, o);
         }
+
     }
 
     @Override
@@ -96,11 +116,11 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
         Segmenter segmenter = this.segmenter.instantiatePlugin();
         if (!(segmenter instanceof ObjectSplitter)) return null;
         ObjectSplitter splitter = ((ObjectSplitter)segmenter);
-        int refObjectClass = this.referenceObjectClass.getSelectedClassIdx();
         ConvertToBoundingBox boxConverter = getBoxConverter();
         return new ObjectSplitter() {
             @Override
             public RegionPopulation splitObject(Image input, SegmentedObject parent, int objectClassIdx, Region object) {
+                int refObjectClass = parent.getExperimentStructure().getSegmentationParentObjectClassIdx(objectClassIdx);
                 Offset offset = object.isAbsoluteLandMark() ? null : parent.getBounds();
                 // get reference object
                 Map<SegmentedObject, Double> overlap = new HashMap<>();
@@ -129,11 +149,10 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
     }
 
     @Override
-    public ManualSegmenter getManualSegmenter() { // TODO delegate to segmenter
+    public ManualSegmenter getManualSegmenter() {
         Segmenter segmenter = this.segmenter.instantiatePlugin();
         if (!(segmenter instanceof ManualSegmenter)) return null;
         ManualSegmenter manualSegmenter = (ManualSegmenter) segmenter;
-        int refObjectClass = this.referenceObjectClass.getSelectedClassIdx();
         ConvertToBoundingBox boxConverter = getBoxConverter();
         return new ManualSegmenter() {
             @Override
@@ -145,8 +164,11 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
             public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
                 List<Region> res = new ArrayList<>(seedsXYZ.size());
                 boolean is2D = parent.getExperimentStructure().is2D(objectClassIdx, parent.getPositionName());
+                int refObjectClass = parent.getExperimentStructure().getSegmentationParentObjectClassIdx(objectClassIdx);
                 for (Point seed : seedsXYZ) {
-                    Region box = boxConverter.transform(parent,  new Region(seed.asVoxel(), 1, is2D, parent.getScaleXY(), parent.getScaleZ()));
+                    SegmentedObject ref = parent.getChildren(refObjectClass).filter(o -> o.getRegion().contains(seed)).findFirst().orElse(null);
+                    if (ref==null) continue;
+                    Region box = boxConverter.transform(ref,  new Region(seed.asVoxel(), 1, is2D, parent.getScaleXY(), parent.getScaleZ()));
                     SegmentedObject newParent = new SegmentedObject(parent.getFrame(), parent.getStructureIdx(), parent.getIdx(), box, parent.getParent());
                     input = input.cropWithOffset(box.getBounds());
                     segmentationMask = ImageMask.cropWithOffset(segmentationMask, box.getBounds());
@@ -184,6 +206,13 @@ public class SegmentAroundAndLink implements TrackerSegmenter, Hint, DevPlugin {
 
     @Override
     public String getHintText() {
-        return "This plugin takes a previously processed (segmented + tracked) object class (e.g., cell nuclei) and a segmenter module. For each track, it defines a box around the objects, runs the segmentation algorithm, selects the most overlapping object in each frame, and copies the tracking links from the original objects to the newly segmented ones. Its typical use case is to segment and track cytoplasms based on previously processed nuclei.";
+        return "This plugin takes a previously processed (segmented + tracked) object class (e.g., cell nuclei) which is defined as the <em>Segmentation Parent</em> object class and a segmenter module. <br>For each track, it defines a box around the objects, runs the segmentation algorithm, selects the most overlapping object in each frame, and copies the tracking links from the original objects to the newly segmented ones. Its typical use case is to segment and track cytoplasms based on previously processed nuclei.";
+    }
+
+    // test
+    Map<SegmentedObject, TestDataStore> stores;
+    @Override
+    public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
+        this.stores = stores;
     }
 }

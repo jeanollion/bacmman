@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6)};
@@ -73,6 +74,15 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ArrayNumberParameter extractDims = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
+    BooleanParameter extendToDims = new BooleanParameter("Extend", false)
+            .addValidationFunction(b -> {
+                if (b.getSelected()) {
+                    if (IntStream.of(extractDims.getArrayInt()).anyMatch(i -> i==0)) return false; // dimension cannot be null
+                    if (selMode.getSelectedEnum().equals(SELECTION_MODE.NEW)) return parentObjectClass.getSelectedIndex()>=0; // also check that selection are not from root
+                    else return extractSel.getSelectedSelections().noneMatch(s -> s.getObjectClassIdx()<0);
+                }
+                else return true;
+            }).setHint("If true, extracted images are extended to target dimensions otherwise it is resampled if necessary. <br>In extend mode, dimensions cannot be null, and selection cannot be of viewfield objects (root)");
     IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
 
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
@@ -81,7 +91,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
 
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, selModeCond, selectionFilter, spatialDownsampling);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, extendToDims, selModeCond, selectionFilter, spatialDownsampling);
 
 
     @Override
@@ -126,7 +136,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
         labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, "raw", extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), compression);
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), extendToDims.getSelected(), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

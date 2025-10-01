@@ -68,6 +68,9 @@ public class SegmentedObjectAccessor {
         o.setIdx(newIdx);
     }
 
+
+    public void setId(SegmentedObject o, Object newId) {o.id = newId; }
+
     public void relabelChildren(SegmentedObject o, int objectClassIdx, Collection<SegmentedObject> modifiedObjectsStore) {
         o.relabelChildren(objectClassIdx, modifiedObjectsStore);
     }
