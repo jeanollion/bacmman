@@ -387,7 +387,6 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("frame_window", frameWindow.toJSONEntry());
             res.put("next", next.toJSONEntry());
             if (categoryNumber.getIntValue() > 1) res.put("category_number", categoryNumber.getIntValue());
-            res.put("inference_gap_number", nGaps.toJSONEntry());
             switch (getActionValue()) {
                 case BLEND:
                 default: {
@@ -400,6 +399,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     res.put("attention", attention.getValue());
                     res.put("self_attention", selfAttention.getValue());
                     res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
+                    if (getCurrentParameters().contains(nGaps)) res.put("inference_gap_number", nGaps.toJSONEntry());
                     break;
                 }
             }
