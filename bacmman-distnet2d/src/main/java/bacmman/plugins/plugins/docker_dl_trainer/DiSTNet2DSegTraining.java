@@ -36,10 +36,10 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             return l.getChildCount() == channelNames.getChildCount();
         } );
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, new ElasticDeformParameter("Elastic Deform"), illumAugList };
-    ArchitectureParameter arch = new ArchitectureParameter("Architecture");
+    DiSTNet2DTraining.ArchitectureParameter arch = new DiSTNet2DTraining.ArchitectureParameter("Architecture", false, 0);
     BooleanParameter excludeEmpty = new BooleanParameter("Exclude Empty Frames", true).setHint("When a timelapse dataset has sparesly annotated frames, only consider frames that contains annotations");
-    Parameter[] otherDatasetParameters = new Parameter[]{excludeEmpty, new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
-    DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters("Segmentation", DiSTNet2DTraining.SegmentationParameters.CENTER_MODE.MEDOID, DiSTNet2DTraining.SegmentationParameters.CENTER_MODE.GEOMETRICAL);
+    Parameter[] otherDatasetParameters = new Parameter[]{excludeEmpty, new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE).appendAnchorMaskIdxHint("0 = target object class idx. i &gt; 0 = additional label of index i-1")};
+    DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters("Segmentation", true, DiSTNet2DTraining.SegmentationParameters.CENTER_MODE.MEDOID, DiSTNet2DTraining.SegmentationParameters.CENTER_MODE.GEOMETRICAL);
     Parameter[] otherParameters = new Parameter[]{segmentationParam, arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
@@ -135,7 +135,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
-        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, "raw", extractZAxisParameter.getConfig()));
+        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
         return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), extendToDims.getSelected(), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), compression);
     }
 
@@ -145,7 +145,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
 
     @Override
     public DLModelMetadata getDLModelMetadata(String workingDirectory) {
-        ArchitectureParameter archP = (ArchitectureParameter)getConfiguration().getOtherParameters()[1];
+        DiSTNet2DTraining.ArchitectureParameter archP = (DiSTNet2DTraining.ArchitectureParameter)getConfiguration().getOtherParameters()[1];
         TrainingConfigurationParameter.DatasetParameter p;
         if (getConfiguration().getDatasetList().getChildCount() > 0) {
             if (getConfiguration().getDatasetList().getActivatedChildCount() > 0) p = getConfiguration().getDatasetList().getActivatedChildren().get(0);
@@ -184,67 +184,5 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
     }
-    enum ARCH_TYPE {ENC_DEC}
-    public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration {
-        BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 128, 64, 1024).setHint("Number of filters at the feature level");
-        BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 2, 2, 3).addListener(p-> {
-            SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);
-            list.setChildrenNumber(p.getIntValue()-1);
-        });
-        SimpleListParameter<BooleanParameter> skip = new SimpleListParameter<>("Skip Connections", new BooleanParameter("Skip Connection", true))
-                .setChildrenNumber(downsamplingNumber.getIntValue()-1)
-                .setNewInstanceNameFunction((l, i) -> "Level: "+(i+1)).setAllowDeactivable(false).setAllowMoveChildren(false).setAllowModifications(false)
-                .setHint("Define which level includes a skip connection. First level cannot have a skip connection");
-        IntegerParameter categoryNumber = new IntegerParameter("Category Number", 0).setLowerBound(0).setHint("If greater than 1, a category will be predicted. <br/>Each dataset must contain an array named <em>category</em> that maps label to a category");
 
-        protected ArchitectureParameter(String name) {
-            super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.ENC_DEC));
-            setActionParameters(ARCH_TYPE.ENC_DEC, downsamplingNumber, filters, skip, categoryNumber);
-        }
-
-        public int getContraction() {
-            switch (getActionValue()) {
-                case ENC_DEC:
-                default:
-                    return (int)Math.pow(2, downsamplingNumber.getIntValue());
-            }
-        }
-
-        public boolean category() {
-            return categoryNumber.getIntValue() > 1;
-        }
-
-        @Override
-        public ArchitectureParameter duplicate() {
-            ArchitectureParameter res = new ArchitectureParameter(name);
-            ParameterUtils.setContent(res.children, children);
-            transferStateArguments(this, res);
-            return res;
-        }
-
-        @Override
-        public String getPythonConfigurationKey() {
-            return "model_architecture";
-        }
-        @Override
-        public JSONObject getPythonConfiguration() {
-            JSONObject res = new JSONObject();
-            res.put("architecture_type", getActionValue().toString());
-            JSONArray sc = new JSONArray();
-            for (int i = 0; i<skip.getChildCount(); ++i) {
-                if (skip.getChildAt(i).getSelected()) sc.add(i+1);
-            }
-            if (categoryNumber.getIntValue() > 1) res.put("category_number", categoryNumber.getIntValue());
-            res.put("skip_connections", sc);
-            switch (getActionValue()) {
-                case ENC_DEC:
-                default: {
-                    res.put("n_downsampling", downsamplingNumber.getIntValue());
-                    res.put("filters", filters.getIntValue());
-                    break;
-                }
-            }
-            return res;
-        }
-    }
 }

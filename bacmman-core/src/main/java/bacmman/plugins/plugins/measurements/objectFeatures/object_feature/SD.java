@@ -34,7 +34,7 @@ import bacmman.utils.DoubleStatistics;
  * @author Jean Ollion
  */
 public class SD extends IntensityMeasurement implements Hint {
-    BooleanParameter removePrefiltered = new BooleanParameter("Remove Pre-filtered Image", false).setHint("If false, standard deviation is computed on the pre-filtered image, within the object. If true, standard deviation is computed on I = raw - pre-filtered. When the pre-filter is a mean / gaussian transform, this allows to estimate the noise of a signal without its variations");
+    BooleanParameter removePrefiltered = new BooleanParameter("Remove Pre-filtered Image", false).setHint("If false, standard deviation is computed on the pre-filtered image (as defined with the <em>Pre-Filters</em> parameter of the measurement), within the object. If true, standard deviation is computed on I = raw - pre-filtered. When the pre-filter is a mean / gaussian transform, this allows to estimate the noise of a signal without its variations");
     BooleanParameter normalize = new BooleanParameter("Normalize", false).setHint("If true, standard deviation is divided by mean value");
 
     @Override public double performMeasurement(Region object) {

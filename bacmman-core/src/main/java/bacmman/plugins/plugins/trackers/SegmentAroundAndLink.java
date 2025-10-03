@@ -94,6 +94,7 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
                 });
             }
             SegmentedObject o = null;
+            int oIdx = parentOC == segParentOC ? 0 : ref.getIdx();
             if (!cList.isEmpty()) {
                 double size = ref.getRegion().size();
                 double[] overlap = cList.stream().mapToDouble(c -> c.getRegion().getOverlapArea(ref.getRegion())).map(d -> d/size).toArray();
@@ -101,11 +102,11 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
                 int maxOverlap = ArrayUtil.max(overlap);
                 if (overlap[maxOverlap] >= minOverlap.getDoubleValue()) {
                     o = cList.get(maxOverlap);
-                    factory.setIdx(o, ref.getIdx());
+                    factory.setIdx(o, oIdx);
                 }
             }
             // if no object or no overlapping objects -> copy ref object // TODO as option
-            if (o == null) o = new SegmentedObject(ref.getFrame(), objectClassIdx, ref.getIdx(), ref.getRegion().duplicate(true), p);
+            if (o == null) o = new SegmentedObject(ref.getFrame(), objectClassIdx, oIdx, ref.getRegion().duplicate(true), p);
             if (o != null) refMapsegmentedObject.put(ref, o);
         }
 

@@ -1399,7 +1399,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected String getSavedWeightRelativePath() {
         if (!trainerParameter.isOnePluginSet()) return null;
-        return getTrainingParameter().getSavedWeightRelativePath();
+        return getTrainingParameter().getModelWeightFileName();
     }
 
     protected File getSavedModelPath() {
