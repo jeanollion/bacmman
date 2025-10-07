@@ -122,10 +122,7 @@ public class PixMClass implements DockerDLTrainer {
             SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);
             list.setChildrenNumber(p.getIntValue());
         });
-        SimpleListParameter<BooleanParameter> skip = new SimpleListParameter<>("Skip Connections", new BooleanParameter("Skip Connection", true))
-                .setNewInstanceNameFunction((l, i) -> "Level: "+i).setAllowDeactivable(false).setAllowMoveChildren(false).setAllowModifications(false)
-                .setChildrenNumber(downsamplingNumber.getIntValue())
-                .setHint("Define which level includes a skip connection");
+        BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("If true, skip connections are included at all levels otherwise skip connection at first level is omited. Skip connection at first level increase the details");
         BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
         IntSupplier channelNumberSupplier;
 
@@ -160,9 +157,7 @@ public class PixMClass implements DockerDLTrainer {
             res.put("architecture_type", getActionValue().toString());
             res.put("n_inputs", inputNumber.getIntValue());
             JSONArray sc = new JSONArray();
-            for (int i = 0; i<skip.getChildCount(); ++i) {
-                if (!skip.getChildAt(i).getSelected()) sc.add(i);
-            }
+            if (!skip.getSelected()) sc.add(0);
 
             switch (getActionValue()) {
                 case UNET:
@@ -182,7 +177,7 @@ public class PixMClass implements DockerDLTrainer {
         @Override
         public void legacyInit() {
             if (channelNumberSupplier != null) inputNumber.setValue(channelNumberSupplier.getAsInt());
-            skip.getChildAt(0).setValue(false);
+            skip.setValue(false);
         }
     }
 
