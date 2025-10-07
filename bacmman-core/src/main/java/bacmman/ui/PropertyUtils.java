@@ -19,12 +19,7 @@
 package bacmman.ui;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
-import bacmman.data_structure.MasterDAOFactory;
 import bacmman.utils.JSONSerializable;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.Utils;
-import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
@@ -90,6 +85,9 @@ public class PropertyUtils {
         }
         
         return props; 
+    }
+    public static boolean has(String key) {
+        return getProps().getProperty(key) != null ;
     }
     public static String get(String key) {
         return getProps().getProperty(key);

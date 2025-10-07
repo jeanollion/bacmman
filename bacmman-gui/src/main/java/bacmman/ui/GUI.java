@@ -333,7 +333,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, TaskI.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(extractMeasurementOnSelectionsMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
@@ -2141,6 +2141,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         runSelectedActionsMenuItem = new javax.swing.JMenuItem();
         runActionAllXPMenuItem = new javax.swing.JMenuItem();
         extractMeasurementMenuItem = new javax.swing.JMenuItem();
+        extractMeasurementOnSelectionsMenuItem = new javax.swing.JMenuItem();
         extractSelectionMenuItem = new javax.swing.JMenuItem();
         optionMenu = new javax.swing.JMenu();
         measurementOptionMenu = new javax.swing.JMenu();
@@ -3078,6 +3079,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             }
         });
         runMenu.add(extractMeasurementMenuItem);
+
+        extractMeasurementOnSelectionsMenuItem.setText("Extract Measurements on selected Selections to...");
+        extractMeasurementOnSelectionsMenuItem.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                extractMeasurementOnSelectionsMenuItemActionPerformed(evt);
+            }
+        });
+        runMenu.add(extractMeasurementOnSelectionsMenuItem);
 
         extractSelectionMenuItem.setText("Extract Selected Selections");
         extractSelectionMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -4178,25 +4187,61 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private void extractMeasurementMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_extractMeasurementMenuItemActionPerformed
         if (!checkConnection()) return;
         int[] selectedStructures = this.getSelectedStructures(false);
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), new File(db.getExperiment().getOutputDirectory()).getParent());
+        String key = PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName();
+        String defdefDir = new File(db.getExperiment().getOutputDirectory()).getParent();
+        String defDir = PropertyUtils.get(key, defdefDir);
         File outputDir = FileChooser.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
         if (outputDir!=null) {
             if (selectedStructures.length==0) {
                 selectedStructures = this.getSelectedStructures(true);
                 for (int i : selectedStructures) extractMeasurements(outputDir.getAbsolutePath(), i);
             } else extractMeasurements(outputDir.getAbsolutePath(), selectedStructures);
-            if (outputDir!=null) {
+            if (!outputDir.getAbsolutePath().equals(defdefDir)) {
                 PropertyUtils.set(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), outputDir.getAbsolutePath());
-                PropertyUtils.set(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR, outputDir.getAbsolutePath());
             }
         }
     }//GEN-LAST:event_extractMeasurementMenuItemActionPerformed
+
+    private void extractMeasurementOnSelectionsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_extractMeasurementMenuItemActionPerformed
+        if (!checkConnection()) return;
+        List<Selection> selections = getSelectedSelections(false);
+        if (selections.isEmpty()) {
+            Utils.displayTemporaryMessage("Select selections first", 5000);
+            return;
+        }
+        String key = PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName();
+        String defdefDir = new File(db.getExperiment().getOutputDirectory()).getParent();
+        String defDir = PropertyUtils.get(key, defdefDir);
+        File outputDir = FileChooser.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
+        if (outputDir!=null) {
+            for (Selection s: selections) extractMeasurementsOnSelection(outputDir.getAbsolutePath(), s);
+            if (!outputDir.getAbsolutePath().equals(defdefDir)) {
+                PropertyUtils.set(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), outputDir.getAbsolutePath());
+            }
+        }
+    }//GEN-LAST:event_extractMeasurementMenuItemActionPerformed
+
     private void extractMeasurements(String dir, int... structureIdx) {
         String file = Paths.get(dir,db.getDBName()+Utils.toStringArray(structureIdx, "_", "", "_")+".csv").toString();
         logger.info("measurements will be extracted to: {}", file);
+        GUI.log("measurements will be exported to: "+file);
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structureIdx);
         MeasurementExtractor.extractMeasurementObjects(db, file, getSelectedPositions(true), null, keys);
     }
+
+    private void extractMeasurementsOnSelection(String dir, Selection selection) {
+        if (selection.isEmpty()) {
+            GUI.log("Selection: "+selection+" is empty");
+            return;
+        }
+        String file = Paths.get(dir,db.getDBName()+"_"+selection.getObjectClassIdx()+"_"+selection.getName()+".csv").toString();
+        logger.info("measurements will be extracted to: {}", file);
+        GUI.log("measurements will be exported to: "+file);
+        Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, selection.getObjectClassIdx());
+        List<String> positions = selection.getAllPositions().stream().sorted().collect(Collectors.toList());
+        MeasurementExtractor.extractMeasurementObjects(db, file, positions, selection, keys);
+    }
+
     private void runActionAllXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runActionAllXPMenuItemActionPerformed
         List<DatasetTree.DatasetTreeNode> xps = dsTree.getSelectedDatasetNames();
         if (xps.isEmpty()) return;
@@ -5608,6 +5653,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private javax.swing.JMenuItem exportXPConfigMenuItem;
     private javax.swing.JMenuItem exportXPObjectsMenuItem;
     private javax.swing.JMenuItem extractMeasurementMenuItem;
+    private javax.swing.JMenuItem extractMeasurementOnSelectionsMenuItem;
     private javax.swing.JMenuItem extractSelectionMenuItem;
     private javax.swing.JMenu helpMenu;
     private javax.swing.JScrollPane hintJSP;
