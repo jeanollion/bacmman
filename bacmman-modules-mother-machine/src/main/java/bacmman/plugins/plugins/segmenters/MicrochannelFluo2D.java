@@ -273,8 +273,8 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
                 List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth/2, true);
                 if (peakProportion < 1) {
                     localMax = localMax.stream().map(p -> {
-                        int startOfPeak = ArrayUtil.getFirstOccurence(xProj, p, 0, v->v<xProj[p] * peakProportion);
-                        int endOfPeak = ArrayUtil.getFirstOccurence(xProj, p, xProj.length, v->v<xProj[p] * peakProportion);
+                        int startOfPeak = ArrayUtil.getFirstIndexOf(xProj, p, 0, v->v<xProj[p] * peakProportion);
+                        int endOfPeak = ArrayUtil.getFirstIndexOf(xProj, p, xProj.length, v->v<xProj[p] * peakProportion);
                         return (startOfPeak + endOfPeak) / 2;
                     }).collect(Collectors.toList());
                 }
@@ -289,7 +289,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
                 int halfWidth = channelWidth/2;
                 int[] yMins = localMax.stream().mapToInt(l -> {
                     ImageOperations.meanProjection(mask, ImageOperations.Axis.Y, new SimpleBoundingBox(l-halfWidth, l+halfWidth, 0, mask.sizeY()-1, 0, mask.sizeZ()-1), d->true, yProj);
-                    return ArrayUtil.getFirstOccurence(yProj, 0, yProj.length, d->d>0);
+                    return ArrayUtil.getFirstIndexOf(yProj, 0, yProj.length, d->d>0);
                 }).toArray();
                 Region[] xObjects = localMax.stream().map(l -> new Region(new BlankMask(0, 0, 0, l.intValue(), 0, 0, 1, 1), 1, true)).toArray(r->new Region[r]);
                 return getResult(yMins, xObjects, channelWidth, channelLength, yShift, image.sizeX());
