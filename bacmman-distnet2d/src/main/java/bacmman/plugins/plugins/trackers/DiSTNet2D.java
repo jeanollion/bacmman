@@ -232,7 +232,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
         int increment = predictionFrameSegment.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / predictionFrameSegment.getIntValue()) );
         for (int i = 0; i<parentTrack.size(); i+=increment) { // divide by frame window
-            boolean last = i+increment>parentTrack.size();
+            boolean last = i+increment>=parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
