@@ -159,7 +159,4 @@ public class LocalTIFImageDAO implements ImageDAO {
         return Paths.get(directory, position, "pre_processed", "t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif").toString();
     }
 
-    private String getTrackImageFolder(int parentStructureIdx) {
-        return Paths.get(directory, position, "track_images_"+parentStructureIdx).toString();
-    }
 }
