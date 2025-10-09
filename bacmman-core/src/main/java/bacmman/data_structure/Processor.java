@@ -133,7 +133,8 @@ public class Processor {
             throw new RuntimeException(e);
         }
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
-        setTransformations(position, memoryLimit, pcb);
+        setTransformations(position, memoryLimit, pcb); // perform pre-processing
+        position.recomputeSizeZ(); // set sizeZC
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
