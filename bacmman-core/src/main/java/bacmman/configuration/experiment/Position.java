@@ -344,6 +344,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     try {
                         props = getImageDAO().getPreProcessedImageProperties(channelIdx);
                     } catch (IOException e) {
+                        Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
                         throw new RuntimeException(e);
                     }
                     channelMapSizeZ.put(channelIdx, props.sizeZ());

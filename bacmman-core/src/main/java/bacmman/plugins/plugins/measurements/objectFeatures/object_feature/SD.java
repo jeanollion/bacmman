@@ -18,16 +18,19 @@
  */
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import bacmman.image.ImageByte;
+import bacmman.image.ImageInteger;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.Hint;
 import bacmman.plugins.object_feature.IntensityMeasurement;
+import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.DoubleStatistics;
+import bacmman.utils.Pair;
 
 /**
  *
@@ -36,8 +39,17 @@ import bacmman.utils.DoubleStatistics;
 public class SD extends IntensityMeasurement implements Hint {
     BooleanParameter removePrefiltered = new BooleanParameter("Remove Pre-filtered Image", false).setHint("If false, standard deviation is computed on the pre-filtered image (as defined with the <em>Pre-Filters</em> parameter of the measurement), within the object. If true, standard deviation is computed on I = raw - pre-filtered. When the pre-filter is a mean / gaussian transform, this allows to estimate the noise of a signal without its variations");
     BooleanParameter normalize = new BooleanParameter("Normalize", false).setHint("If true, standard deviation is divided by mean value");
+    protected ScaleXYZParameter erodeBorders = new ScaleXYZParameter("Erosion Radius", 0, 0, false).setHint("Object will be eroded");
 
     @Override public double performMeasurement(Region object) {
+        if (erodeBorders.getScaleXY()>0) {
+            ImageInteger mask = object.getMask() instanceof ImageInteger ? object.getMaskAsImageInteger().duplicate() : object.getMaskAsImageInteger();
+            ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeBorders.getScaleXY(), erodeBorders.getScaleZ(object.getScaleXY(), object.getScaleZ()), mask), false);
+            if (maskErode.count()>0) mask = maskErode;
+            else return Double.NaN;
+            object = new Region(mask, object.getLabel(), object.is2D()).setIsAbsoluteLandmark(object.isAbsoluteLandMark());
+        }
+
         if (removePrefiltered.getSelected()) {
             Image raw = core.getIntensityMap(false);
             Image pf = core.getIntensityMap(true);
@@ -73,6 +85,6 @@ public class SD extends IntensityMeasurement implements Hint {
         return "Computed the standard deviation of pixel values within the segmented object";
     }
     @Override public Parameter[] getParameters() {
-        return new Parameter[]{channel, removePrefiltered, normalize};
+        return new Parameter[]{channel, removePrefiltered, normalize, erodeBorders};
     }
 }
