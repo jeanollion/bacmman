@@ -69,8 +69,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     protected RegionContainer regionContainer;
     protected transient SmallArray<Image> rawImagesC=new SmallArray<>();
     protected transient SmallArray<Image> preFilteredImagesS=new SmallArray<>();
-    protected transient SmallArray<Image> trackImagesC=new SmallArray<>();
-    protected transient BoundingBox offsetInTrackImage;
     
     // measurement-related attributes
     Measurements measurements;
@@ -133,9 +131,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         if (duplicateImages) {
             res.rawImagesC=rawImagesC.duplicate();
-            res.trackImagesC=trackImagesC.duplicate();
             res.preFilteredImagesS=preFilteredImagesS.duplicate();
-            res.offsetInTrackImage=offsetInTrackImage==null ? null : new SimpleBoundingBox(offsetInTrackImage);
         }
         if (attributes!=null && !attributes.isEmpty()) { // deep copy of attributes
             res.attributes=new HashMap<>(attributes.size());
@@ -159,14 +155,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         if (duplicateImages) {
             res.rawImagesC=rawImagesC.duplicate();
-            res.trackImagesC=trackImagesC.duplicate();
             res.preFilteredImagesS=preFilteredImagesS.duplicate();
-            res.offsetInTrackImage=offsetInTrackImage==null ? null : new SimpleBoundingBox(offsetInTrackImage);
         } else {
             res.rawImagesC=rawImagesC;
-            res.trackImagesC=trackImagesC;
             res.preFilteredImagesS=preFilteredImagesS;
-            res.offsetInTrackImage=offsetInTrackImage;
         }
         if (attributes!=null && !attributes.isEmpty()) { // deep copy of attributes
             if (duplicateAttributes) {
@@ -1055,7 +1047,17 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                         }
                     }
                     if (rawImagesC.has(channelIdx)) rawImagesC.get(channelIdx).setCalibration(getScaleXY(), getScaleZ());
-                    
+                    else { // try to open track image
+                        synchronized (getTrackHead()) {
+                            if (!rawImagesC.has(channelIdx)) {
+                                try {
+                                    logger.debug("opening track image for {} channel {}", getTrackHead(), channelIdx);
+                                    TrackImage.setTrackImage(getTrackHead(), channelIdx);
+                                } catch (IOException e) {
+                                }
+                            }
+                        }
+                    }
                     //logger.debug("{} open channel: {}, use scale? {}, scale: {}", this, channelIdx, this.getPosition().getPreProcessingChain().useCustomScale(), getScaleXY());
                 }
             }
@@ -1095,12 +1097,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         this.preFilteredImagesS.set(image, structureIdx);
     }
-    
-    private BoundingBox getOffsetInTrackImage() {
-        return this.offsetInTrackImage;
-    }
-    
-    private BoundingBox extendBoundsInZIfNecessary(int channelIdx, BoundingBox bounds) { //when the current structure is 2D but channel is 3D 
+
+    BoundingBox extendBoundsInZIfNecessary(int channelIdx, BoundingBox bounds) { //when the current structure is 2D but channel is 3D
         //logger.debug("extends bounds Z if necessary: is2D: {}, bounds: {}, sizeZ of image to open: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx));
         if (bounds.sizeZ()==1 && is2D()) {
             int sizeZ = getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx);
@@ -1152,8 +1150,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     public void flushImages(boolean raw, boolean prefiltered) {
         if (raw) {
             for (int i = 0; i<rawImagesC.getBucketSize(); ++i) rawImagesC.setQuick(null, i);
-            for (int i = 0; i<trackImagesC.getBucketSize(); ++i) trackImagesC.setQuick(null, i);
-            this.offsetInTrackImage=null;
         }
         if (prefiltered) {
             for (int i = 0; i<preFilteredImagesS.getBucketSize(); ++i) preFilteredImagesS.setQuick(null, i);

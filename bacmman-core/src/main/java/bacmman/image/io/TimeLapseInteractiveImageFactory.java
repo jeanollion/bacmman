@@ -12,11 +12,30 @@ import java.util.stream.IntStream;
 
 public class TimeLapseInteractiveImageFactory {
     public final static Logger logger = LoggerFactory.getLogger(TimeLapseInteractiveImageFactory.class);
-    public static Data generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int gap, int size, int overlap) {
-        ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
-        int maxParentSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
-        return generateKymographData(parentTrack, maxParentSizeZ, middle,gap, size, overlap);
+
+    static int getMaxParentSizeZ(SegmentedObject o) {
+        ExperimentStructure xp = o.getExperimentStructure();
+        int maxParentSizeZ;
+        try {
+            maxParentSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(o.getPositionName(), c)).max().getAsInt();
+        } catch (Exception e) { // sizeZ cannot be found -> source and pre-processed image are not there. try to open image directly in case track image are present
+            maxParentSizeZ = 0;
+            for (int c = 0; c<xp.getChannelNumber(); ++c) {
+                Image image = o.getRawImageByChannel(c);
+                if (image != null) {
+                    int sizeZ = image.sizeZ();
+                    if (sizeZ > maxParentSizeZ) maxParentSizeZ = sizeZ;
+                }
+            }
+            if (maxParentSizeZ == 0) throw new RuntimeException("Not image found");
+        }
+        return maxParentSizeZ;
     }
+
+    public static Data generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int gap, int size, int overlap) {
+        return generateKymographData(parentTrack, getMaxParentSizeZ(parentTrack.get(0)), middle,gap, size, overlap);
+    }
+
     public static Data generateKymographData(List<SegmentedObject> parentTrack, int maxSizeZ, boolean middle, int gap, int size, int overlap) {
         BoundingBox bb = parentTrack.get(0).getBounds();
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
@@ -69,9 +88,7 @@ public class TimeLapseInteractiveImageFactory {
         }
     }
     public static Data generateKymographViewData(List<SegmentedObject> parentTrack, BoundingBox view, int interval, int size, int overlap) {
-        ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
-        int maxSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
-        return generateKymographViewData(parentTrack, view, maxSizeZ, interval, size, overlap);
+        return generateKymographViewData(parentTrack, view, getMaxParentSizeZ(parentTrack.get(0)), interval, size, overlap);
     }
     public static Data generateKymographViewData(List<SegmentedObject> parentTrack, BoundingBox view, int maxSizeZ, int interval, int size, int overlap) {
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(BoundingBox[]::new);
@@ -95,9 +112,7 @@ public class TimeLapseInteractiveImageFactory {
         }
     }
     public static Data generateHyperstackData(List<SegmentedObject> parentTrack, boolean middle) {
-        ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
-        int maxSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
-        return generateHyperstackData(parentTrack, maxSizeZ, middle);
+        return generateHyperstackData(parentTrack, getMaxParentSizeZ(parentTrack.get(0)), middle);
     }
     public static Data generateHyperstackData(List<SegmentedObject> parentTrack, int maxSizeZ, boolean middle) {
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
@@ -109,9 +124,7 @@ public class TimeLapseInteractiveImageFactory {
         return new Data(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxSizeZ, trackOffset, parentTrack, parentTrack.size(), 0);
     }
     public static Data generateHyperstackViewData(List<SegmentedObject> parentTrack, BoundingBox view) {
-        ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
-        int maxSizeZ = IntStream.range(0, xp.getChannelNumber()).map(c -> xp.sizeZ(parentTrack.get(0).getPositionName(), c)).max().getAsInt();
-        return generateHyperstackViewData(parentTrack, view, maxSizeZ);
+        return generateHyperstackViewData(parentTrack, view, getMaxParentSizeZ(parentTrack.get(0)));
     }
     public static Data generateHyperstackViewData(List<SegmentedObject> parentTrack, BoundingBox view, int maxSizeZ) {
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(view).resetOffset()).toArray(l -> new BoundingBox[l]);

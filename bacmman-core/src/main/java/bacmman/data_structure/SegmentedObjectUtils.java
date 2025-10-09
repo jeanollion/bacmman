@@ -572,7 +572,6 @@ public class SegmentedObjectUtils {
 
         for (SegmentedObject o : dupMap.values()) {
             if (o.isTrackHead()) {
-                o.trackImagesC=revDupMap.get((ID)o.id).trackImagesC.duplicate();
                 continue;
             }
             SegmentedObject th = dupMap.get(o.trackHeadId);
@@ -583,8 +582,6 @@ public class SegmentedObjectUtils {
                 if (!th.isTrackHead()) logger.error("current th is not th: o={}, th={}, original th: {} -> is th: {}", o, th, revDupMap.get(o.id).getTrackHead(), revDupMap.get(o.id).getTrackHead().isTrackHead());
                 o.setTrackHead(th, false, false, null);
             }
-            if (th.equals(o)) th.trackImagesC=revDupMap.get(th.id).getTrackHead().trackImagesC.duplicate();
-
         }
         return dupMap;
     }
