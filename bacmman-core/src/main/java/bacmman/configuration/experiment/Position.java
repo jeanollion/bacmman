@@ -38,11 +38,13 @@ import java.util.HashMap;
 import java.util.List;
 
 import bacmman.data_structure.dao.DiskBackedImageManagerImageDAO;
+import bacmman.utils.JSONUtils;
 import org.json.simple.JSONObject;
 
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -70,6 +72,13 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         this.getEndTrimFrame();
         res.put("preProcessingChain", preProcessingChain.toJSONEntry());
         res.put("defaultFrame", defaultTimePoint.toJSONEntry());
+
+        // record sizeZ per channel
+        for (int c = 0; c<=getExperiment().getChannelImageCount(true); ++c) {
+            try { getSizeZ(c); } catch (RuntimeException e) {}
+        }
+        int[] sizeZC = IntStream.range(0, channelMapSizeZ.keySet().stream().mapToInt(i->i).max().orElse(0)).map(c -> channelMapSizeZ.getOrDefault(c, -1)).toArray();
+        res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
         return res;
     }
 
@@ -84,7 +93,12 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             if (sourceImages.fromOmero()) sourceImages.setOmeroGateway(getExperiment().getOmeroGateway());
             initFrameParameters();
         }
-
+        if (jsonO.containsKey("sizeZC")) {
+            int[] sizeZC = JSONUtils.fromIntArray((List)jsonO.get("sizeZC"));
+            for (int c = 0; c<sizeZC.length; ++c) {
+                if (sizeZC[c]>0) channelMapSizeZ.put(c, sizeZC[c]);
+            }
+        }
     }
     
     public Position(String name) {
@@ -92,7 +106,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         initChildList();
         if (sourceImages!=null && sourceImages.fromOmero()) sourceImages.setOmeroGateway(getExperiment().getOmeroGateway());
     }
-    @Override 
+
+    @Override
     public boolean isEmphasized() {
         return false;
     }
@@ -329,6 +344,10 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         this.defaultTimePoint.setValue(frame);
         return this;
     }
+    public void recomputeSizeZ() {
+        channelMapSizeZ.clear();
+        for (int c = 0; c<getExperiment().getChannelImageCount(true); ++c) getSizeZ(c);
+    }
     public int getSizeZ(int channelIdx) {
         /*try {
             logger.debug("get size Z channel: {} -> {}. prop: {}", channelIdx, channelMapSizeZ.get(channelIdx), getImageDAO().getPreProcessedImageProperties(channelIdx));
@@ -340,15 +359,21 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             synchronized (channelMapSizeZ) {
                 if (channelMapSizeZ.containsKey(channelIdx)) return channelMapSizeZ.get(channelIdx);
                 else {
-                    BlankMask props = null;
+                    getImageDAO();
+                    if (sourceImages != null && getPreProcessingChain().isEmpty(true) && originalImageDAO.isEmpty()) { // get from source image DAO
+                        int sizeZ = sourceImages.getSizeZ(getExperiment().getSourceChannel(channelIdx)); // if duplicated -> get source channel
+                        if (channelIdx == getExperiment().getSourceChannel(channelIdx)) channelMapSizeZ.put(channelIdx, sizeZ); // only store if not duplicated
+                        return sizeZ;
+                    }
                     try {
-                        props = getImageDAO().getPreProcessedImageProperties(channelIdx);
+                        BlankMask props = getImageDAO().getPreProcessedImageProperties(channelIdx);
+                        channelMapSizeZ.put(channelIdx, props.sizeZ());
+                        return props.sizeZ();
                     } catch (IOException e) {
                         Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
                         throw new RuntimeException(e);
                     }
-                    channelMapSizeZ.put(channelIdx, props.sizeZ());
-                    return props.sizeZ();
+
                 }
             }
         }
@@ -361,6 +386,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         this.inputImages =null;
         initFrameParameters();
     }
+
     private void initFrameParameters() {
         if (sourceImages!=null) {
             int frameNb = sourceImages.getFrameNumber();
@@ -370,6 +396,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             if (defaultTimePoint.getValue().intValue()>frameNb-1) defaultTimePoint.setValue(frameNb-1);
         }
     }
+
     void setDefaultTimePointBounds() {
         int[] bds = preProcessingChain.trimFrames.getValuesAsInt();
         defaultTimePoint.setLowerBound(bds[0]);
