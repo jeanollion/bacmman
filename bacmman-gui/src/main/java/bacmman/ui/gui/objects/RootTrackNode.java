@@ -254,6 +254,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             logger.debug("rootTrack : {}", rootTrack==null? "null":rootTrack.size());
         } catch (Exception e) {
             Core.userLog("Could not open root track. Has pre-processed been performed @position: "+position+" ?");
+            Core.userLog(e.getMessage());
         }
         if (rootTrack != null) {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(rootTrack, HyperStack.class, true);

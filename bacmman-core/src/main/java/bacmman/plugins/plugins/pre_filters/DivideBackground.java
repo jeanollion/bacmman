@@ -18,14 +18,10 @@
  */
 package bacmman.plugins.plugins.pre_filters;
 
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.EnumChoiceParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.ScaleXYZParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
-import bacmman.image.TypeConverter;
 import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PreFilter;
@@ -37,22 +33,22 @@ import bacmman.processing.ImageOperations;
  *
  * @author Jean Ollion
  */
-public class SubtractBackground implements PreFilter, Filter, Hint {
-    enum METHOD {SUBTRACT_MEAN, SUBTRACT_GAUSSIAN}
-    EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), METHOD.SUBTRACT_MEAN).setHint("Background estimation method");
-    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean transform to be subtracted").setEmphasized(true);
-
+public class DivideBackground implements PreFilter, Filter, Hint {
+    enum METHOD {MEAN, GAUSSIAN}
+    EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Background", METHOD.values(), METHOD.MEAN).setHint("Background is computed by applying the selected filter");
+    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean/TopHat transform to be subtracted").setEmphasized(true);
+    BoundedNumberParameter epsilon = new BoundedNumberParameter("Epsilon", 10, 0, 0, 0.1).setHint("constant added to background for numerical stability");
     ConditionalParameter<METHOD> cond = new ConditionalParameter<>(method).setDefaultParameters(radius).setEmphasized(true);
 
-    Parameter[] parameters = new Parameter[]{cond};
-    public SubtractBackground() {
+    Parameter[] parameters = new Parameter[]{cond, epsilon};
+    public DivideBackground() {
     }
-    public SubtractBackground(double radius) {
+    public DivideBackground(double radius) {
         this();
         this.radius.setScaleXY(radius);
         this.radius.setUseImageCalibration(true);
     }
-    public SubtractBackground(double radiusXY, double radiusZ) {
+    public DivideBackground(double radiusXY, double radiusZ) {
         this();
         this.radius.setScaleXY(radiusXY);
         this.radius.setScaleZ(radiusZ);
@@ -63,18 +59,21 @@ public class SubtractBackground implements PreFilter, Filter, Hint {
     }
     
     public Image filter(Image input, double radiusXY, double radiusZ, boolean parallele, boolean canModifyImage) {
+        Image bck;
         switch(method.getSelectedEnum()) {
-            case SUBTRACT_GAUSSIAN:
-            default: {
-                Image sub =  ImageFeatures.gaussianSmooth(input, radiusXY, radiusZ, false);
-                return ImageOperations.addImage(input, sub, sub, -1);
+            case GAUSSIAN: {
+                bck = ImageFeatures.gaussianSmooth(input, radiusXY, radiusZ, false);
+
             }
-            case SUBTRACT_MEAN: {
-                Image sub =  Filters.mean(input, new ImageFloat("", 0, 0, 0), Filters.getNeighborhood(radiusXY, radiusZ, input), parallele);
-                return ImageOperations.addImage(input, sub, sub, -1);
+            case MEAN: default:{
+                bck = Filters.mean(input, new ImageFloat("", 0, 0, 0), Filters.getNeighborhood(radiusXY, radiusZ, input), parallele);
             }
         }
+        double epsilon = this.epsilon.getDoubleValue();
+        if (epsilon > 0) ImageOperations.addValue(bck, epsilon, bck);
+        return ImageOperations.divide(input, bck, bck, 1);
     }
+
     @Override
     public Parameter[] getParameters() {
         return parameters;
@@ -91,6 +90,6 @@ public class SubtractBackground implements PreFilter, Filter, Hint {
 
     @Override
     public String getHintText() {
-        return "Reduce low frequency background signal by subtracting an estimation of the background to the original image. <br/>Background Estimation: <br /><ul><li>SUBTRACT_GAUSSIAN: Subtracts a Gaussian transform of the input image</li><li>MEAN: Subtracts a Mean transform of the input image.</li></ul>Note that SUBTRACT_GAUSSIAN is faster for high radius";
+        return "Divide input image by an estimation of the background. <br>Background estimation: <br /><ul><li>GAUSSIAN: Gaussian transform of the input image</li><li>MEAN: Mean transform of the input image </li></ul> Note that GAUSSIAN is faster for high radius";
     }
 }
