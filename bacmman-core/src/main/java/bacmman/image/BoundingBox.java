@@ -579,7 +579,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         int[] coordsX = getTileCoordinates(bds.getMin(0), bds.getMax(0), tileDimensions[0]);
         int[] coordsY = getTileCoordinates(bds.getMin(1), bds.getMax(1), tileDimensions[1]);
         java.util.List<BoundingBox> res = new ArrayList<>(coordsX.length * coordsY.length);
-        for (int coordY : coordsY) { // tiling order ZYX. option ?
+        for (int coordY : coordsY) { // tiling order option ?
             for (int coordX : coordsX) {
                 res.add(new SimpleBoundingBox(coordX, coordX+tileDimensions[0], coordY, coordY+tileDimensions[1], bds.zMin(), bds.zMax()));
             }

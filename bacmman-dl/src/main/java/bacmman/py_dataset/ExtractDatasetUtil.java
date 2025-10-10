@@ -476,7 +476,7 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, extendToDimensions, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, extendToDimensions, eraseContoursOC, true, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 

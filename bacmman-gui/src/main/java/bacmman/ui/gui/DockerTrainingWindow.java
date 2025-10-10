@@ -14,6 +14,8 @@ import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.DLEngine;
 import bacmman.plugins.DockerDLTrainer;
+import bacmman.plugins.Tracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.py_dataset.HDF5IO;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
@@ -51,6 +53,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -60,6 +63,7 @@ import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 import static bacmman.core.DockerGateway.parseProgress;
+import static bacmman.plugins.plugins.trackers.ObjectOrderTracker.IndexingOrder.IDX;
 import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
@@ -361,66 +365,76 @@ public class DockerTrainingWindow implements ProgressLogger {
                             if (bacmmanLogger != null) bacmmanLogger.log("found metrics: "+Utils.toStringArray(metricsNames) + " for "+metrics.size() + " samples");
                             SelectionDAO selDAO = GUI.getDBConnection().getSelectionDAO();
                             Selection sel = selDAO.getOrCreate(selections.get(0), false);
+                            int tileOC;
                             logger.debug("selection has: {} samples", sel.count());
                             if (tileIdx != null) { // HSM was performed on tiles: create tile objects and assign metrics to them
                                 int[] tileDimensions = ArrayUtil.reverse(trainer.getConfiguration().getGlobalDatasetParameters().getInputShape(), true);
-                                sel = createTileSelection(GUI.getDBConnection(), sel, trackingDataset, tileIdx, tileDimensions);
-                                if (sel == null) {
+                                tileOC = createTiles(GUI.getDBConnection(), sel, trackingDataset, tileIdx, tileDimensions);
+                                if (tileOC < 0) {
                                     if (bacmmanLogger != null) bacmmanLogger.log("Invalid tile indices");
                                     return;
                                 }
-                            }
-                            if (sel.count() == metrics.size()) { // assign metrics values to samples
+                            } else tileOC = -2;
+                            int objectCount = tileOC>=0 ? sel.getAllElements().stream().mapToInt(o -> (int)o.getChildren(tileOC).count()).sum() : sel.count();
+                            if (objectCount == metrics.size()) { // assign metrics values to samples
                                 int[] counter = new int[1];
+                                Consumer<SegmentedObject> assignMetric = o -> {
+                                    double[] values = metrics.get(counter[0]++);
+                                    for (int i = 0; i < metricsNames.length; ++i) {
+                                        o.getMeasurements().setValue(metricsNames[i], values[i]);
+                                    }
+                                };
                                 List<String> positions = sel.getAllPositions().stream().sorted().collect(Collectors.toList());
-                                if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
+                                //if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
                                 for (String p : positions) {
                                     List<List<SegmentedObject>> sortedElems = sel.getSortedElements(p, trackingDataset);
                                     for (List<SegmentedObject> track : sortedElems) {
-                                        logger.debug("assigning values for track: {} (size: {})", track.get(0), track.size());
-                                        if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
+                                        //if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
                                         track.stream().sorted().forEach(o -> {
-                                            double[] values = metrics.get(counter[0]++);
-                                            for (int i = 0; i < metricsNames.length; ++i) {
-                                                o.getMeasurements().setValue(metricsNames[i], values[i]);
-                                            }
+                                            if (tileOC >= 0) o.getChildren(tileOC).sorted().forEach(assignMetric); // assign to tiles
+                                            else assignMetric.accept(o);
                                         });
                                     }
-                                    logger.debug("storing: {} measurements at position: {}", metrics.size(), p);
+                                    //logger.debug("storing: {} measurements at position: {}", metrics.size(), p);
                                     if (bacmmanLogger != null) bacmmanLogger.log("storing: "+metrics.size() + " measurements at position: " + p + "....");
-                                    GUI.getDBConnection().getDao(p).store(sel.getElements(p));
+                                    Collection<SegmentedObject> toStore = tileOC >= 0 ? sel.getElements(p).stream().flatMap(o -> o.getChildren(tileOC)).collect(Collectors.toList()) : sel.getElements(p);
+                                    GUI.getDBConnection().getDao(p).store(toStore);
                                 }
                                 HardSampleMiningParameter p = trainer.getConfiguration().getTrainingParameters().getParameter(HardSampleMiningParameter.class, null);
                                 if (p != null) {
                                     double minQuantile = p.getMinQuantile();
+                                    if (objectCount * minQuantile < 1 ) minQuantile = 1. / objectCount;
                                     // create selections of hard samples
-                                    List<SegmentedObject> allObjects = new ArrayList<>();
+                                    Set<SegmentedObject> allHS = new HashSet<>();
                                     for (int i = 0; i < metricsNames.length; ++i) {
                                         int ii = i;
-                                        Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples_" + metricsNames[i], true);
+                                        Selection selHS = selDAO.getOrCreate(selections.get(0) + "_HSM_" + metricsNames[i], true);
                                         double[] values = metrics.stream().mapToDouble(v -> v[ii]).toArray();
                                         double[] quantiles = ArrayUtil.quantiles(values, minQuantile, 0, 1);
                                         double threshold = quantiles[0];
                                         logger.debug("metric: #{}={} threshold: {} quantile: {} range: [{}; {}]", i, metricsNames[i], threshold, minQuantile, quantiles[1], quantiles[2]);
-                                        if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " threshold: "+threshold+ " quantile: "+minQuantile);
+                                        if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " threshold: "+threshold+ " quantile: "+minQuantile+ " range:["+quantiles[1]+"; "+quantiles[2]+"]");
                                         if (!Double.isNaN(threshold)) {
-                                            List<SegmentedObject> objects = sel.getAllElementsAsStream().filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
+                                            Stream<SegmentedObject> objStream = tileOC > 0 ? sel.getAllElementsAsStream().flatMap(o -> o.getChildren(tileOC)) : sel.getAllElementsAsStream();
+                                            List<SegmentedObject> objects = objStream.filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
                                             selHS.addElements(objects);
-                                            if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " #objects: "+objects.size());
+                                            //if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " #objects: "+objects.size());
                                             selDAO.store(selHS);
-                                            allObjects.addAll(objects);
+                                            allHS.addAll(objects);
                                         }
                                     }
-                                    Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples", true);
-                                    selHS.addElements(allObjects);
+                                    Selection selHS = selDAO.getOrCreate(selections.get(0) + "_HSM", true);
+                                    selHS.addElements(allHS);
                                     selDAO.store(selHS);
                                     GUI.getInstance().populateSelections();
+                                    GUI.getInstance().updateConfigurationTree();
+                                    GUI.getInstance().loadObjectTrees();
                                 } else {
                                     logger.debug("No Hard sample mining parameter found");
                                     if (bacmmanLogger != null) bacmmanLogger.log("No Hard sample mining parameter found");
                                 }
                             } else {
-                                if (bacmmanLogger != null) bacmmanLogger.log("Selection "+ selections.get(0) + " has "+sel.count()+ " entries whereas "+metrics.size()+ " where computed");
+                                if (bacmmanLogger != null) bacmmanLogger.log("Selection "+ selections.get(0) + " has "+objectCount+ " entries whereas "+metrics.size()+ " where computed");
                             }
                         } else {
                             if (bacmmanLogger!=null) bacmmanLogger.log("Metric File not found at "+outputFile.getAbsolutePath());
@@ -902,10 +916,10 @@ public class DockerTrainingWindow implements ProgressLogger {
         return dirMapMountDir;
     }
 
-    public static Selection createTileSelection(MasterDAO mDAO, Selection parentSelection, boolean trackingDataset, int[] tileIdx, int[] tileDimensions) {
+    public static int createTiles(MasterDAO mDAO, Selection parentSelection, boolean trackingDataset, int[] tileIdx, int[] tileDimensions) {
         // split tile idx at zeros
         int[] parentIdx = ArrayUtil.indicesOf(tileIdx, 0).toArray();
-        if (parentIdx.length != parentSelection.count()) return null;
+        if (parentIdx.length != parentSelection.count()) return -2;
         Experiment xp = mDAO.getExperiment();
         int[] childOC = xp.experimentStructure.getAllDirectChildStructuresAsArray(parentSelection.getObjectClassIdx());
         String[] childOCNames = xp.experimentStructure.getObjectClassesNames(childOC);
@@ -918,10 +932,10 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
 
         SegmentedObjectFactory factory = getFactory(tileOC);
-        Selection tileSelection = new Selection("HSMTiles", tileOC, mDAO);
+        TrackLinkEditor editor = getEditor(tileOC);
+        Tracker tracker = new ObjectOrderTracker().setIndexingOrder(IDX);
         int pIdx = 0;
         for (String p : parentSelection.getAllPositions().stream().sorted().collect(Collectors.toList())) {
-            List<SegmentedObject> toStore = new ArrayList<>();
             List<List<SegmentedObject>> sortedParents = parentSelection.getSortedElements(p, trackingDataset);
             for (List<SegmentedObject> track : sortedParents) {
                 for (SegmentedObject parent : track) {
@@ -930,27 +944,34 @@ public class DockerTrainingWindow implements ProgressLogger {
                     int expectedNTiles = (pIdx<parentIdx.length-1 ? parentIdx[pIdx+1] : tileIdx.length)  - parentIdx[pIdx];
                     if (expectedNTiles != tiles.size()) {
                         logger.warn("Wrong tile number @{} expected: {} actual: {}, parent size: {} tile size: {}", parent, expectedNTiles, tiles.size(), parent.getBounds().dimensions(), tileDimensions);
-                        return null;
+                        return -2;
                     }
                     int[] oIdx = new int[1];
                     List<SegmentedObject> tileO = tiles.stream().map(bds -> new SegmentedObject(parent.getFrame(), tileOC, oIdx[0]++, new Region(new BlankMask(bds, parent.getScaleXY(), parent.getScaleZ()), oIdx[0], true).setIsAbsoluteLandmark(true), parent)).collect(Collectors.toList());
+                    Stream<SegmentedObject> existingTiles = parent.getChildren(tileOC);
+                    if (existingTiles != null) mDAO.getDao(p).delete(existingTiles.collect(Collectors.toList()), false, false, false);
                     factory.setChildren(parent, tileO);
-                    toStore.addAll(tileO);
-
                     ++pIdx;
                 }
+                if (track.size()>1) tracker.track(tileOC, track, editor);
             }
-            // TODO add track links -> track by object idx
-            tileSelection.addElements(toStore);
-            mDAO.getDao(p).store(toStore);
         }
-        mDAO.getSelectionDAO().store(tileSelection);
-        return tileSelection;
+        return tileOC;
     }
 
     private static SegmentedObjectFactory getFactory(int objectClassIdx) {
         try {
             Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
+    }
+
+    private static TrackLinkEditor getEditor(int objectClassIdx) {
+        try {
+            Constructor<TrackLinkEditor> constructor = TrackLinkEditor.class.getDeclaredConstructor(int.class);
             constructor.setAccessible(true);
             return constructor.newInstance(objectClassIdx);
         } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {

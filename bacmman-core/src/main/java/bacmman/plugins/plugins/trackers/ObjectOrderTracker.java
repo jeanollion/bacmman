@@ -52,7 +52,12 @@ public class ObjectOrderTracker implements Tracker, Hint {
         }
     };
     EnumChoiceParameter<IndexingOrder> order = new EnumChoiceParameter<>("Indexing Order", IndexingOrder.values(), IndexingOrder.IDX).setHint("Chose indexing order. IDX = object's index, otherwise order depends on spatial position of bound's center, order of axes defines priority");
-    
+
+    public ObjectOrderTracker setIndexingOrder(IndexingOrder order) {
+        this.order.setSelectedEnum(order);
+        return this;
+    }
+
     public void assignPrevious(List<SegmentedObject> previous, List<SegmentedObject> next, TrackLinkEditor editor) {
         if (order.getSelectedEnum().equals(IndexingOrder.IDX)) {
             for (SegmentedObject n : next) {
