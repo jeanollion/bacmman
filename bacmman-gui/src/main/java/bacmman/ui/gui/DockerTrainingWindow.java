@@ -328,7 +328,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 List<String> selections = new ArrayList<>();
-                boolean trackingDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
+                boolean timelapseDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
                 if (selections.isEmpty() || !tempDatasetFile.isFile()) {
                     logger.error("no dataset could be extracted");
                     if (bacmmanLogger != null) bacmmanLogger.log("Dataset could not be extracted");
@@ -369,7 +369,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                             logger.debug("selection has: {} samples", sel.count());
                             if (tileIdx != null) { // HSM was performed on tiles: create tile objects and assign metrics to them
                                 int[] tileDimensions = ArrayUtil.reverse(trainer.getConfiguration().getGlobalDatasetParameters().getInputShape(), true);
-                                tileOC = createTiles(GUI.getDBConnection(), sel, trackingDataset, tileIdx, tileDimensions);
+                                tileOC = createTiles(GUI.getDBConnection(), sel, timelapseDataset, tileIdx, tileDimensions);
                                 if (tileOC < 0) {
                                     if (bacmmanLogger != null) bacmmanLogger.log("Invalid tile indices");
                                     return;
@@ -387,7 +387,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 List<String> positions = sel.getAllPositions().stream().sorted().collect(Collectors.toList());
                                 //if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
                                 for (String p : positions) {
-                                    List<List<SegmentedObject>> sortedElems = sel.getSortedElements(p, trackingDataset);
+                                    List<List<SegmentedObject>> sortedElems = sel.getSortedElements(p, timelapseDataset);
                                     for (List<SegmentedObject> track : sortedElems) {
                                         //if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
                                         track.stream().sorted().forEach(o -> {
@@ -739,7 +739,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
         if (background) Task.executeTask(t, this, 1);
         else Task.executeTaskInForeground(t, this, 1);
-        return t.getExtractDSTracking();
+        return t.getExtractDSTimelapse();
     }
 
     protected void promptSaveConfig() {
@@ -916,7 +916,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         return dirMapMountDir;
     }
 
-    public static int createTiles(MasterDAO mDAO, Selection parentSelection, boolean trackingDataset, int[] tileIdx, int[] tileDimensions) {
+    public static int createTiles(MasterDAO mDAO, Selection parentSelection, boolean timelapseDataset, int[] tileIdx, int[] tileDimensions) {
         // split tile idx at zeros
         int[] parentIdx = ArrayUtil.indicesOf(tileIdx, 0).toArray();
         if (parentIdx.length != parentSelection.count()) return -2;
@@ -936,7 +936,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         Tracker tracker = new ObjectOrderTracker().setIndexingOrder(IDX);
         int pIdx = 0;
         for (String p : parentSelection.getAllPositions().stream().sorted().collect(Collectors.toList())) {
-            List<List<SegmentedObject>> sortedParents = parentSelection.getSortedElements(p, trackingDataset);
+            List<List<SegmentedObject>> sortedParents = parentSelection.getSortedElements(p, timelapseDataset);
             for (List<SegmentedObject> track : sortedParents) {
                 for (SegmentedObject parent : track) {
                     BoundingBox pBds = parent.getBounds();

@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6)};
+public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, Hint {
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), new HardSampleMiningParameter("Hard Sample Mining", new FloatParameter("Center Scale", 4))};
 
     Parameter[] datasetParameters = new Parameter[0];
     BoundedNumberParameter frameSubSampling = new BoundedNumberParameter("Frame Subsampling", 0, 15, 1, null).setHint("Random time Subsampling of dataset to increase input diversity. Only used in timelapse mode<br>Extent E of the frame window <em>seen</em> by the neural network is drawn randomly in interval [0, FRAME_SUBSAMLPING). final seen frame window is W = 2 x E + 1. If W is greater than the input window of the neural network, gaps between frame are introduced, except between central frame and first adjacent frame");
@@ -54,7 +54,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         }).setHint("Select object class of reference segmented objects");
     ChannelImageParameter channel = new ChannelImageParameter("Channel Image").setHint("Input raw image channel");
     ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE);
-
+    BooleanParameter timelapse = new BooleanParameter("Timelapse", false).setHint("If true, extracts a timelapse dataset, which is necessary if <em>Architecture &gt; Frame Window</em> parameter is &gt; 0 (i.e. neural network inputs a frame window instead of a single frame)");
     SimpleListParameter<DiSTNet2DTraining.OtherObjectClassParameter> otherOCList = new SimpleListParameter<>("Other Channels", new DiSTNet2DTraining.OtherObjectClassParameter())
             .addValidationFunctionToChildren(g -> {
                 String k = g.key.getValue();
@@ -89,8 +89,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
             .setActionParameters(SELECTION_MODE.NEW, parentObjectClass, extractPos);
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
-
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, extendToDims, selModeCond, selectionFilter, spatialDownsampling);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, extendToDims, selModeCond, selectionFilter, spatialDownsampling, timelapse);
 
 
     @Override
@@ -135,7 +134,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
         labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), extendToDims.getSelected(), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), compression);
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), extendToDims.getSelected(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {
@@ -145,6 +144,11 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
     @Override
     public DLModelMetadata getDLModelMetadata(String workingDirectory) {
         DiSTNet2DTraining.ArchitectureParameter archP = (DiSTNet2DTraining.ArchitectureParameter)getConfiguration().getOtherParameters()[1];
+        boolean next = archP.next.getSelected();
+        int frameWindow = archP.frameWindow.getIntValue();
+        int nframes = ( next ? 2 : 1) * frameWindow + 1;
+        boolean fixedShape = archP.attention.getIntValue()>0 || archP.selfAttention.getIntValue()>0;
+
         TrainingConfigurationParameter.DatasetParameter p;
         if (getConfiguration().getDatasetList().getChildCount() > 0) {
             if (getConfiguration().getDatasetList().getActivatedChildCount() > 0) p = getConfiguration().getDatasetList().getActivatedChildren().get(0);
@@ -153,22 +157,25 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         DLModelMetadata.DLModelInputParameter[] inputs;
         if (p == null) { // assuming one single input
             inputs = new DLModelMetadata.DLModelInputParameter[1];
-            inputs[0] = new DLModelMetadata.DLModelInputParameter("Input").setChannelNumber(1);
+            inputs[0] = new DLModelMetadata.DLModelInputParameter("Input").setChannelNumber(nframes);
         } else {
             int nchan = p.getChannelNumber();
             int nlab = p.getLabelNumber();
             inputs = new DLModelMetadata.DLModelInputParameter[nchan + nlab * 2];
             for (int i = 0; i<nchan; ++i) {
                 inputs[i] = new DLModelMetadata.DLModelInputParameter("Input"+i)
-                    .setChannelNumber(1)
+                    .setChannelNumber(nframes)
                     .setScaling(p.getScalingParameter(i).getScaler());
             }
             for (int i = 0; i<nlab * 2; ++i) {
                 inputs[i+nchan] = new DLModelMetadata.DLModelInputParameter("Input"+(i+nchan)+ (i%2==0 ? "_EDM" : "_CDM" ) )
-                    .setChannelNumber(1);
+                    .setChannelNumber(nframes);
             }
         }
-        for (int i = 0;i<inputs.length; ++i) inputs[i].setShape();
+        for (int i = 0;i<inputs.length; ++i) {
+            if (fixedShape) inputs[i].setShape(getConfiguration().getGlobalDatasetParameters().getInputShape());
+            else inputs[i].setShape();
+        }
         DLModelMetadata.DLModelOutputParameter[] outputs = new DLModelMetadata.DLModelOutputParameter[archP.category() ? 3 : 2];
         outputs[0] = new DLModelMetadata.DLModelOutputParameter("Output0_EDM");
         outputs[1] = new DLModelMetadata.DLModelOutputParameter("Output1_CDM");
@@ -176,7 +183,8 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, Hint {
         return new DLModelMetadata()
                 .setInputs(inputs)
                 .setOutputs(outputs)
-                .setContraction(archP.getContraction());
+                .setContraction(archP.getContraction())
+                .addMiscParameters(new BooleanParameter("Next", archP.next.getValue()));
     }
 
     @Override

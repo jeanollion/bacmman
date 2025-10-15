@@ -34,6 +34,11 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
     BooleanParameter predictCategory = new BooleanParameter("Predict Category", false)
             .setHint("Whether the network predicts a category for each segmented objects or not");
+    BooleanParameter next = new BooleanParameter("Predict Next", true)
+            .setHint("Whether the network accept previous, current and next frames as input. A network that also use the next frame is recommended for more complex problems.");
+    BoundedNumberParameter inputWindow = new BoundedNumberParameter("Input Window", 0, 0, 0, null).setHint("Defines the number of frames fed to the network. The window is [t-N, t] or [t-N, t+N] if next==true");
+    BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> &gt; 1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1). <br/>Increase this parameter to provide more temporal context to the neural network, for instance if timesteps are shorter or growth is slower than expected.");
+
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Resize And Scale", true, true, false)
             .setScaler(0, new PercentileScaler())
             .setDefaultContraction(8,8)
@@ -43,7 +48,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             .setInterpolationForOutput(new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS), 0, 1)
             .setEmphasized(true);
 
-    IntegerParameter batchSize = new IntegerParameter("Frame Batch Size", 1).setLowerBound(1).setHint("Number of frames processed at the same time");
+    IntegerParameter batchSize = new IntegerParameter("Frame Batch Size", 1).setLowerBound(0).setHint("Number of frames processed at the same time. 0 = all frames");
     BoundedNumberParameter centerSmoothRad = new BoundedNumberParameter("Center Smooth", 5, 0, 0, null).setEmphasized(false).setHint("Smooth radius for center dist image. Set 0 to skip this step, or a radius in pixel (typically 2) if predicted center dist image is not smooth a too many centers are detected");
 
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas");
@@ -58,7 +63,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     ConditionalParameter<Boolean> useGDCMGradientCriterionCond = new ConditionalParameter<>(useGDCMGradientCriterion).setActionParameters(true, minObjectSizeGDCMGradient);
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
 
-    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, predictCategory);
+    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, inputWindow, next, frameSubsampling, predictCategory);
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
 
     @Override
@@ -126,7 +131,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             allImages = DiSTNet2D.getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), Collections.singletonList(parent), null);
             allImages.get(0).put(parent.getFrame(), input);
         }
-        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(Collections.singletonList(parent), allImages);
+        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(Collections.singletonList(parent), objectClassIdx, allImages, null);
         return new Triplet<>(res.v1.get(parent), res.v2.get(parent), res.v3 == null ? null : res.v3.get(parent));
     }
 
@@ -163,11 +168,10 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     }
 
     @Override
-    public TrackConfigurer<DiSTNet2DSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
+    public TrackConfigurer<DiSTNet2DSegmenter> run(int objectClassIdx, List<SegmentedObject> parentTrack) {
         SegmentedObject firstParent = parentTrack.get(0);
-        boolean singleFrame = isSingleFrame(structureIdx, firstParent);
-        List<Map<Integer, Image>> inputMap = DiSTNet2D.getInputImageList(structureIdx, getAdditionalChannels(), getAdditionalLabels(), singleFrame ? Collections.singletonList(firstParent) : parentTrack, null);
-        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> maps = predict(parentTrack, inputMap);
+        boolean singleFrame = isSingleFrame(objectClassIdx, firstParent);
+        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> maps = predict(parentTrack, objectClassIdx);
         if (singleFrame) {
             return (p, segmenter) -> {
                 segmenter.edmMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v1.get(firstParent));
@@ -183,33 +187,43 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         }
     }
 
-    protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, List<Map<Integer, Image>> inputMap) {
+    protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx) {
+        return predict(parentTrack, objectClassIdx, null, null);
+    }
+
+    protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx, List<Map<Integer, Image>> inputMap, BoundingBox minimalBounds) {
         Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p));
         Map<SegmentedObject, Image> edmMap = new HashMap<>();
         Map<SegmentedObject, Image> gcdmMap = new HashMap<>();
         Map<SegmentedObject, Image[]> catMap = predictCategory.getSelected() ? new HashMap<>() : null;
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
-        int[] allFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
-        double interval = allFrames.length;
-        int increment = (int)Math.ceil( interval / Math.ceil( interval /batchSize.getIntValue() ) );
-        for (int idx = 0; idx < allFrames.length; idx += increment ) {
-            int idxMax = Math.min(idx + increment, allFrames.length);
-            Image[][][] input = DiSTNet2D.getInputs(inputMap, allFrames, Arrays.copyOfRange(allFrames, idx, idxMax), 0, false, 0, 0);
-            logger.debug("input: [{}; {}) / [{}; {}]", idx, idxMax, allFrames[0], allFrames[allFrames.length-1]);
+        int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
+        int increment = batchSize.getIntValue ()<1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / batchSize.getIntValue()) );
+        for (int i = 0; i < parentTrack.size(); i += increment ) {
+            int maxIdx = Math.min(parentTrack.size(), i+increment);
+            List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
+            int minFrame = DiSTNet2D.getNeighborhood(sortedFrames, subParentTrack.get(0).getFrame(), inputWindow.getIntValue(), false, frameSubsampling.getIntValue(), 0).stream().mapToInt(f->f).min().orElse(subParentTrack.get(0).getFrame());
+            int minFrameIdx = DiSTNet2D.search(sortedFrames, 0, minFrame, 0);
+            int maxFrame = DiSTNet2D.getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), 0).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
+            int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), DiSTNet2D.search(sortedFrames, maxIdx, maxFrame, 0) + 1);
+            List<Map<Integer, Image>> allImages = inputMap == null ? DiSTNet2D.getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), minimalBounds) : inputMap;
+
+            Image[][][] input = DiSTNet2D.getInputs(allImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0);
+            logger.debug("input: [{}; {}) / [{}; {}]", i, maxIdx, sortedFrames[0], sortedFrames[sortedFrames.length-1]);
             Image[][][] predictionONC = dlResizeAndScale.predict(engine, input); // 0=edm, 1=gcdm, 2 = cat
 
-            for (int i = idx; i<idxMax; ++i) {
-                int frame = allFrames[i];
+            for (int f = i; f<maxIdx; ++f) {
+                int frame = sortedFrames[f];
                 SegmentedObject p = parentMap.get(frame);
-                Image ref = inputMap.get(0).get(frame);
-                predictionONC[0][i-idx][0].setCalibration(ref).resetOffset().translate(ref);
-                edmMap.put(p, predictionONC[0][i-idx][0]);
-                predictionONC[1][i-idx][0].setCalibration(ref).resetOffset().translate(ref);
-                gcdmMap.put(p, predictionONC[1][i-idx][0]);
+                Image ref = allImages.get(0).get(frame);
+                predictionONC[0][f-i][0].setCalibration(ref).resetOffset().translate(ref);
+                edmMap.put(p, predictionONC[0][f-i][0]);
+                predictionONC[1][f-i][0].setCalibration(ref).resetOffset().translate(ref);
+                gcdmMap.put(p, predictionONC[1][f-i][0]);
                 if (catMap != null) {
-                    for (int ci = 0; ci<predictionONC[2][i-idx].length; ++ci) predictionONC[2][i-idx][ci].setCalibration(ref).resetOffset().translate(ref);
-                    catMap.put(p, predictionONC[2][i-idx]);
+                    for (int ci = 0; ci<predictionONC[2][f-i].length; ++ci) predictionONC[2][f-i][ci].setCalibration(ref).resetOffset().translate(ref);
+                    catMap.put(p, predictionONC[2][f-i]);
                 }
             }
         }
@@ -223,12 +237,17 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
 
     @Override
     public void configureFromMetadata(DLModelMetadata metadata) {
+        BooleanParameter metaNext = metadata.getOtherParameter(BooleanParameter.class, "Predict Next", "Next");
+        if (metaNext!=null) next.setSelected(metaNext.getSelected());
         if (!metadata.getOutputs().isEmpty()) {
             predictCategory.setSelected(metadata.getOutputs().size() == 3);
         }
         logger.debug("conf from metadata: #output {}", metadata.getOutputs().size());
         if (!metadata.getInputs().isEmpty()) {
             List<DLModelMetadata.DLModelInputParameter> inputs = metadata.getInputs();
+            DLModelMetadata.DLModelInputParameter input = inputs.get(0);
+            this.inputWindow.setValue(next.getSelected()? (input.getChannelNumber() -1) / 2 : input.getChannelNumber() - 1 );
+
             if (inputs.size() > 1) {
                 int labelIdx = -1;
                 for (int i = 0; i < inputs.size(); ++i) {
@@ -253,12 +272,15 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             for (int i = 0; i<additionalInputChannels.getActivatedChildCount()+1; ++i) {
                 dlResizeAndScale.setScaler(i, inputs.get(i).getScaling().instantiatePlugin());
             }
+            if (!metadata.getOutputs().isEmpty()) {
+                predictCategory.setSelected(metadata.getOutputs().size() == 3);
+            }
         }
     }
 
     protected Image predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
         List<SegmentedObject> parentTrack = Collections.singletonList(parent);
-        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(parentTrack,  DiSTNet2D.getInputImageList(objectClassIdx,getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds ));
+        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(parentTrack,  objectClassIdx, null, minimalBounds);
         return res.v1.get(parent);
     }
 

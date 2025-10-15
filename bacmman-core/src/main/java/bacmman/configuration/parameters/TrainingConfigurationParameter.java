@@ -530,7 +530,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         IntegerParameter anchorPointMaskIdx = new IntegerParameter("Mask Idx", -1).setLowerBound(0).setHint("Index of mask that defines the anchor point.");
         ConditionalParameter<Boolean> anchorPointCond = new ConditionalParameter<>(anchorPoint).setActionParameters(true, anchorPointMaskIdx);
         ConditionalParameter<TILE_NUMBER_MODE> tileNumberModeCond = new ConditionalParameter<>(tileNumberMode).setActionParameters(TILE_NUMBER_MODE.CONSTANT, nTiles, anchorPointCond).setActionParameters(TILE_NUMBER_MODE.AUTOMATIC, tileOverlapFraction);
-        IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval for random zoom range; a value < 1 zoom out. Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
+        IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval for random zoom range; a value &lt; 1 zoom out. <br/>Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
         IntervalParameter aspectRatioRange = new IntervalParameter("Aspect Ratio Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval that limits aspect ratio when zooming in/out");
         BoundedNumberParameter zoomProba = new BoundedNumberParameter("Zoom Probability", 5, 0.25, 0, 1).setHint("Probability to perform random zoom. 0 : tiles are never zoom, 1: tiles are always zoomed");
         ArrayNumberParameter jitter = InputShapesParameter.getInputShapeParameter(false, true, new int[]{10, 10}, null)

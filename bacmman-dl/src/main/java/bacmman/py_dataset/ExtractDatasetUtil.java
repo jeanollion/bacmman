@@ -15,7 +15,6 @@ import bacmman.plugins.plugins.feature_extractor.*;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Triplet;
 import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
@@ -51,7 +50,7 @@ public class ExtractDatasetUtil {
         int spatialDownsamplingFactor = t.getExtractDSSpatialDownsamplingFactor();
         int compression = t.getExtractDSCompression();
         int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
-        boolean trackingDataset = t.isExtractDSTracking();
+        boolean trackingDataset = t.isExtractDSTimelapse();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
         MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
@@ -467,7 +466,7 @@ public class ExtractDatasetUtil {
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, boolean extendToDimensions, List<String> selections, String filterSelection, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, boolean extendToDimensions, List<String> selections, String filterSelection, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
@@ -476,7 +475,7 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, extendToDimensions, eraseContoursOC, true, spatialDownSampling, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, extendToDimensions, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 
