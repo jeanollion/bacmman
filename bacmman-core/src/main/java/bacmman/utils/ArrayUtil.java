@@ -154,6 +154,7 @@ public class ArrayUtil {
      * @return index of maximum value
      */
     public static int max(float[] array, int start, int stopExclusive) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stopExclusive>array.length) stopExclusive=array.length;
         if (stopExclusive<start) throw new IllegalArgumentException("Stop before start");
@@ -165,6 +166,7 @@ public class ArrayUtil {
         return max(array, 0, array.length);
     }
     public static int max(double[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");
@@ -176,6 +178,7 @@ public class ArrayUtil {
         return max(array, 0, array.length);
     }
     public static int max(int[] array, int start, int stopExcluded) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stopExcluded>array.length) stopExcluded=array.length;
         if (stopExcluded<start) throw new IllegalArgumentException("Stop before start");
@@ -187,6 +190,7 @@ public class ArrayUtil {
         return max(array, 0, array.length);
     }
     public static int max(long[] array, int start, int stopExcluded) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stopExcluded>array.length) stopExcluded=array.length;
         if (stopExcluded<start) throw new IllegalArgumentException("Stop before start");
@@ -198,6 +202,7 @@ public class ArrayUtil {
         return min(array, 0, array.length);
     }
     public static int min(float[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");
@@ -209,6 +214,7 @@ public class ArrayUtil {
         return min(array, 0, array.length);
     }
     public static int min(double[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");//{int temp = start; start=stop; stop=temp;}
@@ -220,6 +226,7 @@ public class ArrayUtil {
         return min(array, 0, array.length);
     }
     public static int min(int[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");
