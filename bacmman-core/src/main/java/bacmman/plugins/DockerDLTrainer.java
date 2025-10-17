@@ -16,6 +16,8 @@ public interface DockerDLTrainer extends Plugin {
 
     DLModelMetadata getDLModelMetadata(String workingDirectory);
 
+    String minimalScriptVersion();
+
     enum SELECTION_MODE {NEW, EXISTING}
 
     interface ComputeMetrics {}

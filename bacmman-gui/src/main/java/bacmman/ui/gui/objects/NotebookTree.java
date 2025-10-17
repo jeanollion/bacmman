@@ -61,17 +61,18 @@ public class NotebookTree {
     final Consumer<NotebookTreeNode> doubleClickCallback;
     final BiConsumer<String, JSONObject> upload;
     final BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update;
-    final Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback;
+    final Function<NotebookTreeNode, Supplier<JSONObject>> displayNotebook;
     final Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier;
     final ProgressLogger bacmmanLogger;
     DefaultTreeModel treeModel;
     boolean expanding=false;
+    NotebookTreeNode displayingNode;
 
-    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> selectionCallback, Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update, ProgressLogger bacmmanLogger) {
+    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update, ProgressLogger bacmmanLogger) {
         this.bacmmanLogger = bacmmanLogger;
         this.tree = new JTree();
         this.doubleClickCallback = doubleClickCallback;
-        this.selectionCallback = selectionCallback;
+        this.displayNotebook = displayNotebook;
         this.selectedRemoteSupplier = selectedRemoteSupplier;
         this.upload = upload;
         this.update = update;
@@ -101,27 +102,24 @@ public class NotebookTree {
 
             }
         });
-        if (doubleClickCallback != null) {
-            tree.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent e) {
-                    TreePath path = tree.getPathForLocation(e.getX(), e.getY());
-                    if (path == null) return;
-                    NotebookTreeNode node = (NotebookTreeNode) path.getLastPathComponent();
-                    if (node.isFolder) return;
-                    if (SwingUtilities.isLeftMouseButton(e)) {
-                        if (doubleClickCallback != null && e.getClickCount() == 2) {
-                            doubleClickCallback.accept(node);
-                        }
-                    } else if (SwingUtilities.isRightMouseButton(e)) {
-                        TreePath oldSel = tree.getSelectionPath();
-                        tree.setSelectionPath(path);
-                        selectionChanged(oldSel, path);
-                        showPopupMenu(e, node);
-                    }
+        tree.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+            TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+            if (path == null) return;
+            NotebookTreeNode node = (NotebookTreeNode) path.getLastPathComponent();
+            if (SwingUtilities.isLeftMouseButton(e)) {
+                if (!node.isFolder && doubleClickCallback != null && e.getClickCount() == 2) {
+                    doubleClickCallback.accept(node);
                 }
-            });
-        }
+            } else if (SwingUtilities.isRightMouseButton(e)) {
+                TreePath oldSel = tree.getSelectionPath();
+                tree.setSelectionPath(path);
+                selectionChanged(oldSel, path);
+                showPopupMenu(e, node);
+            }
+            }
+        });
 
         // description as tooltip
         tree.addMouseMotionListener(new MouseMotionListener() {
@@ -150,10 +148,23 @@ public class NotebookTree {
     }
 
     protected void selectionChanged(NotebookTreeNode oldSel, NotebookTreeNode newSel) {
-        if (oldSel != null && !oldSel.isFolder) oldSel.updateContent();
-        if (selectionCallback != null) {
-            if (newSel == null) selectionCallback.apply(null);
-            else newSel.contentUpdate = selectionCallback.apply(newSel);
+        if (oldSel != null && oldSel.equals(newSel)) return;
+        if (oldSel != null && !oldSel.isFolder) {
+            oldSel.updateContent();
+        }
+        if (displayNotebook != null) displayNotebook.apply(null);
+        displayingNode = null;
+    }
+
+    protected void displayNotebook(NotebookTreeNode node) {
+        if (displayingNode != null && !displayingNode.equals(node)) {
+            if (displayNotebook != null) displayNotebook.apply(null);
+            displayingNode = null;
+        }
+        if (displayNotebook != null) {
+            if (node == null) displayNotebook.apply(null);
+            else node.contentUpdate = displayNotebook.apply(node);
+            displayingNode = node;
         }
     }
 
@@ -337,6 +348,12 @@ public class NotebookTree {
     private void showPopupMenu(MouseEvent e, NotebookTreeNode n) {
         JPopupMenu menu = new JPopupMenu();
         NotebookGistTree.GistTreeNode remote = selectedRemoteSupplier.get();
+        JMenuItem display = new JMenuItem(new AbstractAction("Display") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                displayNotebook(n);
+            }
+        });
         JMenuItem save = new JMenuItem(new AbstractAction("Save") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -374,7 +391,7 @@ public class NotebookTree {
                 deleteNotebook(n);
             }
         });
-
+        menu.add(display);
         menu.add(save);
         menu.add(saveAs);
         menu.add(upload);
@@ -402,7 +419,7 @@ public class NotebookTree {
 
     public void reloadNotebook(NotebookTreeNode n) {
         n.getContent(true);
-        n.contentUpdate = selectionCallback.apply(n);
+        if (n.equals(displayingNode) && displayNotebook != null) n.contentUpdate = displayNotebook.apply(n);
     }
 
     public void deleteNotebook(NotebookTreeNode n) {

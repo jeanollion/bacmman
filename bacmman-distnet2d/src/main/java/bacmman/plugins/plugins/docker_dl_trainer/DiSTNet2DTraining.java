@@ -204,6 +204,11 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, extendToDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
 
     @Override
+    public String minimalScriptVersion() {
+        return "1.1.4";
+    }
+
+    @Override
     public String getHintText() {
         return "Training for Distnet2D<br/> If you use this method please cite: Ollion, J., Maliet, M., Giuglaris, C., Vacher, E., & Deforet, M. (2024). DistNet2D: Leveraging long-range temporal information for efficient segmentation and tracking. PRXLife";
     }

@@ -188,7 +188,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 if (ppFilesExist && imageDAO!=null && !(imageDAO.getSourceImageDAO() instanceof BypassImageDAO)) {
                     return;
                 }
-                if (!ppFilesExist) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), true);
+                if (!ppFilesExist) {
+                    if (sourceImages != null) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), true);
+                }
                 else imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // image have been pre-filtered
             }
         } else { // ensure not bypass DAO

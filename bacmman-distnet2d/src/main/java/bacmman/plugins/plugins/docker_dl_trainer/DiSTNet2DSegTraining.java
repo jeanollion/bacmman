@@ -91,6 +91,10 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
 
     GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, extendToDims, selModeCond, selectionFilter, spatialDownsampling, timelapse);
 
+    @Override
+    public String minimalScriptVersion() {
+        return "1.1.4";
+    }
 
     @Override
     public String getHintText() {
