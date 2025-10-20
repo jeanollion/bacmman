@@ -1330,7 +1330,7 @@ public class Utils {
     }
     public static void extractResourceFile(Class clazz, String resource, String outputFile) throws IOException {
         String content = getResourceFileAsString(clazz, resource);
-        logger.debug("extract resource {} content to file: {} content: {}", resource , outputFile, content);
+        logger.debug("extract resource {} content to file: {} content: \n{}", resource , outputFile, content);
         FileIO.TextFile dockerFileTF = new FileIO.TextFile(outputFile, true, false);
         dockerFileTF.write(content,false);
         dockerFileTF.close();

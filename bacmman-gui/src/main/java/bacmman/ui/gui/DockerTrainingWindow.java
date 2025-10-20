@@ -275,7 +275,13 @@ public class DockerTrainingWindow implements ProgressLogger {
                         String[] cmds = exportModel ? new String[]{"python", "train.py", "/data", "--min_script_version", trainer.minimalScriptVersion()} : new String[]{"python", "train.py", "/data", "--train_only", "--min_script_version", trainer.minimalScriptVersion()};
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
-                            ensureImage(trainer, dockerGateway, false);
+                            dockerGateway.stopContainer(currentContainer);
+                            String imID = ensureImage(trainer, dockerGateway, false);
+                            if (imID==null) {
+                                setMessage("Error updating image");
+                                return;
+                            }
+                            currentContainer = getContainer(trainer, dockerGateway, false, null, false);
                             dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         }
                     } catch (InterruptedException e) {
@@ -354,7 +360,13 @@ public class DockerTrainingWindow implements ProgressLogger {
                         String[] cmds = new String[]{"python", "train.py", "/data", "--compute_metrics", "--min_script_version", trainer.minimalScriptVersion()};
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
-                            ensureImage(trainer, dockerGateway, false);
+                            dockerGateway.stopContainer(currentContainer);
+                            String imID = ensureImage(trainer, dockerGateway, false);
+                            if (imID==null) {
+                                setMessage("Error updating image");
+                                return;
+                            }
+                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, mounts, false);
                             dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         }
                         logger.debug("metrics file found: {}", outputFile.isFile());
@@ -477,7 +489,16 @@ public class DockerTrainingWindow implements ProgressLogger {
                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_data_augmentation", "--min_script_version", trainer.minimalScriptVersion()};
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
-                            ensureImage(trainer, dockerGateway, false);
+                            logger.debug("stopping container: {}", currentContainer);
+                            dockerGateway.stopContainer(currentContainer);
+                            String imID = ensureImage(trainer, dockerGateway, false);
+                            if (imID==null) {
+                                setMessage("Error updating image");
+                                return;
+                            }
+                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
+                            logger.debug("new container: {}",  currentContainer);
+                            if (currentContainer == null) return;
                             dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         }
                         logger.debug("data aug file found: {}", outputFile.isFile());
@@ -537,7 +558,13 @@ public class DockerTrainingWindow implements ProgressLogger {
                                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_predict", "--min_script_version", trainer.minimalScriptVersion()};
                                         dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         if (needUpdate) {
-                                            ensureImage(trainer, dockerGateway, false);
+                                            dockerGateway.stopContainer(currentContainer);
+                                            String imID = ensureImage(trainer, dockerGateway, false);
+                                            if (imID==null) {
+                                                setMessage("Error updating image");
+                                                return;
+                                            }
+                                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
                                             dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         }
                                         logger.debug("data aug file found: {}", outputFile.isFile());
@@ -601,7 +628,13 @@ public class DockerTrainingWindow implements ProgressLogger {
                         String[] cmds = new String[]{"python", "train.py", "/data", "--export_only", "--min_script_version", trainer.minimalScriptVersion()};
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
-                            ensureImage(trainer, dockerGateway, true);
+                            dockerGateway.stopContainer(currentContainer);
+                            String imID = ensureImage(trainer, dockerGateway, true);
+                            if (imID==null) {
+                                setMessage("Error updating image");
+                                return;
+                            }
+                            currentContainer = getContainer(trainer, dockerGateway, false, null, true);
                             dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         }
                         updateTrainingDisplay();
@@ -817,8 +850,19 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean export) {
         DockerGateway.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage(export);
-        if (!currentImage.isInstalled() || needUpdate) { // look for dockerfile and build it
+        boolean isInstalled = currentImage.isInstalled();
+        if (needUpdate && isInstalled) { // remove existing image -> important to update the script, otherwise the old version is reused
+            logger.debug("need update image : {}, id={}", currentImage.getTag(), currentImage.getId());
+            boolean rem = dockerGateway.removeImage(currentImage.getId());
+            if (!rem) {
+                setMessage("Need to update image "+currentImage.getTag()+ " but it cannot be removed. Stop all containers and restart command");
+                return null;
+            }
+            isInstalled = false;
             needUpdate = false;
+            logger.debug("update image: {} id={} removed: {}", currentImage.getImageName(), currentImage.getId(), rem);
+        }
+        if (!isInstalled) { // look for dockerfile and build it
             String dockerFilePath = null;
             File dockerDir = null;
             try {
@@ -837,9 +881,12 @@ public class DockerTrainingWindow implements ProgressLogger {
                 logger.error("Error while extracting resources", e);
                 return null;
             } catch (RuntimeException e) {
-                if (e.getMessage().toLowerCase().contains("permission denied")) {
+                if (e.getMessage() != null && e.getMessage().toLowerCase().contains("permission denied")) {
                     setMessage("Could not build docker image: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
                     logger.error("Error connecting with Docker: Permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock", e);
+                } else {
+                    setMessage("Error Building image " + e.getMessage());
+                    logger.error("Error ensure image", e);
                 }
                 return null;
             } finally {
@@ -850,7 +897,6 @@ public class DockerTrainingWindow implements ProgressLogger {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
                     currentProgressBar.setString("");
                 }
-
             }
         } else return currentImage.getTag();
     }
@@ -1224,12 +1270,12 @@ public class DockerTrainingWindow implements ProgressLogger {
     String[] isInfo = new String[]{"Created device"};
 
     protected void printError(String message) {
+        if (message == null || message.isEmpty()) return;
         if (message.contains("ERROR: Script requirements not met") || message.contains("unrecognized arguments: --min_script_version")) {
             setMessage("Image is out-of-date and will be updated.");
             needUpdate = true;
             return;
         }
-        if (message == null || message.isEmpty()) return;
         for (String ignore : ignoreError) if (message.contains(ignore)) return;
         setMessage(message);
         for (String info : isInfo) {
