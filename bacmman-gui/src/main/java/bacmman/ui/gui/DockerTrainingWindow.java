@@ -276,11 +276,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
-                            String imID = ensureImage(trainer, dockerGateway, false);
-                            if (imID==null) {
-                                setMessage("Error updating image");
-                                return;
-                            }
+                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
                             currentContainer = getContainer(trainer, dockerGateway, false, null, false);
                             dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         }
@@ -334,7 +330,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             dataset.setRefPathFun(() -> null); // absolute
             dataset.setFilePath(tempDatasetFile.getAbsolutePath());
             Map<String, String> mounts = fixDirectories(trainer);
-            pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
+            pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false); // dataset has been replaced so manually save configuration
             currentProgressBar = extractProgressBar;
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
@@ -361,11 +357,6 @@ public class DockerTrainingWindow implements ProgressLogger {
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
-                            String imID = ensureImage(trainer, dockerGateway, false);
-                            if (imID==null) {
-                                setMessage("Error updating image");
-                                return;
-                            }
                             currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, mounts, false);
                             dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         }
@@ -491,11 +482,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                         if (needUpdate) {
                             logger.debug("stopping container: {}", currentContainer);
                             dockerGateway.stopContainer(currentContainer);
-                            String imID = ensureImage(trainer, dockerGateway, false);
-                            if (imID==null) {
-                                setMessage("Error updating image");
-                                return;
-                            }
+                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
                             currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
                             logger.debug("new container: {}",  currentContainer);
                             if (currentContainer == null) return;
@@ -559,11 +546,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                                         dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         if (needUpdate) {
                                             dockerGateway.stopContainer(currentContainer);
-                                            String imID = ensureImage(trainer, dockerGateway, false);
-                                            if (imID==null) {
-                                                setMessage("Error updating image");
-                                                return;
-                                            }
+                                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
                                             currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
                                             dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         }
@@ -620,8 +603,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
             if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
-            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
             runLater(() -> {
+                DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
                 currentContainer = getContainer(trainer, dockerGateway, false, null, true);
                 if (currentContainer != null) {
                     try {
@@ -629,11 +612,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
-                            String imID = ensureImage(trainer, dockerGateway, true);
-                            if (imID==null) {
-                                setMessage("Error updating image");
-                                return;
-                            }
+                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
                             currentContainer = getContainer(trainer, dockerGateway, false, null, true);
                             dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         }
@@ -935,6 +914,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             if (dirMapMountDir == null) dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
+            logger.debug("additional mounts: {}", Utils.toStringList(dirMapMountDir.entrySet(), e->e.getKey()+"->"+e.getValue()));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
@@ -1272,6 +1252,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
         if (message.contains("ERROR: Script requirements not met") || message.contains("unrecognized arguments: --min_script_version")) {
+            logger.debug(message);
             setMessage("Image is out-of-date and will be updated.");
             needUpdate = true;
             return;
