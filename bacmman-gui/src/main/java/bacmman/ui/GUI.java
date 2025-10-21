@@ -614,6 +614,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         JMenuItem restartPyGateway = new JMenuItem("Restart Python Gateway");
         restartPyGateway.addActionListener(al -> pyGatewayListener.run());
         pyGatewayMenu.add(restartPyGateway);
+        JMenuItem stopPyGateway = new JMenuItem("Stop Python Gateway");
+        stopPyGateway.addActionListener(al -> {if (pyGtw!=null) {
+            pyGtw.stopGateway();
+            pyGtw = null;
+        }});
+        pyGatewayMenu.add(stopPyGateway);
         pyGatewayListener.run();
 
         // ctc
@@ -1362,6 +1368,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     }
 
     public boolean getManualEditionRelabel() {return this.relabel.getSelected();}
+    public void setManualEditionRelabel(boolean relabel) {this.relabel.setValue(false);}
 
     public double getLocalZoomLevel() {
         return this.localZoomFactor.getValue().doubleValue();

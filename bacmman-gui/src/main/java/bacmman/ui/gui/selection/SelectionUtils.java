@@ -379,37 +379,7 @@ public class SelectionUtils {
             });
         }
         menu.add(setOC);
-        JMenu dupObj = new JMenu("Duplicate Objects to...");
-        for (int i = 0; i<ocNames.length; ++i) {
-            final int ocIdx = i;
-            int parentOCIdx = GUI.getDBConnection().getExperiment().experimentStructure.getParentObjectClassIdx(ocIdx);
-            JMenuItem oc = new JMenuItem(ocNames[i]);
-            dupObj.add(oc);
-            oc.addActionListener((ActionEvent e) -> {
 
-                SegmentedObjectFactory factory = getFactory(ocIdx);
-                TrackLinkEditor editor = getEditor(ocIdx, null);
-                if (selectedValues.isEmpty()) return;
-                for (Selection s : selectedValues) {
-                    Set<SegmentedObject> source = s.getAllElements();
-                    logger.debug("Will duplicates {} elements from oc {} to oc {} (parent: {})", source.size(), s.getObjectClassIdx(), ocIdx, parentOCIdx);
-                    Map<SegmentedObject, SegmentedObject> sourceMapParent = Duplicate.getSourceMapParents(source.stream().map(o -> o.getParent(parentOCIdx)), parentOCIdx, s.getObjectClassIdx());
-                    Map<SegmentedObject, SegmentedObject> sourceMapDup = Duplicate.duplicate(source.stream(), ocIdx, factory, editor);
-                    Duplicate.setParents(sourceMapDup,sourceMapParent, parentOCIdx, s.getObjectClassIdx(), true, factory);
-                    // save to DB
-                    sourceMapDup.values().stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName)).forEach((p, toSave) -> {
-                        ObjectDAO oDAO = db.getDao(p);
-                        oDAO.store(toSave);
-                    });
-                    // update display
-                    ImageWindowManagerFactory.getImageManager().resetObjects(null, ocIdx);
-                    GUI.updateRoiDisplayForSelections();
-                    GUI.updateTrackTree();
-                }
-                if (readOnly) Utils.displayTemporaryMessage("Changes will not be stored as database could not be locked", 5000);
-            });
-        }
-        menu.add(dupObj);
 
         menu.add(new JSeparator());
         JMenuItem add = new JMenuItem("Add objects selected on active Kymograph");
@@ -422,7 +392,7 @@ public class SelectionUtils {
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
         menu.add(add);
-        JMenu removeMenu = new JMenu("Remove...");
+        JMenu removeMenu = new JMenu("Remove from selection...");
         JMenuItem clear = new JMenuItem("All objects");
         clear.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
@@ -479,21 +449,6 @@ public class SelectionUtils {
         });
         removeMenu.add(removeBefore);
         menu.add(removeMenu);
-
-        JMenuItem duplicate = new JMenuItem("Duplicate");
-        duplicate.addActionListener((ActionEvent e) -> {
-            if (selectedValues.isEmpty()) return;
-            String name = JOptionPane.showInputDialog("Duplicate Selection name:");
-            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
-                Selection dup = selectedValues.get(0).duplicate(name);
-                dup.getMasterDAO().getSelectionDAO().store(dup);
-                GUI.getInstance().populateSelections();
-                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                list.updateUI();
-            }
-        });
-        menu.add(duplicate);
-        if (selectedValues.size()!=1) duplicate.setEnabled(false);
 
         // operations
         JMenu OpMenu = new JMenu("Set Operations");
@@ -734,6 +689,21 @@ public class SelectionUtils {
         }
         menu.add(getParentSelection);
 
+        JMenuItem duplicate = new JMenuItem("Duplicate");
+        duplicate.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            String name = JOptionPane.showInputDialog("Duplicate Selection name:");
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
+                Selection dup = selectedValues.get(0).duplicate(name);
+                dup.getMasterDAO().getSelectionDAO().store(dup);
+                GUI.getInstance().populateSelections();
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                list.updateUI();
+            }
+        });
+        menu.add(duplicate);
+        if (selectedValues.size()!=1) duplicate.setEnabled(false);
+
         JMenuItem delete = new JMenuItem("Delete Selection");
         delete.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
@@ -746,6 +716,78 @@ public class SelectionUtils {
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
         menu.add(delete);
+
+        // operations on objects
+        menu.add(new JSeparator());
+        JMenu dupObj = new JMenu("Duplicate Objects to...");
+        for (int i = 0; i<ocNames.length; ++i) {
+            final int ocIdx = i;
+            int parentOCIdx = GUI.getDBConnection().getExperiment().experimentStructure.getParentObjectClassIdx(ocIdx);
+            JMenuItem oc = new JMenuItem(ocNames[i]);
+            dupObj.add(oc);
+            oc.addActionListener((ActionEvent e) -> {
+
+                SegmentedObjectFactory factory = getFactory(ocIdx);
+                TrackLinkEditor editor = getEditor(ocIdx, null);
+                if (selectedValues.isEmpty()) return;
+                for (Selection s : selectedValues) {
+                    Set<SegmentedObject> source = s.getAllElements();
+                    logger.debug("Will duplicates {} elements from oc {} to oc {} (parent: {})", source.size(), s.getObjectClassIdx(), ocIdx, parentOCIdx);
+                    Map<SegmentedObject, SegmentedObject> sourceMapParent = Duplicate.getSourceMapParents(source.stream().map(o -> o.getParent(parentOCIdx)), parentOCIdx, s.getObjectClassIdx());
+                    Map<SegmentedObject, SegmentedObject> sourceMapDup = Duplicate.duplicate(source.stream(), ocIdx, factory, editor);
+                    Duplicate.setParents(sourceMapDup,sourceMapParent, parentOCIdx, s.getObjectClassIdx(), true, factory);
+                    // save to DB
+                    sourceMapDup.values().stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName)).forEach((p, toSave) -> {
+                        ObjectDAO oDAO = db.getDao(p);
+                        oDAO.store(toSave);
+                    });
+                    // update display
+                    ImageWindowManagerFactory.getImageManager().resetObjects(null, ocIdx);
+                    GUI.updateRoiDisplayForSelections();
+                    GUI.updateTrackTree();
+                }
+                if (readOnly) Utils.displayTemporaryMessage("Changes will not be stored as database could not be locked", 5000);
+            });
+        }
+        menu.add(dupObj);
+
+        JMenuItem deleteObjects = new JMenuItem("Delete Objects from selection(s)");
+        deleteObjects.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            if (readOnly) {
+                Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                return;
+            }
+
+            // count = sum.
+            long count = selectedValues.stream().mapToLong(Selection::count).sum();
+            if (count == 0) return;
+            // delete objects
+            Set<String> allPositions = selectedValues.stream().flatMap(s -> s.getAllPositions().stream()).collect(Collectors.toSet());
+            int[] allOCs = selectedValues.stream().mapToInt(Selection::getObjectClassIdx).filter(oc -> oc>=0).distinct().boxed().sorted(Comparator.reverseOrder()).mapToInt(i->i).toArray();
+            logger.debug("remove oc: {} from position: {} total count: {}", allOCs, allPositions, count);
+            if (!Utils.promptBoolean("Permanently delete "+count+" objects ?", GUI.getInstance())) return;
+            for (String position : allPositions) {
+                ObjectDAO oDAO = db.getDao(position);
+                for (int oc : allOCs) {
+                    Set<SegmentedObject> objectsToRemove = selectedValues.stream().filter(s -> s.getObjectClassIdx()==oc).flatMap(s -> s.getElements(position).stream()).collect(Collectors.toSet());
+                    if (!objectsToRemove.isEmpty()) oDAO.delete(objectsToRemove, true, true, false);
+                }
+            }
+
+            // clear selections
+            for (Selection s : selectedValues ) {
+                s.clear();
+                dao.store(s);
+            }
+
+            // update display
+            list.updateUI();
+            GUI.updateRoiDisplayForSelections();
+            GUI.getInstance().resetSelectionHighlight();
+            ImageWindowManagerFactory.getImageManager().resetObjects(null, allOCs);
+        });
+        menu.add(deleteObjects);
 
         return menu;
     }

@@ -11,9 +11,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static bacmman.configuration.parameters.PythonConfiguration.toSnakeCase;
 public class TrainingConfigurationParameter extends GroupParameterAbstract<TrainingConfigurationParameter> implements PythonConfiguration {
@@ -267,6 +269,33 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
     public static BoundedNumberParameter getValidationFreqParameter(int defaultValue) {
         return new BoundedNumberParameter("Validation Frequency", 0, defaultValue, 1, null).setHint("Specifies how many training epochs to run before a new validation run is performed, e.g. validation_freq=2 runs validation every 2 epochs.<br/>Validation is only performed if datasets of type TEST are provided");
+    }
+
+    public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}
+    public static EnumChoiceParameter<RESIZE_MODE> getResizeModeParameter(RESIZE_MODE defaultValue, IntSupplier parentObjectClass, Supplier<int[]> resizeDim, RESIZE_MODE... options) {
+        if (options.length == 0) options = RESIZE_MODE.values();
+        return new EnumChoiceParameter<>("Resize Mode", options, defaultValue).addValidationFunction(rm -> {
+            switch (rm.getSelectedEnum()) {
+                case EXTEND:
+                    if (resizeDim != null) {
+                        if (IntStream.of(resizeDim.get()).anyMatch(i -> i==0)) return false; // dimension cannot be null
+                    }
+                    if (parentObjectClass!=null) return parentObjectClass.getAsInt() >=0;
+                    return true;
+                case RESAMPLE:
+                case PAD:
+                    if (resizeDim != null) {
+                        if (IntStream.of(resizeDim.get()).anyMatch(i -> i==0)) return false; // dimension cannot be null
+                    }
+                    return true;
+                default:
+                    return true;
+            }
+        }).setHint("Method to resize method: <br /><ul>" +
+                "<li>EXTEND: extracted images are extended to target dimensions even outside the parent bounds, dimensions cannot be null, and parent object class (selection object class) cannot be viewfield objects (root).</li>" +
+                "<li>RESAMPLE: Resizes all images to a fixed size that must be compatible with the network input requirements.</li>" +
+                "<li>PAD: Expands image on sides with border value. Differs from EXTEND because padded values are values at border.</li>" +
+                "</ul>");
     }
 
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {

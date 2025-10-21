@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.DiskBackedImageManagerProvider;
 import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.data_structure.TrackImage;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
 import bacmman.data_structure.input_image.InputImagesImpl;
@@ -372,6 +373,17 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                         channelMapSizeZ.put(channelIdx, props.sizeZ());
                         return props.sizeZ();
                     } catch (IOException e) {
+                        // legacy : images could be stored as track images
+                        TrackImage.TrackImageDAO trackImageDAO = new TrackImage.TrackImageDAO(getName(), getExperiment().getOutputImageDirectory());
+                        for (int oc = -1; oc<getExperiment().getStructureCount(); ++oc) {
+                            if (!trackImageDAO.isEmpty(oc)) {
+                                try {
+                                    int sizeZ = trackImageDAO.getSizeZ(oc, channelIdx);
+                                    channelMapSizeZ.put(channelIdx, sizeZ);
+                                    return sizeZ;
+                                } catch (IOException ex) {}
+                            }
+                        }
                         Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
                         throw new RuntimeException(e);
                     }

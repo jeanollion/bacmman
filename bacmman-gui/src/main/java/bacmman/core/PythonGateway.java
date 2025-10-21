@@ -183,8 +183,8 @@ public class PythonGateway {
                 return;
             }
             db.setConfigurationReadOnly(false);
-            if (db.isConfigurationReadOnly()) {
-                String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".json").toString();
+            if (db.isConfigurationReadOnly() || db.getSelectionDAO()==null) {
+                String outputFile = Paths.get(db.getExperiment().getOutputDirectory(), "Selections", res.getName() + ".json").toString();
                 FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
                     add(res);
                 }}, s -> s.toJSONEntry().toString());
