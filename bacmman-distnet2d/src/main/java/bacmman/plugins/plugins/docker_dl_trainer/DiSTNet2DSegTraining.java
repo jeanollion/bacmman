@@ -82,7 +82,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
             .setActionParameters(SELECTION_MODE.NEW, parentObjectClass, extractPos);
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, resideMode, selModeCond, selectionFilter, spatialDownsampling, timelapse);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, otherOCList, extractCategory, extractDims, resideMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, timelapse);
 
     @Override
     public String minimalScriptVersion() {
