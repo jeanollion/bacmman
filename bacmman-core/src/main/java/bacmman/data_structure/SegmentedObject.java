@@ -1092,7 +1092,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     void setPreFilteredImage(Image image, int structureIdx) {
         if (image!=null) {
             // test same dimension. allow different z for 2D objects only
-            if (is2D() && (getBounds().sizeX()!=image.sizeX() || getBounds().sizeY()!=image.sizeY()) || !is2D() && !image.sameDimensions(getBounds())) throw new IllegalArgumentException("PreFiltered Image should have same dimensions as object: image: "+image.getBoundingBox()+ " object: "+new SimpleBoundingBox(getMask()).toString());
+            if (is2D() && !image.sameDimensions2D(getBounds()) || !is2D() && !image.sameDimensions(getBounds())) throw new IllegalArgumentException("PreFiltered Image should have same dimensions as object: image: "+image.getBoundingBox()+ " object: "+new SimpleBoundingBox(getMask()).toString());
             image.setCalibration(getScaleXY(), getScaleZ());
             image.resetOffset().translate(getBounds()); // ensure same offset
         }
