@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -123,15 +124,20 @@ public class Utils {
     }
 
     public static void insertSorted(DefaultMutableTreeNode parent, DefaultMutableTreeNode child) {
+        insertSorted(parent, child, n -> n.getUserObject().toString());
+    }
+
+    public static <N extends DefaultMutableTreeNode, T extends Comparable<? super T>> void insertSorted(DefaultMutableTreeNode parent, N child, Function<N, T> getComparable) {
         if (parent.getChildCount()==0) parent.add(child);
         else {
-            Stream<DefaultMutableTreeNode> s = EnumerationUtils.toStream(parent.children()).map(n -> (DefaultMutableTreeNode) n);
-            List<String> uo = s.map(n -> n.getUserObject().toString()).collect(Collectors.toList());
-            int idx = Collections.binarySearch(uo, child.getUserObject().toString());
+            Stream<N> s = EnumerationUtils.toStream(parent.children()).map(n -> (N) n);
+            List<T> uo = s.map(getComparable).collect(Collectors.toList());
+            int idx = Collections.binarySearch(uo, getComparable.apply(child));
             if (idx<0) idx = -idx - 1;
             parent.insert(child, idx);
         }
     }
+
     public static Color getColor(String col) {
         if (col==null) return null;
         switch (col.toLowerCase()) {

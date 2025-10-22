@@ -87,7 +87,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             if (JSONUtils.isJSONArrayMap(o))
                 paramSet=JSONUtils.fromJSONArrayMap(pluginParameters, (JSONArray)o);
             else paramSet=JSONUtils.fromJSON(pluginParameters, (JSONArray)o);
-            if (!paramSet) logger.info("Could not initialize plugin-parameter: {} plugin: {} type: {}, #parameters: {}, JSON parameters: {}", name, this.pluginName, this.pluginType, pluginParameters, jsonO.get("params") );
+            if (!paramSet) logger.debug("Could not initialize plugin-parameter: {} plugin: {} type: {}, #parameters: {}, JSON parameters: {}", name, this.pluginName, this.pluginType, pluginParameters, jsonO.get("params") );
             if (instance instanceof PluginWithLegacyInitialization) ((PluginWithLegacyInitialization)instance).legacyInit((JSONArray)o);
         }
     }

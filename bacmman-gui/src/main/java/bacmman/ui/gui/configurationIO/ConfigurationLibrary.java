@@ -180,7 +180,7 @@ public class ConfigurationLibrary {
             if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
                 switch (currentMode) { // remote is whole and local is not
                     case PROCESSING: {
-                        Experiment xp = gist.getExperiment(getAuth());
+                        Experiment xp = gist.getExperiment(getAuth(), false);
                         int sIdx = remoteSelector.getSelectedGistNode().getObjectClassIdx();
                         xp.getStructure(sIdx).getProcessingPipelineParameter().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
                         content = xp.toJSONEntry();
@@ -188,13 +188,13 @@ public class ConfigurationLibrary {
                         break;
                     }
                     case PRE_PROCESSING: {
-                        Experiment xp = gist.getExperiment(getAuth());
+                        Experiment xp = gist.getExperiment(getAuth(), false);
                         xp.getPreProcessingTemplate().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
                         content = xp.toJSONEntry();
                         break;
                     }
                     case MEASUREMENTS: {
-                        Experiment xp = gist.getExperiment(getAuth());
+                        Experiment xp = gist.getExperiment(getAuth(), false);
                         xp.getMeasurements().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
                         content = xp.toJSONEntry();
                         break;
@@ -261,7 +261,7 @@ public class ConfigurationLibrary {
                 List<BufferedImage> otherThumb = gist.getThumbnail();
                 if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
                 if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
-                    for (int ocIdx = 0; ocIdx < gist.getExperiment(getAuth()).getStructureCount(); ++ocIdx) {
+                    for (int ocIdx = 0; ocIdx < gist.getExperiment(getAuth(), true).getStructureCount(); ++ocIdx) {
                         otherThumb = gist.getThumbnail(ocIdx);
                         logger.debug("dup thumbs: oc: {} #{}", ocIdx, otherThumb == null ? 0 : otherThumb.size());
                         if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t, ocIdx);
@@ -330,7 +330,7 @@ public class ConfigurationLibrary {
                                         if (otherThumb != null)
                                             for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
                                         if (gist.getType().equals(GistConfiguration.TYPE.WHOLE)) {
-                                            for (int ocIdx = 0; ocIdx < gist.getExperiment(getAuth()).getStructureCount(); ++ocIdx) {
+                                            for (int ocIdx = 0; ocIdx < gist.getExperiment(getAuth(), true).getStructureCount(); ++ocIdx) {
                                                 otherThumb = gist.getThumbnail(ocIdx);
                                                 if (otherThumb != null)
                                                     for (BufferedImage t : otherThumb) toSave.appendThumbnail(t, ocIdx);
@@ -741,7 +741,7 @@ public class ConfigurationLibrary {
     public void updateRemoteConfigTree(GistConfiguration gist, int objectClass) {
         if (gist != null) {
             UserAuth auth = getAuth();
-            Experiment xp = gist.getExperiment(auth);
+            Experiment xp = gist.getExperiment(auth, false);
             if (xp != null) {
                 ContainerParameter root = GistConfiguration.getParameter(gist, objectClass, currentMode, auth);
                 //ConfigurationTreeModel.SaveExpandState expState = remoteConfig == null || !remoteConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(remoteConfig.getTree());

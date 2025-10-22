@@ -3832,6 +3832,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             logger.debug("new dataset dir: {}", adress);
             if (adress==null) return false;
             MasterDAO db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
+            if (db2 == null) {
+                setMessage("Could not create dataset Name="+relPath.v1+ " path="+adress);
+                return false;
+            }
             if (!db2.setConfigurationReadOnly(false)) {
                 this.setMessage("Could not modify dataset "+relPath.v1+" @ "+  adress);
                 return false;

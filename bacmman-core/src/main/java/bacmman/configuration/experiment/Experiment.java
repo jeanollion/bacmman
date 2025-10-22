@@ -122,24 +122,30 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
+        this.initFromJSONEntry(jsonEntry, false);
+    }
+
+    // partial init only init to get the experiment structure, not the position or processing pipelines
+    @Override
+    public void initFromJSONEntry(Object jsonEntry, boolean partialInit) {
         if (jsonEntry==null) throw new IllegalArgumentException("Cannot init xp with null content!");
         JSONObject jsonO = (JSONObject)jsonEntry;
         if (jsonO.get("imagePath") instanceof JSONArray) imagePath.initFromJSONEntry(jsonO.get("imagePath"));
         if (jsonO.get("outputPath") instanceof JSONArray) outputPath.initFromJSONEntry(jsonO.get("outputPath"));
         channelImages.initFromJSONEntry(jsonO.get("channelImages"));
         if (jsonO.containsKey("channelImagesDuplicated")) channelImagesDuplicated.initFromJSONEntry(jsonO.get("channelImagesDuplicated"));
-        structures.initFromJSONEntry(jsonO.get("structures"));
-        measurements.initFromJSONEntry(jsonO.get("measurements"));
+        structures.initFromJSONEntry(jsonO.get("structures"), partialInit);
+        measurements.initFromJSONEntry(jsonO.get("measurements"), partialInit);
         positions.setParent(this); // positions needs access to experiment in order to initialize
-        if (jsonO.containsKey("positions")) positions.initFromJSONEntry(jsonO.get("positions"));
-        template.initFromJSONEntry(jsonO.get("template"));
+        if (jsonO.containsKey("positions") && !partialInit) positions.initFromJSONEntry(jsonO.get("positions"));
+        template.initFromJSONEntry(jsonO.get("template"), partialInit);
         if (jsonO.get("importMethod") instanceof JSONObject) importCond.initFromJSONEntry(jsonO.get("importMethod"));
         else importMethod.initFromJSONEntry(jsonO.get("importMethod")); // RETRO COMPATIBILITY
         bestFocusPlane.initFromJSONEntry(jsonO.get("bestFocusPlane"));
         if (jsonO.containsKey("note")) note.initFromJSONEntry(jsonO.get("note"));
         if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
-
     }
+
     public Experiment(){
         this("");
     }

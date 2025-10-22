@@ -25,6 +25,7 @@ import javax.swing.tree.MutableTreeNode;
 
 import bacmman.plugins.plugins.processing_pipeline.ObjectClassOperation;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.JSONSerializable;
 import org.json.simple.JSONObject;
 
 import java.awt.*;
@@ -39,10 +40,10 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 
-public class Structure extends ContainerParameterImpl<Structure> implements ParameterChangeCallback<Structure> {
+public class Structure extends ContainerParameterImpl<Structure> implements ParameterChangeCallback<Structure>, JSONSerializable.PartialInit {
     static String parentTT = "Some object classes can be located within others on the images, for instance bacteria are inside microchannels and fluorescent spots are inside bacteria. Image processing takes this into account by segmenting and tracking a given object within an object of another class (called respectively <em>Segmentation Parent</em> and <em>Parent</em>). <br />Typically, the <em>Parent</em> class of Bacteria and Spots is Microchannels, the <em>Segmentation Parent</em> of Bacteria is Microchannels and the <em>Segmentation Parent</em> of Spots is Bacteria.";
-    ParentObjectClassParameter parentStructure =  new ParentObjectClassParameter("Parent", -1, -1).setHint(parentTT);
-    ParentObjectClassParameter segmentationParent =  new ParentObjectClassParameter("Segmentation Parent", -1, -1).setHint(parentTT);
+    ParentObjectClassParameter parentStructure =  new ParentObjectClassParameter("Parent", -1, -1).setNoSelectionString("Viewfield").setHint(parentTT);
+    ParentObjectClassParameter segmentationParent =  new ParentObjectClassParameter("Segmentation Parent", -1, -1).setNoSelectionString("Viewfield").setHint(parentTT);
     ChannelImageParameter channelImage = new ChannelImageParameter("Detection Channel", -1).setHint("Detection channel on which processing pipeline will be applied");
     PluginParameter<ObjectSplitter> objectSplitter = new PluginParameter<>("Object Splitter", ObjectSplitter.class, true).setEmphasized(false).setHint("Algorithm used to split segmented in manual edition. <br />If no algorithm is defined here and the segmenter is able to split objects, the segmenter will be used instead");
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
@@ -88,15 +89,20 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
+        this.initFromJSONEntry(jsonEntry, false);
+    }
+
+    @Override
+    public void initFromJSONEntry(Object jsonEntry, boolean partialInit) {
         JSONObject jsonO = (JSONObject)jsonEntry;
         name = (String)jsonO.get("name");
         parentStructure.initFromJSONEntry(jsonO.get("parentStructure"));
         segmentationParent.initFromJSONEntry(jsonO.get("segmentationParent"));
         channelImage.initFromJSONEntry(jsonO.get("channelImage"));
-        objectSplitter.initFromJSONEntry(jsonO.get("objectSplitter"));
-        manualSegmenter.initFromJSONEntry(jsonO.get("manualSegmenter"));
-        processingPipeline.initFromJSONEntry(jsonO.get("processingScheme"));
-        if (jsonO.containsKey("manualPostFilters")) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
+        if (!partialInit) objectSplitter.initFromJSONEntry(jsonO.get("objectSplitter"));
+        if (!partialInit) manualSegmenter.initFromJSONEntry(jsonO.get("manualSegmenter"));
+        processingPipeline.initFromJSONEntry(jsonO.get("processingScheme"), partialInit);
+        if (jsonO.containsKey("manualPostFilters") && !partialInit) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
         if (jsonO.containsKey("objectDimension")) objectDimension.initFromJSONEntry(jsonO.get("objectDimension"));
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));

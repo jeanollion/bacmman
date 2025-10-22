@@ -9,7 +9,7 @@ import org.json.simple.JSONObject;
 
 import java.util.Objects;
 
-public class ProcessingChain extends PluginParameter<ProcessingPipeline> implements ConfigIDAware<PluginParameter<ProcessingPipeline>>  {
+public class ProcessingChain extends PluginParameter<ProcessingPipeline> implements ConfigIDAware<PluginParameter<ProcessingPipeline>> {
     String configID;
     int configObjectClassIdx=-1;
     BooleanParameter autoUpdate = ConfigIDAware.getAutoUpdateParameter();
@@ -66,11 +66,16 @@ public class ProcessingChain extends PluginParameter<ProcessingPipeline> impleme
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        super.initFromJSONEntry(jsonEntry);
+        this.initFromJSONEntry(jsonEntry, false);
+    }
+
+    // partial init only updates key
+    @Override
+    public void initFromJSONEntry(Object jsonEntry, boolean partialInit) {
+        if (!partialInit) super.initFromJSONEntry(jsonEntry);
         JSONObject jsonO = (JSONObject)jsonEntry;
         if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
         if (jsonO.containsKey(ConfigIDAware.idxKey)) configObjectClassIdx = ((Number)jsonO.get(ConfigIDAware.idxKey)).intValue();
         if (jsonO.containsKey(ConfigIDAware.autoUpdateKey)) autoUpdate.initFromJSONEntry(jsonO.get(ConfigIDAware.autoUpdateKey));
     }
-
 }

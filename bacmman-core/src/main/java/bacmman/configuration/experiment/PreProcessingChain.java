@@ -67,13 +67,18 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
+        this.initFromJSONEntry(jsonEntry, false);
+    }
+
+    @Override
+    public void initFromJSONEntry(Object jsonEntry, boolean partialInit) {
         JSONObject jsonO = (JSONObject)jsonEntry;
         scaleXY.initFromJSONEntry(jsonO.get("scaleXY"));
         scaleZ.initFromJSONEntry(jsonO.get("scaleZ"));
         useImageScale.initFromJSONEntry(jsonO.get("useImageScale"));
         frameDuration.initFromJSONEntry(jsonO.get("frameDuration"));
         if (jsonO.containsKey("trimFrames")) trimFrames.initFromJSONEntry(jsonO.get("trimFrames"));
-        transformations.initFromJSONEntry(jsonO.get("transformations"));
+        if (!partialInit) transformations.initFromJSONEntry(jsonO.get("transformations"));
         if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
         if (jsonO.containsKey(ConfigIDAware.autoUpdateKey)) autoUpdate.initFromJSONEntry(jsonO.get(ConfigIDAware.autoUpdateKey));
     }

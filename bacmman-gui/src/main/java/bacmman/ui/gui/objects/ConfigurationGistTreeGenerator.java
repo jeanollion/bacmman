@@ -105,8 +105,8 @@ public class ConfigurationGistTreeGenerator {
                     }
                 }
                 if (n.gist.getType().equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
-                    if (n.gist.getExperiment(getAuth()) != null) {
-                        for (int oc = 0; oc < n.gist.getExperiment(getAuth()).getStructureCount(); ++oc) {
+                    if (n.gist.getExperiment(getAuth(), true) != null) {
+                        for (int oc = 0; oc < n.gist.getExperiment(getAuth(), true).getStructureCount(); ++oc) {
                             if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
                                 iconsByOC.get(new Pair<>(n.gist, oc));
                                 modified = true;
@@ -266,19 +266,19 @@ public class ConfigurationGistTreeGenerator {
     }
     private void addGistToFolder(FolderNode f, GistConfiguration g, boolean sorted) {
         if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.getType().equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
-            if (g.getExperiment(getAuth()) != null) {
-                for (int oIdx = 0; oIdx<g.getExperiment(getAuth()).getStructureCount(); ++oIdx) {
+            if (g.getExperiment(getAuth(), true) != null) {
+                for (int oIdx = 0; oIdx<g.getExperiment(getAuth(), true).getStructureCount(); ++oIdx) {
                     GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
-                    Stream<GistTreeNode> stream = EnumerationUtils.toStream(f.children()).map(gg->(GistTreeNode)gg);
-                    if (stream.noneMatch(gg -> gg.gist.getType().equals(GistConfiguration.TYPE.PROCESSING) && gg.getID().equals(n.getID()) )) { // do not add if existing processing block
-                        if (sorted) insertSorted(f, n);
+                    Stream<GistTreeNode> existingGists = EnumerationUtils.toStream(f.children()).map(gg->(GistTreeNode)gg);
+                    if (existingGists.noneMatch(existingGist -> existingGist.gist.getType().equals(GistConfiguration.TYPE.PROCESSING) && existingGist.getID().equals(n.getID()) )) { // do not add if there is already a processing block with the same ID
+                        if (sorted) insertSorted(f, n, GistTreeNode::toString);
                         else f.add(n);
                     }
                 }
             }
         } else {
             GistTreeNode n = new GistTreeNode(g);
-            if (sorted) insertSorted(f, n);
+            if (sorted) insertSorted(f, n, GistTreeNode::toString);
             else f.add(n);
         }
 
@@ -348,7 +348,7 @@ public class ConfigurationGistTreeGenerator {
             this.type = mode;
             this.gists = newGists.stream().filter(g -> g.getType().equals(type)).collect(Collectors.toList());
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) { // also add parts of whole configurations
-                Predicate<GistConfiguration> notPresent = g -> this.gists.stream().noneMatch(gg-> gg.folder().equals(g.folder()) && gg.name().equals(g.name()));
+                Predicate<GistConfiguration> notPresent = candidateGist -> this.gists.stream().noneMatch(existingGist-> existingGist.folder().equals(candidateGist.folder()) && existingGist.getID().equals(candidateGist.name()));
                 this.gists.addAll(newGists.stream().filter(g -> g.getType().equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
             }
             DefaultMutableTreeNode root = getRoot();
@@ -360,9 +360,9 @@ public class ConfigurationGistTreeGenerator {
             // folder nodes
             gists.stream().map(GistConfiguration::folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
                 root.add(f);
-                // actual configuration element
-                gists.stream().filter(g -> g.folder().equals(f.getUserObject())).sorted(Comparator.comparing(GistConfiguration::name)).forEach(g -> {
-                    addGistToFolder(f, g, false);
+                // actual configuration element. sorted -> PROCESSING first AND WHOLE last to avoid adding whole oc processing when ID match with a PROCESSING block
+                gists.stream().filter(g -> g.folder().equals(f.getUserObject())).sorted().forEach(g -> {
+                    addGistToFolder(f, g, true);
                 });
             });
             logger.debug("update tree:  mode: {}, {} folders gists: {}/{}", type, root.getChildCount(), this.gists.size(), gists.size());
@@ -430,7 +430,7 @@ public class ConfigurationGistTreeGenerator {
         @Override
         public String toString() {
             String res = gist.name();
-            Experiment xp = gist.getExperiment(getAuth());
+            Experiment xp = gist.getExperiment(getAuth(), true);
             if (objectClassIdx>=0 && xp != null) res+=" ["+xp.getStructure(objectClassIdx).getName()+"]"; // whole experiment exploded into each object class
             else if (gist.getType().equals(GistConfiguration.TYPE.PRE_PROCESSING)) res += " [PP]";
             else if (gist.getType().equals(GistConfiguration.TYPE.MEASUREMENTS)) res += " [M]";
@@ -440,7 +440,7 @@ public class ConfigurationGistTreeGenerator {
 
         public String getID() {
             if (objectClassIdx>=0) {
-                Experiment xp = gist.getExperiment(getAuth());
+                Experiment xp = gist.getExperiment(getAuth(), true);
                 return xp.getStructure(objectClassIdx).getProcessingPipelineParameter().getConfigID();
             }
             return gist.getID();
@@ -465,8 +465,8 @@ public class ConfigurationGistTreeGenerator {
             } else {
                 List<BufferedImage> images = new ArrayList<>();
                 if (icons.getOrDefault(gist, null)!=null) images.addAll(icons.get(gist));
-                if (gist.getExperiment(getAuth()) != null) {
-                    for (int i = 0; i < gist.getExperiment(getAuth()).getStructureCount(); ++i) {
+                if (gist.getExperiment(getAuth(), true) != null) {
+                    for (int i = 0; i < gist.getExperiment(getAuth(), true).getStructureCount(); ++i) {
                         Pair<GistConfiguration, Integer> key = new Pair<>(gist, i);
                         if (iconsByOC.getOrDefault(key, null) != null) images.addAll(iconsByOC.get(key));
                     }
