@@ -75,8 +75,11 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         res.put("defaultFrame", defaultTimePoint.toJSONEntry());
 
         // record sizeZ per channel
-        for (int c = 0; c<=getExperiment().getChannelImageCount(true); ++c) {
-            try { getSizeZ(c); } catch (RuntimeException e) {}
+        boolean missingSizeZ = channelMapSizeZ.size() != getExperiment().getChannelImageCount(true);
+        if (missingSizeZ && !getImageDAO().isEmpty()) {
+            for (int c = 0; c < getExperiment().getChannelImageCount(true); ++c) {
+                try { getSizeZ(c); } catch (RuntimeException e) { }
+            }
         }
         int[] sizeZC = IntStream.range(0, channelMapSizeZ.keySet().stream().mapToInt(i->i).max().orElse(0)).map(c -> channelMapSizeZ.getOrDefault(c, -1)).toArray();
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
@@ -384,7 +387,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                                 } catch (IOException ex) {}
                             }
                         }
-                        Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
+                        //Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
+                        //logger.error("Error getting sizeZ", e);
                         throw new RuntimeException(e);
                     }
 
