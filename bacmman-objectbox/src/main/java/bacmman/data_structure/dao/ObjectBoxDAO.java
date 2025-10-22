@@ -260,8 +260,10 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         clearCache();
         if (readOnly) return;
         unlock();
-        Utils.deleteDirectory(this.dir.toFile());
+        if (!Utils.deleteDirectory(this.dir.toFile())) deleteAllObjects(); // if for some reason dir cannot be deleted : clear database
+        else idGenerator.values().forEach(LongIDGenerator::reset); // reset counter
     }
+
     @Override
     public void deleteAllObjects() {
         closeThreadResources();
