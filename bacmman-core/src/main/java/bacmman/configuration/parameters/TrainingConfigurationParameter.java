@@ -11,9 +11,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static bacmman.configuration.parameters.PythonConfiguration.toSnakeCase;
 public class TrainingConfigurationParameter extends GroupParameterAbstract<TrainingConfigurationParameter> implements PythonConfiguration {
@@ -193,6 +195,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return datasetList.getChildAt(0).getChannelNumber();
     }
 
+    public int getLabelNumber() {
+        if (datasetList.isEmpty()) return -1;
+        return datasetList.getChildAt(0).getLabelNumber();
+    }
+
     public static class GlobalDatasetParameters extends GroupParameterAbstract<GlobalDatasetParameters> implements PythonConfiguration {
         BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 32, 1, null ).setHint("Size of mini-batch");
         BoundedNumberParameter concatBatchSize = new BoundedNumberParameter("Concat Batch Size", 0, 1, 1, null ).setHint("In case several datasets are set, allows to draw mini-batches from different datasets: each final mini-batch size will be <em>Concat Batch Size</em> x <em>Batch Size</em> ");
@@ -264,6 +271,33 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new BoundedNumberParameter("Validation Frequency", 0, defaultValue, 1, null).setHint("Specifies how many training epochs to run before a new validation run is performed, e.g. validation_freq=2 runs validation every 2 epochs.<br/>Validation is only performed if datasets of type TEST are provided");
     }
 
+    public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}
+    public static EnumChoiceParameter<RESIZE_MODE> getResizeModeParameter(RESIZE_MODE defaultValue, IntSupplier parentObjectClass, Supplier<int[]> resizeDim, RESIZE_MODE... options) {
+        if (options.length == 0) options = RESIZE_MODE.values();
+        return new EnumChoiceParameter<>("Resize Mode", options, defaultValue).addValidationFunction(rm -> {
+            switch (rm.getSelectedEnum()) {
+                case EXTEND:
+                    if (resizeDim != null) {
+                        if (IntStream.of(resizeDim.get()).anyMatch(i -> i==0)) return false; // dimension cannot be null
+                    }
+                    if (parentObjectClass!=null) return parentObjectClass.getAsInt() >=0;
+                    return true;
+                case RESAMPLE:
+                case PAD:
+                    if (resizeDim != null) {
+                        if (IntStream.of(resizeDim.get()).anyMatch(i -> i==0)) return false; // dimension cannot be null
+                    }
+                    return true;
+                default:
+                    return true;
+            }
+        }).setHint("Method to resize method: <br /><ul>" +
+                "<li>EXTEND: extracted images are extended to target dimensions even outside the parent bounds, dimensions cannot be null, and parent object class (selection object class) cannot be viewfield objects (root).</li>" +
+                "<li>RESAMPLE: Resizes all images to a fixed size that must be compatible with the network input requirements.</li>" +
+                "<li>PAD: Expands image on sides with border value. Differs from EXTEND because padded values are values at border.</li>" +
+                "</ul>");
+    }
+
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {
         DockerImageParameter dockerImage = new DockerImageParameter("Docker Image");
         DockerImageParameter dockerImageExport = new DockerImageParameter("Docker Image (export)").setAllowNoSelection(true).setHint("Docker image used to export model only. If left to void, <em>Docker Image</em> will be used");
@@ -272,8 +306,6 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter learningRate = new BoundedNumberParameter("Learning Rate", 8, 2e-4, 10e-8, null);
         TextParameter modelName = new TextParameter("Model Name", "", false, false).setHint("Name given to log / weight and saved model");
         BoundedNumberParameter workers = new BoundedNumberParameter("Multiprocessing Workers", 0, 8, 1, null).setHint("Number of CPU threads at training. Can increase training speed when mini-batch generation is time-consuming");
-        TextParameter weightDir = new TextParameter("Weight Dir", "", false, true).setHint("Relative path to directory where weights will be stored (created if not existing)");
-        TextParameter logDir = new TextParameter("Log Dir", "", false, true).setHint("Relative path to directory where training logs will be stored (created if not existing)");
         Supplier<Path> refPathFun;
         MLModelFileParameter loadModelFile = new MLModelFileParameter("Load Model")
                 .setFileChooserOption(FileChooser.FileChooserOption.FILE_OR_DIRECTORY)
@@ -294,8 +326,6 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             children.addAll(Arrays.asList(additionnalParameter));
             children.add(modelName);
             children.add(loadModelFile);
-            children.add(weightDir);
-            children.add(logDir);
             initChildList();
         }
 
@@ -308,13 +338,6 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
         public MLModelFileParameter getLoadModelFile() {
             return loadModelFile;
-        }
-
-        protected Path getWeigthRefPath() {
-            if (refPathFun == null) return null;
-            Path p = refPathFun.get();
-            if (p==null) return null;
-            return p.resolve(weightDir.getValue());
         }
 
         public TrainingParameter setRefPathFun(Supplier<Path> refPathFun) {
@@ -360,18 +383,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             else return file;
         }
 
-        public String getSavedWeightRelativePath() {
-            if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), getModelWeightFileName()).toString();
-            else return getModelWeightFileName();
-        }
-
         public String getModelName() {
             return modelName.getValue();
         }
 
-        public String getLogRelativePath() {
-            return logDir.getValue();
-        }
 
         @Override
         public String getPythonConfigurationKey() {return "training_parameters";}
@@ -540,8 +555,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         EnumChoiceParameter<TILE_NUMBER_MODE> tileNumberMode = new EnumChoiceParameter<>("Tile Number Mode", TILE_NUMBER_MODE.values(), TILE_NUMBER_MODE.AUTOMATIC).setHint("Tile number determination: constant or depending on image size");
         BoundedNumberParameter nTiles = new BoundedNumberParameter("Tile Number", 0, 0, 1, null ).setHint("Number of tiles.");
         BoundedNumberParameter tileOverlapFraction = new BoundedNumberParameter("Tile Overlap Fraction", 5, 0.3, 0, 1);
-        ConditionalParameter<TILE_NUMBER_MODE> tileNumberModeCond = new ConditionalParameter<>(tileNumberMode).setActionParameters(TILE_NUMBER_MODE.CONSTANT, nTiles).setActionParameters(TILE_NUMBER_MODE.AUTOMATIC, tileOverlapFraction);
-        IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval for random zoom range; a value < 1 zoom out. Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
+        BooleanParameter anchorPoint = new BooleanParameter("Anchor Point", false).setHint("If true, an anchor point that will be included in all tiles will be defined as the average coordinated of the selected mask along all axis.");
+        IntegerParameter anchorPointMaskIdx = new IntegerParameter("Mask Idx", -1).setLowerBound(0).setHint("Index of mask that defines the anchor point.");
+        ConditionalParameter<Boolean> anchorPointCond = new ConditionalParameter<>(anchorPoint).setActionParameters(true, anchorPointMaskIdx);
+        ConditionalParameter<TILE_NUMBER_MODE> tileNumberModeCond = new ConditionalParameter<>(tileNumberMode).setActionParameters(TILE_NUMBER_MODE.CONSTANT, nTiles, anchorPointCond).setActionParameters(TILE_NUMBER_MODE.AUTOMATIC, tileOverlapFraction);
+        IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/4, 4, 1/1.1, 1.1).setHint("Interval for random zoom range; a value &lt; 1 zoom out. <br/>Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
         IntervalParameter aspectRatioRange = new IntervalParameter("Aspect Ratio Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval that limits aspect ratio when zooming in/out");
         BoundedNumberParameter zoomProba = new BoundedNumberParameter("Zoom Probability", 5, 0.25, 0, 1).setHint("Probability to perform random zoom. 0 : tiles are never zoom, 1: tiles are always zoomed");
         ArrayNumberParameter jitter = InputShapesParameter.getInputShapeParameter(false, true, new int[]{10, 10}, null)
@@ -600,7 +618,18 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             RandomTilingParameter res = new RandomTilingParameter(name).setConstant(constant, allowJitter);
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
+            res.anchorPointMaskIdx.setHint(anchorPointMaskIdx.getHintText());
             return res;
+        }
+        @Override
+        public void setContentFrom(Parameter other) {
+            super.setContentFrom(other);
+            anchorPointMaskIdx.setHint((((RandomTilingParameter)other).anchorPointMaskIdx).getHintText());
+        }
+
+        public RandomTilingParameter appendAnchorMaskIdxHint(String hint) {
+            anchorPointMaskIdx.setHint(anchorPointMaskIdx.getHintText() + "<br/>" + hint);
+            return this;
         }
 
         @Override
@@ -615,6 +644,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                     break;
                 case CONSTANT:
                     json.put("n_tiles", nTiles.getIntValue());
+                    if (anchorPoint.getSelected()) json.put("anchor_point_mask_idx", anchorPointMaskIdx.getIntValue());
             }
             if (allowJitter) json.put("random_channel_jitter_shape", jitter.toJSONEntry());
             json.put(toSnakeCase(performAug.getName()), performAug.toJSONEntry());
@@ -641,6 +671,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             super(new EnumChoiceParameter<>(name, supportedOptions, defaultOption));
             setActionParameters(RESIZE_OPTION.RANDOM_TILING, randomTiling.getChildren());
             setActionParameters(RESIZE_OPTION.CONSTANT_TILING, constantTiling.getChildren());
+        }
+
+        public InputSizerParameter appendAnchorMaskIdxHint(String hint) {
+            randomTiling.appendAnchorMaskIdxHint(hint);
+            constantTiling.appendAnchorMaskIdxHint(hint);
+            return this;
         }
 
         @Override

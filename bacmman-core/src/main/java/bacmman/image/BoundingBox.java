@@ -23,9 +23,11 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
+import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -570,5 +572,39 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
                     return false;
                 };
         }
+    }
+
+    static java.util.List<BoundingBox> tile(BoundingBox bds, int[] tileDimensions) {
+        if (tileDimensions.length > 2) throw new NotImplementedException("3D tiles not implemented yet");
+        int[] coordsX = getTileCoordinates(bds.getMin(0), bds.getMax(0), tileDimensions[0]);
+        int[] coordsY = getTileCoordinates(bds.getMin(1), bds.getMax(1), tileDimensions[1]);
+        java.util.List<BoundingBox> res = new ArrayList<>(coordsX.length * coordsY.length);
+        for (int coordY : coordsY) { // tiling order option ?
+            for (int coordX : coordsX) {
+                res.add(new SimpleBoundingBox(coordX, coordX+tileDimensions[0], coordY, coordY+tileDimensions[1], bds.zMin(), bds.zMax()));
+            }
+        }
+        return res;
+    }
+
+    // min max included
+    static int[] getTileCoordinates(int min, int max, int tileSize) {
+        int size = max - min + 1;
+        if (size==tileSize) return new int[]{min};
+        if (size < tileSize) throw new IllegalArgumentException("Tile size="+tileSize + " must be smaller than size="+size);
+        int nTiles = (int)Math.ceil(size/tileSize);
+        int sumStride = Math.abs(nTiles * tileSize - size);
+        int[] stride = IntStream.range(0, nTiles).map(i->i==0?0:sumStride/(nTiles-1)).toArray();
+        int remains = sumStride%(nTiles-1);
+        for (int i = 1; i<=remains; ++i) stride[i]++;
+        if (nTiles * tileSize > size) {
+            for (int i = 1; i<=remains; ++i) stride[i] = -stride[i];
+        }
+        for (int i = 1; i<stride.length; ++i) stride[i] += stride[i-1];
+
+        for (int i = 0; i<stride.length; ++i) { // map to coordinates
+            stride[i] = tileSize * i + stride[i] + min;
+        }
+        return stride;
     }
 }

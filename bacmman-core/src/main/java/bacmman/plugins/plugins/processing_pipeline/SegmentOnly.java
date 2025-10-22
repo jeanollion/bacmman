@@ -125,6 +125,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 Segmenter seg = segmenter.instantiatePlugin();
                 if (multithreadF) ((MultiThreaded)seg).setMultiThread(true);
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
+                if (stores != null && seg instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)seg).setTestDataStore(stores);
                 Image input = globalParent.getPreFilteredImage(structureIdx);
                 if (subSegmentation) {
                     input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());

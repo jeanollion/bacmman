@@ -188,7 +188,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             allImages.add(edm);
             allImages.add(gcdm);
             parentTrack.stream().parallel().forEach(p -> {
-                RegionPopulation pop = p.getChildRegionPopulation(l);
+                RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
                 edm.put(p.getFrame(), pop.getEDM(true, false));
                 gcdm.put(p.getFrame(), pop.getGCDM(false));
@@ -777,7 +777,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
         if (!metadata.getOutputs().isEmpty()) {
-            predictCategory.setSelected(metadata.getOutputs().size() - (next.getSelected()?1:0) == 5);
+            predictCategory.setSelected(metadata.getOutputs().size() == 6);
         }
     }
 
@@ -1533,7 +1533,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         this.stores = stores;
     }
 
-    protected static int search(int[] sortedValues, int fromIdx, double targetValue, double tolerance) {
+    public static int search(int[] sortedValues, int fromIdx, double targetValue, double tolerance) {
         int idx = fromIdx;
         if (sortedValues[idx] == targetValue) return idx;
         if (sortedValues[idx] < targetValue) { // forward

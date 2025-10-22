@@ -3,8 +3,9 @@ package bacmman.configuration.experiment;
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.github.gist.GistConfiguration;
+import bacmman.utils.JSONSerializable;
 
-public interface ConfigIDAware<P extends Parameter<P>> extends Parameter<P> {
+public interface ConfigIDAware<P extends Parameter<P>> extends Parameter<P>, JSONSerializable.PartialInit {
     String getConfigID();
     P setConfigID(String configID);
     GistConfiguration.TYPE getType();

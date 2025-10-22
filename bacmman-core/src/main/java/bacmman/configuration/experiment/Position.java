@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.DiskBackedImageManagerProvider;
 import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.data_structure.TrackImage;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
 import bacmman.data_structure.input_image.InputImagesImpl;
@@ -74,8 +75,11 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         res.put("defaultFrame", defaultTimePoint.toJSONEntry());
 
         // record sizeZ per channel
-        for (int c = 0; c<=getExperiment().getChannelImageCount(true); ++c) {
-            try { getSizeZ(c); } catch (RuntimeException e) {}
+        boolean missingSizeZ = channelMapSizeZ.size() != getExperiment().getChannelImageCount(true);
+        if (missingSizeZ && !getImageDAO().isEmpty()) {
+            for (int c = 0; c < getExperiment().getChannelImageCount(true); ++c) {
+                try { getSizeZ(c); } catch (RuntimeException e) { }
+            }
         }
         int[] sizeZC = IntStream.range(0, channelMapSizeZ.keySet().stream().mapToInt(i->i).max().orElse(0)).map(c -> channelMapSizeZ.getOrDefault(c, -1)).toArray();
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
@@ -188,7 +192,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 if (ppFilesExist && imageDAO!=null && !(imageDAO.getSourceImageDAO() instanceof BypassImageDAO)) {
                     return;
                 }
-                if (!ppFilesExist) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), true);
+                if (!ppFilesExist) {
+                    if (sourceImages != null) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), true);
+                }
                 else imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // image have been pre-filtered
             }
         } else { // ensure not bypass DAO
@@ -370,7 +376,19 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                         channelMapSizeZ.put(channelIdx, props.sizeZ());
                         return props.sizeZ();
                     } catch (IOException e) {
-                        Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
+                        // legacy : images could be stored as track images
+                        TrackImage.TrackImageDAO trackImageDAO = new TrackImage.TrackImageDAO(getName(), getExperiment().getOutputImageDirectory());
+                        for (int oc = -1; oc<getExperiment().getStructureCount(); ++oc) {
+                            if (!trackImageDAO.isEmpty(oc)) {
+                                try {
+                                    int sizeZ = trackImageDAO.getSizeZ(oc, channelIdx);
+                                    channelMapSizeZ.put(channelIdx, sizeZ);
+                                    return sizeZ;
+                                } catch (IOException ex) {}
+                            }
+                        }
+                        //Core.userLog("Error getting sizeZ at position: "+this.name+ " "+e.getMessage());
+                        //logger.error("Error getting sizeZ", e);
                         throw new RuntimeException(e);
                     }
 

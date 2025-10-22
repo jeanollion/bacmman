@@ -1,18 +1,18 @@
 package bacmman.data_structure;
 
 import bacmman.data_structure.dao.ImageDAO;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.SimpleBoundingBox;
+import bacmman.image.*;
 import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.ImageWriter;
 import bacmman.image.io.TimeLapseInteractiveImageFactory;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -30,8 +30,9 @@ public class TrackImage {
             this.position = position;
             this.directory = localDirectory;
         }
-        private String getTrackImageFolder(int parentStructureIdx) {
-            return Paths.get(directory, position, "track_images_"+parentStructureIdx).toString();
+
+        private String getTrackImageFolder(int parentObjectClassIdx) {
+            return Paths.get(directory, position, "track_images_"+parentObjectClassIdx).toString();
         }
 
         private String getTrackImagePath(SegmentedObject o, int channelImageIdx) {
@@ -50,8 +51,31 @@ public class TrackImage {
             }
         }
 
-        public void deleteTrackImages(int parentStructureIdx) {
-            String folder = getTrackImageFolder(parentStructureIdx);
+        public boolean isEmpty(int parentObjectClassIdx) {
+            Path dir = Paths.get(getTrackImageFolder(parentObjectClassIdx));
+            if (!Files.exists(dir)) return true;
+            else {
+                try {
+                    return Utils.isEmpty(dir);
+                } catch (IOException e) {
+                    return true;
+                }
+            }
+        }
+
+        public int getSizeZ(int parentObjectClassIdx, int channelImageIdx) throws IOException {
+            if (isEmpty(parentObjectClassIdx)) throw new IOException("No track image for object class: "+parentObjectClassIdx);
+            Path dir = Paths.get(getTrackImageFolder(parentObjectClassIdx));
+            String endswith = "_"+channelImageIdx+".tif";
+            Path image = Files.list(dir).filter(p -> p.getFileName().toString().endsWith(endswith)).findFirst().orElse(null);
+            if (image == null) throw new IOException("No track image for object class: "+parentObjectClassIdx + " and channel: "+channelImageIdx);
+            Pair<int[][], double[]> info = ImageReaderFile.getImageInfo(image.toString());
+            int[][] STCXYZ = info.key;
+            return STCXYZ[0][4];
+        }
+
+        public void deleteTrackImages(int parentObjectClassIdx) {
+            String folder = getTrackImageFolder(parentObjectClassIdx);
             Utils.deleteDirectory(folder);
         }
 

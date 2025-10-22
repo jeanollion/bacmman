@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import static bacmman.core.DockerGateway.*;
@@ -66,9 +68,9 @@ public class DockerGatewayImpl implements DockerGateway {
         dockerClient = DockerClientImpl.getInstance(config, httpClient);
     }
     @Override
-    public Stream<String> listImages() {
+    public Stream<String[]> listImages() {
         try {
-            return dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> i.getRepoTags()[0]);
+            return dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> new String[]{i.getRepoTags()[0], i.getId()});
         } catch (RuntimeException e ) {
             if (e.getMessage().startsWith("java.nio.file.NoSuchFileException")) {
                 logger.error("Could not connect with Docker. "+(Utils.isWindows()?" Is Docker started ? " : "Is Docker installed ?"));
@@ -92,7 +94,7 @@ public class DockerGatewayImpl implements DockerGateway {
             if (image.contains("--")) {
                 String[] split = image.split("--");
                 image = split[0];
-                if (version==null) version = split[1];
+                if (version==null) version = formatDockerTag(split[1]);
             }
             PullImageCmd cmd = dockerClient.pullImageCmd(image);
             if (version!=null) cmd = cmd.withTag(version);
@@ -102,6 +104,43 @@ public class DockerGatewayImpl implements DockerGateway {
         }
         List<Image> images = dockerClient.listImagesCmd().withImageNameFilter(image).exec();
         return !images.isEmpty();
+    }
+
+    @Override
+    public boolean removeImage(String imageId) {
+        return removeImage(imageId, true);
+    }
+
+    private boolean removeImage(String imageId, boolean allowReTry) {
+        RemoveImageCmd cmd = dockerClient.removeImageCmd(imageId);
+        try {
+            cmd.exec();
+            return true;
+        } catch(ConflictException e) {
+            if (false && allowReTry && e.getMessage().contains("Status 409")) {
+                // Regex to match the last 12-character hex ID (container ID)
+                Pattern pattern = Pattern.compile("container\\s+([a-f0-9]{12})");
+                Matcher matcher = pattern.matcher(e.getMessage());
+                if (matcher.find()) {
+                    String containerId = matcher.group(1);
+                    logger.debug("running container: {} extracted from error: {}", containerId,e.getMessage());
+                    InspectContainerResponse containerInfo;
+                    try {
+                        containerInfo = dockerClient.inspectContainerCmd(containerId).exec();
+                    } catch (NotFoundException | NoSuchFieldError ex) {
+                        containerInfo = null;
+                    }
+                    logger.debug("container: {} state: {}", containerId, containerInfo!=null?containerInfo.getState() : null);
+                    if (containerInfo == null || containerInfo.getState()==null || !containerInfo.getState().getRunning()) {
+                        stopContainer(containerId);
+                        return removeImage(imageId, false);
+                    }
+                }
+            }
+            return false;
+        } catch (NotFoundException e) {
+            return false;
+        }
     }
 
     @Override

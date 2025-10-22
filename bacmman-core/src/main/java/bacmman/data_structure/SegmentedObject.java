@@ -351,6 +351,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                 if (path.length == 0) { // structure is not (indirect) child of current structure -> get included objects from first common parent
                     int commonParentIdx = getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(this.structureIdx, structureIdx);
                     SegmentedObject commonParent = this.getParent(commonParentIdx);
+                    if (commonParent==null) throw new RuntimeException("No common parent between "+this.structureIdx+ " and "+structureIdx+ " common parent object class: "+commonParentIdx);
                     Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx, strictIntersection);
                     if (candidates==null) return null;
                     if (strictIntersection) {
@@ -1091,7 +1092,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     void setPreFilteredImage(Image image, int structureIdx) {
         if (image!=null) {
             // test same dimension. allow different z for 2D objects only
-            if (is2D() && (getBounds().sizeX()!=image.sizeX() || getBounds().sizeY()!=image.sizeY()) || !is2D() && !image.sameDimensions(getBounds())) throw new IllegalArgumentException("PreFiltered Image should have same dimensions as object: image: "+image.getBoundingBox()+ " object: "+new SimpleBoundingBox(getMask()).toString());
+            if (is2D() && !image.sameDimensions2D(getBounds()) || !is2D() && !image.sameDimensions(getBounds())) throw new IllegalArgumentException("PreFiltered Image should have same dimensions as object: image: "+image.getBoundingBox()+ " object: "+new SimpleBoundingBox(getMask()).toString());
             image.setCalibration(getScaleXY(), getScaleZ());
             image.resetOffset().translate(getBounds()); // ensure same offset
         }
@@ -1123,8 +1124,18 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             if (rawImagesC.get(channelIdx)!=null) return this;
             else return null;
         }
-        if (getParent().rawImagesC.get(channelIdx)!=null) return parent;
-        else return parent.getFirstParentWithOpenedRawImage(channelIdx);
+        SegmentedObject p = this;
+        while(!p.isRoot()) {
+            p = p.getParent();
+            if (p.rawImagesC.get(channelIdx)!=null) { // test inclusion
+                if (is2D()) {
+                    if (BoundingBox.isIncluded2D(this.getBounds(), p.getBounds())) return p;
+                } else {
+                    if (BoundingBox.isIncluded(this.getBounds(), p.getBounds())) return p;
+                }
+            }
+        }
+        return null;
     }
     
     public <T extends BoundingBox<T>> BoundingBox<T> getRelativeBoundingBox(SegmentedObject stop) throws RuntimeException {

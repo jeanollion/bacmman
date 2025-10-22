@@ -159,7 +159,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         double median = ArrayUtil.median(Arrays.copyOfRange(yProj, start, end + 1 - start));
         double peakHeight = yProj[peakIdx] - median;
         float thld = (float) (peakHeight * peakProportion + median);
-        int endOfPeakYIdx = ArrayUtil.getFirstOccurence(yProj, peakIdx, start, v->v<thld);
+        int endOfPeakYIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx, start, v->v<thld);
         int startOfMicroChannel = endOfPeakYIdx - margin;
         if (testMode) {
             //Core.showImage(image.setName("Peak detection Input Image"));
@@ -195,8 +195,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         double peakHeight = yProj[peakIdx] - median;
         float thld = (float) (peakHeight * Math.min(peakProportionL, peakProportionUp) + median);
 
-        int endOfPeakYIdxB = ArrayUtil.getFirstOccurence(yProj, peakIdx, start, v->v<thld); //  end of peak before
-        int endOfPeakYIdxA = ArrayUtil.getFirstOccurence(yProj, peakIdx, end, v->v<thld); // end of peak after
+        int endOfPeakYIdxB = ArrayUtil.getFirstIndexOf(yProj, peakIdx, start, v->v<thld); //  end of peak before
+        int endOfPeakYIdxA = ArrayUtil.getFirstIndexOf(yProj, peakIdx, end, v->v<thld); // end of peak after
 
         // search for second peak either after or before the first peak
 
@@ -209,13 +209,13 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         int endOfPeakYIdx;
         if (peakProportionL!=peakProportionUp) { // recompute end of peak 1
             double thldNew = (float) (peakHeight * (peak2IsLower?peakProportionUp:peakProportionL) + median);
-            endOfPeakYIdx = ArrayUtil.getFirstOccurence(yProj, peakIdx, peak2IsLower?end:start, v->v<=thldNew);
+            endOfPeakYIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx, peak2IsLower?end:start, v->v<=thldNew);
         } else endOfPeakYIdx = peak2IsLower?endOfPeakYIdxA:endOfPeakYIdxB;
 
         int peakIdx2 = peak2IsLower ? peakIdxA : peakIdxB;
         double peakHeight2 = yProj[peakIdx2] - median;
         double thld2 =  (peakHeight2 * (peak2IsLower?peakProportionL:peakProportionUp) + median);
-        int endOfPeak2YIdx = ArrayUtil.getFirstOccurence(yProj, peakIdx2, endOfPeakYIdx, v->v<=thld2);
+        int endOfPeak2YIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx2, endOfPeakYIdx, v->v<=thld2);
 
 
 

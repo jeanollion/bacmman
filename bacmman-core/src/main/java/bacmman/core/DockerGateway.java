@@ -18,9 +18,10 @@ import java.util.stream.Stream;
 
 public interface DockerGateway {
     Logger logger = LoggerFactory.getLogger(DockerGateway.class);
-    Stream<String> listImages();
+    Stream<String[]> listImages();
     String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
+    boolean removeImage(String imageId);
     Stream<DockerContainer> listContainers();
     String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBindingHostToContainer, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
@@ -200,18 +201,20 @@ public interface DockerGateway {
         String imageName, version, versionPrefix, fileName;
         String imageID;
         int[] versionNumber;
-        boolean installed;
 
         public DockerImage(String tag, String imageID) {
-            init(tag);
-            this.imageID= imageID;
-            this.installed = true;
+            this(tag, imageID, null);
         }
 
-        public DockerImage(String fileName, Set<String> installed) {
-            init(formatDockerTag(fileName));
+        public DockerImage(String tag, String imageID, String fileName) {
+            init(tag);
+            this.imageID= imageID;
             this.fileName = fileName;
-            this.installed = installed!=null && installed.contains(getTag());
+        }
+
+        public DockerImage setFileName(String fileName) {
+            this.fileName = fileName;
+            return this;
         }
 
         protected void init(String tag) {
@@ -234,7 +237,7 @@ public interface DockerGateway {
         }
 
         public boolean isInstalled() {
-            return installed;
+            return imageID != null;
         }
 
         public String getImageName() {
@@ -252,6 +255,8 @@ public interface DockerGateway {
         public String getVersionPrefix() {
             return versionPrefix;
         }
+
+        public String getId() { return imageID; }
 
         @Override
         public boolean equals(Object o) {

@@ -67,9 +67,9 @@ public class SelectionParameter extends AbstractChoiceParameterMultiple<String, 
     public Stream<Selection> getSelectedSelections() {
         if (selectedItems.length == 0) return Stream.empty();
         if (getSelectionSupplier() == null) throw new RuntimeException("No selection supplier");
-        if (selectedItems.length == 1) return Stream.of(getSelectedSelection());
+        if (selectedItems.length == 1) return Stream.of(getSelectedSelection()).filter(Objects::nonNull);
         Map<String, Selection> nameMapSel = getSelectionSupplier().get().collect(Collectors.toMap(Selection::getName, s->s));
-        return Arrays.stream(selectedItems).map(nameMapSel::get);
+        return Arrays.stream(selectedItems).map(nameMapSel::get).filter(Objects::nonNull);
     }
 
     public Supplier<Stream<Selection>> getSelectionSupplier() {

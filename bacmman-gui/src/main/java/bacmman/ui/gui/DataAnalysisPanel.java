@@ -72,7 +72,7 @@ public class DataAnalysisPanel {
         } else defWD = "";
         jupyterToken = UUID.get().toHexString();
         gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, "Notebooks", bacmmanLogger);
-        Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> localNotebookSelectionCB = nb -> {
+        Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> localNotebookDisplay = nb -> {
             if (nb == null || nb.isFolder()) {
                 localViewer = null;
                 localViewerJSP.setViewportView(null);
@@ -84,10 +84,10 @@ public class DataAnalysisPanel {
                 return localViewer::getContent;
             }
         };
-        Function<NotebookGistTree.GistTreeNode, Supplier<JSONObject>> remoteNotebookSelectionCB = nb -> {
+        Function<NotebookGistTree.GistTreeNode, Supplier<JSONObject>> remoteNotebookDisplay = nb -> {
             if (nb == null) {
-                localViewer = null;
-                localViewerJSP.setViewportView(null);
+                remoteViewer = null;
+                remoteViewerJSP.setViewportView(null);
                 return null;
             } else {
                 try {
@@ -99,8 +99,8 @@ public class DataAnalysisPanel {
                 } catch (IOException e) {
                     bacmmanLogger.setMessage("Error getting content: " + e);
                     logger.error("Error getting content", e);
-                    localViewer = null;
-                    localViewerJSP.setViewportView(null);
+                    remoteViewer = null;
+                    remoteViewerJSP.setViewportView(null);
                     return null;
                 }
             }
@@ -115,8 +115,8 @@ public class DataAnalysisPanel {
                 }
             } else dockerImageLauncher.startContainer();
         };
-        localNotebooks = new NotebookTree(localNotebookSelectionCB, () -> remoteNotebooks.getSelectedGistNode(), doubleClickCB, (n, c) -> remoteNotebooks.upload(n, c), (n, c) -> remoteNotebooks.updateRemote(n, c), bacmmanLogger);
-        remoteNotebooks = new NotebookGistTree(remoteNotebookSelectionCB, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, gitCredentialPanel::getAuth, bacmmanLogger);
+        localNotebooks = new NotebookTree(localNotebookDisplay, () -> remoteNotebooks.getSelectedGistNode(), doubleClickCB, (n, c) -> remoteNotebooks.upload(n, c), (n, c) -> remoteNotebooks.updateRemote(n, c), bacmmanLogger);
+        remoteNotebooks = new NotebookGistTree(remoteNotebookDisplay, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, gitCredentialPanel::getAuth, bacmmanLogger);
         workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD, this::updateWD);
         BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
             String serverURL = getServerURL(ports[0]);
@@ -128,13 +128,15 @@ public class DataAnalysisPanel {
                     TimeUnit.MILLISECONDS.sleep(500);
                 } catch (InterruptedException e) {}
             }
+            String notebookUrl = getNotebookURL(localNotebooks.getSelectedNotebookIfOnlyOneSelected(), dockerImageLauncher.getHostPorts()[0]);
             if (i < limit) {
-                String notebookUrl = getNotebookURL(localNotebooks.getSelectedNotebookIfOnlyOneSelected(), dockerImageLauncher.getHostPorts()[0]);
                 try {
                     Desktop.getDesktop().browse(URI.create(notebookUrl));
                 } catch (Exception e) {
                     bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
                 }
+            } else {
+                bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
             }
         };
 

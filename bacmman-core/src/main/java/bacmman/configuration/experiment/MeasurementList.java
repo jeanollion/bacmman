@@ -77,12 +77,17 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        if (jsonEntry instanceof JSONArray) super.initFromJSONEntry(jsonEntry);
+        this.initFromJSONEntry(jsonEntry, false);
+    }
+
+    @Override
+    public void initFromJSONEntry(Object jsonEntry, boolean partialInit) {
+        if (jsonEntry instanceof JSONArray) super.initFromJSONEntry(jsonEntry, partialInit);
         else {
             JSONObject jsonO = (JSONObject)jsonEntry;
             if (jsonO.containsKey(ConfigIDAware.key)) configID = (String)jsonO.get(ConfigIDAware.key);
             if (jsonO.containsKey(ConfigIDAware.autoUpdateKey)) autoUpdate.initFromJSONEntry(jsonO.get(ConfigIDAware.autoUpdateKey));
-            super.initFromJSONEntry(jsonO.get("list"));
+            super.initFromJSONEntry(jsonO.get("list"), partialInit);
         }
     }
 }

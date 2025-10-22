@@ -29,4 +29,7 @@ import org.json.simple.JSONObject;
 public interface JSONSerializable {
     Object toJSONEntry();
     void initFromJSONEntry(Object jsonEntry);
+    interface PartialInit {
+        void initFromJSONEntry(Object jsonEntry, boolean partialInit);
+    }
 }

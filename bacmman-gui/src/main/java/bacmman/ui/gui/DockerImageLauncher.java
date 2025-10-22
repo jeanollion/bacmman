@@ -75,10 +75,12 @@ public class DockerImageLauncher {
                     if (c != null) {
                         String wd = getWorkingDir(c);
                         if (wd != null && new File(wd).exists()) {
-                            setWorkingDirectory(workingDir);
-                            if (changeWorkingDir != null) changeWorkingDir.accept(wd);
+                            if (!wd.equals(workingDir)) {
+                                setWorkingDirectory(wd);
+                                if (changeWorkingDir != null) changeWorkingDir.accept(wd);
+                            }
                         } else {
-                            bacmmanLogger.log("Error could not parse wsl working dir: "+c+ " got: "+wd);
+                            bacmmanLogger.log("Error could not parse working dir from container "+c+ " got: "+wd);
                         }
                         port.setValue(c.getPorts().findFirst().map(p -> p.key).orElse(port.getIntValue()));
                     }
@@ -166,10 +168,12 @@ public class DockerImageLauncher {
                     dockerContainer.setContainer(containerId);
                     containerIdMapWD.put(containerId, workingDir);
                     configurationGen.getTree().updateUI();
-                    if (startCb != null) startCb.accept(containerId, exposedPorts);
+                    if (startCb != null) {
+                        startCb.accept(containerId, exposedPorts);
+                    }
                 } catch (Exception e) {
-                    bacmmanLogger.log("Error starting notebook: " + e.getMessage());
-                    logger.error("Error starting notebook", e);
+                    bacmmanLogger.log("Error starting container: " + e.getMessage());
+                    logger.error("Error starting container", e);
                 } finally {
                     updateButtons();
                 }

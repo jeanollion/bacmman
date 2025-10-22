@@ -21,7 +21,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     Map<DiskBackedImage, File> files = new ConcurrentHashMap<>();
     Thread daemon;
     long daemonTimeInterval;
-    double memoryFraction;
+    double memoryFraction = 0.75;
     boolean stopDaemon = false;
     boolean freeingMemory = false;
     final String directory;
@@ -80,20 +80,21 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
         long toFree = used - maxUsed;
         freeingMemory = true;
-        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
-            if (!queue.isEmpty()) {
-                DiskBackedImage im = null;
-                synchronized (queue) {
-                    im = queue.poll();
-                    queue.add(im);
-                }
-                if (im != null) {
-                    if (im.isOpen()) {
-                        used -= im.heapMemory();
-                        im.freeMemory(true); // sync on im
-                    }
+        int loopCount = 0;
+        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && loopCount <= queue.size()) {
+            DiskBackedImage im = null;
+            synchronized (queue) {
+                im = queue.poll();
+                queue.add(im);
+            }
+            if (im != null) {
+                if (im.isOpen()) {
+                    used -= im.heapMemory();
+                    im.freeMemory(true); // sync on im
+                    loopCount = 0;
                 }
             }
+            ++loopCount; // if memory fraction is too low : avoid infinite loop
         }
         freeingMemory = false;
         logger.debug("freed : {}Mb/{}Mb used: {}", (double)toFree / (1000*1000), (double)Runtime.getRuntime().maxMemory() / (1000*1000), Utils.getMemoryUsageProportion());

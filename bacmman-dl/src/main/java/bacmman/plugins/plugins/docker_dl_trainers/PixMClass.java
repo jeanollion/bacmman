@@ -54,6 +54,11 @@ public class PixMClass implements DockerDLTrainer {
     }
 
     @Override
+    public String minimalScriptVersion() {
+        return "1.1.3";
+    }
+
+    @Override
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
     }

@@ -209,10 +209,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     }
 
     public void flush(String position) {
-        List<InteractiveImage> iis = new ArrayList<>(interactiveImageMapImages.keySet());
+        List<InteractiveImage> iis = new ArrayList<>(interactiveImageMapImages.keySet()); // avoid concurrent modif exception
         for (InteractiveImage ii : iis) {
             if (ii.getParent().getPositionName().equals(position)) {
-                Set<Image> images = interactiveImageMapImages.get(ii);
+                List<Image> images = new ArrayList<>(interactiveImageMapImages.get(ii)); // avoid concurrent modif exception
                 images.forEach(displayer::close);
                 // no need to remove from interactiveImageMapImages : this is taken cared by window closed event, as well as running workers, rois...
             }

@@ -33,6 +33,7 @@ import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.ProcessingPipelineWithSegmenter;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
+import bacmman.plugins.plugins.trackers.SegmentAroundAndLink;
 import bacmman.ui.gui.image_interaction.*;
 
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
@@ -191,7 +192,7 @@ public class PluginConfigurationUtils {
             }
 
         } else if (step.equals(STEP.SEGMENTATION_TRACKING) && plugin instanceof Tracker) {
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
+            if (!(plugin instanceof SegmentAroundAndLink)) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
             // get continuous parent track
             int minF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
             int maxF = parentTrackDup.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
@@ -424,34 +425,59 @@ public class PluginConfigurationUtils {
     
     public static void displayIntermediateImages(Map<SegmentedObject, TestDataStore> stores, int structureIdx, boolean preFilterStep) {
         ImageWindowManager iwm = getImageManager();
-        int parentStructureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getParentObjectClassIdx(structureIdx);
-        int segParentStrutureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
-        SegmentedObjectAccessor accessor = getAccessor();
-        // default depend on image ratio:
-        Class<? extends InteractiveImage> iiType = ImageWindowManager.getDefaultInteractiveType();
-        if (iiType==null) iiType = TimeLapseInteractiveImage.getBestDisplayType(stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds());
-        List<InteractiveImage> iiList = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx, iiType.equals(Kymograph.class));
-        getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), iiList.size()+1));
-        Map<InteractiveImage, Image> dispImages = new HashMap<>();
-        for (InteractiveImage ii : iiList) {
+        if (stores.isEmpty()) return;
+        ExperimentStructure xp = stores.values().stream().findAny().get().getParent().getExperimentStructure();
+        int parentStructureIdx = xp.getParentObjectClassIdx(structureIdx);
+        int segParentStrutureIdx = xp.getSegmentationParentObjectClassIdx(structureIdx);
+        Class<? extends InteractiveImage> defaultInteractiveType = ImageWindowManager.getDefaultInteractiveType();
+        int totalImage = 0;
+        Function<InteractiveImage, Image> dispII = ii -> {
             Image image = ii.generateImage();
             iwm.addInteractiveImage(image, ii, true);
             iwm.addTestData(image, stores.values());
-            dispImages.put(ii, image);
+            return image;
+        };
+        // handle special case: a temporary object class has been created and removed
+        Map<InteractiveImage, Image> dispImagesTmpOC = new HashMap<>();
+        int[] tempObjectClassesInStores = stores.keySet().stream().mapToInt(SegmentedObject::getStructureIdx).filter(oc -> oc>=xp.getObjectClassNumber()).distinct().toArray();
+        for (int tempOC: tempObjectClassesInStores) {
+            List<SegmentedObject> tempO = stores.keySet().stream().filter(o -> o.getStructureIdx() == tempOC).collect(Collectors.toList());
+            logger.debug("temp OC: {} : # stores: {}", tempOC, tempO.size());
+            Map<SegmentedObject, TestDataStore> tmpstores = tempO.stream().collect(Collectors.toMap(o->o, stores::remove));
+            Class<? extends InteractiveImage> iiType = defaultInteractiveType==null ? TimeLapseInteractiveImage.getBestDisplayType(tmpstores.keySet().stream().findAny().get().getBounds()) : defaultInteractiveType;
+            List<InteractiveImage> iiList = buildIntermediateImages(tmpstores.values(), tempOC, structureIdx, iiType.equals(Kymograph.class));
+            if (iiList != null) {
+                totalImage += iiList.size();
+                getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), totalImage + 1));
+                for (InteractiveImage ii : iiList) dispImagesTmpOC.put(ii, dispII.apply(ii));
+            }
         }
+        Map<InteractiveImage, Image> dispImages = new HashMap<>();
+        if (!stores.isEmpty()) {
+            SegmentedObjectAccessor accessor = getAccessor();
+            // default depend on image ratio
+            Class<? extends InteractiveImage> iiType = defaultInteractiveType == null ? TimeLapseInteractiveImage.getBestDisplayType(stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds()) : defaultInteractiveType;
+            List<InteractiveImage> iiList = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx, iiType.equals(Kymograph.class));
+            if (iiList != null) {
+                totalImage += iiList.size();
+                getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), totalImage + 1));
+                for (InteractiveImage ii : iiList) dispImages.put(ii, dispII.apply(ii));
+            }
 
-        if (!preFilterStep && parentStructureIdx!=segParentStrutureIdx) { // add a selection to display the segmentation parent on the intermediate image
-            List<SegmentedObject> parentTrack = stores.values().stream().map(s->((s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());
-            Collection<SegmentedObject> segObjects = Utils.flattenMap(SegmentedObjectUtils.getChildrenByFrame(parentTrack, segParentStrutureIdx));
-            //Selection bactS = parentTrack.get(0).getDAO().getMasterDAO().getSelectionDAO().getOrCreate("testTrackerSelection", true);
-            Selection sel = new Selection("testTrackerSelection", accessor.getDAO(parentTrack.get(0)).getMasterDAO());
-            sel.setColor("Grey");
-            sel.addElements(segObjects);
-            sel.setIsDisplayingObjects(true);
-            bacmman.ui.GUI.getInstance().addSelection(sel);
-            dispImages.forEach((ii, image) -> bacmman.ui.GUI.updateRoiDisplayForSelections(image, ii));
+            if (!preFilterStep && parentStructureIdx != segParentStrutureIdx) { // add a selection to display the segmentation parent on the intermediate image
+                List<SegmentedObject> parentTrack = stores.values().stream().map(s -> ((s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());
+                Collection<SegmentedObject> segObjects = Utils.flattenMap(SegmentedObjectUtils.getChildrenByFrame(parentTrack, segParentStrutureIdx));
+                //Selection bactS = parentTrack.get(0).getDAO().getMasterDAO().getSelectionDAO().getOrCreate("testTrackerSelection", true);
+                Selection sel = new Selection("testTrackerSelection", accessor.getDAO(parentTrack.get(0)).getMasterDAO());
+                sel.setColor("Grey");
+                sel.addElements(segObjects);
+                sel.setIsDisplayingObjects(true);
+                bacmman.ui.GUI.getInstance().addSelection(sel);
+                dispImages.forEach((ii, image) -> bacmman.ui.GUI.updateRoiDisplayForSelections(image, ii));
+            }
         }
         getImageManager().setInteractiveStructure(structureIdx);
+        dispImages.putAll(dispImagesTmpOC);
         dispImages.forEach((ii, image) -> {
             iwm.displayAllObjects(image);
             iwm.displayAllTracks(image);
@@ -535,8 +561,6 @@ public class PluginConfigurationUtils {
     public static List<InteractiveImage> buildIntermediateImages(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx, boolean kymograph) {
         if (stores.isEmpty()) return null;
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
-        List<SegmentedObject> parents = stores.stream().map(s->s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
-        SegmentedObjectUtils.ensureContinuousTrack(parents);
         Map<String, BiFunction<SegmentedObject, Integer, Image>> imageSuppliers = allImageNames.stream().collect(Collectors.toMap(s->s, name -> {
             Image type = stores.stream().filter(s -> s.images.containsKey(name)).map(s -> s.images.get(name)).max(PrimitiveType.typeComparator()).get();
             Image type_ = TypeConverter.castToIJ1ImageType(Image.copyType(type));
@@ -573,13 +597,18 @@ public class PluginConfigurationUtils {
                 }
             };
         }));
-        List<InteractiveImage> res = imageSuppliers.entrySet().stream().map(e -> {
-            int sizeZ = e.getValue().apply(parents.get(0), 0).sizeZ();
-            int sizeC = stores.stream().filter(s -> s.images.containsKey(e.getKey())).map(s -> s.images.get(e.getKey())).mapToInt(im -> (im instanceof LazyImage5D) ? ((LazyImage5D)im).getSizeC() : 1).findAny().orElse(1);
-            InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, sizeC, sizeZ, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, sizeC, sizeZ, e.getValue(), childOCIdx);
-            ii.setName(e.getKey());
-            return ii;
+        Map<SegmentedObject, List<SegmentedObject>> allparents = stores.stream().map(s->s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+        List<InteractiveImage> res = allparents.values().stream().flatMap(parents -> {
+            SegmentedObjectUtils.ensureContinuousTrack(parents);
+            return imageSuppliers.entrySet().stream().map(e -> {
+                int sizeZ = e.getValue().apply(parents.get(0), 0).sizeZ();
+                int sizeC = stores.stream().filter(s -> s.images.containsKey(e.getKey())).map(s -> s.images.get(e.getKey())).mapToInt(im -> (im instanceof LazyImage5D) ? ((LazyImage5D)im).getSizeC() : 1).findAny().orElse(1);
+                InteractiveImage ii = kymograph ? Kymograph.generateKymograph(parents, null, sizeC, sizeZ, e.getValue(), childOCIdx) : HyperStack.generateHyperstack(parents, null, sizeC, sizeZ, e.getValue(), childOCIdx);
+                ii.setName(e.getKey());
+                return ii;
+            });
         }).collect(Collectors.toList());
+
         // get order for each image (all images are not contained in all stores) & store
         Function<String, Double> getOrder = name -> stores.stream().filter(s -> s.nameOrder.containsKey(name)).mapToDouble(s->s.nameOrder.get(name)).max().orElse(Double.POSITIVE_INFINITY);
         Map<String, Double> orderMap = allImageNames.stream().collect(Collectors.toMap(n->n, getOrder::apply));

@@ -838,24 +838,33 @@ public class Utils {
             Files.deleteIfExists(source);
         }
     }
+
     public static boolean isEmpty(Path dir) throws IOException {
         return !Files.list(dir).findAny().isPresent();
     }
-    public static void deleteDirectory(String dir) {
-        if (dir!=null) deleteDirectory(new File(dir));
+
+    public static boolean deleteDirectory(String dir) {
+        if (dir!=null) return deleteDirectory(new File(dir));
+        else return true;
     }
-    public static void deleteDirectory(File dir) { //recursive delete, because java's native function wants the dir to be empty to delete it
-        if (dir==null || !dir.exists()) return;
-        if (dir.isFile()) dir.delete();
+
+    public static boolean deleteDirectory(File dir) { //recursive delete, because java's native function wants the dir to be empty to delete it
+        if (dir==null || !dir.exists()) return true;
+        if (dir.isFile()) return dir.delete();
         else {
-            emptyDirectory(dir);
-            dir.delete();
+            if (emptyDirectory(dir)) return dir.delete();
+            else return false;
         }
     }
-    public static void emptyDirectory(File dir) {
+
+    public static boolean emptyDirectory(File dir) {
         File[] files = dir.listFiles();
-        if (files == null) return;
-        for (File f : files) deleteDirectory(f);
+        if (files == null) return true;
+        boolean emptied = true;
+        for (File f : files) {
+            if (deleteDirectory(f)) emptied = false;
+        }
+        return emptied;
     }
     
     public static List<File> searchAll(String path, Predicate<String> fileMatch, int recLevels) {
@@ -1330,7 +1339,7 @@ public class Utils {
     }
     public static void extractResourceFile(Class clazz, String resource, String outputFile) throws IOException {
         String content = getResourceFileAsString(clazz, resource);
-        logger.debug("extract resource {} content to file: {} content: {}", resource , outputFile, content);
+        logger.debug("extract resource {} content to file: {} content: \n{}", resource , outputFile, content);
         FileIO.TextFile dockerFileTF = new FileIO.TextFile(outputFile, true, false);
         dockerFileTF.write(content,false);
         dockerFileTF.close();

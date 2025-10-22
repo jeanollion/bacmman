@@ -1,18 +1,21 @@
 package bacmman.ui.gui;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.core.*;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
-import bacmman.data_structure.Selection;
+import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
+import bacmman.image.BlankMask;
+import bacmman.image.BoundingBox;
 import bacmman.plugins.DLEngine;
 import bacmman.plugins.DockerDLTrainer;
+import bacmman.plugins.Tracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.py_dataset.HDF5IO;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
@@ -42,12 +45,15 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,6 +63,7 @@ import java.util.stream.Stream;
 
 import static bacmman.core.DockerGateway.formatDockerTag;
 import static bacmman.core.DockerGateway.parseProgress;
+import static bacmman.plugins.plugins.trackers.ObjectOrderTracker.IndexingOrder.IDX;
 import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
@@ -120,6 +127,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig, dockerConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
+    protected boolean needUpdate = false;
     final protected ActionListener moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
@@ -264,8 +272,14 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         boolean exportModel = trainer.getConfiguration().getSelectedDockerImage(false).equals(trainer.getConfiguration().getSelectedDockerImage(true));
-                        String[] cmds = exportModel ? new String[]{"python", "train.py", "/data"} : new String[]{"python", "train.py", "/data", "--train_only"};
+                        String[] cmds = exportModel ? new String[]{"python", "train.py", "/data", "--min_script_version", trainer.minimalScriptVersion()} : new String[]{"python", "train.py", "/data", "--train_only", "--min_script_version", trainer.minimalScriptVersion()};
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
+                        if (needUpdate) {
+                            dockerGateway.stopContainer(currentContainer);
+                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
+                            currentContainer = getContainer(trainer, dockerGateway, false, null, false);
+                            dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
+                        }
                     } catch (InterruptedException e) {
                         //logger.debug("interrupted exception", e);
                     } finally {
@@ -316,12 +330,12 @@ public class DockerTrainingWindow implements ProgressLogger {
             dataset.setRefPathFun(() -> null); // absolute
             dataset.setFilePath(tempDatasetFile.getAbsolutePath());
             Map<String, String> mounts = fixDirectories(trainer);
-            pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false);
+            pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false); // dataset has been replaced so manually save configuration
             currentProgressBar = extractProgressBar;
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 List<String> selections = new ArrayList<>();
-                boolean trackingDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
+                boolean timelapseDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
                 if (selections.isEmpty() || !tempDatasetFile.isFile()) {
                     logger.error("no dataset could be extracted");
                     if (bacmmanLogger != null) bacmmanLogger.log("Dataset could not be extracted");
@@ -339,76 +353,101 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         if (outputFile.exists()) outputFile.delete();
-                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, "python", "train.py", "/data", "--compute_metrics");
+                        String[] cmds = new String[]{"python", "train.py", "/data", "--compute_metrics", "--min_script_version", trainer.minimalScriptVersion()};
+                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
+                        if (needUpdate) {
+                            dockerGateway.stopContainer(currentContainer);
+                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, mounts, false);
+                            dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
+                        }
                         logger.debug("metrics file found: {}", outputFile.isFile());
                         if (outputFile.exists()) { // read metrics and set metrics as measurement
                             String[] header = new String[1];
                             List<double[]> metrics = FileIO.readFromFile(outputFile.getAbsolutePath(), s -> Arrays.stream(s.split(";"))
                                     .map(DockerTrainingWindow::pythonToJavaDouble).mapToDouble(Double::parseDouble).toArray(), header, s -> s.startsWith("# "), null);
-                            String[] metricsNames = header[0] != null ? header[0].replace("# ", "").split(";") : (metrics.isEmpty() ? new String[0] : IntStream.range(0, metrics.get(0).length).mapToObj(i -> "metric_" + i).toArray(String[]::new));
+                            header = header[0] != null ? header[0].replace("# ", "").split(";") : (metrics.isEmpty() ? new String[0] : IntStream.range(0, metrics.get(0).length).mapToObj(i -> "metric_" + i).toArray(String[]::new));
+                            int[] tileIdx = null;
+                            String[] metricsNames;
+                            if (header[header.length-1].equals("Tile")) {
+                                tileIdx = metrics.stream().mapToInt(m -> (int)m[m.length-1]).toArray();
+                                metricsNames = Arrays.copyOf(header, header.length-1);
+                                logger.debug("tile idx: {}", tileIdx);
+                            } else metricsNames = header;
+
                             logger.debug("found metrics: {} for : {} samples", metricsNames, metrics.size());
                             if (bacmmanLogger != null) bacmmanLogger.log("found metrics: "+Utils.toStringArray(metricsNames) + " for "+metrics.size() + " samples");
                             SelectionDAO selDAO = GUI.getDBConnection().getSelectionDAO();
                             Selection sel = selDAO.getOrCreate(selections.get(0), false);
+                            int tileOC;
                             logger.debug("selection has: {} samples", sel.count());
-                            if (sel.count() == metrics.size()) { // assign metrics values to samples
+                            if (tileIdx != null) { // HSM was performed on tiles: create tile objects and assign metrics to them
+                                int[] tileDimensions = ArrayUtil.reverse(trainer.getConfiguration().getGlobalDatasetParameters().getInputShape(), true);
+                                tileOC = createTiles(GUI.getDBConnection(), sel, timelapseDataset, tileIdx, tileDimensions);
+                                if (tileOC < 0) {
+                                    if (bacmmanLogger != null) bacmmanLogger.log("Invalid tile indices");
+                                    return;
+                                }
+                            } else tileOC = -2;
+                            int objectCount = tileOC>=0 ? sel.getAllElements().stream().mapToInt(o -> (int)o.getChildren(tileOC).count()).sum() : sel.count();
+                            if (objectCount == metrics.size()) { // assign metrics values to samples
                                 int[] counter = new int[1];
+                                Consumer<SegmentedObject> assignMetric = o -> {
+                                    double[] values = metrics.get(counter[0]++);
+                                    for (int i = 0; i < metricsNames.length; ++i) {
+                                        o.getMeasurements().setValue(metricsNames[i], values[i]);
+                                    }
+                                };
                                 List<String> positions = sel.getAllPositions().stream().sorted().collect(Collectors.toList());
-                                if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
+                                //if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
                                 for (String p : positions) {
-                                    List<SegmentedObject> elems = sel.getElements(p);
-                                    if (bacmmanLogger != null) bacmmanLogger.log("position: "+p+ " #elements: "+elems.size());
-                                    Collection<List<SegmentedObject>> sortedElems;
-                                    if (trackingDataset) {
-                                        Map<SegmentedObject, List<SegmentedObject>> sortedMap = new TreeMap<>(Comparator.comparing(SegmentedObject::toStringShort)); // alphabetical ordering
-                                        sortedMap.putAll(SegmentedObjectUtils.splitByContiguousTrackSegment(elems));
-                                        sortedElems = sortedMap.values();
-                                        if (bacmmanLogger != null) bacmmanLogger.log("position: "+p+" #tracks: "+sortedElems.size());
-                                    } else sortedElems = Collections.singletonList(elems);
+                                    List<List<SegmentedObject>> sortedElems = sel.getSortedElements(p, timelapseDataset);
                                     for (List<SegmentedObject> track : sortedElems) {
-                                        logger.debug("assigning values for track: {} (size: {})", track.get(0), track.size());
-                                        if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
+                                        //if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
                                         track.stream().sorted().forEach(o -> {
-                                            double[] values = metrics.get(counter[0]++);
-                                            for (int i = 0; i < values.length; ++i) {
-                                                o.getMeasurements().setValue(metricsNames[i], values[i]);
-                                            }
+                                            if (tileOC >= 0) o.getChildren(tileOC).sorted().forEach(assignMetric); // assign to tiles
+                                            else assignMetric.accept(o);
                                         });
                                     }
-                                    logger.debug("storing: {} measurements at position: {}", elems.size(), p);
-                                    if (bacmmanLogger != null) bacmmanLogger.log("storing: "+elems.size() + " measurements at position: " + p + "....");
-                                    GUI.getDBConnection().getDao(p).store(elems);
+                                    //logger.debug("storing: {} measurements at position: {}", metrics.size(), p);
+                                    if (bacmmanLogger != null) bacmmanLogger.log("storing: "+metrics.size() + " measurements at position: " + p + "....");
+                                    Collection<SegmentedObject> toStore = tileOC >= 0 ? sel.getElements(p).stream().flatMap(o -> o.getChildren(tileOC)).collect(Collectors.toList()) : sel.getElements(p);
+                                    GUI.getDBConnection().getDao(p).store(toStore);
                                 }
                                 HardSampleMiningParameter p = trainer.getConfiguration().getTrainingParameters().getParameter(HardSampleMiningParameter.class, null);
                                 if (p != null) {
                                     double minQuantile = p.getMinQuantile();
+                                    if (objectCount * minQuantile < 1 ) minQuantile = 1. / objectCount;
                                     // create selections of hard samples
-                                    List<SegmentedObject> allObjects = new ArrayList<>();
+                                    Set<SegmentedObject> allHS = new HashSet<>();
                                     for (int i = 0; i < metricsNames.length; ++i) {
                                         int ii = i;
-                                        Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples_" + metricsNames[i], true);
+                                        Selection selHS = selDAO.getOrCreate(selections.get(0) + "_HSM_" + metricsNames[i], true);
                                         double[] values = metrics.stream().mapToDouble(v -> v[ii]).toArray();
-                                        double threshold = ArrayUtil.quantiles(values, minQuantile)[0];
-                                        logger.debug("metric: {} threshold: {} quantile: {}", metricsNames[i], threshold, minQuantile);
-                                        if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " threshold: "+threshold+ " quantile: "+minQuantile);
+                                        double[] quantiles = ArrayUtil.quantiles(values, minQuantile, 0, 1);
+                                        double threshold = quantiles[0];
+                                        logger.debug("metric: #{}={} threshold: {} quantile: {} range: [{}; {}]", i, metricsNames[i], threshold, minQuantile, quantiles[1], quantiles[2]);
+                                        if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " threshold: "+threshold+ " quantile: "+minQuantile+ " range:["+quantiles[1]+"; "+quantiles[2]+"]");
                                         if (!Double.isNaN(threshold)) {
-                                            List<SegmentedObject> objects = sel.getAllElementsAsStream().filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
+                                            Stream<SegmentedObject> objStream = tileOC > 0 ? sel.getAllElementsAsStream().flatMap(o -> o.getChildren(tileOC)) : sel.getAllElementsAsStream();
+                                            List<SegmentedObject> objects = objStream.filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
                                             selHS.addElements(objects);
-                                            if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " #objects: "+objects.size());
+                                            //if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " #objects: "+objects.size());
                                             selDAO.store(selHS);
-                                            allObjects.addAll(objects);
+                                            allHS.addAll(objects);
                                         }
                                     }
-                                    Selection selHS = selDAO.getOrCreate(selections.get(0) + "_hardsamples", true);
-                                    selHS.addElements(allObjects);
+                                    Selection selHS = selDAO.getOrCreate(selections.get(0) + "_HSM", true);
+                                    selHS.addElements(allHS);
                                     selDAO.store(selHS);
                                     GUI.getInstance().populateSelections();
+                                    GUI.getInstance().updateConfigurationTree();
+                                    GUI.getInstance().loadObjectTrees();
                                 } else {
                                     logger.debug("No Hard sample mining parameter found");
                                     if (bacmmanLogger != null) bacmmanLogger.log("No Hard sample mining parameter found");
                                 }
                             } else {
-                                if (bacmmanLogger != null) bacmmanLogger.log("Selection "+ selections.get(0) + " has "+sel.count()+ " entries whereas "+metrics.size()+ " where computed");
+                                if (bacmmanLogger != null) bacmmanLogger.log("Selection "+ selections.get(0) + " has "+objectCount+ " entries whereas "+metrics.size()+ " where computed");
                             }
                         } else {
                             if (bacmmanLogger!=null) bacmmanLogger.log("Metric File not found at "+outputFile.getAbsolutePath());
@@ -438,7 +477,17 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         if (outputFile.exists()) outputFile.delete();
-                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, "python", "train.py", "/data", "--test_data_augmentation");
+                        String[] cmds = new String[]{"python", "train.py", "/data", "--test_data_augmentation", "--min_script_version", trainer.minimalScriptVersion()};
+                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
+                        if (needUpdate) {
+                            logger.debug("stopping container: {}", currentContainer);
+                            dockerGateway.stopContainer(currentContainer);
+                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
+                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
+                            logger.debug("new container: {}",  currentContainer);
+                            if (currentContainer == null) return;
+                            dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
+                        }
                         logger.debug("data aug file found: {}", outputFile.isFile());
                         if (outputFile.exists()) {
                             List<ImagePlus> images = new ArrayList<>();
@@ -493,7 +542,14 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 if (currentContainer != null) {
                                     try {
                                         if (outputFile.exists()) outputFile.delete();
-                                        dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, "python", "train.py", "/data", "--test_predict");
+                                        String[] cmds = new String[]{"python", "train.py", "/data", "--test_predict", "--min_script_version", trainer.minimalScriptVersion()};
+                                        dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
+                                        if (needUpdate) {
+                                            dockerGateway.stopContainer(currentContainer);
+                                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
+                                            currentContainer = getContainer(trainer, dockerGateway, true, dataTemp, false);
+                                            dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
+                                        }
                                         logger.debug("data aug file found: {}", outputFile.isFile());
                                         if (outputFile.exists()) {
                                             List<ImagePlus> images = new ArrayList<>();
@@ -547,12 +603,19 @@ public class DockerTrainingWindow implements ProgressLogger {
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
             if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
-            DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
             runLater(() -> {
+                DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
                 currentContainer = getContainer(trainer, dockerGateway, false, null, true);
                 if (currentContainer != null) {
                     try {
-                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, "python", "train.py", "/data", "--export_only");
+                        String[] cmds = new String[]{"python", "train.py", "/data", "--export_only", "--min_script_version", trainer.minimalScriptVersion()};
+                        dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
+                        if (needUpdate) {
+                            dockerGateway.stopContainer(currentContainer);
+                            trainer = trainerParameter.instantiatePlugin(); // re-init trainer because dir are modified by create container / fixDirectories
+                            currentContainer = getContainer(trainer, dockerGateway, false, null, true);
+                            dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
+                        }
                         updateTrainingDisplay();
                     } catch (InterruptedException e) {
                         //logger.debug("interrupted exception", e);
@@ -713,7 +776,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
         if (background) Task.executeTask(t, this, 1);
         else Task.executeTaskInForeground(t, this, 1);
-        return t.getExtractDSTracking();
+        return t.getExtractDSTimelapse();
     }
 
     protected void promptSaveConfig() {
@@ -766,7 +829,19 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway, boolean export) {
         DockerGateway.DockerImage currentImage = trainer.getConfiguration().getSelectedDockerImage(export);
-        if (!currentImage.isInstalled()) { // look for dockerfile and build it
+        boolean isInstalled = currentImage.isInstalled();
+        if (needUpdate && isInstalled) { // remove existing image -> important to update the script, otherwise the old version is reused
+            logger.debug("need update image : {}, id={}", currentImage.getTag(), currentImage.getId());
+            boolean rem = dockerGateway.removeImage(currentImage.getId());
+            if (!rem) {
+                setMessage("Need to update image "+currentImage.getTag()+ " but it cannot be removed. Stop all containers and restart command");
+                return null;
+            }
+            isInstalled = false;
+            needUpdate = false;
+            logger.debug("update image: {} id={} removed: {}", currentImage.getImageName(), currentImage.getId(), rem);
+        }
+        if (!isInstalled) { // look for dockerfile and build it
             String dockerFilePath = null;
             File dockerDir = null;
             try {
@@ -785,9 +860,12 @@ public class DockerTrainingWindow implements ProgressLogger {
                 logger.error("Error while extracting resources", e);
                 return null;
             } catch (RuntimeException e) {
-                if (e.getMessage().toLowerCase().contains("permission denied")) {
+                if (e.getMessage() != null && e.getMessage().toLowerCase().contains("permission denied")) {
                     setMessage("Could not build docker image: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");
                     logger.error("Error connecting with Docker: Permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock", e);
+                } else {
+                    setMessage("Error Building image " + e.getMessage());
+                    logger.error("Error ensure image", e);
                 }
                 return null;
             } finally {
@@ -798,7 +876,6 @@ public class DockerTrainingWindow implements ProgressLogger {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
                     currentProgressBar.setString("");
                 }
-
             }
         } else return currentImage.getTag();
     }
@@ -837,6 +914,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             if (dirMapMountDir == null) dirMapMountDir = fixDirectories(trainer);
             dirMapMountDir.forEach((dir, mountDir) -> mounts.add(new UnaryPair<>(dir, mountDir)));
+            logger.debug("additional mounts: {}", Utils.toStringList(dirMapMountDir.entrySet(), e->e.getKey()+"->"+e.getValue()));
             return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
@@ -888,6 +966,69 @@ public class DockerTrainingWindow implements ProgressLogger {
 
         }
         return dirMapMountDir;
+    }
+
+    public static int createTiles(MasterDAO mDAO, Selection parentSelection, boolean timelapseDataset, int[] tileIdx, int[] tileDimensions) {
+        // split tile idx at zeros
+        int[] parentIdx = ArrayUtil.indicesOf(tileIdx, 0).toArray();
+        if (parentIdx.length != parentSelection.count()) return -2;
+        Experiment xp = mDAO.getExperiment();
+        int[] childOC = xp.experimentStructure.getAllDirectChildStructuresAsArray(parentSelection.getObjectClassIdx());
+        String[] childOCNames = xp.experimentStructure.getObjectClassesNames(childOC);
+        int tileOC = ArrayUtil.indexOf(childOCNames, "HSMTiles")>=0 ? childOC[ArrayUtil.indexOf(childOCNames, "HSMTiles")] : xp.experimentStructure.getObjectClassNumber();
+        if (tileOC == xp.experimentStructure.getObjectClassNumber()) {
+            Structure tilesObjectClass = xp.getStructures().createChildInstance("HSMTiles");
+            tilesObjectClass.setParentStructure(parentSelection.getObjectClassIdx());
+            tilesObjectClass.setChannelImage(xp.getChannelImageIdx(parentSelection.getObjectClassIdx()));
+            xp.getStructures().insert(tilesObjectClass);
+        }
+
+        SegmentedObjectFactory factory = getFactory(tileOC);
+        TrackLinkEditor editor = getEditor(tileOC);
+        Tracker tracker = new ObjectOrderTracker().setIndexingOrder(IDX);
+        int pIdx = 0;
+        for (String p : parentSelection.getAllPositions().stream().sorted().collect(Collectors.toList())) {
+            List<List<SegmentedObject>> sortedParents = parentSelection.getSortedElements(p, timelapseDataset);
+            for (List<SegmentedObject> track : sortedParents) {
+                for (SegmentedObject parent : track) {
+                    BoundingBox pBds = parent.getBounds();
+                    List<BoundingBox> tiles = BoundingBox.tile(pBds, tileDimensions);
+                    int expectedNTiles = (pIdx<parentIdx.length-1 ? parentIdx[pIdx+1] : tileIdx.length)  - parentIdx[pIdx];
+                    if (expectedNTiles != tiles.size()) {
+                        logger.warn("Wrong tile number @{} expected: {} actual: {}, parent size: {} tile size: {}", parent, expectedNTiles, tiles.size(), parent.getBounds().dimensions(), tileDimensions);
+                        return -2;
+                    }
+                    int[] oIdx = new int[1];
+                    List<SegmentedObject> tileO = tiles.stream().map(bds -> new SegmentedObject(parent.getFrame(), tileOC, oIdx[0]++, new Region(new BlankMask(bds, parent.getScaleXY(), parent.getScaleZ()), oIdx[0], true).setIsAbsoluteLandmark(true), parent)).collect(Collectors.toList());
+                    Stream<SegmentedObject> existingTiles = parent.getChildren(tileOC);
+                    if (existingTiles != null) mDAO.getDao(p).delete(existingTiles.collect(Collectors.toList()), false, false, false);
+                    factory.setChildren(parent, tileO);
+                    ++pIdx;
+                }
+                if (track.size()>1) tracker.track(tileOC, track, editor);
+            }
+        }
+        return tileOC;
+    }
+
+    private static SegmentedObjectFactory getFactory(int objectClassIdx) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
+    }
+
+    private static TrackLinkEditor getEditor(int objectClassIdx) {
+        try {
+            Constructor<TrackLinkEditor> constructor = TrackLinkEditor.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
     }
 
     @Override
@@ -1110,6 +1251,12 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
+        if (message.contains("ERROR: Script requirements not met") || message.contains("unrecognized arguments: --min_script_version")) {
+            logger.debug(message);
+            setMessage("Image is out-of-date and will be updated.");
+            needUpdate = true;
+            return;
+        }
         for (String ignore : ignoreError) if (message.contains(ignore)) return;
         setMessage(message);
         for (String info : isInfo) {
@@ -1399,7 +1546,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected String getSavedWeightRelativePath() {
         if (!trainerParameter.isOnePluginSet()) return null;
-        return getTrainingParameter().getSavedWeightRelativePath();
+        return getTrainingParameter().getModelWeightFileName();
     }
 
     protected File getSavedModelPath() {

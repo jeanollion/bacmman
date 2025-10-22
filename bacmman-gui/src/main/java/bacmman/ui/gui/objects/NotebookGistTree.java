@@ -20,14 +20,11 @@ package bacmman.ui.gui.objects;
 
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.core.DefaultWorker;
-import bacmman.github.gist.GistDLModel;
-import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.UserAuth;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,14 +64,16 @@ public class NotebookGistTree {
     protected DefaultTreeModel treeModel;
     List<LargeFileGist> gists;
 
-    final Function<GistTreeNode, Supplier<JSONObject>> selectionCallback;
+    final Function<GistTreeNode, Supplier<JSONObject>> displayNotebook;
     final ProgressLogger pcb;
     final Supplier<UserAuth> authSupplier;
     final Supplier<File> selectedLocalFileSupplier;
     final Consumer<File> localFileUpdated;
 
-    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> selectionCallback, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
-        this.selectionCallback=selectionCallback;
+    GistTreeNode displayingNode;
+
+    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+        this.displayNotebook =displayNotebook;
         this.pcb = pcb;
         this.authSupplier = authSupplier;
         this.selectedLocalFileSupplier = selectedLocalFileSupplier;
@@ -254,19 +253,40 @@ public class NotebookGistTree {
     }
 
     protected void selectionChanged(TreeNode oldSel, TreeNode newSel) {
-        if (oldSel != null && oldSel instanceof GistTreeNode) ((GistTreeNode)oldSel).updateContent();
-        if (selectionCallback != null) {
-            if (newSel == null || !(newSel instanceof GistTreeNode)) selectionCallback.apply(null);
+        logger.debug("selection changed: {} -> {}", oldSel, newSel);
+        if (oldSel != null && oldSel.equals(newSel)) return;
+        if (oldSel != null && oldSel instanceof GistTreeNode) {
+            ((GistTreeNode)oldSel).updateContent();
+        }
+        if (displayNotebook != null) displayNotebook.apply(null);
+        displayingNode = null;
+    }
+
+    protected void displayNotebook(TreeNode node) {
+        if (displayingNode != null && !displayingNode.equals(node)) {
+            if (displayNotebook != null) displayNotebook.apply(null);
+            displayingNode = null;
+        }
+        if (displayNotebook != null) {
+            if (node == null) displayNotebook.apply(null);
             else {
-                GistTreeNode newSelN = (GistTreeNode)newSel;
-                newSelN.contentUpdate = selectionCallback.apply(newSelN);
+                GistTreeNode newSelN = (GistTreeNode)node;
+                newSelN.contentUpdate = displayNotebook.apply(newSelN);
+                displayingNode = newSelN;
             }
+
         }
     }
 
     private void showPopupMenu(MouseEvent e, GistTreeNode n) {
         JPopupMenu menu = new JPopupMenu();
         File f = selectedLocalFileSupplier.get();
+        JMenuItem display = new JMenuItem(new AbstractAction("Display") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                displayNotebook(n);
+            }
+        });
         JMenuItem save = new JMenuItem(new AbstractAction("Download") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -285,7 +305,7 @@ public class NotebookGistTree {
                 deleteGist(n.gist);
             }
         });
-
+        menu.add(display);
         menu.add(save);
         save.setEnabled(f.isDirectory());
         menu.add(update);
@@ -296,7 +316,7 @@ public class NotebookGistTree {
 
     public boolean updateRemote(GistTreeNode node, JSONObject content) {
         node.content = content;
-        node.contentUpdate = selectionCallback.apply(node);
+        node.contentUpdate = displayNotebook.apply(node);
         return node.uploadContent(false);
     }
 

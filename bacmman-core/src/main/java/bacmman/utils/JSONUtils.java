@@ -342,7 +342,7 @@ public class JSONUtils {
                 } catch(Throwable ex) {
                     if (!initLPFun.test(e)) {
                         logger.debug("Error while initializing parameter: {} (class: {}) with: {}", target, target.getClass(), e);
-                        logger.debug("Error while init:", ex);
+                        //logger.debug("Error while init:", ex);
                     }
                 }
             } else {

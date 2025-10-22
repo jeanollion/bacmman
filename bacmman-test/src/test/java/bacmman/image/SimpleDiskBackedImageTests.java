@@ -36,7 +36,7 @@ public class SimpleDiskBackedImageTests {
         DiskBackedImageManager manager = new DiskBackedImageManagerImpl(DiskBackedImageManagerImpl.getDefaultTempDir().toString());
         SimpleDiskBackedImage dbIm = manager.createSimpleDiskBackedImage(im, false, false);
         manager.startDaemon(0, 1);
-        Thread.sleep(100);
+        Thread.sleep(200);
         assertTrue("image not freed by daemon", !dbIm.isOpen());
         manager.stopDaemon();
         manager.clear(true);

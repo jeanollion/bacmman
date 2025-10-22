@@ -125,7 +125,7 @@ public class LocalTIFImageDAO implements ImageDAO {
     }
 
     @Override
-    public BlankMask getPreProcessedImageProperties(int channelIdx) throws FileNotFoundException{
+    public BlankMask getPreProcessedImageProperties(int channelIdx) throws FileNotFoundException {
         String path = getPreProcessedImagePath(channelIdx, 0);
         File f = new File(path);
         if (f.exists()) {

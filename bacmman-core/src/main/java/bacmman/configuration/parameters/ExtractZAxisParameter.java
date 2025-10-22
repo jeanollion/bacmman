@@ -171,6 +171,7 @@ public class ExtractZAxisParameter extends ConditionalParameterAbstract<ExtractZ
             return ExtractZAxis.MIDDLE_PLANE;
         }
         public Image handleZ(Image image) {
+            if (image.sizeZ()==1) return image;
             return image.getZPlane(image.sizeZ()/2);
         }
     }

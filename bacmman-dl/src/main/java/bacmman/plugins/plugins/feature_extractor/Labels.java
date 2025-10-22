@@ -8,10 +8,14 @@ import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.Hint;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
 public class Labels implements FeatureExtractor, Hint {
+    final static Logger logger = LoggerFactory.getLogger(Labels.class);
+
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
 
     @Override

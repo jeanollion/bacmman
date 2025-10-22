@@ -12,12 +12,14 @@ import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, Hint {
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), new HardSampleMiningParameter("Hard Sample Mining", new FloatParameter("Center Scale", 4))};
@@ -36,7 +38,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         } );
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, eraseEdgeCellSize, staticProba, new AffineTransformParameter("Affine Transform"), new ElasticDeformParameter("Elastic Deform"), new Swim1DParameter("Swim 1D"), illumAugList };
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
-    Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
+    Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE).appendAnchorMaskIdxHint("0 = target object class idx. i &gt; 0 = additional label of index i-1")};
 
     public static class SegmentationParameters extends GroupParameterAbstract<SegmentationParameters> {
         public enum CENTER_MODE {
@@ -47,7 +49,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             CENTER_MODE(String hint) {this.hint = hint;}
         }
         public enum CENTER_DISTANCE_MODE {GEODESIC, EUCLIDEAN}
-        EnumChoiceParameter<CENTER_MODE> centerMode;
+        EnumChoiceParameter<CENTER_MODE> centerMode = new EnumChoiceParameter<>("Center Mode", CENTER_MODE.values(), CENTER_MODE.MEDOID);
         EnumChoiceParameter<CENTER_DISTANCE_MODE> centerDistanceMode = new EnumChoiceParameter<>("Center Distance Mode", CENTER_DISTANCE_MODE.values(), CENTER_DISTANCE_MODE.GEODESIC).setHint("Defines the predicted CDM (distance to center) map: <br>GEODESIC is the geodesic distance inside the objects, recommended for regular to big size objects especially with non convex shapes. <br/>EUCLIDEAN is the Euclidean distance to center, thus do not take shape into account but can be predicted outside the objects, thus recommended for small objects such as spots and for which shape matters less");
         FloatParameter cdmLossRadius = new FloatParameter("CDM Loss Radius", 5).setLowerBound(0).setHint("if greater than zero: center loss is computed in an area around the center defined by this radius. This is useful for small objects such as spots. <br/>If zero, loss is computed within the objects (default)");
         ConditionalParameter<CENTER_DISTANCE_MODE> centerDistanceModeCond = new ConditionalParameter<>(centerDistanceMode).setActionParameters(CENTER_DISTANCE_MODE.EUCLIDEAN, cdmLossRadius);
@@ -55,24 +57,35 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BoundedNumberParameter EDMmaxFreqWeigh = new BoundedNumberParameter("EDM Max Frequency Weight", 5, 0, 0, null).setHint("If greater than zero, weights will be computed to balance foreground/background frequency imbalance. This parameter limits the maximal weight.");
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
+        BooleanParameter inputLabelCenter = new BooleanParameter("Use Input Label Center").setHint("If true, the centers from a selected input label will be used for CDM target map instead of the center from the target label");
+        IntegerParameter inputLabelIdx = new IntegerParameter("Input Label Idx", -1).setLowerBound(0);
+        ConditionalParameter<Boolean> inputLabelCenterCond = new ConditionalParameter<>(inputLabelCenter).setActionParameters(true, inputLabelIdx);
+        boolean segmentOnly;
 
-        public SegmentationParameters(String name, CENTER_MODE... allowedCenterModes) {
+        public SegmentationParameters(String name, boolean segmentOnly) {
             super(name);
-            centerMode = new EnumChoiceParameter<>("Center Mode", allowedCenterModes, allowedCenterModes[0]);
             StringBuilder hint = new StringBuilder().append("Defines how center is computed. <ul>");
-            for (CENTER_MODE mode : allowedCenterModes) hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
+            for (CENTER_MODE mode : CENTER_MODE.values()) hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
             hint.append("</ul>");
             centerMode.setHint(hint.toString());
-            setChildren(scaleEDM, EDMmaxFreqWeigh, centerMode, centerDistanceModeCond, EDMderivatives, CDMderivatives);
+            setChildren(scaleEDM, EDMmaxFreqWeigh, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives);
+            inputLabelIdx.addValidationFunction(i -> {
+                SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), i, true);
+                if (dsList!=null && dsList.getChildCount()>0) {
+                    return i.getIntValue() < dsList.getChildAt(0).getLabelNumber();
+                } else return true;
+            });
+            this.segmentOnly = segmentOnly;
         }
 
         @Override
         public SegmentationParameters duplicate() {
-            SegmentationParameters res = new SegmentationParameters(name, centerMode.getEnumChoiceList());
+            SegmentationParameters res = new SegmentationParameters(name, segmentOnly);
             res.setContentFrom(this);
             transferStateArguments(this, res);
             return res;
         }
+
         @Override
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
@@ -83,11 +96,13 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             if (centerDistanceMode.getSelectedEnum().equals(CENTER_DISTANCE_MODE.EUCLIDEAN)) res.put(PythonConfiguration.toSnakeCase(cdmLossRadius.getName()), cdmLossRadius.toJSONEntry());
             res.put(PythonConfiguration.toSnakeCase(EDMderivatives.getName()), EDMderivatives.toJSONEntry());
             res.put(PythonConfiguration.toSnakeCase(CDMderivatives.getName()), CDMderivatives.toJSONEntry());
+            if (inputLabelCenter.getSelected()) res.put("input_label_center_idx", inputLabelIdx.toJSONEntry());
+            if (segmentOnly) res.put("segment_only", segmentOnly);
             return res;
         }
     }
 
-    Parameter[] otherParameters = new Parameter[]{new SegmentationParameters("Segmentation", SegmentationParameters.CENTER_MODE.values()), arch};
+    Parameter[] otherParameters = new Parameter[]{new SegmentationParameters("Segmentation", false), arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(1000).setStepNumber(200)
@@ -162,7 +177,9 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ArrayNumberParameter extractDims = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
     IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
-
+    EnumChoiceParameter<TrainingConfigurationParameter.RESIZE_MODE> resideMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.NONE,
+            () -> selMode.getSelectedEnum().equals(SELECTION_MODE.NEW)?parentObjectClass.getSelectedIndex() : extractSel.getSelectedSelections().mapToInt(Selection::getObjectClassIdx).min().orElse(-1),
+            () -> extractDims.getArrayInt());
     IntegerParameter subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract N € [1, 2] versions of the dataset with one fame out of two");
     IntegerParameter subsamplingNumber = new IntegerParameter("Frame subsampling number", 1).setLowerBound(1)
             .addValidationFunction(n -> {
@@ -177,7 +194,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
     // store in a group so that parameters have same parent -> needed because of listener
-    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, channel, extractZAxisParameter, otherOCList, extractCategory, extractDims, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
+    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, channel, otherOCList, extractCategory, extractDims, resideMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
+
+    @Override
+    public String minimalScriptVersion() {
+        return "1.1.4";
+    }
 
     @Override
     public String getHintText() {
@@ -221,8 +243,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis() )).collect(Collectors.toList());
-        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, "raw", extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
+        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
+        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resideMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
     }
 
     public String getDockerImageName() {
@@ -290,11 +312,14 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration {
         // blend mode
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 128, 64, 1024).setHint("Number of filters at the feature level");
-        BoundedNumberParameter blendingFilterFactor = new BoundedNumberParameter("Blending Filters Factor", 3, 0.5, 0.1, 1).setHint("Number of filters of blending convolution is this factor x number of feature filters");
-        BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 2, 2, 4);
+        BoundedNumberParameter blendingFilterFactor = new BoundedNumberParameter("Blending Filters Factor", 3, 0.5, 0.1, 1).setHint("Number of filters of blending convolution is this factor x number of feature filters x number of frames. Unused if frame window is null");
+        BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 3, 2, 4);
+        BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("Include skip connections to EDM decoder. Note that is early downsampling is True, there will be no skip connection at first level");
+        BooleanParameter earlyDownsampling = new BooleanParameter("Early Downsampling", true).setHint("If true, no convolution will be performed at first level. Reduces memory footprint, but may reduce segmentation details");
+
         IntegerParameter attention = new IntegerParameter("Attention", 0).setLowerBound(0)
                 .setLegacyParameter((p,i)->i.setValue(((BooleanParameter)p[0]).getSelected() ? 1 : 0), new BooleanParameter("Attention", false))
-                .setHint("Number of heads of the attention layer in the PairBlender module. If 0 no attention layer is included. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
+                .setHint("Number of heads of the attention layer in the PairBlender module (i.e. attention between each pair of frames). If 0 no attention layer is included. Unused if frame window is null. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
         IntegerParameter selfAttention = new IntegerParameter("Self-Attention", 0).setLowerBound(0)
                 .setLegacyParameter((p,i)->i.setValue(((BooleanParameter)p[0]).getSelected() ? 1 : 0), new BooleanParameter("Self-Attention", false))
                 .setHint("Include a self-attention layer at the feature layer of the encoder. If 0 no self-attention is included. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
@@ -306,10 +331,19 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 .setHint("Maximal Gap size (in frame number) allowed gap closing procedure at tracking. Must be lower than <em>Input Window</em>.<br>This parameter only impacts model export.")
                 .addValidationFunction( g -> frameWindow.getIntValue() > g.getIntValue());
 
-        protected ArchitectureParameter(String name) {
+        public ArchitectureParameter(String name, boolean includeInferenceGap, int defaultFrameWindow) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
-            setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, filters, blendingFilterFactor, attention, selfAttention, attentionPosEncMode, categoryNumber);
+            if (includeInferenceGap) setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionPosEncMode, categoryNumber);
+            else setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionPosEncMode, categoryNumber);
+            frameWindow.setValue(defaultFrameWindow);
+            if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
+            attention.addValidationFunction(att -> frameWindow.getIntValue() != 0 || att.getIntValue() == 0);
         }
+
+        public ArchitectureParameter(String name) {
+            this(name, true, 3);
+        }
+
         public int getContraction() {
             switch (getActionValue()) {
                 case BLEND:
@@ -317,12 +351,26 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     return (int)Math.pow(2, downsamplingNumber.getIntValue());
             }
         }
+
+        public boolean category() {
+            return categoryNumber.getIntValue() > 1;
+        }
+
         @Override
         public ArchitectureParameter duplicate() {
             ArchitectureParameter res = new ArchitectureParameter(name);
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
+        }
+
+        @Override
+        public void initFromJSONEntry(Object json) {
+            if (json instanceof JSONObject) {
+                JSONObject jsonO = (JSONObject) json;
+                if (jsonO.get("action").equals("ENC_DEC")) jsonO.put("action", "BLEND"); // retro-compatibility for DiSTNet2DSegTraining
+            }
+            super.initFromJSONEntry(json);
         }
 
         @Override
@@ -335,18 +383,19 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("architecture_type", getActionValue().toString());
             res.put("frame_window", frameWindow.toJSONEntry());
             res.put("next", next.toJSONEntry());
-            res.put("inference_gap_number", nGaps.toJSONEntry());
-
             if (categoryNumber.getIntValue() > 1) res.put("category_number", categoryNumber.getIntValue());
             switch (getActionValue()) {
                 case BLEND:
                 default: {
-                    res.put("n_downsampling", downsamplingNumber.getIntValue());
                     res.put("filters", filters.getIntValue());
+                    res.put("n_downsampling", downsamplingNumber.getIntValue());
+                    res.put("skip_connections", skip.toJSONEntry());
+                    res.put("early_downsampling", earlyDownsampling.toJSONEntry());
                     res.put("blending_filter_factor", blendingFilterFactor.getDoubleValue());
                     res.put("attention", attention.getValue());
                     res.put("self_attention", selfAttention.getValue());
                     res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
+                    if (getCurrentParameters().contains(nGaps)) res.put("inference_gap_number", nGaps.toJSONEntry());
                     break;
                 }
             }

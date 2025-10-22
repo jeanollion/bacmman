@@ -346,6 +346,11 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
         return bds;
     }
 
+    public ImageProperties transformToImageProperties(SegmentedObject parent, Region region) {
+        BoundingBox box = transformToBox(parent, region);
+        return new SimpleImageProperties(box, region.getScaleXY(), region.getScaleZ());
+    }
+
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{axisCond, useParentBounds};

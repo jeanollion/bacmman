@@ -24,7 +24,6 @@ import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Voxel;
 import bacmman.image.BlankMask;
 import bacmman.image.Histogram;
 import bacmman.image.Image;
@@ -108,7 +107,7 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
         if (debug) {
             objectCountHisto.plotIJ1("objects", debug);
         }
-        int i = ArrayUtil.getFirstOccurence(objectCountHisto.getData(), objectCountHisto.getData().length-1, 0, v->v>=max);
+        int i = ArrayUtil.getFirstIndexOf(objectCountHisto.getData(), objectCountHisto.getData().length-1, 0, v->v>=max);
         if (objectCountHisto.getData()[i]==max && i<objectCountHisto.getData().length) ++i;
         double value = objectCountHisto.getValueFromIdx(i);
         if (debug) logger.debug("thld: {} (idx:{})", value, i);

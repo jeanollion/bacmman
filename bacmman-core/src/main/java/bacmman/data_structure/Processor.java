@@ -132,13 +132,13 @@ public class Processor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        if (deleteObjects) dao.erase();
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         setTransformations(position, memoryLimit, pcb); // perform pre-processing
         position.recomputeSizeZ(); // set sizeZC
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
-        if (deleteObjects) dao.erase();
     }
     
     public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb) throws IOException {

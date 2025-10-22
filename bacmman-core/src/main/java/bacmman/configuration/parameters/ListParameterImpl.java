@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.function.*;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
+
+import bacmman.utils.JSONSerializable;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
@@ -41,7 +43,7 @@ import java.util.stream.Stream;
  * @param <L>
  */
 
-public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration, ParameterWithLegacyInitialization<L, List<T>> {
+public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration, ParameterWithLegacyInitialization<L, List<T>>, JSONSerializable.PartialInit {
 
     protected String name;
     protected ContainerParameter parent;
@@ -147,6 +149,11 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
 
     @Override
     public void initFromJSONEntry(Object json) {
+        this.initFromJSONEntry(json, false);
+    }
+
+    @Override
+    public void initFromJSONEntry(Object json, boolean partialInit) {
         synchronized(this) {
             this.bypassListeners = true;
             removeAllElements();
@@ -157,7 +164,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
                     for (Object o : list) {
                         T newI = createChildInstance();
                         insert(newI); // may be necessary for initFromJSONEntry
-                        newI.initFromJSONEntry(o);
+                        if (newI instanceof PartialInit) ((PartialInit)newI).initFromJSONEntry(o, partialInit);
+                        else newI.initFromJSONEntry(o);
                     }
                     this.bypassListeners=false;
                     return;
@@ -174,7 +182,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
             try {
                 T newI = createChildInstance();
                 insert(newI);
-                newI.initFromJSONEntry(json);
+                if (newI instanceof PartialInit) ((PartialInit)newI).initFromJSONEntry(json, partialInit);
+                else newI.initFromJSONEntry(json);
                 this.bypassListeners = false;
             } catch (Throwable e) {
                 remove(0);

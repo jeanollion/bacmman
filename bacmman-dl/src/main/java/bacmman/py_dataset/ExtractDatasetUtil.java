@@ -1,6 +1,7 @@
 package bacmman.py_dataset;
 
 import bacmman.configuration.parameters.ExtractZAxisParameter;
+import bacmman.configuration.parameters.TrainingConfigurationParameter;
 import bacmman.core.Core;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
@@ -12,9 +13,10 @@ import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.FeatureExtractorTemporal;
 import bacmman.plugins.plugins.feature_extractor.*;
+import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
+import bacmman.processing.Resize;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Triplet;
 import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
@@ -26,15 +28,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.function.DoubleToIntFunction;
-import java.util.function.Function;
-import java.util.function.IntPredicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static bacmman.processing.Resize.resample;
+import static bacmman.processing.Resize.pad;
 
 public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
@@ -43,6 +43,9 @@ public class ExtractDatasetUtil {
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();
+        TrainingConfigurationParameter.RESIZE_MODE resizeMode = t.getExtractDSResizeMode();
+        ConvertToBoundingBox boxConverter = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.boxConverter(dimensions) : null;
+        UnaryOperator<SegmentedObject> duplicateAsBox = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.duplicateAsBox(boxConverter) : o->o; // extend parent bounds
         List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
         List<String> selectionNames = t.getExtractDSSelections();
         int subsamplingFactor = t.getExtractDSSubsamplingFactor();
@@ -51,7 +54,7 @@ public class ExtractDatasetUtil {
         int spatialDownsamplingFactor = t.getExtractDSSpatialDownsamplingFactor();
         int compression = t.getExtractDSCompression();
         int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
-        boolean trackingDataset = t.isExtractDSTracking();
+        boolean trackingDataset = t.isExtractDSTimelapse();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
         MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
@@ -83,12 +86,13 @@ public class ExtractDatasetUtil {
                 }
                 for (String position : sel.getAllPositions()) {
                     logger.debug("position: {}", position);
-                    Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                    Map<Integer, Map<SegmentedObject, RegionPopulation>> resizedPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                         //if (parent.getStructureIdx() == oc) return null; // this case is handled separately
                         //logger.debug("resampling pop for parent: {} oc: {}", parent, oc);
-                        RegionPopulation pop = parent.getChildRegionPopulation(oc, false);
+                        RegionPopulation pop = boxConverter == null ? parent.getChildRegionPopulation(oc, false)
+                            : new RegionPopulation(parent.getChildren(oc, false).map(SegmentedObject::getRegion).collect(Collectors.toList()), boxConverter.transformToImageProperties(parent.getParent(), parent.getRegion()));
                         //logger.debug("resampling pop for parent: {} -> #{} dimensions: {} -> {}", parent, pop.getRegions().size(), pop.getImageProperties().dimensions(), dimensions);
-                        return resamplePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(oc));
+                        return resizePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(oc), resizeMode);
                     }));
                     String curSelName = sel.getName();
                     String thName = null;
@@ -108,19 +112,19 @@ public class ExtractDatasetUtil {
                         logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilter());
                         Function<SegmentedObject, Image> extractFunction;
                         Selection parentSelection;
-                        Map<Integer, Map<SegmentedObject, RegionPopulation>> curResamplePops;
+                        Map<Integer, Map<SegmentedObject, RegionPopulation>> curResizedPops;
                         Selection selFilter = feature.getSelectionFilter() == null ? null : mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilter(), false);
-                        if (selFilter != null) {
+                        if (selFilter != null) { // filter children objects -> override global resized populations
                             List<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptyList();
-                            Map<SegmentedObject, RegionPopulation> resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
-                                List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).equals(parent)).map(SegmentedObject::getRegion).collect(Collectors.toList());
-                                logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel() - 1).toArray());
-                                RegionPopulation p = new RegionPopulation(childrenFiltered, parent.getMaskProperties());
-                                return resamplePopulation(p, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(feature.getObjectClass()));
+                            Map<SegmentedObject, RegionPopulation> resizedPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                                List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).getId().equals(parent.getId())).map(SegmentedObject::getRegion).collect(Collectors.toList());
+                                //logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel() - 1).toArray());
+                                RegionPopulation pop = new RegionPopulation(childrenFiltered, boxConverter==null?parent.getMaskProperties():boxConverter.transformToImageProperties(parent.getParent(), parent.getRegion()));
+                                return resizePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(feature.getObjectClass()), resizeMode);
                             });
-                            curResamplePops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> {
-                                if (oc == feature.getObjectClass()) return resampledPop;
-                                else return resampledPops.get(oc);
+                            curResizedPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> {
+                                if (oc == feature.getObjectClass()) return resizedPop;
+                                else return resizedPops.get(oc);
                             });
                             if (filterParentSelection) {
                                 if (oneEntryPerInstance) {
@@ -142,7 +146,7 @@ public class ExtractDatasetUtil {
                                 logger.debug("filter parent selection {} / {}", parentSelection.count(), sel.count());
                             } else parentSelection = sel;
                         } else {
-                            curResamplePops = resampledPops;
+                            curResizedPops = resizedPops;
                             parentSelection = sel;
                         }
                         if (!parentSelection.isEmpty()) {
@@ -155,18 +159,17 @@ public class ExtractDatasetUtil {
                                     parentSubSelection.addElements(parentSelection.getElements(position).stream().filter(o -> o.getFrame() % subsamplingFactor == off).collect(Collectors.toList()));
                                 }
                                 String outputName = subsamplingFactor <= 1 ? baseOutputName : baseOutputName + "sub" + subsamplingFactor + "/" + "off" + Utils.formatInteger(subsamplingFactor - 1, 1, offset) + "/";
-                                if (temporal)
-                                    ((FeatureExtractorTemporal) feature.getFeatureExtractor()).setSubsampling(subsamplingFactor, offset);
-                                if (configurable)
-                                    ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
-                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), curResamplePops, spatialDownsamplingFactor, dimensions);
-                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
+                                if (temporal)  ((FeatureExtractorTemporal) feature.getFeatureExtractor()).setSubsampling(subsamplingFactor, offset);
+                                if (configurable)  ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
+                                boolean extend = feature.getFeatureExtractor() instanceof RawImage;
+                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(extend?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
+                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, resizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
                             }
                             saveLabels = false;
                         }
                         t.incrementProgress();
                     }
-                    resampledPops.clear();
+                    resizedPops.clear();
                 }
             }
         }
@@ -223,6 +226,21 @@ public class ExtractDatasetUtil {
         }
     }
 
+    protected static ConvertToBoundingBox boxConverter(int[] dimensions) {
+        ConvertToBoundingBox boxConverter = new ConvertToBoundingBox().resetAxisModifications();
+        for (int axis = 0; axis<dimensions.length; ++axis) boxConverter.addConstantAxisModification(ConvertToBoundingBox.METHOD.CONSTANT_SIZE, dimensions[axis], ConvertToBoundingBox.OUT_OF_BOUNDS_CONDITION.KEEP_SIZE, ConvertToBoundingBox.CONSTANT_SIZE_CONDITION.ALWAYS);
+        return boxConverter;
+    }
+
+    protected static UnaryOperator<SegmentedObject> duplicateAsBox(ConvertToBoundingBox boxConverter) {
+        return o -> {
+            if (o.isRoot()) throw new RuntimeException("Cannot extend root");
+            SegmentedObject res = new SegmentedObject(o.getFrame(), o.getStructureIdx(), o.getIdx(), boxConverter.transform(o.getParent(), o.getRegion()), o.getParent());
+            res.dao.getMasterDAO().getAccess().setId(res, o.getId());  // copy id so that children are identical
+            return res;
+        };
+    }
+
     public static void write_histogram(File outputPath, List<String> selectionNames, String dbName, String channelName, int[] dimensions, int subsamplingFactor, int subsamplingOffset) {
         PyDatasetReader reader = new PyDatasetReader(outputPath);
         Map<String, Histogram> histos = new HashMap<>(selectionNames.size());
@@ -244,14 +262,23 @@ public class ExtractDatasetUtil {
         writer.close();
     }
 
-    private static RegionPopulation resamplePopulation(RegionPopulation pop, int[] dimensions, int downsamplingFactor, boolean eraseTouchingContours) {
-        logger.debug("resampling population: {} -> {}", pop.getImageProperties().dimensions(), dimensions);
+    private static RegionPopulation resizePopulation(RegionPopulation pop, int[] dimensions, int downsamplingFactor, boolean eraseTouchingContours, TrainingConfigurationParameter.RESIZE_MODE resizeMode) {
+        //logger.debug("resampling population: {} -> {}", pop.getImageProperties().dimensions(), dimensions);
         ImageInteger mask = pop.getLabelMap();
         ImageInteger maskR;
-        dimensions = getDimensions(mask.dimensions(), dimensions, downsamplingFactor);
-        if (mask instanceof ImageShort) maskR = TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
-        else if (mask instanceof ImageInt) maskR = TypeConverter.toInt(resample(mask, true, dimensions), null).resetOffset();
-        else maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
+        int[] dimensions_ = getDimensions(mask.dimensions(), dimensions, downsamplingFactor);
+        if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE) || resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD)) {
+            UnaryOperator<ImageInteger> resizeOp = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE) ?
+                    m -> resample(m, true, dimensions_) :
+                    m -> pad(m, Resize.EXPAND_MODE.ZERO, Resize.EXPAND_POSITION.CENTER, dimensions);
+            if (mask instanceof ImageShort)
+                maskR = TypeConverter.toShort(resizeOp.apply(mask), null).resetOffset();
+            else if (mask instanceof ImageInt)
+                maskR = TypeConverter.toInt(resizeOp.apply(mask), null).resetOffset();
+            else {
+                maskR = TypeConverter.toByte(resizeOp.apply(mask), null).resetOffset();
+            }
+        } else maskR = mask;
         RegionPopulation res = new RegionPopulation(maskR, true);
         if (eraseTouchingContours) res.eraseTouchingContours(false);
         return res;
@@ -275,13 +302,20 @@ public class ExtractDatasetUtil {
     public static String getLabel(int frame) {
         return "f" + String.format("%05d", frame);
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
-        logger.debug("extract + resample dataset: {}...", dsName);
+        logger.debug("extract + resize dataset: {}...", dsName);
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);
             int[] dimensions_ = getDimensions(im.dimensions(), dimensions, downsamplingFactor);
-            Image out = resample(im, interpolation, dimensions_);
+            Image out;
+            if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE)) {
+                out = resample(im, interpolation, dimensions_);
+            } else if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD)) {
+                out = pad(im, Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions);
+            } else {
+                out = im;
+            }
             out.setName(getLabel(e));
             if (ExtractZAxisParameter.ExtractZAxis.CHANNEL.equals(zAxisMode)) out = ExtractZAxisParameter.transposeZ(out);
             return out;
@@ -415,7 +449,7 @@ public class ExtractDatasetUtil {
 
         int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, dims, eraseContoursOC, false, 1, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, dims, TrainingConfigurationParameter.RESIZE_MODE.NONE, eraseContoursOC, false, 1, 1, 1, compression);
         return resultingTask;
     }
 
@@ -438,7 +472,7 @@ public class ExtractDatasetUtil {
         }
     }
 
-    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(3 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
@@ -448,11 +482,11 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, List<String> selections, String filterSelection, String outputFile, int spatialDownSampling, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String filterSelection, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
@@ -461,7 +495,7 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, false, spatialDownSampling, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 

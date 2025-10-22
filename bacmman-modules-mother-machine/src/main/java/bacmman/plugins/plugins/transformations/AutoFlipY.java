@@ -180,12 +180,12 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 double median = ArrayUtil.median(Arrays.copyOfRange(yProj, startY, stopY+1-startY));
                 double peakHeight = yProj[peakIdx] - median;
                 float thld = (float)(peakHeight * 0.25 + median  ); //
-                int startOfPeakIdx = ArrayUtil.getFirstOccurence(yProj, peakIdx, startY, v->v<thld)-length/6; // is there enough space above the aberration ?
+                int startOfPeakIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx, startY, v->v<thld)-length/6; // is there enough space above the aberration ?
                 if (startOfPeakIdx-startY<length*0.75) {
                     flip = true;
                     return;
                 }
-                int endOfPeakIdx = ArrayUtil.getFirstOccurence(yProj, peakIdx, stopY+1, v->v<thld)+length/6; // is there enough space under the aberration ?
+                int endOfPeakIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx, stopY+1, v->v<thld)+length/6; // is there enough space under the aberration ?
                 if (stopY+1 - endOfPeakIdx<=length*0.75) {
                     flip = false;
                     return;

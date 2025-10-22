@@ -14,7 +14,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerGateway.
     int[] minimalVersion, maximalVersion;
     String imageName, versionPrefix;
     Predicate<DockerGateway.DockerImage> imageFilter;
-    final List<String> dockerImageResources;
+    final List<String> dockerImageFileNames;
     public DockerImageParameter(String name) {
         super(name, null, null, DockerGateway.DockerImage::toString, false);
         setMapper(s->{
@@ -23,7 +23,7 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerGateway.
             if (allImages == null) refreshImageList();
             return allImages.stream().filter(i -> i.getTag().equals(tag)).findFirst().orElse(null);
         });
-        dockerImageResources = Utils.getResourcesForPath("dockerfiles/").collect(Collectors.toList());
+        dockerImageFileNames = Utils.getResourcesForPath("dockerfiles/").collect(Collectors.toList());
     }
 
     public void selectLatestImageIfNoSelection() {
@@ -84,17 +84,24 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerGateway.
         return allImages.stream().map(DockerGateway.DockerImage::toString).toArray(String[]::new);
     }
 
+    public String getDockerFileForTag(String tag) {
+        return dockerImageFileNames.stream().filter(fn -> DockerGateway.formatDockerTag(fn).equals(tag)).findFirst().orElse(null);
+    }
+
     public void refreshImageList() {
         DockerGateway gateway = Core.getCore().getDockerGateway();
-        Set<String> installedImages;
-        if (gateway==null) installedImages = Collections.EMPTY_SET;
-        else installedImages = gateway.listImages().collect(Collectors.toSet());
+        List<String[]> installedImages;
+        if (gateway==null) installedImages = Collections.EMPTY_LIST;
+        else installedImages = gateway.listImages().collect(Collectors.toList());
         boolean notInit = allImages == null;
         if (allImages !=null) allImages.clear();
         else allImages = new ArrayList<>();
         if (imageFilter == null) imageFilter = im -> true;
-        Stream.concat(dockerImageResources.stream(), installedImages.stream())
-            .map(n -> new DockerGateway.DockerImage(n, installedImages))
+        Stream<DockerGateway.DockerImage> installedIms = installedImages.stream().map(s -> new DockerGateway.DockerImage(s[0], s[1], getDockerFileForTag(s[0])));
+        Set<String> installedImTags = installedImages.stream().map(s->s[0]).collect(Collectors.toSet());
+        Stream<DockerGateway.DockerImage> ressourceIms = dockerImageFileNames.stream().map(fn -> new String[]{fn, DockerGateway.formatDockerTag(fn)})
+                .filter(s -> !installedImTags.contains(s[0])).map(s -> new DockerGateway.DockerImage(s[1], null, s[0]));
+        Stream.concat(installedIms, ressourceIms)
             .filter(imageName == null ? i->true : i -> i.getImageName().equals(imageName))
             .filter(versionPrefix==null ? i -> true : i -> Objects.equals(versionPrefix, i.getVersionPrefix()))
             .filter(minimalVersion == null ? i->true: i->i.compareVersionNumber(minimalVersion)>=0 )

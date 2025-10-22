@@ -22,15 +22,8 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.MasterDAO;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -238,6 +231,19 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
             }
         }
         return res;
+    }
+
+    public List<List<SegmentedObject>> getSortedElements(String position, boolean byTrack) {
+        List<SegmentedObject> elems = getElements(position);
+        Comparator<SegmentedObject> comp = Comparator.comparing(SegmentedObject::toStringShort);
+        if (byTrack) {
+            Map<SegmentedObject, List<SegmentedObject>> sortedMap = new TreeMap<>(comp); // alphabetical ordering
+            sortedMap.putAll(SegmentedObjectUtils.splitByContiguousTrackSegment(elems));
+            return new ArrayList<>(sortedMap.values());
+        } else {
+            elems = elems.stream().sorted(comp).collect(Collectors.toList());
+            return Collections.singletonList(elems);
+        }
     }
     
     public Set<SegmentedObject> getElements(Collection<String> positions) {

@@ -19,10 +19,7 @@
 package bacmman.core;
 
 import bacmman.configuration.experiment.PreProcessingChain;
-import bacmman.configuration.parameters.ExtractZAxisParameter;
-import bacmman.configuration.parameters.MLModelFileParameter;
-import bacmman.configuration.parameters.ParameterUtils;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
@@ -89,8 +86,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
         List<FeatureExtractor.Feature> extractDSFeatures;
         List<String> extractDSSelections;
         int[] extractDSDimensions;
+        TrainingConfigurationParameter.RESIZE_MODE extractDSResizeMode;
         int[] extractDSEraseTouchingContoursOC;
-        boolean extractDSTracking;
+        boolean extractDSTimelapse;
         int extractDSSubsamplingFactor=1;
         int extractDSSubsamplingNumber=0;
         int extractDSSpatialDownsamplingFactor =1;
@@ -137,6 +135,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 for (String s : extractDSSelections) extractDSSels.add(s);
                 extractDS.put("selections", extractDSSels);
                 extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
+                if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) extractDS.put("extractDSResizeMode", extractDSResizeMode.toString());
                 JSONArray extractDSFeats = new JSONArray();
                 for (FeatureExtractor.Feature feature: extractDSFeatures) {
                     JSONObject feat = new JSONObject();
@@ -153,7 +152,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 if (extractDSSubsamplingFactor>1) extractDS.put("extractDSSubsamplingFactor", extractDSSubsamplingFactor);
                 if (extractDSSubsamplingNumber>1) extractDS.put("extractDSSubsamplingNumber", extractDSSubsamplingNumber);
                 if (extractDSSpatialDownsamplingFactor>1) extractDS.put("extractDSSpatialDownsamplingFactor", extractDSSpatialDownsamplingFactor);
-                extractDS.put("extractDSTracking", extractDSTracking);
+                extractDS.put("extractDSTracking", extractDSTimelapse);
                 res.put("extractDataset", extractDS);
             }
             if (extractRawDSFile!=null && extractDSRawPositionMapFrames!=null && !extractDSRawPositionMapFrames.isEmpty() && extractDSRawChannels!=null) {
@@ -227,12 +226,13 @@ public class Task implements TaskI<Task>, ProgressCallback {
                             feat.containsKey("selectionFilter")?(String)feat.get("selectionFilter"):null));
                 }
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
+                extractDSResizeMode = TrainingConfigurationParameter.RESIZE_MODE.valueOf((String)extractDS.getOrDefault("extractDSResizeMode", TrainingConfigurationParameter.RESIZE_MODE.NONE.toString()));
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
                 else extractDSEraseTouchingContoursOC = new int[0];
                 if (extractDS.containsKey("extractDSSubsamplingFactor")) extractDSSubsamplingFactor = ((Number)extractDS.get("extractDSSubsamplingFactor")).intValue();
                 if (extractDS.containsKey("extractDSSubsamplingNumber")) extractDSSubsamplingNumber = ((Number)extractDS.get("extractDSSubsamplingNumber")).intValue();
                 if (extractDS.containsKey("extractDSSpatialDownsamplingFactor")) extractDSSpatialDownsamplingFactor = ((Number)extractDS.get("extractDSSpatialDownsamplingFactor")).intValue();
-                if (extractDS.containsKey("extractDSTracking")) extractDSTracking = ((Boolean)extractDS.get("extractDSTracking"));
+                if (extractDS.containsKey("extractDSTracking")) extractDSTimelapse = ((Boolean)extractDS.get("extractDSTracking"));
             }
             if (data.containsKey("extractRawDataset")) {
                 JSONObject extractRawDS = (JSONObject)data.get("extractRawDataset");
@@ -438,10 +438,15 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public int[] getExtractDSDimensions() {
         return extractDSDimensions;
     }
+
+    public TrainingConfigurationParameter.RESIZE_MODE getExtractDSResizeMode() {
+        return extractDSResizeMode;
+    }
+
     public int[] getExtractDSEraseTouchingContoursOC() {
         return extractDSEraseTouchingContoursOC;
     }
-    public boolean isExtractDSTracking() {return extractDSTracking;}
+    public boolean isExtractDSTimelapse() {return extractDSTimelapse;}
     public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
     public ExtractZAxisParameter.ExtractZAxisConfig getExtractRawZAxis() {return extractRawZAxis; }
     public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
@@ -493,22 +498,23 @@ public class Task implements TaskI<Task>, ProgressCallback {
         return measurements;
     }
 
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, boolean tracking, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
+        this.extractDSResizeMode = resizeMode;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         this.extractDSSpatialDownsamplingFactor = spatialDownSamplingFactor;
         this.extractDSSubsamplingFactor = subsamplingFactor;
         this.extractDSSubsamplingNumber = subsamplingNumber;
         this.extractDSCompression = compression;
-        this.extractDSTracking = tracking;
+        this.extractDSTimelapse = timelapse;
         return this;
     }
 
-    public boolean getExtractDSTracking() {
-            return extractDSTracking;
+    public boolean getExtractDSTimelapse() {
+            return extractDSTimelapse;
     }
 
     public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxisParameter.ExtractZAxisConfig zAxis, Map<String, List<Integer>> positionMapFrames, int compression) {
@@ -695,6 +701,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (extractDSFile!=null || extractDSFeatures!=null || extractDSSelections!=null || extractDSDimensions!=null) {
             if (extractDSDimensions==null || extractDSDimensions.length!=2) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
+            }
+            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE) && IntStream.of(extractDSDimensions).anyMatch(d->d==0)) {
+                errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions (resize mode not null):"+ Utils.toStringArray(extractDSDimensions))));
+            }
+            if (extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) && extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).getObjectClassIdx()==-1)) {
+                errors.addExceptions(new Pair(dbName, new Exception("Parent objects cannot be root in extend mode")));
             }
             if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("No features to extract")));
             if (extractDSFeatures.stream().anyMatch(f->f.getName()==null || f.getName().isEmpty())) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException("Invalid features names")));
@@ -1112,9 +1124,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (extractDSFile!=null) {
             addSep.run();
             sb.append("ExtractDSFile:").append(extractDSFile);
-            if (extractDSTracking) {
+            if (extractDSTimelapse) {
                 addSep.run();
-                sb.append("ExtractDSTracking:").append(extractDSTracking);
+                sb.append("ExtractDSTracking:").append(extractDSTimelapse);
             }
             if (extractDSSpatialDownsamplingFactor>1) {
                 addSep.run();
@@ -1143,6 +1155,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (extractDSDimensions!=null) {
             addSep.run();
             sb.append("ExtractDSDimensions:").append(Utils.toStringArray(extractDSDimensions));
+            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) sb.append("(").append(extractDSResizeMode).append(")");
         }
         if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) {
             addSep.run();

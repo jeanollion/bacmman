@@ -154,6 +154,7 @@ public class ArrayUtil {
      * @return index of maximum value
      */
     public static int max(float[] array, int start, int stopExclusive) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stopExclusive>array.length) stopExclusive=array.length;
         if (stopExclusive<start) throw new IllegalArgumentException("Stop before start");
@@ -165,6 +166,7 @@ public class ArrayUtil {
         return max(array, 0, array.length);
     }
     public static int max(double[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");
@@ -176,6 +178,7 @@ public class ArrayUtil {
         return max(array, 0, array.length);
     }
     public static int max(int[] array, int start, int stopExcluded) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stopExcluded>array.length) stopExcluded=array.length;
         if (stopExcluded<start) throw new IllegalArgumentException("Stop before start");
@@ -187,6 +190,7 @@ public class ArrayUtil {
         return max(array, 0, array.length);
     }
     public static int max(long[] array, int start, int stopExcluded) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stopExcluded>array.length) stopExcluded=array.length;
         if (stopExcluded<start) throw new IllegalArgumentException("Stop before start");
@@ -198,6 +202,7 @@ public class ArrayUtil {
         return min(array, 0, array.length);
     }
     public static int min(float[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");
@@ -209,6 +214,7 @@ public class ArrayUtil {
         return min(array, 0, array.length);
     }
     public static int min(double[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");//{int temp = start; start=stop; stop=temp;}
@@ -220,6 +226,7 @@ public class ArrayUtil {
         return min(array, 0, array.length);
     }
     public static int min(int[] array, int start, int stop) {
+        if (array.length==0) return -1;
         if (start<0) start=0;
         if (stop>array.length) stop=array.length;
         if (stop<start) throw new IllegalArgumentException("Stop before start");
@@ -258,7 +265,7 @@ public class ArrayUtil {
         sum /= (stop-start);
         return sum;
     }
-    public static int getFirstOccurence(double[] array, int start, int stop, DoublePredicate verify) {
+    public static int getFirstIndexOf(double[] array, int start, int stop, DoublePredicate verify) {
         if (start<0) start=0;
         if (stop<0) stop = 0;
         if (stop>array.length) stop=array.length;
@@ -274,7 +281,7 @@ public class ArrayUtil {
             else return -1;
         }
     }
-    public static int getFirstOccurence(float[] array, int start, int stop, DoublePredicate verify) {
+    public static int getFirstIndexOf(float[] array, int start, int stop, DoublePredicate verify) {
         if (start<0) start=0;
         if (stop<0) stop = 0;
         if (stop>array.length) stop=array.length;
@@ -290,7 +297,7 @@ public class ArrayUtil {
             else return -1;
         }
     }
-    public static int getFirstOccurence(int[] array, int start, int stop, java.util.function.IntPredicate verify) {
+    public static int getFirstIndexOf(int[] array, int start, int stop, java.util.function.IntPredicate verify) {
         if (start<0) start=0;
         if (stop<0) stop = 0;
         if (stop>array.length) stop=array.length;
@@ -306,7 +313,7 @@ public class ArrayUtil {
             else return -1;
         }
     }
-    public static int getFirstOccurence(long[] array, int start, int stop, java.util.function.LongPredicate verify) {
+    public static int getFirstIndexOf(long[] array, int start, int stop, java.util.function.LongPredicate verify) {
         if (start<0) start=0;
         if (stop<0) stop = 0;
         if (stop>array.length) stop=array.length;
@@ -321,6 +328,17 @@ public class ArrayUtil {
             if (verify.test(array[i])) return i;
             else return -1;
         }
+    }
+
+    public static IntStream indicesOf(int[] array, int value) {
+        return IntStream.range(0, array.length).filter(i -> array[i]==value);
+    }
+
+    public static int indexOf(String[] array, String value) {
+        for (int i = 0; i<array.length; ++i) {
+            if ( (value==null && array[i] == null) || (value!=null && value.equals(array[i])) ) return i;
+        }
+        return -1;
     }
     
     public static List<Integer> getRegionalExtrema(float[] array, int scale, boolean max) {
