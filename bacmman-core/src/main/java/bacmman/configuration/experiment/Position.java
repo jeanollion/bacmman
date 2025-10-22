@@ -76,7 +76,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
 
         // record sizeZ per channel
         boolean missingSizeZ = channelMapSizeZ.size() != getExperiment().getChannelImageCount(true);
-        if (missingSizeZ && !getImageDAO().isEmpty()) {
+        if (missingSizeZ && getImageDAO() != null && !getImageDAO().isEmpty()) {
             for (int c = 0; c < getExperiment().getChannelImageCount(true); ++c) {
                 try { getSizeZ(c); } catch (RuntimeException e) { }
             }
