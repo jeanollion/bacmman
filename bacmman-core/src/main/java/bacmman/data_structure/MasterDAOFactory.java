@@ -64,11 +64,11 @@ public class MasterDAOFactory {
         MasterDAOFactory.defaultDBType = currentType;
     }
 
-    public static MasterDAO getDAO(String dbName, String dir) {
+    public static MasterDAO getDAO(String dbName, String dir) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         return getDAO(dbName, dir, defaultDBType);
     }
 
-    public static MasterDAO getDAO(String dbName, String datasetDir, String defaultDAOType) {
+    public static MasterDAO getDAO(String dbName, String datasetDir, String defaultDAOType) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         Pair<String, String> correctedPath = Utils.convertRelPathToFilename(datasetDir, dbName);
         dbName = correctedPath.value;
         datasetDir = correctedPath.key;
@@ -79,24 +79,19 @@ public class MasterDAOFactory {
         return initDAO(daoType, dbName, datasetDir, new SegmentedObjectAccessor());
     }
 
-    public static MasterDAO initDAO(String moduleName, String dbName, String directory, SegmentedObjectAccessor accessor) {
+    public static MasterDAO initDAO(String moduleName, String dbName, String directory, SegmentedObjectAccessor accessor) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         if (moduleName == null) {
             return null;
         }
-        try {
-            MasterDAO res = null;
-            if (NAME_MAP_CLASS.containsKey(moduleName)) {
-                res = NAME_MAP_CLASS.get(moduleName).getDeclaredConstructor(String.class, String.class, SegmentedObjectAccessor.class).newInstance(dbName, directory, accessor);
-            } else {
-                if (moduleName.equals("MemoryMasterDAO")) return new MemoryMasterDAO<>(accessor, UUID.generator()).setDatasetDir(Paths.get(directory));
-                else if (moduleName.equals("DuplicateMasterDAO")) throw new IllegalArgumentException("Cannot create Duplicate master DAO this way");
-                else throw new IllegalArgumentException("Unsupported DAO type: "+moduleName+ " all types: "+NAME_MAP_CLASS.keySet());
-            }
-            return res;
-        } catch (InstantiationException | NoSuchMethodException | IllegalAccessException | InvocationTargetException ex) {
-            logger.debug("get DAO: "+moduleName, ex);
+        MasterDAO res = null;
+        if (NAME_MAP_CLASS.containsKey(moduleName)) {
+            res = NAME_MAP_CLASS.get(moduleName).getDeclaredConstructor(String.class, String.class, SegmentedObjectAccessor.class).newInstance(dbName, directory, accessor);
+        } else {
+            if (moduleName.equals("MemoryMasterDAO")) return new MemoryMasterDAO<>(accessor, UUID.generator()).setDatasetDir(Paths.get(directory));
+            else if (moduleName.equals("DuplicateMasterDAO")) throw new IllegalArgumentException("Cannot create Duplicate master DAO this way");
+            else throw new IllegalArgumentException("Unsupported DAO type: "+moduleName+ " all types: "+NAME_MAP_CLASS.keySet());
         }
-        return null;
+        return res;
     }
 
     public static void findModules(String packageName) {
@@ -232,7 +227,7 @@ public class MasterDAOFactory {
         return CLASS_MAP_NAME.get(db.getClass());
     }
 
-    public static MasterDAO ensureDAOType(MasterDAO db, String targetType, ProgressCallback pcb) {
+    public static MasterDAO ensureDAOType(MasterDAO db, String targetType, ProgressCallback pcb) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         if (isType(db, targetType)) return db;
         db.unlockConfiguration();
         db.setConfigurationReadOnly(true);

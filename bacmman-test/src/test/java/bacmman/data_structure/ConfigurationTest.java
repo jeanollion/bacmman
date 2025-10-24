@@ -36,6 +36,8 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import org.junit.rules.TemporaryFolder;
 
+import java.lang.reflect.InvocationTargetException;
+
 /**
  *
  * @author Jean Ollion
@@ -102,25 +104,25 @@ public class ConfigurationTest {
         assertArrayEquals("getAllChildren 0", new int[]{1, 2, 3, 5, 6}, xp.experimentStructure.getAllChildStructures(0));
     }
     @Test
-    public void testStoreSimpleConfigMapDB() {
+    public void testStoreSimpleConfigMapDB() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testStoreSimpleConfig("MapDB");
     }
 
     @Test
-    public void testStoreCompleteConfigMapDB() {
+    public void testStoreCompleteConfigMapDB() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testStoreCompleteConfig("MapDB");
     }
 
     @Test
-    public void testStoreSimpleConfigObjectBox() {
+    public void testStoreSimpleConfigObjectBox() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testStoreSimpleConfig("ObjectBox");
     }
     @Test
-    public void testStoreCompleteConfigObjectBox() {
+    public void testStoreCompleteConfigObjectBox() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testStoreCompleteConfig("ObjectBox");
     }
 
-    public void testStoreSimpleConfig(String dbType) {
+    public void testStoreSimpleConfig(String dbType) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO db = generateDB(dbType);
         MasterDAO.deleteObjectsAndSelectionAndXP(db);
         Experiment xp = new Experiment("test xp");
@@ -136,7 +138,7 @@ public class ConfigurationTest {
 
     }
 
-    private MasterDAO generateDB(String type) {
+    private MasterDAO generateDB(String type) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "";
         try {
             dir = testFolder.newFolder().getAbsolutePath();
@@ -149,7 +151,7 @@ public class ConfigurationTest {
         return dao;
     }
 
-    public void testStoreCompleteConfig(String dbType) {
+    public void testStoreCompleteConfig(String dbType) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO db = generateDB(dbType);
 
         MasterDAO.deleteObjectsAndSelectionAndXP(db);

@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -351,7 +352,12 @@ public class Optimization {
         public void initDB() {
             if (db==null) {
                 if (dir==null) throw new RuntimeException("XP not found");
-                db = MasterDAOFactory.getDAO(dbName, dir);
+                try {
+                    db = MasterDAOFactory.getDAO(dbName, dir);
+                } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
+                         IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
                 if (db == null) throw new RuntimeException("Could not initialize db: dir: "+dir+ " name: "+dbName);
                 try {
                     optimization = new Optimization(db.getExperiment());
