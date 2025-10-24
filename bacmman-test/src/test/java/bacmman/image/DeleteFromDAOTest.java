@@ -82,7 +82,7 @@ public class DeleteFromDAOTest {
 
     }*/
 
-    private MasterDAO generateDB(String type) {
+    private MasterDAO generateDB(String type) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "";
         try {
             dir = testFolder.newFolder().getAbsolutePath();
@@ -98,20 +98,20 @@ public class DeleteFromDAOTest {
     
 
     @Test
-    public void deleteTestInMemory() throws IOException{
+    public void deleteTestInMemory() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO dao = generateDB("MemoryMasterDAO");
         deleteTest(dao);
         dao.eraseAll();
     }
     @Test
-    public void deleteTestMapDB() throws IOException{
+    public void deleteTestMapDB() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO dao = generateDB("MapDB");
         deleteTest(dao);
         dao.eraseAll();
     }
 
     @Test
-    public void deleteTestObjectBox() throws IOException{
+    public void deleteTestObjectBox() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO dao = generateDB("ObjectBox");
         deleteTest(dao);
         dao.eraseAll();
@@ -216,16 +216,16 @@ public class DeleteFromDAOTest {
         dao.erase();
     }
     @Test
-    public void testDeleteMassMapDB() throws IOException {
+    public void testDeleteMassMapDB() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testDeleteMass("MapDB");
     }
 
     @Test
-    public void testDeleteMassObjectBox() throws IOException {
+    public void testDeleteMassObjectBox() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testDeleteMass("ObjectBox");
     }
 
-    public void testDeleteMass(String dbType) throws IOException {
+    public void testDeleteMass(String dbType) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO db = generateDB(dbType);
         String f = "testField";
         int[] count = new int[]{10, 10, 10};
@@ -287,16 +287,16 @@ public class DeleteFromDAOTest {
         dao.erase();
     }
     @Test
-    public void testDeleteAndRelabelMapDB() throws IOException {
+    public void testDeleteAndRelabelMapDB() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testDeleteAndRelabel("MapDB");
     }
 
     @Test
-    public void testDeleteAndRelabelObjectBox() throws IOException {
+    public void testDeleteAndRelabelObjectBox() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testDeleteAndRelabel("ObjectBox");
     }
 
-    public void testDeleteAndRelabel(String dbType) throws IOException {
+    public void testDeleteAndRelabel(String dbType) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO db = generateDB(dbType);
         String f = "testField";
         

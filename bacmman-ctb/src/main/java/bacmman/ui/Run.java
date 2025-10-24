@@ -14,6 +14,7 @@ import org.json.simple.parser.ParseException;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
 
 public class Run {
@@ -41,7 +42,12 @@ public class Run {
         Core.setUserLogger(ui);
 
         // init experiment
-        MasterDAO db = MasterDAOFactory.getDAO(parent.getName(), dsFolder.getAbsolutePath());
+        MasterDAO db = null;
+        try {
+            db = MasterDAOFactory.getDAO(parent.getName(), dsFolder.getAbsolutePath());
+        } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
         db.setConfigurationReadOnly(false);
         Experiment xp = new Experiment(parent.getName());
         try {

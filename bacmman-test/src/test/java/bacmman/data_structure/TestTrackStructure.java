@@ -29,6 +29,7 @@ import static bacmman.data_structure.SegmentedObjectUtils.setTrackLinks;
 import bacmman.image.BlankMask;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -47,12 +48,12 @@ public class TestTrackStructure {
     public TemporaryFolder testFolder = new TemporaryFolder();
     static {MasterDAOFactory.findModules("bacmman.data_structure.dao");}
     @Test
-    public void testTrackStructureMapDB() throws IOException {
+    public void testTrackStructureMapDB() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testTrackStructure("MapDB");
     }
 
     @Test
-    public void testTrackStructureObjectBox() throws IOException {
+    public void testTrackStructureObjectBox() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         testTrackStructure("ObjectBox");
     }
 
@@ -66,7 +67,7 @@ public class TestTrackStructure {
         t.testTrackStructure();
     }*/
     
-    public void testTrackStructure(String daoType) throws IOException {
+    public void testTrackStructure(String daoType) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO masterDAO = MasterDAOFactory.getDAO("testTrack", testFolder.newFolder("testTrack").getAbsolutePath(), daoType);
         masterDAO.setConfigurationReadOnly(false);
         Experiment xp = new Experiment("test");

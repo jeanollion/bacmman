@@ -60,6 +60,7 @@ import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -385,8 +386,18 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                         String relPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbDir.toString(), getWorkingDirectory());
                         DefaultWorker.executeSingleTask(() -> {
                             closeDataset();
-                            MasterDAO source = MasterDAOFactory.getDAO(dbName, dbDir.toString());
-                            MasterDAO target = MasterDAOFactory.ensureDAOType(source, targetType, ProgressCallback.get(this));
+
+                            MasterDAO source = null;
+                            MasterDAO target = null;
+                            try {
+                                source = MasterDAOFactory.getDAO(dbName, dbDir.toString());
+                                target = MasterDAOFactory.ensureDAOType(source, targetType, ProgressCallback.get(this));
+
+                            } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
+                                     IllegalAccessException ex) {
+                                setMessage("Error trying to convert Database");
+                                logger.error("Error trying to convert Database", e);
+                            }
                             if (target!=null) {
                                 target.unlockPositions();
                                 target.unlockConfiguration();
@@ -1447,7 +1458,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (n==null) return;
         this.setSelectedExperiment(dbName);
 
-        db = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
+        try {
+            db = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
+        } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+            if (configurationLibrary!=null) configurationLibrary.setDB(null);
+            setMessage("Error while instantiating database: "+e.getMessage());
+            logger.error("Error while instantiating database", e);
+            return;
+        }
         if (db==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
             logger.warn("no config found in dataset {} @ {}", dbName, workingDirectory);
@@ -3831,7 +3849,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             String adress = createSubdir(relPath.v3, relPath.v1);
             logger.debug("new dataset dir: {}", adress);
             if (adress==null) return false;
-            MasterDAO db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
+            MasterDAO db2 = null;
+            try {
+                db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
+            } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                setMessage("Error instantiating database: "+e.getMessage());
+                logger.error("Error instantiating database", e);
+                return false;
+            }
             if (db2 == null) {
                 setMessage("Could not create dataset Name="+relPath.v1+ " path="+adress);
                 return false;
@@ -3857,12 +3882,19 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (xps==null || xps.isEmpty()) return;
         if (Utils.promptBoolean( "Delete Selected Dataset"+(xps.size()>1?"s":"")+" (all data will be lost)", this)) {
             if (db!=null && xps.stream().map(DatasetTree.DatasetTreeNode::getFile).anyMatch(f->f.equals(db.getDatasetDir().toFile()))) closeDataset();
+            List<DatasetTree.DatasetTreeNode> deleted = new ArrayList<>();
             for (DatasetTree.DatasetTreeNode n : xps) {
-                MasterDAO mDAO = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
-                mDAO.setConfigurationReadOnly(false);
-                mDAO.eraseAll();
+                try {
+                    MasterDAO mDAO = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
+                    mDAO.setConfigurationReadOnly(false);
+                    mDAO.eraseAll();
+                    deleted.add(n);
+                } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                    setMessage("Could not delete dataset: "+n.getName());
+                }
+
             }
-            dsTree.deleteSelected();
+            dsTree.delete(deleted);
         }
     }//GEN-LAST:event_deleteXPMenuItemActionPerformed
 
@@ -3873,12 +3905,26 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             DatasetTree.DatasetTreeNode currentDataset = dsTree.getSelectedDatasetIfOnlyOneSelected();
             if (currentDataset == null) return;
             closeDataset();
-            MasterDAO db1 = MasterDAOFactory.getDAO(currentDataset.getName(), currentDataset.getFile().getAbsolutePath());
+            MasterDAO db1 = null;
+            try {
+                db1 = MasterDAOFactory.getDAO(currentDataset.getName(), currentDataset.getFile().getAbsolutePath());
+            } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                setMessage("Error instantiating dataset "+currentDataset.getName()+ ": "+e.getMessage());
+                logger.error("Error instantiating dataset", e);
+                return;
+            }
             String adress = createSubdir(relPath.v3, relPath.v1);
             logger.debug("duplicate dataset dir: {}", adress);
-            if (adress==null) return;
-            MasterDAO db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
-            if (!db2.setConfigurationReadOnly(false)) {
+            if (adress==null || db1==null) return;
+            MasterDAO db2 = null;
+            try {
+                db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
+            } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                setMessage("Error instantiating dataset "+relPath.v1+ ": "+e.getMessage());
+                logger.error("Error instantiating dataset", e);
+                return;
+            }
+            if (db2==null || !db2.setConfigurationReadOnly(false)) {
                 this.setMessage("Could not modify dataset "+relPath.v1+" @ "+  adress);
                 return;
             }
@@ -4276,7 +4322,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private void compactLocalDBMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_compactLocalDBMenuItemActionPerformed
         closeDataset();
         for (DatasetTree.DatasetTreeNode xp : dsTree.getSelectedDatasetNames()) {
-            MasterDAO dao = MasterDAOFactory.getDAO(xp.getName(), xp.getFile().getAbsolutePath());
+            MasterDAO dao = null;
+            try {
+                dao = MasterDAOFactory.getDAO(xp.getName(), xp.getFile().getAbsolutePath());
+            } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                setMessage("Error instantiating database "+xp.getName() + ": "+e.getMessage());
+                logger.error("Error instantiating database "+xp.getName(), e);
+                return;
+            }
             if (dao instanceof PersistentMasterDAO) {
                 dao.lockPositions();
                 GUI.log("Compacting Dataset: "+xp);

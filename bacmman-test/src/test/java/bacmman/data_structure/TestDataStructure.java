@@ -35,6 +35,7 @@ import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -60,7 +61,7 @@ public class TestDataStructure {
     public TemporaryFolder testFolder = new TemporaryFolder();
     
     static {MasterDAOFactory.findModules("bacmman.data_structure.dao");}
-    private MasterDAO generateDB(String type) throws IOException{
+    private MasterDAO generateDB(String type) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "";
         dir = testFolder.newFolder().getAbsolutePath();
         MasterDAO dao = MasterDAOFactory.getDAO("testdb", dir, type);
@@ -69,26 +70,26 @@ public class TestDataStructure {
         return dao;
     }
     @Test
-    public void structureObjectTestStoreMapDB() throws IOException {
+    public void structureObjectTestStoreMapDB() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         structureObjectTestStore("MapDB");
     }
 
     @Test
-    public void structureObjectTestStoreObjectBox() throws IOException {
+    public void structureObjectTestStoreObjectBox() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         structureObjectTestStore("ObjectBox");
     }
 
     @Test
-    public void structureObjectTestMapDB() throws IOException {
+    public void structureObjectTestMapDB() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         structureObjectTest("MapDB");
     }
 
     @Test
-    public void structureObjectTestObjectBox() throws IOException {
+    public void structureObjectTestObjectBox() throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         structureObjectTest("ObjectBox");
     }
 
-    public void structureObjectTestStore(String type) throws IOException {
+    public void structureObjectTestStore(String type) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO db = generateDB(type);
         Experiment xp = new Experiment("test");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
@@ -119,7 +120,7 @@ public class TestDataStructure {
         assertEquals("r unique instanciation query from fieldName & time point", r2, db.getDao(f).getRoot(1));
     }
 
-    public void structureObjectTest(String type) throws IOException {
+    public void structureObjectTest(String type) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         MasterDAO db = generateDB(type);
         
         // set-up experiment structure

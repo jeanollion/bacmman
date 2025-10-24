@@ -559,7 +559,14 @@ public class Task implements TaskI<Task>, ProgressCallback {
             synchronized (this) {
                 if (db == null) {
                     if (dir==null) throw new RuntimeException("XP not found");
-                    if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.getDAO(dbName, dir);
+                    if (!"localhost".equals(dir) && new File(dir).exists()) {
+                        try {
+                            db = MasterDAOFactory.getDAO(dbName, dir);
+                        } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
+                                 IllegalAccessException e) {
+                            throw new RuntimeException("Error instantiating DB: "+dbName+" @"+dir, e);
+                        }
+                    }
                 }
             }
         }

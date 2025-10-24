@@ -23,6 +23,7 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.GUI;
 
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -177,7 +178,14 @@ public class PythonGateway {
                     }
                 }
             }
-            MasterDAO db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(relPathAndDir.key, relPathAndDir.value);
+            MasterDAO db = null;
+            try {
+                db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(relPathAndDir.key, relPathAndDir.value);
+            } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
+                     IllegalAccessException e) {
+                logger.error("Could not instantiate database "+relPathAndDir.key, e);
+                return;
+            }
             if (db == null) {
                 logger.error("Could not find dataset: {} in {}", relPathAndDir.key, relPathAndDir.value);
                 return;

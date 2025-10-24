@@ -16,11 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
 public class TrackMateIO {
     public static final Logger logger = LoggerFactory.getLogger(TrackMateIO.class);
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         initCore();
         //tmFakeTracksToBacmman();
         //fakeTracksToTM();
@@ -31,7 +32,7 @@ public class TrackMateIO {
         //disp.showImage(r.getMaskAsImageInteger());
     }
 
-    private static void tmBactToBacmman() {
+    private static void tmBactToBacmman() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "/data/Images/BACMMAN/dataset1/";
         TmXmlReader reader = new TmXmlReader(new File(dir + "TrackMate.xml"));
         logger.debug("reader init {}", reader.isReadingOk());
@@ -52,7 +53,7 @@ public class TrackMateIO {
         TrackMateToBacmman.storeTrackMateObjects(allSpots, tracks, microchannels, 1, false, false, true, 90, null);
     }
 
-    private static void tmFakeTracksToBacmman() {
+    private static void tmFakeTracksToBacmman() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "/data/Images/MaximeDeforet/TestTrackMate/";
         TmXmlReader reader = new TmXmlReader(new File(dir + "FakeTracks.xml"));
         logger.debug("reader init {}", reader.isReadingOk());
@@ -71,7 +72,7 @@ public class TrackMateIO {
         TrackMateToBacmman.storeTrackMateObjects(allSpots, tracks, roots, 0, true, false, true, 95, null);
     }
 
-    private static void bactToTM() {
+    private static void bactToTM() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "/data/Images/BACMMAN/dataset1";
         MasterDAO mDAO = MasterDAOFactory.getDAO("dataset1", dir);
         mDAO.lockPositions();
@@ -85,7 +86,7 @@ public class TrackMateIO {
         TrackMateRunner.runTM(microchannels, 1, null);
     }
 
-    private static void fakeTracksToTM() {
+    private static void fakeTracksToTM() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "/data/Images/TestTrackMate/";
         MasterDAO mDAO = MasterDAOFactory.getDAO("TestTrackMate", dir);
         mDAO.lockPositions();

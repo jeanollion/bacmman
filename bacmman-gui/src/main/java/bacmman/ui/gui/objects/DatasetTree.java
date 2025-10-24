@@ -292,6 +292,13 @@ public class DatasetTree {
         Arrays.stream(sel).map(n->(DatasetTreeNode)n.getLastPathComponent()).filter(n->!n.isFolder).forEach(treeModel::removeNodeFromParent);
         removeEmptyFolders(true);
     }
+
+    public void delete(Collection<DatasetTreeNode> nodes) {
+        nodes.stream().filter(n->!n.isFolder).forEach(treeModel::removeNodeFromParent);
+        removeEmptyFolders(true);
+    }
+
+
     public void removeEmptyFolders(boolean updateUI) {
         getExistingNodes().stream().filter(n->n.isFolder && n.childrenCreated() && n.getChildCount()==0 && !n.equals(getRoot())).forEach(treeModel::removeNodeFromParent);
         if (updateUI) tree.updateUI();
