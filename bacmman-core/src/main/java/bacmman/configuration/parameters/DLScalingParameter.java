@@ -20,8 +20,8 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
     enum MODE {RANDOM_CENTILES, RANDOM_MIN_MAX, BRIGHT_FIELD, FLUORESCENCE}
     IntervalParameter minCentileRange = new IntervalParameter("Min Centile Range", 6, 0, 100, 0.01, 5.).setHint("Zero (min value) of scaled image will correspond to a random centile drawn in this interval");
     IntervalParameter maxCentileRange = new IntervalParameter("Max Centile Range", 6, 0, 100, 95., 99.9).setHint("One (max value) of scaled image will correspond to a random centile drawn in this interval");
-    BoundedNumberParameter minCentile = new BoundedNumberParameter("Min Centile", 6, 0.1, 0, 100).setHint("Default min centile used to scale images at test time, for active learning etc.. <br/>Zero (min value) of scaled image will correspond to this centile");
-    BoundedNumberParameter maxCentile = new BoundedNumberParameter("Max Centile", 6, 99.9, 0, 100).setHint("Default max centile used to scale images at test time, for active learning etc.. <br/>One (max value) of scaled image will correspond to this centile");
+    BoundedNumberParameter minCentile = new BoundedNumberParameter("Min Centile", 6, 1, 0, 100).setHint("Default min centile used to scale images at test time, for active learning etc.. <br/>pixels of value 0 in the scaled image will correspond to this centile");
+    BoundedNumberParameter maxCentile = new BoundedNumberParameter("Max Centile", 6, 99, 0, 100).setHint("Default max centile used to scale images at test time, for metrics computation in hard sample mining etc... <br/>pixels of value 1 in the scaled image will correspond to this centile");
     FloatParameter saturateHigh = new FloatParameter("Saturate", 0.5).setLowerBound(0).setUpperBound(1).setLegacyInitializationValue(1)
             .setHint("Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.");
     ArrayNumberParameter saturate = new ArrayNumberParameter("Saturate", 1, new BoundedNumberParameter("Power Law", 5, 1, 0, 1)).setLegacyParameter((lp, a) -> {
@@ -85,8 +85,9 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
         JSONObject json = new JSONObject();
         json.put("mode", this.action.getValue().toString());
         for (Parameter p : getCurrentParameters()) {
-            if (this.action.getValue().equals(MODE.FLUORESCENCE) && p.getName().equals("Max Centile")) continue;
-            if (p.equals(bfSdFactor)) {
+            if (this.action.getValue().equals(MODE.FLUORESCENCE) && p.equals(maxCentile)) {
+                json.put("fluo_scale_centile_max", maxCentile.toJSONEntry());
+            } else if (p.equals(bfSdFactor)) {
                 json.put("bf_sd_factor", bfSdFactor.toJSONEntry());
                 json.put("per_image", perImage.toJSONEntry());
             } else if (p.equals(fluoScaleRange)) {

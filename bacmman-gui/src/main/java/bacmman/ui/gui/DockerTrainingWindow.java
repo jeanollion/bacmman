@@ -238,7 +238,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractButton.addActionListener(ae -> {
             updateExtractDisplay(); // in case dataset has be closed
             if (!extractButton.isEnabled()) return;
-            extractCurrentDataset(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, true, null);
+            extractCurrentDataset(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, true, null, new boolean[1]);
         });
         extractButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -335,7 +335,9 @@ public class DockerTrainingWindow implements ProgressLogger {
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 List<String> selections = new ArrayList<>();
-                boolean timelapseDataset = extractCurrentDataset(datasetDir, tempDatasetName, false, selections);
+                boolean[] timelapseDataset = new boolean[1];
+                boolean extracted = extractCurrentDataset(datasetDir, tempDatasetName, false, selections, timelapseDataset);
+                if (!extracted) return;
                 if (selections.isEmpty() || !tempDatasetFile.isFile()) {
                     logger.error("no dataset could be extracted");
                     if (bacmmanLogger != null) bacmmanLogger.log("Dataset could not be extracted");
@@ -382,7 +384,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                             logger.debug("selection has: {} samples", sel.count());
                             if (tileIdx != null) { // HSM was performed on tiles: create tile objects and assign metrics to them
                                 int[] tileDimensions = ArrayUtil.reverse(trainer.getConfiguration().getGlobalDatasetParameters().getInputShape(), true);
-                                tileOC = createTiles(GUI.getDBConnection(), sel, timelapseDataset, tileIdx, tileDimensions);
+                                tileOC = createTiles(GUI.getDBConnection(), sel, timelapseDataset[0], tileIdx, tileDimensions);
                                 if (tileOC < 0) {
                                     if (bacmmanLogger != null) bacmmanLogger.log("Invalid tile indices");
                                     return;
@@ -400,7 +402,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                                 List<String> positions = sel.getAllPositions().stream().sorted().collect(Collectors.toList());
                                 //if (bacmmanLogger != null) bacmmanLogger.log("all positions: "+Utils.toStringList(positions));
                                 for (String p : positions) {
-                                    List<List<SegmentedObject>> sortedElems = sel.getSortedElements(p, timelapseDataset);
+                                    List<List<SegmentedObject>> sortedElems = sel.getSortedElements(p, timelapseDataset[0]);
                                     for (List<SegmentedObject> track : sortedElems) {
                                         //if (bacmmanLogger != null) bacmmanLogger.log("assigning values for track: "+track.get(0) + " (size "+track.size()+")");
                                         track.stream().sorted().forEach(o -> {
@@ -422,21 +424,24 @@ public class DockerTrainingWindow implements ProgressLogger {
                                     for (int i = 0; i < metricsNames.length; ++i) {
                                         int ii = i;
                                         Selection selHS = selDAO.getOrCreate(selections.get(0) + "_HSM_" + metricsNames[i], true);
+                                        selHS.setObjectClassIdx(tileOC >= 0 ? tileOC : sel.getObjectClassIdx()); // in case sel was previously existing and filled with another object class.
                                         double[] values = metrics.stream().mapToDouble(v -> v[ii]).toArray();
                                         double[] quantiles = ArrayUtil.quantiles(values, minQuantile, 0, 1);
                                         double threshold = quantiles[0];
-                                        logger.debug("metric: #{}={} threshold: {} quantile: {} range: [{}; {}]", i, metricsNames[i], threshold, minQuantile, quantiles[1], quantiles[2]);
                                         if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " threshold: "+threshold+ " quantile: "+minQuantile+ " range:["+quantiles[1]+"; "+quantiles[2]+"]");
                                         if (!Double.isNaN(threshold)) {
-                                            Stream<SegmentedObject> objStream = tileOC > 0 ? sel.getAllElementsAsStream().flatMap(o -> o.getChildren(tileOC)) : sel.getAllElementsAsStream();
+                                            Stream<SegmentedObject> objStream = tileOC >= 0 ? sel.getAllElementsAsStream().flatMap(o -> o.getChildren(tileOC)) : sel.getAllElementsAsStream();
                                             List<SegmentedObject> objects = objStream.filter(o -> o.getMeasurements().getValueAsDouble(metricsNames[ii]) <= threshold).collect(Collectors.toList());
+                                            logger.debug("metric: #{}={} threshold: {} quantile: {} range: [{}; {}] nobjects: {}", i, metricsNames[i], threshold, minQuantile, quantiles[1], quantiles[2], objects.size());
                                             selHS.addElements(objects);
+
                                             //if (bacmmanLogger != null) bacmmanLogger.log("Metric: "+metricsNames[i]+ " #objects: "+objects.size());
                                             selDAO.store(selHS);
                                             allHS.addAll(objects);
                                         }
                                     }
                                     Selection selHS = selDAO.getOrCreate(selections.get(0) + "_HSM", true);
+                                    selHS.setObjectClassIdx(tileOC >= 0 ? tileOC : sel.getObjectClassIdx());
                                     selHS.addElements(allHS);
                                     selDAO.store(selHS);
                                     GUI.getInstance().populateSelections();
@@ -770,13 +775,17 @@ public class DockerTrainingWindow implements ProgressLogger {
         return trainer.getDatasetExtractionTask(mDAO, dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
     }
 
-    protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel) {
+    protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel, boolean[] timelapseDatasetBucket) {
         currentProgressBar = extractProgressBar;
         if (sel == null) sel = new ArrayList<>();
         Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
+        timelapseDatasetBucket[0] = t.getExtractDSTimelapse();
         if (background) Task.executeTask(t, this, 1);
         else Task.executeTaskInForeground(t, this, 1);
-        return t.getExtractDSTimelapse();
+        if (!t.getErrors().isEmpty()) {
+            t.publishErrors();
+            return false;
+        } else return true;
     }
 
     protected void promptSaveConfig() {

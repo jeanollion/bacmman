@@ -1999,7 +1999,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         // check if legacy version: if true, all FW maps are predicted on previous object (before August 2025)
         String[] outputNames = engine.getOutputNames();
         boolean legacyVersion = outputNames != null && !outputNames[4].equals("Output04_LinkMultiplicity");
-        logger.debug("legacy version: {}", legacyVersion);
+        if (legacyVersion) logger.debug("disnet model = legacy version");
         long t1 = System.currentTimeMillis();
         logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
         long t2 = System.currentTimeMillis();
