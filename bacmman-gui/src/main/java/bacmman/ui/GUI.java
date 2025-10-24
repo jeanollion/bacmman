@@ -3593,7 +3593,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             boolean move;
             if (sel != null) {
                 List<SegmentedObject> objects = SelectionUtils.getSegmentedObjects(i, objectClassIdx, sel.getElementStrings(position)).collect(Collectors.toList());
-                logger.debug("#objects from selection on current image: {} (display sIdx: {}, sel: {})", objects.size(), displayObjectClassIdx, objectClassIdx);
+                logger.debug("#objects from selection on current image: {}/{} (display ocIdx: {}, sel ocIdx: {})", objects.size(), sel.getElementStrings(position).size(), displayObjectClassIdx, objectClassIdx);
                 move = !objects.isEmpty() && iwm.goToNextObject(null, objects, next, true);
             } else {
                 List<SegmentedObject> selTracks = iwm.getSelectedLabileTrackHeads(null);

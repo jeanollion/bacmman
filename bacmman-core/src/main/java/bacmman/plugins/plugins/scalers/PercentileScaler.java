@@ -72,13 +72,12 @@ public class PercentileScaler implements HistogramScaler, Hint {
             log(scaleOff);
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }
-        ToDoubleFunction<Double> saturateFun = getSaturateFun();
+        ToDoubleFunction<Double> saturateFun = getSaturateFun(this.saturate.getArrayDouble());
         if (saturateFun != null) image = ImageOperations.applyFunction(image, saturateFun, !isFloatingPoint || transformInputImage);
         return image;
     }
 
-    protected ToDoubleFunction<Double> getSaturateFun() {
-        double[] powerLaw = this.saturate.getArrayDouble();
+    public static ToDoubleFunction<Double> getSaturateFun(double[] powerLaw) {
         if (powerLaw[0]==1) { // only higher tail
             if (powerLaw[1] < 1 && powerLaw[1] > 0) { // soft saturation on higher tail
                 double pl = powerLaw[1];
