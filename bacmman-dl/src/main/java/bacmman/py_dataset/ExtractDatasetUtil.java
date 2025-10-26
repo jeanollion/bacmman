@@ -161,9 +161,9 @@ public class ExtractDatasetUtil {
                                 String outputName = subsamplingFactor <= 1 ? baseOutputName : baseOutputName + "sub" + subsamplingFactor + "/" + "off" + Utils.formatInteger(subsamplingFactor - 1, 1, offset) + "/";
                                 if (temporal)  ((FeatureExtractorTemporal) feature.getFeatureExtractor()).setSubsampling(subsamplingFactor, offset);
                                 if (configurable)  ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
-                                boolean extend = feature.getFeatureExtractor() instanceof RawImage;
-                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(extend?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
-                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, resizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
+                                boolean allowResize = feature.getFeatureExtractor().interpolation()!=null && !(feature.getFeatureExtractor() instanceof Labels); // if interpolation is null -> resize not allowed. if Label: already resized
+                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(allowResize?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
+                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, allowResize?resizeMode: TrainingConfigurationParameter.RESIZE_MODE.NONE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
                             }
                             saveLabels = false;
                         }
