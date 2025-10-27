@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Paths;
 import java.util.List;
 
 public class TrackMateIO {
@@ -42,7 +43,7 @@ public class TrackMateIO {
         TrackModel tracks =model.getTrackModel();
         logger.debug("all spots: {}", allSpots.getNSpots(true));
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
-        MasterDAO mDAO = MasterDAOFactory.getDAO("dataset1", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO(Paths.get(dir));
         mDAO.lockPositions();
         ObjectDAO dao = mDAO.getDao("150609_21");
         List<SegmentedObject> roots = dao.getRoots();
@@ -63,7 +64,7 @@ public class TrackMateIO {
         TrackModel tracks =model.getTrackModel();
         logger.debug("all spots: {}", allSpots.getNSpots(true));
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
-        MasterDAO mDAO = MasterDAOFactory.getDAO("TestTrackMate", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO(Paths.get(dir));
         mDAO.lockPositions();
         // TODO  get or create root...
         logger.debug("n frames : {}",  mDAO.getDao("FakeTracks").getRoots().size() );
@@ -74,7 +75,7 @@ public class TrackMateIO {
 
     private static void bactToTM() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "/data/Images/BACMMAN/dataset1";
-        MasterDAO mDAO = MasterDAOFactory.getDAO("dataset1", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO(Paths.get(dir));
         mDAO.lockPositions();
         ObjectDAO dao = mDAO.getDao("dataset1_0-50");
 
@@ -88,7 +89,7 @@ public class TrackMateIO {
 
     private static void fakeTracksToTM() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "/data/Images/TestTrackMate/";
-        MasterDAO mDAO = MasterDAOFactory.getDAO("TestTrackMate", dir);
+        MasterDAO mDAO = MasterDAOFactory.getDAO(Paths.get(dir));
         mDAO.lockPositions();
         // TODO  get or create root...
         logger.debug("n frames : {}",  mDAO.getDao("FakeTracks").getRoots().size() );

@@ -44,6 +44,8 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
@@ -65,7 +67,7 @@ import java.util.stream.Stream;
  */
 public class Task implements TaskI<Task>, ProgressCallback {
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
-        String dbName, dir;
+        String dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
         MEASUREMENT_MODE measurementMode = MEASUREMENT_MODE.ERASE_ALL;
         boolean exportData;
@@ -102,7 +104,6 @@ public class Task implements TaskI<Task>, ProgressCallback {
         @Override
         public JSONObject toJSONEntry() {
             JSONObject res=  new JSONObject();
-            res.put("dbName", dbName); 
             if (this.dir!=null) res.put("dir", dir); // put dbPath ?
             if (preProcess) res.put("preProcess", preProcess);
             if (segmentAndTrack) res.put("segmentAndTrack", segmentAndTrack);
@@ -178,12 +179,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
         public void initFromJSONEntry(JSONObject data) {
             if (data==null) return;
-            this.dbName = (String)data.getOrDefault("dbName", "");
             if (data.containsKey("dir")) {
                 dir = (String)data.get("dir");
                 if (!new File(dir).exists()) dir=null;
             }
-            if (dir==null) dir = ExperimentSearchUtils.searchForLocalDir(dbName);
             this.preProcess = (Boolean)data.getOrDefault("preProcess", false);
             this.segmentAndTrack = (Boolean)data.getOrDefault("segmentAndTrack", false);
             this.trackOnly = (Boolean)data.getOrDefault("trackOnly", false);
@@ -254,7 +253,6 @@ public class Task implements TaskI<Task>, ProgressCallback {
     @Override
     public int hashCode() {
         int hash = 5;
-        hash = 59 * hash + Objects.hashCode(this.dbName);
         hash = 59 * hash + Objects.hashCode(this.dir);
         hash = 59 * hash + (this.preProcess ? 1 : 0);
         hash = 59 * hash + (this.segmentAndTrack ? 1 : 0);
@@ -315,9 +313,6 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (this.exportData != other.exportData) {
             return false;
         }
-        if (!Objects.equals(this.dbName, other.dbName)) {
-            return false;
-        }
         if (!Objects.equals(this.dir, other.dir)) {
             return false;
         }
@@ -351,33 +346,21 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public Task(MasterDAO db) {
         setUI(Core.getProgressLogger());
         this.db=db;
-        this.dbName=db.getDBName();
         this.dir=db.getDatasetDir().toFile().getAbsolutePath();
         ownDB = false;
     }
-    public Task(String dbName) {
-        this(dbName, null);
+
+    public Task(String dir) {
+        this();
+        setDir(dir);
     }
+
     public Task(String dbName, String dir) {
         this();
-        this.dbName=dbName;
         if (dir!=null && !"".equals(dir)) this.dir=dir;
         else this.dir = ExperimentSearchUtils.searchForLocalDir(dbName);
     }
-    public Task setDBName(String dbName) {
-        if (dbName!=null && dbName.equals(this.dbName)) return this;
-        if (db!=null) {
-            if (ownDB) {
-                db.unlockPositions();
-                db.unlockConfiguration();
-                db.clearCache(true, true, true);
-            }
-            this.db=null;
-        }
-        this.ownDB = false;
-        this.dbName=dbName;
-        return this;
-    }
+
     public Task setDir(String dir) {
         if (dir!=null && dir.equals(this.dir)) return this;
         if (db!=null) {
@@ -559,12 +542,13 @@ public class Task implements TaskI<Task>, ProgressCallback {
             synchronized (this) {
                 if (db == null) {
                     if (dir==null) throw new RuntimeException("XP not found");
-                    if (!"localhost".equals(dir) && new File(dir).exists()) {
+                    Path path = Paths.get(dir);
+                    if (Files.isDirectory(path)) {
                         try {
-                            db = MasterDAOFactory.getDAO(dbName, dir);
+                            db = MasterDAOFactory.getDAO(path);
                         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
                                  IllegalAccessException e) {
-                            throw new RuntimeException("Error instantiating DB: "+dbName+" @"+dir, e);
+                            throw new RuntimeException("Error instantiating DB: "+dir, e);
                         }
                     }
                 }
@@ -622,6 +606,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     public boolean isValid() {
         initDB(); // read only by default
+        String dbName = db.getDBName();
         Map<String, MLModelFileParameter> dlModelToDownload= new HashMap<>();
         Consumer<List<MLModelFileParameter>> analyzeDLModelFP = l -> l.stream()
                 .filter(mfp -> {
@@ -770,18 +755,21 @@ public class Task implements TaskI<Task>, ProgressCallback {
         } else db.clearCache(false, false,true);
         return errors.isEmpty();
     }
+    private String getDBName() {
+        return db!=null?db.getDBName() : (dir != null ? Paths.get(dir).getFileName().toString() : "");
+    }
     private void checkArray(int[] array, int minValueIncl, int maxValueExcl, String message) {
         if (array.length==0) return;
-        if (array[ArrayUtil.max(array)]>=maxValueExcl) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValueExcl)));
-        if (array[ArrayUtil.min(array)]<minValueIncl) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + array[ArrayUtil.min(array)]+ " not found")));
+        if (array[ArrayUtil.max(array)]>=maxValueExcl) errors.addExceptions(new Pair<>(getDBName(), new IllegalArgumentException(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValueExcl)));
+        if (array[ArrayUtil.min(array)]<minValueIncl) errors.addExceptions(new Pair<>(getDBName(), new IllegalArgumentException(message + array[ArrayUtil.min(array)]+ " not found")));
     }
     private void checkArray(List<Integer> array, int maxValue, String message) {
         if (array==null || array.isEmpty()) {
-            errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message)));
+            errors.addExceptions(new Pair<>(getDBName(), new IllegalArgumentException(message)));
             return;
         }
-        if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + Collections.max(array)+ " not found, max value: "+maxValue)));
-        if (Collections.min(array)<0) errors.addExceptions(new Pair<>(dbName, new IllegalArgumentException(message + Collections.min(array)+ " not found")));
+        if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair<>(getDBName(), new IllegalArgumentException(message + Collections.max(array)+ " not found, max value: "+maxValue)));
+        if (Collections.min(array)<0) errors.addExceptions(new Pair<>(getDBName(), new IllegalArgumentException(message + Collections.min(array)+ " not found")));
     }
     public void printErrors() {
         if (!errors.isEmpty()) logger.error("Errors for Task: {}", toString());
@@ -869,7 +857,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             }
         }
         boolean deleteAllPosition = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll && canDeleteAll;
-        logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllPosition);
+        logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", getDBName(), preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllPosition);
         if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
         publish("number of subtasks: "+countSubtasks());
         if (preProcess || segmentAndTrack || trackOnly || measurements) {
@@ -964,12 +952,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     private void process(String position, boolean deleteAllPosition, Selection selection, double preProcessingMemoryThreshold) {
-        publish("Dataset" + dbName+ " Position: "+position);
+        publish("Dataset" + getDBName()+ " Position: "+position);
         logger.debug("position: {} delete all position: {}", position, deleteAllPosition);
         if (deleteAllPosition) db.getDao(position).erase();
         if (preProcess) {
             publish("Pre-Processing...");
-            logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
+            logger.info("Pre-Processing: DB: {}, Position: {}", getDBName(), position);
             try {
                 Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllPosition, preProcessingMemoryThreshold, this);
                 boolean createRoot = true; //segmentAndTrack || trackOnly || generateTrackImages;
@@ -1018,7 +1006,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         
         if (measurements) {
             publish("Measurements...");
-            logger.info("Measurements: DB: {}, Position: {}", dbName, position);
+            logger.info("Measurements: DB: {}, Position: {}", getDBName(), position);
             Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);
             incrementProgress();
             //publishMemoryUsage("After Measurements");
@@ -1074,7 +1062,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         String sep = "; " ;
         StringBuilder sb = new StringBuilder();
         Runnable addSep = () -> {if (sb.length()>0) sb.append(sep);};
-        sb.append("db:").append(dbName);
+        sb.append("db:").append(getDBName());
         if (structures!=null) {
             addSep.run();
             sb.append("structures:").append(ArrayUtil.toString(structures));
@@ -1381,7 +1369,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public Stream<Task> splitByPosition() {
         ensurePositionAndObjectClasses(true, true);
         Function<Integer, Task> subTaskCreator = p -> {
-            Task res = new Task(dbName, dir).setPositions(p).setStructures(structures);
+            Task res = new Task(dir).setPositions(p).setStructures(structures);
             if (preProcess) res.preProcess = true;
             res.setStructures(structures);
             res.segmentAndTrack = segmentAndTrack;
@@ -1391,16 +1379,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         };
         return positions.stream().map(subTaskCreator);
     }
-    
-    // check that no 2 xp with same name and different dirs
-    private static void checkXPNameDir(List<Task> tasks) {
-        boolean[] haveDup = new boolean[1];
-        tasks.stream().map(t -> new Pair<>(t.dbName, t.dir)).distinct().collect(Collectors.groupingBy(p -> p.key)).entrySet().stream().filter(e->e.getValue().size()>1).forEach(e -> {
-            haveDup[0] = true;
-            logger.error("Task: {} has several directories: {}", e.getKey(), e.getValue().stream().map(p->p.value).collect(Collectors.toList()));
-        });
-        if (haveDup[0]) throw new IllegalArgumentException("Cannot process tasks: some duplicate experiment name with distinct path");
-    }
+
     public static Map<XP_POS, List<Task>> getProcessingTasksByPosition(List<Task> tasks) {
         //checkXPNameDir(tasks);
         BinaryOperator<Task> taskMerger=(t1, t2) -> {
@@ -1415,11 +1394,11 @@ public class Task implements TaskI<Task>, ProgressCallback {
             return t1;
         };
         Map<XP_POS, List<Task>> res = tasks.stream().flatMap(Task::splitByPosition) // split by db / position
-                .collect(Collectors.groupingBy(t->new XP_POS_S(t.dbName, t.dir, t.positions.get(0), new StructureArray(t.structures)))) // group including structures;
+                .collect(Collectors.groupingBy(t->new XP_POS_S(t.dir, t.positions.get(0), new StructureArray(t.structures)))) // group including structures;
                 .entrySet().stream().map(e -> e.getValue().stream().reduce(taskMerger).get()) // merge all tasks from same group
-                .collect(Collectors.groupingBy(t->new XP_POS(t.dbName, t.dir, t.positions.get(0)))); // merge without including structures
+                .collect(Collectors.groupingBy(t->new XP_POS(t.dir, t.positions.get(0)))); // merge without including structures
         Function<Task, Stream<Task>> splitByStructure = t -> {
-            return Arrays.stream(t.structures).mapToObj(s->  new Task(t.dbName, t.dir).setActions(false, t.segmentAndTrack, t.trackOnly, false).setPositions(t.positions.get(0)).setStructures(s));
+            return Arrays.stream(t.structures).mapToObj(s->  new Task(t.dir).setActions(false, t.segmentAndTrack, t.trackOnly, false).setPositions(t.positions.get(0)).setStructures(s));
         };
         Comparator<Task> subTComp = (t1, t2)-> {
             int sC = Integer.compare(t1.structures[0], t2.structures[0]);
@@ -1477,7 +1456,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         //checkXPNameDir(tasks);
         Function<Task, Task> getGlobalTask = t -> {
             if (!t.exportConfig && !t.exportData && !t.exportObjects && !t.exportPreProcessedImages && !t.exportSelections && !t.exportTrackImages && t.extractMeasurementDir.isEmpty()) return null;
-            Task res = new Task(t.dbName, t.dir);
+            Task res = new Task(t.dir);
             res.extractMeasurementDir.addAll(t.extractMeasurementDir);
             res.exportConfig = t.exportConfig;
             res.exportData = t.exportData;
@@ -1488,23 +1467,24 @@ public class Task implements TaskI<Task>, ProgressCallback {
             res.setPositions(Utils.toArray(t.positions, false));
             return res;
         };
-        return tasks.stream().map(getGlobalTask).filter(t->t!=null).collect(Collectors.groupingBy(t->new XP(t.dbName, t.dir)));
+        return tasks.stream().map(getGlobalTask).filter(t->t!=null).collect(Collectors.groupingBy(t->new XP(t.dir)));
     }
+
     // utility classes for task split & merge
     public static class XP {
-        public final String dbName, dir;
+        public final String dir;
 
-        public XP(String dbName, String dir) {
-            this.dbName = dbName;
+        public XP(String dir) {
             this.dir = dir;
+        }
+
+        public String getDBName() {
+            return Paths.get(dir).getFileName().toString();
         }
 
         @Override
         public int hashCode() {
-            int hash = 7;
-            hash = 89 * hash + Objects.hashCode(this.dbName);
-            hash = 89 * hash + Objects.hashCode(this.dir);
-            return hash;
+            return Objects.hashCode(dir);
         }
 
         @Override
@@ -1519,13 +1499,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 return false;
             }
             final XP other = (XP) obj;
-            if (!Objects.equals(this.dbName, other.dbName)) {
-                return false;
-            }
-            if (!Objects.equals(this.dir, other.dir)) {
-                return false;
-            }
-            return true;
+            return Objects.equals(this.dir, other.dir);
         }
         
     }
@@ -1533,15 +1507,14 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public static class XP_POS extends XP {
         public final int position;
         
-        public XP_POS(String dbName, String dir, int position) {
-            super(dbName, dir);
+        public XP_POS(String dir, int position) {
+            super(dir);
             this.position = position;
         }
 
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 53 * hash + Objects.hashCode(this.dbName);
             hash = 53 * hash + Objects.hashCode(this.dir);
             hash = 53 * hash + this.position;
             return hash;
@@ -1562,13 +1535,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             if (this.position != other.position) {
                 return false;
             }
-            if (!Objects.equals(this.dbName, other.dbName)) {
-                return false;
-            }
-            if (!Objects.equals(this.dir, other.dir)) {
-                return false;
-            }
-            return true;
+            return Objects.equals(this.dir, other.dir);
         }
         
         
@@ -1576,15 +1543,14 @@ public class Task implements TaskI<Task>, ProgressCallback {
     private static class XP_POS_S extends XP_POS {
         StructureArray structures;
         
-        public XP_POS_S(String dbName, String dir, int position, StructureArray structures) {
-            super(dbName, dir, position);
+        public XP_POS_S(String dir, int position, StructureArray structures) {
+            super(dir, position);
             this.structures=structures;
         }
 
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 37 * hash + Objects.hashCode(this.dbName);
             hash = 37 * hash + Objects.hashCode(this.dir);
             hash = 37 * hash + Objects.hashCode(this.structures);
             hash = 37 * hash + this.position;
@@ -1606,16 +1572,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
             if (this.position != other.position) {
                 return false;
             }
-            if (!Objects.equals(this.dbName, other.dbName)) {
-                return false;
-            }
             if (!Objects.equals(this.dir, other.dir)) {
                 return false;
             }
-            if (!Objects.equals(this.structures, other.structures)) {
-                return false;
-            }
-            return true;
+            return Objects.equals(this.structures, other.structures);
         }
         
     }

@@ -751,7 +751,10 @@ public class DockerTrainingWindow implements ProgressLogger {
             Path dest = getMoveModelDestinationDir().toPath().resolve(source.getFileName());
             if (Files.exists(dest)) {
                 if (promptBoolean("Model already exists at destination, overwrite ?", this.parent)) {
-                    Utils.deleteDirectory(dest.toFile());
+                    if (!Utils.deleteDirectory(dest.toFile())) {
+                        setMessage("File "+dest.toFile()+" could not be deleted");
+                        return;
+                    }
                 } else return;
             }
             try {

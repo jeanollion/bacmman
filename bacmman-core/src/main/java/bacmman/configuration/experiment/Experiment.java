@@ -371,9 +371,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
     
     public void setOutputDirectory(String outputPath) {
-        logger.debug("setting output path: {}", outputPath);
         this.outputPath.setSelectedFilePath(outputPath);
-        logger.debug("output path set");
         if (outputPath!=null) {
             Path p = Paths.get(this.outputPath.getFirstSelectedFilePath());
             if (!Files.exists(p)) {

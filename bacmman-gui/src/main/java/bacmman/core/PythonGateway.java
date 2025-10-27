@@ -27,6 +27,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.io.File;
 
 import bacmman.ui.gui.selection.SelectionUtils;
+import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,40 +156,43 @@ public class PythonGateway {
                 return;
             }
             String workingDir = GUI.getInstance().getWorkingDirectory();
-            UnaryPair<String> relPathAndDir = getRelPath(dbName, dbPath, workingDir);
-            if (relPathAndDir == null) {
+            Path path = resolveDBPath(dbName, dbPath, workingDir);
+            if (path == null || Files.isDirectory(path)) {
                 logger.error("Could not find dataset: dbName: {} dbPath: {} working dir: {}", dbName, dbPath, workingDir);
                 return;
             }
             boolean dbOpen;
             if (GUI.getDBConnection() != null) {
-                logger.debug("test DB open: curPath: {} targetPath: {}", GUI.getDBConnection().getDatasetDir().toString(), Paths.get(relPathAndDir.value, relPathAndDir.key).toAbsolutePath().toString());
-                dbOpen = GUI.getDBConnection().getDatasetDir().toString().equals(Paths.get(relPathAndDir.value, relPathAndDir.key).toAbsolutePath().toString());
+                logger.debug("test DB open: curPath: {} targetPath: {}", GUI.getDBConnection().getDatasetDir().toString(), path);
+                dbOpen = GUI.getDBConnection().getDatasetDir().equals(path);
             } else dbOpen = false;
             if (GUI.getDBConnection() == null) {
-                logger.info("Opening dataset {} in {}....", relPathAndDir.key, relPathAndDir.value);
-                GUI.getInstance().openDataset(relPathAndDir.key, relPathAndDir.value, false);
-                if (GUI.getDBConnection() != null) {
-                    dbOpen = true;
-                    try {
-                        logger.info("Selection tab....");
-                        GUI.getInstance().setSelectedTab(3);
-                        logger.info("Tab selected");
-                    } catch (Exception e) {
+                logger.info("Opening dataset {}...", path);
+                Path wdPath = Paths.get(workingDir);
+                if (path.startsWith(wdPath)) { // open db if contained in working directory
+                    GUI.getInstance().openDataset(wdPath.relativize(path).toString(), workingDir, false);
+                    if (GUI.getDBConnection() != null) {
+                        dbOpen = true;
+                        try {
+                            logger.info("Selection tab....");
+                            GUI.getInstance().setSelectedTab(3);
+                            logger.info("Tab selected");
+                        } catch (Exception e) {
 
+                        }
                     }
                 }
             }
             MasterDAO db = null;
             try {
-                db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(relPathAndDir.key, relPathAndDir.value);
+                db = dbOpen ? GUI.getDBConnection() : MasterDAOFactory.getDAO(path);
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
                      IllegalAccessException e) {
-                logger.error("Could not instantiate database "+relPathAndDir.key, e);
+                logger.error("Could not instantiate database "+path, e);
                 return;
             }
             if (db == null) {
-                logger.error("Could not find dataset: {} in {}", relPathAndDir.key, relPathAndDir.value);
+                logger.error("Could not find dataset: {}", path);
                 return;
             }
             db.setConfigurationReadOnly(false);
@@ -196,7 +201,7 @@ public class PythonGateway {
                 FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
                     add(res);
                 }}, s -> s.toJSONEntry().toString());
-                logger.debug("Could not open dataset {} in write mode: selection was saved to file: {}", relPathAndDir.key, outputFile);
+                logger.debug("Could not open dataset {} in write mode: selection was saved to file: {}", path, outputFile);
                 return;
             }
             db.getSelectionDAO().store(res);
@@ -233,8 +238,9 @@ public class PythonGateway {
         GUI.getInstance().setMessage(message);
     }
 
-    protected static UnaryPair<String> getRelPath(String dbName, String dbDir, String workingDir) {
-        if (dbDir != null ) { // make sure working directory is a parent directory
+    protected static Path resolveDBPath(String dbName, String dbDir, String workingDir) {
+        // make sure working directory is a parent directory
+        if (dbDir != null ) {
             dbDir = Paths.get(dbDir).toAbsolutePath().toString();
             workingDir = Paths.get(workingDir).toAbsolutePath().toString();
             if (!dbDir.startsWith(workingDir)) {
@@ -243,25 +249,11 @@ public class PythonGateway {
                 workingDir = null;
             }
         } else dbDir = workingDir;
-        Pair<String, String> relPathAndName = dbName != null ? Utils.splitNameAndRelpath(dbName) : new Pair<>(null, Paths.get(dbDir).getFileName().toString());
         Path dbPath = Paths.get(dbDir);
-        String name = relPathAndName.value;
-        if (dbPath.resolve(name + "_config.json").toFile().isFile()) return optimizeRelPath(name, dbPath.getParent().toAbsolutePath().toString(), workingDir);
-        if (dbPath.resolve(name).resolve(name + "_config.json").toFile().isFile()) return optimizeRelPath(name, dbPath.toAbsolutePath().toString(), workingDir);
-        if (relPathAndName.key != null) {
-            if (dbPath.resolve(relPathAndName.key).resolve(name).resolve(name + "_config.json").toFile().isFile()) return optimizeRelPath(dbName, dbPath.toString(), workingDir);
-        }
-        return null;
-    }
-
-    protected static UnaryPair<String> optimizeRelPath(String name, String dbDir, String workingDir) {
-        if (workingDir == null) return new UnaryPair<>(name, dbDir);
-        if (dbDir.startsWith(workingDir)) {
-            Path targetPath = Paths.get(dbDir, name);
-            Path rel = Utils.getRelativePath(targetPath.toAbsolutePath().toString(), workingDir);
-            return new UnaryPair<>(rel.toString(), workingDir);
-        } else { // working directory is not a parent directory of dBPath
-            return new UnaryPair<>(name, dbDir);
-        }
+        if (dbName != null) { // dbName may be a relative path
+            if (dbDir.endsWith(dbName)) return dbPath;
+            if (ExperimentSearchUtils.isConfigDir(dbPath)) return dbPath; // directory has a configuration file
+            return ExperimentSearchUtils.searchConfigDir(dbPath, dbName, 2);
+        } else return dbPath;
     }
 }

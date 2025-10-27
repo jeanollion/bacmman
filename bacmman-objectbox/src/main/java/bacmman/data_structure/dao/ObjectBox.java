@@ -48,17 +48,17 @@ import java.util.stream.Collectors;
 public class ObjectBox<T extends ObjectDAO<Long>> extends PersistentMasterDAOImpl<Long, T, ObjectBoxSelectionDAO> {
     static final Logger logger = LoggerFactory.getLogger(ObjectBox.class);
 
-    public ObjectBox(String dbName, String datasetDir, SegmentedObjectAccessor accessor) {
-        super(dbName, datasetDir,
+    public ObjectBox(Path dir, SegmentedObjectAccessor accessor) {
+        super(dir,
                 (mDAO, positionName, outputDir, readOnly) -> (T)new ObjectBoxDAO(mDAO, positionName, outputDir, readOnly),
                 ObjectBoxSelectionDAO::new,
                 accessor);
     }
 
     @Override
-    public boolean containsDatabase(String outputPath) {
+    public boolean containsDatabase(Path outputPath) {
         try {
-            List<Path> positions = Files.list(Paths.get(outputPath)).filter(p -> !p.getFileName().toString().equals("Selections")).collect(Collectors.toList());
+            List<Path> positions = Files.list(outputPath).filter(p -> !p.getFileName().toString().equals("Selections")).collect(Collectors.toList());
             for (Path pos : positions) {
                 Path so = pos.resolve("objectbox");
                 if (Files.exists(so) && Files.list(so).map(p -> p.getFileName().toString()).anyMatch(n -> n.startsWith("objects_") && Character.isDigit(n.charAt(n.length()-1)))) return true;

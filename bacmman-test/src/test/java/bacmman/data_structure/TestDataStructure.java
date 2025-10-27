@@ -64,7 +64,7 @@ public class TestDataStructure {
     private MasterDAO generateDB(String type) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         String dir = "";
         dir = testFolder.newFolder().getAbsolutePath();
-        MasterDAO dao = MasterDAOFactory.getDAO("testdb", dir, type);
+        MasterDAO dao = MasterDAOFactory.getDAO(Paths.get(dir), type);
         dao.setConfigurationReadOnly(false);
         dao.lockPositions();
         return dao;

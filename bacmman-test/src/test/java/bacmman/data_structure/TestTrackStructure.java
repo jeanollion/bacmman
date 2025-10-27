@@ -68,7 +68,7 @@ public class TestTrackStructure {
     }*/
     
     public void testTrackStructure(String daoType) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
-        MasterDAO masterDAO = MasterDAOFactory.getDAO("testTrack", testFolder.newFolder("testTrack").getAbsolutePath(), daoType);
+        MasterDAO masterDAO = MasterDAOFactory.getDAO(testFolder.newFolder("testTrack").toPath(), daoType);
         masterDAO.setConfigurationReadOnly(false);
         Experiment xp = new Experiment("test");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);

@@ -381,16 +381,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 String targetType = dbType.getSelectedItem();
                 if (!MasterDAOFactory.isType(db, targetType)) {
                     if (Utils.promptBoolean("Convert Database from "+MasterDAOFactory.getType(db)+" to "+targetType+" ?", this)) {
-                        String dbName = db.getDBName();
                         Path dbDir = db.getDatasetDir();
-                        String relPath = DatasetTree.getRelPathFromNameAndDir(dbName, dbDir.toString(), getWorkingDirectory());
+                        Path relPath = getWorkingDirectory() == null ? dbDir : getWorkdingDirectoryAsPath().relativize(dbDir);
                         DefaultWorker.executeSingleTask(() -> {
                             closeDataset();
-
                             MasterDAO source = null;
                             MasterDAO target = null;
                             try {
-                                source = MasterDAOFactory.getDAO(dbName, dbDir.toString());
+                                source = MasterDAOFactory.getDAO(dbDir);
                                 target = MasterDAOFactory.ensureDAOType(source, targetType, ProgressCallback.get(this));
 
                             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
@@ -403,7 +401,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                                 target.unlockConfiguration();
                                 MasterDAOFactory.setDefaultDBType(targetType);
                             }
-                        }, this).appendEndOfWork(()-> openDataset(relPath, getWorkingDirectory(), false));
+                        }, this).appendEndOfWork(()-> openDataset(relPath.toString(), getWorkingDirectory(), false));
                     }
                 }
                 PropertyUtils.set(PropertyUtils.DATABASE_TYPE, defaultDBType); // do not override database type when converting current database
@@ -420,7 +418,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         String path = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH);
         if (path!=null) workingDirectory.setText(path);
-
+        else workingDirectory.setText(System.getProperty("user.dir"));
 
         // import / export options
         PropertyUtils.setPersistent(importConfigMenuItem, "import_config", true);
@@ -1441,7 +1439,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         });
     }
 
-    public void openDataset(String dbName, String workingDirectory, boolean readOnly) {
+    public void openDataset(String relPath, String workingDirectory, boolean readOnly) {
         if (db!=null) closeDataset();
         //long t0 = System.currentTimeMillis();
         if (workingDirectory==null) {
@@ -1454,12 +1452,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 populateDatasetTree();
             }
         }
-        DatasetTree.DatasetTreeNode n = dsTree.getDatasetNode(dbName);
+        DatasetTree.DatasetTreeNode n = dsTree.getDatasetNode(relPath);
         if (n==null) return;
-        this.setSelectedExperiment(dbName);
+        this.setSelectedExperiment(relPath);
 
         try {
-            db = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
+            db = MasterDAOFactory.getDAO(n.getDir());
         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
             setMessage("Error while instantiating database: "+e.getMessage());
@@ -1468,14 +1466,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         }
         if (db==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
-            logger.warn("no config found in dataset {} @ {}", dbName, workingDirectory);
+            logger.warn("no config found in dataset {} @ {}", relPath, workingDirectory);
             return;
         }
         db.setConfigurationReadOnly(readOnly);
         db.setLogger(this);
         if (db.getExperiment()==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
-            logger.warn("no xp found in dataset {} @ {}", dbName, workingDirectory);
+            logger.warn("no xp found in dataset {} @ {}", relPath, workingDirectory);
             closeDataset();
             populateDatasetTree(); // refresh dataset list in case dataset has been renamed
             return;
@@ -1487,7 +1485,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         logger.info("Dataset found in db: {} ", db.getDBName());
         if (db.isConfigurationReadOnly()) {
             logger.warn("Config file could not be locked");
-            GUI.log(dbName+ ": Config file could not be locked. Dataset already open ? Dataset will be open in Read Only mode: all modifications on configuration or selections won't be saved. ");
+            GUI.log(relPath+ ": Config file could not be locked. Dataset already open ? Dataset will be open in Read Only mode: all modifications on configuration or selections won't be saved. ");
             GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
         } else {
             logger.debug("Config file could be locked");
@@ -2238,7 +2236,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         tabs.setPreferredSize(new java.awt.Dimension(840, 650));
 
         workingDirectory.setBackground(new Color(getBackground().getRGB()));
-        workingDirectory.setText("localhost");
         workingDirectory.setBorder(javax.swing.BorderFactory.createTitledBorder("Working Directory"));
         workingDirectory.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mousePressed(java.awt.event.MouseEvent evt) {
@@ -3493,6 +3490,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     public String getWorkingDirectory() {
         return this.workingDirectory.getText();
     }
+    public Path getWorkdingDirectoryAsPath() {
+        String wd = getWorkingDirectory();
+        if (wd==null) return null;
+        return Paths.get(wd);
+    }
     public void navigateToNextImage(boolean next) {
         if (trackTreeController==null) this.loadObjectTrees();
         ImageWindowManager<Object,?,?> iwm = ImageWindowManagerFactory.getImageManager();
@@ -3751,42 +3753,37 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         return res;
     }
 
-    private static String createSubdir(File path, String dbName) {
-        if (!path.isDirectory()) {
-            if (!path.mkdirs()) return null;
-        }
-        File newDBDir = Paths.get(path.getAbsolutePath(), ExperimentSearchUtils.removePrefix(dbName, GUI.DBprefix)).toFile();
-        if (newDBDir.exists()) {
-            logger.info("folder : {}, already exists", newDBDir.getAbsolutePath());
-            if (!ExperimentSearchUtils.listExperiments(newDBDir.getAbsolutePath(), false, null).isEmpty()) {
-                logger.info("folder : {}, already exists and contains xp", newDBDir.getAbsolutePath());
-                return null;
-            } else {
-                logger.info("folder : {}, already exists", newDBDir.getAbsolutePath());
+    private static boolean createDatasetDir(Path path) {
+        if (!Files.isDirectory(path)) {
+            if (Files.exists(path)) return false; // path is file
+            try {
+                Files.createDirectories(path);
+                return true;
+            } catch (IOException e) {
+                return false;
             }
+        } else { // is a directory
+            if (ExperimentSearchUtils.getExistingConfigFile(path)!=null) {
+                log("Folder: "+path+" already contains a dataset");
+                return false;
+            } else return true; // already exists but do not host a dataset
         }
-        newDBDir.mkdir();
-        if (!newDBDir.isDirectory()) {
-            logger.error("folder : {}, couldn't be created", newDBDir.getAbsolutePath());
-            return null;
-        }
-        return newDBDir.getAbsolutePath();
     }
-    private Triplet<String, String, File> promptNewDatasetPath() {
+
+    private Path promptNewDatasetPath() {
         String defaultRelPath = "";
         String currentDataset = getSelectedExperiment();
-        if (currentDataset==null || dsTree.getFileForDataset(currentDataset)==null) {
-            File folder = dsTree.getFirstSelectedFolder();
+        if (currentDataset==null || dsTree.getDatasetPath(currentDataset)==null) {
+            Path folder = dsTree.getFirstSelectedFolder(true);
             if (folder!=null) {
-                Path root = Paths.get(dsTree.getRoot().getFile().getAbsolutePath());
-                defaultRelPath = root.relativize(Paths.get(folder.getAbsolutePath())).toString() + File.separator;
+                defaultRelPath = folder + File.separator;
             }
         } else defaultRelPath = dsTree.getRelativePath(currentDataset);
         String relativePath = JOptionPane.showInputDialog("New dataset name or relative path (relative to working directory):", defaultRelPath);
         if (relativePath == null) return null;
-        Triplet<String, String, File> relPath = dsTree.parseRelativePath(relativePath);
-        if (relPath == null) return null;
-        if (!Utils.isValid(relPath.v1, false)) {
+        Path dsPath = dsTree.getAbsolutePath(relativePath);
+        if (dsPath == null) return null;
+        if (!Utils.isValid(dsPath.getFileName().toString(), false)) {
             setMessage("Name should not contain special characters");
             logger.error("Name should not contain special characters");
             return null;
@@ -3795,34 +3792,40 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             logger.error("dataset already exists");
             return null;
         }
-        return relPath;
+        return dsPath;
     }
 
     private void move(DatasetTree.DatasetTreeNode dataset) throws IOException {
         if (dataset==null) return;
-        boolean wasOpen = db!=null && db.getDatasetDir().toFile().getAbsolutePath().equals(dataset.getFile().getAbsolutePath()) && db.getDBName().equals(dataset.getName());
-        logger.debug("was open: {} current={}@{} to move={}@{}", wasOpen, db==null?"null":db.getDBName(), db==null?"null":db.getDatasetDir().toFile(), dataset.getName(), dataset.getFile());
-        Triplet<String, String, File> newDestination = promptNewDatasetPath();
-        if (newDestination == null) return;
+        boolean wasOpen = db!=null && db.getDatasetDir().equals(dataset.getDir());
+        logger.debug("was open: {} current={}@{} to move={}@{}", wasOpen, db==null?"null":db.getDBName(), db==null?"null":db.getDatasetDir().toFile(), dataset.getName(), dataset.getDir());
+        Path newDir = promptNewDatasetPath();
+        if (newDir == null) return;
         if (wasOpen) closeDataset();
         // check that destination dir do not already exist:
-        Path newDir = Paths.get(newDestination.v3.toString(), newDestination.v1);
         if (Files.exists(newDir)) {
             if (!Utils.promptBoolean("Destination Directory already exist, overwrite ?", this)) return;
         }
-        Path oldDatasetPath = Paths.get(dataset.getFile().toString());
+        Path oldDatasetPath = dataset.getDir();
         // rename config file
-        Path oldConfig = oldDatasetPath.resolve(dataset.getName() + "_config.json");
-        Path newConfig = oldDatasetPath.resolve(newDestination.v1 + "_config.json");
-        Files.move(oldConfig, newConfig);
+        Path oldConfig = ExperimentSearchUtils.getExistingConfigFile(oldDatasetPath);
+        if (oldConfig == null) {
+            log("No dataset found in "+oldDatasetPath);
+            return;
+        }
+        Path newConfig = oldDatasetPath.resolve("config.json"); // rename in case legacy name
+        if (!newConfig.equals(oldConfig)) Files.move(oldConfig, newConfig);
         // move whole directory
         Utils.moveOrMerge(oldDatasetPath, newDir);
         populateDatasetTree();
-        if (wasOpen) {
-            logger.debug("will open: {}, {}, {}", newDestination.v2, newDestination.v1, newDestination.v3);
-            openDataset(newDestination.v2, null, false);
+        if (getWorkingDirectory() != null) {
+            Path wdPath = Paths.get(getWorkingDirectory());
+            if (newDir.startsWith(wdPath)) {
+                String relPath = wdPath.relativize(newDir).toString();
+                if (wasOpen) openDataset(relPath, null, false);
+                this.dsTree.setSelectedDataset(relPath);
+            }
         }
-        this.dsTree.setSelectedDataset(newDestination.v2);
     }
 
     private void refreshExperimentListMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshExperimentListMenuItemActionPerformed
@@ -3832,47 +3835,52 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     private void setSelectedExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_setSelectedExperimentMenuItemActionPerformed
         DatasetTree.DatasetTreeNode n = dsTree.getSelectedDatasetIfOnlyOneSelected();
-        if (n==null || (this.db!=null && db.getDatasetDir().toFile().equals(n.getFile()))) {
+        if (n==null || (this.db!=null && db.getDatasetDir().equals(n.getDir()))) {
             closeDataset();
         }
         else {
-            openDataset(n.getRelativePath(), null, false);
-            if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath());
+            openDataset(n.getRelativePath().toString(), null, false);
+            if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath().toString());
         }
     }//GEN-LAST:event_setSelectedExperimentMenuItemActionPerformed
 
     private boolean createEmptyDataset() {//GEN-FIRST:event_newXPMenuItemActionPerformed
-        Triplet<String, String, File> relPath = promptNewDatasetPath();
-        logger.debug("new dataset : {}", relPath);
-        if (relPath==null) return false;
+        Path dbPath = promptNewDatasetPath();
+        logger.debug("new dataset : {}", dbPath);
+        if (dbPath==null) return false;
         else {
-            String adress = createSubdir(relPath.v3, relPath.v1);
-            logger.debug("new dataset dir: {}", adress);
-            if (adress==null) return false;
+            boolean created = createDatasetDir(dbPath);
+            if (!created) return false;
             MasterDAO db2 = null;
             try {
-                db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
+                db2 = MasterDAOFactory.getDAO(dbPath);
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 setMessage("Error instantiating database: "+e.getMessage());
                 logger.error("Error instantiating database", e);
                 return false;
             }
             if (db2 == null) {
-                setMessage("Could not create dataset Name="+relPath.v1+ " path="+adress);
+                setMessage("Could not create dataset "+dbPath);
                 return false;
             }
             if (!db2.setConfigurationReadOnly(false)) {
-                this.setMessage("Could not modify dataset "+relPath.v1+" @ "+  adress);
+                this.setMessage("Could not modify dataset "+  dbPath);
                 return false;
             }
-            Experiment xp2 = new Experiment(relPath.v1);
+            Experiment xp2 = new Experiment(dbPath.getFileName().toString());
             xp2.setPath(db2.getDatasetDir());
             db2.setExperiment(xp2, true);
             db2.unlockConfiguration();
             db2.clearCache(true, true, true);
             populateDatasetTree();
-            openDataset(relPath.v2, null, false);
-            if (this.db!=null) setSelectedExperiment(relPath.v2);
+            if (getWorkingDirectory() != null) {
+                Path wdPath = Paths.get(getWorkingDirectory());
+                if (dbPath.startsWith(wdPath)) {
+                    String relPath = wdPath.relativize(dbPath).toString();
+                    openDataset(relPath, null, false);
+                    if (this.db != null) setSelectedExperiment(relPath);
+                }
+            }
             return db!=null;
         }
     }//GEN-LAST:event_newXPMenuItemActionPerformed
@@ -3881,15 +3889,15 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         List<DatasetTree.DatasetTreeNode> xps = dsTree.getSelectedDatasetNames();
         if (xps==null || xps.isEmpty()) return;
         if (Utils.promptBoolean( "Delete Selected Dataset"+(xps.size()>1?"s":"")+" (all data will be lost)", this)) {
-            if (db!=null && xps.stream().map(DatasetTree.DatasetTreeNode::getFile).anyMatch(f->f.equals(db.getDatasetDir().toFile()))) closeDataset();
+            if (db!=null && xps.stream().map(DatasetTree.DatasetTreeNode::getDir).anyMatch(f->f.equals(db.getDatasetDir()))) closeDataset();
             List<DatasetTree.DatasetTreeNode> deleted = new ArrayList<>();
             for (DatasetTree.DatasetTreeNode n : xps) {
                 try {
-                    MasterDAO mDAO = MasterDAOFactory.getDAO(n.getName(), n.getFile().getAbsolutePath());
+                    MasterDAO mDAO = MasterDAOFactory.getDAO(n.getDir());
                     mDAO.setConfigurationReadOnly(false);
                     mDAO.eraseAll();
                     deleted.add(n);
-                } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                } catch (IOException | NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
                     setMessage("Could not delete dataset: "+n.getName());
                 }
 
@@ -3899,38 +3907,38 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     }//GEN-LAST:event_deleteXPMenuItemActionPerformed
 
     private void duplicateXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_duplicateXPMenuItemActionPerformed
-        Triplet<String, String, File> relPath = promptNewDatasetPath();
-        if (relPath==null) return;
+        Path newPath = promptNewDatasetPath();
+        if (newPath==null) return;
         else {
             DatasetTree.DatasetTreeNode currentDataset = dsTree.getSelectedDatasetIfOnlyOneSelected();
             if (currentDataset == null) return;
             closeDataset();
             MasterDAO db1 = null;
             try {
-                db1 = MasterDAOFactory.getDAO(currentDataset.getName(), currentDataset.getFile().getAbsolutePath());
+                db1 = MasterDAOFactory.getDAO(currentDataset.getDir());
+                if (db1 == null) return;
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 setMessage("Error instantiating dataset "+currentDataset.getName()+ ": "+e.getMessage());
                 logger.error("Error instantiating dataset", e);
                 return;
             }
-            String adress = createSubdir(relPath.v3, relPath.v1);
-            logger.debug("duplicate dataset dir: {}", adress);
-            if (adress==null || db1==null) return;
+            boolean created = createDatasetDir(newPath);
+            if (!created) return;
             MasterDAO db2 = null;
             try {
-                db2 = MasterDAOFactory.getDAO(relPath.v1, adress);
+                db2 = MasterDAOFactory.getDAO(newPath);
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
-                setMessage("Error instantiating dataset "+relPath.v1+ ": "+e.getMessage());
+                setMessage("Error instantiating dataset "+newPath+ ": "+e.getMessage());
                 logger.error("Error instantiating dataset", e);
                 return;
             }
             if (db2==null || !db2.setConfigurationReadOnly(false)) {
-                this.setMessage("Could not modify dataset "+relPath.v1+" @ "+  adress);
+                this.setMessage("Could not modify dataset "+  newPath);
                 return;
             }
             Experiment xp2 = db1.getExperiment().duplicateWithoutPositions();
-            xp2.setName(relPath.v1);
-            xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
+            xp2.setName(newPath.getFileName().toString());
+            xp2.setOutputDirectory(newPath.resolve("Output").toString());
             xp2.setOutputImageDirectory(xp2.getOutputDirectory());
             db2.setExperiment(xp2, true);
             db2.storeExperiment();
@@ -3938,8 +3946,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             db2.unlockConfiguration();
             db1.clearCache(true, true, true);
             populateDatasetTree();
-            openDataset(relPath.v2, null, false);
-            if (this.db!=null) setSelectedExperiment(relPath.v2);
+            if (getWorkingDirectory() != null) {
+                Path wdPath = Paths.get(getWorkingDirectory());
+                if (newPath.startsWith(wdPath)) {
+                    String relPath = wdPath.relativize(newPath).toString();
+                    openDataset(relPath, null, false);
+                    if (this.db != null) setSelectedExperiment(relPath);
+                }
+            }
         }
     }//GEN-LAST:event_duplicateXPMenuItemActionPerformed
 
@@ -4115,7 +4129,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     }//GEN-LAST:event_importConfigurationMenuItemActionPerformed
     
-    private Task getCurrentTask(String dbName, String dir) {
+    private Task getCurrentTask(String dir) {
         
         boolean preProcess=false;
         boolean segmentAndTrack = false;
@@ -4133,7 +4147,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             //if (i==6) export=true;
         }
         Task t;
-        if (dbName==null && db!=null) {
+        if (dir == null && db!=null) {
             logger.debug("create task with same db as GUI");
             int[] microscopyFields = this.getSelectedPositionIdx();
             int[] selectedStructures = this.getSelectedStructures(true);
@@ -4143,8 +4157,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 for (int sIdx : selectedStructures) t.addExtractMeasurementDir(db.getDatasetDir().toFile().getAbsolutePath(), sIdx);
                 t.setExtractByPosition(extractByPosition.getSelected());
             }
-        } else if (dbName!=null) {
-            t = new Task(dbName, dir);
+        } else if (dir!=null) {
+            t = new Task(dir);
             if (extract && t.getDB()!=null) {
                 int[] selectedStructures = ArrayUtil.generateIntegerArray(t.getDB().getExperiment().getStructureCount());
                 for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDatasetDir().toFile().getAbsolutePath(), sIdx);
@@ -4162,7 +4176,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!checkConnection()) return;
         logger.debug("will run ... unsaved changes in config: {}", db==null? false : db.experimentChangedFromFile());
         promptSaveUnsavedChanges();
-        Task t = getCurrentTask(null, null);
+        Task t = getCurrentTask(null);
         if (t==null) {
             log("Could not define task");
             return;
@@ -4304,7 +4318,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (xps.isEmpty()) return;
         closeDataset();
         List<TaskI> tasks = new ArrayList<>(xps.size());
-        for (DatasetTree.DatasetTreeNode xp : xps) tasks.add(getCurrentTask(xp.getName(), xp.getFile().getAbsolutePath()));
+        for (DatasetTree.DatasetTreeNode xp : xps) tasks.add(getCurrentTask(xp.getDir().toString()));
         Task.executeTasks(tasks, getUserInterface(), getPreProcessingMemoryThreshold());
     }//GEN-LAST:event_runActionAllXPMenuItemActionPerformed
 
@@ -4324,7 +4338,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         for (DatasetTree.DatasetTreeNode xp : dsTree.getSelectedDatasetNames()) {
             MasterDAO dao = null;
             try {
-                dao = MasterDAOFactory.getDAO(xp.getName(), xp.getFile().getAbsolutePath());
+                dao = MasterDAOFactory.getDAO(xp.getDir());
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 setMessage("Error instantiating database "+xp.getName() + ": "+e.getMessage());
                 logger.error("Error instantiating database "+xp.getName(), e);
@@ -4542,9 +4556,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action addCurrentTask = new AbstractAction("Add Current Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = getCurrentTask(null, null);
+                    Task t = getCurrentTask(null);
                     if (t!=null) {
-                        if (db!=null) t.setDBName(db.getDBName()).setDir(db.getDatasetDir().toFile().getAbsolutePath());
+                        if (db!=null) t.setDir(db.getDatasetDir().toFile().getAbsolutePath());
                         actionPoolListModel.addElement(t);
                     }
                 }
@@ -4654,9 +4668,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                         Action selAction = new AbstractAction(s) {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Task t = getCurrentTask(null, null);
+                                Task t = getCurrentTask(null);
                                 if (t!=null) {
-                                    t.setDBName(db.getDBName()).setDir(db.getDatasetDir().toFile().getAbsolutePath());
+                                    t.setDir(db.getDatasetDir().toFile().getAbsolutePath());
                                     t.setSelection(s);
                                     actionPoolListModel.addElement(t);
                                 }
@@ -4748,7 +4762,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     String outDir = out.getAbsolutePath();
                     List<Task> tasks = Collections.list(actionPoolListModel.elements()).stream().filter( t -> t instanceof Task).map(t -> (Task)t).collect(Collectors.toList());
                     Task.getProcessingTasksByPosition(tasks).entrySet().forEach(en -> {
-                        String fileName = Paths.get(outDir , en.getKey().dbName + "_P"+en.getKey().position+".json").toString();
+                        String fileName = Paths.get(outDir , en.getKey().getDBName() + "_P"+en.getKey().position+".json").toString();
                         FileIO.writeToFile(fileName, en.getValue(), t->t.toJSONEntry().toJSONString());
                     });
                     
@@ -4789,7 +4803,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                     for (Entry<Integer, TaskI> en : indexSelJobMap.entrySet()) {
                         TaskI t = en.getValue();
                         if (t instanceof Task) {
-                            ((Task) t).setDBName(xp.getName()).setDir(xp.getFile().getAbsolutePath());
+                            ((Task) t).setDir(xp.getDir().toFile().getAbsolutePath());
                         } else log("Set db cannot be applied to tasks of type: "+t.getClass());
                         if (!t.isValid()) log("Error: task: "+en.getValue()+" is not valid with this experiment");
                     }
@@ -5032,7 +5046,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             else setSelectedExperimentMenuItem.setText("--");
         } else {
             DatasetTree.DatasetTreeNode n = dsTree.getDatasetNode(sel);
-            if (n!=null && !n.getFile().equals(db.getDatasetDir().toFile())) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
+            if (n!=null && !n.getDir().equals(db.getDatasetDir())) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
             else setSelectedExperimentMenuItem.setText("Close Dataset: "+db.getDBName());
         }
     }//GEN-LAST:event_datasetListValueChanged
@@ -5233,7 +5247,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 String dbName = getSelectedExperiment();
                 if (dbName!=null && (db==null || !db.getDBName().equals(dbName))) { // only open other experiment
                     openDataset(dbName, null, false);
-                    if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath());
+                    if (db!=null) {
+                        Path p = dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath();
+                        if (p!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, p.toString());
+                    }
                 }
             }
         }
@@ -5241,8 +5258,8 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             JPopupMenu menu = new JPopupMenu();
             DatasetTree.DatasetTreeNode selectedDataset = dsTree.getSelectedDatasetIfOnlyOneSelected();
             List<DatasetTree.DatasetTreeNode> selectedDatasets = dsTree.getSelectedDatasetNames();
-            File openDatasetDir = db!=null ? db.getDatasetDir().toFile() : null;
-            boolean openMode = selectedDataset==null || !selectedDataset.getFile().equals(openDatasetDir);
+            Path openDatasetDir = db!=null ? db.getDatasetDir() : null;
+            boolean openMode = selectedDataset==null || !selectedDataset.getDir().equals(openDatasetDir);
             Action openDatasetA = new AbstractAction(openMode ? "Open Dataset" : "Close Dataset") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -5442,7 +5459,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (GUI.getInstance()!=null) GUI.getInstance().updateSelectionListUI();
     }
     private void populateDatasetTree() {
-        dsTree.setWorkingDirectory(workingDirectory.getText(), ProgressCallback.get(this));
+        dsTree.setWorkingDirectory(getWorkdingDirectoryAsPath(), ProgressCallback.get(this));
     }
     private String getSelectedExperiment() {
         return dsTree.getSelectedDatasetRelPathIfOnlyOneSelected();

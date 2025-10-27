@@ -36,7 +36,9 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Paths;
 
 /**
  *
@@ -104,25 +106,25 @@ public class ConfigurationTest {
         assertArrayEquals("getAllChildren 0", new int[]{1, 2, 3, 5, 6}, xp.experimentStructure.getAllChildStructures(0));
     }
     @Test
-    public void testStoreSimpleConfigMapDB() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void testStoreSimpleConfigMapDB() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException, IOException {
         testStoreSimpleConfig("MapDB");
     }
 
     @Test
-    public void testStoreCompleteConfigMapDB() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void testStoreCompleteConfigMapDB() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException, IOException {
         testStoreCompleteConfig("MapDB");
     }
 
     @Test
-    public void testStoreSimpleConfigObjectBox() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void testStoreSimpleConfigObjectBox() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException, IOException {
         testStoreSimpleConfig("ObjectBox");
     }
     @Test
-    public void testStoreCompleteConfigObjectBox() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void testStoreCompleteConfigObjectBox() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException, IOException {
         testStoreCompleteConfig("ObjectBox");
     }
 
-    public void testStoreSimpleConfig(String dbType) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void testStoreSimpleConfig(String dbType) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException, IOException {
         MasterDAO db = generateDB(dbType);
         MasterDAO.deleteObjectsAndSelectionAndXP(db);
         Experiment xp = new Experiment("test xp");
@@ -145,13 +147,13 @@ public class ConfigurationTest {
         } catch (Exception e) {
             logger.error("could not create folder:", e);
         }
-        MasterDAO dao = MasterDAOFactory.getDAO("testdb", dir, type);
+        MasterDAO dao = MasterDAOFactory.getDAO(Paths.get(dir), type);
         dao.setConfigurationReadOnly(false);
         dao.lockPositions();
         return dao;
     }
 
-    public void testStoreCompleteConfig(String dbType) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void testStoreCompleteConfig(String dbType) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException, IOException {
         MasterDAO db = generateDB(dbType);
 
         MasterDAO.deleteObjectsAndSelectionAndXP(db);

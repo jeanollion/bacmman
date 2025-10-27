@@ -90,7 +90,7 @@ public class DeleteFromDAOTest {
             logger.error("could not create folder:", e);
             throw new RuntimeException(e);
         }
-        MasterDAO dao = MasterDAOFactory.getDAO("testdb", dir, type);
+        MasterDAO dao = MasterDAOFactory.getDAO(Paths.get(dir), type);
         dao.setConfigurationReadOnly(false);
         dao.lockPositions();
         return dao;

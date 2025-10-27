@@ -15,11 +15,12 @@ import org.json.simple.parser.ParseException;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class Run {
     /**
-     *
+     * Run a configuration (2nd argument) on images and export CTB data in parent folder of image folder (1st argument)
      * @param args 0 = image folder (string) / 1 = json config (string) / 2 = remove temp file (boolean, optional, default True) / 3 = edge margin (int, optional, default 0)
      */
     public static void main(String[] args) {
@@ -32,8 +33,8 @@ public class Run {
             throw new RuntimeException(e);
         }
         if (!imageFolder.exists() || !imageFolder.isDirectory()) throw new IllegalArgumentException("Folder: " +imageFolder+ " not found");
-        File parent = imageFolder.getParentFile();
-        File dsFolder = Paths.get("", "temp").toAbsolutePath().toFile();
+
+        Path dsPath = Paths.get("", "tmp");
         String jsonConfig = args[1];
         if (jsonConfig == null || (jsonConfig.charAt(0)!='{' && jsonConfig.charAt(jsonConfig.length()-1)!='}') ) throw new IllegalArgumentException("Arg 2 must be a JSON configuration");
         // init bacmman
@@ -44,12 +45,12 @@ public class Run {
         // init experiment
         MasterDAO db = null;
         try {
-            db = MasterDAOFactory.getDAO(parent.getName(), dsFolder.getAbsolutePath());
+            db = MasterDAOFactory.getDAO(dsPath);
         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
         db.setConfigurationReadOnly(false);
-        Experiment xp = new Experiment(parent.getName());
+        Experiment xp = new Experiment("tmp");
         try {
             xp.initFromJSONEntry(JSONUtils.parse(jsonConfig));
         } catch (ParseException e) {
@@ -70,12 +71,17 @@ public class Run {
         t.done();
         t.flush(false);
         int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;
+        File parent = imageFolder.getParentFile();
         ExportCellTrackingBenchmark.exportPositions(db, parent.getAbsolutePath(), 0, null, margin, CTB_IO_MODE.RESULTS, false, 1);
 
         // close / remove temp files
         if (args.length==2 || Boolean.parseBoolean(args[2])) {
-            db.eraseAll();
-            Utils.deleteDirectory(dsFolder);
+            try {
+                db.eraseAll();
+            } catch (IOException e) {
+
+            }
+            Utils.deleteDirectory(dsPath.toFile());
         } else {
             db.unlockPositions();
             db.unlockConfiguration();

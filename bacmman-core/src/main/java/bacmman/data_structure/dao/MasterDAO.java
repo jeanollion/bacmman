@@ -22,6 +22,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.core.ProgressCallback;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ import bacmman.utils.Utils;
 public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
     Logger logger = LoggerFactory.getLogger(MasterDAO.class);
     SegmentedObjectAccessor getAccess();
-    void eraseAll();
+    void eraseAll() throws IOException;
     void clearCache(boolean configuration, boolean selections, boolean objects);
     void clearCache(String position);
     ObjectDAO<ID> getDao(String fieldName);
@@ -64,8 +65,8 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
     String getDBName();
     Path getDatasetDir();
     void deleteAllObjects();
-    void deleteExperiment();
-    static void deleteObjectsAndSelectionAndXP(MasterDAO dao) {
+    void deleteExperiment() throws IOException;
+    static void deleteObjectsAndSelectionAndXP(MasterDAO dao) throws IOException {
         if (dao==null) return;
         dao.deleteAllObjects();
         if (dao.getSelectionDAO()!=null) dao.getSelectionDAO().deleteAllObjects();

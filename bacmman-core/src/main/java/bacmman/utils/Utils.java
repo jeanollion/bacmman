@@ -862,7 +862,7 @@ public class Utils {
         if (files == null) return true;
         boolean emptied = true;
         for (File f : files) {
-            if (deleteDirectory(f)) emptied = false;
+            if (!deleteDirectory(f)) emptied = false;
         }
         return emptied;
     }
@@ -892,63 +892,11 @@ public class Utils {
         }
         searchAll(nextFiles, res, fileMatch, recLevels, currentLevel+1);
     }
-    public static String removeLeadingSeparator(String path) {
-        if (path==null) return path;
-        String sep = FileSystems.getDefault().getSeparator();
-        while (path.startsWith(sep)) path = path.substring(sep.length());
-        if (path.length()==0) return null;
-        return path;
-    }
+
     public static Path getRelativePath(String dir, String baseDir) {
         return Paths.get(baseDir).relativize(Paths.get(dir));
     }
 
-    public static Pair<String, String> splitNameAndRelpath(String relPath) {
-        relPath = removeLeadingSeparator(relPath);
-        Path p = Paths.get(relPath);
-        String fileName = p.getFileName().toString();
-        String path = p.getParent()==null? null: p.getParent().toString();
-        return new Pair<>(path, fileName);
-    }
-    public static Pair<String, String> convertRelPathToFilename(String path, String relPath) {
-        Pair<String, String> split = splitNameAndRelpath(relPath);
-        if (path==null) return split;
-        if (split.key==null) {
-            split.key = path;
-            return split;
-        }
-        Path base = Paths.get(path);
-        split.key = base.resolve(split.key).toString();
-        return split;
-    }
-    public static File search(String path, String fileName, int recLevels) {
-        if (path==null) return null;
-        File f= new File(path);
-        if (!f.exists()) return null;
-        Pair<String, String> relPathAndName = splitNameAndRelpath(fileName);
-        File ff;
-        if (relPathAndName.key!=null) {
-            ff = Paths.get(path, relPathAndName.key).toFile();
-            if (!ff.exists()) return null;
-            fileName = relPathAndName.value;
-        } else ff=f;
-        if (ff.isDirectory()) return search(new ArrayList<File>(1){{add(ff);}}, fileName, recLevels, 0);
-        else if (ff.getName().equals(fileName)) return f;
-        else return null;
-    }
-    private static File search(List<File> files, String fileName, int recLevels, int currentLevel) {
-        for (File f : files) {
-            File[] ff = f.listFiles((dir, name) -> fileName.equals(name));
-            if (ff!=null && ff.length>0) return ff[0];
-        }
-        if (currentLevel==recLevels) return null;
-        List<File> nextFiles = new ArrayList<>();
-        for (File f : files) {
-            File[] ff = f.listFiles(file -> file.isDirectory());
-            if (ff!=null && ff.length>0) nextFiles.addAll(Arrays.asList(ff));
-        }
-        return search(nextFiles, fileName, recLevels, currentLevel+1);
-    }
     public static boolean isMac() {
         return System.getProperty("os.name").toLowerCase().contains("mac");
     }

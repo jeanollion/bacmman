@@ -24,9 +24,8 @@ import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.dao.UUID;
+import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.FileIO;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
@@ -64,30 +63,26 @@ public class MasterDAOFactory {
         MasterDAOFactory.defaultDBType = currentType;
     }
 
-    public static MasterDAO getDAO(String dbName, String dir) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        return getDAO(dbName, dir, defaultDBType);
+    public static MasterDAO getDAO(Path path) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        return getDAO(path, defaultDBType);
     }
 
-    public static MasterDAO getDAO(String dbName, String datasetDir, String defaultDAOType) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        Pair<String, String> correctedPath = Utils.convertRelPathToFilename(datasetDir, dbName);
-        dbName = correctedPath.value;
-        datasetDir = correctedPath.key;
-        if (Paths.get(datasetDir, dbName, dbName + "_config.json").toFile().isFile()) datasetDir = Paths.get(datasetDir, dbName).toAbsolutePath().toString();
-        String outputPath = extractOutputPath(datasetDir, dbName);
-        String daoType = getObjectDAOType(dbName, datasetDir, outputPath, defaultDAOType);
+    public static MasterDAO getDAO(Path dir, String defaultDAOType) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        Path outputPath = extractOutputPath(dir);
+        String daoType = getObjectDAOType(dir, outputPath, defaultDAOType);
         logger.debug("Extracted output path: {}, detected dao type: {}, default type: {}", outputPath, daoType, defaultDAOType);
-        return initDAO(daoType, dbName, datasetDir, new SegmentedObjectAccessor());
+        return initDAO(daoType, dir, new SegmentedObjectAccessor());
     }
 
-    public static MasterDAO initDAO(String moduleName, String dbName, String directory, SegmentedObjectAccessor accessor) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    public static MasterDAO initDAO(String moduleName, Path dir, SegmentedObjectAccessor accessor) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         if (moduleName == null) {
             return null;
         }
         MasterDAO res = null;
         if (NAME_MAP_CLASS.containsKey(moduleName)) {
-            res = NAME_MAP_CLASS.get(moduleName).getDeclaredConstructor(String.class, String.class, SegmentedObjectAccessor.class).newInstance(dbName, directory, accessor);
+            res = NAME_MAP_CLASS.get(moduleName).getDeclaredConstructor(Path.class, SegmentedObjectAccessor.class).newInstance(dir, accessor);
         } else {
-            if (moduleName.equals("MemoryMasterDAO")) return new MemoryMasterDAO<>(accessor, UUID.generator()).setDatasetDir(Paths.get(directory));
+            if (moduleName.equals("MemoryMasterDAO")) return new MemoryMasterDAO<>(accessor, UUID.generator()).setDatasetDir(dir);
             else if (moduleName.equals("DuplicateMasterDAO")) throw new IllegalArgumentException("Cannot create Duplicate master DAO this way");
             else throw new IllegalArgumentException("Unsupported DAO type: "+moduleName+ " all types: "+NAME_MAP_CLASS.keySet());
         }
@@ -126,10 +121,9 @@ public class MasterDAOFactory {
         }
     }
 
-    protected static String extractOutputPath(String datasetDir, String dbName) {
-        Path datasetPath = Paths.get(datasetDir);
-        Path configFile = datasetPath.resolve(dbName + "_config.json");
-        if (!Files.exists(configFile)) return null;
+    protected static Path extractOutputPath(Path datasetPath) {
+        Path configFile = ExperimentSearchUtils.getExistingConfigFile(datasetPath);
+        if (configFile==null) return null;
         String config = FileIO.readFirstLineFromFile(configFile.toString(), s->s);
         if (config == null) return null;
         int i = config.indexOf("outputPath");
@@ -140,20 +134,22 @@ public class MasterDAOFactory {
             jsonParam = new JSONParser().parse(param);
             FileChooser outputPath = new FileChooser("Output Path").setRefPath(datasetPath);
             outputPath.initFromJSONEntry(jsonParam);
-            return outputPath.getFirstSelectedFilePath();
+            String op = outputPath.setRelativePath(false).getFirstSelectedFilePath();
+            if (op != null) return Paths.get(op);
+            else return null;
         } catch (ParseException e) {
             return null;
         }
     }
 
-    public static String getObjectDAOType(String dbName, String directory, String outputPath, String defaultType) {
+    public static String getObjectDAOType(Path dir, Path outputPath, String defaultType) {
         if (outputPath == null) return defaultType;
         try {
             List<String> types = new ArrayList<>();
             SegmentedObjectAccessor accessor = new SegmentedObjectAccessor();
             Collection<String> dbTypes = getAvailableDBTypes();
             for (String type : dbTypes) {
-                MasterDAO mDAO = initDAO(type, dbName, directory, accessor);
+                MasterDAO mDAO = initDAO(type, dir, accessor);
                 if (mDAO instanceof PersistentMasterDAO && ((PersistentMasterDAO)mDAO).containsDatabase(outputPath)) types.add(type);
             }
             logger.debug("Detected DAO types: {}", types);
@@ -233,7 +229,7 @@ public class MasterDAOFactory {
         db.setConfigurationReadOnly(true);
         db.clearCache(true, true, true);
         db.unlockPositions();
-        MasterDAO targetDB = initDAO(targetType, db.getDBName(), db.getDatasetDir().toString(), new SegmentedObjectAccessor());
+        MasterDAO targetDB = initDAO(targetType, db.getDatasetDir(), new SegmentedObjectAccessor());
         boolean lockedConfig = targetDB.setConfigurationReadOnly(false);
         boolean lockedPositions = targetDB.lockPositions();
         logger.debug("target db locked config: {}, sel dao: {}, positions: {}", lockedConfig, !targetDB.getSelectionDAO().isReadOnly(), lockedPositions);
@@ -267,9 +263,9 @@ public class MasterDAOFactory {
         return targetDB;
     }
 
-    public static boolean containsMapDBDatabase(String outputPath) {
+    public static boolean containsMapDBDatabase(Path outputPath) {
         try {
-            List<Path> positions = Files.list(Paths.get(outputPath)).filter(p -> !p.getFileName().toString().equals("Selections")).collect(Collectors.toList());
+            List<Path> positions = Files.list(outputPath).filter(p -> !p.getFileName().toString().equals("Selections")).collect(Collectors.toList());
             for (Path pos : positions) {
                 Path segmentedObjects = pos.resolve("segmented_objects");
                 if (Files.exists(segmentedObjects) && Files.list(segmentedObjects).map(p -> p.getFileName().toString()).anyMatch(n -> n.startsWith("objects_") && n.endsWith(".db"))) return true;
