@@ -161,9 +161,11 @@ public class ExtractDatasetUtil {
                                 String outputName = subsamplingFactor <= 1 ? baseOutputName : baseOutputName + "sub" + subsamplingFactor + "/" + "off" + Utils.formatInteger(subsamplingFactor - 1, 1, offset) + "/";
                                 if (temporal)  ((FeatureExtractorTemporal) feature.getFeatureExtractor()).setSubsampling(subsamplingFactor, offset);
                                 if (configurable)  ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
-                                boolean extend = feature.getFeatureExtractor() instanceof RawImage;
-                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(extend?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
-                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, resizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
+                                boolean isLabel = feature.getFeatureExtractor() instanceof Labels;
+                                boolean noResize = feature.getFeatureExtractor().interpolation() == null;
+                                TrainingConfigurationParameter.RESIZE_MODE curResizeMode = noResize ? TrainingConfigurationParameter.RESIZE_MODE.NONE : (isLabel ? TrainingConfigurationParameter.RESIZE_MODE.PAD : resizeMode);
+                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(!noResize && !isLabel?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
+                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
                             }
                             saveLabels = false;
                         }
@@ -302,7 +304,7 @@ public class ExtractDatasetUtil {
     public static String getLabel(int frame) {
         return "f" + String.format("%05d", frame);
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean isLabel, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
         logger.debug("extract + resize dataset: {}...", dsName);
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -311,8 +313,8 @@ public class ExtractDatasetUtil {
             Image out;
             if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE)) {
                 out = resample(im, interpolation, dimensions_);
-            } else if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD)) {
-                out = pad(im, Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions);
+            } else if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD) || resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND)) { // also include extend in case viewfield is too small
+                out = pad(im, isLabel ? Resize.EXPAND_MODE.ZERO : Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions);
             } else {
                 out = im;
             }
