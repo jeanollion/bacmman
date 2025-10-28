@@ -269,14 +269,18 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 prediction.edm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.edm.get(p), null), false, false));
                 prediction.gdcm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(prediction.gdcm.get(p), null), false, false));
                 for (int g = 0; g<nGaps; ++g) {
-                    prediction.dxBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxBW[g].get(p), null), false, false));
-                    prediction.dyBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyBW[g].get(p), null), false, false));
-                    prediction.noLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkBW[g].get(p), new ImageFloatU8Scale("noLinkBW", prediction.noLinkBW[g].get(p), 255.)), false, false));
-                    prediction.multipleLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkBW[g].get(p), new ImageFloatU8Scale("multipleLinkBW", prediction.multipleLinkBW[g].get(p), 255.)), false, false));
-                    prediction.noLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkFW[g].get(p), new ImageFloatU8Scale("noLinkFW", prediction.noLinkFW[g].get(p), 255.)), false, false));
-                    prediction.multipleLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkFW[g].get(p), new ImageFloatU8Scale("multipleLinkFW", prediction.multipleLinkFW[g].get(p), 255.)), false, false));
-                    prediction.dxFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxFW[g].get(p), null), false, false));
-                    prediction.dyFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyFW[g].get(p), null), false, false));
+                    if (i>0 || j>0) {
+                        prediction.dxBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxBW[g].get(p), null), false, false));
+                        prediction.dyBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyBW[g].get(p), null), false, false));
+                        prediction.noLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkBW[g].get(p), new ImageFloatU8Scale("noLinkBW", prediction.noLinkBW[g].get(p), 255.)), false, false));
+                        prediction.multipleLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkBW[g].get(p), new ImageFloatU8Scale("multipleLinkBW", prediction.multipleLinkBW[g].get(p), 255.)), false, false));
+                    }
+                    if (!last || j<subParentTrack.size()-1) {
+                        prediction.noLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.noLinkFW[g].get(p), new ImageFloatU8Scale("noLinkFW", prediction.noLinkFW[g].get(p), 255.)), false, false));
+                        prediction.multipleLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(prediction.multipleLinkFW[g].get(p), new ImageFloatU8Scale("multipleLinkFW", prediction.multipleLinkFW[g].get(p), 255.)), false, false));
+                        prediction.dxFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dxFW[g].get(p), null), false, false));
+                        prediction.dyFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(prediction.dyFW[g].get(p), null), false, false));
+                    }
                 }
                 if (p.getFrame()>maxF) maxF = p.getFrame();
                 p.getChildren(objectClassIdx).forEach(o -> { // save memory
