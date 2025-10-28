@@ -144,7 +144,7 @@ public class DataAnalysisPanel {
             workingDirPanel.setWorkingDirectory(wd);
             this.updateWD();
         }, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='" + jupyterToken + "'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
-                .setImageRequirements("data_analysis", null, null, null);
+                .setImageRequirements("data_analysis", null, new int[]{4,4,9}, null);
 
 
         $$$setupUI$$$();

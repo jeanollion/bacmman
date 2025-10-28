@@ -157,7 +157,7 @@ public class PythonGateway {
             }
             String workingDir = GUI.getInstance().getWorkingDirectory();
             Path path = resolveDBPath(dbName, dbPath, workingDir);
-            if (path == null || Files.isDirectory(path)) {
+            if (path == null || !Files.isDirectory(path)) {
                 logger.error("Could not find dataset: dbName: {} dbPath: {} working dir: {}", dbName, dbPath, workingDir);
                 return;
             }
