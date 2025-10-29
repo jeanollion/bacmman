@@ -111,14 +111,16 @@ public class ObjectGraph<S extends GraphObject<S>> {
         // set links
 
         TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(edgeComparator());
-        setEdges(objects, objectsF, false, setTrackHead, edgeBucket, editor, additionalLinks);
-        setEdges(objects, objectsF, true, setTrackHead, edgeBucket, editor, additionalLinks);
+        setEdges(objects, objectsF, false, false, edgeBucket, editor, additionalLinks); // set th false because can lead to error (Set TrackHead called with non-trackhead element) if there are previous links
+        setEdges(objects, objectsF, true, false, edgeBucket, editor, additionalLinks);
         if (setTrackHead) {
-            Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
+            objects.sort(Comparator.comparingInt(SegmentedObject::getFrame));
             for (SegmentedObject so : objects) {
-                if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
-                    editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, propagateTrackHead);
-                else editor.setTrackHead(so, so, false, propagateTrackHead);
+                if (so.getPrevious() != null && so.equals(so.getPrevious().getNext())) {
+                    if (!so.getTrackHead().equals(so.getPrevious().getTrackHead())) { // avoid useless propagations
+                        editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, propagateTrackHead);
+                    }
+                } else editor.setTrackHead(so, so, false, propagateTrackHead); // new trackhead
             }
         }
         return additionalLinks;

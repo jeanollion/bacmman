@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProcessingPlugin, TrackConfigurable<DiSTNet2DSegmenter>, DLMetadataConfigurable, ObjectSplitter, ManualSegmenter, Hint {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2DSegmenter.class);
@@ -136,6 +137,29 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     }
 
 
+    protected DLResizeAndScale getDlResizeAndScale(boolean frameAware) {
+        int nchannels = 1 + getAdditionalChannels().length;
+        int nlabels = getAdditionalLabels().length;
+        if (nlabels == 0 && !frameAware) return dlResizeAndScale;
+        else { // add scaling & interpolation for EDM and GCDM for each label
+            DLResizeAndScale res = dlResizeAndScale.duplicate().setScaleLogger(dlResizeAndScale.getScaleLogger());
+            res.setInputNumber( nchannels + 2 * nlabels + (frameAware?1:0) );
+            if (nlabels > 0) {
+                int[] labelIdx = IntStream.range(nchannels, nchannels + nlabels * 2).toArray();
+                for (int i : labelIdx) res.setScaler(i, null); // no intensity scaling for EDM and GCDM
+                if (res.getMode().equals(DLResizeAndScale.MODE.RESAMPLE)) { // set interpolation : identical to 1st channel (EDM & CDM are floating point maps)
+                    res.setInterpolationForInput(res.getInputInterpolation(0), labelIdx);
+                }
+            }
+            if (frameAware) {
+                int frameInputIdx = nchannels + 2 * nlabels;
+                res.setScaler(frameInputIdx, null);
+                res.setInterpolationForInput(new InterpolationParameter("", InterpolationParameter.INTERPOLATION.NONE, true), frameInputIdx);
+            }
+            return res;
+        }
+    }
+
     @Override
     public double split(Image input, SegmentedObject parent, int objectClassIdx, Region o, List<Region> result) {
         return 0;
@@ -198,6 +222,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         Map<SegmentedObject, Image[]> catMap = predictCategory.getSelected() ? new HashMap<>() : null;
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
+
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
         int increment = batchSize.getIntValue ()<1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / batchSize.getIntValue()) );
         for (int i = 0; i < parentTrack.size(); i += increment ) {
@@ -208,10 +233,10 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             int maxFrame = DiSTNet2D.getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), 0).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
             int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), DiSTNet2D.search(sortedFrames, maxIdx, maxFrame, 0) + 1);
             List<Map<Integer, Image>> allImages = inputMap == null ? DiSTNet2D.getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), minimalBounds) : inputMap;
-
-            Image[][][] input = DiSTNet2D.getInputs(allImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0);
+            boolean frameAware  = engine.getInputNames().length == allImages.size() + 1;
+            Image[][][] input = DiSTNet2D.getInputs(allImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
             logger.debug("input: [{}; {}) / [{}; {}]", i, maxIdx, sortedFrames[0], sortedFrames[sortedFrames.length-1]);
-            Image[][][] predictionONC = dlResizeAndScale.predict(engine, input); // 0=edm, 1=gcdm, 2 = cat
+            Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
 
             for (int f = i; f<maxIdx; ++f) {
                 int frame = sortedFrames[f];

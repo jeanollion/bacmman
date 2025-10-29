@@ -147,7 +147,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             res = new SegmentedObject(timePoint, (BlankMask)(duplicateRegion?getMask().duplicateMask():getMask()), dao);
         } else {
             if (parent == null && dao == null) throw new IllegalArgumentException("Either Parent or DAO must be provided for non-root objects");
-            res = new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?getRegion().duplicate():getRegion(), parent);
+            res = new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?(getRegion()==null?null:getRegion().duplicate()):getRegion(), parent);
             if (parent == null) { // new ID was not generated
                 res.setDAO(dao);
                 res.id = dao.generateID(res.getStructureIdx(), res.getFrame());
@@ -738,14 +738,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         if (propagateToNextObjects) {
             SegmentedObject n = this;
-            while(n.getNext()!=null && n.equals(n.getNext().getPrevious())) {
+            while(n.getNext()!=null && n.equals(n.getNext().getPrevious())) { // navigate through track = double links
                 n = n.getNext();
                 n.setTrackHead(trackHead, false, false, modifiedObjects);
             }
         }
         return this;
     }
-    
     // track correction-related methods 
 
     

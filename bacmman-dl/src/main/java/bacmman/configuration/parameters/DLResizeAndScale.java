@@ -192,12 +192,27 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         outputScaling.setChildrenNumber(n);
         return this;
     }
+
     public DLResizeAndScale setScaler(int inputIdx, HistogramScaler scaler) {
         if (inputScaling.getChildCount()<=inputIdx) inputScaling.setChildrenNumber(inputIdx+1);
         inputScaling.getChildAt(inputIdx).setPlugin(scaler);
         if (inputInterpAndScaling.getChildCount()<=inputIdx) inputInterpAndScaling.setChildrenNumber(inputIdx+1);
         inputInterpAndScaling.getChildAt(inputIdx).getParam2().setPlugin(scaler);
         return this;
+    }
+
+    public DLResizeAndScale setInterpolationForInput(InterpolationParameter interpolation, int... inputIdx) {
+        int maxIdx = IntStream.of(inputIdx).max().orElse(-1);
+        if (maxIdx < 0) return this;
+        if (inputInterpAndScaling.getChildCount() <= maxIdx) inputInterpAndScaling.setChildrenNumber(maxIdx + 1);
+        for (int i : inputIdx) {
+            inputInterpAndScaling.getChildAt(i).getParam1().setContentFrom(interpolation);
+        }
+        return this;
+    }
+
+    public InterpolationParameter getInputInterpolation(int inputIdx) {
+        return inputInterpAndScaling.getChildAt(inputIdx).getParam1();
     }
 
     public DLResizeAndScale setMode(MODE mode) {
@@ -535,9 +550,9 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndResampleInput(Image[][] inNC, InterpolatorFactory interpolation, Supplier<HistogramScaler> scalerSupplier, int[] targetImageDims, boolean scaleFrameByFrame, boolean returnDimensions) {
         int[][] dims = returnDimensions ? ResizeUtils.getDimensions(inNC) : null;
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], true, false) ));
+        if (interpolation != null && scalerSupplier != null) IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], true, false) ));
         Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
-        Image[][] inResampledNC = ResizeUtils.resample(inNC, interpolation, new int[][]{targetImageDims});
+        Image[][] inResampledNC = interpolation!=null ? ResizeUtils.resample(inNC, interpolation, new int[][]{targetImageDims}) : inNC;
         if (scalerMap!=null) IntStream.range(0, inResampledNC.length).parallel().forEach(i -> IntStream.range(0, inResampledNC[i].length).forEach(j -> inResampledNC[i][j] = scalerMap.get(i).scale(inResampledNC[i][j]) ));
         return new Triplet<>(inResampledNC, dims, scalerMap);
     }
