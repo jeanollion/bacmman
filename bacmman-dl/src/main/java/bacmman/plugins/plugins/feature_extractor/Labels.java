@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
-public class Labels implements FeatureExtractor, Hint {
+public class Labels implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<Labels>, Hint {
     final static Logger logger = LoggerFactory.getLogger(Labels.class);
 
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
@@ -28,6 +28,12 @@ public class Labels implements FeatureExtractor, Hint {
         Image res= resampledPopulations.get(objectClassIdx).get(parent).getLabelMap();
         if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
         else return extractZ.getConfig().handleZ(res);
+    }
+
+    @Override
+    public Labels setExtractZDim(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+        this.extractZ.fromConfig(zAxis);
+        return this;
     }
 
     public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {

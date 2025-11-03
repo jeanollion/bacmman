@@ -14,6 +14,11 @@ public interface FeatureExtractor extends Plugin {
     String defaultName();
     ExtractZAxisParameter.ExtractZAxis getExtractZDim();
 
+
+    interface FeatureExtractorConfigurableZDim<T extends FeatureExtractor> extends FeatureExtractor {
+        T setExtractZDim(ExtractZAxisParameter.ExtractZAxisConfig extractZAxisConfig);
+    }
+
     class Feature {
         final String name, selectionFilter;
         final FeatureExtractor featureExtractor;
