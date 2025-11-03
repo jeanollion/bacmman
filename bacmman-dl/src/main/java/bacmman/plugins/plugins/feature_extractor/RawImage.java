@@ -10,7 +10,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Map;
 
-public class RawImage implements FeatureExtractor, Hint {
+public class RawImage implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<RawImage>, Hint {
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     boolean byChannel = false;
@@ -18,7 +18,8 @@ public class RawImage implements FeatureExtractor, Hint {
         return this.extractZ.getExtractZDim();
     }
 
-    public RawImage setExtractZ(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+    @Override
+    public RawImage setExtractZDim(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
         this.extractZ.fromConfig(zAxis);
         return this;
     }

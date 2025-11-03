@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class MultiClass implements FeatureExtractor {
+public class MultiClass implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<MultiClass> {
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
     ObjectClassParameter classes = new ObjectClassParameter("Classes", -1, false, true).setEmphasized(true).setHint("Select class to be extracted. A label will be assigned to each class in the defined order");
 
@@ -26,6 +26,12 @@ public class MultiClass implements FeatureExtractor {
     }
 
     public MultiClass setExtractZ(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+        this.extractZ.fromConfig(zAxis);
+        return this;
+    }
+
+    @Override
+    public MultiClass setExtractZDim(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
         this.extractZ.fromConfig(zAxis);
         return this;
     }

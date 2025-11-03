@@ -12,13 +12,14 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import java.util.Arrays;
 import java.util.Map;
 
-public class UnetWeightMap implements FeatureExtractor, Hint {
+public class UnetWeightMap implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<UnetWeightMap>, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 2, 5, 0.1, null).setHint("Controls the value between segmented regions");
     BoundedNumberParameter wo = new BoundedNumberParameter("wo", 2, 10, 0, null).setHint("Controls the value between regions. If 0: value at contours of a segmented region do not depend on neighboring segmented regions.");
     BooleanParameter eraseConoutrs = new BooleanParameter("Erase contours", false).setHint("Set contours of segmented regions to zero");
     BoundedNumberParameter limitClassFrequencyRatio = new BoundedNumberParameter("Limit class frequency ratio", 1, 0, 0, null).setHint("If a value greater than 0 is set, the class frequency ratio is limited to this ratio");
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
     ExtractZAxisParameter extractZ = new ExtractZAxisParameter();
+
     @Override
     public String getHintText() {
         return "Extract a weight map as described in the UNet original publication: a weight that depends on the distance of the neighboring object between objects, and a weight that depend on the proportion of object in the whole image inside the objects";
@@ -67,8 +68,15 @@ public class UnetWeightMap implements FeatureExtractor, Hint {
         else return extractZ.getConfig().handleZ(res);
     }
 
+    @Override
     public ExtractZAxisParameter.ExtractZAxis getExtractZDim() {
         return extractZ.getExtractZDim();
+    }
+
+    @Override
+    public UnetWeightMap setExtractZDim(ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
+        this.extractZ.fromConfig(zAxis);
+        return this;
     }
 
     @Override
