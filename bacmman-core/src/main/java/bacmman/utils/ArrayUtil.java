@@ -842,4 +842,11 @@ public class ArrayUtil {
         }
         return target;
     }
+
+    public static <T> T[] append(T[] array, T... elements) {
+        if (elements==null || elements.length==0) return array;
+        T[] res = Arrays.copyOf(array, array.length + elements.length);
+        System.arraycopy(elements, 0, res, array.length, elements.length);
+        return res;
+    }
 }

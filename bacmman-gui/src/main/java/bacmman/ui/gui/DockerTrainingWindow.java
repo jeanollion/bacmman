@@ -273,6 +273,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         boolean exportModel = trainer.getConfiguration().getSelectedDockerImage(false).equals(trainer.getConfiguration().getSelectedDockerImage(true));
                         String[] cmds = exportModel ? new String[]{"python", "train.py", "/data", "--min_script_version", trainer.minimalScriptVersion()} : new String[]{"python", "train.py", "/data", "--train_only", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (!exportModel && trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);

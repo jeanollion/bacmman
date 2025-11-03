@@ -22,4 +22,7 @@ public interface DockerDLTrainer extends Plugin {
 
     interface ComputeMetrics {}
     interface TestPredict {}
+    interface MixedPrecision{
+        boolean mixedPrecision();
+    }
 }

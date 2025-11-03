@@ -246,6 +246,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public static BoundedNumberParameter getPatienceParameter(int defaultValue) {
         return new BoundedNumberParameter("Patience", 0, defaultValue, 1, null);
     }
+
     public static BoundedNumberParameter getMinLearningRateParameter(double defaultValue) {
         return new BoundedNumberParameter("Min Learning Rate", 8, defaultValue, Math.min(10e-8, defaultValue), null);
     }
@@ -269,6 +270,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
     public static BoundedNumberParameter getValidationFreqParameter(int defaultValue) {
         return new BoundedNumberParameter("Validation Frequency", 0, defaultValue, 1, null).setHint("Specifies how many training epochs to run before a new validation run is performed, e.g. validation_freq=2 runs validation every 2 epochs.<br/>Validation is only performed if datasets of type TEST are provided");
+    }
+
+    public static BooleanParameter getMixedPrecisionParameter(boolean defaultValue) {
+        return new BooleanParameter("Mixed Precision", defaultValue).setHint("If true, training is performed in mixed precision mode which reduces memory footprint (up to a factor 2) as well as computation time, at the cost of a small decrease in accuracy. <br/>Most operations are performed in float16 but gradients are still computed in float32. <br/>Not supported on all GPUs not CPUs. ");
     }
 
     public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}
