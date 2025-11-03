@@ -319,7 +319,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
     }
-    enum ARCH_TYPE {BLEND}
+    enum ARCH_TYPE {BLEND, TemA}
     enum ATTENTION_POS_ENC_MODE {EMBEDDING, EMBEDDING_2D, RoPE, RoPE_2D, SINE, SINE_2D}
     public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration {
         // blend mode
@@ -335,6 +335,9 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter selfAttention = new IntegerParameter("Self-Attention", 0).setLowerBound(0)
                 .setLegacyParameter((p,i)->i.setValue(((BooleanParameter)p[0]).getSelected() ? 1 : 0), new BooleanParameter("Self-Attention", false))
                 .setHint("Include a self-attention layer at the feature layer of the encoder. If 0 no self-attention is included. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
+        IntegerParameter attentionFilters = new IntegerParameter("Attention Filters", 64).setLowerBound(1)
+                .setLegacyParameter((p,i)->i.setValue(((BoundedNumberParameter)p[0]).getIntValue()), filters)
+                .setHint("Number of filter for each head of the attention layers.");
         EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.RoPE_2D).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
@@ -350,11 +353,18 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
         public ArchitectureParameter(String name, boolean includeInferenceGap, int defaultFrameWindow) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
-            if (includeInferenceGap) setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionPosEncMode, frameAwareCond, categoryNumber);
-            else setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionPosEncMode, frameAwareCond, categoryNumber);
+            if (includeInferenceGap) {
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
+            } else {
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
+            }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
             attention.addValidationFunction(att -> frameWindow.getIntValue() != 0 || att.getIntValue() == 0);
+            attention.addValidationFunction(p -> frameWindow.getIntValue() >0 && ((ArchitectureParameter)p.getParent()).getActionValue().equals(ARCH_TYPE.TemA) ? p.getIntValue() > 0 : true);
+
             maxFrameDistance.addValidationFunction(d -> {
                 SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), d, true);
                 if (dsList!=null && dsList.getChildCount()>0) {
@@ -404,24 +414,35 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         @Override
         public JSONObject getPythonConfiguration() {
             JSONObject res = new JSONObject();
-            res.put("architecture_type", getActionValue().toString());
+            ARCH_TYPE atchType = getActionValue();
+            // common to all arch
+            res.put("architecture_type", atchType.toString());
             res.put("frame_window", frameWindow.toJSONEntry());
             res.put("next", next.toJSONEntry());
-            res.put("frame_aware", frameAware.toJSONEntry());
-            if (frameAware.getSelected()) res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
             if (categoryNumber.getIntValue() > 1) res.put("category_number", categoryNumber.getIntValue());
-            switch (getActionValue()) {
+            if (getCurrentParameters().contains(nGaps)) res.put("inference_gap_number", nGaps.toJSONEntry());
+
+            // common to BLEND & TEMA
+            res.put("filters", filters.getIntValue());
+            res.put("n_downsampling", downsamplingNumber.getIntValue());
+            res.put("skip_connections", skip.toJSONEntry());
+            res.put("early_downsampling", earlyDownsampling.toJSONEntry());
+            res.put("attention", attention.getValue());
+            res.put("self_attention", selfAttention.getValue());
+            res.put("attention_filters", attentionFilters.getValue());
+            res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
+
+            switch (atchType) { // specific
+                case TemA: {
+                    res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
+                    break;
+                }
                 case BLEND:
                 default: {
-                    res.put("filters", filters.getIntValue());
-                    res.put("n_downsampling", downsamplingNumber.getIntValue());
-                    res.put("skip_connections", skip.toJSONEntry());
-                    res.put("early_downsampling", earlyDownsampling.toJSONEntry());
+                    res.put("frame_aware", frameAware.toJSONEntry());
+                    if (frameAware.getSelected()) res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
                     res.put("blending_filter_factor", blendingFilterFactor.getDoubleValue());
-                    res.put("attention", attention.getValue());
-                    res.put("self_attention", selfAttention.getValue());
-                    res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
-                    if (getCurrentParameters().contains(nGaps)) res.put("inference_gap_number", nGaps.toJSONEntry());
+
                     break;
                 }
             }
