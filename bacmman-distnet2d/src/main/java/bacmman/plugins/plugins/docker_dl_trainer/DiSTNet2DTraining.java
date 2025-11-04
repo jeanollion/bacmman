@@ -405,7 +405,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter attentionFilters = new IntegerParameter("Attention Filters", 64).setLowerBound(1)
                 .setLegacyParameter((p,i)->i.setValue(((BoundedNumberParameter)p[0]).getIntValue()), filters)
                 .setHint("Number of filter for each head of the attention layers.");
-        ArrayNumberParameter attentionRadius = getInputShapeParameter(false, false, new int[]{7, 7}, null).setName("Attention Radius").setMaxChildCount(2);
+        ArrayNumberParameter attentionRadius = getInputShapeParameter(false, false, new int[]{15, 15}, null).setName("Attention Window").setMaxChildCount(2);
         EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.RoPE_2D).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
@@ -423,10 +423,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, selfAttention, attentionFilters, attentionRadius, attentionPosEncMode, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionRadius, maxFrameDistance, categoryNumber);
             } else {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, selfAttention, attentionFilters, attentionRadius, attentionPosEncMode, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionRadius, maxFrameDistance, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
@@ -495,9 +495,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("n_downsampling", downsamplingNumber.getIntValue());
             res.put("skip_connections", skip.toJSONEntry());
             res.put("early_downsampling", earlyDownsampling.toJSONEntry());
-            res.put("self_attention", selfAttention.getValue());
             res.put("attention_filters", attentionFilters.getValue());
-            res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
+
 
             switch (atchType) { // specific
                 case TemA: {
@@ -508,6 +507,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 }
                 case BLEND:
                 default: {
+                    res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
+                    res.put("self_attention", selfAttention.getValue());
                     res.put("attention", attention.getValue());
                     res.put("frame_aware", frameAware.toJSONEntry());
                     if (frameAware.getSelected()) res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
