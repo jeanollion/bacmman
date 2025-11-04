@@ -176,16 +176,17 @@ public class ExtractDataset extends JDialog {
         if (features != null && !features.isEmpty()) {
             this.outputFeatureList.setChildrenNumber(features.size());
             for (int i = 0; i < features.size(); ++i) {
-                GroupParameter g = outputFeatureList.getChildAt(i);
+                GroupParameter g = outputFeatureList.getChildAt(i); // 0 = name, 1 = OC, 2 = feature, 3 = selection
                 FeatureExtractor.Feature f = features.get(i);
                 ((TextParameter) g.getChildAt(0)).setValue(f.getName());
-                ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).setPlugin(f.getFeatureExtractor());
                 ObjectClassParameter ocp = ((ObjectClassParameter) g.getChildAt(1));
                 if (f.getObjectClass() < ocp.getChoiceList().length) ocp.setSelectedClassIdx(f.getObjectClass());
+                PluginParameter<FeatureExtractor> pp = ((PluginParameter<FeatureExtractor>) g.getChildAt(2));
+                pp.setPlugin(f.getFeatureExtractor(), true);
                 SelectionParameter sel = ((SelectionParameter) g.getChildAt(3));
                 if (f.getSelectionFilter() != null) sel.setSelectedItem(f.getSelectionFilter());
             }
-        }
+        } else this.outputFeatureList.setChildrenNumber(0);
         if (resizeMode != null) {
             this.resizeMode.setValue(resizeMode);
         }
