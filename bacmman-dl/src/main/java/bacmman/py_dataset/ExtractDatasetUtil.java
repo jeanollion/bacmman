@@ -39,7 +39,7 @@ import static bacmman.processing.Resize.pad;
 public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
     private final static Logger logger = LoggerFactory.getLogger(ExtractDatasetUtil.class);
-    public static  void runTask(Task t) {
+    public static  void runTask(Task t) { // invoked by task with reflection
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();
@@ -162,7 +162,7 @@ public class ExtractDatasetUtil {
                                 if (temporal)  ((FeatureExtractorTemporal) feature.getFeatureExtractor()).setSubsampling(subsamplingFactor, offset);
                                 if (configurable)  ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
                                 boolean isLabel = feature.getFeatureExtractor() instanceof Labels;
-                                boolean noResize = feature.getFeatureExtractor().interpolation() == null;
+                                boolean noResize = feature.getFeatureExtractor().interpolation() == null || TrainingConfigurationParameter.RESIZE_MODE.NONE.equals(resizeMode);
                                 TrainingConfigurationParameter.RESIZE_MODE curResizeMode = noResize ? TrainingConfigurationParameter.RESIZE_MODE.NONE : (isLabel ? TrainingConfigurationParameter.RESIZE_MODE.PAD : resizeMode);
                                 extractFunction = e -> feature.getFeatureExtractor().extractFeature(!noResize && !isLabel?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
                                 extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
@@ -314,7 +314,7 @@ public class ExtractDatasetUtil {
             if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE)) {
                 out = resample(im, interpolation, dimensions_);
             } else if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD) || resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND)) { // also include extend in case viewfield is too small
-                out = pad(im, isLabel ? Resize.EXPAND_MODE.ZERO : Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions);
+                out = pad(im, isLabel ? Resize.EXPAND_MODE.ZERO : Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions_);
             } else {
                 out = im;
             }
