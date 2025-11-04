@@ -1159,10 +1159,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 return feat.getName()+":oc="+feat.getObjectClass()+"("+pp.toJSONEntry().toJSONString()+")"+(feat.getSelectionFilter()!=null?"selectionFilter:"+feat.getSelectionFilter() : "");
             }));
         }
-        if (extractDSDimensions!=null) {
+        if (extractDSDimensions!=null && !TrainingConfigurationParameter.RESIZE_MODE.NONE.equals(extractDSResizeMode)) {
             addSep.run();
             sb.append("ExtractDSDimensions:").append(Utils.toStringArray(extractDSDimensions));
-            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) sb.append("(").append(extractDSResizeMode).append(")");
+            sb.append("(").append(extractDSResizeMode).append(")");
         }
         if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) {
             addSep.run();
