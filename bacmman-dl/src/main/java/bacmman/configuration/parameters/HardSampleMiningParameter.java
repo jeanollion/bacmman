@@ -30,14 +30,15 @@ public class HardSampleMiningParameter extends ConditionalParameterAbstract<Bool
         return quantile < 1./enrichFactor;
     }
 
-    public HardSampleMiningParameter(String name, Parameter... additionalParameters) {
-        this(name, false, additionalParameters);
+    public HardSampleMiningParameter(String name, int minPeriod, Parameter... additionalParameters) {
+        this(name, minPeriod, false, additionalParameters);
     }
 
-    public HardSampleMiningParameter(String name, boolean perform, Parameter... additionalParameters) {
+    public HardSampleMiningParameter(String name, int minPeriod, boolean perform, Parameter... additionalParameters) {
         super(new BooleanParameter(name, perform));
         this.additionalParameters = Arrays.asList(additionalParameters);
         List<Parameter> params = new ArrayList<>(3 + this.additionalParameters.size());
+        period.setLowerBound(minPeriod);
         params.add(period);
         params.add(quantiles);
         params.add(enrichFactor);
@@ -53,7 +54,7 @@ public class HardSampleMiningParameter extends ConditionalParameterAbstract<Bool
     }
     @Override
     public HardSampleMiningParameter duplicate() {
-        HardSampleMiningParameter res = new HardSampleMiningParameter(name, getActionValue());
+        HardSampleMiningParameter res = new HardSampleMiningParameter(name, period.getLowerBound(), getActionValue());
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;
