@@ -69,6 +69,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
 
     public SegmentedObjectImageMap filterImages(int structureIdx, List<SegmentedObject> parentTrack) {
         if (parentTrack.isEmpty()) return new SegmentedObjectImageMap(Collections.EMPTY_LIST, o->o.getRawImage(structureIdx));
+        if (parentTrack.stream().anyMatch(p -> p.getRawImage(structureIdx)==null)) throw new RuntimeException("No input image for object class: "+structureIdx);
         long neededMemory = (long) parentTrack.size() * parentTrack.get(0).getMaskProperties().sizeXYZ() * (4 + parentTrack.get(0).getRawImage(structureIdx).byteCount());
         boolean needDiskBackedImage = (Utils.getTotalMemory() / neededMemory) <= 4 || (parentTrack.get(0).getRawImage(structureIdx) instanceof DiskBackedImage);
         if (needDiskBackedImage) logger.debug("needed memory: {} / {} -> request disk backed manager. byte count: {} size XY: {} size Z: {}", neededMemory/(1000d*1000), Utils.getTotalMemory()/(1000*1000),parentTrack.get(0).getRawImage(structureIdx).byteCount(), parentTrack.get(0).getMaskProperties().sizeXY(), parentTrack.get(0).getMaskProperties().sizeZ());

@@ -2017,6 +2017,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 int frameInputIdx = nchannels + 2 * nlabels;
                 res.setScaler(frameInputIdx, null);
                 res.setInterpolationForInput(new InterpolationParameter("", InterpolationParameter.INTERPOLATION.NONE, true), frameInputIdx);
+                res.setNoResizing(frameInputIdx);
             }
 
 
@@ -2099,7 +2100,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         engine.init();
         // check if legacy version: if true, all FW maps are predicted on previous object (before August 2025)
         String[] outputNames = engine.getOutputNames();
-        boolean legacyVersion = outputNames != null && !outputNames[4].equals("Output04_LinkMultiplicity");
+        boolean legacyVersion = outputNames != null && !outputNames[4].toLowerCase().equals("output04_linkmultiplicity");
         if (legacyVersion) logger.debug("disnet model = legacy version");
         long t1 = System.currentTimeMillis();
         logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
