@@ -30,7 +30,7 @@ public class TrackImage {
             this.position = position;
             this.directory = localDirectory;
         }
-        
+
         private String getTrackImageFolder(int parentObjectClassIdx) {
             return Paths.get(directory, position, "track_images_"+parentObjectClassIdx).toString();
         }
@@ -50,7 +50,7 @@ public class TrackImage {
                 return null;
             }
         }
-        
+
         public boolean isEmpty(int parentObjectClassIdx) {
             Path dir = Paths.get(getTrackImageFolder(parentObjectClassIdx));
             if (!Files.exists(dir)) return true;
@@ -62,7 +62,7 @@ public class TrackImage {
                 }
             }
         }
-        
+
         public int getSizeZ(int parentObjectClassIdx, int channelImageIdx) throws IOException {
             if (isEmpty(parentObjectClassIdx)) throw new IOException("No track image for object class: "+parentObjectClassIdx);
             Path dir = Paths.get(getTrackImageFolder(parentObjectClassIdx));

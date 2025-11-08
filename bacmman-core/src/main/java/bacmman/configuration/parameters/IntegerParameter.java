@@ -20,6 +20,14 @@ public class IntegerParameter extends NumberParameter<IntegerParameter> {
         return this;
     }
 
+    public Integer getLowerBound() {
+        return lowerBound;
+    }
+
+    public Integer getUpperBound() {
+        return upperBound;
+    }
+
     @Override
     public void setValue(Number value) {
         int intValue = value.intValue();
