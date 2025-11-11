@@ -108,7 +108,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             if (edmBalanceFreq.getSelected()) {
                 JSONObject edmFreqBal = new JSONObject();
                 res.put(PythonConfiguration.toSnakeCase(edmBalanceFreq.getName()), edmBalanceFreq.toJSONEntry());
-                edmFreqBal.put("dynamic_power_law", edmDynamicWeights.toJSONEntry());
+                edmFreqBal.put("dynamic_power_law", edmDynamicWeightPowerLaw.toJSONEntry());
                 edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
                 if (edmDynamicWeights.getSelected()) edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
                 res.put("balance_edm_frequency_parameters", edmFreqBal);
@@ -116,7 +116,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             if (catBalanceFreq.getSelected()) {
                 JSONObject catFreqBal = new JSONObject();
                 res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
-                catFreqBal.put("dynamic_power_law", catDynamicWeights.toJSONEntry());
+                catFreqBal.put("dynamic_power_law", catDynamicWeightPowerLaw.toJSONEntry());
                 catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
                 if (catDynamicWeights.getSelected()) catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
                 res.put("balance_category_frequency_parameters", catFreqBal);
@@ -135,13 +135,13 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
 
-        FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
-        BooleanParameter dynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
-        FloatParameter dynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
-        ConditionalParameter<Boolean> dynamicWeightsCond = new ConditionalParameter<>(dynamicWeights).setActionParameters(true, dynamicWeightPowerLaw);
-        BooleanParameter balanceLMFreq = new BooleanParameter("Balance LM Frequency", false).setHint("Correct frequency imbalance between Link Multiplicity classes (SINGLE, MULTIPLE, NULL) by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
-        ConditionalParameter<Boolean> balanceEDMFreqCond = new ConditionalParameter<>(balanceLMFreq)
-                .setActionParameters(true, dynamicWeightsCond, weightPowerLaw);
+        FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
+        BooleanParameter lmDynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
+        FloatParameter lmDynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
+        ConditionalParameter<Boolean> dynamicWeightsCond = new ConditionalParameter<>(lmDynamicWeights).setActionParameters(true, lmDynamicWeightPowerLaw);
+        BooleanParameter lmBalanceFreq = new BooleanParameter("Balance LM Frequency", false).setHint("Correct frequency imbalance between Link Multiplicity classes (SINGLE, MULTIPLE, NULL) by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
+        ConditionalParameter<Boolean> balanceEDMFreqCond = new ConditionalParameter<>(lmBalanceFreq)
+                .setActionParameters(true, dynamicWeightsCond, lmWeightPowerLaw);
 
         public TrackingParameters() {
             super("Tracking");
@@ -159,12 +159,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         @Override
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
-            if (balanceLMFreq.getSelected()) {
+            if (lmBalanceFreq.getSelected()) {
                 JSONObject lmFreqBal = new JSONObject();
-                res.put(PythonConfiguration.toSnakeCase(balanceLMFreq.getName()), balanceLMFreq.toJSONEntry());
-                lmFreqBal.put("dynamic_power_law", dynamicWeights.toJSONEntry());
-                lmFreqBal.put(PythonConfiguration.toSnakeCase(weightPowerLaw.getName()), weightPowerLaw.toJSONEntry());
-                if (dynamicWeights.getSelected()) lmFreqBal.put(PythonConfiguration.toSnakeCase(weightPowerLaw.getName()), weightPowerLaw.toJSONEntry());
+                res.put(PythonConfiguration.toSnakeCase(lmBalanceFreq.getName()), lmBalanceFreq.toJSONEntry());
+                lmFreqBal.put("dynamic_power_law", lmDynamicWeightPowerLaw.toJSONEntry());
+                lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
+                if (lmDynamicWeights.getSelected()) lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
                 res.put("balance_lm_frequency_parameters", lmFreqBal);
             }
             return res;
@@ -500,6 +500,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             switch (atchType) { // specific
                 case TemA: {
                     res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
+                    res.put("temporal_attention", temporalAttention.toJSONEntry());
                     break;
                 }
                 case BLEND:
