@@ -38,7 +38,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, new ElasticDeformParameter("Elastic Deform"), illumAugList };
     DiSTNet2DTraining.ArchitectureParameter arch = new DiSTNet2DTraining.ArchitectureParameter("Architecture", false, 0);
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE).appendAnchorMaskIdxHint("0 = target object class idx. i &gt; 0 = additional label of index i-1")};
-    DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters("Segmentation", true);
+    DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters( true);
     Parameter[] otherParameters = new Parameter[]{segmentationParam, arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)

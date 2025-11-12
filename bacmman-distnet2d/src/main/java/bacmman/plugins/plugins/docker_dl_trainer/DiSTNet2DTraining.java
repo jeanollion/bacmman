@@ -54,12 +54,21 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<CENTER_DISTANCE_MODE> centerDistanceModeCond = new ConditionalParameter<>(centerDistanceMode).setActionParameters(CENTER_DISTANCE_MODE.EUCLIDEAN, cdmLossRadius);
         BooleanParameter scaleEDM = new BooleanParameter("Scale EDM", false).setHint("If true, for each object EDM is normalized so that maximal value is 1. Recommended for small objects if size do not matter");
 
-        FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
-        BooleanParameter dynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values are get closer to 1");
-        BooleanParameter balanceEDMFreq = new BooleanParameter("Balance EDM Frequency", false).setHint("Correct frequency imbalance between foreground and background by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
+        FloatParameter edmWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
+        BooleanParameter edmDynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
+        FloatParameter edmDynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
+        ConditionalParameter<Boolean> edmDynamicWeightsCond = new ConditionalParameter<>(edmDynamicWeights).setActionParameters(true, edmDynamicWeightPowerLaw);
+        BooleanParameter edmBalanceFreq = new BooleanParameter("Balance EDM Frequency", false).setHint("Correct frequency imbalance between foreground and background by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
+        ConditionalParameter<Boolean> edmBalanceFreqCond = new ConditionalParameter<>(edmBalanceFreq)
+                .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
-        ConditionalParameter<Boolean> balanceEDMFreqCond = new ConditionalParameter<>(balanceEDMFreq)
-                .setActionParameters(true, dynamicWeights, weightPowerLaw);
+        FloatParameter catWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
+        BooleanParameter catDynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
+        FloatParameter catDynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
+        ConditionalParameter<Boolean> catDynamicWeightsCond = new ConditionalParameter<>(catDynamicWeights).setActionParameters(true, catDynamicWeightPowerLaw);
+        BooleanParameter catBalanceFreq = new BooleanParameter("Balance Category Frequency", false).setHint("Correct frequency imbalance between foreground and background by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
+        ConditionalParameter<Boolean> catBalanceFreqCond = new ConditionalParameter<>(catBalanceFreq)
+                .setActionParameters(true, catDynamicWeightsCond, catWeightPowerLaw);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
@@ -68,13 +77,13 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<Boolean> inputLabelCenterCond = new ConditionalParameter<>(inputLabelCenter).setActionParameters(true, inputLabelIdx);
         boolean segmentOnly;
 
-        public SegmentationParameters(String name, boolean segmentOnly) {
-            super(name);
+        public SegmentationParameters(boolean segmentOnly) {
+            super("Segmentation");
             StringBuilder hint = new StringBuilder().append("Defines how center is computed. <ul>");
             for (CENTER_MODE mode : CENTER_MODE.values()) hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
             hint.append("</ul>");
             centerMode.setHint(hint.toString());
-            setChildren(scaleEDM, balanceEDMFreqCond, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives);
+            setChildren(scaleEDM, edmBalanceFreqCond, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives, catBalanceFreqCond);
             inputLabelIdx.addValidationFunction(i -> {
                 SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), i, true);
                 if (dsList!=null && dsList.getChildCount()>0) {
@@ -86,7 +95,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
         @Override
         public SegmentationParameters duplicate() {
-            SegmentationParameters res = new SegmentationParameters(name, segmentOnly);
+            SegmentationParameters res = new SegmentationParameters(segmentOnly);
             res.setContentFrom(this);
             transferStateArguments(this, res);
             return res;
@@ -96,10 +105,21 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
             res.put(PythonConfiguration.toSnakeCase(scaleEDM.getName()), scaleEDM.toJSONEntry());
-            if (balanceEDMFreq.getSelected()) {
-                res.put(PythonConfiguration.toSnakeCase(balanceEDMFreq.getName()), balanceEDMFreq.toJSONEntry());
-                res.put(PythonConfiguration.toSnakeCase(dynamicWeights.getName()), dynamicWeights.toJSONEntry());
-                res.put(PythonConfiguration.toSnakeCase(weightPowerLaw.getName()), weightPowerLaw.toJSONEntry());
+            if (edmBalanceFreq.getSelected()) {
+                JSONObject edmFreqBal = new JSONObject();
+                res.put(PythonConfiguration.toSnakeCase(edmBalanceFreq.getName()), edmBalanceFreq.toJSONEntry());
+                edmFreqBal.put("dynamic_power_law", edmDynamicWeightPowerLaw.toJSONEntry());
+                edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
+                if (edmDynamicWeights.getSelected()) edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
+                res.put("balance_edm_frequency_parameters", edmFreqBal);
+            }
+            if (catBalanceFreq.getSelected()) {
+                JSONObject catFreqBal = new JSONObject();
+                res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
+                catFreqBal.put("dynamic_power_law", catDynamicWeightPowerLaw.toJSONEntry());
+                catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
+                if (catDynamicWeights.getSelected()) catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
+                res.put("balance_category_frequency_parameters", catFreqBal);
             }
 
             res.put(PythonConfiguration.toSnakeCase(centerMode.getName()), centerMode.toJSONEntry());
@@ -113,7 +133,45 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         }
     }
 
-    Parameter[] otherParameters = new Parameter[]{new SegmentationParameters("Segmentation", false), arch};
+    public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
+
+        FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
+        BooleanParameter lmDynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
+        FloatParameter lmDynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
+        ConditionalParameter<Boolean> dynamicWeightsCond = new ConditionalParameter<>(lmDynamicWeights).setActionParameters(true, lmDynamicWeightPowerLaw);
+        BooleanParameter lmBalanceFreq = new BooleanParameter("Balance LM Frequency", false).setHint("Correct frequency imbalance between Link Multiplicity classes (SINGLE, MULTIPLE, NULL) by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
+        ConditionalParameter<Boolean> balanceEDMFreqCond = new ConditionalParameter<>(lmBalanceFreq)
+                .setActionParameters(true, dynamicWeightsCond, lmWeightPowerLaw);
+
+        public TrackingParameters() {
+            super("Tracking");
+            setChildren(balanceEDMFreqCond);
+        }
+
+        @Override
+        public TrackingParameters duplicate() {
+            TrackingParameters res = new TrackingParameters();
+            res.setContentFrom(this);
+            transferStateArguments(this, res);
+            return res;
+        }
+
+        @Override
+        public Object getPythonConfiguration() {
+            JSONObject res = new JSONObject();
+            if (lmBalanceFreq.getSelected()) {
+                JSONObject lmFreqBal = new JSONObject();
+                res.put(PythonConfiguration.toSnakeCase(lmBalanceFreq.getName()), lmBalanceFreq.toJSONEntry());
+                lmFreqBal.put("dynamic_power_law", lmDynamicWeightPowerLaw.toJSONEntry());
+                lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
+                if (lmDynamicWeights.getSelected()) lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
+                res.put("balance_lm_frequency_parameters", lmFreqBal);
+            }
+            return res;
+        }
+    }
+
+    Parameter[] otherParameters = new Parameter[]{new SegmentationParameters(false), new TrackingParameters(), arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(1000).setStepNumber(200)
@@ -334,7 +392,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 3, 2, 4);
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("Include skip connections to EDM decoder. Note that is early downsampling is True, there will be no skip connection at first level");
         BooleanParameter earlyDownsampling = new BooleanParameter("Early Downsampling", true).setHint("If true, no convolution will be performed at first level. Reduces memory footprint, but may reduce segmentation details");
-
+        IntegerParameter temporalAttention = new IntegerParameter("Temporal Attention", 16).setLowerBound(0)
+                .setHint("Number of heads of the temporal attention layers in the blending module (i.e. attention between each pair of frames). Unused if frame window is null.");
         IntegerParameter attention = new IntegerParameter("Attention", 0).setLowerBound(0)
                 .setLegacyParameter((p,i)->i.setValue(((BooleanParameter)p[0]).getSelected() ? 1 : 0), new BooleanParameter("Attention", false))
                 .setHint("Number of heads of the attention layer in the PairBlender module (i.e. attention between each pair of frames). If 0 no attention layer is included. Unused if frame window is null. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
@@ -361,10 +420,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
             } else {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
@@ -441,6 +500,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             switch (atchType) { // specific
                 case TemA: {
                     res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
+                    res.put("temporal_attention", temporalAttention.toJSONEntry());
                     break;
                 }
                 case BLEND:
