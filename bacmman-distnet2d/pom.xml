@@ -27,6 +27,11 @@
             <artifactId>bacmman-docker</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.ortools</groupId>
+            <artifactId>ortools-java</artifactId>
+            <version>9.14.6206</version>
+        </dependency>
     </dependencies>
 
 </project>
