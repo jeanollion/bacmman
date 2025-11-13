@@ -42,7 +42,7 @@ public class ResizeUtils {
     public static int[][] getDimensions(Image[][] imagesNC) {
         int[][] dims = Arrays.stream(imagesNC).map(im -> im[0].dimensions()).toArray(int[][]::new);
         IntPredicate oneDimDiffers = idx -> IntStream.range(1, imagesNC[idx].length).anyMatch(i-> !Arrays.equals(imagesNC[idx][i].dimensions(), dims[idx]));
-        if (IntStream.range(0, imagesNC.length).anyMatch(i->oneDimDiffers.test(i)))
+        if (IntStream.range(0, imagesNC.length).anyMatch(oneDimDiffers))
             throw new IllegalArgumentException("at least two channels have different dimensions");
         return dims;
     }

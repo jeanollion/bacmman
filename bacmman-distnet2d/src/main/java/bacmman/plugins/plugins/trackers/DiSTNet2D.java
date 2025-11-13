@@ -1690,7 +1690,18 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     public static Image[][][] getInputs(List<Map<Integer, Image>> images, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval, int gapClosing, boolean frameIndex) {
         Image[][][] res = new Image[images.size()+(frameIndex ? 1 : 0)][][];
-        for (int i = 0; i<images.size(); ++i) res[i] = getInput(images.get(i), allFrames, frames, inputWindow, addNext, frameInterval, gapClosing);
+        for (int i = 0; i<images.size(); ++i) {
+            res[i] = getInput(images.get(i), allFrames, frames, inputWindow, addNext, frameInterval, gapClosing);
+            // check null input
+            for (int f = 0; f<res[i].length; ++f) {
+                for (int t = 0; t<res[i][f].length; ++t) {
+                    if (res[i][f][t]==null) {
+                        logger.error("Null image for input: {} frame: {} (idx:{}) frame window: {} frames: {} all frames: {}", i, frames[f], f, t, frames, allFrames);
+                        throw new RuntimeException("Null image for input: "+i+ " frame: "+frames[f]+" (idx="+f+") frame window idx: "+t);
+                    }
+                }
+            }
+        }
         if (frameIndex) {
             res[images.size()] = IntStream.of(frames).mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval, gapClosing))
                     .map(l -> l.stream().map( f -> new ImageFloat("", 1, new float[]{f})).toArray(Image[]::new)).toArray(Image[][]::new);

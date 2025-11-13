@@ -123,8 +123,8 @@ public class PixelData implements FeatureExtractorOneEntryPerInstance, Hint {
     @Override
     public String getHintText() {
         return "Extracts values of one or several channels within segmented objects of a selection. The segmented object class must correspond to the object class of the selected selection or a children." +
-                "<br/>For each object O of the selection, one entry will be created in the output file. The path of the entry is selection-name/dataset-name/position-name/feature-name/segmented-object-name" +
-                "<br/>The 1st axis corresponds to the selected channels in the parameter <em>Channels to Extract</em>(in the defined order), then the EVF's (in the defined order) then the coordinates in the order XYZ (if selected). The 2nd axis correspond to the different locations of O, thus the size along X-axis corresponds to the volume of the O";
+                "<br/>For each object A of the selection, one entry will be created in the output file. The path of the entry is selection-name/dataset-name/position-name/feature-name/trackhead-indices_fXXXXX (frame index padded up to 5 zeros)" +
+                "<br/>The 1st axis corresponds to the selected channels in the parameter <em>Channels to Extract</em>(in the defined order), then the EVF's (in the defined order) then the coordinates in the order XYZ (if selected). <br/>The 2nd axis correspond to the different locations of A, thus the size along X-axis corresponds to the volume of the A";
     }
 
 }
