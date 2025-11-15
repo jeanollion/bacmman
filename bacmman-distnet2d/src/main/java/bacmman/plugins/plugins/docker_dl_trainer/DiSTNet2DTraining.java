@@ -105,20 +105,20 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
             res.put(PythonConfiguration.toSnakeCase(scaleEDM.getName()), scaleEDM.toJSONEntry());
+            res.put(PythonConfiguration.toSnakeCase(edmBalanceFreq.getName()), edmBalanceFreq.toJSONEntry());
             if (edmBalanceFreq.getSelected()) {
                 JSONObject edmFreqBal = new JSONObject();
-                res.put(PythonConfiguration.toSnakeCase(edmBalanceFreq.getName()), edmBalanceFreq.toJSONEntry());
                 edmFreqBal.put("dynamic_power_law", edmDynamicWeightPowerLaw.toJSONEntry());
                 edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
-                if (edmDynamicWeights.getSelected()) edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
+                edmFreqBal.put(PythonConfiguration.toSnakeCase(edmDynamicWeights.getName()), edmDynamicWeights.toJSONEntry());
                 res.put("balance_edm_frequency_parameters", edmFreqBal);
             }
+            res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
             if (catBalanceFreq.getSelected()) {
                 JSONObject catFreqBal = new JSONObject();
-                res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
                 catFreqBal.put("dynamic_power_law", catDynamicWeightPowerLaw.toJSONEntry());
                 catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
-                if (catDynamicWeights.getSelected()) catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
+                catFreqBal.put(PythonConfiguration.toSnakeCase(catDynamicWeights.getName()), catDynamicWeights.toJSONEntry());
                 res.put("balance_category_frequency_parameters", catFreqBal);
             }
 
@@ -159,12 +159,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         @Override
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
+            res.put(PythonConfiguration.toSnakeCase(lmBalanceFreq.getName()), lmBalanceFreq.toJSONEntry());
             if (lmBalanceFreq.getSelected()) {
                 JSONObject lmFreqBal = new JSONObject();
-                res.put(PythonConfiguration.toSnakeCase(lmBalanceFreq.getName()), lmBalanceFreq.toJSONEntry());
                 lmFreqBal.put("dynamic_power_law", lmDynamicWeightPowerLaw.toJSONEntry());
                 lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
-                if (lmDynamicWeights.getSelected()) lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
+                lmFreqBal.put(PythonConfiguration.toSnakeCase(lmDynamicWeights.getName()), lmDynamicWeights.toJSONEntry());
                 res.put("balance_lm_frequency_parameters", lmFreqBal);
             }
             return res;
