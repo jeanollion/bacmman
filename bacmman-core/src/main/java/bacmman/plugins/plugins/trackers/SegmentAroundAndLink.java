@@ -78,40 +78,43 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         for (List<SegmentedObject> refTrack : refTracks.values()) {
             SegmentedObject curRef = refTrack.get(0);
             SegmentedObject cur = refMapSegmentedObject.get(curRef);
-            if (cur==null) continue;
-            List<SegmentedObject> prevsRef = SegmentedObjectEditor.getPrevious(curRef).collect(Collectors.toList());
-            if (!prevsRef.isEmpty()) { // get most overlapping segmented objects among children of previous parent
-                SegmentedObject parent = prevsRef.get(0).getParent(parentTrack.get(0).getStructureIdx());
-                Stream<SegmentedObject> childrenS = parent.getChildren(objectClassIdx);
-                if (childrenS == null) continue;
-                List<SegmentedObject> children = childrenS.collect(Collectors.toList());
-                if (children.isEmpty()) continue;
-                for (SegmentedObject prevRef : prevsRef) {
-                    double[] overlap = children.stream().mapToDouble(c -> c.getRegion().getOverlapArea(prevRef.getRegion())).toArray();
-                    int max = ArrayUtil.max(overlap);
-                    if (overlap[max] >= minOverlap.getDoubleValue()) { // set link of same nature
-                        SegmentedObject prev = children.get(max);
-                        if (curRef.equals(prevRef.getNext())) prev.setNext(cur);
-                        if (prevRef.equals(curRef.getPrevious())) cur.setPrevious(prev);
+            if (cur!= null) {
+                List<SegmentedObject> prevsRef = SegmentedObjectEditor.getPrevious(curRef).collect(Collectors.toList());
+                if (!prevsRef.isEmpty()) { // get most overlapping segmented objects among children of previous parent
+                    SegmentedObject parent = prevsRef.get(0).getParent(parentTrack.get(0).getStructureIdx());
+                    Stream<SegmentedObject> childrenS = parent.getChildren(objectClassIdx);
+                    if (childrenS == null) continue;
+                    List<SegmentedObject> children = childrenS.collect(Collectors.toList());
+                    if (children.isEmpty()) continue;
+                    for (SegmentedObject prevRef : prevsRef) {
+                        double[] overlap = children.stream().mapToDouble(c -> c.getRegion().getOverlapArea(prevRef.getRegion())).toArray();
+                        int max = ArrayUtil.max(overlap);
+                        if (overlap[max] >= minOverlap.getDoubleValue()) { // set link of same nature
+                            SegmentedObject prev = children.get(max);
+                            if (curRef.equals(prevRef.getNext())) prev.setNext(cur);
+                            if (prevRef.equals(curRef.getPrevious())) cur.setPrevious(prev);
+                        }
                     }
                 }
             }
             curRef = refTrack.get(refTrack.size()-1);
             cur = refMapSegmentedObject.get(curRef);
-            List<SegmentedObject> nextsRef = SegmentedObjectEditor.getNext(curRef).collect(Collectors.toList());
-            if (!nextsRef.isEmpty()) { // get most overlapping segmented objects among children of next parent
-                SegmentedObject parent = nextsRef.get(0).getParent(parentTrack.get(0).getStructureIdx());
-                Stream<SegmentedObject> childrenS = parent.getChildren(objectClassIdx);
-                if (childrenS == null) continue;
-                List<SegmentedObject> children = childrenS.collect(Collectors.toList());
-                if (children.isEmpty()) continue;
-                for (SegmentedObject nextRef : nextsRef) {
-                    double[] overlap = children.stream().mapToDouble(c -> c.getRegion().getOverlapArea(nextRef.getRegion())).toArray();
-                    int max = ArrayUtil.max(overlap);
-                    if (overlap[max] >= minOverlap.getDoubleValue()) {
-                        SegmentedObject next = children.get(max);
-                        if (curRef.equals(nextRef.getPrevious())) next.setPrevious(cur);
-                        if (nextRef.equals(curRef.getNext())) cur.setNext(next);
+            if (cur != null) {
+                List<SegmentedObject> nextsRef = SegmentedObjectEditor.getNext(curRef).collect(Collectors.toList());
+                if (!nextsRef.isEmpty()) { // get most overlapping segmented objects among children of next parent
+                    SegmentedObject parent = nextsRef.get(0).getParent(parentTrack.get(0).getStructureIdx());
+                    Stream<SegmentedObject> childrenS = parent.getChildren(objectClassIdx);
+                    if (childrenS == null) continue;
+                    List<SegmentedObject> children = childrenS.collect(Collectors.toList());
+                    if (children.isEmpty()) continue;
+                    for (SegmentedObject nextRef : nextsRef) {
+                        double[] overlap = children.stream().mapToDouble(c -> c.getRegion().getOverlapArea(nextRef.getRegion())).toArray();
+                        int max = ArrayUtil.max(overlap);
+                        if (overlap[max] >= minOverlap.getDoubleValue()) {
+                            SegmentedObject next = children.get(max);
+                            if (curRef.equals(nextRef.getPrevious())) next.setPrevious(cur);
+                            if (nextRef.equals(curRef.getNext())) cur.setNext(next);
+                        }
                     }
                 }
             }
