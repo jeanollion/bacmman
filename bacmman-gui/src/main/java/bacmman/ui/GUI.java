@@ -211,7 +211,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             "     refer to third_party/tensorflow/core/common_runtime/gpu/gpu_id.h\n" +
             "     for more information.");
     private TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
-    private IntegerParameter dockerShmSizeMb = new IntegerParameter("Shared Memory Size", 2000).setHint("Shared Memory Size (MB)");
+    private IntegerParameter dockerShmSizeGb = new IntegerParameter("Shared Memory Size", 8).setHint("Shared Memory Size (GB)");
     private PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, false)
             .setPluginFilter(pn -> !pn.equals("DefaultEngine"));
 
@@ -594,9 +594,9 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         // docker
         PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
-        PropertyUtils.setPersistent(dockerShmSizeMb, PropertyUtils.DOCKER_SHM_GB);
+        PropertyUtils.setPersistent(dockerShmSizeGb, PropertyUtils.DOCKER_SHM_GB);
         ConfigurationTreeGenerator.addToMenu(dockerVisibleGPUList, dockerMenu);
-        ConfigurationTreeGenerator.addToMenu(dockerShmSizeMb, dockerMenu);
+        ConfigurationTreeGenerator.addToMenu(dockerShmSizeGb, dockerMenu);
 
         // default DLEngine
         try {
