@@ -103,8 +103,12 @@ public class ExtractDataset extends JDialog {
                 .setNewInstanceNameFunction((l, i) -> "Feature #" + i).setChildrenNumber(1).setHint("List here all extracted feature");
         outputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, null)
                 .setMaxChildCount(2)
-                .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions. Set [0, 0] to keep original image size");
-        resizeMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE, ()->selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).min().orElse(-1), outputShape::getArrayInt);
+                .setName("Output Dimensions").setHint("Extracted images will be resized to these dimensions");
+        resizeMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.NONE, ()->selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).min().orElse(-1), outputShape::getArrayInt);
+        ConditionalParameter<TrainingConfigurationParameter.RESIZE_MODE> resizeModeCond = new ConditionalParameter<>(resizeMode)
+                .setActionParameters(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE, outputShape)
+                .setActionParameters(TrainingConfigurationParameter.RESIZE_MODE.PAD, outputShape)
+                .setActionParameters(TrainingConfigurationParameter.RESIZE_MODE.EXTEND, outputShape);
         subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract N € [1, 2] versions of the dataset with one fame out of two");
         subsamplingNumber = new IntegerParameter("Frame subsampling number", 1).setLowerBound(1)
                 .addValidationFunction(n -> {
@@ -115,7 +119,7 @@ public class ExtractDataset extends JDialog {
 
         downsamplingFactor = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
         trackingDataset = new BooleanParameter("Tracking Dataset", false).setHint("If true, dataset will be split by parent trackhead");
-        container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours, trackingDataset, subsamplingFactor, downsamplingFactor);
+        container = new GroupParameter("", outputFile, resizeModeCond, outputFeatureList, eraseTouchingContours, trackingDataset, subsamplingFactor, downsamplingFactor);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v ->
                 setEnableOk(), (s, l) -> {
@@ -162,7 +166,7 @@ public class ExtractDataset extends JDialog {
         buttonOK.setEnabled(true);
     }
 
-    private void setDefaultValues(String outputFile, List<String> selections, List<FeatureExtractor.Feature> features, int[] dimensions, int[] eraseContoursOC) {
+    private void setDefaultValues(String outputFile, List<String> selections, List<FeatureExtractor.Feature> features, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] dimensions, int[] eraseContoursOC) {
         if (outputFile != null) this.outputFile.setSelectedFilePath(outputFile);
         List<String> allSel = Collections.list(selectionModel.elements()).stream().map(Selection::getName).collect(Collectors.toList());
         if (selections != null && !selections.isEmpty()) {
@@ -172,15 +176,19 @@ public class ExtractDataset extends JDialog {
         if (features != null && !features.isEmpty()) {
             this.outputFeatureList.setChildrenNumber(features.size());
             for (int i = 0; i < features.size(); ++i) {
-                GroupParameter g = outputFeatureList.getChildAt(i);
+                GroupParameter g = outputFeatureList.getChildAt(i); // 0 = name, 1 = OC, 2 = feature, 3 = selection
                 FeatureExtractor.Feature f = features.get(i);
                 ((TextParameter) g.getChildAt(0)).setValue(f.getName());
-                ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).setPlugin(f.getFeatureExtractor());
                 ObjectClassParameter ocp = ((ObjectClassParameter) g.getChildAt(1));
                 if (f.getObjectClass() < ocp.getChoiceList().length) ocp.setSelectedClassIdx(f.getObjectClass());
+                PluginParameter<FeatureExtractor> pp = ((PluginParameter<FeatureExtractor>) g.getChildAt(2));
+                pp.setPlugin(f.getFeatureExtractor(), true);
                 SelectionParameter sel = ((SelectionParameter) g.getChildAt(3));
                 if (f.getSelectionFilter() != null) sel.setSelectedItem(f.getSelectionFilter());
             }
+        } else this.outputFeatureList.setChildrenNumber(0);
+        if (resizeMode != null) {
+            this.resizeMode.setValue(resizeMode);
         }
         if (dimensions != null) {
             this.outputShape.setValue(dimensions[1], dimensions[0]);
@@ -213,15 +221,20 @@ public class ExtractDataset extends JDialog {
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
         int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
-        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, resizeMode.getSelectedEnum(), eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setExtractDS(fixOutputPath(outputFile.getFirstSelectedFilePath()), sels, features, dims, resizeMode.getSelectedEnum(), eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
+    }
+
+    public static String fixOutputPath(String path) {
+        if (!path.endsWith(".h5") && !path.endsWith(".hdf5")) return path + ".h5";
+        return path;
     }
 
     public static Task promptExtractDatasetTask(MasterDAO mDAO, Task selectedTask) {
         ExtractDataset dialog = new ExtractDataset(mDAO);
         dialog.setTitle("Configure Dataset extraction");
         if (selectedTask != null)
-            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelections(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
+            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelections(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSResizeMode(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
         dialog.pack();
         dialog.setVisible(true);
         //System.exit(0);

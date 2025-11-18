@@ -149,11 +149,16 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     }
     
     public PluginParameter<T> setPlugin(T pluginInstance) {
+        return setPlugin(pluginInstance, false);
+    }
+
+    public PluginParameter<T> setPlugin(T pluginInstance, boolean duplicateParameters) {
         if (pluginInstance==null) setPlugin(NO_SELECTION);
         else {
             Parameter[] parameters = pluginInstance.getParameters();
             if (parameters ==null) parameters = new Parameter[0];
-            List<Parameter> parameterList = Arrays.asList(parameters);
+            List<Parameter> parameterList = duplicateParameters ?
+                    Arrays.stream(parameters).map(Parameter::duplicate).collect(Collectors.toList()) : Arrays.asList(parameters);
             if (this.pluginParameters != null && pluginInstance instanceof PersistentConfiguration) { // pre-configure
                 ParameterUtils.setContentMap(Arrays.asList(parameters), this.pluginParameters);
             }
@@ -199,7 +204,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
             if (instance==null) {
                 logger.info("Couldn't find plugin: {}", pluginName);
-                this.pluginName=ChoiceParameter.NO_SELECTION;
+                this.pluginName=NO_SELECTION;
                 this.pluginParameters=null;
                 return null;
             }

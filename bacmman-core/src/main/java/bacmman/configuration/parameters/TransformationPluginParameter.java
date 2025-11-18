@@ -89,7 +89,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         else return xp.getChannelImageCount(true)==1;
     }
     @Override 
-    public TransformationPluginParameter<T> setPlugin(T pluginInstance) {
+    public TransformationPluginParameter<T> setPlugin(T pluginInstance, boolean duplicateParameters) {
         if (pluginInstance instanceof ConfigurableTransformation && !(pluginInstance instanceof Filter)) initInputChannel();
         else inputChannel = null;
         
@@ -120,7 +120,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
             initOutputChannel(false, -1); // single-channel transformation
             allChannels=false;
         }
-        super.setPlugin(pluginInstance);
+        super.setPlugin(pluginInstance, duplicateParameters);
         //configurationData = ParameterUtils.duplicateConfigurationDataList(pluginInstance.getConfigurationData());
         return this;
     }

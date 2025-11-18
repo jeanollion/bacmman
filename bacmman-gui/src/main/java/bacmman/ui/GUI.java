@@ -4610,22 +4610,24 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             Action addExtractDBTask = new AbstractAction("Add new dataset extraction Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = ExtractDataset.promptExtractDatasetTask(db, (Task)actionPoolList.getSelectedValue());
+                    Task ref = actionPoolList.getSelectedValue() == null ? null : (Task)actionPoolList.getSelectedValue();
+                    Task t = ExtractDataset.promptExtractDatasetTask(db, ref);
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
             datasetMenu.add(addExtractDBTask);
-            addExtractDBTask.setEnabled(db!=null && actionPoolList.getSelectedValue() instanceof Task);
+            addExtractDBTask.setEnabled(db!=null && (actionPoolList.getSelectedValue()==null || actionPoolList.getSelectedValue() instanceof Task));
 
             Action addExtractRawDBTask = new AbstractAction("Add new raw dataset extraction Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = ExtractRawDataset.promptExtractDatasetTask(db, (Task)actionPoolList.getSelectedValue(), getSelectedPositions(true));
+                    Task ref = actionPoolList.getSelectedValue() == null ? null : (Task)actionPoolList.getSelectedValue();
+                    Task t = ExtractRawDataset.promptExtractDatasetTask(db, ref, getSelectedPositions(true));
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
             datasetMenu.add(addExtractRawDBTask);
-            addExtractRawDBTask.setEnabled(db!=null && actionPoolList.getSelectedValue() instanceof Task);
+            addExtractRawDBTask.setEnabled(db!=null && (actionPoolList.getSelectedValue()==null || actionPoolList.getSelectedValue() instanceof Task));
 
 
 
