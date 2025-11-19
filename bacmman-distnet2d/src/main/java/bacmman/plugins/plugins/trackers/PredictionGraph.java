@@ -8,6 +8,7 @@ import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
+import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 import org.slf4j.Logger;
@@ -29,7 +30,6 @@ public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
         double distancePower = 2; //
         double gapPower;
         int linkDistTolerance;
-
     }
     public static class Vertex<O extends GraphObject.GraphObjectBds<O>> {
         final O o;
@@ -125,14 +125,19 @@ public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
 
     }
     Map<O, Vertex<O>> vertexMap = new HashMap<>();
-    SimpleWeightedGraph<Vertex<O>, Edge> graph = new SimpleWeightedGraph<>(Edge.class);
+    DefaultDirectedWeightedGraph<Vertex<O>, Edge> graph = new DefaultDirectedWeightedGraph<>(Edge.class);
     Configuration config;
+
+    public PredictionGraph(Configuration config) {
+        this.config = config;
+    }
 
     public void addEdges(Map<Integer, Collection<O>> objects, ToDoubleFunction<O> quality, ToDoubleFunction<O> dxFW, ToDoubleFunction<O> dxBW, ToDoubleFunction<O> dyFW, ToDoubleFunction<O> dyBW, Function<O, double[][]> lmFW, Function<O, double[][]> lmBW, Map<O, Set<Voxel>> contour, int gap) {
         if (objects.size()<=1) return;
         int minF = objects.keySet().stream().mapToInt(i -> i).min().getAsInt();
         int maxF = objects.keySet().stream().mapToInt(i -> i).max().getAsInt();
-        for (int f = minF; f < maxF - gap; ++f) {
+        for (int f = minF; f <= maxF - gap; ++f) {
+            logger.debug("add obj:[{}; {}] / [{}; {}]", f, f+gap, minF, maxF);
             addEdges(objects, f, f+gap, quality, dxFW, dxBW, dyFW, dyBW, lmFW, lmBW, contour);
         }
     }
@@ -147,7 +152,7 @@ public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
     public void addEdges(Map<Integer, Collection<O>> objects, int prevF, int nextF, ToDoubleFunction<O> quality, ToDoubleFunction<O> dxFW, ToDoubleFunction<O> dxBW, ToDoubleFunction<O> dyFW, ToDoubleFunction<O> dyBW, Function<O, double[][]> lmFW, Function<O, double[][]> lmBW, Map<O, Set<Voxel>> contour) {
         Collection<O> prevs = objects.get(prevF);
         Collection<O> nexts = objects.get(nextF);
-        if (prevs.isEmpty() || nexts.isEmpty()) return;
+        if (prevs==null || nexts==null || prevs.isEmpty() || nexts.isEmpty()) return;
         Offset transFW = nexts.iterator().next().getParentBounds().duplicate().translate(prevs.iterator().next().getParentBounds().duplicate().reverseOffset());
         Offset transBW = prevs.iterator().next().getParentBounds().duplicate().translate(nexts.iterator().next().getParentBounds().duplicate().reverseOffset());
         Map<O, Point> prevTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->getTranslatedCenter(o, dxFW.applyAsDouble(o), dyFW.applyAsDouble(o), transFW));
@@ -187,7 +192,9 @@ public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
                 for (Vertex<O> nextV : verticesOf(prevV, true).filter(n -> n.o.getFrame() == nextF).collect(Collectors.toList())) {
                     Edge direct = graph.getEdge(prevV, nextV);
                     if (direct == null) continue;
-                    List<List<Edge>> subPaths = findAllSubPaths(prevV, nextV).filter(keepIsolatedPath()).collect(Collectors.toList());
+                    List<List<Edge>> subPaths = findAllPaths(prevV, nextV)
+                            .filter(p->p.size()>1) // remove direct path
+                            .filter(keepIsolatedPath()).collect(Collectors.toList()); // remove non isolated paths
                     if (!subPaths.isEmpty()) { // gap edge can be simplified.
                         graph.removeEdge(prevV, nextV);
                         double costMul = Math.min(1, Math.pow(1 - direct.confidence, config.gapPower));
@@ -232,7 +239,7 @@ public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
      * each step advances in frame and intermediate nodes have frames strictly between start and end.
      * This is a DFS bounded by frames; it's safe and deterministic.
      */
-    public Stream<List<Edge>> findAllSubPaths(Vertex<O> start, Vertex<O> end) {
+    public Stream<List<Edge>> findAllPaths(Vertex<O> start, Vertex<O> end) {
         List<List<Edge>> result = new ArrayList<>();
         Deque<Edge> stack = new ArrayDeque<>();
         Set<Vertex<O>> visited = new HashSet<>();
@@ -270,22 +277,31 @@ public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
         double thld = config.linkDistTolerance * config.linkDistTolerance;
         targetCandidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds(), config.linkDistTolerance))
             .forEach(o -> {
-                F: for (Voxel v : contour.get(o)) {
-                    double d2 = center.distSq((Offset)v);
-                    if (d2 <= thld) {
-                        double confidence = Math.pow(1 - Math.sqrt(d2) / config.linkDistTolerance, config.distancePower);
-                        Vertex<O> sourceV = vertexMap.get(source);
-                        if (sourceV == null) {
-                            sourceV = new Vertex<O>(source, quality.applyAsDouble(source));
-                            graph.addVertex(sourceV);
-                        }
-                        Vertex<O> oV = vertexMap.get(o);
-                        if (oV == null) {
-                            oV = new Vertex<O>(o, quality.applyAsDouble(o));
-                            graph.addVertex(oV);
-                        }
-                        graph.addEdge(sourceV, oV).setConfidence(confidence);
-                        break F;
+                double confidence = 0;
+                if (o.contains(center)) {
+                    confidence = 1;
+                } else {
+                    double d2Min = contour.get(o).stream().mapToDouble(v -> center.distSq((Offset)v)).min().orElse(Double.POSITIVE_INFINITY);
+                    if (d2Min <= thld) confidence = Math.pow(1 - Math.sqrt(d2Min) / config.linkDistTolerance, config.distancePower);
+                }
+                if (confidence > 0) {
+                    Vertex<O> sourceV = vertexMap.get(source);
+                    if (sourceV == null) {
+                        sourceV = new Vertex<O>(source, quality.applyAsDouble(source));
+                        vertexMap.put(source, sourceV);
+                        graph.addVertex(sourceV);
+                    }
+                    Vertex<O> oV = vertexMap.get(o);
+                    if (oV == null) {
+                        oV = new Vertex<O>(o, quality.applyAsDouble(o));
+                        vertexMap.put(o, oV);
+                        graph.addVertex(oV);
+                    }
+                    Edge e = graph.addEdge(sourceV, oV);
+                    if (e == null) logger.error("Edge: {} -> {} not allowed", sourceV.o, oV.o);
+                    else {
+                        logger.debug("added edge: {} -> {}", sourceV.o, oV.o);
+                        e.setConfidence(confidence);
                     }
                 }
             }

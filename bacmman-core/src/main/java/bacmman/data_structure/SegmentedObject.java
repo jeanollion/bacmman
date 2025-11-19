@@ -964,6 +964,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     public Point getCenter() {
         return getRegion().getCenterOrGeomCenter();
     }
+    @Override
+    public boolean contains(Point p) {
+        return getRegion().contains(p);
+    }
     protected void createRegionContainer() {
         this.regionContainer= region.createRegionContainer(this);
         region.regionModified=false;

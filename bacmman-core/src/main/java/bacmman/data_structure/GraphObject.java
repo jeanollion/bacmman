@@ -11,5 +11,6 @@ public interface GraphObject<S> extends Comparable<S> {
         BoundingBox getBounds();
         BoundingBox getParentBounds();
         int getIdx();
+        boolean contains(Point p);
     }
 }

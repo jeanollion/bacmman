@@ -1,11 +1,13 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.data_structure.GraphObject;
 import com.google.ortools.Loader;
 import com.google.ortools.linearsolver.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.jgrapht.graph.AbstractBaseGraph;
 import org.jgrapht.graph.SimpleWeightedGraph;
 import bacmman.plugins.plugins.trackers.PredictionGraph.Vertex;
 import bacmman.plugins.plugins.trackers.PredictionGraph.Edge;
@@ -15,8 +17,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Tracking ILP solver.
  *
- * - Uses integer LM categories per vertex encoded as one-hot binaries (bwY/fwY).
- * - Uses per-vertex useVars (ability to discard vertex at cost alpha*(1-quality)).
+ * - Uses integer LM categories per Vertex<O> encoded as one-hot binaries (bwY/fwY).
+ * - Uses per-Vertex<O> useVars (ability to discard Vertex<O> at cost alpha*(1-quality)).
  * - Re-introduces source/sink/startFrame variables so track length can be penalized softly.
  * - Adds soft penalties for too-short and too-long tracks using linear slack variables.
  * - Uses mild per-gap edge penalties (gapPenaltyMultiplier * (gap-1)); heavy simplification is
@@ -28,10 +30,10 @@ import org.slf4j.LoggerFactory;
  * all intermediate vertices are not incident to any selected edges outside that path (i.e. they are
  * isolated with respect to selected edges), we replace u->v in the track by the full path (in-place).
  */
-public class TrackingILPSolver {
+public class TrackingILPSolver<O extends GraphObject.GraphObjectBds<O>> {
     final static Logger logger = LoggerFactory.getLogger(TrackingILPSolver.class);
 
-    private final SimpleWeightedGraph<Vertex, Edge> graph;
+    private final AbstractBaseGraph<Vertex<O>, Edge> graph;
     private final Configuration params;
 
     // OR-Tools solver
@@ -39,22 +41,22 @@ public class TrackingILPSolver {
 
     // Vars
     private Map<Edge, MPVariable> edgeVars;
-    private Map<Vertex, MPVariable> useVars;
+    private Map<Vertex<O>, MPVariable> useVars;
 
     // LM one-hot binaries and integer connectors (we keep integer -> one-hot linking)
-    private Map<Vertex, MPVariable[]> bwOneHot;
-    private Map<Vertex, MPVariable[]> fwOneHot;
-    private Map<Vertex, MPVariable> bwInt; // optional integer var (kept for readability)
-    private Map<Vertex, MPVariable> fwInt;
+    private Map<Vertex<O>, MPVariable[]> bwOneHot;
+    private Map<Vertex<O>, MPVariable[]> fwOneHot;
+    private Map<Vertex<O>, MPVariable> bwInt; // optional integer var (kept for readability)
+    private Map<Vertex<O>, MPVariable> fwInt;
 
     // Source / sink and start-frame for track length calculations
-    private Map<Vertex, MPVariable> sourceVars;
-    private Map<Vertex, MPVariable> sinkVars;
-    private Map<Vertex, MPVariable> startFrameVars;
+    private Map<Vertex<O>, MPVariable> sourceVars;
+    private Map<Vertex<O>, MPVariable> sinkVars;
+    private Map<Vertex<O>, MPVariable> startFrameVars;
 
     // Slack variables for short/long penalties
-    private Map<Vertex, MPVariable> shortSlackVars;
-    private Map<Vertex, MPVariable> longSlackVars;
+    private Map<Vertex<O>, MPVariable> shortSlackVars;
+    private Map<Vertex<O>, MPVariable> longSlackVars;
 
     private int maxFrame;
     private int maxGap;
@@ -67,7 +69,7 @@ public class TrackingILPSolver {
         public double trackTooShortWeight = 1.0;
         public double trackTooLongWeight = 0.5;
 
-        // vertex use penalty scale
+        // Vertex<O> use penalty scale
         public double vertexDropAlpha = 1000.0;
 
         public double epsProb = 1e-9;
@@ -83,15 +85,15 @@ public class TrackingILPSolver {
         public double bigMExtra = 1000.0;
     }
 
-    public TrackingILPSolver(SimpleWeightedGraph<Vertex, Edge> graph, Configuration params) {
+    public TrackingILPSolver(AbstractBaseGraph<Vertex<O>, Edge> graph, Configuration params) {
         this.graph = graph;
         this.params = params;
-        maxFrame = graph.vertexSet().stream().mapToInt(v -> v.getFrame()).max().orElse(0);
+        maxFrame = graph.vertexSet().stream().mapToInt(Vertex::getFrame).max().orElse(0);
         maxGap = graph.edgeSet().stream().mapToInt(Edge::gap).max().orElse(1);
         if (maxGap < 1) maxGap = 1;
     }
 
-    public List<List<Vertex>> solve() {
+    public List<List<Vertex<O>>> solve() {
         Loader.loadNativeLibraries();
         solver = MPSolver.createSolver("SCIP");
         if (solver == null) throw new RuntimeException("Could not create SCIP solver");
@@ -104,9 +106,9 @@ public class TrackingILPSolver {
 
         if (status == MPSolver.ResultStatus.OPTIMAL || status == MPSolver.ResultStatus.FEASIBLE) {
             logger.info("ILP solved, objective = {}", solver.objective().value());
-            List<List<Vertex>> tracks = extractTracks();
+            List<List<Vertex<O>>> tracks = extractTracks();
             // Post-process expansion (Option A: replace inside affected track)
-            List<List<Vertex>> expanded = postProcessExpandGapsInTracks(tracks);
+            List<List<Vertex<O>>> expanded = postProcessExpandGapsInTracks(tracks);
             return expanded;
         } else {
             logger.error("No solution found. Status: {}", status);
@@ -130,14 +132,14 @@ public class TrackingILPSolver {
 
         // edge selection binaries
         for (Edge e : graph.edgeSet()) {
-            Vertex u = graph.getEdgeSource(e);
-            Vertex v = graph.getEdgeTarget(e);
+            Vertex<O> u = graph.getEdgeSource(e);
+            Vertex<O> v = graph.getEdgeTarget(e);
             String name = "x_" + u.getFrame() + "_" + u.o.getIdx() + "_to_" + v.getFrame() + "_" + v.o.getIdx();
             edgeVars.put(e, solver.makeBoolVar(name));
         }
 
         int numCategories = 2 + maxGap;
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             // integer LM (kept for easier mapping; could be removed)
             MPVariable bInt = solver.makeIntVar(0, numCategories - 1, "bwLM_F" + v.getFrame() + "_" + v.o.getIdx());
             MPVariable fInt = solver.makeIntVar(0, numCategories - 1, "fwLM_F" + v.getFrame() + "_" + v.o.getIdx());
@@ -196,7 +198,7 @@ public class TrackingILPSolver {
     private void addMultiplicityConstraints() {
         int numCategories = 2 + maxGap;
 
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             MPVariable[] by = bwOneHot.get(v);
             MPVariable[] fy = fwOneHot.get(v);
 
@@ -342,7 +344,7 @@ public class TrackingILPSolver {
             c2.setCoefficient(useVars.get(graph.getEdgeTarget(e)), -1.0);
         }
         // if useVar==1 then at least one incident edge selected: sum_incident >= useVar
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             MPConstraint c = solver.makeConstraint(0, Double.POSITIVE_INFINITY, "use_incident_lb_F" + v.getFrame() + "_" + v.o.getIdx());
             for (Edge e : graph.incomingEdgesOf(v)) c.setCoefficient(edgeVars.get(e), 1.0);
             for (Edge e : graph.outgoingEdgesOf(v)) c.setCoefficient(edgeVars.get(e), 1.0);
@@ -353,8 +355,8 @@ public class TrackingILPSolver {
     private void addStartFramePropagationConstraints() {
         double bigM = maxFrame + params.bigMExtra;
 
-        // initialize startFrame when vertex is a source: start_frame >= vFrame*src; start_frame <= vFrame + M*(1-src)
-        for (Vertex v : graph.vertexSet()) {
+        // initialize startFrame when Vertex<O> is a source: start_frame >= vFrame*src; start_frame <= vFrame + M*(1-src)
+        for (Vertex<O> v : graph.vertexSet()) {
             double f = v.getFrame();
             MPConstraint lower = solver.makeConstraint(0, Double.POSITIVE_INFINITY, "start_init_lb_F" + v.getFrame() + "_" + v.o.getIdx());
             lower.setCoefficient(startFrameVars.get(v), 1.0);
@@ -368,8 +370,8 @@ public class TrackingILPSolver {
 
         // propagate along selected edges: if x_e==1 => startFrame[target] == startFrame[source]
         for (Edge e : graph.edgeSet()) {
-            Vertex u = graph.getEdgeSource(e);
-            Vertex v = graph.getEdgeTarget(e);
+            Vertex<O> u = graph.getEdgeSource(e);
+            Vertex<O> v = graph.getEdgeTarget(e);
             MPConstraint up = solver.makeConstraint(Double.NEGATIVE_INFINITY, bigM, "prop_ub_" + e.hashCode());
             up.setCoefficient(startFrameVars.get(v), 1.0);
             up.setCoefficient(startFrameVars.get(u), -1.0);
@@ -385,7 +387,7 @@ public class TrackingILPSolver {
     private void addSourceSinkLMLinkingConstraints() {
         // source + sum_bw_single == 1  (source == not backward single)
         // sink + sum_fw_single == 1    (sink == not forward single)
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             MPConstraint srcLink = solver.makeConstraint(1, 1, "src_link_F" + v.getFrame() + "_" + v.o.getIdx());
             srcLink.setCoefficient(sourceVars.get(v), 1.0);
             // sum of bw SINGLE categories (k==1 or k>=3)
@@ -417,7 +419,7 @@ public class TrackingILPSolver {
         // (vFrame - startFrame) - maxTrackLength <= longSlack + M*(1 - sink)
         double M = maxFrame + params.bigMExtra;
 
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             double f = v.getFrame();
             MPConstraint cShort = solver.makeConstraint(Double.NEGATIVE_INFINITY, params.minTrackLength + M, "shortSlackConstr_F" + v.getFrame() + "_" + v.o.getIdx());
             // left: minTrackLength - vFrame + startFrame <= shortSlack + M*(1-sink)
@@ -455,9 +457,9 @@ public class TrackingILPSolver {
             obj.setCoefficient(edgeVars.get(e), base + gapPenalty);
         }
 
-        // vertex use cost: cost = alpha * (1 - quality) for NOT using vertex
-        // add coefficient on useVars as -cost (so using vertex reduces objective)
-        for (Vertex v : graph.vertexSet()) {
+        // Vertex<O> use cost: cost = alpha * (1 - quality) for NOT using vertex
+        // add coefficient on useVars as -cost (so using Vertex<O> reduces objective)
+        for (Vertex<O> v : graph.vertexSet()) {
             double costNotUse = params.vertexDropAlpha * (1.0 - v.quality);
             obj.setCoefficient(useVars.get(v), -costNotUse);
         }
@@ -465,7 +467,7 @@ public class TrackingILPSolver {
         // LM category costs (use provided unified vectors v.lmBW and v.lmFW)
         int numCategories = 2 + maxGap;
         double eps = params.epsProb;
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             MPVariable[] by = bwOneHot.get(v);
             MPVariable[] fy = fwOneHot.get(v);
 
@@ -480,7 +482,7 @@ public class TrackingILPSolver {
         }
 
         // Track length slacks penalty
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             obj.setCoefficient(shortSlackVars.get(v), params.trackTooShortWeight);
             obj.setCoefficient(longSlackVars.get(v), params.trackTooLongWeight);
         }
@@ -489,12 +491,12 @@ public class TrackingILPSolver {
     }
 
     // ---------------- extraction ----------------
-    private List<List<Vertex>> extractTracks() {
-        List<List<Vertex>> tracks = new ArrayList<>();
-        Set<Vertex> usedVisited = new HashSet<>();
+    private List<List<Vertex<O>>> extractTracks() {
+        List<List<Vertex<O>>> tracks = new ArrayList<>();
+        Set<Vertex<O>> usedVisited = new HashSet<>();
 
         // Start vertices: used and no incoming selected edge
-        for (Vertex v : graph.vertexSet()) {
+        for (Vertex<O> v : graph.vertexSet()) {
             if (useVars.get(v).solutionValue() < 0.5) continue;
             boolean hasIncomingSelected = false;
             for (Edge e : graph.incomingEdgesOf(v)) {
@@ -511,45 +513,45 @@ public class TrackingILPSolver {
         return tracks;
     }
 
-    private void followAllSelectedPathsFrom(Vertex start, Set<Vertex> globalVisited, List<List<Vertex>> tracks) {
-        Deque<List<Vertex>> stack = new ArrayDeque<>();
-        List<Vertex> init = new ArrayList<>();
+    private void followAllSelectedPathsFrom(Vertex<O> start, Set<Vertex<O>> globalVisited, List<List<Vertex<O>>> tracks) {
+        Deque<List<Vertex<O>>> stack = new ArrayDeque<>();
+        List<Vertex<O>> init = new ArrayList<>();
         init.add(start);
         stack.push(init);
 
         while (!stack.isEmpty()) {
-            List<Vertex> path = stack.pop();
-            Vertex cur = path.get(path.size() - 1);
+            List<Vertex<O>> path = stack.pop();
+            Vertex<O> cur = path.get(path.size() - 1);
             boolean extended = false;
             for (Edge e : graph.outgoingEdgesOf(cur)) {
                 MPVariable x = edgeVars.get(e);
                 if (x.solutionValue() > 0.5) {
-                    Vertex nxt = graph.getEdgeTarget(e);
+                    Vertex<O> nxt = graph.getEdgeTarget(e);
                     if (path.contains(nxt)) continue;
                     if (useVars.get(nxt).solutionValue() < 0.5) continue;
-                    List<Vertex> np = new ArrayList<>(path);
+                    List<Vertex<O>> np = new ArrayList<>(path);
                     np.add(nxt);
                     stack.push(np);
                     extended = true;
                 }
             }
             if (!extended) {
-                for (Vertex vv : path) globalVisited.add(vv);
+                for (Vertex<O> vv : path) globalVisited.add(vv);
                 tracks.add(path);
             }
         }
     }
 
     // ---------------- post-processing expansion (Option A) ----------------
-    private List<List<Vertex>> postProcessExpandGapsInTracks(List<List<Vertex>> tracks) {
-        List<List<Vertex>> out = new ArrayList<>();
-        for (List<Vertex> t : tracks) {
-            List<Vertex> current = new ArrayList<>(t);
+    private List<List<Vertex<O>>> postProcessExpandGapsInTracks(List<List<Vertex<O>>> tracks) {
+        List<List<Vertex<O>>> out = new ArrayList<>();
+        for (List<Vertex<O>> t : tracks) {
+            List<Vertex<O>> current = new ArrayList<>(t);
             // iterate pairs
             int i = 0;
             while (i < current.size() - 1) {
-                Vertex u = current.get(i);
-                Vertex v = current.get(i + 1);
+                Vertex<O> u = current.get(i);
+                Vertex<O> v = current.get(i + 1);
                 Edge direct = graph.getEdge(u, v);
                 if (direct != null && direct.gap() > 1 && edgeVars.get(direct).solutionValue() > 0.5) {
                     int gap = direct.gap();
@@ -561,19 +563,19 @@ public class TrackingILPSolver {
                         boolean ok = true;
                         Set<Edge> pathEdges = new HashSet<>(path);
                         // gather intermediate vertices
-                        List<Vertex> intermediates = new ArrayList<>();
+                        List<Vertex<O>> intermediates = new ArrayList<>();
                         for (Edge e : path) intermediates.add(graph.getEdgeTarget(e));
                         // remove first and last: intermediates include final target; we need mid-only:
-                        // actual intermediate vertices are vertices at indices 1..path.size()-1 of vertex list; we will check excluding u and v
+                        // actual intermediate vertices are vertices at indices 1..path.size()-1 of Vertex<O> list; we will check excluding u and v
                         // Actually build explicit mid list:
-                        List<Vertex> mids = new ArrayList<>();
-                        Vertex cursor = u;
+                        List<Vertex<O>> mids = new ArrayList<>();
+                        Vertex<O> cursor = u;
                         for (Edge e : path) {
-                            Vertex nxt = graph.getEdgeTarget(e);
+                            Vertex<O> nxt = graph.getEdgeTarget(e);
                             if (!nxt.equals(v)) mids.add(nxt);
                             cursor = nxt;
                         }
-                        for (Vertex mid : mids) {
+                        for (Vertex<O> mid : mids) {
                             // check incident selected edges; if any selected edge incident to mid is not part of the path, reject
                             for (Edge inc : graph.incomingEdgesOf(mid)) {
                                 MPVariable xx = edgeVars.get(inc);
@@ -589,11 +591,11 @@ public class TrackingILPSolver {
                         if (ok) {
                             // replace u->v with path vertices in the current track (in-place)
                             // build list of vertices for path: u, t1, t2, ..., v
-                            List<Vertex> pathVerts = new ArrayList<>();
+                            List<Vertex<O>> pathVerts = new ArrayList<>();
                             pathVerts.add(u);
                             for (Edge e : path) pathVerts.add(graph.getEdgeTarget(e));
                             // modify current replacing index i..i+1 with pathVerts
-                            List<Vertex> newCurrent = new ArrayList<>();
+                            List<Vertex<O>> newCurrent = new ArrayList<>();
                             newCurrent.addAll(current.subList(0, i)); // vertices before u
                             newCurrent.addAll(pathVerts);
                             if (i + 2 <= current.size()) newCurrent.addAll(current.subList(i + 2, current.size()));
@@ -613,23 +615,23 @@ public class TrackingILPSolver {
     }
 
     // Internal enumerator: find all simple forward-only paths from start to end of exactly length edges
-    private List<List<Edge>> findAllSimplePathsOfExactLengthInternal(Vertex start, Vertex end, int length) {
+    private List<List<Edge>> findAllSimplePathsOfExactLengthInternal(Vertex<O> start, Vertex<O> end, int length) {
         List<List<Edge>> result = new ArrayList<>();
         Deque<Edge> stack = new ArrayDeque<>();
-        Set<Vertex> visited = new HashSet<>();
+        Set<Vertex<O>> visited = new HashSet<>();
         visited.add(start);
         dfsFixedLengthInternal(start, end, length, stack, visited, result);
         return result;
     }
 
-    private void dfsFixedLengthInternal(Vertex cur, Vertex target, int remaining, Deque<Edge> stack, Set<Vertex> visited, List<List<Edge>> out) {
+    private void dfsFixedLengthInternal(Vertex<O> cur, Vertex<O> target, int remaining, Deque<Edge> stack, Set<Vertex<O>> visited, List<List<Edge>> out) {
         if (remaining == 0) {
             if (cur.equals(target)) out.add(new ArrayList<>(stack));
             return;
         }
         int curFrame = cur.getFrame();
         for (Edge e : graph.outgoingEdgesOf(cur)) {
-            Vertex nxt = graph.getEdgeTarget(e);
+            Vertex<O> nxt = graph.getEdgeTarget(e);
             if (nxt.getFrame() <= curFrame) continue;
             if (visited.contains(nxt)) continue;
             stack.addLast(e);

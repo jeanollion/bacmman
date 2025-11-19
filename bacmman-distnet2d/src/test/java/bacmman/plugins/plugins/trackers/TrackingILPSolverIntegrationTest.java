@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 
@@ -99,11 +100,11 @@ public class TrackingILPSolverIntegrationTest {
         // ---------------------------------------------------------
         // 1. Build PredictionGraph with complex case
         // ---------------------------------------------------------
-        PredictionGraph<MockObj> pg = new PredictionGraph<>();
-        pg.config = new PredictionGraph.Configuration();
-        pg.config.distancePower = 2;
-        pg.config.gapPower = 2;
-        pg.config.linkDistTolerance = 5;
+        PredictionGraph.Configuration config = new PredictionGraph.Configuration();
+        config.distancePower = 2;
+        config.gapPower = 2;
+        config.linkDistTolerance = 5;
+        PredictionGraph<MockObj> pg = new PredictionGraph<>(config);
 
         Map<Integer, Collection<MockObj>> objects = new HashMap<>();
 
@@ -211,7 +212,7 @@ public class TrackingILPSolverIntegrationTest {
         // Check that findAllSubPaths detects multiple subpaths 1→4
         // ---------------------------------------------------------
         List<List<PredictionGraph.Edge>> subPaths =
-                pg.findAllSubPaths(VA1, VA4).toList();
+                pg.findAllPaths(VA1, VA4).collect(Collectors.toList());
 
         log.info("Found {} subpaths from {}->{}", subPaths.size(), A1, A4);
         for (List<PredictionGraph.Edge> P : subPaths)
