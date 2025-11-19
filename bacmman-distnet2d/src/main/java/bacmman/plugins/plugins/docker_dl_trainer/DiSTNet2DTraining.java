@@ -428,7 +428,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
             attention.addValidationFunction(att -> frameWindow.getIntValue() != 0 || att.getIntValue() == 0);
-            attention.addValidationFunction(p -> frameWindow.getIntValue() >0 && ((ArchitectureParameter)p.getParent()).getActionValue().equals(ARCH_TYPE.TemA) ? p.getIntValue() > 0 : true);
+            attention.addValidationFunction(p -> frameWindow.getIntValue() >0);
 
             maxFrameDistance.addValidationFunction(d -> {
                 SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), d, true);
