@@ -1,6 +1,9 @@
 package bacmman.processing.matching.trackmate;
 
 import bacmman.data_structure.GraphObject;
+import bacmman.image.BoundingBox;
+import bacmman.image.MutableBoundingBox;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.processing.matching.trackmate.util.AlphanumComparator;
 import bacmman.utils.geom.Point;
 import net.imglib2.AbstractEuclideanSpace;
@@ -185,6 +188,11 @@ public class Spot<S extends Spot<S>> extends AbstractEuclideanSpace implements R
 			}
 		}
 	}
+
+    public BoundingBox getBounds() {
+        double rad = getFeature( RADIUS );
+        return new SimpleBoundingBox((int)(getDoublePosition(0) - rad), (int)Math.ceil(getDoublePosition(0) + rad), (int)(getDoublePosition(1) - rad), (int)Math.ceil(getDoublePosition(1) + rad), (int)(getDoublePosition(2) - rad), (int)Math.ceil(getDoublePosition(2) + rad) );
+    }
 
 	public S setLocation(RealLocalizable loc) {
 		putFeature( POSITION_X, loc.getDoublePosition(0) );

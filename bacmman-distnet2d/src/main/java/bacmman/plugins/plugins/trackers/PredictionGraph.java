@@ -1,63 +1,95 @@
 package bacmman.plugins.plugins.trackers;
 
-import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.GraphObject;
 import bacmman.data_structure.Voxel;
 import bacmman.image.BoundingBox;
 import bacmman.image.Offset;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
+import bacmman.utils.geom.Vector;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class PredictionGraph {
+public class PredictionGraph<O extends GraphObject.GraphObjectBds<O>> {
+    final static Logger logger = LoggerFactory.getLogger(PredictionGraph.class);
+
     public static class Configuration {
         double distancePower = 2; //
         double gapPower;
         int linkDistTolerance;
 
-        public int minTrackLength = 3;
-        public int maxTrackLength = 1000;
-
-        // Additional parameters for ILP
-        public int optimalTrackLengthMin = 10;
-        public int optimalTrackLengthMax = 100;
-        public double trackTooShortWeight = 0.5;
-        public double trackTooLongWeight = 0.1;
-
-        public double startCost = 5.0;
-        public double endCost = 5.0;
-        public int appearanceWindow = 3;
-        public int terminationWindow = 3;
-
-        public int maxDivisionBranches = 2;
-        public int maxMergerBranches = 2;
-
-        public double nullStartBonus = 2.0;
-        public double nullEndBonus = 2.0;
-
     }
-    public static class Vertex {
-        public enum VertexType {
-            REGULAR, DIVISION, MERGER
-        }
-        final SegmentedObject o;
-        final DiSTNet2D.LINK_MULTIPLICITY predictedFWLM, predictedBWLM;
-        private double trackStartBonus = 0.0;
-        private double trackEndBonus = 0.0;
+    public static class Vertex<O extends GraphObject.GraphObjectBds<O>> {
+        final O o;
+        double quality; // quality in [0, 1]
+        double[] lmBW; // link multiplicity probability backward. first axis = gap: 0 = successive, 1 = 1 frame gap etc.. second axis length = 3: SINGLE / MULTIPLE / NULL, sum to 1
+        double[] lmFW; // link multiplicity probability forward first axis = gap: 0 = successive, 1 = 1 frame gap etc.. second axis length = 3: SINGLE / MULTIPLE / NULL, sum to 1
 
-        public Vertex(SegmentedObject o, DiSTNet2D.LINK_MULTIPLICITY predictedFWLM, DiSTNet2D.LINK_MULTIPLICITY predictedBWLM) {
+        public Vertex(O o, double quality) {
             this.o = o;
-            this.predictedFWLM = predictedFWLM;
-            this.predictedBWLM = predictedBWLM;
+            this.quality = quality;
         }
+        public void setLMProbabilities(PredictionGraph graph, double[][] lmFW, double[][] lmBW) {
+            this.lmFW = this.unifyLM(graph, lmFW, true);
+            this.lmBW = this.unifyLM(graph, lmBW, false);
+        }
+        /**
+         * Build a unified LM probability vector of length (2 + maxGap):
+         *  index 0 -> P(NULL)
+         *  index 1 -> P(SINGLE gap=1)
+         *  index 2 -> P(MULT gap=1)
+         *  index k>=3 -> P(SINGLE gap = k-1)
+         *
+         * For any category that refers to gap G, if there is no incident edge in the graph
+         * with that gap (forward or backward depending on 'forward'), the probability is set to 0.
+         *
+         * lm: original double[gaps][3] as in your Vertex.lmFW / lmBW (gapIndex 0 -> gap=1)
+         */
+        protected double[] unifyLM(PredictionGraph<O> graph, double[][] lm, boolean forward) {
+            int maxGap = Math.min(lm.length, graph.graph.edgeSet().stream().mapToInt(Edge::gap).max().orElse(1)); // this may not be necessary
+            int numCategories = 2 + maxGap;
+            double[] out = new double[numCategories];
+            int frameMul = forward ? 1 : -1;
+
+            // NULL (index 0) — use lm[0][2] if present and at least one gap category exists (or keep it)
+            out[0] = lm[0][2];
+
+            // SINGLE gap=1 (index 1)
+            long successiveCount = graph.edgesOf(this, forward, this.getFrame() + frameMul).count();
+            if (successiveCount>=1) out[1] = lm[0][0];
+            else out[1] = 0.0;
+
+            // MULT gap=1 (index 2) – only allowed if there exists >=2 edges with gap==1
+            if (successiveCount>=2 ) {
+                out[2] = lm[0][1];
+            } else out[2] = 0.0;
+
+            // SINGLE gap>1 -> indices k>=3
+            for (int gap = 2; gap <= maxGap; ++gap) {
+                int category = gap + 1;
+                long count = graph.edgesOf(this, forward, this.getFrame() + frameMul * gap).count();
+                if (count>=1) out[category] = lm[gap - 1][0];
+                else out[category] = 0;
+            }
+
+            // normalize
+            double sum = DoubleStream.of(out).sum();
+            for (int i = 0; i < out.length; ++i) out[i] = out[i] / sum;
+            return out;
+        }
+
 
         public int getFrame() {
             return o.getFrame();
@@ -77,18 +109,6 @@ public class PredictionGraph {
             else return DiSTNet2D.LINK_MULTIPLICITY.MULTIPLE;
         }
 
-        public VertexType getType(SimpleWeightedGraph<Vertex, Edge> graph) {
-            if (fwLM(graph).equals(DiSTNet2D.LINK_MULTIPLICITY.MULTIPLE)) return VertexType.DIVISION;
-            else if (bwLM(graph).equals(DiSTNet2D.LINK_MULTIPLICITY.MULTIPLE)) return VertexType.MERGER;
-            else return VertexType.REGULAR;
-        }
-
-        public double getTrackStartBonus() { return trackStartBonus; }
-        public void setTrackStartBonus(double bonus) { this.trackStartBonus = bonus; }
-
-        public double getTrackEndBonus() { return trackEndBonus; }
-        public void setTrackEndBonus(double bonus) { this.trackEndBonus = bonus; }
-
     }
     public static class Edge extends DefaultWeightedEdge {
         double confidence;
@@ -104,69 +124,73 @@ public class PredictionGraph {
         }
 
     }
-    Map<SegmentedObject, Vertex> vertexMap = new HashMap<>();
-    SimpleWeightedGraph<Vertex, Edge> graph = new SimpleWeightedGraph<>(Edge.class);
+    Map<O, Vertex<O>> vertexMap = new HashMap<>();
+    SimpleWeightedGraph<Vertex<O>, Edge> graph = new SimpleWeightedGraph<>(Edge.class);
     Configuration config;
 
-    public void addEdges(Map<Integer, Collection<SegmentedObject>> objects, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, Function<SegmentedObject, DiSTNet2D.LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, DiSTNet2D.LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour, int gap) {
+    public void addEdges(Map<Integer, Collection<O>> objects, ToDoubleFunction<O> quality, ToDoubleFunction<O> dxFW, ToDoubleFunction<O> dxBW, ToDoubleFunction<O> dyFW, ToDoubleFunction<O> dyBW, Function<O, double[][]> lmFW, Function<O, double[][]> lmBW, Map<O, Set<Voxel>> contour, int gap) {
         if (objects.size()<=1) return;
         int minF = objects.keySet().stream().mapToInt(i -> i).min().getAsInt();
         int maxF = objects.keySet().stream().mapToInt(i -> i).max().getAsInt();
         for (int f = minF; f < maxF - gap; ++f) {
-            addEdges(objects, f, f+gap, dxFW, dxBW, dyFW, dyBW, lmFW, lmBW, contour);
+            addEdges(objects, f, f+gap, quality, dxFW, dxBW, dyFW, dyBW, lmFW, lmBW, contour);
         }
     }
 
-    public void addEdges(Map<Integer, Collection<SegmentedObject>> objects, int prevF, int nextF, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, Function<SegmentedObject, DiSTNet2D.LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, DiSTNet2D.LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour) {
-        Collection<SegmentedObject> prevs = objects.get(prevF);
-        Collection<SegmentedObject> nexts = objects.get(nextF);
+    Point getTranslatedCenter(O o, double dx, double dy, Offset trans) {
+        if (Double.isNaN(dx) || Double.isNaN(dy)) return null; // gap not supported
+        return o.getCenter().duplicate()
+                .translateRev(new Vector(dx, dy)) // translate by predicted displacement
+                .translate(trans);
+    }
+
+    public void addEdges(Map<Integer, Collection<O>> objects, int prevF, int nextF, ToDoubleFunction<O> quality, ToDoubleFunction<O> dxFW, ToDoubleFunction<O> dxBW, ToDoubleFunction<O> dyFW, ToDoubleFunction<O> dyBW, Function<O, double[][]> lmFW, Function<O, double[][]> lmBW, Map<O, Set<Voxel>> contour) {
+        Collection<O> prevs = objects.get(prevF);
+        Collection<O> nexts = objects.get(nextF);
         if (prevs.isEmpty() || nexts.isEmpty()) return;
-        Offset transFW = nexts.iterator().next().getParent().getBounds().duplicate().translate(prevs.iterator().next().getParent().getBounds().duplicate().reverseOffset());
-        Offset transBW = prevs.iterator().next().getParent().getBounds().duplicate().translate(nexts.iterator().next().getParent().getBounds().duplicate().reverseOffset());
-        Map<SegmentedObject, Point> prevTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->DiSTNet2D.getTranslatedCenter(o, dxFW.applyAsDouble(o), dyFW.applyAsDouble(o), transFW));
-        Map<SegmentedObject, Point> nextTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>( o->DiSTNet2D.getTranslatedCenter(o, dxBW.applyAsDouble(o), dyBW.applyAsDouble(o), transBW));
+        Offset transFW = nexts.iterator().next().getParentBounds().duplicate().translate(prevs.iterator().next().getParentBounds().duplicate().reverseOffset());
+        Offset transBW = prevs.iterator().next().getParentBounds().duplicate().translate(nexts.iterator().next().getParentBounds().duplicate().reverseOffset());
+        Map<O, Point> prevTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->getTranslatedCenter(o, dxFW.applyAsDouble(o), dyFW.applyAsDouble(o), transFW));
+        Map<O, Point> nextTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>( o->getTranslatedCenter(o, dxBW.applyAsDouble(o), dyBW.applyAsDouble(o), transBW));
         // forward links
-        for (SegmentedObject source : prevs) addEdges(source, prevTranslatedCenter.get(source), nexts.stream(), contour, lmFW, lmBW);
+        for (O source : prevs) addEdges(source, prevTranslatedCenter.get(source), nexts.stream(), contour, quality);
         // backward links
-        for (SegmentedObject source : nexts) addEdges(source, nextTranslatedCenter.get(source), prevs.stream(), contour, lmFW, lmBW);
+        for (O source : nexts) addEdges(source, nextTranslatedCenter.get(source), prevs.stream(), contour, quality);
         // bw / fw redundancy
-        for (SegmentedObject prev: prevs) { // fw
-            Vertex prevV = vertexMap.get(prev);
+        for (O prev: prevs) { // fw
+            Vertex<O> prevV = vertexMap.get(prev);
             edgesOf(prevV, true, nextF).collect(Collectors.toList()).stream().forEach(fwd -> {
-                Vertex nextV = graph.getEdgeTarget(fwd);
+                Vertex<O> nextV = graph.getEdgeTarget(fwd);
                 Edge bck = graph.getEdge(nextV, prevV);
                 if (bck != null) { // if bidirectional : remove backward and set confidence to mean confidence
                     graph.removeEdge(bck);
                     fwd.setConfidence( ( fwd.confidence + bck.confidence ) / 2);
-                } else if (!lmBW.apply(nextV.o).equals(DiSTNet2D.LINK_MULTIPLICITY.MULTIPLE)) { // reduce confidence if next is not a merge vertex
-                    fwd.setConfidence( fwd.confidence / 2 );
                 }
                 graph.setEdgeWeight(fwd, 1 - fwd.confidence);
             });
         }
-        for (SegmentedObject next: nexts) { // bw
-            Vertex nextV = vertexMap.get(next);
+        for (O next: nexts) { // bw
+            Vertex<O> nextV = vertexMap.get(next);
             edgesOf(nextV, true, prevF).collect(Collectors.toList()).stream().forEach(bck -> {
-                Vertex prevV = graph.getEdgeTarget(bck);
+                Vertex<O> prevV = graph.getEdgeTarget(bck);
                 // at this stage bck only exists if it is not bidirectional.
                 // turn bck into fwd link
                 Edge fwd = graph.addEdge(prevV, nextV).setConfidence(bck.confidence);
                 graph.removeEdge(bck);
-                if (!lmFW.apply(prevV.o).equals(DiSTNet2D.LINK_MULTIPLICITY.MULTIPLE)) { // reduce confidence if prev is not a division vertex
-                    fwd.setConfidence( fwd.confidence / 2 );
-                }
                 graph.setEdgeWeight(fwd, 1 - fwd.confidence);
             });
         }
         // gap redundancy : remove gap link if an equivalent path with less gaps exist, and reinforce it
         if (nextF - prevF > 1) {
-            for (SegmentedObject prev : prevs) {
-                Vertex prevV = vertexMap.get(prev);
-                for (Vertex nextV : verticesOf(prevV, true).filter(n -> n.o.getFrame() == nextF).collect(Collectors.toList())) {
-                    List<List<Edge>> subPaths = findAllSubPaths(prevV, nextV).collect(Collectors.toList());
+            for (O prev : prevs) {
+                Vertex<O> prevV = vertexMap.get(prev);
+                for (Vertex<O> nextV : verticesOf(prevV, true).filter(n -> n.o.getFrame() == nextF).collect(Collectors.toList())) {
+                    Edge direct = graph.getEdge(prevV, nextV);
+                    if (direct == null) continue;
+                    List<List<Edge>> subPaths = findAllSubPaths(prevV, nextV).filter(keepIsolatedPath()).collect(Collectors.toList());
                     if (!subPaths.isEmpty()) { // gap edge can be simplified.
-                        Edge e = graph.removeEdge(prevV, nextV);
-                        double costMul = Math.pow(1 - e.confidence, config.gapPower);
+                        graph.removeEdge(prevV, nextV);
+                        double costMul = Math.min(1, Math.pow(1 - direct.confidence, config.gapPower));
                         for (List<Edge> p : subPaths) { // reinforce paths
                             for (Edge ee : p) graph.setEdgeWeight(ee, graph.getEdgeWeight(ee) * costMul);
                         }
@@ -174,32 +198,75 @@ public class PredictionGraph {
                 }
             }
         }
+
+        // set vertices bw & fw multiplicity
+        for (Vertex<O> v: graph.vertexSet()) v.setLMProbabilities(this, lmFW.apply(v.o), lmBW.apply(v.o));
     }
 
-    public Stream<Edge> edgesOf(Vertex v, boolean source) {
-        if (source) return graph.outgoingEdgesOf(v).stream();
+    public Stream<Edge> edgesOf(Vertex<O> v, boolean isSource) {
+        if (isSource) return graph.outgoingEdgesOf(v).stream();
         else return graph.incomingEdgesOf(v).stream();
     }
 
-    public Stream<Vertex> verticesOf(Vertex v, boolean source) {
-        if (source) return edgesOf(v, true).map(graph::getEdgeTarget);
+    public Stream<Vertex<O>> verticesOf(Vertex<O> v, boolean isSource) {
+        if (isSource) return edgesOf(v, true).map(graph::getEdgeTarget);
         else return edgesOf(v, false).map(graph::getEdgeSource);
     }
 
-    public Stream<Edge> edgesOf(Vertex v, boolean source, int otherFrame) {
-        if (source) return edgesOf(v, source).filter(e -> graph.getEdgeTarget(e).o.getFrame() == otherFrame);
-        else return edgesOf(v, source).filter(e -> graph.getEdgeSource(e).o.getFrame() == otherFrame);
+    public Stream<Edge> edgesOf(Vertex<O> v, boolean isSource, int otherFrame) {
+        if (isSource) return edgesOf(v, true).filter(e -> graph.getEdgeTarget(e).o.getFrame() == otherFrame);
+        else return edgesOf(v, false).filter(e -> graph.getEdgeSource(e).o.getFrame() == otherFrame);
     }
 
-    public Stream<List<Edge>> findAllSubPaths(Vertex prev, Vertex next) {
-        return IntStream.range(1, next.o.getFrame()).boxed().flatMap(i -> {
-            return edgesOf(prev, true, prev.o.getFrame() + i).flatMap(e ->  {
-                return findAllSubPaths(graph.getEdgeTarget(e), next).peek(p -> p.addFirst(e));
-            });
-        });
+    public Predicate<List<Edge>> keepIsolatedPath() { // all connected vertices of the track are contained in the track
+        return l -> {
+            List<Vertex<O>> allVertices =  l.stream().map(e -> graph.getEdgeTarget(e)).collect(Collectors.toList());
+            allVertices.add(0,  graph.getEdgeSource((l.get(0))) );
+            return IntStream.range(1, allVertices.size()-1).mapToObj(allVertices::get)
+                    .flatMap(v->Stream.concat(verticesOf(v, false), verticesOf(v, true)))
+                    .allMatch(allVertices::contains);
+        };
+    }
+    /**
+     * Find all simple forward-only paths (list of edges) from 'start' to 'end' where
+     * each step advances in frame and intermediate nodes have frames strictly between start and end.
+     * This is a DFS bounded by frames; it's safe and deterministic.
+     */
+    public Stream<List<Edge>> findAllSubPaths(Vertex<O> start, Vertex<O> end) {
+        List<List<Edge>> result = new ArrayList<>();
+        Deque<Edge> stack = new ArrayDeque<>();
+        Set<Vertex<O>> visited = new HashSet<>();
+        visited.add(start);
+        dfsFindPaths(start, end, stack, visited, result);
+        return result.stream();
     }
 
-    protected void addEdges(SegmentedObject source, Point center, Stream<SegmentedObject> targetCandidates, Map<SegmentedObject, Set<Voxel>> contour, Function<SegmentedObject, DiSTNet2D.LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, DiSTNet2D.LINK_MULTIPLICITY> lmBW) {
+    private void dfsFindPaths(Vertex<O> cur, Vertex<O> target, Deque<Edge> stack, Set<Vertex<O>> visited, List<List<Edge>> result) {
+        if (cur.equals(target)) {
+            // record path (copy)
+            result.add(new ArrayList<>(stack));
+            return;
+        }
+        int curFrame = cur.o.getFrame();
+        int targetFrame = target.o.getFrame();
+        // Only follow edges that strictly go forward in time and don't overshoot targetFrame
+        for (Edge e : graph.outgoingEdgesOf(cur)) {
+            Vertex nxt = graph.getEdgeTarget(e);
+            int nxtFrame = nxt.o.getFrame();
+            if (nxtFrame <= curFrame || nxtFrame > targetFrame) continue;
+            if (visited.contains(nxt)) continue; // avoid cycles / repeated nodes
+            // push and continue
+            stack.addLast(e);
+            visited.add(nxt);
+            dfsFindPaths(nxt, target, stack, visited, result);
+            // pop
+            visited.remove(nxt);
+            stack.removeLast();
+        }
+    }
+
+
+    protected void addEdges(O source, Point center, Stream<O> targetCandidates, Map<O, Set<Voxel>> contour, ToDoubleFunction<O> quality) {
         double thld = config.linkDistTolerance * config.linkDistTolerance;
         targetCandidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds(), config.linkDistTolerance))
             .forEach(o -> {
@@ -207,14 +274,14 @@ public class PredictionGraph {
                     double d2 = center.distSq((Offset)v);
                     if (d2 <= thld) {
                         double confidence = Math.pow(1 - Math.sqrt(d2) / config.linkDistTolerance, config.distancePower);
-                        Vertex sourceV = vertexMap.get(source);
+                        Vertex<O> sourceV = vertexMap.get(source);
                         if (sourceV == null) {
-                            sourceV = new Vertex(source, lmFW.apply(source), lmBW.apply(source));
+                            sourceV = new Vertex<O>(source, quality.applyAsDouble(source));
                             graph.addVertex(sourceV);
                         }
-                        Vertex oV = vertexMap.get(o);
+                        Vertex<O> oV = vertexMap.get(o);
                         if (oV == null) {
-                            oV = new Vertex(o, lmFW.apply(o), lmBW.apply(o));
+                            oV = new Vertex<O>(o, quality.applyAsDouble(o));
                             graph.addVertex(oV);
                         }
                         graph.addEdge(sourceV, oV).setConfidence(confidence);
@@ -225,19 +292,19 @@ public class PredictionGraph {
         );
     }
 
-    public List<SimpleWeightedGraph<Vertex, Edge>> computeClusters() {
-        ConnectivityInspector<Vertex, Edge> inspector = new ConnectivityInspector<>(graph);
-        List<Set<Vertex>> connectedSets = inspector.connectedSets();
-        List<SimpleWeightedGraph<Vertex, Edge>> clusters = new ArrayList<>();
+    public List<SimpleWeightedGraph<Vertex<O>, Edge>> computeClusters() {
+        ConnectivityInspector<Vertex<O>, Edge> inspector = new ConnectivityInspector<>(graph);
+        List<Set<Vertex<O>>> connectedSets = inspector.connectedSets();
+        List<SimpleWeightedGraph<Vertex<O>, Edge>> clusters = new ArrayList<>();
 
-        for (Set<Vertex> connectedSet : connectedSets) {
-            SimpleWeightedGraph<Vertex, Edge> cluster = new SimpleWeightedGraph<>(Edge.class);
-            for (Vertex vertex : connectedSet) {
+        for (Set<Vertex<O>> connectedSet : connectedSets) {
+            SimpleWeightedGraph<Vertex<O>, Edge> cluster = new SimpleWeightedGraph<>(Edge.class);
+            for (Vertex<O> vertex : connectedSet) {
                 cluster.addVertex(vertex);
             }
             for (Edge edge : graph.edgeSet()) {
-                Vertex source = graph.getEdgeSource(edge);
-                Vertex target = graph.getEdgeTarget(edge);
+                Vertex<O> source = graph.getEdgeSource(edge);
+                Vertex<O> target = graph.getEdgeTarget(edge);
                 if (connectedSet.contains(source) && connectedSet.contains(target)) {
                     cluster.addVertex(source);
                     cluster.addVertex(target);

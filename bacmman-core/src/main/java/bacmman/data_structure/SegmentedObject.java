@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 import static bacmman.data_structure.SegmentedObjectUtils.getSiblings;
 
 
-public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject<SegmentedObject>, JSONSerializable {
+public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject.GraphObjectBds<SegmentedObject>, JSONSerializable {
     public final static Logger logger = LoggerFactory.getLogger(SegmentedObject.class);
     public static final String TRACK_ERROR_PREV = "TrackErrorPrev";
     public static final String TRACK_ERROR_NEXT = "TrackErrorNext";
@@ -954,6 +954,15 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     public BoundingBox<? extends BoundingBox<?>> getBounds() {
         if (region==null && regionContainer!=null) return regionContainer.getBounds();
         return getRegion().getBounds();
+    }
+    @Override
+    public BoundingBox<? extends BoundingBox<?>> getParentBounds() {
+        if (isRoot()) return getBounds();
+        else return getParent().getBounds();
+    }
+    @Override
+    public Point getCenter() {
+        return getRegion().getCenterOrGeomCenter();
     }
     protected void createRegionContainer() {
         this.regionContainer= region.createRegionContainer(this);
