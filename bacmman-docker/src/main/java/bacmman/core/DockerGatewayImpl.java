@@ -156,7 +156,8 @@ public class DockerGatewayImpl implements DockerGateway {
     @Override
     public final String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBindingHostToContainer, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs) {
         HostConfig hostConfig = HostConfig.newHostConfig()
-                .withAutoRemove(true);
+                .withAutoRemove(true)
+                .withUlimits(new Ulimit[]{new Ulimit("nofile", 65535L, 65535L)});
                 //.withRestartPolicy(RestartPolicy.noRestart())
                 //.withDevices(Collections.EMPTY_LIST)
                 //.withBlkioDeviceReadBps(Collections.emptyList()).withBlkioDeviceWriteBps(Collections.emptyList()).withBlkioDeviceWriteIOps(Collections.emptyList()).withBlkioDeviceReadIOps(Collections.emptyList()).withBlkioWeightDevice(Collections.emptyList());
