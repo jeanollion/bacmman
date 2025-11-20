@@ -133,6 +133,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
     protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
     protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps = Double.NaN;
+    protected int startEpoch = 0;
 
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
     ProgressCallback bacmmanLogger;
@@ -259,6 +260,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         startTrainingButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
+            startEpoch = 0;
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
             writeModelTrainConfigFile();
@@ -1193,13 +1195,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
         int maxStep = stepProgressBar.getMaximum();
-        if (currentStep <= 1 && currentEpoch == 1) {
+        if ( currentStep <= 1 && (currentEpoch == 1 || startEpoch <=0)) {
             trainTime = System.currentTimeMillis();
             elapsedSteps = Double.NaN;
             stepDuration = Double.NaN;
         }
         if (!isStep) {
-            if (currentEpoch == 1) {
+            if (currentEpoch == 1 || startEpoch <= 0) {
                 lastEpochTime = System.currentTimeMillis();
             } else if (currentEpoch > 1) {
                 long currentEpochTime = System.currentTimeMillis();
@@ -1240,6 +1242,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             trainingTime = "      /      ";
         }
         timeLabel.setText(stepTime + " | Epoch: " + epochTime + " | Total: " + trainingTime);
+        if (startEpoch<=0) startEpoch = currentEpoch;
     }
 
     protected void parseTestDataAugProgress(String message) {
