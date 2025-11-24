@@ -19,6 +19,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
+
 public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, DockerDLTrainer.MixedPrecision, Hint {
     BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new HardSampleMiningParameter("Hard Sample Mining", 6, new FloatParameter("Scale", 8).setHint("Scale of the segmented objects (thickness). Set the thickness (in the smallest axis) of common small objects.")), mixedPrecision};
@@ -244,7 +246,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. <br/>EXISTING: choose previously defined selection. NEW: will generate a selection<br/>In either case, all objets of the resulting selection must have identical spatial dimensions. <br>To include subsets that do not have same spatial dimension make one dataset per spatial dimension, and list them in the training configuration (DatasetList parameter)");
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
-    ArrayNumberParameter extractDims = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
+    ArrayNumberParameter extractDims = getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
     IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
     EnumChoiceParameter<TrainingConfigurationParameter.RESIZE_MODE> resideMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE,
             () -> selMode.getSelectedEnum().equals(SELECTION_MODE.NEW)?parentObjectClass.getSelectedIndex() : extractSel.getSelectedSelections().mapToInt(Selection::getObjectClassIdx).min().orElse(-1),
@@ -403,6 +405,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter attentionFilters = new IntegerParameter("Attention Filters", 64).setLowerBound(1)
                 .setLegacyParameter((p,i)->i.setValue(((BoundedNumberParameter)p[0]).getIntValue()), filters)
                 .setHint("Number of filter for each head of the attention layers.");
+        ArrayNumberParameter attentionRadius = getInputShapeParameter(false, false, new int[]{7, 7}, null).setName("Attention Radius").setMaxChildCount(2);
         EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.RoPE_2D).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
@@ -420,10 +423,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, selfAttention, attentionFilters, attentionRadius, attentionPosEncMode, maxFrameDistance, categoryNumber);
             } else {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attention, selfAttention, attentionFilters, attentionPosEncMode, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, selfAttention, attentionFilters, attentionRadius, attentionPosEncMode, maxFrameDistance, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
@@ -492,7 +495,6 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("n_downsampling", downsamplingNumber.getIntValue());
             res.put("skip_connections", skip.toJSONEntry());
             res.put("early_downsampling", earlyDownsampling.toJSONEntry());
-            res.put("attention", attention.getValue());
             res.put("self_attention", selfAttention.getValue());
             res.put("attention_filters", attentionFilters.getValue());
             res.put("attention_positional_encoding", attentionPosEncMode.getSelectedEnum().toString());
@@ -501,10 +503,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 case TemA: {
                     res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
                     res.put("temporal_attention", temporalAttention.toJSONEntry());
+                    res.put("attention_spatial_radius", attentionRadius.toJSONEntry());
                     break;
                 }
                 case BLEND:
                 default: {
+                    res.put("attention", attention.getValue());
                     res.put("frame_aware", frameAware.toJSONEntry());
                     if (frameAware.getSelected()) res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
                     res.put("blending_filter_factor", blendingFilterFactor.getDoubleValue());
