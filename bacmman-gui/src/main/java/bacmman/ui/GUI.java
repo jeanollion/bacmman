@@ -599,12 +599,27 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         ConfigurationTreeGenerator.addToMenu(dockerShmSizeMb, dockerMenu);
 
         // default DLEngine
-        try {
-            defaultDLEngine.setSelectedItem("TF2Engine");
-        } catch (Exception e) {
-
+        if (PropertyUtils.get(PropertyUtils.DEFAULT_DL_ENGINE)==null) {
+            try {
+                defaultDLEngine.setSelectedItem("TF2Engine");
+                defaultDLEngine.instantiatePlugin();
+            } catch (Exception e1) {
+                if (Core.getCore().getDockerGateway() != null && Core.getCore().getDockerGateway().dockerStarted()) {
+                    try {
+                        defaultDLEngine.setSelectedItem("DockerEngine");
+                        defaultDLEngine.instantiatePlugin();
+                    } catch (Exception e2) {
+                        defaultDLEngine.setSelectedItem(null);
+                    }
+                } else defaultDLEngine.setSelectedItem(null);
+            }
         }
         PropertyUtils.setPersistent(defaultDLEngine, PropertyUtils.DEFAULT_DL_ENGINE);
+        try {
+            defaultDLEngine.instantiatePlugin();
+        } catch (Exception e) {
+            defaultDLEngine.setSelectedItem(null);
+        }
         String hint = defaultDLEngine.getHintText();
         if (hint!=null && !hint.isEmpty()) defaultDLEngineMenu.setToolTipText(formatHint(hint, true));
         Parameter[] defDLEngineParams = new DefaultEngine().getParameters();

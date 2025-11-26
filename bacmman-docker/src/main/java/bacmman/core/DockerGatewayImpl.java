@@ -67,6 +67,17 @@ public class DockerGatewayImpl implements DockerGateway {
                 .build();
         dockerClient = DockerClientImpl.getInstance(config, httpClient);
     }
+
+    @Override
+    public boolean dockerStarted() {
+        try {
+            dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> new String[]{i.getRepoTags()[0], i.getId()});
+            return true;
+        } catch (RuntimeException e ) {
+            return false;
+        }
+    }
+
     @Override
     public Stream<String[]> listImages() {
         try {

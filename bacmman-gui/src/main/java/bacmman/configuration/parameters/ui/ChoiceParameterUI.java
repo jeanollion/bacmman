@@ -97,10 +97,15 @@ public class ChoiceParameterUI implements ArmableUI {
             if (choice_ instanceof PluginParameter) { // add hint to menu
                 Class plugClass = PluginFactory.getPluginClass(choices[i]);
                 if (plugClass!=null && (Hint.class.isAssignableFrom(plugClass) || HintSimple.class.isAssignableFrom(plugClass))) {
-                    Plugin p = PluginFactory.getPlugin(((PluginParameter)choice_).getPluginType(), choices[i]);
-                    if (p!=null) {
-                        if (p instanceof HintSimple) actionChoice[i].setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
-                        else actionChoice[i].setToolTipText(formatHint(((Hint)p).getHintText()));
+                    try {
+                        Plugin p = PluginFactory.getPlugin(((PluginParameter) choice_).getPluginType(), choices[i]);
+                        if (p != null) {
+                            if (p instanceof HintSimple)
+                                actionChoice[i].setToolTipText(formatHint(((HintSimple) p).getSimpleHintText()));
+                            else actionChoice[i].setToolTipText(formatHint(((Hint) p).getHintText()));
+                        }
+                    } catch (NoClassDefFoundError e) {
+                        logger.info("Could not instantiate plugin {}", ((PluginParameter) choice_).getPluginType());
                     }
                 }
                 
