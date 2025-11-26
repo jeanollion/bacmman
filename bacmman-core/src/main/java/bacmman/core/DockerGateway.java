@@ -18,6 +18,7 @@ import java.util.stream.Stream;
 
 public interface DockerGateway {
     Logger logger = LoggerFactory.getLogger(DockerGateway.class);
+    boolean dockerStarted();
     Stream<String[]> listImages();
     String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress);
