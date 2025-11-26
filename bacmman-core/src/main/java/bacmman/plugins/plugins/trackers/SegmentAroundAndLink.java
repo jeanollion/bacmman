@@ -64,6 +64,7 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         // set children to parents
         for (SegmentedObject p : parentTrack) {
             factory.setChildren(p, p.getChildren(referenceObjectClass).map(refMapSegmentedObject::get).filter(Objects::nonNull).collect(Collectors.toList()));
+            factory.relabelChildren(p);
         }
         // set links : copy ref links
         refMapSegmentedObject.forEach((ref, o) -> {
