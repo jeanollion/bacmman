@@ -205,12 +205,13 @@ public class ManualEdition {
                             unlinkObjects(p, n, ALWAYS_MERGE(), editor);
                         }
                     } else {
-                        if (p.getNext()!=null && p.getNext().equals(n) && n.getPrevious()!=null && n.getPrevious().equals(p) && n.getTrackHead().equals(p.getTrackHead())) continue;
-                        if (forceDoubleLink) { // unlink
-                            unlinkObjects(p, null, ALWAYS_MERGE(), editor);
-                            unlinkObjects(null, n, ALWAYS_MERGE(), editor);
+                        if (!(p.getNext()!=null && p.getNext().equals(n) && n.getPrevious()!=null && n.getPrevious().equals(p) && n.getTrackHead().equals(p.getTrackHead()))) {
+                            if (forceDoubleLink) { // unlink
+                                unlinkObjects(p, null, ALWAYS_MERGE(), editor);
+                                unlinkObjects(null, n, ALWAYS_MERGE(), editor);
+                            }
+                            linkObjects(p, n, true, editor);
                         }
-                        linkObjects(p, n, true, editor);
                     }
                 } else if (prev.size()==1) {
                     for (SegmentedObject c : current) {
