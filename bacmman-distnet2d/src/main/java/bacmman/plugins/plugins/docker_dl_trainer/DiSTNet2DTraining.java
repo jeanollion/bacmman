@@ -385,7 +385,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
     }
-    enum ARCH_TYPE {BLEND, TemA}
+    enum ARCH_TYPE {BLEND, TemA, TemPy}
     enum ATTENTION_POS_ENC_MODE {EMBEDDING, EMBEDDING_2D, RoPE, RoPE_2D, SINE, SINE_2D}
     public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration {
         // blend mode
@@ -405,7 +405,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter attentionFilters = new IntegerParameter("Attention Filters", 64).setLowerBound(1)
                 .setLegacyParameter((p,i)->i.setValue(((BoundedNumberParameter)p[0]).getIntValue()), filters)
                 .setHint("Number of filter for each head of the attention layers.");
-        ArrayNumberParameter attentionRadius = getInputShapeParameter(false, false, new int[]{15, 15}, null).setName("Attention Window").setMaxChildCount(2);
+        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{15, 15}, null).setName("Attention Window").setMaxChildCount(2);
         EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.RoPE_2D).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
@@ -423,10 +423,13 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionRadius, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, categoryNumber);
+
             } else {
                 setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionRadius, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, maxFrameDistance, categoryNumber);
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
@@ -502,7 +505,13 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 case TemA: {
                     res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
                     res.put("temporal_attention", temporalAttention.toJSONEntry());
-                    res.put("attention_spatial_radius", attentionRadius.toJSONEntry());
+                    res.put("attention_spatial_radius", attentionWindow.toJSONEntry());
+                    break;
+                }
+                case TemPy: {
+                    res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
+                    res.put("temporal_attention", temporalAttention.toJSONEntry());
+                    res.put("attention_spatial_radius", attentionWindow.toJSONEntry());
                     break;
                 }
                 case BLEND:
