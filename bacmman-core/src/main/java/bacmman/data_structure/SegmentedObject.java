@@ -921,6 +921,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             attributes.remove("MinorAxis");
             attributes.remove("Theta");
             attributes.remove("AspectRatio");
+            attributes.remove("Category");
+            attributes.remove("CategoryProbability");
         }
         if (region!= null) {
             if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());

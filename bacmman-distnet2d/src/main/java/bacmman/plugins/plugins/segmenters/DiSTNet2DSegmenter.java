@@ -93,7 +93,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         Image[] cat = segProx.v3;
         if (stores != null) {
             stores.get(parent).addIntermediateImage("EDM", edm);
-            stores.get(parent).addIntermediateImage("GCDM", gcdm);
+            stores.get(parent).addIntermediateImage("CDM", gcdm);
         }
         RegionPopulation pop = DiSTNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), null, stores);
         if (predictCategory.getSelected()) {
@@ -151,10 +151,12 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
                     res.setInterpolationForInput(res.getInputInterpolation(0), labelIdx);
                 }
             }
+
             if (frameAware) {
                 int frameInputIdx = nchannels + 2 * nlabels;
                 res.setScaler(frameInputIdx, null);
                 res.setInterpolationForInput(new InterpolationParameter("", InterpolationParameter.INTERPOLATION.NONE, true), frameInputIdx);
+                res.setNoResizing(frameInputIdx);
             }
             return res;
         }

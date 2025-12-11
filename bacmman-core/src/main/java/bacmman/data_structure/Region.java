@@ -247,13 +247,20 @@ public class Region {
         }
     }
 
+    Region setAttributesFrom(Region r) {
+        return this.setIsAbsoluteLandmark(r.absoluteLandmark)
+                .setQuality(r.quality)
+                .setCenter(r.center==null ? null : r.center.duplicate())
+                .setCategory(r.category, r.categoryProbability);
+    }
+
     public Region duplicate(boolean duplicateVoxels) {
         if (this.roi!=null) {
-            Region res = new Region(roi.duplicate(), label, new SimpleBoundingBox(bounds), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null : center.duplicate());
+            Region res = new Region(roi.duplicate(), label, new SimpleBoundingBox(bounds), scaleXY, scaleZ).setAttributesFrom(this);
             if (!duplicateVoxels && voxelsCreated()) res.voxels = new HashSet<>(voxels);
             return res;
         } else if (this.mask!=null) {
-            Region res = new Region(getMask().duplicateMask(), label, is2D).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null : center.duplicate());
+            Region res = new Region(getMask().duplicateMask(), label, is2D).setAttributesFrom(this);
             if (!duplicateVoxels && voxelsCreated()) res.voxels = new HashSet<>(voxels);
             return res;
         } else if (this.voxels!=null) {
@@ -262,8 +269,8 @@ public class Region {
                 vox = new HashSet<>(voxels.size());
                 for (Voxel v : voxels) vox.add(v.duplicate());
             } else vox = new HashSet<>(voxels);
-            if (bounds==null) return new Region(vox, label, is2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null: center.duplicate());
-            else return new Region(vox, label, new SimpleBoundingBox(bounds), is2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null: center.duplicate());
+            if (bounds==null) return new Region(vox, label, is2D, scaleXY, scaleZ).setAttributesFrom(this);
+            else return new Region(vox, label, new SimpleBoundingBox(bounds), is2D, scaleXY, scaleZ).setAttributesFrom(this);
         }
         return null;
     }

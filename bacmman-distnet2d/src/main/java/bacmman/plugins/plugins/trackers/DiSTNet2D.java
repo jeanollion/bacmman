@@ -486,6 +486,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         int catIdx = ArrayUtil.max(cat);
         o.setAttribute("Category", catIdx);
         o.setAttribute("CategoryProbability", cat[catIdx]);
+        o.getRegion().setCategory(catIdx, cat[catIdx]);
         if (stores != null) o.setAttribute("CategoryProbabilities", cat);
     }
 
