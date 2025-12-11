@@ -55,9 +55,9 @@ public class PixelData implements FeatureExtractorOneEntryPerInstance, Hint {
         for (EVFParameter p : evfList.getActivatedChildren()) {
             images.add(p.computeEVF(parent));
         }
-        int cx = includeXCoordinate.getSelected() ? images.size() : -1;
-        int cy = includeYCoordinate.getSelected() ? (cx>=0?cx+1 : images.size()) : -1;
-        int cz = includeZCoordinate.getSelected() ? (cy>=0? cy+1: ( cx>=0 ? cx+1 : images.size() ) ) : -1 ;
+        int cx = includeCoordinates.getSelected() && includeXCoordinate.getSelected() ? images.size() : -1;
+        int cy = includeCoordinates.getSelected() && includeYCoordinate.getSelected() ? (cx>=0?cx+1 : images.size()) : -1;
+        int cz = includeCoordinates.getSelected() && includeZCoordinate.getSelected() ? (cy>=0? cy+1: ( cx>=0 ? cx+1 : images.size() ) ) : -1 ;
         int coords = includeCoordinates.getSelected() ? (cx>=0?1:0) + (cy>=0?1:0) + (cz>=0?1:0) : 0;
         Image type = TypeConverter.castToIJ1ImageType(Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get()));
         int count = parentMask.count();
@@ -89,15 +89,35 @@ public class PixelData implements FeatureExtractorOneEntryPerInstance, Hint {
         } else ref = null;
         double[] referencePoint = ref == null ? new double[]{0, 0, 0} : new double[] {ref.get(0), ref.get(1), ref.getWithDimCheck(2)};
         if (count > 0 && referencePoint[ArrayUtil.min(referencePoint)] < 0 ) type = new ImageFloat("", 0, 0, 0); // will generate negative coordinates -> needs to be floating point
+        boolean addZDim = parent.is2D() && images.stream().anyMatch(im -> im.sizeZ()>1);
+        int sizeZ = images.stream().mapToInt(Image::sizeZ).max().getAsInt();
+        if (addZDim) count *= sizeZ;
         Image res = Image.createEmptyImage(Selection.indicesToString(SegmentedObjectUtils.getIndexTree(parent)), type, new SimpleImageProperties(count, images.size() + coords, 1, 1, 1));
+        int[] count2 = new int[1];
+        ImageMask.loop(parentMask, (x, y, z) -> count2[0]++);
         int[] idx = new int[1];
-        ImageMask.loop(parentMask, (x, y, z) -> {
-            for (int c = 0; c<images.size(); ++c) res.setPixel(idx[0], c, 0, images.get(c).getPixel(x, y, z));
-            if (cx>=0) res.setPixel(idx[0], cx, 0, x+referencePoint[0]);
-            if (cy>=0) res.setPixel(idx[0], cy, 0, y+referencePoint[1]);
-            if (cz>=0) res.setPixel(idx[0], cz, 0, z+referencePoint[2]);
-            ++idx[0];
-        });
+        if (!addZDim) {
+            ImageMask.loop(parentMask, (x, y, z) -> {
+                for (int c = 0; c < images.size(); ++c) res.setPixel(idx[0], c, 0, images.get(c).getPixel(x, y, z));
+                if (cx >= 0) res.setPixel(idx[0], cx, 0, x + referencePoint[0]);
+                if (cy >= 0) res.setPixel(idx[0], cy, 0, y + referencePoint[1]);
+                if (cz >= 0) res.setPixel(idx[0], cz, 0, z + referencePoint[2]);
+                ++idx[0];
+            });
+        } else { // 2D parent but 3D images
+            for (int z = 0; z<sizeZ; ++z) {
+                int fz = z;
+                ImageMask.loop(parentMask, (x, y, zz) -> {
+                    for (int c = 0; c < images.size(); ++c) {
+                        res.setPixel(idx[0], c, 0, images.get(c).getPixel(x, y, images.get(c).sizeZ()==1?0:fz));
+                    }
+                    if (cx >= 0) res.setPixel(idx[0], cx, 0, x + referencePoint[0]);
+                    if (cy >= 0) res.setPixel(idx[0], cy, 0, y + referencePoint[1]);
+                    if (cz >= 0) res.setPixel(idx[0], cz, 0, fz + referencePoint[2]);
+                    ++idx[0];
+                });
+            }
+        }
         return res;
     }
 
