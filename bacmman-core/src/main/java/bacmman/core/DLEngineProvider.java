@@ -70,7 +70,7 @@ public class DLEngineProvider {
         PluginParameter<DLEngine> defaultDLEngine = new PluginParameter<>("Default DLEngine", DLEngine.class, false);
         defaultDLEngine.setParent(xp);
         String params = PropertyUtils.get(PropertyUtils.DEFAULT_DL_ENGINE, null);
-        logger.debug("default DL Engine parameters: {}", params);
+        //logger.debug("default DL Engine parameters: {}", params);
         if (params == null) return null;
         try {
             defaultDLEngine.initFromJSONEntry(JSONUtils.parseJSON(params));

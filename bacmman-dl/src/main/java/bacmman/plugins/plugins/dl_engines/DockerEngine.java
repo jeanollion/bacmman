@@ -84,7 +84,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public void init() {
+    public synchronized void init() {
         if (containerID != null) return;
         containerID = getContainer();
         if (containerID == null) throw new RuntimeException("Container could not be initialized");
@@ -132,7 +132,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public Image[][][] process(Image[][]... inputNC) {
+    public synchronized Image[][][] process(Image[][]... inputNC) {
         if (containerID == null) throw new RuntimeException("Engine not initialized (no container)");
         if (inputNames == null || outputNames == null) throw new RuntimeException("Engine not initialized (model not loaded properly)");
         if (inputNC.length != inputNames.length) {

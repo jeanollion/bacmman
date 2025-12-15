@@ -32,6 +32,9 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -44,7 +47,7 @@ import java.util.stream.Stream;
  */
 
 public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration, ParameterWithLegacyInitialization<L, List<T>>, JSONSerializable.PartialInit {
-
+    final Logger logger = LoggerFactory.getLogger(ListParameterImpl.class);
     protected String name;
     protected ContainerParameter parent;
 
@@ -490,8 +493,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
 
     @Override
     public void remove(MutableTreeNode node) {
-        //System.out.println("removing node:"+((Parameter)node).toString() +" total number: "+children.size());
-        logger.info("(list) removing node:"+((Parameter)node).toString() +" total number: "+children.size());
+        //logger.info("removing node:"+((Parameter)node).toString() +" total number: "+children.size());
         boolean rem =  getChildren().remove((T)node);
         if (rem) {
             node.setParent(null);
@@ -499,8 +501,6 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         }
         
     }
-
-
 
     @Override
     public void setUserObject(Object object) {

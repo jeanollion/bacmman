@@ -183,8 +183,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         allImages.add(parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> crop.apply(p.getPreFilteredImage(objectClassIdx)))));
         for (int c  : additionalInputChannels) allImages.add(parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p -> crop.apply(p.getRawImageByChannel(c)))));
         for (int l : additionalInputLabels) {
-            Map<Integer, Image> edm = new HashMap<>(parentTrack.size());
-            Map<Integer, Image> gcdm = new HashMap<>(parentTrack.size());
+            Map<Integer, Image> edm = Collections.synchronizedMap(new HashMap<>(parentTrack.size()));
+            Map<Integer, Image> gcdm = Collections.synchronizedMap(new HashMap<>(parentTrack.size()));
             allImages.add(edm);
             allImages.add(gcdm);
             parentTrack.stream().parallel().forEach(p -> {
@@ -192,8 +192,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     RegionPopulation pop = p.getChildRegionPopulation(l, false);
                     if (bds != null)
                         pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
-                    edm.put(p.getFrame(), pop.getEDM(true, false));
-                    gcdm.put(p.getFrame(), pop.getGCDM(false));
+                    Image edmIm = pop.getEDM(true, false);
+                    Image gdcmIm = pop.getGCDM(false);
+                    edm.put(p.getFrame(), edmIm);
+                    gcdm.put(p.getFrame(), gdcmIm);
                 } catch (Throwable e) {
                     throw new RuntimeException("Error at EDM / GDCM computation at parent: "+p, e);
                 }
@@ -1694,11 +1696,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         for (int i = 0; i<images.size(); ++i) {
             res[i] = getInput(images.get(i), allFrames, frames, inputWindow, addNext, frameInterval, gapClosing);
             // check null input
-            for (int f = 0; f<res[i].length; ++f) {
-                for (int t = 0; t<res[i][f].length; ++t) {
-                    if (res[i][f][t]==null) {
-                        logger.error("Null image for input: {} frame: {} (idx:{}) frame window: {} frames: {} all frames: {}", i, frames[f], f, t, frames, allFrames);
-                        throw new RuntimeException("Null image for input: "+i+ " frame: "+frames[f]+" (idx="+f+") frame window idx: "+t);
+            for (int fidx = 0; fidx<res[i].length; ++fidx) {
+                for (int tidx = 0; tidx<res[i][fidx].length; ++tidx) {
+                    if (res[i][fidx][tidx]==null) {
+                        List<Integer> neigh = getNeighborhood(allFrames, frames[fidx], inputWindow, addNext, frameInterval, gapClosing);
+                        logger.error("Null image for input: {} frame: {} (idx:{}) neigh: {} (idx: {}) frames: {} all frames: {} neigh: {}. Null in all images: {}", i, frames[fidx], fidx, neigh.get(tidx), tidx, frames, allFrames, neigh, images.get(i).get(fidx)==null);
+                        throw new RuntimeException("Null image for input: "+i+ " frame: "+frames[fidx]+" (idx="+fidx+") frame window idx: "+tidx);
                     }
                 }
             }

@@ -224,7 +224,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         Map<SegmentedObject, Image[]> catMap = predictCategory.getSelected() ? new HashMap<>() : null;
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
-
+        logger.debug("predict parent: {}", parentTrack.get(0));
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
         int increment = batchSize.getIntValue ()<1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / batchSize.getIntValue()) );
         for (int i = 0; i < parentTrack.size(); i += increment ) {
@@ -237,7 +237,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             List<Map<Integer, Image>> allImages = inputMap == null ? DiSTNet2D.getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), minimalBounds) : inputMap;
             boolean frameAware  = engine.getInputNames().length == allImages.size() + 1;
             Image[][][] input = DiSTNet2D.getInputs(allImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
-            logger.debug("input: [{}; {}) / [{}; {}]", i, maxIdx, sortedFrames[0], sortedFrames[sortedFrames.length-1]);
+            logger.debug("input: [{}; {}) / [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame(), sortedFrames[0], sortedFrames[sortedFrames.length-1]);
             Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
 
             for (int f = i; f<maxIdx; ++f) {
