@@ -120,6 +120,7 @@ public class PixMClass implements DockerDLTrainer {
     enum ARCH_TYPE {UNET}
     public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration, ParameterWithLegacyInitialization<ArchitectureParameter, ARCH_TYPE> {
         IntegerParameter inputNumber = new IntegerParameter("Input Number", 1).setLowerBound(1).setHint("Input number. Must be consistent with dataset input channel");
+        IntegerParameter classNumber = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 256, 32, 1024).setHint("Number of filters at the feature level");
         BoundedNumberParameter filtersMin = new BoundedNumberParameter("Min. Filters", 0, 32, 8, 1024).setHint("Minimum Number of filters at all levels. <br>For each level L, the number of filter is filters / 2**(n_downsampling - l). This parameter ensures a minimum value for filters.");
 
@@ -133,7 +134,7 @@ public class PixMClass implements DockerDLTrainer {
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool);
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool);
         }
 
         public int getContraction() {
@@ -160,6 +161,7 @@ public class PixMClass implements DockerDLTrainer {
         public JSONObject getPythonConfiguration() {
             JSONObject res = new JSONObject();
             res.put("architecture_type", getActionValue().toString());
+            res.put("n_classes", classNumber.getIntValue());
             res.put("n_inputs", inputNumber.getIntValue());
             JSONArray sc = new JSONArray();
             if (!skip.getSelected()) sc.add(0);
