@@ -2,6 +2,7 @@ package bacmman.data_structure.dao;
 
 import bacmman.image.*;
 import bacmman.utils.UnaryPair;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -138,7 +139,9 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         if (used <= maxUsed || freeingMemory) return;
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
         freeingMemory = true;
-        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) ) {
+        long freed = 0;
+        int loopCount = 0;
+        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && loopCount <= queue.size() ) {
             if (!queue.isEmpty()) {
                 SimpleDiskBackedImage im = null;
                 synchronized (queue) {
@@ -148,12 +151,18 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 if (im != null) {
                     if (im.isOpen()) {
                         used -= im.heapMemory();
+                        freed += im.heapMemory();
                         im.freeMemory(true);
                     }
                 }
+                ++loopCount; // if memory fraction is too low : avoid infinite loop
             }
         }
         freeingMemory = false;
+        if (freed > 1024 * 1024 * 1000) {
+            double total = queue.stream().mapToDouble(im -> (double)im.heapMemory()/(1024 * 1024 * 1000)).sum();
+            logger.debug("freed : {}Gb/{}Gb used: {}% (total: {})", Utils.format((double)freed / (1024*1024*1000), 5), Utils.format(total, 5), Utils.format(Utils.getMemoryUsageProportion()*100, 5), Utils.format((double)Runtime.getRuntime().maxMemory() / (1024*1024*1000), 5));
+        }
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
 

@@ -78,26 +78,31 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed || freeingMemory) return;
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
-        long toFree = used - maxUsed;
         freeingMemory = true;
+        long freed = 0;
         int loopCount = 0;
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && loopCount <= queue.size()) {
-            DiskBackedImage im = null;
-            synchronized (queue) {
-                im = queue.poll();
-                queue.add(im);
-            }
-            if (im != null) {
-                if (im.isOpen()) {
-                    used -= im.heapMemory();
-                    im.freeMemory(true); // sync on im
-                    loopCount = 0;
+            if (!queue.isEmpty()) {
+                DiskBackedImage im = null;
+                synchronized (queue) {
+                    im = queue.poll();
+                    queue.add(im);
                 }
+                if (im != null) {
+                    if (im.isOpen()) {
+                        used -= im.heapMemory();
+                        freed += im.heapMemory();
+                        im.freeMemory(true);
+                    }
+                }
+                ++loopCount; // if memory fraction is too low : avoid infinite loop
             }
-            ++loopCount; // if memory fraction is too low : avoid infinite loop
         }
         freeingMemory = false;
-        logger.debug("freed : {}Mb/{}Mb used: {}", (double)toFree / (1000*1000), (double)Runtime.getRuntime().maxMemory() / (1000*1000), Utils.getMemoryUsageProportion());
+        if (freed > 1024 * 1024 * 1000) {
+            double total = queue.stream().mapToDouble(im -> (double)im.heapMemory()/(1024 * 1024 * 1000)).sum();
+            logger.debug("freed : {}Gb/{}Gb used: {}% (total: {})", Utils.format((double)freed / (1024*1024*1000), 5), Utils.format(total, 5), Utils.format(Utils.getMemoryUsageProportion()*100, 5), Utils.format((double)Runtime.getRuntime().maxMemory() / (1024*1024*1000), 5));
+        }
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
 

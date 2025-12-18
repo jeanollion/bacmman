@@ -20,6 +20,7 @@ package bacmman.plugins;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
+import bacmman.image.SimpleDiskBackedImage;
 import bacmman.ui.gui.image_interaction.OverlayDisplayer;
 import bacmman.utils.HashMapGetCreate;
 
@@ -80,6 +81,7 @@ public interface TestableProcessingPlugin extends ImageProcessingPlugin {
         
         public void addIntermediateImage(String imageName, Image image) {
             if (image==null) return;
+            if (image instanceof SimpleDiskBackedImage) image = ((SimpleDiskBackedImage)image).getImage();
             images.put(imageName, image);
             if (!nameOrder.containsKey(imageName)) nameOrder.put(imageName, nameOrder.size());
         }

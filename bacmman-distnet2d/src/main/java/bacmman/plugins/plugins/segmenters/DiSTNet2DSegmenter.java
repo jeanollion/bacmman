@@ -6,10 +6,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.github.gist.DLModelMetadata;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.image.MutableBoundingBox;
+import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.PercentileScaler;
@@ -95,6 +92,8 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             stores.get(parent).addIntermediateImage("EDM", edm);
             stores.get(parent).addIntermediateImage("CDM", gcdm);
         }
+        if (edm instanceof SimpleDiskBackedImage) edm = ((SimpleDiskBackedImage)edm).getImage();
+        if (gcdm instanceof SimpleDiskBackedImage) gcdm = ((SimpleDiskBackedImage)gcdm).getImage();
         RegionPopulation pop = DiSTNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), null, stores);
         if (predictCategory.getSelected()) {
             pop.getRegions().forEach( r ->  {
@@ -125,14 +124,14 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         }
         // perform prediction on single image
         logger.debug("Segmenter not configured! Prediction will be performed one by one, performance might be reduced. maps are null: {}", edmMap==null);
-        List<Map<Integer, Image>> allImages;
-        if (getAdditionalChannels().length == 0 && getAdditionalLabels().length == 0) {
-            allImages = Collections.singletonList(Collections.singletonMap(parent.getFrame(), input));
-        } else {
-            allImages = DiSTNet2D.getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), Collections.singletonList(parent), null);
-            allImages.get(0).put(parent.getFrame(), input);
+        DiSTNet2D.InputImages inputImages = new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), Collections.singletonList(parent), null, null);
+        inputImages.setImage(parent.getFrame(), input);
+        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(Collections.singletonList(parent), objectClassIdx, inputImages, null);
+        if (stores != null) {
+            for (int i = 1; i<inputImages.nInputs(); ++i) {
+                stores.get(parent).addIntermediateImage("AdditionalInput"+i, inputImages.getImage(parent.getFrame(), i));
+            }
         }
-        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(Collections.singletonList(parent), objectClassIdx, allImages, null);
         return new Triplet<>(res.v1.get(parent), res.v2.get(parent), res.v3 == null ? null : res.v3.get(parent));
     }
 
@@ -217,7 +216,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         return predict(parentTrack, objectClassIdx, null, null);
     }
 
-    protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx, List<Map<Integer, Image>> inputMap, BoundingBox minimalBounds) {
+    protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx, DiSTNet2D.InputImages inputImages, BoundingBox minimalBounds) {
         Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p));
         Map<SegmentedObject, Image> edmMap = new HashMap<>();
         Map<SegmentedObject, Image> gcdmMap = new HashMap<>();
@@ -234,16 +233,25 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             int minFrameIdx = DiSTNet2D.search(sortedFrames, 0, minFrame, 0);
             int maxFrame = DiSTNet2D.getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), 0).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
             int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), DiSTNet2D.search(sortedFrames, maxIdx, maxFrame, 0) + 1);
-            List<Map<Integer, Image>> allImages = inputMap == null ? DiSTNet2D.getInputImageList(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), minimalBounds) : inputMap;
-            boolean frameAware  = engine.getInputNames().length == allImages.size() + 1;
-            Image[][][] input = DiSTNet2D.getInputs(allImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
+            if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), minimalBounds, null);
+            inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
+            if (stores != null) {
+                for (int pIdx = i; pIdx<maxIdx; ++pIdx) {
+                    SegmentedObject p = parentTrack.get(pIdx);
+                    for (int imIdx = 1; imIdx < inputImages.nInputs(); ++imIdx) {
+                        stores.get(p).addIntermediateImage("AdditionalInput" + imIdx, inputImages.getImage(p.getFrame(), imIdx));
+                    }
+                }
+            }
+            boolean frameAware  = engine.getInputNames().length == inputImages.nInputs() + 1;
+            Image[][][] input = DiSTNet2D.getInputs(inputImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
             logger.debug("input: [{}; {}) / [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame(), sortedFrames[0], sortedFrames[sortedFrames.length-1]);
             Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
 
             for (int f = i; f<maxIdx; ++f) {
                 int frame = sortedFrames[f];
                 SegmentedObject p = parentMap.get(frame);
-                Image ref = allImages.get(0).get(frame);
+                Image ref = inputImages.getImage(frame, 0);
                 predictionONC[0][f-i][0].setCalibration(ref).resetOffset().translate(ref);
                 edmMap.put(p, predictionONC[0][f-i][0]);
                 predictionONC[1][f-i][0].setCalibration(ref).resetOffset().translate(ref);
