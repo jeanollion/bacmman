@@ -401,7 +401,7 @@ public class HDF5IO {
         }
     }
 
-    public static void savePyDataset(List<Image> images, File outFile, boolean append, String dsName, int compressionLevel, boolean saveLabels, int[][] originalDimensions, Map<String, Object> metadata) {
+    public static void savePyDataset(List<Image> images, File outFile, boolean append, String dsName, int compressionLevel, String labelSuffix, int[][] originalDimensions, Map<String, Object> metadata) {
         if (images.isEmpty()) return;
         if (!Utils.objectsAllHaveSameProperty(images, Image::sameDimensions)) {
             List<Image> distinctImages =  images.stream().filter(Utils.distinctByKey(Image::getBoundingBox)).collect(Collectors.toList());
@@ -447,9 +447,9 @@ public class HDF5IO {
             }
         }
 
-        if (saveLabels) {
-            String[] labels = images.stream().map(i->i.getName()).toArray(s->new String[s]);
-            writer.string().writeArray(getLabelKey(dsName), labels);
+        if (labelSuffix != null) {
+            String[] labels = images.stream().map(SimpleImageProperties::getName).toArray(s->new String[s]);
+            writer.string().writeArray(getLabelKey(dsName, labelSuffix), labels);
         }
         //writer.string().setArrayAttr(dsName, "labels", labels); // not compatible with python
         saveMetadata(writer, dsName, metadata);
@@ -491,9 +491,14 @@ public class HDF5IO {
                 (new long[] { 0, 0, 0}) : (new long[] { 0, 0, 0, 0 });
         int[] iIdx = (imageIdx==null || imageIdx.length==0) ? ArrayUtil.generateIntegerArray(nImages) : imageIdx;
         final Image[] res = new Image[iIdx.length];
-        String labelKey = getLabelKey(dsName);
-        String[] labels = extractLabels && reader.getGroupMembers(getGroupName(dsName)).contains("labels") ?
-                reader.string().readArray(labelKey) : null;
+        String[] labels;
+        if (extractLabels) {
+            String labelName = reader.getGroupMembers(getGroupName(dsName)).stream().filter(n->n.startsWith("labels")).findAny().orElse(null);
+            if (labelName != null) {
+                String labelKey = getLabelKey(dsName, labelName.replace("labels", ""));
+                labels = reader.string().readArray(labelKey);
+            } else labels = null;
+        } else labels = null;
         if (labels!=null && labels.length!=nImages) throw new IllegalArgumentException("# of labels does not match dataset dimension");
 
         IntFunction<Image> retrieveImage = nDims==3 ?  i -> {
@@ -529,10 +534,10 @@ public class HDF5IO {
         }
         return res;
     }
-    private static String getLabelKey(String dsName) {
+    private static String getLabelKey(String dsName, String labelSuffix) {
         int lastGrpIdx = dsName.lastIndexOf('/');
-        if (lastGrpIdx>0) return dsName.substring(0, lastGrpIdx+1)+"labels";
-        else return "labels";
+        if (lastGrpIdx>0) return dsName.substring(0, lastGrpIdx+1)+"labels"+labelSuffix;
+        else return labelSuffix;
     }
     private static String getDimensionsKey(String dsName) {
         int lastGrpIdx = dsName.lastIndexOf('/');

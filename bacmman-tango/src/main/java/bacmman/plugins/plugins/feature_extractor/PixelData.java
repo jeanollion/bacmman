@@ -6,7 +6,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
 import bacmman.image.*;
-import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
+import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.Hint;
 import bacmman.processing.Medoid;
 import bacmman.processing.Resize;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-public class PixelData implements FeatureExtractorOneEntryPerInstance, Hint {
+public class PixelData implements FeatureExtractor.FeatureExtractorOneEntryPerInstance, Hint {
     SimpleListParameter<ChannelImageParameter> channels = new SimpleListParameter<>("Channels to Extract", new ChannelImageParameter("Channel")).setMinChildCount(1)
             .setChildrenNumber(1)
             .setHint("Choose object classes associated to the channels to be extracted. Note that each object class can only be selected once")

@@ -3,13 +3,9 @@ package bacmman.data_structure.region_container.roi;
 import bacmman.data_structure.Voxel;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
-import bacmman.utils.Palette;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.gui.ImageRoi;
-import ij.gui.Overlay;
-import ij.gui.PolygonRoi;
-import ij.gui.Roi;
+import ij.gui.*;
 import ij.process.FloatPolygon;
 import ij.process.ImageProcessor;
 import org.slf4j.Logger;
@@ -35,6 +31,40 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
     int frame;
     public IJRoi3D(int bucketSize) {
         super(bucketSize);
+    }
+
+    public Map<Integer, ImageShort> getCoordinates() {
+        return this.entrySet().stream().filter(e -> e.getKey()>=0).collect(Collectors.toMap(Entry::getKey, e -> {
+            Roi r = (e.getValue() instanceof ShapeRoi || e.getValue() instanceof PolygonRoi) ? e.getValue() : new ShapeRoi(e.getValue());
+            Polygon p = r.getPolygon();
+            ImageShort res = new ImageShort("", 2, p.npoints, 1);
+            for (int i = 0; i<p.npoints; ++i) {
+                res.setPixel(0, i, 0, p.xpoints[i] + locdx);
+                res.setPixel(1, i, 0, p.ypoints[i] + locdy);
+            }
+            return res;
+        }));
+    }
+
+    public ImageShort getFlattenCoordinates() { // (NOT TESTED) x=2 or 3, y=N, Z rois are flattened along y axis. if x = 3 last value of x axis is Z
+        Map<Integer, ImageShort> coords = getCoordinates();
+        if (is2D) return coords.values().iterator().next();
+        int n = coords.values().stream().mapToInt(SimpleImageProperties::sizeY).sum();
+        ImageShort res = new ImageShort("", 3, n, 1);
+        int offset = 0;
+        int zMin = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).min().getAsInt();
+        int zMax = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).max().getAsInt();
+        for (int z = zMin; z<=zMax; ++z) {
+            ImageShort c = coords.get(z);
+            if (c==null) continue;
+            for (int i = 0; i<c.sizeY(); ++i) {
+                res.setPixel(0, offset + i, 0, c.getPixelInt(0, i, 0));
+                res.setPixel(1, offset + i, 0, c.getPixelInt(1, i, 0));
+                res.setPixel(2, offset + i, 0, z);
+            }
+            offset += c.sizeY();
+        }
+        return res;
     }
 
     public ImageByte toMask(BoundingBox bounds, double scaleXY, double scaleZ) {

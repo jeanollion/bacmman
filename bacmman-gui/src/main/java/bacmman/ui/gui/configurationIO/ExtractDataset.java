@@ -5,7 +5,6 @@ import bacmman.core.Task;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
-import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.selection.SelectionRenderer;
@@ -85,13 +84,13 @@ public class ExtractDataset extends JDialog {
             SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter) t.getParent(), SelectionParameter.class, false).get(0);
             sel.setSelectionObjectClass(t.getSelectedClassIdx());
         }).addListener(t -> setEnableOk());
-        Predicate<ObjectClassParameter> isOneEntryPerInstanceFeature = p -> {
+        Predicate<ObjectClassParameter> selOCisOC = p -> {
             GroupParameter g = (GroupParameter) p.getParent();
             PluginParameter<FeatureExtractor> f = (PluginParameter<FeatureExtractor>) g.getChildAt(2);
             if (!f.isOnePluginSet()) return false;
-            return FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass());
+            return FeatureExtractor.FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass()) || FeatureExtractor.FeatureExtractorOneEntryPerTrack.class.isAssignableFrom(f.getSelectedPluginClass());
         };
-        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
+        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && selOCisOC.test(p) )));
         defName.addListener(t -> setEnableOk());
         defFeature.addListener(t -> setEnableOk());
         selectionParameter.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream());
