@@ -275,7 +275,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         boolean exportModel = trainer.getConfiguration().getSelectedDockerImage(false).equals(trainer.getConfiguration().getSelectedDockerImage(true));
                         String[] cmds = exportModel ? new String[]{"python", "train.py", "/data", "--min_script_version", trainer.minimalScriptVersion()} : new String[]{"python", "train.py", "/data", "--train_only", "--min_script_version", trainer.minimalScriptVersion()};
-                        if (!exportModel && trainer instanceof DockerDLTrainer.MixedPrecision) {
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
                             cmds = ArrayUtil.append(cmds, "--mixed_precision");
                         }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
@@ -361,6 +361,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         if (outputFile.exists()) outputFile.delete();
                         String[] cmds = new String[]{"python", "train.py", "/data", "--compute_metrics", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
+                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
@@ -553,6 +556,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                                     try {
                                         if (outputFile.exists()) outputFile.delete();
                                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_predict", "--min_script_version", trainer.minimalScriptVersion()};
+                                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
+                                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                                        }
                                         dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         if (needUpdate) {
                                             dockerGateway.stopContainer(currentContainer);
@@ -619,6 +625,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         String[] cmds = new String[]{"python", "train.py", "/data", "--export_only", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
+                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
