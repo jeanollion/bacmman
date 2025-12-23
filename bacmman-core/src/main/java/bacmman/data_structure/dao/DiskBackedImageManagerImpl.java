@@ -100,7 +100,10 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         }
         freeingMemory = false;
         if (freed > 1024 * 1024 * 1000) {
-            double total = queue.stream().mapToDouble(im -> (double)im.heapMemory()/(1024 * 1024 * 1000)).sum();
+            double total;
+            synchronized (queue) {
+                total = queue.stream().mapToDouble(im -> (double) im.heapMemory() / (1024 * 1024 * 1000)).sum();
+            }
             logger.debug("freed : {}Gb/{}Gb used: {}% (total: {})", Utils.format((double)freed / (1024*1024*1000), 5), Utils.format(total, 5), Utils.format(Utils.getMemoryUsageProportion()*100, 5), Utils.format((double)Runtime.getRuntime().maxMemory() / (1024*1024*1000), 5));
         }
         if (!(fromDaemon && stopDaemon)) System.gc();
@@ -120,7 +123,6 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             queue.remove(fmi);
             queue.add(fmi);
         }
-        freeMemory(memoryFraction);
         return res;
     }
 

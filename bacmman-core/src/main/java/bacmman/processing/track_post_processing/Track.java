@@ -490,6 +490,8 @@ public class Track implements Comparable<Track> {
             p.addNext(track1);
             track1.addPrevious(p);
         });
+        track2.getNext().clear();
+        track2.getPrevious().clear();
         return track1;
     }
 
