@@ -229,11 +229,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         for (int i = 0; i < parentTrack.size(); i += increment ) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            int minFrame = DiSTNet2D.getNeighborhood(sortedFrames, subParentTrack.get(0).getFrame(), inputWindow.getIntValue(), false, frameSubsampling.getIntValue(), 0).stream().mapToInt(f->f).min().orElse(subParentTrack.get(0).getFrame());
-            int minFrameIdx = DiSTNet2D.search(sortedFrames, 0, minFrame, 0);
-            int maxFrame = DiSTNet2D.getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), 0).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
-            int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), DiSTNet2D.search(sortedFrames, maxIdx, maxFrame, 0) + 1);
-            if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), minimalBounds, null);
+            if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, null);
             inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
             if (stores != null) {
                 for (int pIdx = i; pIdx<maxIdx; ++pIdx) {

@@ -231,6 +231,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             Map<Integer, Image> edm = distanceMaps.get(labelIdx * 2);
             Map<Integer, Image> gcdm = distanceMaps.get(labelIdx * 2 + 1);
             SegmentedObject p = parentTrack.get(frame);
+            if (p==null) {
+                logger.debug("No parent found at frame: {}, all frames: {}", frame, new TreeSet<>(parentTrack.keySet()));
+                throw new RuntimeException("No parent found at frame: "+frame);
+            }
             try {
                 RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) {
@@ -313,6 +317,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }*/
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
         int increment = predictionFrameSegment.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / predictionFrameSegment.getIntValue()) );
+        InputImages inputImages = new InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, null, imageManager);
         for (int i = 0; i<parentTrack.size(); i+=increment) { // divide by frame window
             boolean last = i+increment>=parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
@@ -323,7 +328,6 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int maxFrame = getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), nGaps.getIntValue()).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
             int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), search(sortedFrames, maxIdx, maxFrame, 0) + 1);
             //logger.debug("frame: [{}; {}] idx: [{}; {}]", minFrame, maxFrame, minFrameIdx, maxFrameIdx);
-            InputImages inputImages = new InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack.subList(minFrameIdx, maxFrameIdx), null, imageManager);
             inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
             predictions = predict(inputImages, sortedFrames, subParentTrack, predictions, null); // actually appends to prevPrediction
             assigner.setPrediction(predictions);
