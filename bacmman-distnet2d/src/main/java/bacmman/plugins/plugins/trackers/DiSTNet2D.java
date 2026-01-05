@@ -221,7 +221,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 Map<Integer, Image> map = distanceMaps.get(lIdx);
                 if (!map.containsKey(frame)) computeLabel(frame, lIdx/2);
                 res = map.get(frame);
-                if (res instanceof SimpleDiskBackedImage) res = ((SimpleDiskBackedImage)res).getImage();
+                if (res instanceof DiskBackedImage) res = ((DiskBackedImage)res).getImage();
             }
             return crop.apply(res);
         }
@@ -248,8 +248,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 Image edmIm = pop.getEDM(true, false);
                 Image gdcmIm = pop.getGCDM(false);
                 if (dbim != null) {
-                    edmIm = dbim.createSimpleDiskBackedImage(edmIm, false, false);
-                    gdcmIm = dbim.createSimpleDiskBackedImage(gdcmIm, false, false);
+                    edmIm = dbim.createDiskBackedImage(edmIm, false, false);
+                    gdcmIm = dbim.createDiskBackedImage(gdcmIm, false, false);
                 }
                 edm.put(p.getFrame(), edmIm);
                 gcdm.put(p.getFrame(), gdcmIm);
@@ -353,20 +353,20 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1 + nGaps));
             /*for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1 + nGaps); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
-                predictions.edm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(predictions.edm.get(p), null), false, false));
-                predictions.gdcm.put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(predictions.gdcm.get(p), null), false, false));
+                predictions.edm.put(p, imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(predictions.edm.get(p), null), false, false));
+                predictions.gdcm.put(p, imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(predictions.gdcm.get(p), null), false, false));
                 for (int g = 0; g<nGaps; ++g) {
                     if (i>0 || j>0) {
-                        predictions.dxBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(predictions.dxBW[g].get(p), null), false, false));
-                        predictions.dyBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(predictions.dyBW[g].get(p), null), false, false));
-                        predictions.noLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(predictions.noLinkBW[g].get(p), new ImageFloatU8Scale("noLinkBW", predictions.noLinkBW[g].get(p), 255.)), false, false));
-                        predictions.multipleLinkBW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(predictions.multipleLinkBW[g].get(p), new ImageFloatU8Scale("multipleLinkBW", predictions.multipleLinkBW[g].get(p), 255.)), false, false));
+                        predictions.dxBW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloat8(predictions.dxBW[g].get(p), null), false, false));
+                        predictions.dyBW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloat8(predictions.dyBW[g].get(p), null), false, false));
+                        predictions.noLinkBW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloatU8(predictions.noLinkBW[g].get(p), new ImageFloatU8Scale("noLinkBW", predictions.noLinkBW[g].get(p), 255.)), false, false));
+                        predictions.multipleLinkBW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloatU8(predictions.multipleLinkBW[g].get(p), new ImageFloatU8Scale("multipleLinkBW", predictions.multipleLinkBW[g].get(p), 255.)), false, false));
                     }
                     if (!last || j<subParentTrack.size()-1) {
-                        predictions.noLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(predictions.noLinkFW[g].get(p), new ImageFloatU8Scale("noLinkFW", predictions.noLinkFW[g].get(p), 255.)), false, false));
-                        predictions.multipleLinkFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloatU8(predictions.multipleLinkFW[g].get(p), new ImageFloatU8Scale("multipleLinkFW", predictions.multipleLinkFW[g].get(p), 255.)), false, false));
-                        predictions.dxFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(predictions.dxFW[g].get(p), null), false, false));
-                        predictions.dyFW[g].put(p, imageManager.createSimpleDiskBackedImage(TypeConverter.toFloat8(predictions.dyFW[g].get(p), null), false, false));
+                        predictions.noLinkFW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloatU8(predictions.noLinkFW[g].get(p), new ImageFloatU8Scale("noLinkFW", predictions.noLinkFW[g].get(p), 255.)), false, false));
+                        predictions.multipleLinkFW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloatU8(predictions.multipleLinkFW[g].get(p), new ImageFloatU8Scale("multipleLinkFW", predictions.multipleLinkFW[g].get(p), 255.)), false, false));
+                        predictions.dxFW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloat8(predictions.dxFW[g].get(p), null), false, false));
+                        predictions.dyFW[g].put(p, imageManager.createDiskBackedImage(TypeConverter.toFloat8(predictions.dyFW[g].get(p), null), false, false));
                     }
                 }
                 if (p.getFrame()>maxF) maxF = p.getFrame();
@@ -587,8 +587,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         ThreadRunner.ThreadAction<SegmentedObject> ta = (p,idx) -> {
             Image edmI = prediction.edm.get(p);
             Image gcdmI = prediction.gcdm.get(p);
-            if (edmI instanceof SimpleDiskBackedImage) edmI = ((SimpleDiskBackedImage)edmI).getImage();
-            if (gcdmI instanceof SimpleDiskBackedImage) gcdmI = ((SimpleDiskBackedImage)gcdmI).getImage();
+            if (edmI instanceof DiskBackedImage) edmI = ((DiskBackedImage)edmI).getImage();
+            if (gcdmI instanceof DiskBackedImage) gcdmI = ((DiskBackedImage)gcdmI).getImage();
             RegionPopulation pop = segment(p, objectClassIdx, edmI, gcdmI, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), gcdmSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), postFilters, stores);
             List<SegmentedObject> segObjects = factory.setChildObjects(p, pop);
             if (predictCategory.getSelected()) {
@@ -2314,16 +2314,27 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         protected void ensureDBI(Map<SegmentedObject, Image> map, UnaryOperator<Image> convertor)       {
-            if (dbim==null) return;
-            for (Map.Entry<SegmentedObject, Image> e : map.entrySet()) {
-                if (!(e.getValue() instanceof DiskBackedImage)) e.setValue(dbim.createSimpleDiskBackedImage(convertor.apply(e.getValue()), false, false));
+            if (dbim==null) {
+                for (Map.Entry<SegmentedObject, Image> e : map.entrySet()) {
+                    e.setValue(convertor.apply(e.getValue()));
+                }
+            } else {
+                for (Map.Entry<SegmentedObject, Image> e : map.entrySet()) {
+                    if (!(e.getValue() instanceof DiskBackedImage))  e.setValue(dbim.createDiskBackedImage(convertor.apply(e.getValue()), false, false));
+                }
             }
         }
 
         protected void ensureDBIArray(Map<SegmentedObject, Image[]> map, UnaryOperator<Image> convertor)       {
-            if (dbim==null) return;
-            for (Map.Entry<SegmentedObject, Image[]> e : map.entrySet()) {
-                if (!(e.getValue()[0] instanceof DiskBackedImage)) e.setValue(Arrays.stream(e.getValue()).map(a -> dbim.createSimpleDiskBackedImage(convertor.apply(a), false, false)).toArray(Image[]::new));
+            if (dbim==null) {
+                for (Map.Entry<SegmentedObject, Image[]> e : map.entrySet()) {
+                    e.setValue(Arrays.stream(e.getValue()).map(a -> convertor.apply(a)).toArray(Image[]::new));
+                }
+            } else {
+                for (Map.Entry<SegmentedObject, Image[]> e : map.entrySet()) {
+                    if (!(e.getValue()[0] instanceof DiskBackedImage))
+                        e.setValue(Arrays.stream(e.getValue()).map(a -> dbim.createDiskBackedImage(convertor.apply(a), false, false)).toArray(Image[]::new));
+                }
             }
         }
 

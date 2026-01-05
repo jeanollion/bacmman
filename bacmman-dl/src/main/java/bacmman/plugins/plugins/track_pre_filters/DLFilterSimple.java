@@ -7,8 +7,8 @@ import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.github.gist.DLModelMetadata;
+import bacmman.image.DiskBackedImage;
 import bacmman.image.Image;
-import bacmman.image.SimpleDiskBackedImage;
 import bacmman.plugins.*;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.Utils;
@@ -121,13 +121,13 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
 
     // transformation implementation
     DiskBackedImageManager preProcessedImagesManager;
-    Map<Integer, SimpleDiskBackedImage> preProcessedImages;
+    Map<Integer, DiskBackedImage> preProcessedImages;
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages)  throws IOException  {
         int nFrames = inputImages.singleFrameChannel(channelIdx) ? 1 : inputImages.getFrameNumber();
         int minFrame = inputImages.getMinFrame();
         preProcessedImagesManager = Core.getDiskBackedManager(inputImages.getTmpDirectory());
-        preProcessedImagesManager.startDaemon(0.6, 500);
+        preProcessedImagesManager.startDaemon(DiskBackedImageManager.memoryFraction, 500);
         preProcessedImages = new HashMap<>(nFrames);
         ImageIO imageIO = new ImageIO() {
             @Override
@@ -137,8 +137,8 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
 
             @Override
             public void set(int frame, Image img) throws IOException {
-                SimpleDiskBackedImage sdbi = preProcessedImagesManager.createSimpleDiskBackedImage(img, false, false);
-                preProcessedImagesManager.storeSimpleDiskBackedImage(sdbi);
+                DiskBackedImage sdbi = preProcessedImagesManager.createDiskBackedImage(img, false, false);
+                preProcessedImagesManager.storeDiskBackedImage(sdbi);
                 preProcessedImages.put(frame-minFrame, sdbi);
             }
         };
@@ -163,7 +163,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Configura
 
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        SimpleDiskBackedImage sdbi = preProcessedImages.get(timePoint);
+        DiskBackedImage sdbi = preProcessedImages.get(timePoint);
         if (sdbi==null) throw new RuntimeException("Image not pre-processed: channel="+channelIdx+ "frame="+timePoint);
         Image res = sdbi.getImage();
         preProcessedImagesManager.detach(sdbi, true);

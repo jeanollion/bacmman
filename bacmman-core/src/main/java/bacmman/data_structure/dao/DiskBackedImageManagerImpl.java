@@ -3,7 +3,6 @@ package bacmman.data_structure.dao;
 import bacmman.image.DiskBackedImage;
 import bacmman.image.Image;
 import bacmman.image.PrimitiveType;
-import bacmman.image.SimpleDiskBackedImage;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +20,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     Map<DiskBackedImage, File> files = new ConcurrentHashMap<>();
     Thread daemon;
     long daemonTimeInterval;
-    double memoryFraction = 0.75;
+    double memoryFraction = DiskBackedImageManager.memoryFraction;
     boolean stopDaemon = false;
     boolean freeingMemory = false;
     final String directory;
@@ -90,8 +89,9 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
                 }
                 if (im != null) {
                     if (im.isOpen()) {
-                        used -= im.heapMemory();
-                        freed += im.heapMemory();
+                        long usedHM = im.usedHeapMemory();
+                        used -= usedHM;
+                        freed += usedHM;
                         im.freeMemory(true);
                     }
                 }
@@ -110,7 +110,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     }
 
     @Override
-    public <I extends Image<I>> I openImageContent(SimpleDiskBackedImage<I> fmi) throws IOException {
+    public <I extends Image<I>> I openImageContent(DiskBackedImage<I> fmi) throws IOException {
         File file = files.get(fmi);
         if (file == null) {
             logger.error("Image {} was erased", fmi.getName());
@@ -127,8 +127,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     }
 
     @Override
-    public <I extends Image<I>> void storeSimpleDiskBackedImage(SimpleDiskBackedImage<I> fmi) throws IOException {
-        if (!fmi.isOpen()) throw new IOException("Cannot store a SimpleDiskBackedImage whose image is not open");
+    public <I extends Image<I>> void storeDiskBackedImage(DiskBackedImage<I> fmi) throws IOException {
+        if (!fmi.isOpen()) throw new IOException("Cannot store a DiskBackedImage whose image is not open");
         File f = files.get(fmi);
         if (f == null) {
             f = new File(directory, UUID.randomUUID() + ".bmimage");
@@ -140,12 +140,14 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         write(f, fmi.getImage());
     }
     @Override
-    public <I extends Image<I>> SimpleDiskBackedImage<I> createSimpleDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
-        if (image instanceof SimpleDiskBackedImage ) {
-            if (((SimpleDiskBackedImage)image).getManager().equals(this)) return (SimpleDiskBackedImage<I>)image;
-            else throw new IllegalArgumentException("Image is already disk-backed");
+    public <I extends Image<I>> DiskBackedImage<I> createDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
+        if (image instanceof DiskBackedImage ) {
+            if (((DiskBackedImage)image).getManager().equals(this)) {
+                if (freeMemory) ((DiskBackedImage)image).freeMemory(true);
+                return (DiskBackedImage<I>)image;
+            } else throw new IllegalArgumentException("Image is already disk-backed");
         } else if (image==null) throw new IllegalArgumentException("Null image");
-        SimpleDiskBackedImage<I> res = new SimpleDiskBackedImage<>(image, this, writable);
+        DiskBackedImage<I> res = DiskBackedImage.createDiskBackedImage(image, writable, this);
         res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
         synchronized (queue) {
             queue.add(res);
@@ -194,7 +196,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
 
 
     // internal methods
-    protected void read(File f, Image image) throws IOException {
+    static void read(File f, Image image) throws IOException {
         if (image instanceof PrimitiveType.ByteType) {
             read(f, ((PrimitiveType.ByteType)image).getPixelArray());
         } else if (image instanceof PrimitiveType.ShortType) {
@@ -209,7 +211,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             throw new IllegalArgumentException("Type not supported: " + image.getClass());
         }
     }
-    protected void write(File f, Image image) throws IOException {
+
+    static void write(File f, Image image) throws IOException {
         if (image instanceof PrimitiveType.ByteType) {
             write(f, ((PrimitiveType.ByteType)image).getPixelArray());
         } else if (image instanceof PrimitiveType.ShortType) {
@@ -224,7 +227,6 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             throw new IllegalArgumentException("Type not supported: " + image.getClass());
         }
     }
-
 
     private static void read(File file, byte[][] array) throws IOException {
         int sizeXY = array[0].length;

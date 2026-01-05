@@ -2,6 +2,7 @@ package bacmman.data_structure;
 
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.Image;
+import bacmman.image.DiskBackedImage;
 import bacmman.image.SimpleDiskBackedImage;
 import bacmman.utils.HashMapGetCreate;
 import org.slf4j.Logger;
@@ -40,7 +41,7 @@ public class SegmentedObjectImageMap {
     }
     public Image getImage(SegmentedObject o) {
         Image im = imageMap.get(o);
-        if (im instanceof SimpleDiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
+        if (im instanceof DiskBackedImage) return ((DiskBackedImage)im).getImage();
         else return im;
     }
 
@@ -60,14 +61,14 @@ public class SegmentedObjectImageMap {
     }
     public synchronized void set(SegmentedObject o, Image image) {
         Image existingImage = imageMap.get(o);
-        if (existingImage instanceof SimpleDiskBackedImage) {
-            SimpleDiskBackedImage existingSDBI = (SimpleDiskBackedImage)existingImage;
-            boolean replaced = existingSDBI.setImage(image); // only replaced if image type and dimensions are identical
+        if (existingImage instanceof DiskBackedImage) {
+            DiskBackedImage existingSDBI = (DiskBackedImage)existingImage;
+            boolean replaced = (existingSDBI instanceof SimpleDiskBackedImage) && ((SimpleDiskBackedImage)existingSDBI).setImage(image); // only replaced if image type and dimensions are identical
             if (!replaced) { // delete old image and replace with new one
                 //logger.debug("could not replace existing image {} @ {} with {} will create a new disk backed image", existingImage.getName(), o, image.getName());
                 DiskBackedImageManager manager = existingSDBI.getManager();
                 manager.detach(existingSDBI, true);
-                Image newSDBI = manager.createSimpleDiskBackedImage(image, true, false);
+                Image newSDBI = manager.createDiskBackedImage(image, true, false);
                 imageMap.put(o, newSDBI);
             }
         } else imageMap.put(o, image);

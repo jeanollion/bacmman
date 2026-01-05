@@ -1,10 +1,12 @@
 package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
@@ -92,8 +94,8 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             stores.get(parent).addIntermediateImage("EDM", edm);
             stores.get(parent).addIntermediateImage("CDM", gcdm);
         }
-        if (edm instanceof SimpleDiskBackedImage) edm = ((SimpleDiskBackedImage)edm).getImage();
-        if (gcdm instanceof SimpleDiskBackedImage) gcdm = ((SimpleDiskBackedImage)gcdm).getImage();
+        if (edm instanceof DiskBackedImage) edm = ((DiskBackedImage)edm).getImage();
+        if (gcdm instanceof DiskBackedImage) gcdm = ((DiskBackedImage)gcdm).getImage();
         RegionPopulation pop = DiSTNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), null, stores);
         if (predictCategory.getSelected()) {
             pop.getRegions().forEach( r ->  {
@@ -217,6 +219,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     }
 
     protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx, DiSTNet2D.InputImages inputImages, BoundingBox minimalBounds) {
+        DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
         Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p));
         Map<SegmentedObject, Image> edmMap = new HashMap<>();
         Map<SegmentedObject, Image> gcdmMap = new HashMap<>();
@@ -229,7 +232,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         for (int i = 0; i < parentTrack.size(); i += increment ) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, null);
+            if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, imageManager);
             inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
             if (stores != null) {
                 for (int pIdx = i; pIdx<maxIdx; ++pIdx) {

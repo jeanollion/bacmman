@@ -75,7 +75,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         if (needDiskBackedImage) logger.debug("needed memory: {} / {} -> request disk backed manager. byte count: {} size XY: {} size Z: {}", neededMemory/(1000d*1000), Utils.getTotalMemory()/(1000*1000),parentTrack.get(0).getRawImage(structureIdx).byteCount(), parentTrack.get(0).getMaskProperties().sizeXY(), parentTrack.get(0).getMaskProperties().sizeZ());
         DiskBackedImageManager dbim = needDiskBackedImage ? Core.getDiskBackedManager(parentTrack.get(0)) : null;
 
-        SegmentedObjectImageMap images = new SegmentedObjectImageMap(parentTrack, needDiskBackedImage ? o -> dbim.createSimpleDiskBackedImage(o.getRawImage(structureIdx), true, false) : o->o.getRawImage(structureIdx));
+        SegmentedObjectImageMap images = new SegmentedObjectImageMap(parentTrack, needDiskBackedImage ? o -> dbim.createDiskBackedImage(o.getRawImage(structureIdx), true, false) : o->o.getRawImage(structureIdx));
         // apply global scaling if necessary
         SegmentedObjectAccessor accessor = getAccessor();
         HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());

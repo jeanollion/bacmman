@@ -127,7 +127,7 @@ public class InputImage {
         return plane;
     }
 
-    void deleteFromDAO(boolean temp) {
+    void deleteFromDAO(boolean temp) throws IOException {
         if (!temp) dao.deletePreProcessedImage(channelIdx, frame);
         else daoTemp.deletePreProcessedImage(channelIdx, frame);
     }
@@ -156,12 +156,16 @@ public class InputImage {
             }
             if (intermediateImageSavedToDAO && modified) {
                 intermediateImageSavedToDAO = false;
-                deleteFromDAO(true);
+                try {
+                    deleteFromDAO(true);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
     }
 
-    public void saveImage(boolean intermediate) {
+    public void saveImage(boolean intermediate) throws IOException {
         ImageDAO dao = intermediate ? this.daoTemp : this.dao;
         dao.writePreProcessedImage(image, channelIdx, frame);
         this.intermediateImageSavedToDAO = intermediate && !(dao instanceof BypassImageDAO);

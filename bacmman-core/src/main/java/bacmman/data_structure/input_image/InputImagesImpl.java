@@ -254,7 +254,11 @@ public class InputImagesImpl implements InputImages {
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
-                    imageF[f].saveImage(tempCheckPoint);
+                    try {
+                        imageF[f].saveImage(tempCheckPoint);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
                 if (close) {
                     imageF[f].freeMemory();
@@ -290,7 +294,13 @@ public class InputImagesImpl implements InputImages {
                 InputImage image = imageCT[p.key][p.value];
                 synchronized (image) {
                     if (image.imageOpened()) {
-                        if (image.modified()) image.saveImage(true);
+                        if (image.modified()) {
+                            try {
+                                image.saveImage(true);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
                         image.freeMemory();
                         ++freed;
                     }
@@ -304,8 +314,12 @@ public class InputImagesImpl implements InputImages {
     public void deleteFromDAO() {
         for (int c = 0; c<getChannelNumber(); ++c) {
             for (int t = 0; t<imageCT[c].length; ++t) {
-                imageCT[c][t].deleteFromDAO(false);
-                imageCT[c][t].deleteFromDAO(true);
+                try {
+                    imageCT[c][t].deleteFromDAO(false);
+                    imageCT[c][t].deleteFromDAO(true);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
     }
@@ -316,7 +330,11 @@ public class InputImagesImpl implements InputImages {
         for (int c = 0; c<getChannelNumber(); ++c) {
             for (int t = 0; t<imageCT[c].length; ++t) {
                 imageCT[c][t].freeMemory();
-                imageCT[c][t].deleteFromDAO(true);
+                try {
+                    imageCT[c][t].deleteFromDAO(true);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
         lastUsedImages.clear();

@@ -81,6 +81,7 @@ public final class StreamConcatenation {
             default: return concat(streams.toArray(new Stream[streams.size()]));
         }
     }
+
   /**
    * Creates a lazily concatenated stream whose elements are the elements of
    * each of the input streams.  In other words, the returned stream contains
@@ -152,6 +153,18 @@ public final class StreamConcatenation {
         StreamSupport::intStream);
   }
 
+  public static IntStream concatInt(Collection<IntStream> streams) {
+    switch(streams.size()) {
+      case 0: return IntStream.empty();
+      case 1: return streams.iterator().next();
+      case 2: {
+        Iterator<IntStream> it = streams.iterator();
+        return IntStream.concat(it.next(), it.next());
+      }
+      default: return concat(streams.toArray(new IntStream[streams.size()]));
+    }
+  }
+
   /**
    * Creates a lazily concatenated stream whose elements are the elements of
    * each of the input streams.  In other words, the returned stream contains
@@ -186,6 +199,18 @@ public final class StreamConcatenation {
         StreamSupport::longStream);
   }
 
+  public static LongStream concatLong(Collection<LongStream> streams) {
+    switch(streams.size()) {
+      case 0: return LongStream.empty();
+      case 1: return streams.iterator().next();
+      case 2: {
+        Iterator<LongStream> it = streams.iterator();
+        return LongStream.concat(it.next(), it.next());
+      }
+      default: return concat(streams.toArray(new LongStream[streams.size()]));
+    }
+  }
+
   /**
    * Creates a lazily concatenated stream whose elements are the elements of
    * each of the input streams.  In other words, the returned stream contains
@@ -218,6 +243,18 @@ public final class StreamConcatenation {
         DoubleStream::spliterator,
         ConcatSpliterator.OfDouble::new,
         StreamSupport::doubleStream);
+  }
+
+  public static DoubleStream concatDouble(Collection<DoubleStream> streams) {
+    switch(streams.size()) {
+      case 0: return DoubleStream.empty();
+      case 1: return streams.iterator().next();
+      case 2: {
+        Iterator<DoubleStream> it = streams.iterator();
+        return DoubleStream.concat(it.next(), it.next());
+      }
+      default: return concat(streams.toArray(new DoubleStream[streams.size()]));
+    }
   }
 
   // The generics and function objects are ugly, but this method lets us reuse

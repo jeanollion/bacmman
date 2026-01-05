@@ -178,6 +178,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 }
             }
         }
+        String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()), true);
         if (this.getPreProcessingChain().isEmpty(true))  { // ensure bybass DAO if no pre-filters have been set
             if (imageDAO !=null && imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
                 ((BypassImageDAO) imageDAO.getSourceImageDAO()).updateXP(this.getExperiment()); // in case duplicated channels have been modified
@@ -193,15 +194,15 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     return;
                 }
                 if (!ppFilesExist) {
-                    if (sourceImages != null) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), true);
+                    if (sourceImages != null) imageDAO = Core.getDiskBackedManager(getName(), new BypassImageDAO(this.getExperiment(), this.sourceImages), tmpDir, true);
                 }
-                else imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // image have been pre-filtered
+                else imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, tmpDir, true); // image have been pre-filtered
             }
         } else { // ensure not bypass DAO
             if (imageDAO == null || imageDAO.getSourceImageDAO() instanceof BypassImageDAO) { // not init or bypass but pre-filters have been added
                 synchronized (this) {
                     if (imageDAO == null || imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
-                        imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, true); // will clear old DAO if existing
+                        imageDAO = Core.getDiskBackedManager(getName(), originalImageDAO, tmpDir, true); // will clear old DAO if existing
                     }
                 }
             }

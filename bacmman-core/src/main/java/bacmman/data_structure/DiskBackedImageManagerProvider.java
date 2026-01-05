@@ -37,20 +37,20 @@ public class DiskBackedImageManagerProvider {
     }
     public synchronized DiskBackedImageManager getManager(String directory) {
         DiskBackedImageManager manager = managers.get(directory);
-        manager.startDaemon(0.60, 500);
+        manager.startDaemon(DiskBackedImageManager.memoryFraction, 500);
         return manager;
     }
 
-    public DiskBackedImageManagerImageDAO getImageDAOManager(String position, ImageDAO imageDAO, boolean replaceIfExisting) {
+    public DiskBackedImageManagerImageDAO getImageDAOManager(String position, ImageDAO imageDAO, String tmpDir, boolean replaceIfExisting) {
         DiskBackedImageManager manager = managers.get(position);
         if (manager == null || replaceIfExisting) {
             synchronized (managers) {
                 manager = managers.get(position);
                 if (manager == null || replaceIfExisting) {
                     if (manager!=null) manager.clear(true);
-                    manager = new DiskBackedImageManagerImageDAO(position, imageDAO);
+                    manager = new DiskBackedImageManagerImageDAO(position, imageDAO, tmpDir);
                     managers.put(position, manager);
-                    manager.startDaemon(0.6, 500);
+                    manager.startDaemon(DiskBackedImageManager.memoryFraction, 500);
                 }
             }
         }

@@ -99,8 +99,8 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         if (segmentedImageMap!=null) {
             if (segmentedImageMap.containsKey(parent)) {
                 Image res = segmentedImageMap.get(parent);
-                if (res instanceof SimpleDiskBackedImage) {
-                    SimpleDiskBackedImage sdbi = ((SimpleDiskBackedImage) res);
+                if (res instanceof DiskBackedImage) {
+                    DiskBackedImage sdbi = ((DiskBackedImage) res);
                     res = sdbi.getImage();
 
                 }
@@ -165,7 +165,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
             else out = Arrays.stream(inputNI).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
             for (int ii = 0; ii<subParentTrack.size(); ++ii) {
                 //logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
-                segM.put(subParentTrack.get(ii), imageManager.createSimpleDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false, false));
+                segM.put(subParentTrack.get(ii), imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false, false));
             }
             if (singleFrame) break;
         }

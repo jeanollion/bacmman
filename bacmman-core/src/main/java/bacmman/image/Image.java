@@ -39,7 +39,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     public final static Logger logger = LoggerFactory.getLogger(Image.class);
 
     public static void pasteImage(Image source, ImageMask sourceMask, Image dest, Offset offset) {
-        if (source.getClass() != dest.getClass()) {
+        if (source.byteCount()!= dest.byteCount() || source.floatingPoint() != dest.floatingPoint()) {
             throw new IllegalArgumentException("Paste Image: source and destination should be of the same type (source: " + source.getClass().getSimpleName() + " destination: " + dest.getClass().getSimpleName() + ")");
         }
         if (offset == null) {
@@ -56,7 +56,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         });
     }
     public static void pasteImage(Image source, Image dest, Offset offset) {
-        if (source.getClass() != dest.getClass()) {
+        if (source.byteCount()!= dest.byteCount() || source.floatingPoint() != dest.floatingPoint()) {
             throw new IllegalArgumentException("Paste Image: source and destination should be of the same type (source: " + source.getClass().getSimpleName() + " destination: " + dest.getClass().getSimpleName() + ")");
         }
         if (offset == null) {
@@ -83,14 +83,14 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     }
 
     public static void pasteImageView(Image source, Image dest, Offset destinationOffset, BoundingBox sourceView) {
-        if (source.getClass() != dest.getClass()) {
+        if (source.byteCount()!= dest.byteCount() || source.floatingPoint() != dest.floatingPoint() ) {
             throw new IllegalArgumentException("Paste Image: source and destination should be of the same type (source: " + source.getClass().getSimpleName() + " destination: " + dest.getClass().getSimpleName() + ")");
         }
         if (destinationOffset == null) {
             destinationOffset = new MutableBoundingBox(0, 0, 0);
         }
         if (sourceView == null) {
-            sourceView = source.getBoundingBox();
+            sourceView = source.getBoundingBox().resetOffset();
         }
         if (sourceView.sizeX() + destinationOffset.xMin() > dest.sizeX() || sourceView.sizeY() + destinationOffset.yMin() > dest.sizeY() || sourceView.sizeZ() + destinationOffset.zMin() > dest.sizeZ()) {
             throw new IllegalArgumentException("Paste Image: source does not fit in destination");
@@ -98,22 +98,26 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         if (sourceView.sizeX() == 0 || sourceView.sizeY() == 0 || sourceView.sizeZ() == 0) {
             throw new IllegalArgumentException("Source view volume null: sizeX:" + sourceView.sizeX() + " sizeY:" + sourceView.sizeY() + " sizeZ:" + sourceView.sizeZ());
         }
-        Object[] sourceP = source.getPixelArray();
-        Object[] destP = dest.getPixelArray();
-        final int offDestFinal = dest.sizeX() * destinationOffset.yMin() + destinationOffset.xMin();
-        destinationOffset.translate(new SimpleOffset(sourceView).reverseOffset()); //loop is made over source coords
-        int offDest = offDestFinal;
-        final int offSourceFinal = sourceView.xMin() + sourceView.yMin() * source.sizeX();
-        int offSource = offSourceFinal;
-        for (int z = sourceView.zMin(); z <= sourceView.zMax(); ++z) {
-            for (int y = sourceView.yMin(); y <= sourceView.yMax(); ++y) {
-                //logger.debug("paste image: z source: {}, z dest: {}, y source: {} y dest: {} x source: {} x dest: {}", z, z+destinationOffset.getzMin(), y, y+destinationOffset.getyMin(), offSource-y*source.getSizeX(), offDest-(y+destinationOffset.getyMin())*dest.getSizeX());
-                System.arraycopy(sourceP[z], offSource, destP[z + destinationOffset.zMin()], offDest, sourceView.sizeX());
-                offDest += dest.sizeX();
-                offSource += source.sizeX();
+        if (source instanceof TiledDiskBackedImage) { // avoid getting pixel array, instead iterate over tiles
+            ((TiledDiskBackedImage)source).pasteView(dest, destinationOffset, sourceView);
+        } else {
+            Object[] sourceP = source.getPixelArray();
+            Object[] destP = dest.getPixelArray();
+            final int offDestFinal = dest.sizeX() * destinationOffset.yMin() + destinationOffset.xMin();
+            destinationOffset.translate(new SimpleOffset(sourceView).reverseOffset()); //loop is made over source coords
+            int offDest = offDestFinal;
+            final int offSourceFinal = sourceView.xMin() + sourceView.yMin() * source.sizeX();
+            int offSource = offSourceFinal;
+            for (int z = sourceView.zMin(); z <= sourceView.zMax(); ++z) {
+                for (int y = sourceView.yMin(); y <= sourceView.yMax(); ++y) {
+                    //logger.debug("paste image: z source: {}, z dest: {}, y source: {} y dest: {} x source: {} x dest: {}", z, z+destinationOffset.zMin(), y, y+destinationOffset.yMin(), offSource-y*source.sizeX(), offDest-(y+destinationOffset.yMin())*dest.sizeX());
+                    System.arraycopy(sourceP[z], offSource, destP[z + destinationOffset.zMin()], offDest, sourceView.sizeX());
+                    offDest += dest.sizeX();
+                    offSource += source.sizeX();
+                }
+                offDest = offDestFinal;
+                offSource = offSourceFinal;
             }
-            offDest = offDestFinal;
-            offSource = offSourceFinal;
         }
     }
 
@@ -412,40 +416,40 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         res.translate(this); // bounds are relative to this image
         if (!BoundingBox.intersect(getBoundingBox().resetOffset(), bounds)) return res; // no data is copied
         int offXSource = bounds.xMin();
-        int y_min = bounds.yMin();
-        int z_min = bounds.zMin();
-        int x_max = bounds.xMax();
-        int y_max = bounds.yMax();
-        int z_max = bounds.zMax();
+        int yMin = bounds.yMin();
+        int zMin = bounds.zMin();
+        int xMax = bounds.xMax();
+        int yMax = bounds.yMax();
+        int zMax = bounds.zMax();
         int sizeXDest = bounds.sizeX();
-        int oZ = -z_min;
-        int oY_i = 0;
+        int oZ = -zMin;
+        int oY_I = 0;
         int offXDest = 0;
         if (offXSource <= -1) {
             offXDest=-offXSource;
             offXSource = 0;
         }
-        if (x_max >= sizeX) {
-            x_max = sizeX - 1;
+        if (xMax >= sizeX) {
+            xMax = sizeX - 1;
         }
-        if (y_min <= -1) {
-            oY_i = -sizeXDest * y_min;
-            y_min = 0;
+        if (yMin <= -1) {
+            oY_I = -sizeXDest * yMin;
+            yMin = 0;
         }
-        if (y_max >= sizeY) {
-            y_max = sizeY - 1;
+        if (yMax >= sizeY) {
+            yMax = sizeY - 1;
         }
-        if (z_min <= -1) {
-            z_min = 0;
+        if (zMin <= -1) {
+            zMin = 0;
         }
-        if (z_max >= sizeZ) {
-            z_max = sizeZ - 1;
+        if (zMax >= sizeZ) {
+            zMax = sizeZ - 1;
         }
-        int sizeXCopyDest = x_max - offXSource + 1;
-        for (int z = z_min; z <= z_max; ++z) {
-            int offYSource = y_min * sizeX;
-            int offYDest = oY_i;
-            for (int y = y_min; y <= y_max; ++y) {
+        int sizeXCopyDest = xMax - offXSource + 1;
+        for (int z = zMin; z <= zMax; ++z) {
+            int offYSource = yMin * sizeX;
+            int offYDest = oY_I;
+            for (int y = yMin; y <= yMax; ++y) {
                 System.arraycopy(getPixelArray()[z], offYSource + offXSource, res.getPixelArray()[z + oZ], offYDest + offXDest, sizeXCopyDest);
                 offYDest += sizeXDest;
                 offYSource += sizeX;

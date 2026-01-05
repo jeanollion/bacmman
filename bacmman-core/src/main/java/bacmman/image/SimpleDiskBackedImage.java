@@ -5,35 +5,19 @@ import bacmman.data_structure.dao.DiskBackedImageManager;
 import java.io.IOException;
 import java.util.stream.DoubleStream;
 
-public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implements DiskBackedImage<I> {
+public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I> {
     I image;
-    final I imageType;
-    DiskBackedImageManager manager;
-    final boolean writable;
-    volatile boolean modified;
-    public SimpleDiskBackedImage(String name, ImageProperties props, I imageType, DiskBackedImageManager manager, boolean writable) {
-        super(name, props);
-        this.manager = manager;
-        this.writable=writable;
-        this.imageType = imageType;
-    }
 
     public SimpleDiskBackedImage(I image, DiskBackedImageManager manager, boolean writable) {
-        this(image.getName(), image, Image.copyType(image), manager, writable);
+        super(image.getName(), image, Image.copyType(image), manager, writable);
         this.image = image;
     }
 
-    public DiskBackedImageManager getManager() {
-        return manager;
+    public long usedHeapMemory() {
+        if (image!=null) return heapMemory();
+        else return 0L;
     }
 
-    public long heapMemory() {
-        return (long)sizeXYZ() * imageType.byteCount();
-    }
-    @Override
-    public I getImageType() {
-        return imageType;
-    }
     @Override
     public void freeMemory(boolean storeIfModified) {
         if (image != null) {
@@ -41,7 +25,7 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
                 if (image !=null) {
                     if (modified && storeIfModified) {
                         try {
-                            manager.storeSimpleDiskBackedImage(this);
+                            manager.storeDiskBackedImage(this);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -52,25 +36,10 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
             }
         }
     }
-    @Override
-    public void detach() {
-        this.manager = null;
-    }
-    @Override
-    public boolean detached() {
-        return this.manager == null;
-    }
+
     @Override
     public boolean isOpen() {
         return image != null;
-    }
-    @Override
-    public boolean isWritable() {
-        return writable;
-    }
-    @Override
-    public void setModified(boolean modified) {
-        this.modified = modified;
     }
 
     @Override
@@ -107,6 +76,7 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         return (I)this;
     }
 
+    @Override
     public synchronized I getImage() {
         if (image == null ) {
             try {
@@ -120,6 +90,7 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         }
         return image;
     }
+
     public synchronized boolean setImage(I image) {
         if (!this.sameDimensions(image)) return false;
         if (!getImageType().typeEquals(image)) return false;
@@ -127,6 +98,7 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
         this.modified = true;
         return true;
     }
+
     @Override
     public I getZPlane(int idxZ) {
         return getImage().getZPlane(idxZ);
@@ -240,6 +212,11 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends Image<I> implemen
 
     @Override
     public void invert() {
+        if (writable) {
+            if (!modified) {
+                modified = true;
+            }
+        } else throw new RuntimeException("Image not writable");
         getImage().invert();
     }
 

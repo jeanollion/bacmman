@@ -1,9 +1,8 @@
-package bacmman.dl;
+package bacmman.image;
 
 import bacmman.image.*;
 import bacmman.processing.Resize;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +14,6 @@ import java.util.stream.IntStream;
 
 public class TileUtils {
     static Logger logger = LoggerFactory.getLogger(TileUtils.class);
-
 
     public static Image[] splitTiles(Image input, int[] tileShapeXYZ, int[] minOverlapXYZ, Resize.EXPAND_MODE paddingMode) {
         long[] size = input.sizeZ()==1 ? new long[]{input.sizeX(), input.sizeY()} : new long[]{input.sizeX(), input.sizeY(), input.sizeZ()};
@@ -256,6 +254,106 @@ public class TileUtils {
                 throw new IllegalArgumentException("up to 3 axis supported");
         }
         return tileCoords;
+    }
+
+    /*public static int[] getOptimalTileSize(int[] imageDims, long targetTileSize) {
+        long size = Arrays.stream(imageDims).asLongStream().reduce(1, (a, b) -> a * b);
+        double[] targetTileDimensions = IntStream.range(0, imageDims.length).mapToDouble(i -> Math.pow(targetTileSize, 1.0 / imageDims.length)).toArray();
+        boolean[] fixedLength = new boolean[targetTileDimensions.length];
+        int idx = 0;
+        while (idx<imageDims.length) {
+            if (targetTileDimensions[idx] > imageDims[idx]) {
+                targetTileDimensions[idx] = imageDims[idx];
+                fixedLength[idx] = true;
+                int n = 0;
+                double fixedSize = 1;
+                for (int j = 0; j<imageDims.length; ++j) {
+                    if (!fixedLength[j]) ++n;
+                    else fixedSize *= targetTileDimensions[idx];
+                }
+                if (n>0) {
+                    double newDim = Math.pow(targetTileSize / fixedSize, 1. / n);
+                    logger.debug("fixed: {} not fixed: {} fixed size: {} dim: {}", idx, n, fixedSize, newDim);
+                    for (int j = 0; j < imageDims.length; ++j) {
+                        if (!fixedLength[j]) targetTileDimensions[j] = newDim;
+                    }
+                    idx = 0;
+                } else break;
+            } else ++idx;
+        }
+        logger.debug("size: {} target size: {} target length {}", size, targetTileSize, targetTileDimensions);
+        // Try both ceil and floor for each axis
+        int[] bestTileSizes = null;
+        double minDiff = Double.MAX_VALUE;
+
+        // Generate all possible combinations of ceil/floor for each axis
+        int nCombinations = 1 << imageDims.length;
+        for (int mask = 0; mask < nCombinations; mask++) {
+            int[] nTilesAlongAxis = new int[imageDims.length];
+            for (int i = 0; i < imageDims.length; i++) {
+                boolean useCeil = ((mask >> i) & 1) == 1;
+                nTilesAlongAxis[i] = useCeil ?
+                        (int) Math.ceil(imageDims[i] / targetTileDimensions[i]) :
+                        (int) Math.floor(imageDims[i] / targetTileDimensions[i]);
+                // Ensure at least 1 tile per axis
+                nTilesAlongAxis[i] = Math.max(nTilesAlongAxis[i], 1);
+            }
+
+            // Calculate tile sizes for this combination
+            int[] tileSizes = new int[imageDims.length];
+            long actualVolume = 1;
+            for (int i = 0; i < imageDims.length; i++) {
+                tileSizes[i] = (int) Math.ceil((double) imageDims[i] / nTilesAlongAxis[i]);
+                actualVolume *= tileSizes[i];
+            }
+
+            // Calculate the difference from the target tile size
+            double diff = Math.abs(actualVolume - targetTileSize);
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestTileSizes = Arrays.copyOf(tileSizes, tileSizes.length);
+            }
+        }
+
+        return bestTileSizes;
+    }*/
+
+    public static int[] getOptimalTileSize(int[] imageDims, long targetTileSize) {
+        long size = Arrays.stream(imageDims).asLongStream().reduce(1, (a, b) -> a * b);
+        int nTiles = (int) Math.round((double) size / targetTileSize);
+
+        // Calculate the number of tiles per axis (as equal as possible)
+        int[] nTilesAlongAxis = new int[imageDims.length];
+        int nAxes = imageDims.length;
+
+        // Initial guess: nAxes-th root of nTiles
+        double nTilesPerAxis = Math.pow(nTiles, 1.0 / nAxes);
+        for (int i = 0; i < nAxes; i++) {
+            nTilesAlongAxis[i] = Math.min((int) Math.round(nTilesPerAxis), imageDims[i]);
+        }
+
+        // Adjust to ensure product is as close as possible to nTiles
+        int currenNTiles = Arrays.stream(nTilesAlongAxis).reduce(1, (a, b) -> a * b);
+        while (currenNTiles < nTiles) {
+            // Find the axis with the smallest current number of tiles and increment it
+            int minIndex = 0;
+            for (int i = 1; i < nAxes; i++) {
+                if (nTilesAlongAxis[i] < nTilesAlongAxis[minIndex] && nTilesAlongAxis[i] < imageDims[i]) {
+                    minIndex = i;
+                }
+            }
+            if (nTilesAlongAxis[minIndex] >= imageDims[minIndex]) break; // Cannot increment further; break to avoid infinite loop
+            nTilesAlongAxis[minIndex]++;
+            currenNTiles = Arrays.stream(nTilesAlongAxis).reduce(1, (a, b) -> a * b);
+        }
+
+        // Calculate tile sizes
+        int[] tileSizes = new int[nAxes];
+        for (int i = 0; i < nAxes; i++) {
+            tileSizes[i] = (int) Math.ceil((double) imageDims[i] / nTilesAlongAxis[i]);
+        }
+
+        return tileSizes;
     }
 
 }
