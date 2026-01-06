@@ -178,7 +178,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 }
             }
         }
-        String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()), true);
+        String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()).resolve(getName()), true);
         if (this.getPreProcessingChain().isEmpty(true))  { // ensure bybass DAO if no pre-filters have been set
             if (imageDAO !=null && imageDAO.getSourceImageDAO() instanceof BypassImageDAO) {
                 ((BypassImageDAO) imageDAO.getSourceImageDAO()).updateXP(this.getExperiment()); // in case duplicated channels have been modified

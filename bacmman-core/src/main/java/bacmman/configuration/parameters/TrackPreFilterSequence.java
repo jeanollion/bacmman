@@ -53,14 +53,10 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         transferStateArguments(this, res);
         return res;
     }
-    private static boolean allPFImagesAreSet(List<SegmentedObject> parentTrack, int structureIdx) {
-        return parentTrack.stream().noneMatch(o->o.getPreFilteredImage(structureIdx)==null);
-    }
+
     public void filter(int structureIdx, List<SegmentedObject> parentTrack) throws MultipleException {
         if (parentTrack.isEmpty()) return;
-        if (isEmpty() && allPFImagesAreSet(parentTrack, structureIdx)) { // if no preFilters &  only add raw images if no prefiltered image is present
-            return;
-        }
+        if (isEmpty()) return;
         SegmentedObjectImageMap images = filterImages(structureIdx, parentTrack);
         //logger.debug("track pre-filter is empty: {} -> {}", isEmpty(), Utils.toStringList(parentTrack, p->p+" "+images.get(p)));
         SegmentedObjectAccessor accessor = getAccessor();

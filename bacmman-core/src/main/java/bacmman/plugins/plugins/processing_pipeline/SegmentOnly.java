@@ -189,7 +189,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
            }
         }
         long t4 = System.currentTimeMillis();
-        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}", parentTrack.get(0), parentTrack.size(), t4-t0);
+        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}ms", parentTrack.get(0), parentTrack.size(), t4-t0);
         if (!me.isEmpty()) throw me;
     }
     

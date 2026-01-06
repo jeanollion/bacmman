@@ -26,6 +26,7 @@ import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
@@ -310,9 +311,18 @@ public class Processor {
         ensureScalerConfiguration(dao, structureIdx);
         MultipleException me=null;
         try { // execute sequentially, store what has been processed, and throw exception in the end
+            allParentTracks = new TreeMap<>(allParentTracks); // sort parents
+            int total = allParentTracks.size();
+            int totalFrame = allParentTracks.values().stream().mapToInt(List::size).sum();
+            int[] count = new int[2];
+            long t0 = System.currentTimeMillis();
             ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
                 execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
                 if (pcb !=null) pcb.incrementSubTask();
+                count[0]+=1;
+                count[1]+=pt.size();
+                long t1 = System.currentTimeMillis();
+                logger.debug("Progress for oc={} : {}/{} {}s/track (frames: {}/{} {}ms/frame)", structureIdx, count[0], total, Utils.format((t1-t0)/(1000 * count[0]), 5), count[1], totalFrame, Utils.format((t1-t0)/count[1], 5));
             });
         } catch (MultipleException e) {
             me=e;
@@ -427,6 +437,8 @@ public class Processor {
                 if (segPIdx!=parentTrack.get(0).structureIdx) {
                     parentTrack.stream().flatMap(p -> p.getChildren(segPIdx)).distinct().forEach( p -> p.setPreFilteredImage(null, structureIdx));
                 }
+                DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
+                imageManager.clear(true);
                 logger.debug("prefiltered images erased: {} for structure: {}", parentTrack.get(0), structureIdx);
             }
         }

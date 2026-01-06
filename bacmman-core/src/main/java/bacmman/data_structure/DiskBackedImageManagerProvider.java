@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 
 public class DiskBackedImageManagerProvider {
@@ -47,7 +48,10 @@ public class DiskBackedImageManagerProvider {
             synchronized (managers) {
                 manager = managers.get(position);
                 if (manager == null || replaceIfExisting) {
-                    if (manager!=null) manager.clear(true);
+                    if (manager!=null) {
+                        manager.stopDaemon();
+                        manager.clear(true);
+                    }
                     manager = new DiskBackedImageManagerImageDAO(position, imageDAO, tmpDir);
                     managers.put(position, manager);
                     manager.startDaemon(DiskBackedImageManager.memoryFraction, 500);
@@ -59,12 +63,15 @@ public class DiskBackedImageManagerProvider {
     }
 
     public synchronized DiskBackedImageManager getManager(SegmentedObject segmentedObject) {
-        String tmp = getTempDirectory(segmentedObject.getDAO().getMasterDAO().getDatasetDir(), true);
+        String tmp = getTempDirectory(Paths.get(segmentedObject.getExperiment().getOutputImageDirectory()), true);
         return getManager(tmp);
     }
 
     public synchronized void clear() {
-        for (DiskBackedImageManager m : managers.values()) m.clear(true);
+        for (DiskBackedImageManager m : managers.values()) {
+            m.stopDaemon();
+            m.clear(true);
+        }
         managers.clear();
     }
 

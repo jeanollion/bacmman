@@ -11,8 +11,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static thredds.featurecollection.FeatureCollectionConfig.PartitionType.directory;
+import java.util.stream.Collectors;
 
 public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImageManager {
     static Logger logger = LoggerFactory.getLogger(DiskBackedImageManagerImageDAO.class);
@@ -88,7 +87,8 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     @Override
     public <I extends Image<I>> I openImageContent(DiskBackedImage<I> fmi) throws IOException {
         I res;
-        if (useTmpStorage(fmi)) {
+        UnaryPair<Integer> key = openImagesRev.get(fmi);
+        if (useTmpStorage(fmi) || key == null) {
             File file = files.get(fmi);
             if (file == null) {
                 logger.error("Image {} was erased", fmi.getName());
@@ -96,14 +96,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             }
             res = fmi.getImageType().newImage(fmi.getName(), fmi);
             DiskBackedImageManagerImpl.read(file, res);
-        } else {
-            UnaryPair<Integer> key = openImagesRev.get(fmi);
-            if (key == null) {
-                logger.error("Image {} was erased", fmi.getName());
-                throw new IOException("Image was erased");
-            }
-            res = (I) imageDAO.openPreProcessedImage(key.key, key.value);
-        }
+        } else res = (I)imageDAO.openPreProcessedImage(key.key, key.value);
         synchronized (queue) { // put at end of queue
             queue.remove(fmi);
             queue.add(fmi);
@@ -114,8 +107,8 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     @Override
     public <I extends Image<I>> void storeDiskBackedImage(DiskBackedImage<I> fmi) throws IOException {
         UnaryPair<Integer> key = openImagesRev.get(fmi);
-        if (key == null) throw new IOException("Cannot store image that hasn't been opened before");
-        if (fmi.isOpen()) writePreProcessedImage(fmi, key.key, key.value);
+        if (key == null) writeToTmpStorage(fmi);
+        else if (fmi.isOpen()) writePreProcessedImage(fmi, key.key, key.value);
     }
 
     @Override
@@ -138,14 +131,29 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     @Override
     public boolean detach(DiskBackedImage image, boolean freeMemory) {
         boolean rem = false;
-        File f;
+        List<File> toRemove = null;
         synchronized (queue) {
             rem = queue.remove(image);
-            f = files.remove(image);
+            File f = files.remove(image);
+            if (f!=null) {
+                toRemove = new ArrayList<>();
+                toRemove.add(f);
+            }
             UnaryPair<Integer> key = openImagesRev.remove(image);
             if (key != null) openImages.remove(key);
+            if (image instanceof TiledDiskBackedImage) {
+                List<File> tileFiles = ((TiledDiskBackedImage<?>)image).streamTiles().map(t -> {
+                    t.detach();
+                    queue.remove(t);
+                    return files.remove(t);
+                }).filter(Objects::nonNull).collect(Collectors.toList());
+                if (toRemove != null) tileFiles.addAll(toRemove);
+                toRemove = tileFiles;
+            }
         }
-        if (f!=null) f.delete();
+        image.detach();
+        if (freeMemory) image.freeMemory(false);
+        if (toRemove!=null) toRemove.forEach(File::delete);
         return rem;
     }
 
@@ -244,7 +252,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 if (im == null) {
                     Image source = imageDAO.openPreProcessedImage(channelImageIdx, timePoint);
                     im = createDiskBackedImage(source, true, false);
-                    im.setModified(false); // already stored
+                    im.setModified( useTmpStorage(im) ); // if !useTmpStorage -> already stored in source imageDAO
                     openImages.put(key, im);
                     openImagesRev.put(im, key);
                 }
@@ -268,22 +276,27 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         return imageDAO.getPreProcessedImageProperties(channelImageIdx);
     }
 
+    protected void writeToTmpStorage(DiskBackedImage fmi) throws IOException {
+        if (!fmi.isOpen()) throw new RuntimeException("Cannot store a DiskBackedImage whose image is not open");
+        if (fmi instanceof TiledDiskBackedImage) {
+            throw new IOException("Cannot write tiled disk backed image");
+        }
+        File f = files.get(fmi);
+        if (f == null) {
+            f = new File(directory, UUID.randomUUID() + ".bmimage");
+            f.deleteOnExit();
+            synchronized (queue) {
+                files.put(fmi, f);
+            }
+        }
+        DiskBackedImageManagerImpl.write(f, fmi.getImage());
+    }
+
     @Override
     public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint) throws IOException {
         if (image == null) return;
-        if (useTmpStorage(image)) { // cannot be written using source imageDAO
-            DiskBackedImage fmi = (DiskBackedImage) image;
-            if (!fmi.isOpen()) throw new RuntimeException("Cannot store a DiskBackedImage whose image is not open");
-            File f = files.get(fmi);
-            if (f == null) {
-                f = new File(directory, UUID.randomUUID() + ".bmimage");
-                f.deleteOnExit();
-                synchronized (queue) {
-                    files.put(fmi, f);
-                }
-            }
-            DiskBackedImageManagerImpl.write(f, fmi.getImage());
-        } else imageDAO.writePreProcessedImage(image, channelImageIdx, timePoint);
+        if (useTmpStorage(image)) writeToTmpStorage((DiskBackedImage)image); // cannot be written using source imageDAO
+        else imageDAO.writePreProcessedImage(image, channelImageIdx, timePoint);
         DiskBackedImage im = openImages.get(getKey(channelImageIdx, timePoint));
         if (im != null) {
             im.setModified(false);
@@ -305,6 +318,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 queue.remove(im);
             }
         }
+        detach(im, true);
     }
 
     // helper methods

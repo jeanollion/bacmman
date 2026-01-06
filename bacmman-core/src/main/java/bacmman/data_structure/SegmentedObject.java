@@ -1073,11 +1073,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                         if (((DiskBackedImage)im).detached()) { // image has been erased -> set a null value and re-open image.
                             rawImagesC.set(null, channelIdx);
                             return getRawImageByChannel(channelIdx);
-                        } else return ((SimpleDiskBackedImage)im).getImage();
-                    } else return im;
+                        }
+                    }
                 }
-            } else return ((SimpleDiskBackedImage)im).getImage();
-        } else return im;
+            }
+        }
+        return im;
     }
     /**
      *
@@ -1086,7 +1087,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      */
     public Image getPreFilteredImage(int structureIdx) {
         Image im = this.preFilteredImagesS.get(structureIdx);
-        if (im instanceof DiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
+        if (im == null) return getRawImage(structureIdx);
         else return im;
     }
 

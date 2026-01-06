@@ -6,6 +6,7 @@ import bacmman.utils.StreamConcatenation;
 import java.util.ArrayList;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I> {
     static int targetTileSize = 512 * 512;
@@ -18,8 +19,13 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
         this.image = image;
     }
 
+    public Stream<DiskBackedImage<I>> streamTiles() {
+        if (tilesZYX == null) return Stream.empty();
+        return Stream.of(tilesZYX).flatMap(Stream::of).flatMap(Stream::of);
+    }
+
     protected void tileImage(boolean freeMemory) {
-        tileDimensions = TileUtils.getOptimalTileSize(image.dimensions(), targetTileSize);
+        if (tileDimensions == null) tileDimensions = TileUtils.getOptimalTileSize(image.dimensions(), targetTileSize);
         if (tileDimensions.length == 2) tileDimensions = new int[]{tileDimensions[0], tileDimensions[1], 1};
         int[] size = image.dimensions();
         int[] nTilesAxis = IntStream.range(0, 3).map(i -> i>size.length-1 ? 1 : (int)Math.ceil((double)size[i] / tileDimensions[i])).toArray();
@@ -59,6 +65,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
 
     @Override
     public I getZPlane(int idxZ) {
+        if (image != null) return image.getZPlane(idxZ);
         if (sizeZ == 0 && idxZ == 0) return getImage();
         I plane = newImage("plane"+idxZ, new SimpleImageProperties(sizeX, sizeY, 1, scaleXY, scaleZ));
         int z = idxZ/tileDimensions[2];
@@ -84,14 +91,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
 
     protected boolean hasOpenedTile() {
         if (tilesZYX == null) return false;
-        for (int z = 0; z< tilesZYX.length; ++z) {
-            for (int y = 0; y< tilesZYX[0].length; ++y) {
-                for (int x = 0; x< tilesZYX[0][0].length; ++x) {
-                    if (tilesZYX[z][y][x].isOpen()) return true;
-                }
-            }
-        }
-        return false;
+        return streamTiles().anyMatch(DiskBackedImage::isOpen);
     }
 
     @Override
@@ -101,18 +101,10 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 if (isOpen()) {
                     if (modified && storeIfModified) {
                         if (image!=null && tilesZYX == null) tileImage(true);
-                        else {
-                            for (int z = 0; z< tilesZYX.length; ++z) {
-                                for (int y = 0; y< tilesZYX[0].length; ++y) {
-                                    for (int x = 0; x< tilesZYX[0][0].length; ++x) {
-                                        tilesZYX[z][y][x].freeMemory(storeIfModified);
-                                    }
-                                }
-                            }
-                        }
                         modified = false;
                     }
                     image = null;
+                    if (tilesZYX != null) streamTiles().forEach(t -> t.freeMemory(storeIfModified));
                 }
             }
         }
@@ -126,13 +118,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
     @Override
     public long usedHeapMemory() {
         long sum = image != null ? heapMemory() : 0;
-        for (int z = 0; z< tilesZYX.length; ++z) {
-            for (int y = 0; y< tilesZYX[0].length; ++y) {
-                for (int x = 0; x< tilesZYX[0][0].length; ++x) {
-                    sum += tilesZYX[z][y][x].usedHeapMemory();
-                }
-            }
-        }
+        if (tilesZYX != null) sum += streamTiles().mapToLong(DiskBackedImage::usedHeapMemory).sum();
         return sum;
     }
 
@@ -377,19 +363,22 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
     }
 
     public void pasteView(I dest, Offset destOffset, BoundingBox view) {
-        int minZIdx = view.zMin()/tileDimensions[2];
-        int maxZIdx = view.zMax()/tileDimensions[2];
-        int minYIdx = view.yMin()/tileDimensions[1];
-        int maxYIdx = view.yMax()/tileDimensions[1];
-        int minXIdx = view.xMin()/tileDimensions[0];
-        int maxXIdx = view.xMax()/tileDimensions[0];
-        for (int z = minZIdx; z<= maxZIdx; ++z) {
-            for (int y = minYIdx; y<= maxYIdx; ++y) {
-                for (int x = minXIdx; x<= maxXIdx; ++x) {
-                    BoundingBox inter = BoundingBox.getIntersection(tilesZYX[z][y][x], view);
-                    Offset dOff = new SimpleOffset(inter).translateReverse(view);
-                    if (destOffset != null) dOff.translate(destOffset);
-                    Image.pasteImageView(tilesZYX[z][y][x], dest, dOff, (BoundingBox)inter.duplicate().translateReverse(tilesZYX[z][y][x]));
+        if (image != null) Image.pasteImageView(image, dest, destOffset, view);
+        else {
+            int minZIdx = view.zMin() / tileDimensions[2];
+            int maxZIdx = view.zMax() / tileDimensions[2];
+            int minYIdx = view.yMin() / tileDimensions[1];
+            int maxYIdx = view.yMax() / tileDimensions[1];
+            int minXIdx = view.xMin() / tileDimensions[0];
+            int maxXIdx = view.xMax() / tileDimensions[0];
+            for (int z = minZIdx; z <= maxZIdx; ++z) {
+                for (int y = minYIdx; y <= maxYIdx; ++y) {
+                    for (int x = minXIdx; x <= maxXIdx; ++x) {
+                        BoundingBox inter = BoundingBox.getIntersection(tilesZYX[z][y][x], view);
+                        Offset dOff = new SimpleOffset(inter).translateReverse(view);
+                        if (destOffset != null) dOff.translate(destOffset);
+                        Image.pasteImageView(tilesZYX[z][y][x], dest, dOff, (BoundingBox) inter.duplicate().translateReverse(tilesZYX[z][y][x]));
+                    }
                 }
             }
         }

@@ -3,6 +3,7 @@ package bacmman.data_structure.dao;
 import bacmman.image.DiskBackedImage;
 import bacmman.image.Image;
 import bacmman.image.PrimitiveType;
+import bacmman.image.TiledDiskBackedImage;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import java.nio.channels.FileChannel;
 import java.util.*;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     static Logger logger = LoggerFactory.getLogger(DiskBackedImageManagerImpl.class);
@@ -165,15 +167,25 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
 
     @Override
     public boolean detach(DiskBackedImage image, boolean freeMemory) {
-        File f;
+        List<File> toRemove = new ArrayList<>();
         boolean rem;
         synchronized (queue) {
             rem = queue.remove(image);
-            f = files.remove(image);
-            if (freeMemory) image.freeMemory(false);
-            image.detach();
+            File f = files.remove(image);
+            if (f != null) toRemove.add(f);
+            if (image instanceof TiledDiskBackedImage) {
+                List<File> tileFiles = ((TiledDiskBackedImage<?>)image).streamTiles().map(t -> {
+                    t.detach();
+                    queue.remove(t);
+                    return files.remove(t);
+                }).filter(Objects::nonNull).collect(Collectors.toList());
+                if (!toRemove.isEmpty()) tileFiles.addAll(toRemove);
+                toRemove = tileFiles;
+            }
         }
-        if (f!=null) f.delete();
+        image.detach();
+        if (freeMemory) image.freeMemory(false);
+        toRemove.forEach(File::delete);
         return rem;
     }
 

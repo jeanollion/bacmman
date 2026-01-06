@@ -58,7 +58,7 @@ public abstract class DiskBackedImage<I extends Image<I>> extends Image<I> {
         // TODO create StackDiskBackedImage : store slice by slice.
         DiskBackedImage<I> res;
         if (image.getSizeXY() * image.sizeZ() > TiledDiskBackedImage.targetTileSize * 4) {
-            logger.debug("creating tiled image for : {}", image.dimensions());
+            //logger.debug("creating tiled image for : {}", image.dimensions());
             res = new TiledDiskBackedImage<>(image, manager, writable);
         } else {
             //logger.debug("creating simple image for : {}", image.dimensions());
