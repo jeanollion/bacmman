@@ -77,45 +77,67 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BooleanParameter inputLabelCenter = new BooleanParameter("Use Input Label Center").setHint("If true, the centers from a selected input label will be used for CDM target map instead of the center from the target label");
         IntegerParameter inputLabelIdx = new IntegerParameter("Input Label Idx", -1).setLowerBound(0);
         ConditionalParameter<Boolean> inputLabelCenterCond = new ConditionalParameter<>(inputLabelCenter).setActionParameters(true, inputLabelIdx);
-        boolean segmentOnly;
+        boolean segmentation, tracking;
 
-        public SegmentationParameters(boolean segmentOnly) {
-            super("Segmentation");
-            StringBuilder hint = new StringBuilder().append("Defines how center is computed. <ul>");
-            for (CENTER_MODE mode : CENTER_MODE.values()) hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
-            hint.append("</ul>");
-            centerMode.setHint(hint.toString());
-            setChildren(scaleEDM, edmBalanceFreqCond, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives, catBalanceFreqCond);
-            inputLabelIdx.addValidationFunction(i -> {
-                SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), i, true);
-                if (dsList!=null && dsList.getChildCount()>0) {
-                    return i.getIntValue() < dsList.getChildAt(0).getLabelNumber();
-                } else return true;
-            });
-            this.segmentOnly = segmentOnly;
+        public SegmentationParameters(boolean segmentation, boolean tracking) {
+            super(segmentation ? "Segmentation" : "Category");
+            if (segmentation) {
+                StringBuilder hint = new StringBuilder().append("Defines how center is computed. <ul>");
+                for (CENTER_MODE mode : CENTER_MODE.values())
+                    hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
+                hint.append("</ul>");
+                centerMode.setHint(hint.toString());
+                setChildren(scaleEDM, edmBalanceFreqCond, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives, catBalanceFreqCond);
+                inputLabelIdx.addValidationFunction(i -> {
+                    SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), i, true);
+                    if (dsList != null && dsList.getChildCount() > 0) {
+                        return i.getIntValue() < dsList.getChildAt(0).getLabelNumber();
+                    } else return true;
+                });
+            } else {
+                setChildren(catBalanceFreqCond);
+            }
+            this.segmentation = segmentation;
+            this.tracking = tracking;
         }
 
         @Override
         public SegmentationParameters duplicate() {
-            SegmentationParameters res = new SegmentationParameters(segmentOnly);
+            SegmentationParameters res = new SegmentationParameters(segmentation, tracking);
             res.setContentFrom(this);
             transferStateArguments(this, res);
             return res;
         }
 
+
+        @Override
+        public String getPythonConfigurationKey() {
+            return "segmentation";
+        }
+
         @Override
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
-            res.put(PythonConfiguration.toSnakeCase(scaleEDM.getName()), scaleEDM.toJSONEntry());
-            res.put(PythonConfiguration.toSnakeCase(edmBalanceFreq.getName()), edmBalanceFreq.toJSONEntry());
-            if (edmBalanceFreq.getSelected()) {
-                JSONObject edmFreqBal = new JSONObject();
-                edmFreqBal.put("dynamic_power_law", edmDynamicWeightPowerLaw.toJSONEntry());
-                edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
-                edmFreqBal.put(PythonConfiguration.toSnakeCase(edmDynamicWeights.getName()), edmDynamicWeights.toJSONEntry());
-                res.put("balance_edm_frequency_parameters", edmFreqBal);
+            if (segmentation) {
+                res.put(PythonConfiguration.toSnakeCase(scaleEDM.getName()), scaleEDM.toJSONEntry());
+                res.put(PythonConfiguration.toSnakeCase(edmBalanceFreq.getName()), edmBalanceFreq.toJSONEntry());
+                if (edmBalanceFreq.getSelected()) {
+                    JSONObject edmFreqBal = new JSONObject();
+                    edmFreqBal.put("dynamic_power_law", edmDynamicWeightPowerLaw.toJSONEntry());
+                    edmFreqBal.put(PythonConfiguration.toSnakeCase(edmWeightPowerLaw.getName()), edmWeightPowerLaw.toJSONEntry());
+                    edmFreqBal.put(PythonConfiguration.toSnakeCase(edmDynamicWeights.getName()), edmDynamicWeights.toJSONEntry());
+                    res.put("balance_edm_frequency_parameters", edmFreqBal);
+                }
+                res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
+                res.put(PythonConfiguration.toSnakeCase(centerMode.getName()), centerMode.toJSONEntry());
+                res.put(PythonConfiguration.toSnakeCase(centerDistanceMode.getName()), centerDistanceMode.toJSONEntry());
+                if (centerDistanceMode.getSelectedEnum().equals(CENTER_DISTANCE_MODE.EUCLIDEAN)) res.put(PythonConfiguration.toSnakeCase(cdmLossRadius.getName()), cdmLossRadius.toJSONEntry());
+                res.put(PythonConfiguration.toSnakeCase(EDMderivatives.getName()), EDMderivatives.toJSONEntry());
+                res.put(PythonConfiguration.toSnakeCase(CDMderivatives.getName()), CDMderivatives.toJSONEntry());
+                if (inputLabelCenter.getSelected()) res.put("input_label_center_idx", inputLabelIdx.toJSONEntry());
+            } else { // category only
+                res.put("input_label_center_idx", 0);
             }
-            res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
             if (catBalanceFreq.getSelected()) {
                 JSONObject catFreqBal = new JSONObject();
                 catFreqBal.put("dynamic_power_law", catDynamicWeightPowerLaw.toJSONEntry());
@@ -124,13 +146,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 res.put("balance_category_frequency_parameters", catFreqBal);
             }
 
-            res.put(PythonConfiguration.toSnakeCase(centerMode.getName()), centerMode.toJSONEntry());
-            res.put(PythonConfiguration.toSnakeCase(centerDistanceMode.getName()), centerDistanceMode.toJSONEntry());
-            if (centerDistanceMode.getSelectedEnum().equals(CENTER_DISTANCE_MODE.EUCLIDEAN)) res.put(PythonConfiguration.toSnakeCase(cdmLossRadius.getName()), cdmLossRadius.toJSONEntry());
-            res.put(PythonConfiguration.toSnakeCase(EDMderivatives.getName()), EDMderivatives.toJSONEntry());
-            res.put(PythonConfiguration.toSnakeCase(CDMderivatives.getName()), CDMderivatives.toJSONEntry());
-            if (inputLabelCenter.getSelected()) res.put("input_label_center_idx", inputLabelIdx.toJSONEntry());
-            if (segmentOnly) res.put("segment_only", segmentOnly);
+            res.put("segmentation", segmentation);
+            res.put("tracking", tracking);
             return res;
         }
     }
@@ -173,7 +190,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         }
     }
 
-    Parameter[] otherParameters = new Parameter[]{new SegmentationParameters(false), new TrackingParameters(), arch};
+    Parameter[] otherParameters = new Parameter[]{new SegmentationParameters(true, true), new TrackingParameters(), arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(1000).setStepNumber(200)
@@ -248,7 +265,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ArrayNumberParameter extractDims = getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
     IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
-    EnumChoiceParameter<TrainingConfigurationParameter.RESIZE_MODE> resideMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE,
+    EnumChoiceParameter<TrainingConfigurationParameter.RESIZE_MODE> resizeMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE,
             () -> selMode.getSelectedEnum().equals(SELECTION_MODE.NEW)?parentObjectClass.getSelectedIndex() : extractSel.getSelectedSelections().mapToInt(Selection::getObjectClassIdx).min().orElse(-1),
             () -> extractDims.getArrayInt());
     IntegerParameter subsamplingFactor = new IntegerParameter("Frame subsampling factor", 1).setLowerBound(1).setHint("Extract N time subsampled versions of the dataset. if this parameter is 2, this will extract N € [1, 2] versions of the dataset with one fame out of two");
@@ -265,7 +282,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
     // store in a group so that parameters have same parent -> needed because of listener
-    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, channel, otherOCList, extractCategory, extractDims, resideMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
+    GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, channel, otherOCList, extractCategory, extractDims, resizeMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
 
     @Override
     public boolean mixedPrecision() {
@@ -320,7 +337,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis() )).collect(Collectors.toList());
         labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resideMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
+        return ExtractDatasetUtil.getDiSTNetDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resizeMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, spatialDownsampling.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

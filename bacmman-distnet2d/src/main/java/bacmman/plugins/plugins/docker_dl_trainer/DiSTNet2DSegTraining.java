@@ -12,14 +12,11 @@ import bacmman.plugins.Hint;
 import bacmman.py_dataset.ExtractDatasetUtil;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, DockerDLTrainer.MixedPrecision, Hint {
     BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
@@ -38,7 +35,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
     Parameter[] dataAugmentationParameters = new Parameter[]{frameSubSampling, new ElasticDeformParameter("Elastic Deform"), illumAugList };
     DiSTNet2DTraining.ArchitectureParameter arch = new DiSTNet2DTraining.ArchitectureParameter("Architecture", false, 0);
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE).appendAnchorMaskIdxHint("0 = target object class idx. i &gt; 0 = additional label of index i-1")};
-    DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters( true);
+    DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters( true, false);
     Parameter[] otherParameters = new Parameter[]{segmentationParam, arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
@@ -73,7 +70,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ArrayNumberParameter extractDims = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0,0}, null).setHint("Images will be rescaled to these dimensions. Set 0 for no rescaling");
-    EnumChoiceParameter<TrainingConfigurationParameter.RESIZE_MODE> resideMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE,
+    EnumChoiceParameter<TrainingConfigurationParameter.RESIZE_MODE> resizeMode = TrainingConfigurationParameter.getResizeModeParameter(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE,
             () -> selMode.getSelectedEnum().equals(SELECTION_MODE.NEW)?parentObjectClass.getSelectedIndex() : extractSel.getSelectedSelections().mapToInt(Selection::getObjectClassIdx).min().orElse(-1),
             () -> extractDims.getArrayInt());
     IntegerParameter spatialDownsampling = new IntegerParameter("Spatial downsampling factor", 1).setLowerBound(1).setHint("Divides the size of the image by this factor");
@@ -82,7 +79,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
             .setActionParameters(SELECTION_MODE.NEW, parentObjectClass, extractPos);
     SelectionParameter selectionFilter = new SelectionParameter("Subset", true, false).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
 
-    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, otherOCList, extractCategory, extractDims, resideMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, timelapse);
+    GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, otherOCList, extractCategory, extractDims, resizeMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, timelapse);
 
 
     @Override
@@ -137,7 +134,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
         if (selectionContainer != null) selectionContainer.addAll(selections);
         List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
         labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resideMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
+        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resizeMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {
