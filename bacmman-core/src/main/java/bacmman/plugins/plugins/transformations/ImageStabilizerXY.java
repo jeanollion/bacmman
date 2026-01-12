@@ -56,7 +56,6 @@ import bacmman.processing.ImageTransformation;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.Hint;
-import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.SynchronizedPoolWithSourceObject;
 import bacmman.utils.ThreadRunner;
 
@@ -119,7 +118,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         //if (true) return;
         final Double[][] translationTXYArray = new Double[inputImages.getFrameNumber()][];
         Cropper crop = cropper.instantiatePlugin();
-        MutableBoundingBox cropBB= crop==null? null : crop.getCropBoundginBox(channelIdx, inputImages);
+        MutableBoundingBox cropBB= crop==null? null : crop.getCropBoundingBox(channelIdx, inputImages);
         logger.debug("crop bounding box: {}", cropBB);
         InputImages.getImageForChannel(inputImages, channelIdx, false); // ensure all transformations are performed on images (multithread)
         ccdSegments(channelIdx, inputImages, segmentLength.getValue().intValue(), tRef, translationTXYArray, maxIterations, tolerance, cropBB);

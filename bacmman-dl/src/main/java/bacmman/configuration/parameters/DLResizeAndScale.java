@@ -200,6 +200,15 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         return this;
     }
 
+    public HistogramScaler getScaler(int inputIdx) {
+        switch (getMode()) {
+            default:
+                return inputScaling.getChildAt(inputIdx).instantiatePlugin();
+            case RESAMPLE:
+                return inputInterpAndScaling.getChildAt(inputIdx).getParam2().instantiatePlugin();
+        }
+    }
+
     public DLResizeAndScale setInterpolationForInput(InterpolationParameter interpolation, int... inputIdx) {
         int maxIdx = IntStream.of(inputIdx).max().orElse(-1);
         if (maxIdx < 0) return this;
