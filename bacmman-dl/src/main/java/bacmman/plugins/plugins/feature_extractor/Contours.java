@@ -13,7 +13,6 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class Contours implements FeatureExtractorConfigurable, FeatureExtractor.FeatureExtractorOneEntryPerTrack {
@@ -25,7 +24,7 @@ public class Contours implements FeatureExtractorConfigurable, FeatureExtractor.
     @Override
     public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx) {
         // object class idx must be identical to parent track idx
-        Map<SegmentedObject, ImageShort> coordinates = parentTrack.collect(Collectors.toMap(Function.identity(), p -> p.getRegion().getRoi().getFlattenCoordinates() )); //.setLocDelta(p.getBounds().xMin(), p.getBounds().yMin())
+        Map<SegmentedObject, ImageShort> coordinates = parentTrack.collect(Collectors.toMap(Function.identity(), p -> p.getRegion().getRoi().getFlattenExternalContoutCoordinates() )); //.setLocDelta(p.getBounds().xMin(), p.getBounds().yMin())
         Map<SegmentedObject, Integer> maxContourSizePerTrack = SegmentedObjectUtils.splitByTrackHead(coordinates.keySet()).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().stream().map(coordinates::get).mapToInt(SimpleImageProperties::sizeY).max().getAsInt()));
         coords = coordinates.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
             ImageShort c = e.getValue();

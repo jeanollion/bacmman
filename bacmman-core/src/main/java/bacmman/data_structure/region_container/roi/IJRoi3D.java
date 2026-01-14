@@ -12,11 +12,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.util.List;
+import java.awt.geom.Area;
+import java.awt.geom.PathIterator;
+import java.awt.geom.Point2D;
 import java.awt.image.IndexColorModel;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
@@ -31,40 +32,6 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
     int frame;
     public IJRoi3D(int bucketSize) {
         super(bucketSize);
-    }
-
-    public Map<Integer, ImageShort> getCoordinates() {
-        return this.entrySet().stream().filter(e -> e.getKey()>=0).collect(Collectors.toMap(Entry::getKey, e -> {
-            Roi r = (e.getValue() instanceof ShapeRoi || e.getValue() instanceof PolygonRoi) ? e.getValue() : new ShapeRoi(e.getValue());
-            Polygon p = r.getPolygon();
-            ImageShort res = new ImageShort("", 2, p.npoints, 1);
-            for (int i = 0; i<p.npoints; ++i) {
-                res.setPixel(0, i, 0, p.xpoints[i] + locdx);
-                res.setPixel(1, i, 0, p.ypoints[i] + locdy);
-            }
-            return res;
-        }));
-    }
-
-    public ImageShort getFlattenCoordinates() { // (NOT TESTED) x=2 or 3, y=N, Z rois are flattened along y axis. if x = 3 last value of x axis is Z
-        Map<Integer, ImageShort> coords = getCoordinates();
-        if (is2D) return coords.values().iterator().next();
-        int n = coords.values().stream().mapToInt(SimpleImageProperties::sizeY).sum();
-        ImageShort res = new ImageShort("", 3, n, 1);
-        int offset = 0;
-        int zMin = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).min().getAsInt();
-        int zMax = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).max().getAsInt();
-        for (int z = zMin; z<=zMax; ++z) {
-            ImageShort c = coords.get(z);
-            if (c==null) continue;
-            for (int i = 0; i<c.sizeY(); ++i) {
-                res.setPixel(0, offset + i, 0, c.getPixelInt(0, i, 0));
-                res.setPixel(1, offset + i, 0, c.getPixelInt(1, i, 0));
-                res.setPixel(2, offset + i, 0, z);
-            }
-            offset += c.sizeY();
-        }
-        return res;
     }
 
     public ImageByte toMask(BoundingBox bounds, double scaleXY, double scaleZ) {
@@ -134,6 +101,9 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
         this.locdy = locdy;
         return this;
     }
+    public int getLocdx() {return this.locdx;}
+    public int getLocdy() {return this.locdy;}
+
     public IJRoi3D setIs2D(boolean is2D) {this.is2D=is2D; return this;}
     public boolean contained(Overlay o) {
         for (Roi r : values()) if (o.contains(r)) return true;
@@ -217,6 +187,20 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
         IJRoi3D res = new IJRoi3D(1).setIs2D(true).setFrame(frame).setLocDelta(locdx, locdy);
         res.put(0, (Roi)get(z).clone());
         return res;
+    }
+
+    public IJRoi3D duplicateOutline() {
+        IJRoi3D target = new IJRoi3D(sizeZ()).setIs2D(is2D()).setFrame(getFrame()).setLocDelta(locdx, locdy);
+        getExternalContourCoordinates().forEach( (z, coords) -> {
+            int[] xpoints = new int[coords.sizeY()];
+            int[] ypoints = new int[coords.sizeY()];
+            for (int i = 0; i<xpoints.length; ++i) {
+                xpoints[i] = coords.getPixelInt(0, i, 0) - locdx;
+                ypoints[i] = coords.getPixelInt(1, i, 0) - locdy;
+            }
+            target.put(z, new PolygonRoi(xpoints, ypoints, xpoints.length, PolygonRoi.POLYLINE));
+        } );
+        return target;
     }
 
     public int sizeZ() {
@@ -338,4 +322,133 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
         return System.identityHashCode(this);
     }
 
+    public Map<Integer, ImageShort> getExternalContourCoordinates() {
+        return this.entrySet().stream().filter(e -> e.getKey()>=0).collect(Collectors.toMap(Entry::getKey, e -> {
+            Polygon p;
+            if (e.getValue() instanceof ShapeRoi) p = getExternalContour((ShapeRoi)e.getValue());
+            else if (e.getValue() instanceof PolygonRoi) p = e.getValue().getPolygon();
+            else p = new ShapeRoi(e.getValue()).getPolygon();
+            ImageShort res = new ImageShort("", 2, p.npoints, 1);
+            for (int i = 0; i<p.npoints; ++i) {
+                res.setPixel(0, i, 0, p.xpoints[i] + locdx);
+                res.setPixel(1, i, 0, p.ypoints[i] + locdy);
+            }
+            return res;
+        }));
+    }
+
+    public ImageShort getFlattenExternalContoutCoordinates() { // (NOT TESTED) x=2 or 3, y=N, Z rois are flattened along y axis. if x = 3 last value of x axis is Z
+        Map<Integer, ImageShort> coords = getExternalContourCoordinates();
+        if (is2D) return coords.values().iterator().next();
+        int n = coords.values().stream().mapToInt(SimpleImageProperties::sizeY).sum();
+        ImageShort res = new ImageShort("", 3, n, 1);
+        int offset = 0;
+        int zMin = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).min().getAsInt();
+        int zMax = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).max().getAsInt();
+        for (int z = zMin; z<=zMax; ++z) {
+            ImageShort c = coords.get(z);
+            if (c==null) continue;
+            for (int i = 0; i<c.sizeY(); ++i) {
+                res.setPixel(0, offset + i, 0, c.getPixelInt(0, i, 0));
+                res.setPixel(1, offset + i, 0, c.getPixelInt(1, i, 0));
+                res.setPixel(2, offset + i, 0, z);
+            }
+            offset += c.sizeY();
+        }
+        return res;
+    }
+
+    // polygon operations
+    public static Polygon getExternalContour(ShapeRoi shapeRoi) {
+        Shape shape = shapeRoi.getShape();
+        Rectangle bounds = shapeRoi.getBounds();
+
+        // Convert to Area to get the actual boundary after boolean operations
+        Area area = new Area(shape);
+
+        // Get the flattened path of the resulting area
+        PathIterator pathIterator = area.getPathIterator(null, 0.5);
+
+        // Collect all subpaths and their winding direction
+        List<PolygonPath> paths = new ArrayList<>();
+        List<Point2D> currentPath = null;
+        float[] coords = new float[6];
+
+        while (!pathIterator.isDone()) {
+            int type = pathIterator.currentSegment(coords);
+
+            switch (type) {
+                case PathIterator.SEG_MOVETO:
+                    currentPath = new ArrayList<>();
+                    currentPath.add(new Point2D.Double(coords[0], coords[1]));
+                    break;
+                case PathIterator.SEG_LINETO:
+                    if (currentPath != null) {
+                        currentPath.add(new Point2D.Double(coords[0], coords[1]));
+                    }
+                    break;
+                case PathIterator.SEG_CLOSE:
+                    if (currentPath != null && currentPath.size() > 2) {
+                        paths.add(new PolygonPath(currentPath));
+                    }
+                    currentPath = null;
+                    break;
+            }
+            pathIterator.next();
+        }
+
+        // Find the path with positive (counter-clockwise) winding and largest area
+        // This is the outer boundary; negative winding indicates holes
+        PolygonPath outerPath = null;
+        double maxArea = 0;
+
+        for (PolygonPath path : paths) {
+            double absArea = Math.abs(path.getSignedArea());
+            if (absArea > maxArea) {
+                maxArea = absArea;
+                outerPath = path;
+            }
+        }
+
+        if (outerPath == null) {
+            return new Polygon();
+        }
+
+        // Convert to Polygon with bounds offset
+        List<Point2D> points = outerPath.points;
+        int[] xArray = new int[points.size()];
+        int[] yArray = new int[points.size()];
+        for (int i = 0; i < points.size(); i++) {
+            xArray[i] = (int) Math.round(points.get(i).getX() + bounds.x);
+            yArray[i] = (int) Math.round(points.get(i).getY() + bounds.y);
+        }
+
+        return new Polygon(xArray, yArray, xArray.length);
+    }
+
+    // Helper class to store path and calculate its signed area
+    static class PolygonPath {
+        List<Point2D> points;
+        double signedArea;
+
+        PolygonPath(List<Point2D> points) {
+            this.points = new ArrayList<>(points);
+            this.signedArea = calculateSignedArea(points);
+        }
+
+        double getSignedArea() {
+            return signedArea;
+        }
+
+        private static double calculateSignedArea(List<Point2D> pts) {
+            if (pts.size() < 3) return 0;
+            double area = 0;
+            for (int i = 0; i < pts.size(); i++) {
+                Point2D p1 = pts.get(i);
+                Point2D p2 = pts.get((i + 1) % pts.size());
+                area += p1.getX() * p2.getY() - p2.getX() * p1.getY();
+            }
+            return area / 2.0;
+        }
+    }
 }

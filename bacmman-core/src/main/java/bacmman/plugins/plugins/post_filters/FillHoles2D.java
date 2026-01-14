@@ -19,11 +19,12 @@
 package bacmman.plugins.plugins.post_filters;
 
 import bacmman.configuration.parameters.Parameter;
-import bacmman.data_structure.RegionPopulation;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Spot;
+import bacmman.data_structure.*;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
+
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -39,11 +40,11 @@ public class FillHoles2D implements PostFilter, Hint {
     public FillHoles2D() {}
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Spot)) { // do nothing
+        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Analytical)) { // do nothing
             return childPopulation;
         }
-        bacmman.processing.FillHoles2D.fillHoles(childPopulation);
-        return childPopulation;
+        UnaryOperator<Region> toOutline = r -> new Region(r.getRoi().duplicateOutline(), r.getLabel(), r.getBounds(), r.getScaleXY(), r.getScaleZ()).setIs2D(r.is2D()).setAttributesFrom(r);
+        return new RegionPopulation(childPopulation.getRegions().stream().map(toOutline).collect(Collectors.toList()), childPopulation.getImageProperties());
     }
 
     @Override

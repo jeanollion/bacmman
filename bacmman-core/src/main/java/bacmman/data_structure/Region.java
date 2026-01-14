@@ -247,7 +247,7 @@ public class Region {
         }
     }
 
-    Region setAttributesFrom(Region r) {
+    public Region setAttributesFrom(Region r) {
         return this.setIsAbsoluteLandmark(r.absoluteLandmark)
                 .setQuality(r.quality)
                 .setCenter(r.center==null ? null : r.center.duplicate())
