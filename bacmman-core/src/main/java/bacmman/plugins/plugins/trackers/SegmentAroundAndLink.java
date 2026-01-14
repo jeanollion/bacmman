@@ -185,8 +185,8 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
                     factory.setIdx(o, oIdx);
                 }
             }
-            // if no object or no overlapping objects -> copy ref object // TODO as option
-            //if (o == null) o = new SegmentedObject(ref.getFrame(), objectClassIdx, oIdx, ref.getRegion().duplicate(true), p);
+            // if no object or no overlapping objects -> copy ref object
+            if (o == null) o = new SegmentedObject(ref.getFrame(), objectClassIdx, oIdx, ref.getRegion().duplicate(true), p);
             if (o != null) refMapsegmentedObject.put(ref, o);
         }
 

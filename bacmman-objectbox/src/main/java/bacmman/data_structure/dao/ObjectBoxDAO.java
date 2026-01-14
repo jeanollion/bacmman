@@ -52,6 +52,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     private java.nio.channels.FileLock lock;
     private FileChannel lockChannel;
     protected final HashMapGetCreate.HashMapGetCreateRedirectedSync<Integer, LongIDGenerator> idGenerator = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeGenerator);
+
     public ObjectBoxDAO(MasterDAO<Long, ? extends ObjectDAO<Long>> mDAO, String positionName, String outputDir, boolean readOnly) {
         this.mDAO = mDAO;
         this.positionName = positionName;
@@ -190,7 +191,11 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             synchronized (cache) {
                 sob = cache.get(id);
                 if (sob == null) {
-                    sob = objectBoxes.get(objectClassIdx).get(id);
+                    try {
+                        sob = objectBoxes.get(objectClassIdx).get(id);
+                    } finally {
+                        objectBoxes.get(objectClassIdx).closeThreadResources();
+                    }
                     if (sob != null) cache.put(id, sob);;
                 }
             }
@@ -210,18 +215,26 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public List<SegmentedObject> getChildren(SegmentedObject parent, int objectClassIdx) {
         if (readOnly && objectBoxes.get(objectClassIdx)==null) return Collections.emptyList();
-        return get(objectClassIdx, getChildrenQuery(objectClassIdx, (Long)parent.getId()), null, true).collect(Collectors.toList());
+        try {
+            return get(objectClassIdx, getChildrenQuery(objectClassIdx, (Long) parent.getId()), null, true).collect(Collectors.toList());
+        } finally {
+            objectStores.get(objectClassIdx).closeThreadResources();
+        }
     }
 
     @Override
     public void setAllChildren(Collection<SegmentedObject> parentTrack, int objectClassIdx) {
         if (readOnly && objectStores.get(objectClassIdx)==null) return;
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
-        objectStores.get(objectClassIdx).runInReadTx(() -> {
-            for (SegmentedObject p : parentTrack) {
-                accessor.setChildren(p, getChildren(p, objectClassIdx), objectClassIdx);
-            }
-        });
+        try {
+            objectStores.get(objectClassIdx).runInReadTx(() -> {
+                for (SegmentedObject p : parentTrack) {
+                    accessor.setChildren(p, getChildren(p, objectClassIdx), objectClassIdx);
+                }
+            });
+        } finally {
+            objectStores.get(objectClassIdx).closeThreadResources();
+        }
     }
 
     @Override
@@ -233,15 +246,20 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public void deleteChildren(Collection<SegmentedObject> parents, int objectClassIdx) {
         if (readOnly) return;
         List<long[]> idList = new ArrayList<>(parents.size());
-        objectStores.get(objectClassIdx).runInReadTx(() -> {
+        try {
+            objectStores.get(objectClassIdx).runInReadTx(() -> {
             for (SegmentedObject parent : parents) {
                 Query<SegmentedObjectBox> query = getChildrenQuery(objectClassIdx, (Long)parent.getId());
                 idList.add(query.findIds());
                 query.close();
             }
+            long[] ids = idList.size()==1 ? idList.get(0) : idList.stream().flatMapToLong(LongStream::of).toArray();
+            deleteTransaction(ids, objectClassIdx, true, true);
         });
-        long[] ids = idList.size()==1 ? idList.get(0) : idList.stream().flatMapToLong(LongStream::of).toArray();
-        deleteTransaction(ids, objectClassIdx, true, true);
+        } finally {
+            objectStores.get(objectClassIdx).closeThreadResources();
+            measurementStores.get(objectClassIdx).closeThreadResources();
+        }
     }
 
     @Override
@@ -250,14 +268,20 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         for (int oc : structures) {
             cache.remove(oc);
             measurementCache.remove(oc);
-            for (long[] ids : getAllIds(objectBoxes.get(oc))) {
-                deleteTransaction(ids, oc, true,true);
+            try {
+                for (long[] ids : getAllIds(objectBoxes.get(oc))) {
+                    deleteTransaction(ids, oc, true, true);
+                }
+            } finally {
+                objectStores.get(oc).closeThreadResources();
+                measurementStores.get(oc).closeThreadResources();
             }
         }
     }
     @Override
     public synchronized void erase() {
         clearCache();
+        closeThreadResources();
         if (readOnly) return;
         unlock();
         if (!Utils.deleteDirectory(this.dir.toFile())) deleteAllObjects(); // if for some reason dir cannot be deleted : clear database
@@ -293,29 +317,35 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         if (readOnly) return;
         SegmentedObjectAccessor accessor = mDAO.getAccess();
         SegmentedObjectUtils.splitByStructureIdx(list, true).forEach((ocIdx, l) -> {
-            long[] ids = l.stream().mapToLong(o -> (Long)o.getId()).toArray();
-            deleteTransaction(ids, ocIdx, deleteChildren, false);
-            if (deleteFromParent && ocIdx>=0) l.forEach(o -> accessor.getDirectChildren(o.getParent(), o.getStructureIdx()).remove(o)); // safer than from deleteTransaction, in case objects have not been stored
-            if (ocIdx>=0 && relabelSiblings) {
-                long[] parentIds = l.stream().mapToLong(o -> (Long)o.getParentId()).distinct().toArray();
-                List<Stream<SegmentedObjectBox>> siblingList = new ArrayList<>();
-                objectStores.get(ocIdx).runInReadTx(() -> {
-                    for (long pId : parentIds) {
-                        siblingList.add(getB(ocIdx, getChildrenQuery(ocIdx, pId), null));
-                    }
-                });
-                List<SegmentedObjectBox> modifiedObjects = new ArrayList<>();
-                for (Stream<SegmentedObjectBox> siblings : siblingList) {
-                    int[] i = new int[1];
-                    siblings.forEach(c -> {
-                        if (c.getIdx()!=i[0]) {
-                            c.setIdx(i[0]);
-                            modifiedObjects.add(c);
+            try {
+                long[] ids = l.stream().mapToLong(o -> (Long) o.getId()).toArray();
+                deleteTransaction(ids, ocIdx, deleteChildren, false);
+                if (deleteFromParent && ocIdx >= 0)
+                    l.forEach(o -> accessor.getDirectChildren(o.getParent(), o.getStructureIdx()).remove(o)); // safer than from deleteTransaction, in case objects have not been stored
+                if (ocIdx >= 0 && relabelSiblings) {
+                    long[] parentIds = l.stream().mapToLong(o -> (Long) o.getParentId()).distinct().toArray();
+                    List<Stream<SegmentedObjectBox>> siblingList = new ArrayList<>();
+                    objectStores.get(ocIdx).runInReadTx(() -> {
+                        for (long pId : parentIds) {
+                            siblingList.add(getB(ocIdx, getChildrenQuery(ocIdx, pId), null));
                         }
-                        ++i[0];
                     });
+                    List<SegmentedObjectBox> modifiedObjects = new ArrayList<>();
+                    for (Stream<SegmentedObjectBox> siblings : siblingList) {
+                        int[] i = new int[1];
+                        siblings.forEach(c -> {
+                            if (c.getIdx() != i[0]) {
+                                c.setIdx(i[0]);
+                                modifiedObjects.add(c);
+                            }
+                            ++i[0];
+                        });
+                    }
+                    put(ocIdx, modifiedObjects); // TODO when objectbox allows it, only update idx
                 }
-                put(ocIdx, modifiedObjects); // TODO when objectbox allows it, only update idx
+            } finally {
+                objectStores.get(ocIdx).closeThreadResources();
+                measurementStores.get(ocIdx).closeThreadResources();
             }
         });
     }
@@ -353,14 +383,19 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         }
         if (deleteChildren) {
             for (int cIdx : getExperiment().experimentStructure.getAllDirectChildStructures(objectClassIdx)) {
-                objectStores.get(cIdx).runInTx(() -> {
-                    for (long pId : ids) {
-                        Query<SegmentedObjectBox> query = getChildrenQuery(cIdx, pId);
-                        long[] cIds = query.findIds();
-                        query.close();
-                        deleteTransaction(cIds, cIdx, true, false);
-                    }
-                });
+                try {
+                    objectStores.get(cIdx).runInTx(() -> {
+                        for (long pId : ids) {
+                            Query<SegmentedObjectBox> query = getChildrenQuery(cIdx, pId);
+                            long[] cIds = query.findIds();
+                            query.close();
+                            deleteTransaction(cIds, cIdx, true, false);
+                        }
+                    });
+                } finally {
+                    objectStores.get(cIdx).closeThreadResources();
+                    measurementStores.get(cIdx).closeThreadResources();
+                }
             }
         }
     }
@@ -376,45 +411,49 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         Map<Integer, List<SegmentedObject>> oByOcIdx = SegmentedObjectUtils.splitByStructureIdx(objects, true);
         for (int ocIdx : new TreeSet<>(oByOcIdx.keySet())) { // TODO by batch
             long t0 = System.currentTimeMillis();
+            long t1;
             List<SegmentedObject> toStoreSO = oByOcIdx.get(ocIdx);
             List<SegmentedObject> toStoreMeas = new ArrayList<>();
-            Box<SegmentedObjectBox> db = objectBoxes.get(ocIdx);
-            List<SegmentedObjectBox> toStore;
-            Map<Long, SegmentedObjectBox> cache = this.cache.get(ocIdx);
-            synchronized (cache) {
-                List<SegmentedObject> toStoreMeasSync=Collections.synchronizedList(toStoreMeas);
-                toStore = toStoreSO.parallelStream().map(o -> {
-                    SegmentedObjectBox sob = cache.get((Long)o.getId());
-                    if (sob == null) {
-                        sob = new SegmentedObjectBox(o);
-                        cache.put(sob.getId(), sob);
-                    } else sob.updateSegmentedObject(o);
-                    if (o.hasMeasurementModifications()) toStoreMeasSync.add(o);
-                    return sob;
-                }).collect(Collectors.toList());
-            }
+            try {
+                Box<SegmentedObjectBox> db = objectBoxes.get(ocIdx);
+                List<SegmentedObjectBox> toStore;
+                Map<Long, SegmentedObjectBox> cache = this.cache.get(ocIdx);
+                synchronized (cache) {
+                    List<SegmentedObject> toStoreMeasSync = Collections.synchronizedList(toStoreMeas);
+                    toStore = toStoreSO.parallelStream().map(o -> {
+                        SegmentedObjectBox sob = cache.get((Long) o.getId());
+                        if (sob == null) {
+                            sob = new SegmentedObjectBox(o);
+                            cache.put(sob.getId(), sob);
+                        } else sob.updateSegmentedObject(o);
+                        if (o.hasMeasurementModifications()) toStoreMeasSync.add(o);
+                        return sob;
+                    }).collect(Collectors.toList());
+                }
 
-            long t1 = System.currentTimeMillis();
-            if (safeMode) { // record modifications
-                Set<Long> toRemove = toRemoveAtRollback.get(ocIdx);
-                Map<Long, SegmentedObjectBox> toRestore = toRestoreAtRollback.get(ocIdx);
-                objectStores.get(ocIdx).runInReadTx(() -> {
-                    for (SegmentedObjectBox b : toStore) {
-                        if (!toRemove.contains(b.getId())) {
-                            SegmentedObjectBox oldB = db.get(b.getId());
-                            if (oldB!=null) toRestore.put(b.getId(), oldB); // modified
-                            else toRemove.add(b.getId()); // newly created
-                        } // was created after previous commit so needs to be removed
-                    }
-                });
+                t1 = System.currentTimeMillis();
+                if (safeMode) { // record modifications
+                    Set<Long> toRemove = toRemoveAtRollback.get(ocIdx);
+                    Map<Long, SegmentedObjectBox> toRestore = toRestoreAtRollback.get(ocIdx);
+                    objectStores.get(ocIdx).runInReadTx(() -> {
+                        for (SegmentedObjectBox b : toStore) {
+                            if (!toRemove.contains(b.getId())) {
+                                SegmentedObjectBox oldB = db.get(b.getId());
+                                if (oldB != null) toRestore.put(b.getId(), oldB); // modified
+                                else toRemove.add(b.getId()); // newly created
+                            } // was created after previous commit so needs to be removed
+                        }
+                    });
+                }
+                // store
+                put(ocIdx, toStore);
+            } finally {
+                objectStores.get(ocIdx).closeThreadResources();
             }
-            // store
-            put(ocIdx, toStore);
             long t2 = System.currentTimeMillis();
             logger.debug("Stored {} objects of class {} in {}ms create objects: {}ms store: {}ms", toStoreSO.size(), ocIdx, t2-t0, t1-t0, t2-t1);
             upsertMeasurements(toStoreMeas);
         }
-        closeThreadResources();
     }
 
     protected void put(int objectClassIdx, Collection<SegmentedObjectBox> toStore) {
@@ -427,7 +466,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                 for (SegmentedObjectBox b : toStore) {
                     if (!toRemove.contains(b.getId()) && !toRestore.containsKey(b.getId())) {
                         SegmentedObjectBox oldB = db.get(b.getId());
-                        if (oldB!=null) toRestore.put(b.getId(), oldB); // modified
+                        if (oldB != null) toRestore.put(b.getId(), oldB); // modified
                         else toRemove.add(b.getId()); // newly created
                     } // was created after previous commit so needs to be removed
                 }
@@ -450,7 +489,11 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public List<SegmentedObject> getRoots() {
         if (readOnly && objectBoxes.get(-1)==null) return Collections.emptyList();
-        return get(-1, objectBoxes.get(-1).query().build(), null, true).collect(Collectors.toList());
+        try {
+            return get(-1, objectBoxes.get(-1).query().build(), null, true).collect(Collectors.toList());
+        } finally {
+            objectStores.get(-1).closeThreadResources();
+        }
     }
 
     @Override
@@ -468,15 +511,23 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public List<SegmentedObject> getTrack(SegmentedObject trackHead) {
         if (readOnly && objectBoxes.get(trackHead.getStructureIdx())==null) return Collections.emptyList();
-        return get(trackHead.getStructureIdx(), getTrackQuery(trackHead.getStructureIdx(), (Long)trackHead.getId()) , null,true).collect(Collectors.toList());
+        try {
+            return get(trackHead.getStructureIdx(), getTrackQuery(trackHead.getStructureIdx(), (Long)trackHead.getId()) , null,true).collect(Collectors.toList());
+        } finally {
+            objectStores.get(trackHead.getStructureIdx()).closeThreadResources();
+        }
     }
 
     @Override
     public List<SegmentedObject> getTrackHeads(SegmentedObject parentTrackHead, int objectClassIdx) {
         if (readOnly && objectBoxes.get(objectClassIdx)==null) return Collections.emptyList();
-        long[] th = getTrackQuery(parentTrackHead.getStructureIdx(), (Long)parentTrackHead.getTrackHeadId()).findIds();
-        LongArrays.unstableSort(th);
-        return get(objectClassIdx, objectBoxes.get(objectClassIdx).query().build(), o->o.isTrackHead() && LongArrays.binarySearch(th, o.getParentId())>=0, true).collect(Collectors.toList());
+        try {
+            long[] th = getTrackQuery(parentTrackHead.getStructureIdx(), (Long) parentTrackHead.getTrackHeadId()).findIds();
+            LongArrays.unstableSort(th);
+            return get(objectClassIdx, objectBoxes.get(objectClassIdx).query().build(), o -> o.isTrackHead() && LongArrays.binarySearch(th, o.getParentId()) >= 0, true).collect(Collectors.toList());
+        } finally {
+            objectStores.get(objectClassIdx).closeThreadResources();
+        }
     }
 
     // measurements
@@ -499,7 +550,11 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                 }).collect(Collectors.toList());
             }
             long t2 = System.currentTimeMillis();
-            measurementBoxes.get(ocIdx).put(toStoreBox);
+            try {
+                measurementBoxes.get(ocIdx).put(toStoreBox);
+            } finally {
+                measurementBoxes.get(ocIdx).closeThreadResources();
+            }
             long t3 = System.currentTimeMillis();
             toStore.forEach(o -> o.getMeasurements().modifications=false);
             logger.debug("upsert {} Measurements: update {}, serialize: {}, store: {}", toStoreBox.size(), t1-t0, t2-t1, t3-t2);
@@ -516,15 +571,25 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             if (mb == null) mb = new MeasurementBox(o.getMeasurements());
             else mb.update(o.getMeasurements());
         }
-        measurementBoxes.get(o.getStructureIdx()).put(mb);
-        o.getMeasurements().modifications=false;
+        try {
+            measurementBoxes.get(o.getStructureIdx()).put(mb);
+            o.getMeasurements().modifications=false;
+        } finally {
+            measurementBoxes.get(o.getStructureIdx()).closeThreadResources();
+        }
+
     }
 
     @Override
     public void retrieveMeasurements(int... structureIdx) {
         for (int ocIdx : structureIdx) {
-            for (long[] ids : getAllIds(objectBoxes.get(ocIdx))) {
-                getMeasurementB(ocIdx, ids);
+            try {
+                for (long[] ids : getAllIds(objectBoxes.get(ocIdx))) {
+                    getMeasurementB(ocIdx, ids);
+                }
+            } finally {
+                objectStores.get(ocIdx).closeThreadResources();
+                measurementStores.get(ocIdx).closeThreadResources();
             }
         }
     }
@@ -535,14 +600,18 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         MeasurementBox mb = mcache.get(o.getId());
         if (mb == null) {
             Box<MeasurementBox> box = measurementBoxes.get(o.getStructureIdx());
-            synchronized (mcache) {
-                mb = mcache.get(o.getId());
-                if (mb == null) {
-                    if (box==null) return null;
-                    mb = box.get((Long) o.getId());
-                    if (mb == null) return null;
-                    else mcache.put((Long) o.getId(), mb);
+            try {
+                synchronized (mcache) {
+                    mb = mcache.get(o.getId());
+                    if (mb == null) {
+                        if (box == null) return null;
+                        mb = box.get((Long) o.getId());
+                        if (mb == null) return null;
+                        else mcache.put((Long) o.getId(), mb);
+                    }
                 }
+            } finally {
+                if (box!=null) box.closeThreadResources();
             }
         }
         return mb.getMeasurement(this);
@@ -550,8 +619,15 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     @Override
     public List<Measurements> getMeasurements(int ocIdx, String... measurements) {
-        long[] ids = objectBoxes.get(ocIdx).query().build().findIds(); // TODO batch
-        return getMeasurementB(ocIdx, ids).map(b->b.getMeasurement(this)).collect(Collectors.toList());
+        try {
+            List<long[]> idsL = getAllIds(objectBoxes.get(ocIdx));
+            List<Measurements> res = new ArrayList<>();
+            for (long[] ids : idsL ) getMeasurementB(ocIdx, ids).map(b->b.getMeasurement(this)).forEach(res::add);
+            return res;
+        } finally {
+            objectStores.get(ocIdx).closeThreadResources();
+            measurementStores.get(ocIdx).closeThreadResources();
+        }
     }
 
     @Override
@@ -589,6 +665,9 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         });
         toRemoveAtRollback.forEach((ocIdx, ids) -> {
             objectBoxes.get(ocIdx).remove(ids.stream().mapToLong(l->l).toArray());
+        });
+        Stream.concat(toRestoreAtRollback.keySet().stream(), toRemoveAtRollback.keySet().stream()).distinct().forEach(ocIdx -> {
+            objectStores.get(ocIdx).closeThreadResources();
         });
         cache.clear();
         commit();
@@ -629,17 +708,21 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         if (readOnly && box==null) return null;
         SegmentedObjectBox res;
         synchronized (cache) {
-            res = objectStores.get(objectClassIdx).callInReadTx(() -> {
-                long id = query.findFirstId();
-                query.close();
-                if (id == 0) return null;
-                SegmentedObjectBox sob = cache.get(id);
-                if (sob == null) {
-                    sob = box.get(id);
-                    cache.put(id, sob);
-                }
-                return sob;
-            });
+            try {
+                res = objectStores.get(objectClassIdx).callInReadTx(() -> {
+                    long id = query.findFirstId();
+                    query.close();
+                    if (id == 0) return null;
+                    SegmentedObjectBox sob = cache.get(id);
+                    if (sob == null) {
+                        sob = box.get(id);
+                        cache.put(id, sob);
+                    }
+                    return sob;
+                });
+            } finally {
+                objectStores.get(objectClassIdx).closeThreadResources();
+            }
         }
         if (res==null) return null;
         return res.getSegmentedObject(objectClassIdx, this);
