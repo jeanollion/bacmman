@@ -1,4 +1,4 @@
-FROM quay.io/jupyter/scipy-notebook:aarch64-lab-4.4.1
+FROM quay.io/jupyter/scipy-notebook:x86_64-lab-4.5.1
 #RUN pip install PyBacmman
 RUN pip install git+https://git@github.com/jeanollion/PyBacmman.git
 #RUN pip install bokeh, selenium # to export bokeh plots as images
