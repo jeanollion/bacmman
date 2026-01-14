@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -93,8 +94,8 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
             return res;
         };
         int[] channels = this.channels.getSelectedIndices().length==0 ? new int[]{parentTrackHead.getExperimentStructure().getChannelIdx(this.objects.getSelectedClassIdx())} : this.channels.getSelectedIndices();
-        IntStream chanStream = legacyMode ? IntStream.concat(IntStream.of(-1), IntStream.of(channels)) : IntStream.concat(IntStream.of(channels), IntStream.of(-1, -2));
-        Image[][][] chans = chanStream
+        Supplier<IntStream> chanStream = legacyMode ? ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1)) : ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1, -2));
+        Image[][][] chans = chanStream.get()
                 .mapToObj(i -> parentMapChildren.keySet().stream()
                 .map(p->i>=0 ? p.getRawImageByChannel(i) : (i==-1 ? createPop.apply(p).getEDM(true, true) : createPop.apply(p).getGCDM(true) ) )
                 .map(im -> new Image[]{im})// per channel per object
@@ -118,10 +119,11 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
         }
         for (int i = 0; i<predNC.length; ++i) {
             Image[] predC = predNC[i];
+            int corr = legacyMode ? -1 : 0;
             parentMapChildren.get(parentArray[i]).forEach(o -> {
                 double[] probas = reduction.apply(regions.get(o), predC);
                 int idxMax = ArrayUtil.max(probas);
-                o.getMeasurements().setValue(prefix.getValue()+"ClassIdx", idxMax);
+                o.getMeasurements().setValue(prefix.getValue()+"ClassIdx", idxMax+corr);
                 o.getMeasurements().setValue(prefix.getValue()+"Proba", probas[idxMax]);
                 if (allProba) {
                     for (int c = 0; c<probas.length; ++c) o.getMeasurements().setValue(prefix.getValue() + "ProbaClass_" + c, probas[c]);
@@ -131,17 +133,12 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     }
 
     protected DLResizeAndScale getDlResizeAndScale(int nChannels, boolean legacyMode) {
-        // legacy mode: EDM then channels. normal mode: channel, then EDM then CDM
         // add scaling & interpolation for EDM and GCDM for each label
         DLResizeAndScale res = dlResizeAndScale.duplicate().setScaleLogger(dlResizeAndScale.getScaleLogger());
-        if (legacyMode) {
+        if (legacyMode) { // legacy mode: channels then EDM
             res.setInputNumber( nChannels + 1 );
-            for (int i = 1; i<nChannels; ++i) { // shift
-                res.setScaler(i, res.getScaler(i-1));
-                res.setInterpolationForInput(res.getInputInterpolation(i-1), i);
-            }
-            res.setScaler(0, null);
-        } else {
+            res.setScaler(nChannels, null);
+        } else { // normal mode: channel, then EDM then CDM
             res.setInputNumber( nChannels + 2 );
             int[] labelIdx = IntStream.range(nChannels, nChannels + 2).toArray();
             for (int i : labelIdx) res.setScaler(i, null); // no intensity scaling for EDM and CDM
