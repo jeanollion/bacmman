@@ -908,7 +908,7 @@ public class Utils {
     }
     public static boolean isUnix() {
         String OS = System.getProperty("os.name").toLowerCase();
-        return (OS.contains("nix") || OS.contains("nux") || OS.contains("aix"));
+        return (OS.contains("nix") || OS.contains("nux") || OS.contains("aix") || OS.contains("mac"));
     }
     public static boolean isSolaris() {
         return (System.getProperty("os.name").toLowerCase().contains("sunos"));
@@ -916,17 +916,17 @@ public class Utils {
     public static boolean isARM() {
         return System.getProperty ("os.arch").toLowerCase().contains("arm");
     }
-    public static int getUID() {
-        if (!isUnix()) return -1;
+    public static int getUID(boolean group, int defaultValue) {
+        if (!isUnix()) return defaultValue;
         Class c = null;
         try {
             c = Class.forName("com.sun.security.auth.module.UnixSystem");
             Object unixSystem = c.getDeclaredConstructor().newInstance();
-            Method m = c.getDeclaredMethod("getUid");
+            Method m = c.getDeclaredMethod(group? "getGid":"getUid");
             return ((Number)m.invoke(unixSystem)).intValue();
         } catch (ClassNotFoundException | InvocationTargetException | InstantiationException | IllegalAccessException |
                  NoSuchMethodException e) {
-            logger.debug("Error getting UID");
+            logger.debug("Error getting {}", group ? "GID" : "UID");
             return -1;
         }
     }

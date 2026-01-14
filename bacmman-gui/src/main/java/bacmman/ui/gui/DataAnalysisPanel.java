@@ -139,11 +139,12 @@ public class DataAnalysisPanel {
                 bacmmanLogger.setMessage("Open notebook at URL: " + notebookUrl);
             }
         };
-
+        int uid = bacmman.utils.Utils.getUID(false, 1000);
+        int gid = 100;
         dockerImageLauncher = new DockerImageLauncher(dockerGateway, workingDirPanel.getCurrentWorkingDirectory(), "/data", false, new int[]{8888}, startContainer, wd -> {
             workingDirPanel.setWorkingDirectory(wd);
             this.updateWD();
-        }, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='" + jupyterToken + "'")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
+        }, ProgressCallback.get(bacmmanLogger), new UnaryPair<>("NOTEBOOK_ARGS", "--IdentityProvider.token='" + jupyterToken + "'"), new UnaryPair<>("NB_UID", uid+""), new UnaryPair<>("NB_GID", gid+"")) //new UnaryPair<>("DOCKER_STACKS_JUPYTER_CMD", "notebook")
                 .setImageRequirements("data_analysis", null, new int[]{4,4,9}, null);
 
 

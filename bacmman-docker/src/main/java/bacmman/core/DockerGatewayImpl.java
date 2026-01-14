@@ -200,15 +200,17 @@ public class DockerGatewayImpl implements DockerGateway {
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
            .withHostConfig(hostConfig)
            .withTty(true);
+        int defUID = -1;
+        int defGID = -1;
         if (environmentVariables != null && !environmentVariables.isEmpty()) {
+            defUID = environmentVariables.stream().filter(e -> e.key.contains("UID")).findFirst().map(e -> Integer.parseInt(e.value)).orElse(-1);
+            defGID = environmentVariables.stream().filter(e -> e.key.contains("GID")).findFirst().map(e -> Integer.parseInt(e.value)).orElse(-1);
             String[] env = environmentVariables.stream().map(p -> p.key+"="+p.value).toArray(String[]::new);
             cmd = cmd.withEnv(env);
         }
-        if (Utils.isUnix()) { // TODO also on mac ?
-            int uid = Utils.getUID();
-            //logger.debug("Unix UID: {}", uid);
-            if (uid>=0) cmd = cmd.withUser(uid+":"+uid);
-        }
+        int uid = defUID < 0 ? Utils.getUID(false, 1000) : defUID;
+        int gid = defGID < 0 ? Utils.getUID(true, 1000) : defGID;
+        if (uid>=0 && gid>=0) cmd = cmd.withUser(uid+":"+gid);
         CreateContainerResponse container = cmd.exec();
         logger.debug("create container response: {}", container);
         try {
