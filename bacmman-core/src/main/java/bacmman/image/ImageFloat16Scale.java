@@ -70,12 +70,12 @@ public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> imp
         }
     }
     @Override
-    public ImageFloat16Scale getZPlane(int idxZ) {
-        if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
+    public ImageFloat16Scale getZPlane(int z) {
+        if (z >=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageFloat16Scale res = new ImageFloat16Scale(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ], scale);
+            ImageFloat16Scale res = new ImageFloat16Scale(name+"_z"+String.format("%05d", z), sizeX, pixels[z], scale);
             res.setCalibration(this);
-            res.translate(xMin, yMin, zMin+idxZ);
+            res.translate(xMin, yMin, zMin+ z);
             return res;
         }
     }

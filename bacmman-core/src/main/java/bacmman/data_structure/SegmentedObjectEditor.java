@@ -302,11 +302,11 @@ public class SegmentedObjectEditor {
                     if (relabel) parent.relabelChildren(res.structureIdx, editor.getModifiedObjects());
                 }
             });
-            mergeOperations.entrySet().parallelStream().forEach(en -> en.getValue().forEach(m -> en.getKey().merge(m, false, true, false))); // children
-            mergeOperations.entrySet().parallelStream().forEach(en -> { // regions
-                List<Region> toMerge= en.getValue().stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-                toMerge.add(en.getKey().getRegion());
-                en.getKey().setRegion(Region.merge(toMerge));
+            mergeOperations.forEach((key, value) -> value.forEach(m -> key.merge(m, false, true, false))); // children
+            mergeOperations.forEach((key, value) -> { // regions
+                List<Region> toMerge = value.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                toMerge.add(key.getRegion());
+                key.setRegion(Region.merge(toMerge));
             });
             mergeOperations.keySet().forEach(SegmentedObject::resetMeasurements);
             if (childOCIdx.length>0) {

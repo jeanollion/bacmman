@@ -131,7 +131,17 @@ public class Region {
         this.absoluteLandmark = absoluteLandmark;
         return this;
     }
+    public boolean hasRoi() {
+        return roi != null;
+    }
     public IJRoi3D getRoi() {
+        if (roi == null) {
+            synchronized (this) {
+                if (roi == null) {
+                    createRoi();
+                }
+            }
+        }
         return roi;
     }
     public boolean hasModifications() {
@@ -225,9 +235,10 @@ public class Region {
             } else if (mask != null) {
                 ImageInteger<?> newMask;
                 if (mask instanceof ImageInteger) {
-                    List<ImageInteger<?>> planes = ((ImageInteger)mask).splitZPlanes(z, z);
+                    List<ImageInteger<?>> planes = ((ImageInteger)mask).splitZPlanes(z-bds.zMin(), z-bds.zMin());
                     if (planes.isEmpty()) {
-                        logger.error("bounds and mask not consistent. bds:{} mask bounds: {}", getBounds(), ((ImageInteger<?>) mask).getBounds(false));
+                        logger.error("bounds and mask not consistent in Z: z={} not in mask. bds:{} mask bounds: {}", z, bds, new SimpleBoundingBox(mask));
+                        return null;
                     }
                     newMask = planes.get(0).duplicate();
                 } else {
@@ -589,19 +600,26 @@ public class Region {
         }
     }
 
+    protected ImageByte createMaskFromVoxels() {
+        ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
+        for (Voxel v : voxels) {
+            if (!mask_.containsWithOffset(v.x, v.y, v.z)) {
+                logger.error("voxel out of bounds: {}, bounds: {}, vox{}", v, mask_.getBoundingBox(), voxels); // can happen if bounds were not updated before the object was saved
+                this.createBoundsFromVoxels();
+                logger.error("bounds after re-create: {}", getBounds());
+                if (!getBounds().sameBounds(mask_)) return createMaskFromVoxels(); // bounds have changed, retry
+                else throw new RuntimeException("Invalid object: label="+label+" bounds="+bounds);
+            }
+            mask_.setPixelWithOffset(v.x, v.y, v.z, 1);
+        }
+        return mask_;
+    }
+
     protected void createMask() {
         if (!this.getBounds().isValid()) throw new RuntimeException("Invalid bounds: cannot create mask");
         if (voxels!=null) {
-            ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
-            for (Voxel v : voxels) {
-                if (!mask_.containsWithOffset(v.x, v.y, v.z)) {
-                    logger.error("voxel out of bounds: {}, bounds: {}, vox{}", v, mask_.getBoundingBox(), voxels); // can happen if bounds were not updated before the object was saved
-                    this.createBoundsFromVoxels();
-                    logger.error("bounds after re-create: {}", getBounds());
-                }
-                mask_.setPixelWithOffset(v.x, v.y, v.z, 1);
-            }
-            this.mask=mask_;
+            this.mask=createMaskFromVoxels();
+            logger.debug("object: {} bds: {} create mask from voxels. mask bds: {}", label, getBounds(), new SimpleBoundingBox(mask));
         } else if (roi!=null) {
             this.mask = roi.toMask(getBounds(), scaleXY, scaleZ);
         } else throw new RuntimeException("Cannot create mask: no voxels and no ROI");

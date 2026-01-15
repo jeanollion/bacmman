@@ -100,8 +100,8 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I
     }
 
     @Override
-    public I getZPlane(int idxZ) {
-        return getImage().getZPlane(idxZ);
+    public I getZPlane(int z) {
+        return getImage().getZPlane(z);
     }
 
     @Override

@@ -79,7 +79,7 @@ public abstract class ImageInteger<I extends ImageInteger<I>> extends Image<I> i
      * @return TreeMap with Key (Integer) = label of the object / Value Bounding Box of the object
      * @see MutableBoundingBox
      */
-    public TreeMap<Integer, MutableBoundingBox> getBounds(boolean addBorder) {
+    public TreeMap<Integer, MutableBoundingBox> getLabelBounds(boolean addBorder) {
         TreeMap<Integer, MutableBoundingBox> bounds = new TreeMap<>();
         for (int z = 0; z < sizeZ; ++z) {
             for (int y = 0; y < sizeY; ++y) {
@@ -105,6 +105,7 @@ public abstract class ImageInteger<I extends ImageInteger<I>> extends Image<I> i
                 //bds.trimToImage(this);
             }
         }
+        for (MutableBoundingBox bds : bounds.values()) bds.translate(this);
         return bounds;
     }
 

@@ -139,9 +139,9 @@ public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
     }
 
     @Override
-    public ImageView<I> getZPlane(int idxZ) {
-        I sourcePlane = source.getZPlane(idxZ);
-        return new ImageView<>(sourcePlane, new MutableBoundingBox(boundingBox).setzMin(boundingBox.zMin() + idxZ).setzMax(boundingBox.zMin() + idxZ));
+    public ImageView<I> getZPlane(int z) {
+        I sourcePlane = source.getZPlane(z);
+        return new ImageView<>(sourcePlane, new MutableBoundingBox(boundingBox).setzMin(boundingBox.zMin() + z).setzMax(boundingBox.zMin() + z));
     }
     @Override
     public Object[] getPixelArray() {

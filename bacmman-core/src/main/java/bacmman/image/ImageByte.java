@@ -53,12 +53,12 @@ public class ImageByte extends ImageInteger<ImageByte> implements PrimitiveType.
     }
 
     @Override
-    public ImageByte getZPlane(int idxZ) {
-        if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
+    public ImageByte getZPlane(int z) {
+        if (z >=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageByte res = new ImageByte(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
+            ImageByte res = new ImageByte(name+"_z"+String.format("%05d", z), sizeX, pixels[z]);
             res.setCalibration(this);
-            res.translate(xMin, yMin, zMin+idxZ);
+            res.translate(xMin, yMin, zMin+ z);
             return res;
         }
     }

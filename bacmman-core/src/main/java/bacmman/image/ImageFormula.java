@@ -21,8 +21,8 @@ public class ImageFormula extends Image {
     }
 
     @Override
-    public Image getZPlane(int idxZ) {
-        Image[] planes = Arrays.stream(images).map(i -> i.getZPlane(idxZ)).toArray(Image[]::new);
+    public Image getZPlane(int z) {
+        Image[] planes = Arrays.stream(images).map(i -> i.getZPlane(z)).toArray(Image[]::new);
         return new ImageFormula(formula, planes);
     }
 
