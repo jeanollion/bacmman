@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.function.IntSupplier;
 
 public class PixMClass implements DockerDLTrainer {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1)};
-    Parameter[] datasetParameters = new Parameter[]{TrainingConfigurationParameter.getLossMaxWeightParameter(10), new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters")};
+    Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
 

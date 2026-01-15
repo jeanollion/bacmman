@@ -719,6 +719,29 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         }
     }
 
+    public static class CategoryLossParameter extends GroupParameterAbstract<CategoryLossParameter> implements PythonConfiguration {
+        FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Value=1 means weights are inverse frequency. Value below 1: Power law applied to inverse class frequency weight, in order to limits them");
+        FloatParameter focalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setHint("Focal loss weight. 0 standard categorical cross-entropy, a value greater than zero correspond to the focus on hard example. 1 is a mild focus and 3 a strong focus");
+        FloatParameter focalWeightPowerLaw = new FloatParameter("Focal Weight Power Law", 0.3).setLowerBound(0).setUpperBound(1).setHint("If greater than zero, the focal weight is applied per-class and depend on the class frequency: power law applied to the inverse class frequency, meaning that unfrequent classes are also harder. 0.2 is a mild dependency to class and 0.5 a strong dependency. ");
+
+        public CategoryLossParameter(String name) {
+            super(name);
+            this.setChildren(weightPowerLaw, focalWeight, focalWeightPowerLaw);
+        }
+
+        @Override
+        public CategoryLossParameter duplicate() {
+            CategoryLossParameter res = new CategoryLossParameter(name);
+            ParameterUtils.setContent(res.children, children);
+            transferStateArguments(this, res);
+            return res;
+        }
+
+        @Override
+        public String getPythonConfigurationKey() {return "category_loss_parameters";}
+
+    }
+
     public static <T extends ListParameter> Predicate<T> channelNumberValidation(boolean allowOneForAll) {
         return p -> {
             if (allowOneForAll && p.getChildCount() == 1) return true;

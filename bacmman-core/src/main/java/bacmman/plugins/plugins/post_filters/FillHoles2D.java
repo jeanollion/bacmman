@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class FillHoles2D implements PostFilter, Hint {
-    
+    boolean useROI = false;
     @Override
     public String getHintText() {
         return "Fills the holes in segmented regions";
@@ -43,8 +43,13 @@ public class FillHoles2D implements PostFilter, Hint {
         if (childPopulation.getRegions().stream().allMatch(r->r instanceof Analytical)) { // do nothing
             return childPopulation;
         }
-        UnaryOperator<Region> toOutline = r -> new Region(r.getRoi().duplicateOutline(), r.getLabel(), r.getBounds(), r.getScaleXY(), r.getScaleZ()).setIs2D(r.is2D()).setAttributesFrom(r);
-        return new RegionPopulation(childPopulation.getRegions().stream().map(toOutline).collect(Collectors.toList()), childPopulation.getImageProperties());
+        if (useROI) {
+            UnaryOperator<Region> toOutline = r -> new Region(r.getRoi().duplicateOutline(), r.getLabel(), r.getBounds(), r.getScaleXY(), r.getScaleZ()).setIs2D(r.is2D()).setAttributesFrom(r);
+            return new RegionPopulation(childPopulation.getRegions().stream().map(toOutline).collect(Collectors.toList()), childPopulation.getImageProperties());
+        } else {
+            bacmman.processing.FillHoles2D.fillHoles(childPopulation);
+            return childPopulation;
+        }
     }
 
     @Override
