@@ -453,8 +453,8 @@ public class ExtractDatasetUtil {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>();
         ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
-        List<String> channelNames = IntStream.of(channelIndices).mapToObj(c -> xp.getChannelNames()[c]).collect(Collectors.toList());
-        for (int c : channelIndices) features.add(new FeatureExtractor.Feature( channelNames.get(c), new RawImage().setExtractZDim(extractZ).setByChannel(true), c));
+        String[] channelNames = xp.getChannelNames();
+        for (int c : channelIndices) features.add(new FeatureExtractor.Feature( channelNames[c], new RawImage().setExtractZDim(extractZ).setByChannel(true), c));
         features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses).setExtractZ(extractZ), objectClasses[0] ));
 
         int[] dims = new int[]{0, 0};
