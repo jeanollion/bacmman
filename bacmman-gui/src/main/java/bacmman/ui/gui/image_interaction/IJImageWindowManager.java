@@ -379,8 +379,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                             if (newObject != null && !newObject.is2D() && freeHandDrawMerge) { // also add touching objects on adjacent slices
                                 BoundingBox newObjectBds = newObject.getBounds();
                                 parent.getChildren(newObject.getStructureIdx())
-                                        .filter( c -> !c.equals(newObject) && BoundingBox.intersect2D(c.getBounds(), newObjectBds)
-                                                && (BoundingBox.containsZ(c.getBounds(), newObjectBds.zMin() - 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMin()-1, true, false)) || BoundingBox.containsZ(c.getBounds(), newObjectBds.zMax() + 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMax()+1, true, false))) )
+                                        .filter(
+                                                c -> !c.equals(newObject)
+                                                        && BoundingBox.intersect2D(c.getBounds(), newObjectBds)
+                                                && (
+                                                        BoundingBox.containsZ(c.getBounds(), newObjectBds.zMin() - 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMin()-1, true, false))
+                                                        || BoundingBox.containsZ(c.getBounds(), newObjectBds.zMax() + 1) && newObject.getRegion().intersect(c.getRegion().intersectWithZPlane(newObjectBds.zMax()+1, true, false))
+                                                )
+                                        )
                                         .forEach(c -> {
                                             logger.debug("object touching in Z: {}", c);
                                             toDisplay.add(c);
@@ -688,7 +694,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
     public IJRoi3D createObjectRoi(ObjectDisplay object, Color color, boolean fill) {
         if (object.object.getBounds().sizeZ()<=0 || object.object.getBounds().sizeX()<=0 || object.object.getBounds().sizeY()<=0) logger.error("wrong object dim: o:{} {}", object.object, object.object.getBounds());
         IJRoi3D r;
-        if (object.object.getRegion().getRoi()!=null) {
+        if (object.object.getRegion().hasRoi()) {
             r = object.object.getRegion().getRoi().duplicate().smooth(ROI_SMOOTH_RADIUS)
                     .translate(new SimpleOffset(object.offset).translate(new SimpleOffset(object.object.getBounds()).reverseOffset()));
         } else if (object.object.getRegion() instanceof Spot) {

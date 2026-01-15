@@ -55,8 +55,7 @@ public class RegionContainerIjRoi extends RegionContainer {
 
 
     private void createRoi(Region object) {
-        if (object.getRoi()==null) object.createRoi(); // calls static method createRoi of this class
-        roi = object.getRoi();
+        roi = object.getRoi(); //  calls internally createRoi() that calls static method createRoi of this class
     }
 
     private void encodeRoi() {

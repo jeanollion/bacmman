@@ -52,12 +52,12 @@ public class ImageFloat extends ImageFloatingPoint<ImageFloat> implements Primit
     }
     
     @Override
-    public ImageFloat getZPlane(int idxZ) {
-        if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
+    public ImageFloat getZPlane(int z) {
+        if (z >=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageFloat res = new ImageFloat(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
+            ImageFloat res = new ImageFloat(name+"_z"+String.format("%05d", z), sizeX, pixels[z]);
             res.setCalibration(this);
-            res.translate(xMin, yMin, zMin+idxZ);
+            res.translate(xMin, yMin, zMin+ z);
             return res;
         }
     }

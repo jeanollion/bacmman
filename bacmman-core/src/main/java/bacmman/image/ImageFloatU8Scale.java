@@ -66,12 +66,12 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> imp
         return 255. / max;
     }
     @Override
-    public ImageFloatU8Scale getZPlane(int idxZ) {
-        if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
+    public ImageFloatU8Scale getZPlane(int z) {
+        if (z >=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageFloatU8Scale res = new ImageFloatU8Scale(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ], scale);
+            ImageFloatU8Scale res = new ImageFloatU8Scale(name+"_z"+String.format("%05d", z), sizeX, pixels[z], scale);
             res.setCalibration(this);
-            res.translate(xMin, yMin, zMin+idxZ);
+            res.translate(xMin, yMin, zMin+ z);
             return res;
         }
     }

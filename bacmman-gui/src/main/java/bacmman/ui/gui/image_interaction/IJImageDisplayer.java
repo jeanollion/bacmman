@@ -508,12 +508,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, displayedSlice) : null;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
         if (smoothRadius<=0) smoothRadius = ImageWindowManagerFactory.getImageManager().ROI_SMOOTH_RADIUS;
-        IJRoi3D roi = region.getRoi();
-        if (roi == null) {
-            region.createRoi();
-            roi = region.getRoi();
-        }
-        roi = roi.duplicate().smooth(smoothRadius);
+        IJRoi3D roi = region.getRoi().duplicate().smooth(smoothRadius);
         if (additionalOffset != null) roi.translate(additionalOffset);
         setFrameAndZ(roi, displayedSlice, getCurrentDisplayedImage());
         for (Roi r : roi.values()) {
@@ -537,12 +532,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (o==null) return;
         InteractiveImage ii = getCurrentInteractiveImage();
         if (ii ==null) return;
-        IJRoi3D roi = region.getRoi();
-        if (roi == null) {
-            region.createRoi();
-            roi = region.getRoi();
-        }
-        roi = roi.duplicate();
+        IJRoi3D roi = region.getRoi().duplicate();
         Offset additionalOffset = TimeLapseInteractiveImage.isKymograph(ii) ? ((TimeLapseInteractiveImage)ii).getOffsetForFrame(frame, displayedSlice) : null;
         if (additionalOffset != null) roi.translate(additionalOffset);
         setFrameAndZ(roi, displayedSlice, getCurrentDisplayedImage());

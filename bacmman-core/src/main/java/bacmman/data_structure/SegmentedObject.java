@@ -1102,7 +1102,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     BoundingBox extendBoundsInZIfNecessary(int channelIdx, BoundingBox bounds) { //when the current structure is 2D but channel is 3D
         //logger.debug("extends bounds Z if necessary: is2D: {}, bounds: {}, sizeZ of image to open: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx));
         if (bounds.sizeZ()==1 && is2D()) {
-            int sizeZ = getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx);
+            int sizeZ = getExperimentStructure().sizeZ(getPositionName(), channelIdx);
             if (sizeZ>1) {
                 //logger.debug("extends bounds Z: is2D: {}, bounds: {}, sizeZ of image to open: {}, new bounds: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx), new MutableBoundingBox(bounds).unionZ(sizeZ-1));
                 if (bounds instanceof MutableBoundingBox) ((MutableBoundingBox)bounds).unionZ(sizeZ-1);
@@ -1115,7 +1115,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     public boolean is2D() {
         if (getRegion()!=null) return getRegion().is2D();
         if (isRoot()) return true;
-        return getExperiment().getPosition(getPositionName()).getSizeZ(getExperiment().getChannelImageIdx(structureIdx))==1;
+        return getExperimentStructure().sizeZ(getPositionName(), getExperiment().getChannelImageIdx(structureIdx))==1;
     }
 
     
@@ -1171,13 +1171,14 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (children==null) children = Stream.empty();
         List<Region> regions = children.map(SegmentedObject::getRegion).collect(Collectors.toList());
         ImageProperties ip = this.getMaskProperties();
-        boolean is2D;
-        if (!regions.isEmpty()) is2D = regions.get(0).is2D();
-        else is2D = getExperimentStructure().is2D(structureIdx, getPositionName());
-        if (is2D && ip.sizeZ()>1) ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
-        else if (!is2D) { // ensure sizeZ corresponds
-            int sizeZ = getExperimentStructure().sizeZ(getPositionName(), getExperimentStructure().getChannelIdx(structureIdx));
-            if (ip.sizeZ() != sizeZ) ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), sizeZ, ip.getScaleXY(), ip.getScaleZ());
+        boolean ocIs2D = !regions.isEmpty() ? regions.get(0).is2D() : getExperimentStructure().is2D(structureIdx, getPositionName());
+        if (ocIs2D != is2D()) {
+            if (ocIs2D) { // child object class is 2D but this object class is 3D
+                ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
+            } else { // child object class is 3D but this object class is 2D
+                int sizeZ = getExperimentStructure().sizeZ(getPositionName(), getExperimentStructure().getChannelIdx(structureIdx));
+                ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), sizeZ, ip.getScaleXY(), ip.getScaleZ());
+            }
         }
         return new RegionPopulation(regions, ip);
     }

@@ -159,11 +159,16 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         else throw new IllegalArgumentException("Pixel Array should be of type byte, short, float or int");
     }
     
-    public abstract I getZPlane(int idxZ);
-    
+    public abstract I getZPlane(int z);
+
+    public I getZPlaneWithOffset(int z) {
+        return getZPlane(z - zMin);
+    }
+
     /**
      * 
      * @param zLimit array containing minimal Z plane idx (included) and maximal Z-plane idx (included).
+     *               zLimit in relative position
      * @return List of Z planes
      */
     public List<I> splitZPlanes(int... zLimit) {
@@ -172,7 +177,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         if (zLimit.length>0) zMin = Math.max(zMin, zLimit[0]);
         if (zLimit.length>1) zMax = Math.min(zMax, zLimit[1]);
         ArrayList<I> res = new ArrayList<>(sizeZ());
-        for (int i = zMin; i<=zMax; ++i) res.add(getZPlane(i));
+        for (int z = zMin; z<=zMax; ++z) res.add(getZPlane(z));
         return res;
     }
     public static <T extends Image<T>> T mergeZPlanesResize(List<T> planes, boolean expand) {

@@ -119,8 +119,8 @@ public class LazyImage5DPlane<I extends Image<I>> extends LazyImage5D<I> {
     }
     
     @Override
-    public I getZPlane(int idxZ) {
-        return getImage(f, c, idxZ);
+    public I getZPlane(int z) {
+        return getImage(f, c, z);
     }
 
     @Override

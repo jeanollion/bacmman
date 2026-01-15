@@ -53,12 +53,12 @@ public class ImageShort extends ImageInteger<ImageShort> implements PrimitiveTyp
     }
     
     @Override
-    public ImageShort getZPlane(int idxZ) {
-        if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
+    public ImageShort getZPlane(int z) {
+        if (z >=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageShort res = new ImageShort(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
+            ImageShort res = new ImageShort(name+"_z"+String.format("%05d", z), sizeX, pixels[z]);
             res.setCalibration(this);
-            res.translate(xMin, yMin, zMin+idxZ);
+            res.translate(xMin, yMin, zMin+ z);
             return res;
         }
     }

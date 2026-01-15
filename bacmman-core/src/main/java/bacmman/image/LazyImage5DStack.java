@@ -141,10 +141,10 @@ public class LazyImage5DStack<I extends Image<I>> extends LazyImage5D<I> {
     }
 
     @Override
-    public I getZPlane(int idxZ) {
+    public I getZPlane(int z) {
         I im = getImage(f, c);
         if (im.sizeZ()==1) return im;
-        else return im.getZPlane(idxZ);
+        else return im.getZPlane(z);
     }
 
     @Override
