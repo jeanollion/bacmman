@@ -17,8 +17,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.IntSupplier;
 
-public class PixMClass implements DockerDLTrainer {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters")};
+import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
+
+public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision {
+    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters"), mixedPrecision};
     Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
@@ -54,8 +57,13 @@ public class PixMClass implements DockerDLTrainer {
     }
 
     @Override
+    public boolean mixedPrecision() {
+        return mixedPrecision.getSelected();
+    }
+
+    @Override
     public String minimalScriptVersion() {
-        return "1.1.3";
+        return "1.1.4";
     }
 
     @Override
@@ -123,7 +131,11 @@ public class PixMClass implements DockerDLTrainer {
         IntegerParameter classNumber = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 256, 32, 1024).setHint("Number of filters at the feature level");
         BoundedNumberParameter filtersMin = new BoundedNumberParameter("Min. Filters", 0, 32, 8, 1024).setHint("Minimum Number of filters at all levels. <br>For each level L, the number of filter is filters / 2**(n_downsampling - l). This parameter ensures a minimum value for filters.");
-
+        IntegerParameter attentionHeads = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
+        IntegerParameter attentionFilters = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
+        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{16, 16}, null).setName("Attention Window").setMaxChildCount(2);
+        BooleanParameter attention = new BooleanParameter("Attention", false);
+        ConditionalParameter<Boolean> attentionCond = new ConditionalParameter<>(attention).setActionParameters(true, attentionHeads, attentionFilters, attentionWindow);
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 4, 2, 5).addListener(p-> {
             SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);
             list.setChildrenNumber(p.getIntValue());
@@ -134,7 +146,7 @@ public class PixMClass implements DockerDLTrainer {
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool);
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool); //, attentionCond
         }
 
         public int getContraction() {
@@ -174,6 +186,11 @@ public class PixMClass implements DockerDLTrainer {
                     res.put("n_downsampling", downsamplingNumber.getIntValue());
                     res.put("filters", filters.getIntValue());
                     res.put("filters_min", filtersMin.getIntValue());
+                    if (attention.getSelected()) {
+                        res.put("attention_heads", attentionHeads.getIntValue());
+                        res.put("attention_filters", attentionFilters.getIntValue());
+                        res.put("attention_window", attentionWindow.toJSONEntry());
+                    }
                     break;
                 }
             }

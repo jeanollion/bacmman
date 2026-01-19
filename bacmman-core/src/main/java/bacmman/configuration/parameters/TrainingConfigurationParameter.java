@@ -721,12 +721,47 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
     public static class CategoryLossParameter extends GroupParameterAbstract<CategoryLossParameter> implements PythonConfiguration {
         FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Value=1 means weights are inverse frequency. Value below 1: Power law applied to inverse class frequency weight, in order to limits them");
-        FloatParameter focalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setHint("Focal loss weight. 0 standard categorical cross-entropy, a value greater than zero correspond to the focus on hard example. 1 is a mild focus and 3 a strong focus");
-        FloatParameter focalWeightPowerLaw = new FloatParameter("Focal Weight Power Law", 0.3).setLowerBound(0).setUpperBound(1).setHint("If greater than zero, the focal weight is applied per-class and depend on the class frequency: power law applied to the inverse class frequency, meaning that unfrequent classes are also harder. 0.2 is a mild dependency to class and 0.5 a strong dependency. ");
+        FloatParameter focalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(5).setHint("<strong>focal_weight (γ):</strong> Focusing parameter (γ ≥ 0). Controls hard example emphasis.<br>" +
+                "<ul>" +
+                "    <li><strong>γ=0.0</strong> → standard cross entropy (no focal effect)</li>" +
+                "    <li><strong>γ=1.0</strong> → mild focus on hard examples</li>" +
+                "    <li><strong>γ=2.0</strong> → standard focal</li>" +
+                "    <li><strong>γ=5.0</strong> → extreme focus (for very imbalanced data)</li>" +
+                "</ul>");
+        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(1).setUpperBound(3).setHint("<strong>Temperature (t):</strong> Tempering parameter (t ≥ 1). Controls gradient bounding.<br>" +
+                "<ul>" +
+                "    <li><strong>t=1.0</strong> → standard cross entropy (unbounded gradients)</li>" +
+                "    <li><strong>t=2.0</strong> → moderate bounding</li>" +
+                "    <li><strong>t=3.0+</strong> → strong bounding (very stable, may slow learning)</li>" +
+                "</ul>");
+        FloatParameter labelSmoothing = new FloatParameter("Label Smoothing", 0).setLowerBound(0).setUpperBound(0.5).setHint(
+                "Effect: y<sub>smooth</sub> = y * (1-&epsilon;) + &epsilon;/K <br>where K = num_classes<br><br>" +
+                        "<strong>Benefits:</strong><br>" +
+                        "<ul>" +
+                        "    <li>Prevents overconfidence (probabilities ≠ 0 or 1)</li>" +
+                        "    <li>Improves calibration (predicted probs match true frequencies)</li>" +
+                        "    <li>Acts as regularization (reduces overfitting)</li>" +
+                        "    <li>Better generalization on test data</li>" +
+                        "</ul>" +
+                        "<strong>When useful:</strong><br>" +
+                        "<ul>" +
+                        "    <li>Models prone to overconfidence</li>" +
+                        "    <li>Limited training data</li>" +
+                        "    <li>Noisy labels</li>" +
+                        "    <li>When calibration matters (e.g., medical, finance)</li>" +
+                        "</ul>" +
+                        "<strong>Trade-offs:</strong><br>" +
+                        "<ul>" +
+                        "    <li>May slightly hurt training accuracy</li>" +
+                        "    <li>Improves test accuracy & calibration</li>" +
+                        "    <li>Can conflict with focal loss (both modify targets)</li>" +
+                        "</ul>"
+        );
+
 
         public CategoryLossParameter(String name) {
             super(name);
-            this.setChildren(weightPowerLaw, focalWeight, focalWeightPowerLaw);
+            this.setChildren(weightPowerLaw, focalWeight, labelSmoothing);
         }
 
         @Override
