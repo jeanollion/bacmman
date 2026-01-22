@@ -370,6 +370,20 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         ImagePlus image = getImage(im);
         if (image!=null) image.setT(frame+1);
     }
+    @Override
+    public int getZ(Image im) {
+        ImagePlus image = getImage(im);
+        if (image==null) return -1;
+        if (image.isDisplayedHyperStack()) return image.getSlice()-1;
+        else if (image.getNSlices() == image.getStackSize()) return image.getCurrentSlice()-1;
+        return 0;
+    }
+
+    @Override
+    public void setZ(int z, Image im) {
+        ImagePlus image = getImage(im);
+        if (image!=null) image.setZ(z+1);
+    }
 
     @Override public ImagePlus getImage(Image image) {
         if (image==null) return null;

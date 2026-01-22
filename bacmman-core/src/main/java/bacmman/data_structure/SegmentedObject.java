@@ -805,7 +805,21 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             logger.debug("could not split: {} number of segments: {}", this, pop==null?"null" : pop.getRegions().size());
             return null;
         }
-        if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()), true);
+        if (pop.getRegions().size()>2) {
+            List<Region> fragments= pop.getRegions();
+            Collections.sort(fragments, Comparator.comparingDouble(r -> -r.size())); // biggest objects first
+            pop.mergeWithConnected(fragments.subList(2, pop.getRegions().size()), false);
+            if (pop.getRegions().size()>2) { // there are unconnected fragments -> merge them with closest object
+                Point center0 = pop.getRegions().get(0).getCenterOrGeomCenter();
+                Point center1 = pop.getRegions().get(1).getCenterOrGeomCenter();
+                for (Region toMerge : new ArrayList<>(pop.getRegions().subList(2, pop.getRegions().size()))) {
+                    Point center = toMerge.getCenterOrGeomCenter();
+                    if (center0.distSq(center) <= center1.distSq(center)) pop.getRegions().get(0).merge(toMerge);
+                    else pop.getRegions().get(1).merge(toMerge);
+                    pop.eraseObject(toMerge, true);
+                }
+            }
+        }
         return split(pop, modifiedObjects).get(0);
     }
 

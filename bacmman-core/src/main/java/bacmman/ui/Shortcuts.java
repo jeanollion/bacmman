@@ -66,7 +66,11 @@ public class Shortcuts {
         PRUNE("Prune track starting from selected object(s)"),
         MERGE("Merge selected objects / track(s)"),
         SPLIT("Split selected object(s) / track(s)"),
+        SPLIT_UP("Split selected 3D object(s) / track(s) at current slice, current slice is included in lower object"),
+        SPLIT_DOWN("Split selected 3D object(s) / track(s) at current slice, current slice is included in upper object"),
+        SPLIT_UP_DOWN("Split selected 3D object(s) / track(s) at current slice in 3D: below current slice, current slice and above current slice"),
         MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "ctrl + line"),
+        MANUAL_SPLIT_SLICE("Split objects along a manually drawn line (use freehand line tool). If object is 3D, split is performed in 2D at current slice and each part is merged with most-overlapping objects from below/above slices", "alt + line"),
         MANUAL_CREATE("Creates an object manually drawn (use freehand-line/oval/ellipse/selection-brush tool)", "ctrl + shift + Line/Oval/Ellipse/Brush"),
         MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse/selection-brush tool)", "shift + alt + Line/Oval/Ellipse/Brush"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
         MANUAL_ERASE("Erase part of an existing object using the selection brush tool", "ctrl + Brush"),
@@ -172,6 +176,9 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, KeyEvent.CTRL_DOWN_MASK), ACTION.PRUNE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, KeyEvent.CTRL_DOWN_MASK), ACTION.MERGE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK), ACTION.SPLIT);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.SHIFT_DOWN_MASK), ACTION.SPLIT_UP);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.ALT_DOWN_MASK), ACTION.SPLIT_DOWN);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.SHIFT_DOWN_MASK+KeyEvent.ALT_DOWN_MASK), ACTION.SPLIT_UP_DOWN);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK), ACTION.CREATE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0 ), ACTION.TOGGLE_CREATION_TOOL);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), ACTION.POST_FILTER);
@@ -216,6 +223,9 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, KeyEvent.CTRL_DOWN_MASK), ACTION.PRUNE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, KeyEvent.CTRL_DOWN_MASK), ACTION.MERGE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK), ACTION.SPLIT);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.SHIFT_DOWN_MASK), ACTION.SPLIT_UP);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.ALT_DOWN_MASK), ACTION.SPLIT_DOWN);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.SHIFT_DOWN_MASK+KeyEvent.ALT_DOWN_MASK), ACTION.SPLIT_UP_DOWN);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK), ACTION.CREATE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0 ), ACTION.TOGGLE_CREATION_TOOL);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), ACTION.POST_FILTER);
@@ -357,7 +367,7 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Manual Curation: all action are performed on active image</b>", TOGGLE_SAFE_MODE,
             "<b>Object Edition:</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MERGE, SPLIT, POST_FILTER, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MANUAL_SPLIT_SLICE, MERGE, SPLIT, SPLIT_UP, SPLIT_DOWN, SPLIT_UP_DOWN, POST_FILTER, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
             "<b>Lineage Edition:</b>",
             RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK
         };

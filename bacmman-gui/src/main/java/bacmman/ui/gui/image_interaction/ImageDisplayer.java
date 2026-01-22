@@ -23,7 +23,7 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import static bacmman.image.Image.logger;
-import bacmman.image.ImageInteger;
+
 import bacmman.image.ImageMask;
 
 import java.util.ArrayList;
@@ -54,10 +54,10 @@ public interface ImageDisplayer<T> {
     void flush();
     int getFrame(Image image);
     void setFrame(int frame, Image image);
-
     int getChannel(Image image);
     void setChannel(int channel, Image image);
-    
+    int getZ(Image image);
+    void setZ(int z, Image image);
     static Image[][] reslice(Image image, int[] FCZCount, Function<int[], Integer> getStackIndex) {
         if (image.sizeZ()!=FCZCount[0]*FCZCount[1]*FCZCount[2]) {
             ImageWindowManagerFactory.showImage(image.setName("slices: "+image.sizeZ()));
@@ -78,7 +78,7 @@ public interface ImageDisplayer<T> {
     }
 
     static double[] getDisplayRange(Image im, ImageMask mask) {
-        Histogram hist = HistogramFactory.getHistogram(()->im.stream(mask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram hist = HistogramFactory.getHistogram(()->im.stream(mask, true).parallel());
         int minIdx = hist.getMinNonNullIdx();
         int maxIdx = hist.getMaxNonNullIdx();
         double minValue = hist.getValueFromIdx(minIdx);

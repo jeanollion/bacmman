@@ -781,6 +781,53 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 splitObjectsButtonActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.SPLIT_UP, new AbstractAction("Split up") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ImageDisplayer disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
+                List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
+                if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
+                else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) {
+                    int z = disp.getZ(disp.getCurrentImage());
+                    List<ObjectDisplay> selODList = ImageWindowManagerFactory.getImageManager().getInteractiveImage(disp.getCurrentImage()).toObjectDisplay(selList.stream()).collect(Collectors.toList());
+                    Map<Region, Integer> offMap = IntStream.range(0, selODList.size()).boxed().collect(Collectors.toMap(i -> selList.get(i).getRegion(), i->selList.get(i).getBounds().zMin() - selODList.get(i).offset.zMin()));
+                    ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, new SliceSplitter(z, true, offMap::get), true);
+                }
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.SPLIT_DOWN, new AbstractAction("Split down") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ImageDisplayer disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
+                List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
+                if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
+                else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) {
+                    int z = disp.getZ(disp.getCurrentImage());
+                    List<ObjectDisplay> selODList = ImageWindowManagerFactory.getImageManager().getInteractiveImage(disp.getCurrentImage()).toObjectDisplay(selList.stream()).collect(Collectors.toList());
+                    Map<Region, Integer> offMap = IntStream.range(0, selODList.size()).boxed().collect(Collectors.toMap(i -> selList.get(i).getRegion(), i->selList.get(i).getBounds().zMin() - selODList.get(i).offset.zMin()));
+                    ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, new SliceSplitter(z, false, offMap::get), true);
+                }
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.SPLIT_UP_DOWN, new AbstractAction("Split up and down") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ImageDisplayer disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
+                List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
+                if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
+                else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) {
+                    int z = disp.getZ(disp.getCurrentImage());
+                    List<ObjectDisplay> selODList = ImageWindowManagerFactory.getImageManager().getInteractiveImage(disp.getCurrentImage()).toObjectDisplay(selList.stream()).collect(Collectors.toList());
+                    Map<Region, Integer> offMap = IntStream.range(0, selODList.size()).boxed().collect(Collectors.toMap(i -> selList.get(i).getRegion(), i->selList.get(i).getBounds().zMin() - selODList.get(i).offset.zMin()));
+                    ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, new SliceSplitter(z, true, offMap::get), false);
+                    Map<Region, Integer> offMap2 = IntStream.range(0, selODList.size()).boxed().collect(Collectors.toMap(i -> selList.get(i).getRegion(), i->selList.get(i).getBounds().zMin() - selODList.get(i).offset.zMin())); // region instances may have changed
+                    ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, new SliceSplitter(z, false, offMap2::get), true);
+                }
+            }
+        });
 
         actionMap.put(Shortcuts.ACTION.CREATE, new AbstractAction("Create") {
             @Override

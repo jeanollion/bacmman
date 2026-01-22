@@ -189,6 +189,16 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
         return res;
     }
 
+    public IJRoi3D duplicateZRange(int zMin, int zMaxIncl) {
+        IJRoi3D res = new IJRoi3D(zMaxIncl - zMin).setIs2D(false).setFrame(frame).setLocDelta(locdx, locdy);
+        if (is2D) {
+            for (int z = zMin; z<=zMaxIncl; ++z) res.put(z, (Roi)get(0).clone());
+        } else {
+            for (int z = zMin; z<=zMaxIncl; ++z) res.put(z, (Roi)get(z).clone());
+        }
+        return res;
+    }
+
     public IJRoi3D duplicateOutline() {
         IJRoi3D target = new IJRoi3D(sizeZ()).setIs2D(is2D()).setFrame(getFrame()).setLocDelta(locdx, locdy);
         getExternalContourCoordinates().forEach( (z, coords) -> {

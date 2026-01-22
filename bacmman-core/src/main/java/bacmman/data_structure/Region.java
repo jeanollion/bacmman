@@ -67,6 +67,7 @@ import java.util.function.Predicate;
 import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -192,41 +193,57 @@ public class Region {
         return category;
     }
 
+    public Region intersectWithZPlane(int z, boolean return2D, boolean forceDuplicate) {
+        return intersectWithZPlanes(z, z, return2D, forceDuplicate);
+    }
     /**
      *
-     * @param z plane to intersect with. Should be in the same landmark as the region
+     * @param zMin, zMax plane range (included) to intersect with. Should be in the same landmark as the region
      * @param return2D if true returns a 2D object, otherwise a 3D object located at slice Z
      * @return a new object that correspond to the intersection of this region with the plane, or null if intersection is empty.
      */
-    public Region intersectWithZPlane(int z, boolean return2D, boolean forceDuplicate) {
+    public Region intersectWithZPlanes(int zMin, int zMax, boolean return2D, boolean forceDuplicate) {
+        if (zMax<zMin) throw new IllegalArgumentException("Invalid Z-range: zMin="+zMin+" zMax="+zMax);
+        if (zMax != zMin && return2D) throw new IllegalArgumentException("Cannot return a 2D object that intersect with several planes");
         if (is2D) {
             if (return2D) return forceDuplicate ? duplicate() : this;
             else {
-                Point newCenter = center == null ? null : new Point(center.get(0), center.get(1), z);
+                Point newCenter = center == null ? null : new Point(center.get(0), center.get(1), (zMin + zMax) / 2.0);
                 if (roi != null) {
-                    IJRoi3D newRoi = this.roi.duplicate().setIs2D(is2D).translate(new SimpleOffset(0, 0, z));
-                    return new Region(newRoi, label, new MutableBoundingBox(bounds).setzMin(z).setzMax(z), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                    IJRoi3D newRoi = this.roi.duplicate().setIs2D(is2D).translate(new SimpleOffset(0, 0, zMin));
+                    return new Region(newRoi, label, new MutableBoundingBox(bounds).setzMin(zMin).setzMax(zMax), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
                 } else if (voxels!=null) {
-                    Set<Voxel> vox = voxels.stream().map(v -> new Voxel(v.x, v.y, z)).collect(Collectors.toSet());
+                    Set<Voxel> vox = voxels.stream().flatMap(v -> IntStream.rangeClosed(zMin, zMax).mapToObj(i -> new Voxel(v.x, v.y, i))).collect(Collectors.toSet());
                     return new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
                 } else {
                     ImageInteger<?> newMask;
                     if (mask instanceof ImageInteger) newMask = ((ImageInteger<?>) mask).duplicate();
                     else newMask = getMaskAsImageInteger();
                     if (newMask.sizeZ()>1) throw new RuntimeException("2D object with 3D mask");
-                    newMask.translate(0, 0, z - newMask.zMin());
+                    newMask.translate(0, 0, zMin - newMask.zMin());
                     return new Region(newMask, label, false).setIsAbsoluteLandmark(absoluteLandmark);
                 }
             }
         } else { // 3D
             BoundingBox bds = getBounds();
-            if (z < bds.zMin() || z > bds.zMax()) return null;
-            else if (z == bds.zMin() && z == bds.zMax() && !return2D) return forceDuplicate ? duplicate() : this; // already 1-slice object
-            Point newCenter = center == null ? null : (return2D ? new Point(center.get(0), center.get(1)) : new Point(center.get(0), center.get(1), z) );
+            if (zMax < bds.zMin() || zMin > bds.zMax()) return null;
+            else if (zMin == zMax && zMin== bds.zMin() && zMin == bds.zMax() && !return2D) return forceDuplicate ? duplicate() : this; // already 1-slice object
+            int zMinIncl = Math.max(zMin, bds.zMin());
+            int zMaxIncl = Math.min(zMax, bds.zMax());
+            Point newCenter;
+            if (center == null) {
+                newCenter = null;
+            } else if (return2D) {
+                newCenter = new Point(center.get(0), center.get(1));
+            } else if (zMinIncl == zMaxIncl) {
+                newCenter = new Point(center.get(0), center.get(1), zMinIncl);
+            } else {
+                newCenter = null; // 3D objet : center needs to be recomputed
+            }
             if (roi != null) {
-                IJRoi3D newROI = roi.duplicateZ(z);
-                if (!return2D) newROI.setIs2D(false).translate(new SimpleOffset(0, 0, z));
-                Region r = new Region(newROI, label, new MutableBoundingBox(bounds).setzMin(0).setzMax(0), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                IJRoi3D newROI = return2D ? roi.duplicateZ(zMinIncl) : roi.duplicateZRange(zMinIncl, zMaxIncl);
+                BoundingBox interBds = return2D ? new MutableBoundingBox(bounds).setzMin(0).setzMax(0) : new MutableBoundingBox(bounds).setzMin(zMinIncl).setzMax(zMaxIncl);
+                Region r = new Region(newROI, label, interBds, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
                 r.clearRoi(); // creates mask
                 if (r.size()==0) return null;
                 r.resetMask(); // so that bounding box corresponds to mask
@@ -235,25 +252,32 @@ public class Region {
             } else if (mask != null) {
                 ImageInteger<?> newMask;
                 if (mask instanceof ImageInteger) {
-                    List<ImageInteger<?>> planes = ((ImageInteger)mask).splitZPlanes(z-bds.zMin(), z-bds.zMin());
+                    List<ImageInteger<?>> planes = ((ImageInteger)mask).splitZPlanes(zMinIncl-bds.zMin(), zMaxIncl-bds.zMin());
                     if (planes.isEmpty()) {
-                        logger.error("bounds and mask not consistent in Z: z={} not in mask. bds:{} mask bounds: {}", z, bds, new SimpleBoundingBox(mask));
+                        logger.error("bounds and mask not consistent in Z: z€ [{}; {}] not in mask. bds:{} mask bounds: {}", zMinIncl, zMaxIncl, bds, new SimpleBoundingBox(mask));
                         return null;
                     }
-                    newMask = planes.get(0).duplicate();
+                    List<ImageInteger> planeList = planes.stream().map(ImageInteger::duplicate).collect(Collectors.toList());
+                    newMask = Image.mergeZPlanes(planeList);
                 } else {
-                    newMask = TypeConverter.toByteMaskZ(mask, null, 1, z);
+                    newMask = TypeConverter.toByteMaskZ(mask, null, 1, zMinIncl, zMaxIncl);
                 }
-                if (return2D) newMask.translate(0, 0, -z);
+                if (return2D) newMask.translate(0, 0, -zMin);
                 Region r = new Region(newMask, label, return2D).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
                 if (r.size() == 0) return null;
                 r.resetMask(); // so that bounding box corresponds to mask
                 return r;
-            } else {
-                int newZ = return2D ? 0 : z;
-                Set<Voxel> vox = getVoxels().stream().filter(v -> v.z == z).map(v -> new Voxel(v.x, v.y, newZ)).collect(Collectors.toSet());
-                if (vox.isEmpty()) return null;
-                return new Region(vox, label, return2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+            } else { // voxel mode
+                if (zMinIncl == zMaxIncl) {
+                    int newZ = return2D ? 0 : zMin;
+                    Set<Voxel> vox = getVoxels().stream().filter(v -> v.z == zMinIncl).map(v -> new Voxel(v.x, v.y, newZ)).collect(Collectors.toSet());
+                    if (vox.isEmpty()) return null;
+                    return new Region(vox, label, return2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                } else {
+                    Set<Voxel> vox = getVoxels().stream().filter(v -> v.z >= zMinIncl && v.z<= zMaxIncl).map(Voxel::duplicate).collect(Collectors.toSet());
+                    if (vox.isEmpty()) return null;
+                    return new Region(vox, label, return2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(newCenter);
+                }
             }
         }
     }
