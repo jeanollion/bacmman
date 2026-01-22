@@ -97,4 +97,10 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
         if (currentFeature instanceof ObjectFeatureWithCore) return ((ObjectFeatureWithCore)currentFeature).getIntensityChannel();
         else return -1;
     }
+
+    @Override
+    public Image getIntensityMap(boolean transformed) {
+        if (currentFeature instanceof ObjectFeatureWithCore) return ((ObjectFeatureWithCore)currentFeature).getIntensityMap(transformed);
+        else return null;
+    }
 }

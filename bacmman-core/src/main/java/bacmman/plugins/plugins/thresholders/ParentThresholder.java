@@ -97,7 +97,7 @@ public class ParentThresholder implements Thresholder {
                 synchronized(p) {
                     // get track histogram
                     Map<Image, ImageMask> map = track.stream().collect(Collectors.toMap(o->o.getRawImage(sIdx), SegmentedObject::getMask));
-                    Histogram  histo = HistogramFactory.getHistogram(()->Image.stream(map, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                    Histogram  histo = HistogramFactory.getHistogram(()->Image.stream(map, true).parallel());
                     double thld = this.thresholderHisto.instantiatePlugin().runThresholderHisto(histo);
                     logger.debug("computing thld : {}, thresholder {} on track: {}, key: {}", thld, this.thresholderHisto.getPluginName(), p, key);
                     p.setAttribute(key, thld);

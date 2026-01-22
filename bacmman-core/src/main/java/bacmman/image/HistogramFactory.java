@@ -22,9 +22,8 @@ import bacmman.processing.ImageOperations;
 import bacmman.utils.DoubleStatistics;
 import bacmman.utils.Utils;
 import static bacmman.utils.Utils.parallel;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.ObjDoubleConsumer;
 import java.util.function.Supplier;
@@ -41,16 +40,15 @@ import org.slf4j.LoggerFactory;
  */
 public class HistogramFactory {
     public final static Logger logger = LoggerFactory.getLogger(HistogramFactory.class);
-    public static int MIN_N_BINS = 256;
-    public static int MAX_N_BINS = 5000;
-    public static int MAX_N_BINS2 = 30000;
-    
+    public static int MIN_N_BINS = 32;
+    public static int MAX_N_BINS = 65535;
     public enum BIN_SIZE_METHOD {
         NBINS_256,
-        AUTO_WITH_LIMITS,
-        AUTO, 
-        BACKGROUND // a good resolution for background study
+        FREEDMAN_DIACONIS,
+        SCOTT
     };
+    public static BIN_SIZE_METHOD defaultBinSizeMethod = BIN_SIZE_METHOD.FREEDMAN_DIACONIS;
+
     public static double[] getMinAndMax(Stream<Image> stream) {
         BiConsumer<double[], double[]> combiner = (mm1, mm2)-> {
             if (mm1[0]>mm2[0]) mm1[0] = mm2[0];
@@ -72,6 +70,9 @@ public class HistogramFactory {
         Supplier<Histogram> supplier = () -> new Histogram(new long[nBins], binSize, min);
         return stream.collect(supplier ,cons, combiner);
     }
+    public static Histogram getHistogramImageStream(Supplier<Stream<Image>> streamSupplier) {
+        return getHistogramImageStream(streamSupplier, defaultBinSizeMethod);
+    }
 
     public static Histogram getHistogramImageStream(Supplier<Stream<Image>> streamSupplier, BIN_SIZE_METHOD method) {
         double[] mmbs = getMinAndMaxAndBinSize(() -> streamSupplier.get().flatMapToDouble(Image::stream), method);
@@ -88,12 +89,45 @@ public class HistogramFactory {
     }
 
     /**
-     * Automatic bin size computation
-     * @param streamSupplier value distribution used for the histogram
-     * @param method binning method: NBINS_256: forces number of bins to be 256; AUTO: uses Scott, D. 1979 formula for optimal bin size computation: 3.49 * std * N^-1/3 (if no decimal places in values, this value can't be lower than 1); AUTO_WITH_LIMITS same as auto, but if no decimal places, binsize=1, and bin size is adjusted to that number of bins is within range [256; 2000]
-     * @return {min, max bin size}
+     * Estimate quantiles using histogram (single pass, no sampling)
+     * @param percentPrecision desired precision as percentage (e.g., 0.1 for 0.1% precision)
      */
-    public static double[] getMinAndMaxAndBinSize(Supplier<DoubleStream> streamSupplier, BIN_SIZE_METHOD method) {
+    private static double[] estimateQuantiles(DoubleStream stream, double[] quantiles, double min, double max, long count, double percentPrecision) {
+        int numBuckets = (int)Math.ceil(1/(percentPrecision*0.01));
+        double bucketSize = (max - min) / numBuckets;
+        if (bucketSize == 0) {
+            double[] result = new double[quantiles.length];
+            Arrays.fill(result, min);
+            return result;
+        }
+
+        // Single pass: build histogram
+        final long[] histogram = new long[numBuckets];
+        stream.forEach(v -> {
+            int bucket = (int) Math.min(numBuckets - 1, Math.max(0, (v - min) / bucketSize));
+            histogram[bucket]++;
+        });
+
+        // Compute quantiles from histogram
+        double[] result = new double[quantiles.length];
+        long cumulative = 0;
+        int quantileIdx = 0;
+
+        for (int bucket = 0; bucket < numBuckets && quantileIdx < quantiles.length; bucket++) {
+            cumulative += histogram[bucket];
+            double cumPct = (double) cumulative / count;
+
+            while (quantileIdx < quantiles.length && cumPct >= quantiles[quantileIdx]) {
+                // Linear interpolation within bucket
+                result[quantileIdx] = min + (bucket + 0.5) * bucketSize;
+                quantileIdx++;
+            }
+        }
+
+        return result;
+    }
+
+    public static double[] getStats(DoubleStream stream) {
         // stats -> 0-2: Sum of Square with compensation variables, 3: count, 4: sum, 5 : min; 6: max; 7: max decimal place
         BiConsumer<double[], double[]> combiner = (stats1, stats2)-> {
             stats1[4]+=stats2[4];
@@ -113,56 +147,70 @@ public class HistogramFactory {
             if (stats[7]<dec) stats[7] = dec;
         };
         Supplier<double[]> supplier = () -> new double[]{0, 0, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0};
-        double[] stats = streamSupplier.get().collect(supplier ,cons, combiner);
+        return stream.collect(supplier ,cons, combiner);
+    }
+
+    /**
+     * Automatic bin size computation for histogram generation.
+     *
+     * @param streamSupplier value distribution used for the histogram
+     * @param method binning method:
+     * <ul>
+     *   <li><b>NBINS_256</b>: Forces number of bins to 256, regardless of data characteristics</li>
+     *   <li><b>SCOTT</b>: Uses Scott's rule (Scott, D. 1979) for optimal bin size:
+     *       binSize = 3.49 × σ × N^(-1/3), where σ is standard deviation and N is sample count.
+     *       For integer data (no decimal places), bin size is at least 1.
+     *       Number of bins is capped between {@value #MIN_N_BINS} and {@value #MAX_N_BINS}.</li>
+     *   <li><b>FREEDMAN_DIACONIS</b>: Uses Freedman-Diaconis rule for robust bin size estimation:
+     *       binSize = 2 × IQR × N^(-1/3), where IQR is the interquartile range (Q3 - Q1).
+     *       More robust to outliers than Scott's rule, particularly suited for skewed distributions
+     *       such as fluorescence intensity data with long tails.
+     *       For integer data, bin size is at least 1.
+     *       Number of bins is capped between {@value #MIN_N_BINS} and {@value #MAX_N_BINS}.</li>
+     * </ul>
+     *
+     * @return double array containing {min, max, binSize}
+     */
+    public static double[] getMinAndMaxAndBinSize(Supplier<DoubleStream> streamSupplier, BIN_SIZE_METHOD method) {
+        double[] stats = getStats(streamSupplier.get());
         double std = stats[3]>0 ?  Math.sqrt((DoubleStatistics.getSumOfSquare(stats) / stats[3]) - Math.pow(stats[4]/stats[3], 2)) : 0.0d;
-        double binSize = 3.49 * std * Math.pow(stats[3], -1/3d);
-        
-        /* FROM : 
-        Scott, D. 1979.
-        On optimal and data-based histograms.
-        Biometrika, 66:605-610. */
-        
-        // empirical adjustment
-        //binSize /=3d;
-        
-        if (stats[7]==0) binSize = Math.max(1, binSize); // no decimal places
+
+        double binSize;
         switch(method) {
             case NBINS_256: {
                 binSize = getBinSize(stats[5], stats[6], 256);
                 break;
-            } case AUTO_WITH_LIMITS: {
-                if (stats[7] == 0) binSize = 1;
-                else {
-                    // ensure histogram will respect nbins range
-                    int nBins = getNBins(stats[5], stats[6], binSize);
-                    if (nBins < MIN_N_BINS) binSize = getBinSize(stats[5], stats[6], MIN_N_BINS);
-                    if (nBins > MAX_N_BINS) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS);
-                }
-                break;
-            } case AUTO: {
+            } case SCOTT: {
+                // ensure histogram will respect nbins range
+                binSize = 3.49 * std * Math.pow(stats[3], -1/3d);
+                if (stats[7] == 0) binSize = Math.max(1, binSize);
                 int nBins = getNBins(stats[5], stats[6], binSize);
-                if (nBins > MAX_N_BINS2) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS2);
+                if (nBins < MIN_N_BINS) binSize = getBinSize(stats[5], stats[6], MIN_N_BINS);
+                if (nBins > MAX_N_BINS) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS);
                 break;
-            } case BACKGROUND: {
-                if (stats[7] == 0) {
-                    binSize = 1;
-                    int nBins = getNBins(stats[5], stats[6], binSize);
-                    if (nBins > MAX_N_BINS2) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS2);
-                } else { // get sigma for distribution : under mean + 3*sigma
-                    double thldSup = stats[4] / stats[3] + 2.5 * std;
-                    double[] stats2 = streamSupplier.get().filter(d -> d < thldSup).collect(supplier, cons, combiner);
-                    double std2 = stats2[3] > 0 ? Math.sqrt((DoubleStatistics.getSumOfSquare(stats2) / stats2[3]) - Math.pow(stats2[4] / stats2[3], 2)) : 0.0d;
-                    double binSize2 = 3.49 * std2 * Math.pow(stats2[3], -1 / 3d);
-                    int nBins = getNBins(stats[5], stats[6], binSize2);
-                    if (nBins > MAX_N_BINS2) binSize2 = getBinSize(stats[5], stats[6], MAX_N_BINS2);
-                    //logger.debug("autobin: std: {} count: {} value: {}, thld: {} new std: {} new binSize: {}", std, stats[3], binSize, thldSup, std2, binSize2);
-                    binSize = binSize2;
+            } case FREEDMAN_DIACONIS:
+                default: {
+                double[] quantiles = estimateQuantiles(streamSupplier.get(), new double[]{0.25, 0.75}, stats[5], stats[6], (long)stats[3], 0.1);
+                double iqr = quantiles[1] - quantiles[0];
+
+                if (iqr <= 0) {
+                    // Fallback to Scott's rule if IQR is zero (all values the same)
+                    binSize = 3.49 * std * Math.pow(stats[3], -1.0/3.0);
+                } else {
+                    binSize = 2.0 * iqr * Math.pow(stats[3], -1.0/3.0);
                 }
+                if (stats[7] == 0) binSize = Math.max(1, binSize);
+                int nBins = getNBins(stats[5], stats[6], binSize);
+                if (nBins < MIN_N_BINS) binSize = getBinSize(stats[5], stats[6], MIN_N_BINS);
+                if (nBins > MAX_N_BINS) binSize = getBinSize(stats[5], stats[6], MAX_N_BINS);
                 break;
             }
         }
         //logger.debug("autobin: range: [{};{}], count: {}, sigma: {}, max decimal place: {} binSize: {}", stats[5], stats[6], stats[3], std, stats[7], binSize);
         return new double[]{stats[5], stats[6], binSize};
+    }
+    public static Histogram getHistogram(Supplier<DoubleStream> streamSupplier) {
+        return getHistogram(streamSupplier, defaultBinSizeMethod);
     }
     /**
      * Computes histogram with automatic bin size computation

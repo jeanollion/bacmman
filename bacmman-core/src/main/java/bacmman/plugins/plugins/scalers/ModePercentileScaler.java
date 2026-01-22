@@ -78,7 +78,7 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scale, -center);
         }
         else { // perform on single image
-            double[] scale_center = getScaleCenter(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            double[] scale_center = getScaleCenter(HistogramFactory.getHistogram(image::stream));
             log(scale_center);
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scale_center[0], -scale_center[1]);
 

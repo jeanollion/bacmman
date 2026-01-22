@@ -145,7 +145,7 @@ public interface InputImages {
         // signal is measured as number of
         long t0 = System.currentTimeMillis();
         double sTot = images.get().findAny().get().value.sizeXYZ();
-        Histogram histo = HistogramFactory.getHistogram(()->images.get().parallel().flatMapToDouble(im -> im.value.stream()), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+        Histogram histo = HistogramFactory.getHistogram(()->images.get().parallel().flatMapToDouble(im -> im.value.stream()));
         //histo.plotIJ1("choose "+n+" images: histogram.", true);
         double thld = BackgroundFit.backgroundFit(histo, 3);
 

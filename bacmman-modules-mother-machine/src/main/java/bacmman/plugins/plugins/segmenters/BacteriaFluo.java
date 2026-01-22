@@ -26,6 +26,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.SimpleThresholder;
+import bacmman.plugins.plugins.post_filters.ContourAdjustment;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEdge;
@@ -295,7 +296,8 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_IQR:
                 Image smooth = smoothScale.getValue().doubleValue()>=1 ? ImageFeatures.gaussianSmooth(input, smoothScale.getValue().doubleValue(), false):input;
-                pop.localThreshold(smooth, localThresholdFactor.getValue().doubleValue(), true, true);
+                ContourAdjustment localThld = new ContourAdjustment().setLocalThresholdFactor(localThresholdFactor.getValue().doubleValue());
+                localThld.localThresholdIQR(smooth, pop);
                 break;
             default:
                 break;
@@ -392,7 +394,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         Supplier<Histogram> getHistoParent = () -> {
             if (histoParent[0]==null) { 
                 Map<Image, ImageMask> imageMapMask = parentTrack.stream().filter(p->!voidMC.contains(p)).collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask() )); 
-                histoParent[0] = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                histoParent[0] = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel());
             }
             return histoParent[0];
         };
@@ -441,7 +443,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                     Histogram histo;
                     if (histoStore!=null && histoStore[0]!=null ) histo = histoStore[0];
                     else {
-                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS) ;
+                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel()) ;
                         if (histoStore!=null) histoStore[0] = histo;
                     }
                     double thld = thlder.runThresholderHisto(histo);
@@ -468,7 +470,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                     if (histoStore!=null && histoStore[0]!=null) histo = histoStore[0];
                     else {
                         List<Image> im = parents.stream().map(p->p.getRoot()).map(p->p.getRawImage(structureIdx)).collect(Collectors.toList());
-                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel());
                         if (histoStore!=null) histoStore[0] = histo;
                     }
                     double[] ms = new double[2];

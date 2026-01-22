@@ -19,7 +19,6 @@
 package bacmman.plugins.plugins.thresholders;
 
 import bacmman.configuration.parameters.*;
-import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BlankMask;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
@@ -27,8 +26,6 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.*;
 import bacmman.utils.DoubleStatistics;
-
-import java.util.function.DoublePredicate;
 
 /**
  * Adapted from Implementation of Kappa Sigma Clipping algorithm by Gaëtan Lehmann, http://www.insight-journal.org/browse/publication/132. 
@@ -143,7 +140,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     }
     
     public static double runThresholderHisto(Image input, ImageMask mask, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, boolean symmetrical, double[] meanSigma) {
-        Histogram histo = HistogramFactory.getHistogram(() -> input.stream(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+        Histogram histo = HistogramFactory.getHistogram(() -> input.stream());
         return BackgroundThresholder.runThresholder(histo, sigmaFactor, lastSigmaFactor, iterations, firstValue, symmetrical, meanSigma);
     }
     

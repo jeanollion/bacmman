@@ -93,7 +93,7 @@ public class IntensityPiecewiseTransformation implements PreFilter, TrackPreFilt
             min = values.get().min().orElse(0);
             histogram = null;
         } else {
-            histogram = HistogramFactory.getHistogram(values, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+            histogram = HistogramFactory.getHistogram(values);
             min = histogram.getMin();
         }
         double[] breakPoints = breaks.getAll().stream().mapToDouble( th -> th.runThresholderHisto(histogram) ).toArray();
@@ -107,7 +107,7 @@ public class IntensityPiecewiseTransformation implements PreFilter, TrackPreFilt
             min = images.get().mapToDouble(im -> im.getMinAndMax(null)[0]).min().orElse(0);
             histogram = null;
         } else {
-            histogram = HistogramFactory.getHistogramImageStream(images, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+            histogram = HistogramFactory.getHistogramImageStream(images);
             min = histogram.getMin();
         }
         double[] breakPoints = breaks.getAll().stream().mapToDouble( th -> th.runThresholderHisto(histogram) ).toArray();

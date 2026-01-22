@@ -68,7 +68,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
         boolean isFloatingPoint = image.floatingPoint();
         if (isConfigured()) image = ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else { // perform on single image
-            double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream));
             log(scaleOff);
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }

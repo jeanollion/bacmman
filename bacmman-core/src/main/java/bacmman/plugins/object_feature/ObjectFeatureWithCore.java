@@ -31,4 +31,5 @@ import java.util.function.BiFunction;
 public interface ObjectFeatureWithCore {
     void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> preFilters);
     int getIntensityChannel();
+    Image getIntensityMap(boolean transformed);
 }

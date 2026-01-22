@@ -19,7 +19,7 @@ public class HistogramScaler implements ConfigurableTransformation {
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         if (scalePerFrame.getSelected()) return;
-        globalHistogram = HistogramFactory.getHistogram(()->InputImages.streamChannelValues(inputImages, channelIdx, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        globalHistogram = HistogramFactory.getHistogram(()->InputImages.streamChannelValues(inputImages, channelIdx, true));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class HistogramScaler implements ConfigurableTransformation {
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         bacmman.plugins.HistogramScaler scaler = this.scaler.instantiatePlugin();
-        if (scalePerFrame.getSelected()) scaler.setHistogram(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+        if (scalePerFrame.getSelected()) scaler.setHistogram(HistogramFactory.getHistogram(image::stream));
         else scaler.setHistogram(globalHistogram);
         return scaler.scale(image);
     }

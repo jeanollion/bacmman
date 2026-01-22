@@ -540,7 +540,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
             HistogramScaler scaler = scalerSupplier.get();
             if (scaler!=null) {
-                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages)));
                 scaler.transformInputImage(allowTransformInputImages); // input images are not modified
             }
             scalerMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> scaler==null ? HistogramScaler.noScaling() : scaler);
@@ -549,7 +549,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 HistogramScaler scaler = scalerSupplier.get();
                 List<Image> allImages = Arrays.asList(inNC[i]);
                 if (scaler!=null) {
-                    scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+                    scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages)));
                     scaler.transformInputImage(allowTransformInputImages); // input images are not modified
                 }
                 return scaler==null ? HistogramScaler.noScaling() : scaler;

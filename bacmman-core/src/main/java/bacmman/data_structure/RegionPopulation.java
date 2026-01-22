@@ -359,40 +359,6 @@ public class RegionPopulation {
         relabel(true);
     }
 
-    public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject) {
-        return localThreshold(erodeMap, iqrFactor, darkBackground, keepOnlyBiggestObject, 0, null);
-    }
-
-    /**
-     * @param erodeMap
-     * @param iqrFactor
-     * @param darkBackground
-     * @param keepOnlyBiggestObject when applying local threhsold one object could be split in several, if true only the biggest will be kept
-     * @param dilateRegionRadius    radius for dilate region label-wise. 0 -> no dilatation
-     * @param mask                  mask for region dilatation
-     * @return
-     */
-    public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
-        if (erodeMap == null) throw new IllegalArgumentException("Erode Map cannot be null");
-        Function<Region, Double> thldFct = o -> {
-            List<Double> values = new ArrayList<>();
-            o.loop((x, y, z) -> values.add((double)erodeMap.getPixel(x, y, z)));
-            double q1 = ArrayUtil.quantile(values, 0.25);
-            double q2 = ArrayUtil.quantile(values, 0.5);
-            double q3 = ArrayUtil.quantile(values, 0.75);
-            double thld;
-            if (darkBackground) {
-                thld = q2 - iqrFactor * (q3 - q1);
-                if (dilateRegionRadius > 0 || values.get(0) < thld) return thld; // if no dilatation: put the threshold only if some pixels are under thld
-                else return null;
-            } else {
-                thld = q2 + iqrFactor * (q3 - q1);
-                if (dilateRegionRadius > 0 || values.get(values.size() - 1) > thld) return thld;
-                else return null;
-            }
-        };
-        return localThreshold(erodeMap, thldFct, darkBackground, keepOnlyBiggestObject, dilateRegionRadius, mask);
-    }
     /**
      *
      * @param erodeMap

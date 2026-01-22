@@ -723,6 +723,13 @@ public class ArrayUtil {
         }
         return res;
     }
+    public static double getMAD(double[] values, double median) {
+        double[] deviations = new double[values.length];
+        for (int i = 0; i < values.length; i++) {
+            deviations[i] = Math.abs(values[i] - median);
+        }
+        return ArrayUtil.quantile(deviations, 0.5);
+    }
     public static int[] toInt(float[] array) {
         int[] res= new int[array.length];
         for (int i = 0; i<array.length; ++i) res[i] = Math.round(array[i]);

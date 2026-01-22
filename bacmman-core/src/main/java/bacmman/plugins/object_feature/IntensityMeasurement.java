@@ -49,6 +49,11 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
             .setAutoConfiguration( ChannelImageParameter.defaultAutoConfiguration() );
     protected Image intensityMap;
     protected int z = -1;
+
+    @Override
+    public Image getIntensityMap(boolean transformed) {
+        return core.getIntensityMap(transformed);
+    }
     protected Map<Region, Region> regionSlice = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
         if (z >= 0 && !r.is2D()) return r.intersectWithZPlane(z, false, false);
         else return r;

@@ -109,7 +109,7 @@ public class IntensityMeasurementCore {
 
             if (Double.isNaN(median)) {
                 if (o.getBounds().volume() > sizeLimitMedian) { // volume is large: use histogram
-                    Histogram h = HistogramFactory.getHistogram(this::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                    Histogram h = HistogramFactory.getHistogram(this::stream);
                     if (h.count() >= sizeLimitMedian/2 ) this.median = h.getQuantiles(0.5)[0];
                 }
                 if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, transformedMap, 0.5)[0];
