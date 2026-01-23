@@ -5,14 +5,15 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
-import bacmman.image.ImageDouble;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.processing.ImageDerivatives;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.IJUtils;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
@@ -80,12 +81,38 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
         Image gradient = ImageDerivatives.getGradientMagnitude(input, scale, false, true);
         if (stores != null && p !=null) stores.get(p).addIntermediateImage("Gradient", gradient);
         double dilateRegionRadius = dilationRadius.getDoubleValue();
+        Map<Region, Double> thldMap = (stores != null && p !=null) ? new HashMap<>() : null;
+        Map<Region, double[]>  intMap = (stores != null && p !=null) ? new HashMap<>() : null;
+        Map<Region, double[]> gradDerMap = (stores != null && p !=null) ? new HashMap<>() : null;
+        Map<Region, double[]> gradDer2Map = (stores != null && p !=null) ? new HashMap<>() : null;
         Function<Region, Double> thldFct = o -> {
             if (o.size()<minSize) return null;
             double[] intensityValues = o.streamValues(input).toArray();
             double[] gradValues = o.streamValues(gradient).toArray();
-            return computeGradientBasedThreshold(intensityValues, gradValues, darkBackground.getSelected());
+            Double thld = computeGradientBasedThreshold(intensityValues, gradValues, darkBackground.getSelected(), intMap!=null ? a->intMap.put(o, a):null, gradDerMap!=null ? a->gradDerMap.put(o, a):null,  gradDer2Map!=null ? a->gradDer2Map.put(o, a):null);
+            if (thldMap != null) thldMap.put(o, thld);
+            return thld;
         };
+        if (stores != null && p!= null) {
+            stores.get(p).addMisc("Display Contour Adjustment Data",  l -> {
+                for (SegmentedObject o : l) {
+                    // regions have changed: get the most overlapping.
+                    Region target  = intMap.keySet().stream().sorted(Comparator.comparingDouble(r->-r.getOverlapArea(o.getRegion()))).findFirst().orElse(null);
+                    if (target == null) continue;
+                    double[] intensity = intMap.get(target);
+                    double[] gradDer = gradDerMap.get(target);
+                    double[] gradDer2 = gradDer2Map.get(target);
+                    if (intensity!=null && gradDer!=null) {
+                        IJUtils.plot(intensity, gradDer, "Object:"+o.toString(), "Intensity", "dGrad / dI");
+                    }
+                    if (intensity!=null && gradDer2!=null) {
+                        IJUtils.plot(intensity, gradDer2, "Object:"+o.toString(), "Intensity", "dGrad / dI");
+                    }
+                    Double thld = thldMap.get(target);
+                    if (thld != null) o.setAttribute("ContourAdjustmentThreshold", thld);
+                }
+            });
+        }
         return pop.localThreshold(input, thldFct, darkBackground.getSelected(), true, dilateRegionRadius, dilateRegionRadius>0?pop.getLabelMap():null);
     }
 
@@ -97,6 +124,10 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
      * @return intensity value where gradient accumulation rate is highest, or null if no clear peak
      */
     public Double computeGradientBasedThreshold(double[] intensities, double[] gradients, boolean darkBackground) {
+        return computeGradientBasedThreshold(intensities, gradients, darkBackground, null, null, null);
+    }
+
+    protected Double computeGradientBasedThreshold(double[] intensities, double[] gradients, boolean darkBackground,Consumer<double[]> logIntensity, Consumer<double[]> logCumSumDer, Consumer<double[]> logCumSumDer2) {
         if (intensities.length != gradients.length || intensities.length < 10) {
             return null; // Not enough data
         }
@@ -125,14 +156,78 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
             cumSum += gradients[idx];
             gradientCumSum[i] = cumSum;
         }
-        double derScale = 3;
-        ImageDouble gradientCumSumIm = new ImageDouble("gradientCumSumIm", gradientCumSum.length, new double[][]{gradientCumSum});
-        float[] gradientCumSumDer = ImageDerivatives.getGradient(gradientCumSumIm, derScale, false, false, 0).get(0).getPixelArray()[0];
-        List<Integer> localMax = ArrayUtil.getRegionalExtrema(gradientCumSumDer, (int)(derScale+0.5), true);
-        if (localMax.isEmpty()) return null;
-        return sortedIntensities[localMax.get(0)];
-        //int peakIndex = ArrayUtil.max(gradientCumSumDer);
-        //return sortedIntensities[peakIndex];
+
+        double derScale = Math.max(2, intensities.length / 20);
+        gradientCumSum = gaussianSmooth(gradientCumSum, derScale);
+        double[] gradientCumSumDer = der(gradientCumSum, 1);
+        gradientCumSumDer = gaussianSmooth(gradientCumSumDer, derScale);
+        double[] gradientCumSumDer2 = der(gradientCumSumDer, 1);
+        if (logIntensity != null) logIntensity.accept(sortedIntensities);
+        if (logCumSumDer != null) logCumSumDer.accept(gradientCumSumDer);
+        if (logCumSumDer2 != null) logCumSumDer2.accept(gradientCumSumDer2);
+        int peakIndex = ArrayUtil.max(gradientCumSumDer2) + (int)derScale;
+        return sortedIntensities[peakIndex];
+    }
+
+    protected double[] der(double[] input, double binSize) {
+        double[] derivative = new double[input.length];
+        for (int i = 0; i < input.length - 1; i++) {
+            derivative[i] = (input[i + 1] - input[i]) / binSize;
+        }
+        derivative[input.length - 1 ] = derivative[input.length - 2 ];
+        return derivative;
+    }
+
+    private double[] gaussianSmooth(double[] data, double sigma) {
+        if (sigma <= 0 || data.length < 3) {
+            return data.clone();
+        }
+
+        int n = data.length;
+        int radius = (int) Math.ceil(3 * sigma);
+
+        // Precompute kernel
+        double[] kernel = createGaussianKernel(sigma, radius);
+
+        // Apply convolution
+        double[] smoothed = new double[n];
+
+        for (int i = 0; i < n; i++) {
+            double value = 0;
+            double weightSum = 0;
+
+            int start = Math.max(0, i - radius);
+            int end = Math.min(n - 1, i + radius);
+
+            for (int j = start; j <= end; j++) {
+                int kernelIdx = j - i + radius;
+                value += data[j] * kernel[kernelIdx];
+                weightSum += kernel[kernelIdx];
+            }
+
+            smoothed[i] = value / weightSum;
+        }
+
+        return smoothed;
+    }
+
+    /**
+     * Creates a normalized Gaussian kernel
+     */
+    private double[] createGaussianKernel(double sigma, int radius) {
+        int kernelSize = 2 * radius + 1;
+        double[] kernel = new double[kernelSize];
+        double sum = 0;
+
+        for (int i = 0; i < kernelSize; i++) {
+            double x = i - radius;
+            kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
+            sum += kernel[i];
+        }
+
+        // Normalize
+        for (int i = 0; i < kernelSize; i++) kernel[i] /= sum;
+        return kernel;
     }
 
     public RegionPopulation localThresholdIQR(Image input, RegionPopulation pop) {

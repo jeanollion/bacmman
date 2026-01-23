@@ -54,8 +54,9 @@ import java.util.stream.DoubleStream;
  *
  * @author Jean Ollion
  */
-public class RemoveTrackByFeature implements TrackPostFilter, Hint {
+public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProcessingPlugin {
     final static Logger logger = LoggerFactory.getLogger(RemoveTrackByFeature.class);
+
     public enum STAT {Mean, Median, Quantile}
     enum THLD_MODE {Constant, Feature, Image} // could also be a statistics on feature distribution.
     PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setEmphasized(true).setHint("Feature computed on each object of the track");
@@ -123,6 +124,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         if (needImages && !(feature.instantiatePlugin() instanceof ObjectFeatureWithCore)) {
             throw new RuntimeException("Cannot use image threshold with a feature that is not an intensity measurement");
         }
+        String featureName = feature.instantiatePlugin().getDefaultName();
         boolean needDiskBackedImage = needImages && !preFilters.isEmpty() ;
         DiskBackedImageManager dbim = needDiskBackedImage ? Core.getDiskBackedManager(parentTrack.get(0)) : null;
         List<Image> allImages = new ArrayList<>();
@@ -167,7 +169,6 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
                 break;
             }
         }
-        logger.debug("feature: {}({}) threshold value: {}", feature.instantiatePlugin().getDefaultName(), feature.instantiatePlugin().getClass(), threshold);
         // resume in one value per track
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx, true, true);
         List<SegmentedObject> objectsToRemove = new ArrayList<>();
@@ -190,6 +191,13 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
             } else {
                 if (value>threshold) objectsToRemove.addAll(track);
             }
+            if (stores != null) {
+                track.forEach(o -> {
+                    o.setAttribute("RemBy"+featureName, valueMap.get(o.getRegion()));
+                    o.setAttribute("RemBy"+featureName+"_global", value);
+                    o.setAttribute("RemBy"+featureName+"_thld", threshold);
+                });
+            }
         }
         BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = getPredicate(mergePolicy.getSelectedEnum());
         if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true); // only delete
@@ -200,5 +208,10 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         return new Parameter[]{feature, preFilters, statCond, thldCond, keepOverThreshold, mergePolicy};
     }
 
-    
+    Map<SegmentedObject, TestDataStore> stores;
+    @Override
+    public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
+        this.stores = stores;
+    }
+
 }

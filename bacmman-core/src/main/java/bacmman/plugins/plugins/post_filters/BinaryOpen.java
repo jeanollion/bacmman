@@ -74,7 +74,7 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
                     : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallel);
             // check that only one object remains
             List<Region> regions = ImageLabeller.labelImageList(open);
-            regions.forEach(r -> r.translate(o.getBounds()));
+            regions.forEach(r -> r.translate(o.getBounds()).setIsAbsoluteLandmark(o.isAbsoluteLandMark()).setIs2D(o.is2D()));
             if (regions.size() > 1) {
                 regions.sort(Comparator.comparingDouble(Region::size));
                 Region biggest = regions.remove(regions.size()-1);
