@@ -133,7 +133,11 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
             ObjectFeature f = feature.instantiatePlugin();
             f.setUp(parent, structureIdx, pop);
             if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(null, pf);
-            Map<Region, Double> locValueMap = pop.getRegions().stream().collect(Collectors.toMap(o->o, f::performMeasurement));
+            Map<Region, Double> locValueMap = pop.getRegions().stream().collect(Collectors.toMap(o->o, o -> {
+                return f.performMeasurement(o);
+                //if (value == null || value.isNaN()) logger.debug("invalid region: {} bds: {} (image: {}) size: {} value: {}", o.getLabel(), o.getBounds(), f instanceof ObjectFeatureWithCore ? ((ObjectFeatureWithCore)f).getIntensityMap(true).getBoundingBox() : null, o.size(), value);
+                //return value;
+            }));
             if (needImages) {
                 if (f instanceof ObjectFeatureWithCore) {
                     Image image = ((ObjectFeatureWithCore) f).getIntensityMap(true);

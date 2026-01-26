@@ -112,7 +112,6 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
     
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-
         Set<SegmentedObject> objectsToRemove = new HashSet<>();
         Consumer<SegmentedObject> exe = parent -> {
             Stream<SegmentedObject> childrenS = parent.getChildren(structureIdx);
@@ -123,13 +122,12 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                 if (instance instanceof TestableProcessingPlugin && stores!=null) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
                 return instance.runPostFilter(p, structureIdx, pop);
             };
-            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, null);
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, true, null);
             if (!toRemove.isEmpty()) {
                 synchronized(objectsToRemove) {
                     objectsToRemove.addAll(toRemove);
                 }
             }
-            
         };
         try {
             ThreadRunner.executeAndThrowErrors(Utils.parallel(parentTrack.stream(), true), exe);

@@ -21,6 +21,9 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_IQR, LOCAL_THLD_MAD, LOCAL_THLD_MEAN_SD, LOCAL_THLD_GRADIENT}
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 5, 2, null, null).setEmphasized(true)
             .setSimpleHint("Lower value of this threshold will results in smaller cells.<br /><br /><b>This threshold should be calibrated for each new experimental setup</b>");
+    protected NumberParameter alpha = new BoundedNumberParameter("Alpha", 5, 1, 0, 1).setEmphasized(false)
+            .setSimpleHint("Lower value of this threshold will results in bigger cells.<br />");
+
     ScaleXYZParameter gradientScale = new ScaleXYZParameter("Gradient Scale", 1);
     FloatParameter dilationRadius = new FloatParameter("Dilate Objects", 0).setHint("If greater than zero, dilates objects before running the erosion");
     BooleanParameter darkBackground = new BooleanParameter("Dark Background", true);
@@ -40,7 +43,7 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
             .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_IQR, localThresholdFactor)
             .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_MEAN_SD, localThresholdFactor)
             .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_MAD, localThresholdFactor)
-            .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_GRADIENT, gradientScale);
+            .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_GRADIENT, gradientScale, alpha);
 
     static int minSize = 10;
     public ContourAdjustment setLocalThresholdFactor(double factor) {
@@ -89,7 +92,7 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
             if (o.size()<minSize) return null;
             double[] intensityValues = o.streamValues(input).toArray();
             double[] gradValues = o.streamValues(gradient).toArray();
-            Double thld = computeGradientBasedThreshold(intensityValues, gradValues, darkBackground.getSelected(), intMap!=null ? a->intMap.put(o, a):null, gradDerMap!=null ? a->gradDerMap.put(o, a):null,  gradDer2Map!=null ? a->gradDer2Map.put(o, a):null);
+            Double thld = computeGradientBasedThreshold(intensityValues, gradValues, alpha.getDoubleValue(), darkBackground.getSelected(), intMap!=null ? a->intMap.put(o, a):null, gradDerMap!=null ? a->gradDerMap.put(o, a):null,  gradDer2Map!=null ? a->gradDer2Map.put(o, a):null);
             if (thldMap != null) thldMap.put(o, thld);
             return thld;
         };
@@ -106,7 +109,7 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
                         IJUtils.plot(intensity, gradDer, "Object:"+o.toString(), "Intensity", "dGrad / dI");
                     }
                     if (intensity!=null && gradDer2!=null) {
-                        IJUtils.plot(intensity, gradDer2, "Object:"+o.toString(), "Intensity", "dGrad / dI");
+                        IJUtils.plot(intensity, gradDer2, "Object:"+o.toString(), "Intensity", "d^2Grad / dI^2");
                     }
                     Double thld = thldMap.get(target);
                     if (thld != null) o.setAttribute("ContourAdjustmentThreshold", thld);
@@ -123,32 +126,23 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
      * @param darkBackground true if background is dark
      * @return intensity value where gradient accumulation rate is highest, or null if no clear peak
      */
-    public Double computeGradientBasedThreshold(double[] intensities, double[] gradients, boolean darkBackground) {
-        return computeGradientBasedThreshold(intensities, gradients, darkBackground, null, null, null);
+    public static Double computeGradientBasedThreshold(double[] intensities, double[] gradients, double alpha, boolean darkBackground) {
+        return computeGradientBasedThreshold(intensities, gradients, alpha, darkBackground, null, null, null);
     }
 
-    protected Double computeGradientBasedThreshold(double[] intensities, double[] gradients, boolean darkBackground,Consumer<double[]> logIntensity, Consumer<double[]> logCumSumDer, Consumer<double[]> logCumSumDer2) {
-        if (intensities.length != gradients.length || intensities.length < 10) {
-            return null; // Not enough data
-        }
-
+    protected static Double computeGradientBasedThreshold(double[] intensities, double[] gradients, double alpha, boolean darkBackground,Consumer<double[]> logIntensity, Consumer<double[]> logCumSumDer, Consumer<double[]> logCumSumDer2) {
+        if (intensities.length != gradients.length || intensities.length < 10) return null; // Not enough data
         int n = intensities.length;
-
         // Create array of indices to sort
         IntArrayList indices = new IntArrayList(intensities.length);
         for (int i = 0; i < n; i++) indices.add(i);
-
         // Sort indices by intensity (ascending for dark bg, descending for bright bg)
-        if (darkBackground) {
-            indices.sort((i1, i2) -> Double.compare(intensities[i1], intensities[i2]));
-        } else {
-            indices.sort((i1, i2) -> -Double.compare(intensities[i1], intensities[i2]));
-        }
+        if (darkBackground) indices.sort((i1, i2) -> Double.compare(intensities[i1], intensities[i2]));
+        else indices.sort((i1, i2) -> -Double.compare(intensities[i1], intensities[i2]));
 
         // Build sorted arrays and compute cumulative sum of gradients
         double[] sortedIntensities = new double[n];
         double[] gradientCumSum = new double[n];
-
         double cumSum = 0.0;
         for (int i = 0; i < n; i++) {
             int idx = indices.getInt(i);
@@ -156,20 +150,21 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
             cumSum += gradients[idx];
             gradientCumSum[i] = cumSum;
         }
-
+        // compute cumsum derivative
         double derScale = Math.max(2, intensities.length / 20);
-        gradientCumSum = gaussianSmooth(gradientCumSum, derScale);
-        double[] gradientCumSumDer = der(gradientCumSum, 1);
-        gradientCumSumDer = gaussianSmooth(gradientCumSumDer, derScale);
-        double[] gradientCumSumDer2 = der(gradientCumSumDer, 1);
+        double[] gradientCumSumDer = der(gaussianSmooth(gradientCumSum, derScale), 1);
+        int peakIndexDer = ArrayUtil.max(gradientCumSumDer);
         if (logIntensity != null) logIntensity.accept(sortedIntensities);
         if (logCumSumDer != null) logCumSumDer.accept(gradientCumSumDer);
+        if (alpha == 1 && logCumSumDer2==null) return sortedIntensities[peakIndexDer];
+        double[] gradientCumSumDer2 = der(gaussianSmooth(gradientCumSumDer, derScale), 1);
+        int peakIndexDer2 = ArrayUtil.max(gradientCumSumDer2, 0, peakIndexDer);
         if (logCumSumDer2 != null) logCumSumDer2.accept(gradientCumSumDer2);
-        int peakIndex = ArrayUtil.max(gradientCumSumDer2) + (int)derScale;
+        int peakIndex = (int)Math.round(( alpha * peakIndexDer + (1 - alpha) * peakIndexDer2));
         return sortedIntensities[peakIndex];
     }
 
-    protected double[] der(double[] input, double binSize) {
+    protected static double[] der(double[] input, double binSize) {
         double[] derivative = new double[input.length];
         for (int i = 0; i < input.length - 1; i++) {
             derivative[i] = (input[i + 1] - input[i]) / binSize;
@@ -178,7 +173,7 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
         return derivative;
     }
 
-    private double[] gaussianSmooth(double[] data, double sigma) {
+    private static double[] gaussianSmooth(double[] data, double sigma) {
         if (sigma <= 0 || data.length < 3) {
             return data.clone();
         }
@@ -214,7 +209,7 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
     /**
      * Creates a normalized Gaussian kernel
      */
-    private double[] createGaussianKernel(double sigma, int radius) {
+    private static double[] createGaussianKernel(double sigma, int radius) {
         int kernelSize = 2 * radius + 1;
         double[] kernel = new double[kernelSize];
         double sum = 0;

@@ -765,7 +765,7 @@ public class ManualEdition {
         SegmentedObjectUtils.splitByParent(objects).entrySet().parallelStream().forEach(e -> {
             BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> f = (p, pop) -> postFilters.filter(pop, structureIdx, e.getKey());
             Set<SegmentedObject> modifiedObjects = new HashSet<>();
-            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(e.getKey(), e.getValue(), f, true, factory, modifiedObjects);
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(e.getKey(), e.getValue(), f, true, factory, relabel, modifiedObjects);
             toRemoveAll.addAll(toRemove);
             modifiedObjectAll.addAll(modifiedObjects);
         });

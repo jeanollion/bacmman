@@ -372,33 +372,37 @@ public class RegionPopulation {
     public RegionPopulation localThreshold(Image erodeMap, Function<Region, Double> thresholdFunction, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
         //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
         List<Region> addedObjects = new ArrayList<>();
+        List<Region> toRemove = new ArrayList<>();
         Map<Integer, Double> labelMapThld = Utils.toMapWithNullValues(getRegions().stream(), Region::getLabel, thresholdFunction, false);
         if (dilateRegionRadius>0) {
             labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
             constructObjects();
         }
         for (Region r : getRegions()) {
-            if (!labelMapThld.containsKey(r.getLabel())) continue;
+            if (!labelMapThld.containsKey(r.getLabel())) continue; // no threshold
             double thld = labelMapThld.get(r.getLabel());
             boolean change = r.erodeContours(erodeMap, thld, darkBackground, keepOnlyBiggestObject, r.getContour(), null);
-            if (change && !keepOnlyBiggestObject) {
+            if (change) {
                 List<Region> subRegions = ImageLabeller.labelImageListLowConnectivity(r.mask);
                 if (subRegions.size()>1) {
-                    subRegions.remove(0);
+                    subRegions.sort(Comparator.comparingDouble(sr -> -sr.size()));
+                    subRegions.remove(0); // exclude biggest
                     r.ensureMaskIsImageInteger();
                     ImageInteger regionMask = r.getMaskAsImageInteger();
-                    for (Region toErase: subRegions) {
-                        toErase.draw(regionMask, 0);
-                        toErase.translate(r.getBounds());
+                    for (Region subR: subRegions) {
+                        subR.draw(regionMask, 0);
+                        subR.translate(r.getBounds()).setIsAbsoluteLandmark(r.absoluteLandmark).setIs2D(r.is2D);
                     }
-                    addedObjects.addAll(subRegions);
+                    if (!keepOnlyBiggestObject) addedObjects.addAll(subRegions);
                 }
+                r.resetMask(); // bounds may have changed -> will update bounds
             }
+            if (change && r.size() == 0) toRemove.add(r);
         }
         objects.addAll(addedObjects);
+        objects.removeAll(toRemove);
+        labelImage = null;
         relabel(true);
-        getLabelMap();
-        constructObjects(); // updates bounds of objects
         return this;
     }
     public RegionPopulation localThresholdEdges(Image erodeMap, Image edgeMap, double sigmaFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask, Predicate<Voxel> removeContourVoxel) {
