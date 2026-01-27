@@ -56,6 +56,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         stopDaemon = false;
         daemon = new Thread(run);
         daemon.setName("DiskBackedImageManagerImageDAODaemon@"+position);
+        logger.debug("start {}", "DiskBackedImageManagerImageDAODaemon@"+position);
         daemon.setDaemon(true);
         daemon.start();
         return true;

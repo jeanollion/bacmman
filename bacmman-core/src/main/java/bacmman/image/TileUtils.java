@@ -205,10 +205,13 @@ public class TileUtils {
         }
     }
     public static long[] getTileCoordAxis(long size, int tileSize, int minOverlap, boolean padding) {
+        if (tileSize==size && minOverlap==0) return new long[1];
+        else if (tileSize>size) {
+            if (!padding) throw new IllegalArgumentException("Tile size must be inferior or equal to size or padding enabled");
+            int border = Math.max(minOverlap, tileSize - (int)size);
+            return new long[] {-(long)Math.ceil(border/2.)};
+        } else if (minOverlap>=tileSize) throw new IllegalArgumentException("Min overlap must be inferior to tile size");
         if (minOverlap==0) padding = false;
-        if (tileSize==size && !padding) return new long[1];
-        else if (tileSize>size) throw new IllegalArgumentException("Tile size must be inferior or equal to size");
-        else if (minOverlap>=tileSize) throw new IllegalArgumentException("Min overlap must be inferior to tile size");
         long effectiveSize = padding ? size + 2*minOverlap : size;
         int nTiles = (int) Math.ceil((effectiveSize - minOverlap) / (double)(tileSize - minOverlap));
         long sumStride = Math.abs(nTiles * tileSize - effectiveSize);

@@ -450,13 +450,34 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] dimsIN = new int[inputINC.length][][];
                 int[] tileDims = ArrayUtil.reverse(tileShape.getArrayInt(), true);
+                int[] contraction = ArrayUtil.reverse(this.contraction.getArrayInt(), true);
                 int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
                 int nTiles = -1;
                 for (int i = 0; i < inputINC.length; ++i) {
                     if (i<nInputs) {
                         int ii = i;
                         if (noResize.contains(0)) throw new IllegalArgumentException("In tiling mode first channel must be tiled");
-                        Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, setScaleLogger(() -> inputScaling.getChildAt(ii).instantiatePlugin()), tileDims, minOverlapXYZ, scaleImageByImage.getSelected(), noResize.contains(i) ? nTiles : -1);
+                        // check that timeDims < image Dim, otherwise set smaller tile dim that honors contraction
+                        int[] localTileDimsXYZ = Arrays.copyOf(tileDims, tileDims.length);
+                        int[] localMinOverlapXYZ = Arrays.copyOf(minOverlapXYZ, tileDims.length);
+                        Resize.EXPAND_MODE localPadding = padding;
+                        if (!noResize.contains(i)) {
+                            int[] imageSize = inputINC[i][0][0].dimensions();
+                            for (int dim = 0; dim < tileDims.length; ++dim) {
+                                if (tileDims[dim] > imageSize[dim]) {
+                                    int size = contraction[dim] * (imageSize[dim] / contraction[dim]); // honor contraction
+                                    if (size < imageSize[dim]) {
+                                        size += contraction[dim];
+                                        if (padding == null) { // allow padding so that tile can be a bit larger than image to avoid making 4x more predictions
+                                            localPadding = Resize.EXPAND_MODE.BORDER;
+                                        }
+                                    }
+                                    localTileDimsXYZ[dim] = size;
+                                    if (padding == null) localMinOverlapXYZ[dim] = 0;
+                                }
+                            }
+                        }
+                        Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], localPadding, setScaleLogger(() -> inputScaling.getChildAt(ii).instantiatePlugin()), localTileDimsXYZ, localMinOverlapXYZ, scaleImageByImage.getSelected(), noResize.contains(i) ? nTiles : -1);
                         if (nTiles==-1) nTiles = res.v1.length / inputINC[i].length;
                         imINC[i] = res.v1;
                         dimsIN[i] = res.v2;

@@ -643,7 +643,7 @@ public class Region {
         if (!this.getBounds().isValid()) throw new RuntimeException("Invalid bounds: cannot create mask");
         if (voxels!=null) {
             this.mask=createMaskFromVoxels();
-            logger.debug("object: {} bds: {} create mask from voxels. mask bds: {}", label, getBounds(), new SimpleBoundingBox(mask));
+            //logger.debug("object: {} bds: {} create mask from voxels. mask bds: {}", label, getBounds(), new SimpleBoundingBox(mask));
         } else if (roi!=null) {
             this.mask = roi.toMask(getBounds(), scaleXY, scaleZ);
         } else throw new RuntimeException("Cannot create mask: no voxels and no ROI");
