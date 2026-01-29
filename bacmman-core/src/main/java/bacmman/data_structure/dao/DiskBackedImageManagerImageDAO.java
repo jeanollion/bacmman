@@ -56,7 +56,9 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         stopDaemon = false;
         daemon = new Thread(run);
         daemon.setName("DiskBackedImageManagerImageDAODaemon@"+position);
-        logger.debug("start {}", "DiskBackedImageManagerImageDAODaemon@"+position);
+        long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+        long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
+        logger.debug("start {} memory currently used: {}Gb memory threshold: {}Gb", "DiskBackedImageManagerImageDAODaemon@"+position, Utils.format(used/(1024*1024*1024), 5), Utils.format(maxUsed/(1024*1024*1024), 5));
         daemon.setDaemon(true);
         daemon.start();
         return true;
@@ -208,12 +210,12 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             }
         }
         freeingMemory = false;
-        if (freed > 1024 * 1024 * 1000) {
+        if (freed > 1024 * 1024 * 1024) {
             double total;
             synchronized (queue) {
-                total = queue.stream().mapToDouble(im -> (double)im.heapMemory()/(1024 * 1024 * 1000)).sum();
+                total = queue.stream().mapToDouble(im -> (double)im.heapMemory()/(1024 * 1024 * 1024)).sum();
             }
-            logger.debug("freed : {}Gb/{}Gb used: {}% (total: {})", Utils.format((double)freed / (1024*1024*1000), 5), Utils.format(total, 5), Utils.format(Utils.getMemoryUsageProportion()*100, 5), Utils.format((double)Runtime.getRuntime().maxMemory() / (1024*1024*1000), 5));
+            logger.debug("freed : {}Gb/{}Gb used: {}% (total: {})", Utils.format((double)freed / (1024 * 1024 * 1024), 5), Utils.format(total, 5), Utils.format(Utils.getMemoryUsageProportion()*100, 5), Utils.format((double)Runtime.getRuntime().maxMemory() / (1024*1024*1024), 5));
         }
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
@@ -248,7 +250,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         UnaryPair<Integer> key = getKey(channelImageIdx, timePoint);
         DiskBackedImage im = openImages.get(key);
         if (im == null) {
-            synchronized (queue) {
+            synchronized (openImages) {
                 im = openImages.get(key);
                 if (im == null) {
                     Image source = imageDAO.openPreProcessedImage(channelImageIdx, timePoint);
@@ -286,7 +288,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         if (f == null) {
             f = new File(directory, UUID.randomUUID() + ".bmimage");
             f.deleteOnExit();
-            synchronized (queue) {
+            synchronized (files) {
                 files.put(fmi, f);
             }
         }
@@ -312,12 +314,9 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     public void deletePreProcessedImage(int channelImageIdx, int timePoint) throws IOException {
         imageDAO.deletePreProcessedImage(channelImageIdx, timePoint);
         DiskBackedImage im = null;
-        synchronized (queue) {
+        synchronized (openImages) {
             im = openImages.remove(getKey(channelImageIdx, timePoint));
-            if (im != null) {
-                openImagesRev.remove(im);
-                queue.remove(im);
-            }
+            if (im != null) openImagesRev.remove(im);
         }
         detach(im, true);
     }

@@ -9,6 +9,7 @@ import java.io.IOException;
 
 public interface DiskBackedImageManager {
     double memoryFraction = 0.75;
+    long timeInterval = 100;
     boolean startDaemon(double memoryFraction, long timeInterval);
     boolean stopDaemon();
     boolean isFreeingMemory();

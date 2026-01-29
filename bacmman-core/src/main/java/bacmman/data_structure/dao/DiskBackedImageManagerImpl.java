@@ -136,7 +136,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         if (f == null) {
             f = new File(directory, UUID.randomUUID() + ".bmimage");
             f.deleteOnExit();
-            synchronized (queue) {
+            synchronized (files) {
                 files.put(fmi, f);
             }
         }
