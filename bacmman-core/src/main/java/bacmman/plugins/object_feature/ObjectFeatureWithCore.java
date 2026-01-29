@@ -29,7 +29,7 @@ import java.util.function.BiFunction;
  * @author Jean Ollion
  */
 public interface ObjectFeatureWithCore {
-    void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> preFilters);
+    void setUpOrAddCore(IntensityMeasurementCore.IntensityMeasurementCoreCollection availableCores, BiFunction<Image, ImageMask, Image> preFilters);
     int getIntensityChannel();
     Image getIntensityMap(boolean transformed);
 }

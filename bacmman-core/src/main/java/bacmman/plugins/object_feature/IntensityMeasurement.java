@@ -54,10 +54,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     public Image getIntensityMap(boolean transformed) {
         return core.getIntensityMap(transformed);
     }
-    protected Map<Region, Region> regionSlice = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
-        if (z >= 0 && !r.is2D()) return r.intersectWithZPlane(z, false, false);
-        else return r;
-    });
+
     public IntensityMeasurement setIntensityObjectClass(int structureIdx) {
         this.channel.setChannelFromObjectClass(structureIdx);
         return this;
@@ -81,7 +78,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         super.setUp(parent, childStructureIdx, childPopulation);
         if (z >= 0 && !childPopulation.getRegions().isEmpty() && !childPopulation.getRegions().get(0).is2D()) {
             List<Region> regions = childPopulation.getRegions().stream()
-                    .map(regionSlice::get)
+                    .map(core::getRegionSlice)
                     .filter(Objects::nonNull).collect(Collectors.toList());
             childPopulation.clearLabelMap();
             childPopulation.getRegions().clear();
@@ -96,15 +93,14 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     @Override public Parameter[] getParameters() {return new Parameter[]{channel};}
 
     @Override
-    public void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> filters) {
-        IntensityMeasurementCore existingCore = availableCores==null ? null : availableCores.get(intensityMap);
-        if (existingCore==null || z>=0) {
+    public void setUpOrAddCore(IntensityMeasurementCore.IntensityMeasurementCoreCollection availableCores, BiFunction<Image, ImageMask, Image> filters) {
+        IntensityMeasurementCore existingCore = availableCores==null ? null : availableCores.get(intensityMap, z);
+        if (existingCore==null) {
             if (core==null) {
                 core = new IntensityMeasurementCore().limitToZ(z);
-                core.regionMapSlice = regionSlice;
                 core.setUp(intensityMap, filters==null ? null : filters.apply(intensityMap, parent.getMask()));
             }
-            if (availableCores!=null && z<0) availableCores.put(intensityMap, core); // only set if no z, for reuse
+            if (availableCores!=null) availableCores.put(intensityMap, z, core);
         } else core=existingCore;
     }
 }

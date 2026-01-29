@@ -83,8 +83,8 @@ public class ObjectFeatureGroupedBy implements Measurement, Hint {
         int childOCIdx = objectClass.getSelectedIndex();
         List<SegmentedObject> children = object.getChildren(childOCIdx, false).collect(Collectors.toList());
         RegionPopulation pop = new RegionPopulation(children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), object.getMaskProperties());
-        Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
-        BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
+        IntensityMeasurementCore.IntensityMeasurementCoreCollection cores = new IntensityMeasurementCore.IntensityMeasurementCoreCollection();
+        BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.isEmpty() ? null : preFilters.filter(im,mask);
         List<REDUCTION_OP> reduction = reductionOP.getSelectedItems();
         for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {
             ObjectFeature f = ofp.instantiatePlugin();

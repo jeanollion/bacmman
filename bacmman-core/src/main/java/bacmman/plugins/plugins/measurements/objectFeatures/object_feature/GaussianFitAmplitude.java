@@ -40,8 +40,9 @@ public class GaussianFitAmplitude extends IntensityMeasurement {
 
     @Override
     public double performMeasurement(Region region) {
+        if (core==null) synchronized(this) {setUpOrAddCore(null, null);}
         if (z>=0) {
-            region = regionSlice.get(region);
+            region = core.getRegionSlice(region);
             if (region == null) return Double.NaN;
         }
         double[] fitParams = getAmplitudes().get(region);

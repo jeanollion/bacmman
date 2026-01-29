@@ -117,7 +117,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) throws MultipleException {
         if (!feature.isOnePluginSet() || parentTrack.isEmpty()) return;
         Map<Region, Double> valueMap = new ConcurrentHashMap<>();
-        BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
+        BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.isEmpty() ? null : preFilters.filter(im,mask);
         // compute feature for each object, by parent
 
         boolean needImages = thldMode.getSelectedEnum().equals(THLD_MODE.Image);

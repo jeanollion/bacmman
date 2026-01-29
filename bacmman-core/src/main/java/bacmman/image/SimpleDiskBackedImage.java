@@ -92,10 +92,12 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I
     }
 
     public synchronized boolean setImage(I image) {
+        if (writable) {
+            if (!modified) modified = true;
+        } else throw new RuntimeException("Image not writable");
         if (!this.sameDimensions(image)) return false;
         if (!getImageType().typeEquals(image)) return false;
         this.image = image;
-        this.modified = true;
         return true;
     }
 

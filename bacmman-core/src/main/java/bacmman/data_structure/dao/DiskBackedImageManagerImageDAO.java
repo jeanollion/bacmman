@@ -252,7 +252,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 im = openImages.get(key);
                 if (im == null) {
                     Image source = imageDAO.openPreProcessedImage(channelImageIdx, timePoint);
-                    im = createDiskBackedImage(source, true, false);
+                    im = createDiskBackedImage(source, false, false);
                     im.setModified( useTmpStorage(im) ); // if !useTmpStorage -> already stored in source imageDAO
                     openImages.put(key, im);
                     openImagesRev.put(im, key);

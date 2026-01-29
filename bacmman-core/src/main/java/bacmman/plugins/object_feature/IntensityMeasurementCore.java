@@ -21,12 +21,14 @@ package bacmman.plugins.object_feature;
 import bacmman.data_structure.Region;
 import bacmman.image.*;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.DoubleStream;
 
 import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.DoubleStatistics;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +46,12 @@ public class IntensityMeasurementCore {
         if (getZ() >= 0 && !r.is2D()) return r.intersectWithZPlane(getZ(), false, false);
         else return r;
     });
+
+    public Region getRegionSlice(Region region) {
+        if (z<0) return region;
+        return regionMapSlice.get(region);
+    }
+
     int z = -1;
     protected int getZ() {return z;}
     public IntensityMeasurementCore limitToZ(int z) {
@@ -62,7 +70,7 @@ public class IntensityMeasurementCore {
         return transformed ? transformedMap : intensityMap;
     }
     public IntensityMeasurements getIntensityMeasurements(Region o) {
-        if (z>=0 && o!=null) o = regionMapSlice.get(o);
+        if (z>=0 && o!=null) o = getRegionSlice(o);
         return values.get(o);
     }
     
@@ -115,6 +123,25 @@ public class IntensityMeasurementCore {
                 if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, transformedMap, 0.5)[0];
             }
             return median;
+        }
+    }
+
+    public static class IntensityMeasurementCoreCollection {
+        Map<Pair<Image, Integer>, IntensityMeasurementCore> cores = new HashMap<>();
+        public IntensityMeasurementCore get(Image image) {
+            return get(image, -1);
+        }
+        public IntensityMeasurementCore get(Image image, int z) {
+            if (z<0) z=-1;
+            return cores.get(new Pair<>(image, z));
+        }
+        public void put(Image image, IntensityMeasurementCore core) {
+            put(image, -1, core);
+        }
+
+        public void put(Image image, int z, IntensityMeasurementCore core) {
+            if (z<0) z=-1;
+            cores.put(new Pair<>(image, z), core);
         }
     }
 }

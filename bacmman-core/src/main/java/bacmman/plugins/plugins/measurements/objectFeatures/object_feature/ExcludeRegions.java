@@ -88,7 +88,7 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
     }
 
     @Override
-    public void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> preFilters) {
+    public void setUpOrAddCore(IntensityMeasurementCore.IntensityMeasurementCoreCollection availableCores, BiFunction<Image, ImageMask, Image> preFilters) {
         if (currentFeature instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)currentFeature).setUpOrAddCore(availableCores, preFilters);
     }
 

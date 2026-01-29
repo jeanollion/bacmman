@@ -116,7 +116,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         String featKey = this.featureKey.getValue();
         boolean saveSizeDiv = saveSizeAtDiv.getSelected();
         boolean feat = saveFeature.getSelected();
-        Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
+        IntensityMeasurementCore.IntensityMeasurementCoreCollection cores = new IntensityMeasurementCore.IntensityMeasurementCoreCollection();
         HashMapGetCreate<SegmentedObject, ObjectFeature> ofMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> {
             ObjectFeature of = feature.instantiatePlugin().setUp(p, bIdx, p.getChildRegionPopulation(bIdx));
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);

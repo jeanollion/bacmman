@@ -65,7 +65,7 @@ public class FeatureFilter implements PostFilterFeature, Hint {
         ObjectFeature f = feature.instantiatePlugin();
         f.setUp(parent, childStructureIdx, childPopulation);
         if (f instanceof ObjectFeatureWithCore) {
-            BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
+            BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.isEmpty() ? null : preFilters.filter(im,mask);
             ((ObjectFeatureWithCore)f).setUpOrAddCore(null, pf);
         }
         childPopulation=childPopulation.filter(new RegionPopulation.Feature(f, threshold.getValue().doubleValue(), keepOverThreshold.getSelected(), strict.getSelected()));

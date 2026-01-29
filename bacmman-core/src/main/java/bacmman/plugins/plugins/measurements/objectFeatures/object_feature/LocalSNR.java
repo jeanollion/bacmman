@@ -52,7 +52,7 @@ public class LocalSNR extends SNR {
     @Override public double performMeasurement(Region object) {
         if (core==null) synchronized(this) {setUpOrAddCore(null, null);}
         if (z>=0) {
-            object = regionSlice.get(object);
+            object = core.getRegionSlice(object);
             if (object == null) return Double.NaN;
         }
         Offset offset = object.isAbsoluteLandMark() ? new SimpleOffset(0, 0, 0) : super.parent.getBounds();

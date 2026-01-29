@@ -119,7 +119,7 @@ public class ObjectFeatures implements Measurement, Hint {
     @Override
     public void performMeasurement(SegmentedObject parent) {
         int structureIdx = structure.getSelectedIndex();
-        Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
+        IntensityMeasurementCore.IntensityMeasurementCoreCollection cores = new IntensityMeasurementCore.IntensityMeasurementCoreCollection();
         BiFunction<Image, ImageMask, Image> pf = preFilters.isEmpty() ? null : (im, mask) -> preFilters.filter(im,mask);
         for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {
             ObjectFeature feature = ofp.instantiatePlugin();

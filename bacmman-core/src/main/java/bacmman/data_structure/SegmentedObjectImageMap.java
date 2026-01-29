@@ -15,17 +15,17 @@ import java.util.stream.Stream;
 
 public class SegmentedObjectImageMap {
     Logger logger = LoggerFactory.getLogger(SegmentedObjectImageMap.class);
+    final DiskBackedImageManager dbim;
     final List<SegmentedObject> track;
-    final Function<SegmentedObject, Image> imageSupplier;
     final Map<SegmentedObject, Image> imageMap;
     boolean allowModifyInplace = false;
     public SegmentedObjectImageMap(List<SegmentedObject> track, int objectClassIdx) {
-        this(track, o -> o.getRawImage(objectClassIdx));
+        this(track, objectClassIdx, null);
     }
-    public SegmentedObjectImageMap(List<SegmentedObject> track, Function<SegmentedObject, Image> imageSupplier) {
+    public SegmentedObjectImageMap(List<SegmentedObject> track, int objectClassIdx, DiskBackedImageManager dbim) {
         this.track = track;
-        this.imageSupplier=imageSupplier;
-        imageMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(imageSupplier::apply);
+        this.dbim=dbim;
+        imageMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o->o.getRawImage(objectClassIdx));
     }
     public void setAllowInplaceModification(boolean canModifyImages) {
         this.allowModifyInplace = canModifyImages;
@@ -61,7 +61,7 @@ public class SegmentedObjectImageMap {
     }
     public synchronized void set(SegmentedObject o, Image image) {
         Image existingImage = imageMap.get(o);
-        if (existingImage instanceof DiskBackedImage) {
+        if (existingImage instanceof DiskBackedImage && ((DiskBackedImage)existingImage).isWritable() && (dbim == null || ((DiskBackedImage)existingImage).getManager().equals(dbim))) {
             DiskBackedImage existingSDBI = (DiskBackedImage)existingImage;
             boolean replaced = (existingSDBI instanceof SimpleDiskBackedImage) && ((SimpleDiskBackedImage)existingSDBI).setImage(image); // only replaced if image type and dimensions are identical
             if (!replaced) { // delete old image and replace with new one
@@ -71,6 +71,7 @@ public class SegmentedObjectImageMap {
                 Image newSDBI = manager.createDiskBackedImage(image, true, false);
                 imageMap.put(o, newSDBI);
             }
-        } else imageMap.put(o, image);
+        } else if (dbim != null) imageMap.put(o, dbim.createDiskBackedImage(image, true, false));
+        else imageMap.put(o, image);
     }
 }
