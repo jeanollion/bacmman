@@ -228,11 +228,11 @@ public class TrackMateToBacmman {
                         if (prev) {
                             if (child.getPrevious()!=null && !child.getPrevious().equals(other)) {
                                 logger.warn("warning: {} has already a previous assigned: {}, cannot assign: {}", child, child.getPrevious(), other);
-                            } else editor.setTrackLinks(other, child, true, false, false);
+                            } else editor.setTrackLinks(other, child, true, false, false, false);
                         } else {
                             if (child.getNext()!=null && !child.getNext().equals(other)) {
                                 logger.warn("warning: {} has already a next assigned: {}, cannot assign: {}", child, child.getNext(), other);
-                            } else editor.setTrackLinks(child, other, false, true, false);
+                            } else editor.setTrackLinks(child, other, false, true, false, false);
                         }
                     }
                     //else logger.warn("SpotWrapper: next: {}, next of {}, has already a previous assigned: {}", nextSo, child, nextSo.getPrevious());
