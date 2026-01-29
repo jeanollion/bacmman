@@ -248,14 +248,14 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         List<long[]> idList = new ArrayList<>(parents.size());
         try {
             objectStores.get(objectClassIdx).runInReadTx(() -> {
-            for (SegmentedObject parent : parents) {
-                Query<SegmentedObjectBox> query = getChildrenQuery(objectClassIdx, (Long)parent.getId());
-                idList.add(query.findIds());
-                query.close();
-            }
+                for (SegmentedObject parent : parents) {
+                    Query<SegmentedObjectBox> query = getChildrenQuery(objectClassIdx, (Long)parent.getId());
+                    idList.add(query.findIds());
+                    query.close();
+                }
+            });
             long[] ids = idList.size()==1 ? idList.get(0) : idList.stream().flatMapToLong(LongStream::of).toArray();
             deleteTransaction(ids, objectClassIdx, true, true);
-        });
         } finally {
             objectStores.get(objectClassIdx).closeThreadResources();
             measurementStores.get(objectClassIdx).closeThreadResources();
