@@ -477,7 +477,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                             next.setTrackHead(next, false, propagateTrackHead, modifiedObjects);
                             nextModified = true;
                         }
-                    } else if (next.getTrackHead() != getTrackHead()) {
+                    } else if (!next.getTrackHead().equals(getTrackHead())) {
                         next.setTrackHead(getTrackHead(), false, propagateTrackHead, modifiedObjects);
                         nextModified = true;
                     }
@@ -725,6 +725,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     SegmentedObject setTrackHead(SegmentedObject trackHead, boolean resetPreviousIfTrackHead, boolean propagateToNextObjects, Collection<SegmentedObject> modifiedObjects) {
         if (trackHead==null) trackHead=this;
         else if (!trackHead.equals(this) && !trackHead.isTrackHead()) {
+            logger.error("Set trackhead to {} with non trackhead: {} (trackhead's trackhead: {})", this, trackHead, trackHead.getTrackHead());
             throw new IllegalArgumentException("Set TrackHead called with non-trackhead element");
         }
         if (resetPreviousIfTrackHead && this.equals(trackHead) && previous!=null && previous.next==this) {
