@@ -10,6 +10,7 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,13 +49,21 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         Structure s = parentTrack.get(0).dao.getExperiment().getStructure(objectClassIdx);
         s.setParentStructure(box.getIndex()).setSegmentationParentStructure(box.getIndex());
 
-        Map<SegmentedObject, List<SegmentedObject>> refTracks = SegmentedObjectUtils.getAllTracks(parentTrack, referenceObjectClass);
+        Map<SegmentedObject, List<SegmentedObject>> refTracks = new TreeMap<>(SegmentedObjectUtils.getAllTracks(parentTrack, referenceObjectClass));
         SegmentOnly ps = new SegmentOnly(segmenter).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
         ps.setTestDataStore(stores);
         Map<SegmentedObject, SegmentedObject> refMapSegmentedObject = new HashMap<>();
         ConvertToBoundingBox boxConverter = getBoxConverter();
+        long t0 = System.currentTimeMillis();
+        int total = refTracks.size();
+        int totalFrame = refTracks.values().stream().mapToInt(List::size).sum();
+        long[] count = new long[2];
         for (List<SegmentedObject> refTrack : refTracks.values()) {
             segment(objectClassIdx, refTrack, ps, boxConverter, refMapSegmentedObject, factory, editor);
+            count[0]+=1;
+            count[1]+=refTrack.size();
+            long t1 = System.currentTimeMillis();
+            if (referenceObjectClass!=parentOC) logger.debug("Progress for oc={} : {}/{} {}s/track (frames: {}/{} {}ms/frame)", objectClassIdx, count[0], total, Utils.format((double)(t1-t0)/(1000 * count[0]), 5), count[1], totalFrame, Utils.format((double)(t1-t0)/count[1], 5));
         }
 
         // reset experiment structure:

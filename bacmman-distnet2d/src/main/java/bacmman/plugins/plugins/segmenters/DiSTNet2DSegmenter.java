@@ -233,7 +233,9 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, imageManager);
+            long t0 = System.currentTimeMillis();
             inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
+            long t1 = System.currentTimeMillis();
             if (stores != null) {
                 for (int pIdx = i; pIdx<maxIdx; ++pIdx) {
                     SegmentedObject p = parentTrack.get(pIdx);
@@ -244,8 +246,10 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             }
             boolean frameAware  = engine.getInputNames().length == inputImages.nInputs() + 1;
             Image[][][] input = DiSTNet2D.getInputs(inputImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
-            logger.debug("input: [{}; {}) / [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame(), sortedFrames[0], sortedFrames[sortedFrames.length-1]);
+            long t2 = System.currentTimeMillis();
             Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
+            long t3 = System.currentTimeMillis();
+            logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms)", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame(), sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2);
 
             for (int f = i; f<maxIdx; ++f) {
                 int frame = sortedFrames[f];

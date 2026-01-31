@@ -8,7 +8,7 @@ import java.io.File;
 import java.io.IOException;
 
 public interface DiskBackedImageManager {
-    double memoryFraction = 0.75;
+    double memoryFraction = 0.65;
     long timeInterval = 100;
     boolean startDaemon(double memoryFraction, long timeInterval);
     boolean stopDaemon();
