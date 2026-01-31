@@ -200,16 +200,52 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         boolean singleFrame = isSingleFrame(objectClassIdx, firstParent);
         Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> maps = predict(parentTrack, objectClassIdx);
         if (singleFrame) {
-            return (p, segmenter) -> {
-                segmenter.edmMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v1.get(firstParent));
-                segmenter.gcdmMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v2.get(firstParent));
-                segmenter.catMap = maps.v3 == null ? null : new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v3.get(firstParent));
+            return new TrackConfigurer<DiSTNet2DSegmenter>() {
+                @Override
+                public void apply(SegmentedObject p, DiSTNet2DSegmenter segmenter) {
+                    segmenter.edmMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v1.get(firstParent));
+                    segmenter.gcdmMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v2.get(firstParent));
+                    segmenter.catMap = maps.v3 == null ? null : new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(pp -> maps.v3.get(firstParent));
+                }
+                @Override
+                public void close() {
+                    maps.v1.values().forEach(i -> {
+                        if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
+                    });
+                    maps.v2.values().forEach(i -> {
+                        if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
+                    });
+                    maps.v3.values().forEach(a -> {
+                        for (Image i : a) if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
+                    });
+                    maps.v1.clear();
+                    maps.v2.clear();
+                    maps.v3.clear();
+                }
             };
         } else {
-            return (p, segmenter) -> {
-                segmenter.edmMap = maps.v1;
-                segmenter.gcdmMap = maps.v2;
-                segmenter.catMap = maps.v3;
+            return new TrackConfigurer<DiSTNet2DSegmenter>() {
+                @Override
+                public void apply(SegmentedObject p, DiSTNet2DSegmenter segmenter) {
+                    segmenter.edmMap = maps.v1;
+                    segmenter.gcdmMap = maps.v2;
+                    segmenter.catMap = maps.v3;
+                }
+                @Override
+                public void close() {
+                    maps.v1.values().forEach(i -> {
+                        if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
+                    });
+                    maps.v2.values().forEach(i -> {
+                        if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
+                    });
+                    maps.v3.values().forEach(a -> {
+                        for (Image i : a) if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
+                    });
+                    maps.v1.clear();
+                    maps.v2.clear();
+                    maps.v3.clear();
+                }
             };
         }
     }
