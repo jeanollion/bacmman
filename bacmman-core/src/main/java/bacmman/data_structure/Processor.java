@@ -425,12 +425,12 @@ public class Processor {
                 throw e;
             } finally { // clear voxels & pre-filtered images
                 parentTrack.stream().peek(p -> {
-                    p.setPreFilteredImage(null, structureIdx); // erase preFiltered images
+                    p.flushImages(false, true); // erase preFiltered images
                         }).filter(p -> p.childrenRetrieved(structureIdx))
                   .forEachOrdered(p -> {
                       p.getChildren(structureIdx)
                               .filter(SegmentedObject::hasRegion)
-                              .forEachOrdered((c) -> c.getRegion().clearVoxels());
+                              .forEachOrdered((c) -> c.getRegion().freeMemory());
                 });
                 // sub segmentation: clear pre-filtered images
                 int segPIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);

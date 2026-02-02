@@ -5,6 +5,7 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
@@ -48,7 +49,7 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         xp.getStructures().insert(box);
         Structure s = parentTrack.get(0).dao.getExperiment().getStructure(objectClassIdx);
         s.setParentStructure(box.getIndex()).setSegmentationParentStructure(box.getIndex());
-
+        DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
         Map<SegmentedObject, List<SegmentedObject>> refTracks = new TreeMap<>(SegmentedObjectUtils.getAllTracks(parentTrack, referenceObjectClass));
         SegmentOnly ps = new SegmentOnly(segmenter).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
         ps.setTestDataStore(stores);
@@ -60,6 +61,7 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         long[] count = new long[2];
         for (List<SegmentedObject> refTrack : refTracks.values()) {
             segment(objectClassIdx, refTrack, ps, boxConverter, refMapSegmentedObject, factory, editor);
+            imageManager.clear(true);
             count[0]+=1;
             count[1]+=refTrack.size();
             long t1 = System.currentTimeMillis();
@@ -73,7 +75,6 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         // set children to parents
         for (SegmentedObject p : parentTrack) {
             factory.setChildren(p, p.getChildren(referenceObjectClass).map(refMapSegmentedObject::get).filter(Objects::nonNull).collect(Collectors.toList()));
-            factory.relabelChildren(p);
         }
         // set links : copy ref links
         refMapSegmentedObject.forEach((ref, o) -> {
@@ -84,7 +85,7 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
             o.setTrackHead(refMapSegmentedObject.get(ref.getTrackHead()));
         });
 
-        // also copy links between parent tracks. as parent track are processed independently and asynchronously -> need to set both prev & next
+        // also copy links that are not within parent tracks. as parent track are processed independently and asynchronously -> need to set both prev & next
         for (List<SegmentedObject> refTrack : refTracks.values()) {
             SegmentedObject curRef = refTrack.get(0);
             SegmentedObject cur = refMapSegmentedObject.get(curRef);
@@ -196,7 +197,14 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
             }
             // if no object or no overlapping objects -> copy ref object
             if (o == null) o = new SegmentedObject(ref.getFrame(), objectClassIdx, oIdx, ref.getRegion().duplicate(true), p);
-            if (o != null) refMapsegmentedObject.put(ref, o);
+            refMapsegmentedObject.put(ref, o);
+
+            // free memory
+            ref.getRegion().freeMemory();
+            o.getRegion().freeMemory();
+            ref.flushImages(true, true);
+            o.flushImages(true, true);
+            p.flushImages(true, true);
         }
 
     }

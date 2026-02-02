@@ -103,7 +103,7 @@ public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, Tes
         subRegions.filter(new RegionPopulation.Size().setMin(minSize.getDoubleValue()));
         if (imageDisplayer!=null) imageDisplayer.accept(subRegions.getLabelMap().duplicate("Partition after removing small objects"));
         subRegions.translate(bounds, false);
-        subRegions.getRegions().forEach(Region::clearVoxels);  // saves memory
+        subRegions.getRegions().forEach(Region::freeMemory);  // saves memory
         return subRegions.getRegions();
     }
 

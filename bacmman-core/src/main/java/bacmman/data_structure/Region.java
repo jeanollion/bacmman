@@ -604,6 +604,13 @@ public class Region {
         roi = null;
     }
 
+    public synchronized void freeMemory() {
+        if (bounds == null) getBounds();
+        if (roi == null) createRoi();
+        voxels = null;
+        mask = null;
+    }
+
     public synchronized void createRoi() {
         roi = bacmman.data_structure.region_container.RegionContainerIjRoi.createRoi(getMask(), getBounds(), !is2D());
     }

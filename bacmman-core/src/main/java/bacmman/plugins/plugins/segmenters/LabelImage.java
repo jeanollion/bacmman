@@ -31,7 +31,7 @@ public class LabelImage implements Segmenter, Hint {
             if (isExcluded.test(labels.getPixelInt(x, y, z))) labels.setPixel(x, y, z, 0);
         });
         RegionPopulation pop = new RegionPopulation(labels, true);
-        pop.getRegions().forEach(Region::clearVoxels);
+        pop.getRegions().forEach(Region::freeMemory);
         return pop;
     }
 

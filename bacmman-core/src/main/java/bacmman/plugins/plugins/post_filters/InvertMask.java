@@ -22,7 +22,7 @@ public class InvertMask implements PostFilter, Hint {
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         ImageMask result =  PredicateMask.andNot(parent.getMask(), childPopulation.getLabelMap());
         List<Region> regions = ImageLabeller.labelImageList(result);
-        regions.forEach(Region::clearVoxels); // save memory
+        regions.forEach(Region::freeMemory); // save memory
         return new RegionPopulation(regions, parent.getMask());
     }
 

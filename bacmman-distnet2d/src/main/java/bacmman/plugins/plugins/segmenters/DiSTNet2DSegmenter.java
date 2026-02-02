@@ -212,15 +212,19 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
                     maps.v1.values().forEach(i -> {
                         if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
                     });
+                    maps.v1.clear();
                     maps.v2.values().forEach(i -> {
                         if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
                     });
-                    maps.v3.values().forEach(a -> {
-                        for (Image i : a) if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
-                    });
-                    maps.v1.clear();
                     maps.v2.clear();
-                    maps.v3.clear();
+                    if (maps.v3 != null) {
+                        maps.v3.values().forEach(a -> {
+                            for (Image i : a)
+                                if (i instanceof DiskBackedImage)
+                                    ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage) i, true);
+                        });
+                        maps.v3.clear();
+                    }
                 }
             };
         } else {
@@ -236,15 +240,19 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
                     maps.v1.values().forEach(i -> {
                         if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
                     });
+                    maps.v1.clear();
                     maps.v2.values().forEach(i -> {
                         if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
                     });
-                    maps.v3.values().forEach(a -> {
-                        for (Image i : a) if (i instanceof DiskBackedImage) ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage)i, true);
-                    });
-                    maps.v1.clear();
                     maps.v2.clear();
-                    maps.v3.clear();
+                    if (maps.v3 != null) {
+                        maps.v3.values().forEach(a -> {
+                            for (Image i : a)
+                                if (i instanceof DiskBackedImage)
+                                    ((DiskBackedImage<?>) i).getManager().detach((DiskBackedImage) i, true);
+                        });
+                        maps.v3.clear();
+                    }
                 }
             };
         }
@@ -263,14 +271,15 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         logger.debug("predict parent: {}", parentTrack.get(0));
-        int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
+        int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
         int increment = batchSize.getIntValue ()<1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / batchSize.getIntValue()) );
         for (int i = 0; i < parentTrack.size(); i += increment ) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
-            List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
+            int effectiveMaxFrameIncl = DiSTNet2D.getNeighborhood(sortedFrames, sortedFrames[maxIdx-1], inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0).stream().mapToInt(ii->ii).max().getAsInt();
+            int effectiveMaxIdxIncl = DiSTNet2D.search(sortedFrames, maxIdx-1, effectiveMaxFrameIncl, 0);
             if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, imageManager);
             long t0 = System.currentTimeMillis();
-            inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
+            inputImages.ensureSubTrack(parentTrack.subList(i, effectiveMaxIdxIncl+1)); // computes all needed EDM / GCDM input maps in parallel if any
             long t1 = System.currentTimeMillis();
             if (stores != null) {
                 for (int pIdx = i; pIdx<maxIdx; ++pIdx) {
@@ -285,7 +294,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             long t2 = System.currentTimeMillis();
             Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
             long t3 = System.currentTimeMillis();
-            logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms)", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame(), sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2);
+            logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms) (effective max frame: {} idx={})", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2, effectiveMaxFrameIncl, effectiveMaxIdxIncl);
 
             for (int f = i; f<maxIdx; ++f) {
                 int frame = sortedFrames[f];

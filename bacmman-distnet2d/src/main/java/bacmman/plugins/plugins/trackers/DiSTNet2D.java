@@ -206,13 +206,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         public Image getImage(int frame, int idx) {
-            Image res;
+            Image res = null;
             if (idx == 0) { // main channel. there may be a pre-filter.
-                if (mainChannel!=null) { // was manually set
-                    res = mainChannel.get(frame);
-                    if (res != null) return res;
-                }
-                res = parentTrack.get(frame).getPreFilteredImage(objectClassIdx);
+                if (mainChannel!=null) res = mainChannel.get(frame); // was manually set
+                if (res == null) res = parentTrack.get(frame).getPreFilteredImage(objectClassIdx);
                 if (res == null) res = parentTrack.get(frame).getRawImage(objectClassIdx); // no pre-filter
             } else if (idx <= additionalInputChannels.length) { // additional channels are raw
                 res = parentTrack.get(frame).getRawImageByChannel(additionalInputChannels[idx-1]);
@@ -315,12 +312,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int[] addL = getAdditionalLabels();
             for (int i = 0; i<addL.length * 2; ++i) for (Map.Entry<Integer, Image> e : allImages.get(i+1+addC.length).entrySet()) stores.get(parentMap.get(e.getKey())).addIntermediateImage("Input "+ (i%2==0? "EDM":"GDCM") +" #" +i, e.getValue());
         }*/
-        int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).sorted().toArray();
+        int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
         int increment = predictionFrameSegment.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / predictionFrameSegment.getIntValue()) );
         InputImages inputImages = new InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, null, imageManager);
         for (int i = 0; i<parentTrack.size(); i+=increment) { // divide by frame window
             boolean last = i+increment>=parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
+            int effectiveMaxFrameIncl = DiSTNet2D.getNeighborhood(sortedFrames, sortedFrames[maxIdx-1], inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), nGaps.getIntValue()).stream().mapToInt(ii->ii).max().getAsInt();
+            int effectiveMaxIdxIncl = search(sortedFrames, maxIdx-1, effectiveMaxFrameIncl, 0);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             int minFrame = getNeighborhood(sortedFrames, subParentTrack.get(0).getFrame(), inputWindow.getIntValue(), false, frameSubsampling.getIntValue(), nGaps.getIntValue()).stream().mapToInt(f->f).min().orElse(subParentTrack.get(0).getFrame());
@@ -328,7 +327,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int maxFrame = getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), nGaps.getIntValue()).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
             int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), search(sortedFrames, maxIdx, maxFrame, 0) + 1);
             //logger.debug("frame: [{}; {}] idx: [{}; {}]", minFrame, maxFrame, minFrameIdx, maxFrameIdx);
-            inputImages.ensureSubTrack(subParentTrack); // computes all needed EDM / GCDM input maps in parallel if any
+            inputImages.ensureSubTrack(parentTrack.subList(i, effectiveMaxIdxIncl+1)); // computes all needed EDM / GCDM input maps in parallel if any
             predictions = predict(inputImages, sortedFrames, subParentTrack, predictions, null); // actually appends to prevPrediction
             assigner.setPrediction(predictions);
             if (segment) {
@@ -563,8 +562,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (postFilters != null) postFilters.filter(pop, objectClassIdx, parent);
         pop.getRegions().forEach(r -> { // set centers & save memory // absolute offset
             r.setCenter(Medoid.computeMedoid(r));
-            r.clearVoxels();
-            r.clearMask();
+            r.freeMemory();
         });
         return pop;
     }
@@ -1594,7 +1592,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 //logger.debug("manual seg: seed bds: {} minimal bds: {} optimal bds: {}, segmask: {}, edm: {}", bds, minimalBounds, key.v3, new SimpleBoundingBox<>(segmentationMask), new SimpleBoundingBox<>(edm));
                 RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(edm, parent, segmentationMask, objectClassIdx, seedsXYZ);
                 pop.filter(new RegionPopulation.Size().setMin(2)); // exclude 1-pixel objects (outside mask)
-                pop.getRegions().forEach(Region::clearVoxels);
+                pop.getRegions().forEach(Region::freeMemory);
                 if (verbose) {
                     Core.showImage(input.setName("INPUT"));
                     Core.showImage(edm.setName("EDM"));
@@ -1624,7 +1622,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             Image edm = predictions.get(key);
             synchronized (seg) {
                 RegionPopulation pop = ((ObjectSplitter) seg).splitObject(edm, parent, objectClassIdx, object);
-                pop.getRegions().forEach(Region::clearVoxels);
+                pop.getRegions().forEach(Region::freeMemory);
                 if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
                 return pop;
             }
@@ -1667,7 +1665,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     List<Region> res = pop.getRegions();
                     if (res.isEmpty()) res.add(toSplitR);
                     else res.forEach(r -> r.setCenter(Medoid.computeMedoid(r)));
-                    res.forEach(Region::clearVoxels);
+                    res.forEach(Region::freeMemory);
                     return res;
                 };
             case SPLIT_IN_TWO:
@@ -1690,7 +1688,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     }
                     if (res.isEmpty()) res.add(toSplit.getRegion());
                     else res.forEach(r -> r.setCenter(Medoid.computeMedoid(r)));
-                    res.forEach(Region::clearVoxels);
+                    res.forEach(Region::freeMemory);
                     return res;
                 };
         }
@@ -1955,8 +1953,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
                         if (o.getRegion().getCenter() == null) o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
                         if (predictCategory.getSelected() && o.getAttribute("Category")==null) setCategory(o, prediction);
-                        o.getRegion().clearVoxels();
-                        o.getRegion().clearMask();
+                        o.getRegion().freeMemory();
                     }));
                     return;
                 }
@@ -1998,8 +1995,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                                             if (merged != null) {
                                                 merged.head().getRegion().setCenter(Medoid.computeMedoid(merged.head().getRegion()));
                                                 if (predictCategory.getSelected() && merged.head().getAttribute("Category")==null) setCategory(merged.head(), prediction);
-                                                merged.head().getRegion().clearVoxels();
-                                                merged.head().getRegion().clearMask();
+                                                merged.head().getRegion().freeMemory();
                                             }
                                         }
                                     } else logger.debug("successive div: tt null for: {} prev: {}", t.head(), prev.tail());
