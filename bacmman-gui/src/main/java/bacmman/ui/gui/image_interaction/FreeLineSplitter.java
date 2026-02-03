@@ -135,12 +135,11 @@ public class FreeLineSplitter implements ObjectSplitter {
             //logger.debug("z: {} zRel: {} zAbs: {} off: {} obZmin: {} slice Z: {}", z, zRel, zAbs, off.zMin(), object.getBounds().zMin(), objects.stream().mapToInt(o->o.getBounds().zMin()).toArray());
             List<Region> adjacentObjects = new ArrayList<>();
             List<Triplet<Region, Region, Integer>> sliceContact = new ArrayList<>();
-            if (zRel > 0) {
+            if (zRel > 0) { // lower objects
                 Region lowerObject = object.intersectWithZPlanes(object.getBounds().zMin(), zAbs-1, false, false);
                 lowerObject.translate(object.getBounds().duplicate().reverseOffset()).setIsAbsoluteLandmark(false);
                 List<Region> adjObjects = ImageLabeller.labelImageListLowConnectivity(lowerObject.getMask());
-                SimpleOffset oboff = new SimpleOffset(0, 0, lowerObject.getBounds().zMin());
-                adjObjects.forEach(r -> r.setIs2D(false).translate(oboff));
+                adjObjects.forEach(r -> r.setIs2D(false).translate(lowerObject.getBounds()));
                 adjacentObjects.addAll(adjObjects);
                 for (Region adjOb : adjObjects) {
                     Region adjOb2D  = adjOb.intersectWithZPlane(zRel-1, true, false);
@@ -158,8 +157,7 @@ public class FreeLineSplitter implements ObjectSplitter {
                 Region upperObject = object.intersectWithZPlanes(zAbs+1, object.getBounds().zMax(), false, false);
                 upperObject.translate(object.getBounds().duplicate().reverseOffset()).setIsAbsoluteLandmark(false);
                 List<Region> adjObjects = ImageLabeller.labelImageListLowConnectivity(upperObject.getMask());
-                SimpleOffset oboff = new SimpleOffset(0, 0, upperObject.getBounds().zMin());
-                adjObjects.forEach(r -> r.setIs2D(false).translate(oboff));
+                adjObjects.forEach(r -> r.setIs2D(false).translate(upperObject.getBounds()));
                 adjacentObjects.addAll(adjObjects);
                 for (Region adjOb : adjObjects) {
                     Region adjObj2D  = adjOb.intersectWithZPlane(zRel+1, true, false);
