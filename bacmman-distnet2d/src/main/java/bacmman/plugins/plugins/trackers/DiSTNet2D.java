@@ -41,6 +41,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -190,7 +191,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.additionalInputChannels = additionalInputChannels;
             this.additionalInputLabels = additionalInputLabels;
             this.parentTrack = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p));
-            this.distanceMaps = IntStream.range(0, additionalInputLabels.length * 2).mapToObj(i -> new HashMap<Integer, Image>(parentTrack.size())).collect(Collectors.toList());
+            this.distanceMaps = IntStream.range(0, additionalInputLabels.length * 2).mapToObj(i -> new ConcurrentHashMap<Integer, Image>(parentTrack.size())).collect(Collectors.toList());
             crop =bds!=null ? im -> im.crop(bds) : im -> im;
             this.bds = bds;
             this.dbim = dbim;
@@ -201,7 +202,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         public synchronized void setImage(int frame, Image image) {
-            if (mainChannel != null) mainChannel = new HashMap<>();
+            if (mainChannel == null) mainChannel = new HashMap<>();
             mainChannel.put(frame, image);
         }
 
@@ -216,7 +217,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             } else { // additional labels -> for each label: EDM & GCDM
                 int lIdx = idx-1-additionalInputChannels.length;
                 Map<Integer, Image> map = distanceMaps.get(lIdx);
-                if (!map.containsKey(frame)) computeLabel(frame, lIdx/2);
+                if (!map.containsKey(frame)) {
+                    logger.warn("EDM/GCDM not computed for frame: {}", frame);
+                    computeLabel(frame, lIdx/2);
+                }
                 res = map.get(frame);
                 if (res instanceof DiskBackedImage) res = ((DiskBackedImage)res).getImage();
             }
@@ -225,8 +229,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         protected void computeLabel(int frame, int labelIdx) {
             int l = this.additionalInputLabels[labelIdx];
-            Map<Integer, Image> edm = distanceMaps.get(labelIdx * 2);
-            Map<Integer, Image> gcdm = distanceMaps.get(labelIdx * 2 + 1);
+            Map<Integer, Image> edmMap = distanceMaps.get(labelIdx * 2);
+            Map<Integer, Image> gcdmMap = distanceMaps.get(labelIdx * 2 + 1);
             SegmentedObject p = parentTrack.get(frame);
             if (p==null) {
                 logger.debug("No parent found at frame: {}, all frames: {}", frame, new TreeSet<>(parentTrack.keySet()));
@@ -248,8 +252,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     edmIm = dbim.createDiskBackedImage(edmIm, false, false);
                     gdcmIm = dbim.createDiskBackedImage(gdcmIm, false, false);
                 }
-                edm.put(p.getFrame(), edmIm);
-                gcdm.put(p.getFrame(), gdcmIm);
+                edmMap.put(p.getFrame(), edmIm);
+                gcdmMap.put(p.getFrame(), gdcmIm);
             } catch (Throwable e) {
                 RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) {
@@ -258,8 +262,23 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 } else {
                     logger.debug("th: {} parent: {} bds: {} region bds: {}", p.getTrackHead(), p, new SimpleBoundingBox(pop.getImageProperties()), pop.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()));
                 }
-
                 throw new RuntimeException("Error at EDM / GDCM computation at parent: "+p, e);
+            }
+        }
+
+        public void cleanBeforeFrame(int upToFrameIncl) {
+            if (additionalInputLabels.length==0) return;
+            for (int lIdx = 0; lIdx<additionalInputLabels.length; ++lIdx) {
+                Map<Integer, Image> map = distanceMaps.get(lIdx * 2);
+                for (int f : parentTrack.keySet()) {
+                    if (f <= upToFrameIncl) {
+                        Image im = map.remove(f);
+                        if (im instanceof DiskBackedImage) {
+                            DiskBackedImage dbim = (DiskBackedImage) im;
+                            dbim.getManager().detach(dbim, true);
+                        }
+                    }
+                }
             }
         }
 

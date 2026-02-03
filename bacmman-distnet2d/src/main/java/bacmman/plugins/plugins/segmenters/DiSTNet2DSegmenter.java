@@ -277,8 +277,11 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             int effectiveMaxFrameIncl = DiSTNet2D.getNeighborhood(sortedFrames, sortedFrames[maxIdx-1], inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0).stream().mapToInt(ii->ii).max().getAsInt();
             int effectiveMaxIdxIncl = DiSTNet2D.search(sortedFrames, maxIdx-1, effectiveMaxFrameIncl, 0);
+            int effectiveMinFrame = DiSTNet2D.getNeighborhood(sortedFrames, sortedFrames[i], inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0).stream().mapToInt(ii->ii).min().getAsInt();
+            int effectiveMinIdx = DiSTNet2D.search(sortedFrames, 0, effectiveMinFrame, 0);
             if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, imageManager);
             long t0 = System.currentTimeMillis();
+            if (stores == null) inputImages.cleanBeforeFrame(effectiveMinFrame-1);
             inputImages.ensureSubTrack(parentTrack.subList(i, effectiveMaxIdxIncl+1)); // computes all needed EDM / GCDM input maps in parallel if any
             long t1 = System.currentTimeMillis();
             if (stores != null) {
@@ -289,12 +292,13 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
                     }
                 }
             }
+            //logger.debug("input: [{}; {}) / [{}; {}] (effective max frame: [{}; {}] idx=[{}; {}])", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], effectiveMinFrame, effectiveMaxFrameIncl, effectiveMinIdx, effectiveMaxIdxIncl);
             boolean frameAware  = engine.getInputNames().length == inputImages.nInputs() + 1;
             Image[][][] input = DiSTNet2D.getInputs(inputImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
             long t2 = System.currentTimeMillis();
             Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
             long t3 = System.currentTimeMillis();
-            logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms) (effective max frame: {} idx={})", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2, effectiveMaxFrameIncl, effectiveMaxIdxIncl);
+            logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms) (effective frame range: [{}; {}] idx=[{}; {}])", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2, effectiveMinFrame, effectiveMaxFrameIncl, effectiveMinIdx, effectiveMaxIdxIncl);
 
             for (int f = i; f<maxIdx; ++f) {
                 int frame = sortedFrames[f];
