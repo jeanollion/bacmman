@@ -38,15 +38,17 @@ import static bacmman.processing.Resize.pad;
 public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
     private final static Logger logger = LoggerFactory.getLogger(ExtractDatasetUtil.class);
+
     public static  void runTask(Task t) { // invoked by task with reflection
+        MasterDAO mDAO = t.getDB();
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();
-        TrainingConfigurationParameter.RESIZE_MODE resizeMode = t.getExtractDSResizeMode();
+        TrainingConfigurationParameter.RESIZE_MODE resizeMode = t.getExtractDSResizeMode() == null ? TrainingConfigurationParameter.RESIZE_MODE.NONE :  t.getExtractDSResizeMode();
         ConvertToBoundingBox boxConverter = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.boxConverter(dimensions) : null;
         UnaryOperator<SegmentedObject> duplicateAsBox = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.duplicateAsBox(boxConverter) : o->o; // extend parent bounds
         List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
-        List<String> selectionNames = t.getExtractDSSelections();
+        List<Selection> selections = t.getExtractDSSelections();
         int subsamplingFactor = t.getExtractDSSubsamplingFactor();
         int subsamplingNumber = t.getExtractDSSubsamplingNumber();
         int[] subsamplingOffsets = ArrayUtil.generateIntegerArray(0, subsamplingFactor, subsamplingNumber);
@@ -55,11 +57,9 @@ public class ExtractDatasetUtil {
         int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
         boolean trackingDataset = t.isExtractDSTimelapse();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
-        MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
-        for (String selName : selectionNames) {
-            logger.debug("Selection: {}", selName);
-            Selection mainSel = mDAO.getSelectionDAO().getOrCreate(selName, false);
+        for (Selection mainSel : selections) {
+            logger.debug("Selection: {}", mainSel.getName());
             List<Selection> trackSels;
             if (trackingDataset) { // split selection by contiguous track segment
                 trackSels = new ArrayList<>();
@@ -103,17 +103,21 @@ public class ExtractDatasetUtil {
                     String baseOutputName = (!curSelName.isEmpty() ? curSelName + "/" : "") + ds + "/" + position + "/";
                     if (thName != null) baseOutputName += thName + "/";
                     boolean saveLabels = subsamplingFactor==1; // HAS BEEN DISABLED
-                    boolean filterParentSelection = Utils.objectsAllHaveSameProperty(features, FeatureExtractor.Feature::getSelectionFilter);
+                    boolean filterParentSelection = Utils.objectsAllHaveSameProperty(features, FeatureExtractor.Feature::getSelectionFilterName);
                     for (FeatureExtractor.Feature feature : features) {
                         boolean oneEntryPerInstance = feature.getFeatureExtractor() instanceof FeatureExtractor.FeatureExtractorOneEntryPerInstance;
                         boolean oneEntryPerTrack = feature.getFeatureExtractor() instanceof FeatureExtractor.FeatureExtractorOneEntryPerTrack;
                         boolean temporal = feature.getFeatureExtractor() instanceof FeatureExtractorTemporal;
                         boolean configurable = feature.getFeatureExtractor() instanceof FeatureExtractorConfigurable;
-                        logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilter());
+                        logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilterName());
                         Function<SegmentedObject, Image> extractFunction;
                         Selection parentSelection;
                         Map<Integer, Map<SegmentedObject, RegionPopulation>> curResizedPops;
-                        Selection selFilter = feature.getSelectionFilter() == null ? null : mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilter(), false);
+                        Selection selFilter;
+                        if (feature.getSelectionFilterName() != null) {
+                            if (feature.getSelectionFilter() !=null) selFilter = feature.getSelectionFilter();
+                            else selFilter = mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilterName(), false);
+                        } else selFilter = null;
                         if (selFilter != null) { // filter children objects -> override global resized populations
                             List<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptyList();
                             Map<SegmentedObject, RegionPopulation> resizedPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {

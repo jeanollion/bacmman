@@ -296,11 +296,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         this.actionJSP.setToolTipText(formatHint("<b>Tasks to run on selected positions/object classes:</b> (ctrl+click to select/deselect tasks)<br/><ol>"
                 + "<li><b>"+runActionList.getModel().getElementAt(0)+"</b>: Performs pre-processing pipeline on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(1)+"</b>: Performs segmentation and tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected)</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(2)+"</b>: Performs Tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected). Ignored if "+runActionList.getModel().getElementAt(1)+" is selected.</li>"
-                //+ "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Pre-computes kymographs and saves them in the dataset folder in order to have a faster display of kymograph, and to eventually allow erasing pre-processed images to save disk-space</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Extract measurements of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
-                //+ "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected positions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export / Export Options</em></li></ol>"
+                + "<li><b>"+runActionList.getModel().getElementAt(2)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Exports measurements of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Exports segmentation masks of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single h2f5 file per object class in the dataset folder</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(5)+"</b>: Exports segmentation outer contours (holes are not included) as polygons for selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single hdf5 file per object class in the dataset folder</li>"
+                + "</ol>"
         ));
         this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
         helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
@@ -2330,7 +2330,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
         runActionList.setBackground(new java.awt.Color(247, 246, 246));
         runActionList.setModel(new javax.swing.AbstractListModel() {
-            String[] strings = { "Pre-Processing", "Segment and Track", "Track only", "Measurements", "Extract Measurements" }; //"Export Data"
+            String[] strings = { "Pre-Processing", "Segment and Track", "Measurements", "Export Measurements", "Export Masks", "Export Contours" };
             public int getSize() { return strings.length; }
             public Object getElementAt(int i) { return strings[i]; }
         });
@@ -4195,17 +4195,17 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         
         boolean preProcess=false;
         boolean segmentAndTrack = false;
-        boolean trackOnly = false;
         boolean runMeasurements=false;
-        boolean extract = false;
-        boolean export=false;
+        boolean exportMeasurements = false;
+        boolean exportContours = false;
+        boolean exportMasks=false;
         for (int i : this.runActionList.getSelectedIndices()) {
             if (i==0) preProcess=true;
             if (i==1) segmentAndTrack=true;
-            if (i==2) trackOnly = !segmentAndTrack;
-            //if (i==3) generateTrackImages=true;
-            if (i==3) runMeasurements=true;
-            if (i==4) extract=true;
+            if (i==2) runMeasurements=true;
+            if (i==3) exportMeasurements=true;
+            if (i==4) exportMasks=true;
+            if (i==5) exportContours=true;
             //if (i==6) export=true;
         }
         Task t;
@@ -4215,20 +4215,21 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             int[] selectedStructures = this.getSelectedStructures(true);
             t = new Task(db);
             t.setStructures(selectedStructures).setPositions(microscopyFields);
-            if (extract) {
-                for (int sIdx : selectedStructures) t.addExtractMeasurementDir(db.getDatasetDir().toFile().getAbsolutePath(), sIdx);
-                t.setExtractByPosition(extractByPosition.getSelected());
+            if (exportMeasurements||exportMasks||exportContours) {
+                for (int sIdx : selectedStructures) t.addExportDir(db.getDatasetDir().toFile().getAbsolutePath(), sIdx);
+                t.setExportByPosition(extractByPosition.getSelected());
             }
         } else if (dir!=null) {
             t = new Task(dir);
-            if (extract && t.getDB()!=null) {
+            if ((exportMeasurements||exportMasks||exportContours) && t.getDB()!=null) {
                 int[] selectedStructures = ArrayUtil.generateIntegerArray(t.getDB().getExperiment().getStructureCount());
-                for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDatasetDir().toFile().getAbsolutePath(), sIdx);
-                t.setExtractByPosition(extractByPosition.getSelected());
+                for (int sIdx : selectedStructures) t.addExportDir(t.getDB().getDatasetDir().toFile().getAbsolutePath(), sIdx);
+                t.setExportByPosition(extractByPosition.getSelected());
             }
             t.getDB().clearCache(true, true, true);
         } else return null;
-        t.setActions(preProcess, segmentAndTrack, segmentAndTrack || trackOnly, runMeasurements);
+        t.setActions(preProcess, segmentAndTrack, segmentAndTrack, runMeasurements);
+        t.setExportActions(exportMeasurements, exportMasks, exportContours);
         t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
         //if (export) t.setExportData(this.exportPPImagesMenuItem.isSelected(), this.exportTrackImagesMenuItem.isSelected(), this.exportObjectsMenuItem.isSelected(), this.exportConfigMenuItem.isSelected(), this.exportSelectionsMenuItem.isSelected());
         
@@ -4244,6 +4245,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             return;
         }
         if (!t.isValid()) {
+            t.clearDB();
             log("invalid task");
             t.printErrorsTo(this);
             return;
@@ -4678,8 +4680,6 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
                 }
             }
-
-
             JMenu datasetMenu = new JMenu("Extract Dataset");
             menu.add(datasetMenu);
 
@@ -4705,19 +4705,18 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             datasetMenu.add(addExtractRawDBTask);
             addExtractRawDBTask.setEnabled(db!=null && (actionPoolList.getSelectedValue()==null || actionPoolList.getSelectedValue() instanceof Task));
 
-
-
             if (db!=null && db.getExperiment()!=null) {
                 // task on a selection
                 // condition is that only segment&Track is selected and structure(s) are selected. Propose only selection that contain parent
                 Set<Integer> allowedActionsRunWithSel = new HashSet<Integer>() {{
-                    add(1);
-                    add(2);
-                    add(3);
-                    add(4);
+                    add(1); // seg + track
+                    add(2); // measurement
+                    add(3); // export measurement
+                    add(4); // export masks
+                    add(5); // export contours
                 }};
                 int[] selActions = runActionList.getSelectedIndices();
-                boolean segTrack = IntStream.of(selActions).anyMatch(i->i==1 || i==2);
+                boolean segTrack = IntStream.of(selActions).anyMatch(i->i==1);
                 boolean allAllowed = selActions.length>0 && IntStream.of(selActions).boxed().allMatch(allowedActionsRunWithSel::contains);
                 int[] parentStructure = IntStream.of(getSelectedStructures(false))
                         .map(i -> db.getExperiment().experimentStructure.getParentObjectClassIdx(i)).toArray();
@@ -4869,7 +4868,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                         if (t instanceof Task) {
                             ((Task) t).setDir(xp.getDir().toFile().getAbsolutePath());
                         } else log("Set db cannot be applied to tasks of type: "+t.getClass());
-                        if (!t.isValid()) log("Error: task: "+en.getValue()+" is not valid with this experiment");
+                        if (!t.isValid()) {
+                            log("Error: task: "+en.getValue()+" is not valid with this experiment");
+                        }
+                        t.clearDB();
                     }
                 }
             };

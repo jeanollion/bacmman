@@ -275,6 +275,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public static BooleanParameter getMixedPrecisionParameter(boolean defaultValue) {
         return new BooleanParameter("Mixed Precision", defaultValue).setHint("If true, training is performed in mixed precision mode which reduces memory footprint (up to a factor 2) as well as computation time, at the cost of a small decrease in accuracy. <br/>Most operations are performed in float16 but gradients are still computed in float32. <br/>Not supported on all GPUs not CPUs. ");
     }
+    public enum EXPORT_PRECISION {AUTO, FP16, FP32}
+    public static EnumChoiceParameter<EXPORT_PRECISION> getExportPrecisionParameter() {
+        return new EnumChoiceParameter<>("Export Precision", EXPORT_PRECISION.values(), EXPORT_PRECISION.AUTO).setHint("If FP16, model is exported with weights converted to FP16 (with some notable exception such as Batch norm weights), and most prediction computation will be performed in float16. On capable GPUs this reduces reduces memory footprint as well as computation time (up to a factor 2). This also reduced the model size by a factor 2. Not supported on most CPUs. AUTO: will export in FP16 only is mixed precision is enabled");
+    }
 
     public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}
     public static EnumChoiceParameter<RESIZE_MODE> getResizeModeParameter(RESIZE_MODE defaultValue, IntSupplier parentObjectClass, Supplier<int[]> resizeDim, RESIZE_MODE... options) {

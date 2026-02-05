@@ -131,7 +131,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     final protected ActionListener moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
-    protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
+    protected long lastStepTime = 0, lastEpochTime = 0, trainStartTime = 0;
     protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps = Double.NaN;
     protected int startEpoch = 0;
 
@@ -275,8 +275,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         boolean exportModel = trainer.getConfiguration().getSelectedDockerImage(false).equals(trainer.getConfiguration().getSelectedDockerImage(true));
                         String[] cmds = exportModel ? new String[]{"python", "train.py", "/data", "--min_script_version", trainer.minimalScriptVersion()} : new String[]{"python", "train.py", "/data", "--train_only", "--min_script_version", trainer.minimalScriptVersion()};
-                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
-                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
                         }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
@@ -1099,7 +1100,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         maxLoss = Double.NEGATIVE_INFINITY;
         lastEpochTime = 0;
         lastStepTime = 0;
-        trainTime = 0;
+        trainStartTime = 0;
         stepDuration = Double.NaN;
         epochDuration = Double.NaN;
         elapsedSteps = Double.NaN;
@@ -1204,13 +1205,15 @@ public class DockerTrainingWindow implements ProgressLogger {
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
         int maxStep = stepProgressBar.getMaximum();
-        if ( currentStep <= 1 && (currentEpoch == 1 || startEpoch <=0)) {
-            trainTime = System.currentTimeMillis();
+        boolean firstEpoch = startEpoch <=0;
+        if (firstEpoch) {
+            startEpoch = currentEpoch;
+            trainStartTime = System.currentTimeMillis();
             elapsedSteps = Double.NaN;
             stepDuration = Double.NaN;
         }
         if (!isStep) {
-            if (currentEpoch == 1 || startEpoch <= 0) {
+            if (firstEpoch) {
                 lastEpochTime = System.currentTimeMillis();
             } else if (currentEpoch > 1) {
                 long currentEpochTime = System.currentTimeMillis();
@@ -1239,10 +1242,10 @@ public class DockerTrainingWindow implements ProgressLogger {
             stepTime = "     /step";
         }
         if (currentEpoch >= 1 && !currentProgressBar.isIndeterminate() && (!Double.isNaN(epochDuration) || (!Double.isNaN(stepDuration) && !Double.isNaN(elapsedSteps)))) {
-            double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - 1);
+            double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - startEpoch);
             long avgEpochTimeMSL = (long) avgEpochTimeMS;
             long elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
-            long elapsedTraining = System.currentTimeMillis() - trainTime;
+            long elapsedTraining = System.currentTimeMillis() - trainStartTime;
             long totalTraining = (long) (avgEpochTimeMS * maxEpoch);
             epochTime = Utils.formatDuration(elapsedEpoch) + " / " + Utils.formatDuration(avgEpochTimeMSL);
             trainingTime = Utils.formatDuration(elapsedTraining) + " / " + Utils.formatDuration(totalTraining);
@@ -1251,7 +1254,6 @@ public class DockerTrainingWindow implements ProgressLogger {
             trainingTime = "      /      ";
         }
         timeLabel.setText(stepTime + " | Epoch: " + epochTime + " | Total: " + trainingTime);
-        if (startEpoch<=0) startEpoch = currentEpoch;
     }
 
     protected void parseTestDataAugProgress(String message) {

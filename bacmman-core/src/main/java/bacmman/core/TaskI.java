@@ -1,11 +1,9 @@
 package bacmman.core;
 
 import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.JSONSerializable;
 import org.json.simple.JSONObject;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.stream.Stream;
 
 public interface TaskI<T extends TaskI<T>> {
     boolean isValid();
@@ -14,6 +12,7 @@ public interface TaskI<T extends TaskI<T>> {
     int countSubtasks();
     void setTaskCounter(int[] counter);
     void initDB();
+    void clearDB();
     String getDir();
     default void setPreprocessingMemoryThreshold(double preProcessingMemoryThreshold) {}
     void runTask();

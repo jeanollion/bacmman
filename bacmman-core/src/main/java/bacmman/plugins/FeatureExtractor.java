@@ -3,6 +3,7 @@ package bacmman.plugins;
 import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Selection;
 import bacmman.image.Image;
 import net.imglib2.interpolation.InterpolatorFactory;
 
@@ -27,23 +28,32 @@ public interface FeatureExtractor extends Plugin {
 
 
     class Feature {
-        final String name, selectionFilter;
+        final String name, selectionFilterName;
+        final Selection selectionFilter;
         final FeatureExtractor featureExtractor;
         final int objectClass;
 
         public Feature(String name, FeatureExtractor featureExtractor, int objectClass) {
-            this(name, featureExtractor, objectClass, null);
+            this(name, featureExtractor, objectClass, (String) null);
         }
         public Feature(FeatureExtractor featureExtractor, int objectClass) {
-            this(featureExtractor.defaultName(), featureExtractor, objectClass, null);
+            this(featureExtractor.defaultName(), featureExtractor, objectClass, (String) null);
         }
-        public Feature(FeatureExtractor featureExtractor, int objectClass, String selectionFilter) {
-            this(featureExtractor.defaultName(), featureExtractor, objectClass, selectionFilter);
+        public Feature(FeatureExtractor featureExtractor, int objectClass, String selectionFilterName) {
+            this(featureExtractor.defaultName(), featureExtractor, objectClass, selectionFilterName);
         }
-        public Feature(String name, FeatureExtractor featureExtractor, int objectClass, String selectionFilter) {
+        public Feature(String name, FeatureExtractor featureExtractor, int objectClass, String selectionFilterName) {
             this.name = name == null ? featureExtractor.defaultName() : name;
             this.featureExtractor = featureExtractor;
             this.objectClass = objectClass;
+            this.selectionFilterName = selectionFilterName;
+            this.selectionFilter = null;
+        }
+        public Feature(String name, FeatureExtractor featureExtractor, int objectClass, Selection selectionFilter) {
+            this.name = name == null ? featureExtractor.defaultName() : name;
+            this.featureExtractor = featureExtractor;
+            this.objectClass = objectClass;
+            this.selectionFilterName = selectionFilter==null ? null : selectionFilter.getName();
             this.selectionFilter = selectionFilter;
         }
 
@@ -59,8 +69,10 @@ public interface FeatureExtractor extends Plugin {
             return objectClass;
         }
 
-        public String getSelectionFilter() {
-            return selectionFilter;
+        public String getSelectionFilterName() {
+            return selectionFilterName;
         }
+
+        public Selection getSelectionFilter() {return selectionFilter;}
     }
 }

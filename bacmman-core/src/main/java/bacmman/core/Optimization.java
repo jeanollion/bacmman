@@ -369,6 +369,15 @@ public class Optimization {
         }
 
         @Override
+        public void clearDB() {
+            if (db==null) return;
+            db.unlockPositions();
+            db.unlockConfiguration();
+            db.clearCache(true, true, true);
+            db = null;
+        }
+
+        @Override
         public void runTask() {
             initDB();
             ProgressCallback pcb = ProgressCallback.get(ui);

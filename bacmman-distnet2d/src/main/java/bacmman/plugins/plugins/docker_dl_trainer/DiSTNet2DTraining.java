@@ -23,7 +23,8 @@ import static bacmman.configuration.parameters.InputShapesParameter.getInputShap
 
 public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, DockerDLTrainer.MixedPrecision, Hint {
     BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(80), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new HardSampleMiningParameter("Hard Sample Mining", 6, new FloatParameter("Scale", 8).setHint("Scale of the segmented objects (thickness). Set the thickness (in the smallest axis) of common small objects.")), mixedPrecision};
+    EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new HardSampleMiningParameter("Hard Sample Mining", 6, new FloatParameter("Scale", 8).setHint("Scale of the segmented objects (thickness). Set the thickness (in the smallest axis) of common small objects.")), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[0];
     BoundedNumberParameter frameSubSampling = new BoundedNumberParameter("Frame Subsampling", 0, 15, 1, null).setHint("Time Subsampling of dataset to increase displacement range<br>Extent E of the frame window <em>seen</em> by the neural network is drawn randomly in interval [0, FRAME_SUBSAMLPING). if neural network inputs previous and next frames, final seen frame window is W = 2 x E + 1 otherwise W = E + 1. If W is greater than the input window of the neural network, gaps between frame are introduced, except between central frame and first adjacent frame");
     BoundedNumberParameter eraseEdgeCellSize = new BoundedNumberParameter("Erase Edge Cell Size", 0, 50, 0, null).setHint("Size (in pixels) of cells touching edges that should be erased");
@@ -64,13 +65,9 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<Boolean> edmBalanceFreqCond = new ConditionalParameter<>(edmBalanceFreq)
                 .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
-        FloatParameter catWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
-        BooleanParameter catDynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
-        FloatParameter catDynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
-        ConditionalParameter<Boolean> catDynamicWeightsCond = new ConditionalParameter<>(catDynamicWeights).setActionParameters(true, catDynamicWeightPowerLaw);
-        BooleanParameter catBalanceFreq = new BooleanParameter("Balance Category Frequency", false).setHint("Correct frequency imbalance between foreground and background by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
-        ConditionalParameter<Boolean> catBalanceFreqCond = new ConditionalParameter<>(catBalanceFreq)
-                .setActionParameters(true, catDynamicWeightsCond, catWeightPowerLaw);
+        FloatParameter catWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between category classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
+        FloatParameter catFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(1).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
+        GroupParameter catLossParameters = new GroupParameter("Category Loss Parameters", catWeightPowerLaw, catFocalWeight);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
@@ -87,7 +84,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     hint.append("<li>").append(mode.toString()).append(": ").append(mode.hint).append("</li>");
                 hint.append("</ul>");
                 centerMode.setHint(hint.toString());
-                setChildren(scaleEDM, edmBalanceFreqCond, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives, catBalanceFreqCond);
+                setChildren(scaleEDM, edmBalanceFreqCond, centerMode, centerDistanceModeCond, inputLabelCenterCond, EDMderivatives, CDMderivatives, catLossParameters);
                 inputLabelIdx.addValidationFunction(i -> {
                     SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), i, true);
                     if (dsList != null && dsList.getChildCount() > 0) {
@@ -95,7 +92,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     } else return true;
                 });
             } else {
-                setChildren(catBalanceFreqCond);
+                setChildren(catLossParameters);
             }
             this.segmentation = segmentation;
             this.tracking = tracking;
@@ -128,7 +125,6 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     edmFreqBal.put(PythonConfiguration.toSnakeCase(edmDynamicWeights.getName()), edmDynamicWeights.toJSONEntry());
                     res.put("balance_edm_frequency_parameters", edmFreqBal);
                 }
-                res.put(PythonConfiguration.toSnakeCase(catBalanceFreq.getName()), catBalanceFreq.toJSONEntry());
                 res.put(PythonConfiguration.toSnakeCase(centerMode.getName()), centerMode.toJSONEntry());
                 res.put(PythonConfiguration.toSnakeCase(centerDistanceMode.getName()), centerDistanceMode.toJSONEntry());
                 if (centerDistanceMode.getSelectedEnum().equals(CENTER_DISTANCE_MODE.EUCLIDEAN)) res.put(PythonConfiguration.toSnakeCase(cdmLossRadius.getName()), cdmLossRadius.toJSONEntry());
@@ -138,13 +134,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             } else { // category only
                 res.put("input_label_center_idx", 0);
             }
-            if (catBalanceFreq.getSelected()) {
-                JSONObject catFreqBal = new JSONObject();
-                catFreqBal.put("dynamic_power_law", catDynamicWeightPowerLaw.toJSONEntry());
-                catFreqBal.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
-                catFreqBal.put(PythonConfiguration.toSnakeCase(catDynamicWeights.getName()), catDynamicWeights.toJSONEntry());
-                res.put("balance_category_frequency_parameters", catFreqBal);
-            }
+            JSONObject catParams = new JSONObject();
+            catParams.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
+            catParams.put(PythonConfiguration.toSnakeCase(catFocalWeight.getName()), catFocalWeight.toJSONEntry());
+            res.put("category_loss_parameters", catParams);
 
             res.put("segmentation", segmentation);
             res.put("tracking", tracking);
@@ -154,17 +147,14 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
 
-        FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Power law applied to inverse class frequency weight, in order to limits them");
-        BooleanParameter lmDynamicWeights = new BooleanParameter("Dynamic Weights", true).setHint("During training weight values get closer to 1");
-        FloatParameter lmDynamicWeightPowerLaw = new FloatParameter("Power Law", 1).setLowerBound(0).setUpperBound(2).setHint("A coefficient &lt; 1 speeds up weight reduction.<br/>weights = (1 - alpha^power_law) * initial_weights + alpha^power_law * 1, with alpha = epoch / n_epoch");
-        ConditionalParameter<Boolean> dynamicWeightsCond = new ConditionalParameter<>(lmDynamicWeights).setActionParameters(true, lmDynamicWeightPowerLaw);
-        BooleanParameter lmBalanceFreq = new BooleanParameter("Balance LM Frequency", false).setHint("Correct frequency imbalance between Link Multiplicity classes (SINGLE, MULTIPLE, NULL) by weightening loss with inverse class frequency<br>Experimental Feature: might be changed in the future");
-        ConditionalParameter<Boolean> balanceEDMFreqCond = new ConditionalParameter<>(lmBalanceFreq)
-                .setActionParameters(true, dynamicWeightsCond, lmWeightPowerLaw);
+        FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 0.5).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between link multiplicity classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
+        FloatParameter lmFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(1).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
+        GroupParameter lmLossParameters = new GroupParameter("LM Loss Parameters", lmWeightPowerLaw, lmFocalWeight);
+
 
         public TrackingParameters() {
             super("Tracking");
-            setChildren(balanceEDMFreqCond);
+            setChildren(lmLossParameters);
         }
 
         @Override
@@ -178,14 +168,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         @Override
         public Object getPythonConfiguration() {
             JSONObject res = new JSONObject();
-            res.put(PythonConfiguration.toSnakeCase(lmBalanceFreq.getName()), lmBalanceFreq.toJSONEntry());
-            if (lmBalanceFreq.getSelected()) {
-                JSONObject lmFreqBal = new JSONObject();
-                lmFreqBal.put("dynamic_power_law", lmDynamicWeightPowerLaw.toJSONEntry());
-                lmFreqBal.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
-                lmFreqBal.put(PythonConfiguration.toSnakeCase(lmDynamicWeights.getName()), lmDynamicWeights.toJSONEntry());
-                res.put("balance_lm_frequency_parameters", lmFreqBal);
-            }
+            JSONObject lmLossParams = new JSONObject();
+            lmLossParams.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
+            lmLossParams.put(PythonConfiguration.toSnakeCase(lmFocalWeight.getName()), lmFocalWeight.toJSONEntry());
+            res.put("lm_loss_parameters", lmLossParams);
             return res;
         }
     }
@@ -287,6 +273,19 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     @Override
     public boolean mixedPrecision() {
         return mixedPrecision.getSelected();
+    }
+
+    @Override
+    public boolean exportFP16() {
+        switch (exportPrecision.getSelectedEnum()) {
+            case FP16:
+                return true;
+            case FP32:
+                return false;
+            case AUTO:
+            default:
+                return mixedPrecision();
+        }
     }
 
     @Override
@@ -402,7 +401,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     public Parameter[] getParameters() {
         return getConfiguration().getChildParameters();
     }
-    enum ARCH_TYPE {BLEND, TemA, TemPy}
+    enum ARCH_TYPE {BLEND, TemPy}
     enum ATTENTION_POS_ENC_MODE {EMBEDDING, EMBEDDING_2D, RoPE, RoPE_2D, SINE, SINE_2D}
     public static class ArchitectureParameter extends ConditionalParameterAbstract<ARCH_TYPE, ArchitectureParameter> implements PythonConfiguration {
         // blend mode
@@ -411,8 +410,8 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 3, 2, 4);
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("Include skip connections to EDM decoder. Note that is early downsampling is True, there will be no skip connection at first level");
         BooleanParameter earlyDownsampling = new BooleanParameter("Early Downsampling", true).setHint("If true, no convolution will be performed at first level. Reduces memory footprint, but may reduce segmentation details");
-        IntegerParameter temporalAttention = new IntegerParameter("Temporal Attention", 16).setLowerBound(0)
-                .setHint("Number of heads of the temporal attention layers in the blending module (i.e. attention between each pair of frames). Unused if frame window is null.");
+        IntegerParameter windowAttention = new IntegerParameter("Window Attention", 16).setLowerBound(0)
+                .setHint("Number of heads of the window attention. Window attention is performed on overlapping windows of size defined in Attention Window parameter. Window attention is used as self-attention as well as temporal attention layers in the blending module (i.e. attention between each pair of frames).");
         IntegerParameter attention = new IntegerParameter("Attention", 0).setLowerBound(0)
                 .setLegacyParameter((p,i)->i.setValue(((BooleanParameter)p[0]).getSelected() ? 1 : 0), new BooleanParameter("Attention", false))
                 .setHint("Number of heads of the attention layer in the PairBlender module (i.e. attention between each pair of frames). If 0 no attention layer is included. Unused if frame window is null. <br/>If an attention or self-attention layer is included, the input shape is fixed.");
@@ -422,11 +421,11 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter attentionFilters = new IntegerParameter("Attention Filters", 64).setLowerBound(1)
                 .setLegacyParameter((p,i)->i.setValue(((BoundedNumberParameter)p[0]).getIntValue()), filters)
                 .setHint("Number of filter for each head of the attention layers.");
-        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{16, 16}, null).setName("Attention Window").setMaxChildCount(2);
-        EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.RoPE_2D).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
+        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{16, 16}, null).setName("Attention Window").setMaxChildCount(2).setHint("Spatial Range of the attention");
+        EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.EMBEDDING).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
-        BooleanParameter frameAware = new BooleanParameter("Frame Aware", true).setLegacyInitializationValue(false).setHint("Neural network is aware of distance between each frames. <br/> Experimental Feature");
+        BooleanParameter frameAware = new BooleanParameter("Frame Aware", false).setLegacyInitializationValue(false).setHint("Neural network is aware of distance between each frames. <br/> Experimental Feature");
         IntegerParameter maxFrameDistance = new IntegerParameter("Max Frame Distance", 0)
                 .addValidationFunction( g -> frameWindow.getIntValue() <= g.getIntValue())
                 .setLowerBound(1).setHint("Maximal frame distance between central frame and previous or next frames, taking into account possible frame sub-sampling. <br>Must be greater than <em>Frame Window</em> architecture parameter and than <em>Frame Subsampling</em> data augmentation parameter of all datasets. Must be greater than the maximal subsampling value used at inference");
@@ -439,14 +438,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         public ArchitectureParameter(String name, boolean includeInferenceGap, int defaultFrameWindow) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
-                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, maxFrameDistance, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, categoryNumber);
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, windowAttention, attentionFilters, attentionWindow, categoryNumber);
 
             } else {
-                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, frameAwareCond, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemA, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, maxFrameDistance, categoryNumber);
-                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, temporalAttention, attentionFilters, attentionWindow, categoryNumber);
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, windowAttention, attentionFilters, attentionWindow, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
@@ -460,6 +457,11 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     return d.getIntValue() >= maxFrameSubSampling;
                 } else return true;
             });
+        }
+
+        @Override
+        public String getHintText() {
+            return "Model architecture. Differ in the way features from the different frames are blended. <ul><li>BLEND</li>: architecture from the original method. Features are first paired by a convolution (or attention layer), then pairs and features are blended together by a convolution<li>Tempy</li> : TEMporal Pyramid features are blended progressively in a hierarchical manner by a window attention mechanism. This architecture is still under development and parametrization might change in the future</ul>";
         }
 
         public ArchitectureParameter(String name) {
@@ -517,17 +519,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("early_downsampling", earlyDownsampling.toJSONEntry());
             res.put("attention_filters", attentionFilters.getValue());
 
-
             switch (atchType) { // specific
-                case TemA: {
-                    res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
-                    res.put("temporal_attention", temporalAttention.toJSONEntry());
-                    res.put("attention_spatial_radius", attentionWindow.toJSONEntry());
-                    break;
-                }
                 case TemPy: {
                     res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
-                    res.put("temporal_attention", temporalAttention.toJSONEntry());
+                    res.put("attention", windowAttention.toJSONEntry());
                     res.put("attention_spatial_radius", attentionWindow.toJSONEntry());
                     break;
                 }

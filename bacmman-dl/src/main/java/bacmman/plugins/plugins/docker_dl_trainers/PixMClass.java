@@ -21,7 +21,8 @@ import static bacmman.configuration.parameters.InputShapesParameter.getInputShap
 
 public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision {
     BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters"), mixedPrecision};
+    EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters"), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
@@ -59,6 +60,19 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
     @Override
     public boolean mixedPrecision() {
         return mixedPrecision.getSelected();
+    }
+
+    @Override
+    public boolean exportFP16() {
+        switch (exportPrecision.getSelectedEnum()) {
+            case FP16:
+                return true;
+            case FP32:
+                return false;
+            case AUTO:
+            default:
+                return mixedPrecision();
+        }
     }
 
     @Override

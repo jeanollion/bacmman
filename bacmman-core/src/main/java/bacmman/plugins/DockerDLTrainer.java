@@ -24,5 +24,6 @@ public interface DockerDLTrainer extends Plugin {
     interface TestPredict {}
     interface MixedPrecision{
         boolean mixedPrecision();
+        boolean exportFP16();
     }
 }

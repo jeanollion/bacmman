@@ -154,6 +154,7 @@ public class Daemon {
                         ui.setMessage("Invalid task: "+f);
                         t.printErrorsTo(ui);
                     }
+                    t.clearDB();
                 } catch (ParseException e) {
                     ui.setMessage("Error: could not parse task: "+ e.toString());
                     error = true;

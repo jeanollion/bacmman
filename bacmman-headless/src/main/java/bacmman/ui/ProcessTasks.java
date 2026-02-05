@@ -87,6 +87,7 @@ public class ProcessTasks {
             }
             try {
                 if (!t.isValid()) {
+                    t.clearDB();
                     ui.setMessage("Error: job: "+t.toString()+" is not valid" + (t.getDB()==null?"db null": (t.getDB().getExperiment()==null? "xp null":"")));
                     return;
                 }
@@ -95,6 +96,7 @@ public class ProcessTasks {
             }
             ++count;
             subTaskCount += t.countSubtasks();
+            t.clearDB();
         }
         ui.setMessage(">Will execute: "+jobs.size()+" jobs");
         int[] counter = new int[]{0, subTaskCount};

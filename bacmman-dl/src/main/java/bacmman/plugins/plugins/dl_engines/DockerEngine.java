@@ -54,10 +54,8 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     ConditionalParameter<Z_AXIS> zAxisCond = new ConditionalParameter<>(zAxis)
             .setActionParameters(Z_AXIS.CHANNEL, channelIdx)
             .setLegacyParameter((p, a) -> a.setActionValue( ((BooleanParameter)p[0]).getSelected()? Z_AXIS.CHANNEL : Z_AXIS.Z), new BooleanParameter("Z as Channel", false));
-    enum PRECISION {float32, float16}
-    EnumChoiceParameter<PRECISION> precision = new EnumChoiceParameter<>("Precision", PRECISION.values(), PRECISION.float32);
     GroupParameter dockerParameters = new GroupParameter("Docker Parameters", dockerVisibleGPUList, initTimeout, processTimeout);
-    Parameter[] parameters = {modelFile, dockerImage, dockerParameters, batchSize, zAxisCond, precision};
+    Parameter[] parameters = {modelFile, dockerImage, dockerParameters, batchSize, zAxisCond};
     static final int loopFreqMs = 100;
 
     // stateful attributes
@@ -387,8 +385,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
             mounts.add(new UnaryPair<>(modelFile.getModelFile().getAbsolutePath(), "/model"));
             dataDir = getDataDirectory();
             mounts.add(new UnaryPair<>(dataDir.toString(), "/data"));
-            List<UnaryPair<String>> env = Collections.singletonList(new UnaryPair<String>("PRECISION", precision.getSelectedEnum().name()));
-            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, env, mounts.toArray(new UnaryPair[0]));
+            return dockerGateway.createContainer(image, dockerShmSizeGb.getDoubleValue(), DLEngine.parseGPUList(dockerVisibleGPUList.getValue()), null, null, mounts.toArray(new UnaryPair[0]));
         } catch (RuntimeException e) {
             if (e.getMessage().toLowerCase().contains("permission denied")) {
                 Core.userLog("Error trying to start container: permission denied. On linux try to run : >sudo chmod 666 /var/run/docker.sock");

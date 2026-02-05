@@ -65,7 +65,10 @@ public class Run {
         Task t = new Task(db)
                 .setActions(false, true, true, false);
         t.setUI(ui);
-        if (!t.isValid()) throw new RuntimeException("Invalid Task");
+        if (!t.isValid()) {
+            t.clearDB();
+            throw new RuntimeException("Invalid Task");
+        }
         t.setPreprocessingMemoryThreshold(0.5);
         t.runTask();
         t.done();

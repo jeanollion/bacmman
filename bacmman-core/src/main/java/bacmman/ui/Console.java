@@ -82,9 +82,11 @@ public class Console implements PlugIn {
                 return;
             }
             if (!t.isValid()) {
+                t.clearDB();
                 ui.setMessage("Error: job: "+t.toString()+" is not valid" + (t.getDB()==null?"db null": (t.getDB().getExperiment()==null? "xp null":"")));
                 return;
             }
+            t.clearDB();
             ++count;
         }
         System.out.println(">Will execute: "+jobs.size()+" jobs");

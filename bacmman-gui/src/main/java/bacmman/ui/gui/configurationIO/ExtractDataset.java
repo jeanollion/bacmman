@@ -183,7 +183,7 @@ public class ExtractDataset extends JDialog {
                 PluginParameter<FeatureExtractor> pp = ((PluginParameter<FeatureExtractor>) g.getChildAt(2));
                 pp.setPlugin(f.getFeatureExtractor(), true);
                 SelectionParameter sel = ((SelectionParameter) g.getChildAt(3));
-                if (f.getSelectionFilter() != null) sel.setSelectedItem(f.getSelectionFilter());
+                if (f.getSelectionFilterName() != null) sel.setSelectedItem(f.getSelectionFilterName());
             }
         } else this.outputFeatureList.setChildrenNumber(0);
         if (resizeMode != null) {
@@ -233,7 +233,7 @@ public class ExtractDataset extends JDialog {
         ExtractDataset dialog = new ExtractDataset(mDAO);
         dialog.setTitle("Configure Dataset extraction");
         if (selectedTask != null)
-            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelections(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSResizeMode(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
+            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelectionNames(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSResizeMode(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
         dialog.pack();
         dialog.setVisible(true);
         //System.exit(0);
