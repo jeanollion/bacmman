@@ -128,9 +128,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                 //boolean ctrl = (IJ.isMacOSX() || IJ.isMacintosh()) ? e.isAltDown() : e.isControlDown(); // for mac: ctrl + click = right click -> alt instead of ctrl
                 boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && (ctrl||alt) && !shift && r!=null && (r instanceof PolygonRoi && ((PolygonRoi)r).getNCoordinates()>1); // ctrl + click = display connected tracks
                 boolean freeHandTool = (IJ.getToolName().equals("freeline") || IJ.getToolName().equals("oval") || IJ.getToolName().equals("ellipse"));
+                boolean lineTool = IJ.getToolName().equals("line");
                 boolean brush = IJ.getToolName().equals("brush");
-                boolean freeHandDraw = (freeHandTool||brush) && shift && ctrl;
-                boolean freeHandDrawMerge = (freeHandTool||brush) && shift && alt;
+                boolean freeHandDraw = (freeHandTool||brush||lineTool) && shift && ctrl;
+                boolean freeHandDrawMerge = (freeHandTool||brush||lineTool) && shift && alt;
                 boolean freeHandErase = brush && ctrl && !alt && !shift;
                 boolean objectEdition  = freeHandSplit || freeHandDraw || freeHandDrawMerge || freeHandErase;
                 boolean addToSelection = shift && !objectEdition;
@@ -249,6 +250,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, IJRoi3D,
                     } else if ((freeHandDraw || freeHandDrawMerge || freeHandErase) && r != null) { // DRAW / ERASE
                         int parentObjectClass = i.getParent().getExperimentStructure().getParentObjectClassIdx(getInteractiveObjectClass());
                         List<ObjectDisplay> selectedParentObjects = new ArrayList<>();
+                        if (lineTool) r = Roi.convertLineToArea(r);
                         Rectangle rect = r.getBounds();
                         MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x + rect.width, rect.y, rect.y + rect.height, ip.getZ() - 1, ip.getZ());
                         i.addObjectsWithinBounds(selection, parentObjectClass, sliceIdx, selectedParentObjects);
