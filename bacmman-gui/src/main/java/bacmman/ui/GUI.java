@@ -4230,6 +4230,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         } else return null;
         t.setActions(preProcess, segmentAndTrack, segmentAndTrack, runMeasurements);
         t.setExportActions(exportMeasurements, exportMasks, exportContours);
+        t.setExtractDSCompression(getExtractedDSCompressionFactor());
         t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
         //if (export) t.setExportData(this.exportPPImagesMenuItem.isSelected(), this.exportTrackImagesMenuItem.isSelected(), this.exportObjectsMenuItem.isSelected(), this.exportConfigMenuItem.isSelected(), this.exportSelectionsMenuItem.isSelected());
         

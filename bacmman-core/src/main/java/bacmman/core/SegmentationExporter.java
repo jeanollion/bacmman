@@ -1,5 +1,6 @@
 package bacmman.core;
 
+import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
@@ -28,9 +29,9 @@ public class SegmentationExporter {
             pSel.addElements(sel.getAllElementsAsStream().flatMap(o -> o.getChildren(parentOC)).distinct().sorted().collect(Collectors.toList()));
             sel = pSel;
         }
-        Task resultingTask = new Task(mDAO);
+        Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));;
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
-        features.add(new FeatureExtractor.Feature("masks",  new Labels(), objectClass, selFilter ));
+        features.add(new FeatureExtractor.Feature("Masks",  new Labels(), objectClass, selFilter ));
         resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, new int[0], true, 1, 1, 1, compression);
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());
@@ -40,13 +41,15 @@ public class SegmentationExporter {
         String ocName = mDAO.getExperiment().getStructure(objectClass).getName();
         if (sel.getObjectClassIdx() != objectClass) { // generate selection
             Selection pSel = new Selection(ocName, mDAO);
-            pSel.addElements(sel.getAllElementsAsStream().flatMap(o -> o.getChildren(objectClass)).distinct().sorted().collect(Collectors.toList()));
+            for (String p : sel.getAllPositions()) {
+                pSel.addElements(sel.getElements(p).stream().flatMap(o -> o.getChildren(objectClass)).distinct().sorted().collect(Collectors.toList()));
+            }
             sel = pSel;
         }
-        Task resultingTask = new Task(mDAO);
+        Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
-        features.add(new FeatureExtractor.Feature("contours", new Contours(), objectClass, (String)null ));
-        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, new int[0], true, 1, 1, 1, compression);
+        features.add(new FeatureExtractor.Feature("Contours", new Contours(), objectClass, (String)null ));
+        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, new int[0], false, 1, 1, 1, compression);
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());
     }

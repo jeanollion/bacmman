@@ -64,7 +64,7 @@ public class ExtractDatasetUtil {
             if (trackingDataset) { // split selection by contiguous track segment
                 trackSels = new ArrayList<>();
                 for (String pos : mainSel.getAllPositions()) {
-                    Map<SegmentedObject, List<SegmentedObject>> tracks = SegmentedObjectUtils.splitByContiguousTrackSegment(mainSel.getElements(pos));
+                    Map<SegmentedObject, List<SegmentedObject>> tracks = new TreeMap<>(SegmentedObjectUtils.splitByContiguousTrackSegment(mainSel.getElements(pos)));
                     tracks.forEach( (th, els) -> {
                         Selection subSel = new Selection(mainSel.getName()+"/"+th.toStringShort(), mainSel.getObjectClassIdx(), mainSel.getMasterDAO());
                         subSel.addElements(els);

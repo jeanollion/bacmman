@@ -187,6 +187,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     protected SegmentedObjectBox getById(int objectClassIdx, long id) {
         Map<Long, SegmentedObjectBox> cache = this.cache.get(objectClassIdx);
         SegmentedObjectBox sob = cache.get(id);
+        //logger.debug("getById: oc={} id={} null ? {} has obj {}", objectClassIdx, id, sob==null, sob != null && sob.hasSegmentedObject());
         if (sob==null) {
             synchronized (cache) {
                 sob = cache.get(id);
@@ -206,7 +207,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public SegmentedObject getById(int objectClassIdx, Long id, int frame, Long parentTrackHeadId) {
         SegmentedObjectBox sob = getById(objectClassIdx, id);
         if (sob != null) {
-            //logger.debug("retrieved: id={}, th={} prev={}, next={}", sob.getBoxId(), sob.getTrackHeadId(), sob.getPreviousId(), sob.getNextId());
+            //logger.debug("getById retrieved: id={}, th={} prev={}, next={} has object: {}", sob.getId(), sob.getTrackHeadId(), sob.getPreviousId(), sob.getNextId(), sob.hasSegmentedObject());
             return sob.getSegmentedObject(objectClassIdx, this);
         }
         else return null;
@@ -736,8 +737,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             long[] toRetrieve = LongStream.of(ids).filter(id -> !cache.containsKey(id)).toArray();
             List<SegmentedObjectBox> retrieved = box.get(toRetrieve);
             for (SegmentedObjectBox b : retrieved) cache.put(b.getId(), b);
+            return LongStream.of(ids).mapToObj(cache::get);
         }
-        return LongStream.of(ids).mapToObj(cache::get);
     }
 
     protected Stream<SegmentedObjectBox> getB(int objectClassIdx, Query<SegmentedObjectBox> query, Predicate<SegmentedObjectBox> filter) {
@@ -750,12 +751,12 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         return res;
     }
     protected Stream<SegmentedObject> get(int objectClassIdx, long[] ids) {
-        return getB(objectClassIdx, ids).parallel().map(o->o.getSegmentedObject(objectClassIdx, this));
+        return getB(objectClassIdx, ids).map(o->o.getSegmentedObject(objectClassIdx, this));
     }
 
     protected Stream<SegmentedObject> get(int objectClassIdx, Query<SegmentedObjectBox> query, Predicate<SegmentedObjectBox> filter, boolean sorted) {
         Stream<SegmentedObjectBox> retrieved = getB(objectClassIdx, query, filter);
-        Stream<SegmentedObject> resSO = retrieved.parallel().map(s -> s.getSegmentedObject(objectClassIdx, this));
+        Stream<SegmentedObject> resSO = retrieved.map(s -> s.getSegmentedObject(objectClassIdx, this));
         if (sorted) resSO = resSO.sorted();
         return resSO;
     }

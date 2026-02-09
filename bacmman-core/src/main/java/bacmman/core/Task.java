@@ -395,6 +395,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 db.unlockConfiguration();
                 db.clearCache(true, true, true);
             }
+            clearSelections();
             this.db=null;
         }
         this.ownDB = false;
@@ -414,6 +415,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             this.db.unlockConfiguration();
             this.db.clearCache(true, true, true);
         }
+        clearSelections();
         this.db = db;
         ownDB = false;
         return this;
@@ -518,6 +520,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     public Task setExtractDSWithSelection(String extractDSFile, List<Selection> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSSelections = extractDSSelections;
+        clearSelections(); // if dao cache is cleared, this will avoid inconsistencies between cached object in selection and dao
         List<String> extractDSSelectionNames = extractDSSelections.stream().map(Selection::getName).collect(Collectors.toList());
         return this.setExtractDS(extractDSFile, extractDSSelectionNames, extractDS, dimensions, resizeMode, eraseTouchingContoursOC, timelapse, spatialDownSamplingFactor, subsamplingFactor, subsamplingNumber, compression);
     }
@@ -607,6 +610,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 db.unlockConfiguration();
                 db.unlockPositions();
                 db.clearCache(true, true, true);
+                clearSelections();
                 db=null;
             };
         }
@@ -662,12 +666,6 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (db.getExperiment()==null) {
             errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
             printErrors();
-            if (ownDB) {
-                db.unlockPositions();
-                db.unlockConfiguration();
-                db.clearCache(true, true, true);
-                db=null;
-            }
             return false;
         }
         if (structures!=null) checkArray(structures, 0, db.getExperiment().getStructureCount(), "Invalid structure: ");
@@ -793,13 +791,15 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     @Override
     public void clearDB() {
-        if (db==null) return;
-        if (ownDB) {
-            db.unlockPositions();
-            db.unlockConfiguration();
-            db.clearCache(true, true, true);
-            db = null;
-        } else db.clearCache(false, false, true);
+        if (db!=null) {
+            if (ownDB) {
+                db.unlockPositions();
+                db.unlockConfiguration();
+                db.clearCache(true, true, true);
+                db = null;
+            } else db.clearCache(false, false, true);
+        }
+        clearSelections();
     }
 
     private String getDBName() {
@@ -888,10 +888,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
         Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
         List<String> positionsToProcess = positions.stream().map(posIdxNameMapper).filter(selFilter).collect(Collectors.toList());
+        boolean processing = preProcess || segmentAndTrack || trackOnly || measurements;
         db.lockPositions(positionsToProcess.toArray(new String[0]));
-
         // check that all position to be processed are effectively locked
-        if (preProcess || segmentAndTrack || trackOnly || measurements) {
+        if (processing) {
             List<String> readOnlyPos = positionsToProcess.stream().filter(p -> db.getDao(p).isReadOnly()).collect(Collectors.toList());
             logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
             if (!readOnlyPos.isEmpty()) {
@@ -914,7 +914,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", getDBName(), preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllPosition);
         if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
         publish("number of subtasks: "+countSubtasks());
-        if (preProcess || segmentAndTrack || trackOnly || measurements) {
+        if (processing) {
             try {
                 for (String position : positionsToProcess) {
                     try {
@@ -929,6 +929,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                         Core.clearDiskBackedImageManagers();
                         db.clearCache(position);
                         if (db.getSelectionDAO() != null) db.getSelectionDAO().clearCache();
+                        clearSelections();
                         Core.freeDisplayMemory();
                         System.gc();
                         publishMemoryUsage("After clearing cache");
@@ -1013,17 +1014,11 @@ public class Task implements TaskI<Task>, ProgressCallback {
             for (String position:positionsToProcess) db.clearCache(position);
             logger.debug("cache cleared...");
         }
+        clearSelections();
     }
 
     public void flush(boolean errors) {
-        if (db!=null) {
-            if (ownDB) {
-                db.unlockPositions();
-                db.unlockConfiguration();
-                db.clearCache(true, true, true);
-                db=null;
-            } else db.clearCache(false, false, true);
-        }
+        clearDB();
         if (errors) {
             this.errors.getExceptions().clear();
         }
@@ -1172,7 +1167,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 sel = new Selection(ocName, -1, db);
                 for (String p : positions) sel.addElements(db.getDao(p).getRoots());
             }
-            String file = Paths.get(dir, db.getDBName() + "_contours_" + + objectClass + ".h5").toString();
+            String file = Paths.get(dir, db.getDBName() + "_contours_" + objectClass + ".h5").toString();
             publish("masks will be exported to: " + file);
             try {
                 SegmentationExporter.exportContours(db, file, sel, objectClass, extractDSCompression);
@@ -1353,14 +1348,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     //@Override
     public void done() {
         //logger.debug("EXECUTING DONE (own db: {}) FOR : {}", ownDB, this);
-        if (db !=null) {
-            if (ownDB) {
-                db.unlockPositions();
-                db.unlockConfiguration();
-                db.clearCache(true, true, true);
-                db = null;
-            } else db.clearCache(false, false, true);
-        }
+        clearDB();
         this.publish("Task done.");
         publishErrors();
         this.printErrors();
@@ -1391,6 +1379,14 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (t.getCause()!=null && !t.getCause().equals(t)) {
             publish("caused By");
             publishError(t.getCause());
+        }
+    }
+
+    public void clearSelections() {
+        if (extractDSSelections != null ) {
+            for (Selection s : extractDSSelections) {
+                s.freeMemoryForPositions();
+            }
         }
     }
 

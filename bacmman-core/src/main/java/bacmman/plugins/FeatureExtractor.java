@@ -55,6 +55,7 @@ public interface FeatureExtractor extends Plugin {
             this.objectClass = objectClass;
             this.selectionFilterName = selectionFilter==null ? null : selectionFilter.getName();
             this.selectionFilter = selectionFilter;
+            if (selectionFilter != null) selectionFilter.freeMemoryForPositions(); // avoid inconsistency between selection cach and dao cache
         }
 
         public String getName() {

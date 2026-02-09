@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure;
 
+import bacmman.core.Core;
 import bacmman.data_structure.dao.MemoryObjectDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.MemoryMasterDAO;
