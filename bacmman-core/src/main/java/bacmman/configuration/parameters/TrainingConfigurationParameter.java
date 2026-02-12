@@ -277,7 +277,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
     public enum EXPORT_PRECISION {AUTO, FP16, FP32}
     public static EnumChoiceParameter<EXPORT_PRECISION> getExportPrecisionParameter() {
-        return new EnumChoiceParameter<>("Export Precision", EXPORT_PRECISION.values(), EXPORT_PRECISION.AUTO).setHint("If FP16, model is exported with weights converted to FP16 (with some notable exception such as Batch norm weights), and most prediction computation will be performed in float16. On capable GPUs this reduces reduces memory footprint as well as computation time (up to a factor 2). This also reduced the model size by a factor 2. Not supported on most CPUs. AUTO: will export in FP16 only is mixed precision is enabled");
+        return new EnumChoiceParameter<>("Export Precision", EXPORT_PRECISION.values(), EXPORT_PRECISION.FP32).setHint("If FP16, model is exported with weights converted to FP16 (with some notable exception such as Batch norm weights), and most prediction computation will be performed in float16. On capable GPUs this reduces reduces memory footprint as well as computation time (up to a factor 2). This also reduced the model size by a factor 2. Not supported on most CPUs. AUTO: will export in FP16 only is mixed precision is enabled");
     }
 
     public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}

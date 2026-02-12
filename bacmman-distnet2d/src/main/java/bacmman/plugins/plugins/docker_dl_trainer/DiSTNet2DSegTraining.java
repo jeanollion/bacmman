@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, DockerDLTrainer.MixedPrecision, Hint {
-    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
+    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(true);
     EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), new HardSampleMiningParameter("Hard Sample Mining", 4, new FloatParameter("Scale", 8).setHint("Scale of the segmented objects (thickness). Set the thickness (in the smallest axis) of common small objects.")), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[0];

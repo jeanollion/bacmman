@@ -153,15 +153,6 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     public I getImageType() {
         return copyType(this);
     }
-
-    public static Image createImageFrom2DPixelArray(String name, Object pixelArray, int sizeX) {
-        if (pixelArray instanceof byte[]) return new ImageByte(name, sizeX, (byte[])pixelArray);
-        else if (pixelArray instanceof short[]) return new ImageShort(name, sizeX, (short[])pixelArray);
-        else if (pixelArray instanceof float[]) return new ImageFloat(name, sizeX, (float[])pixelArray);
-        else if (pixelArray instanceof int[]) return new ImageInt(name, sizeX, (int[])pixelArray);
-        else if (pixelArray instanceof double[]) return new ImageDouble(name, sizeX, (double[])pixelArray);
-        else throw new IllegalArgumentException("Pixel Array should be of type byte, short, float or int");
-    }
     
     public abstract I getZPlane(int z);
 
@@ -217,7 +208,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         if (maxZ>1) planes = planes.stream().map(Image::splitZPlanes).flatMap(List::stream).collect(Collectors.toList());
         String title = "merged planes";
         Image<T> plane0 = planes.get(0);
-        if (plane0 instanceof ImageByte) {
+        if (plane0.getImageType() instanceof ImageByte) {
             byte[][] pixels = new byte[planes.size()][];
             for (int i = 0; i<pixels.length; ++i) pixels[i]=((byte[][])planes.get(i).getPixelArray())[0];
             return (T)new ImageByte(title, plane0.sizeX(), pixels).setCalibration(plane0).translate(plane0);
@@ -242,6 +233,63 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
             return null;
         }
     }
+
+    public static <T extends Image<T>> T newImage(Object[] primitiveArray, int sizeX, T type) {
+        Image res;
+        if (type == null || !type.floatingPoint() || type instanceof ImageFloat || type instanceof ImageDouble ) {
+            if (primitiveArray instanceof byte[][]) {
+                res = new ImageByte("", sizeX, (byte[][]) primitiveArray);
+            } else if (primitiveArray instanceof short[][]) {
+                res = new ImageShort("", sizeX, (short[][]) primitiveArray);
+            } else if (primitiveArray instanceof int[][]) {
+                res = new ImageInt("", sizeX, (int[][]) primitiveArray);
+            } else if (primitiveArray instanceof float[][]) {
+                res = new ImageFloat("", sizeX, (float[][]) primitiveArray);
+            } else if (primitiveArray instanceof double[][]) {
+                res = new ImageDouble("", sizeX, (double[][]) primitiveArray);
+            } else throw new IllegalArgumentException("unsupported primitive array type");
+        } else { // also handles lower precision floating types which primitive array differs from type
+            if (type instanceof ImageFloat16) {
+                res = new ImageFloat16("", sizeX, (short[][]) primitiveArray);
+            } else if (type instanceof ImageFloat16Scale) {
+                res = new ImageFloat16Scale("", sizeX, (short[][]) primitiveArray, ((ImageFloat16Scale) type).getScale());
+            } else if (type instanceof ImageFloat8Scale) {
+                res = new ImageFloat8Scale("", sizeX, (byte[][]) primitiveArray, ((ImageFloat8Scale) type).getScale());
+            } else if (type instanceof ImageFloatU8Scale) {
+                res = new ImageFloatU8Scale("", sizeX, (byte[][]) primitiveArray, ((ImageFloatU8Scale) type).getScale());
+            } else throw new IllegalArgumentException("unsupported type: "+type.getClass());
+        }
+        return (T)res;
+    }
+
+    public static <T extends Image<T>> T newImage(Object primitiveArray, int sizeX, T type) {
+        Image res;
+        if (type == null || !type.floatingPoint() || type instanceof ImageFloat || type instanceof ImageDouble ) { // primitive type corresponds to image type
+            if (primitiveArray instanceof byte[]) {
+                res = new ImageByte("", sizeX, (byte[]) primitiveArray);
+            } else if (primitiveArray instanceof short[]) {
+                res = new ImageShort("", sizeX, (short[]) primitiveArray);
+            } else if (primitiveArray instanceof int[]) {
+                res = new ImageInt("", sizeX, (int[]) primitiveArray);
+            } else if (primitiveArray instanceof float[]) {
+                res = new ImageFloat("", sizeX, (float[]) primitiveArray);
+            } else if (primitiveArray instanceof double[]) {
+                res = new ImageDouble("", sizeX, (double[]) primitiveArray);
+            } else throw new IllegalArgumentException("unsupported primitive array type");
+        } else { // also handles lower precision floating types which primitive array differs from type
+            if (type instanceof ImageFloat16) {
+                res = new ImageFloat16("", sizeX, (short[]) primitiveArray);
+            } else if (type instanceof ImageFloat16Scale) {
+                res = new ImageFloat16Scale("", sizeX, (short[]) primitiveArray, ((ImageFloat16Scale) type).getScale());
+            } else if (type instanceof ImageFloat8Scale) {
+                res = new ImageFloat8Scale("", sizeX, (byte[]) primitiveArray, ((ImageFloat8Scale) type).getScale());
+            } else if (type instanceof ImageFloatU8Scale) {
+                res = new ImageFloatU8Scale("", sizeX, (byte[]) primitiveArray, ((ImageFloatU8Scale) type).getScale());
+            } else throw new IllegalArgumentException("unsupported type: "+type.getClass());
+        }
+        return (T)res;
+    }
+
     /**
      * 
      * @param <T> images type

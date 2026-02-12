@@ -15,12 +15,14 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.stream.IntStream;
 
 public class Resize {
-
+    static Logger logger = LoggerFactory.getLogger(Resize.class);
     /**
      *
      * @param input
@@ -40,8 +42,8 @@ public class Resize {
         double[] scaleFactors = new double[input.dimensions().length];
         for (int i = 0; i<scaleFactors.length;++i) scaleFactors[i] = dimensions.length>i && dimensions[i]>0 ? (double)dimensions[i]/input.size(i) : 1; // dim == 0 -> no resampling
         if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
-        Img in = ImgLib2ImageWrapper.getImage(input);
-        Image res = ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, interpolation));
+        Img in = ImgLib2ImageWrapper.toImg(input);
+        Image res = ImgLib2ImageWrapper.toImage(resample(in, scaleFactors, interpolation), input);
         res.resetOffset().translate(input);
         return (T)res;
     }
@@ -94,9 +96,9 @@ public class Resize {
     public enum EXPAND_POSITION {BEFORE, CENTER, AFTER}
 
     public static <T extends Image<T>> T pad(T input, EXPAND_MODE mode, EXPAND_POSITION position, int... dimensions) {
-        if (dimensions==null || dimensions.length==0) return input;
-        Img in = ImgLib2ImageWrapper.getImage(input);
-        return (T)ImgLib2ImageWrapper.wrap(pad(in, mode, position, dimensions));
+        if (dimensions==null || dimensions.length==0 || IntStream.range(0, dimensions.length).allMatch(ax -> dimensions[ax] == input.size(ax))) return input;
+        Img in = ImgLib2ImageWrapper.toImg(input);
+        return ImgLib2ImageWrapper.toImage(pad(in, mode, position, dimensions), input);
     }
 
     public static <T extends RealType<T>> RandomAccessibleInterval<T> pad(RandomAccessibleInterval<T> input, EXPAND_MODE mode, EXPAND_POSITION position, int... newDimensions) {
@@ -148,8 +150,8 @@ public class Resize {
     }
 
     public static <T extends Image<T>> T pad(T input, EXPAND_MODE mode, BoundingBox newBounds) {
-        Img in = ImgLib2ImageWrapper.getImage(input);
-        T res =  (T)ImgLib2ImageWrapper.wrap(pad(in, mode, newBounds));
+        Img in = ImgLib2ImageWrapper.toImg(input);
+        T res =  ImgLib2ImageWrapper.toImage(pad(in, mode, newBounds), input);
         res.setCalibration(input.getScaleXY(), input.getScaleZ());
         return res;
     }
@@ -183,7 +185,7 @@ public class Resize {
     }
 
     public static <T extends RealType<T>> Image[] crop(Image input, long[][] coords, long[][] sizes, EXPAND_MODE mode) {
-        RandomAccessibleInterval<T> in = ImgLib2ImageWrapper.getImage(input);
+        RandomAccessibleInterval<T> in = ImgLib2ImageWrapper.toImg(input);
         RandomAccessible<T> inView;
         if (mode==null) mode = EXPAND_MODE.BORDER;
         switch (mode) {
@@ -200,7 +202,7 @@ public class Resize {
         }
         Image[] res = IntStream.range(0, coords.length)
                 .mapToObj(i -> FinalInterval.createMinSize(coords[i], sizes.length>1 ? sizes[i] : sizes[0]))
-                .map(interval -> Views.interval( inView, interval )).map(ImgLib2ImageWrapper::wrap)
+                .map(interval -> Views.interval( inView, interval )).map(i -> ImgLib2ImageWrapper.toImage(i, input))
                 .toArray(Image[]::new);
         for (int i = 0; i<res.length; ++i) { // absolute offset
             res[i].setCalibration(input);

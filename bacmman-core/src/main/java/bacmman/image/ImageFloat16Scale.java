@@ -64,9 +64,9 @@ public class ImageFloat16Scale extends ImageFloatingPoint<ImageFloat16Scale> imp
         double min = minAndMax[0];
         double max = minAndMax.length>1 ? minAndMax[1] : min;
         if (Math.abs(max)>=Math.abs(min)) {
-            return Short.MAX_VALUE / max;
+            return (double)Short.MAX_VALUE / Math.abs(max) * 0.999; // small reduction to prevent overflow
         } else { // min<0
-            return Short.MIN_VALUE / min;
+            return (double)Short.MIN_VALUE / min * 0.999; // small reduction to prevent overflow
         }
     }
     @Override

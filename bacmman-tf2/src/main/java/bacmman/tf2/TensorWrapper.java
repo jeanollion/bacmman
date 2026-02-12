@@ -69,7 +69,7 @@ public class TensorWrapper {
                 : new DataTransferFloat32Simple(zSize, ySize, xSize, cSize, false);
         for (int n = fromIncl; n<toExcl; ++n) idx = trans.toBuffer(buffer, imageNC[n], idx);
         long[] newShape;
-        if (xSize == 1 && ySize == 1 && !hasZ) { // special case: squeeze X and Y
+        if (false && xSize == 1 && ySize == 1 && !hasZ) { // special case: squeeze X and Y
             newShape = new long[2];
             newShape[0] = nSize;
             newShape[1] = cSize;

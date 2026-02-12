@@ -1,6 +1,5 @@
 package bacmman.core;
 
-import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
@@ -17,7 +16,7 @@ public class SegmentationExporter {
     private static final Logger logger = LoggerFactory.getLogger(SegmentationExporter.class);
 
     public static void exportMasks(MasterDAO mDAO, String outputFile, Selection sel, int objectClass, int compression) {
-        int parentOC = mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(objectClass);
+        int parentOC = -1; // mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(objectClass); will not work if parent track has bounds that differ from one frame to another
         String ocName = mDAO.getExperiment().getStructure(objectClass).getName();
         Selection selFilter = null;
         if (sel.getObjectClassIdx() >=0 && sel.getObjectClassIdx() != parentOC) {
@@ -26,12 +25,14 @@ public class SegmentationExporter {
         }
         if (sel.getObjectClassIdx() != parentOC) { // generate parent OC
             Selection pSel = new Selection(ocName, mDAO);
-            pSel.addElements(sel.getAllElementsAsStream().flatMap(o -> o.getChildren(parentOC)).distinct().sorted().collect(Collectors.toList()));
+            for (String p : sel.getAllPositions()) {
+                pSel.addElements(sel.getElements(p).stream().flatMap(o -> o.getChildren(objectClass)).distinct().sorted().collect(Collectors.toList()));
+            }
             sel = pSel;
         }
         Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));;
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
-        features.add(new FeatureExtractor.Feature("Masks",  new Labels(), objectClass, selFilter ));
+        features.add(new FeatureExtractor.Feature("masks",  new Labels(), objectClass, selFilter ));
         resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, new int[0], true, 1, 1, 1, compression);
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());

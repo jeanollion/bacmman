@@ -60,26 +60,15 @@ import java.util.stream.IntStream;
  */
 public class ImgLib2ImageWrapper {
     static final Logger logger = LoggerFactory.getLogger(ImgLib2ImageWrapper.class);
-    public static Image wrap(RandomAccessibleInterval img) {
+    public static <T extends Image<T>>  T toImage(RandomAccessibleInterval img, T originalType) {
         //ImagePlus ip = ImageJFunctions.wrap(img, "");
         //return IJImageWrapper.wrap(ip);
         Object[] primitiveArray = getPrimitiveArray(img);
         int sizeX = ( int ) img.dimension( 0 );
         //logger.debug("wrap: primitive array: z={} type: {}", primitiveArray.length, primitiveArray[0].getClass());
-        Image res;
-        if (primitiveArray instanceof byte[][]) {
-            res = new ImageByte("", sizeX, (byte[][])primitiveArray);
-        } else if (primitiveArray instanceof short[][]) {
-            res = new ImageShort("", sizeX, (short[][])primitiveArray);
-        } else if (primitiveArray instanceof int[][]) {
-            res = new ImageInt("", sizeX, (int[][])primitiveArray);
-        } else if (primitiveArray instanceof float[][]) {
-            res = new ImageFloat("", sizeX, (float[][])primitiveArray);
-        } else if (primitiveArray instanceof double[][]) {
-            res = new ImageDouble("", sizeX, (double[][])primitiveArray);
-        } else throw new IllegalArgumentException("unsupported type");
+        Image res = Image.newImage(primitiveArray, sizeX, originalType);
         res.setCalibration(getImageProperties(img));
-        return res;
+        return (T)res;
     }
 
     public static SimpleImageProperties getImageProperties(RandomAccessibleInterval img) {
@@ -160,7 +149,7 @@ public class ImgLib2ImageWrapper {
         return img;
     }
     
-    public static <T extends RealType<T>> Img<T> getImage(Image image) {
+    public static <T extends RealType<T>> Img<T> toImg(Image image) {
         if (image.dimensions().length<=2) {
             if (image.getImageType() instanceof PrimitiveType.ByteType) {
                 ArrayImg<UnsignedByteType, ByteArray> res = new ArrayImg<>(new ByteArray((byte[])image.getPixelArray()[0]), ArrayUtil.toLong(image.dimensions()), new Fraction());

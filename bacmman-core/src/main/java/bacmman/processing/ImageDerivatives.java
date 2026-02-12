@@ -53,14 +53,14 @@ public class ImageDerivatives {
                 return gaussianSmooth(image, scale[0], parallel);
             }
         }
-        Img input = ImgLib2ImageWrapper.getImage(image);
+        Img input = ImgLib2ImageWrapper.toImg(image);
         RandomAccessible<S> inputRA = Views.extendBorder(input);
         T type = getOptimalType(image);
         Img<T> smooth = ImgLib2ImageWrapper.createImage(type, image.dimensions());
         Runnable r = () -> Gauss3.gauss(scale, inputRA, smooth);
         if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
         else r.run();
-        Image res = ImgLib2ImageWrapper.wrap(smooth);
+        Image res = ImgLib2ImageWrapper.toImage(smooth, null);
         res.resetOffset().translate(image).setCalibration(image);
         return res;
     }
@@ -97,7 +97,7 @@ public class ImageDerivatives {
     }
 
     public static List<ImageFloat> getGradient(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
-        Img input = ImgLib2ImageWrapper.getImage(image);
+        Img input = ImgLib2ImageWrapper.toImg(image);
         if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
         for (int ax : axis) if (ax >= input.numDimensions()) throw new IllegalArgumentException("Invalid axis provided: "+ax+" Image has "+input.numDimensions() + " dimensions");
         if ((scaled || scale.length>0) && scale.length != input.numDimensions()) throw new IllegalArgumentException("Image has "+input.numDimensions() + " dimensions and "+scale.length+" scales are provided");
@@ -114,7 +114,7 @@ public class ImageDerivatives {
         IntFunction<ImageFloat> compute = d -> {
             Img<FloatType> der = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
             PartialDerivative.gradientCentralDifference(inputD, der, d);
-            return (ImageFloat) ImgLib2ImageWrapper.wrap(der);
+            return (ImageFloat) ImgLib2ImageWrapper.toImage(der, null);
         };
         List<ImageFloat> res = Utils.parallel(IntStream.of(axis), parallel).mapToObj(compute).collect(Collectors.toList());
         if (scaled) {
@@ -130,7 +130,7 @@ public class ImageDerivatives {
     }
 
     public static ImageFloat getLaplacian(Image image, double[] scale, boolean performSmooth, boolean scaled, boolean invert, boolean parallel) {
-        Img input = ImgLib2ImageWrapper.getImage(image);
+        Img input = ImgLib2ImageWrapper.toImg(image);
         int nDim = input.numDimensions();
         RandomAccessible inputRA = Views.extendBorder(input);
         if (scale.length>0 && performSmooth) {
@@ -150,7 +150,7 @@ public class ImageDerivatives {
         RandomAccessible gradRA = Views.extendBorder( grad );
         IntConsumer der2 = dim -> PartialDerivative.gradientCentralDifference(Views.hyperSlice(gradRA, nDim, dim), Views.hyperSlice(grad2, nDim, dim), dim);
         Utils.parallel(IntStream.range(0, nDim), parallel).forEach(der2);
-        ImageFloat[] res = Utils.parallel(IntStream.range(0, nDim), parallel).mapToObj(d -> (ImageFloat)ImgLib2ImageWrapper.wrap(Views.hyperSlice( grad2, nDim, d ))).toArray(ImageFloat[]::new);
+        ImageFloat[] res = Utils.parallel(IntStream.range(0, nDim), parallel).mapToObj(d -> (ImageFloat)ImgLib2ImageWrapper.toImage(Views.hyperSlice( grad2, nDim, d ), null)).toArray(ImageFloat[]::new);
         BoundingBox.LoopFunction fun;
         double[] scale2 = scaled? DoubleStream.of(scale).map(d -> d*d).toArray() : null;
         double mul = invert ? -1 : 1;
@@ -180,7 +180,7 @@ public class ImageDerivatives {
     }
 
     public static ImageFloat[][] getHessian(Image image, double[] scale, boolean performSmooth, boolean scaled, boolean parallel) {
-        Img input = ImgLib2ImageWrapper.getImage(image);
+        Img input = ImgLib2ImageWrapper.toImg(image);
         int nDim = input.numDimensions();
         RandomAccessible inputRA = Views.extendBorder(input);
         if (scale.length>0 && performSmooth) {
@@ -202,7 +202,7 @@ public class ImageDerivatives {
             final MixedTransformView< FloatType > hs1 = Views.hyperSlice( gradRA, nDim, d1 );
             final IntervalView< FloatType > hs2 = Views.hyperSlice( hess, nDim, count );
             PartialDerivative.gradientCentralDifference( hs1, hs2, d2 );
-            res[d1][d2] = (ImageFloat)ImgLib2ImageWrapper.wrap(hs2);
+            res[d1][d2] = (ImageFloat)ImgLib2ImageWrapper.toImage(hs2, null);
             if (!d2.equals(d1)) res[d2][d1] = res[d1][d2];
         };
         List<int[]> tasks = new ArrayList<>();

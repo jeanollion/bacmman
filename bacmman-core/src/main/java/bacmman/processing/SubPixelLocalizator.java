@@ -64,7 +64,7 @@ public class SubPixelLocalizator {
         return peaks;
     }
     public static ArrayList< RefinedPeak< Point >> getSubLocPeaks(Image img, List<Point> peaks) {
-        Img source = ImgLib2ImageWrapper.getImage(img);
+        Img source = ImgLib2ImageWrapper.toImg(img);
         final SubpixelLocalization< Point, ? extends RealType > spl = new SubpixelLocalization<>( source.numDimensions() );
         //logger.debug("source sizeZ: {}, numDim: {}", img.getSizeZ(), source.numDimensions());
         spl.setNumThreads( 1 );

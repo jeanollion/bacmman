@@ -507,13 +507,13 @@ public class HDF5IO {
             for (int z = 0; z < nZ; ++z) {
                 blockIdx[1] = z;
                 Object slice = readSlice(reader, dsName, blockDims, blockIdx, type);
-                planes[z] = Image.createImageFrom2DPixelArray("", slice, nCols);
+                planes[z] = Image.newImage( slice, nCols, null);
             }
             return Image.mergeZPlanes(planes).setName(labels!=null ? labels[i] : "");
         } : i -> {
             blockIdx[0] = i;
             Object slice = readSlice(reader, dsName, blockDims, blockIdx, type);
-            return Image.createImageFrom2DPixelArray(labels!=null ? labels[i] : "", slice, nCols);
+            return Image.newImage(slice, nCols, null).setName(labels!=null ? labels[i] : "");
         };
         for (int i = 0; i<iIdx.length; ++i) {
             if (iIdx[i]>=0) res[i] = retrieveImage.apply(iIdx[i]);

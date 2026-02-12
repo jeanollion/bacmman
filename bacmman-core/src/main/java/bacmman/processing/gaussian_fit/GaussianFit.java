@@ -65,7 +65,7 @@ public class GaussianFit {
         boolean is3D = image.sizeZ()>1;
         if (config.fitEllipse) assert !is3D : "Fit Ellipse is only available on 2D images";
 
-        Img img = ImgLib2ImageWrapper.getImage(image);
+        Img img = ImgLib2ImageWrapper.toImg(image);
         // cluster are fit together
         List<Set<Point>> clusters = getClusters(peaks, config.coFitDistance);
 

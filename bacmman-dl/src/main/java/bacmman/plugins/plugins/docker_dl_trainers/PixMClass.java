@@ -20,7 +20,7 @@ import java.util.function.IntSupplier;
 import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
 
 public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision {
-    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
+    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(true);
     EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters"), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};

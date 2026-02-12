@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
 
 public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.ComputeMetrics, DockerDLTrainer.TestPredict, DockerDLTrainer.MixedPrecision, Hint {
-    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(false);
+    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(true);
     EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getMinLearningRateParameter(1e-6), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new HardSampleMiningParameter("Hard Sample Mining", 6, new FloatParameter("Scale", 8).setHint("Scale of the segmented objects (thickness). Set the thickness (in the smallest axis) of common small objects.")), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[0];
@@ -512,7 +512,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             if (categoryNumber.getIntValue() > 1) res.put("category_number", categoryNumber.getIntValue());
             if (getCurrentParameters().contains(nGaps)) res.put("inference_gap_number", nGaps.toJSONEntry());
 
-            // common to BLEND & TEMA
+            // common to all arch
             res.put("filters", filters.getIntValue());
             res.put("n_downsampling", downsamplingNumber.getIntValue());
             res.put("skip_connections", skip.toJSONEntry());
@@ -522,7 +522,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             switch (atchType) { // specific
                 case TemPy: {
                     res.put("frame_max_distance", maxFrameDistance.toJSONEntry());
-                    res.put("attention", windowAttention.toJSONEntry());
+                    res.put("window_attention", windowAttention.toJSONEntry());
                     res.put("attention_spatial_radius", attentionWindow.toJSONEntry());
                     break;
                 }

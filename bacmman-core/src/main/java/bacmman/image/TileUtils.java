@@ -205,7 +205,7 @@ public class TileUtils {
         }
     }
     public static long[] getTileCoordAxis(long size, int tileSize, int minOverlap, boolean padding) {
-        if (tileSize==size && minOverlap==0) return new long[1];
+        if (tileSize==size && (minOverlap==0||!padding)) return new long[1];
         else if (tileSize>size) {
             if (!padding) throw new IllegalArgumentException("Tile size must be inferior or equal to size or padding enabled");
             int border = Math.max(minOverlap, tileSize - (int)size);

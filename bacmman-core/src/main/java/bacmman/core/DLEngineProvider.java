@@ -36,7 +36,7 @@ public class DLEngineProvider {
         DLEngine engine = engines.stream().filter(e -> sameClassAndParameters(e, defaultEngine)).findFirst().orElse(null);
         if (engine==null) {
             logger.debug("Engine of class: {}, and parameters: {} not found among opened engines:", defaultEngine.getClass(), defaultEngine.getParameters());
-            engines.forEach(e->logger.debug("Opened Engine: {}-> parameters:{}", e.getClass(), IntStream.range(0, defaultEngine.getParameters().length).mapToObj(i->e.getParameters()[i].toStringFull()+(e.getParameters()[i].sameContent(defaultEngine.getParameters()[i]) ? "==" : "!=")+defaultEngine.getParameters()[i].toStringFull()).toArray()));
+            engines.forEach(e->logger.debug("Opened Engine: {}-> parameters:{}", e.getClass(), IntStream.range(0, Math.max(e.getParameters().length, defaultEngine.getParameters().length)).mapToObj(i->(i<e.getParameters().length ? e.getParameters()[i].toStringFull() : "null") +(i<e.getParameters().length && i<defaultEngine.getParameters().length && e.getParameters()[i].sameContent(defaultEngine.getParameters()[i]) ? "==" : "!=")+ (i<defaultEngine.getParameters().length ? defaultEngine.getParameters()[i].toStringFull(): "null" )).toArray()));
             Set<Integer> currentGPUSet = Arrays.stream(defaultEngine.getGPUs()).filter(gpu -> gpu >=0 ).boxed().collect(Collectors.toSet());
             if (!currentGPUSet.isEmpty()) {
                 Iterator<DLEngine> it = engines.iterator();

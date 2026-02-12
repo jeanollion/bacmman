@@ -135,6 +135,11 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     @Override
     public synchronized Image[][][] process(Image[][]... inputNC) {
         if (containerID == null) throw new RuntimeException("Engine not initialized (no container)");
+        if (!dockerGateway.isContainerRunning(containerID)) { // restart container
+            containerID = null;
+            init();
+        }
+
         if (inputNames == null || outputNames == null) throw new RuntimeException("Engine not initialized (model not loaded properly)");
         if (inputNC.length != inputNames.length) {
             throw new RuntimeException("Provided input number is: " + inputNC.length + " while model expects : " + inputNames.length + " inputs");

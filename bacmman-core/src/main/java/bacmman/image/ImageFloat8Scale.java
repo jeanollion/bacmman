@@ -61,9 +61,9 @@ public class ImageFloat8Scale extends ImageFloatingPoint<ImageFloat8Scale> imple
         double min = minAndMax[0];
         double max = minAndMax.length>1 ? minAndMax[1] : min;
         if (Math.abs(max)>=Math.abs(min)) {
-            return Byte.MAX_VALUE / max;
+            return (double)Byte.MAX_VALUE / Math.abs(max) * 0.99; // small reduction to prevent overflow
         } else { // min<0
-            return Byte.MIN_VALUE / min;
+            return (double)Byte.MIN_VALUE / min * 0.99; // small reduction to prevent overflow
         }
     }
     @Override

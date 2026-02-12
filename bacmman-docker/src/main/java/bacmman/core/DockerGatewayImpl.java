@@ -225,6 +225,16 @@ public class DockerGatewayImpl implements DockerGateway {
     }
 
     @Override
+    public boolean isContainerRunning(String containerId) {
+        try {
+            InspectContainerResponse response = dockerClient.inspectContainerCmd(containerId).exec();
+            return response.getState() != null && Boolean.TRUE.equals(response.getState().getRunning());
+        } catch (NotFoundException e) {
+            return false;
+        }
+    }
+
+    @Override
     public void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException {
         ExecCreateCmd cmd = dockerClient.execCreateCmd(containerId)
             .withCmd(cmds)

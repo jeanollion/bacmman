@@ -362,8 +362,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         if (outputFile.exists()) outputFile.delete();
                         String[] cmds = new String[]{"python", "train.py", "/data", "--compute_metrics", "--min_script_version", trainer.minimalScriptVersion()};
-                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
-                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
                         }
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
@@ -492,6 +493,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         if (outputFile.exists()) outputFile.delete();
                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_data_augmentation", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
                             logger.debug("stopping container: {}", currentContainer);
@@ -557,8 +562,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                                     try {
                                         if (outputFile.exists()) outputFile.delete();
                                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_predict", "--min_script_version", trainer.minimalScriptVersion()};
-                                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
-                                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
                                         }
                                         dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         if (needUpdate) {
@@ -626,8 +632,9 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         String[] cmds = new String[]{"python", "train.py", "/data", "--export_only", "--min_script_version", trainer.minimalScriptVersion()};
-                        if (trainer instanceof DockerDLTrainer.MixedPrecision && ((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) {
-                            cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
                         }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
@@ -1275,7 +1282,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    String[] ignoreError = new String[]{"Type inference failed", "Skipping the delay kernel, measurement accuracy will be reduced", "Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
+    String[] ignoreError = new String[]{"WARNING:tensorflow:Skipping full serialization of TF-Keras","WARNING:tensorflow:Skipping full serialization of Keras layer", "Type inference failed", "Skipping the delay kernel, measurement accuracy will be reduced", "Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
     String[] isInfo = new String[]{"Created device"};
 
     protected void printError(String message) {

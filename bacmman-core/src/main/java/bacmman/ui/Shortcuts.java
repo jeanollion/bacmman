@@ -292,7 +292,7 @@ public class Shortcuts {
                     displayedFrame.setVisible(false);
                 }
             });
-            addWindowFocusListener(new WindowFocusListener() { // current dirty workaround : images are not shown when this dialog is shown
+            addWindowFocusListener(new WindowFocusListener() { // TODO bug : images display is buggy when shortcut table is displayed. current workaround hide shortcut table on focus lost
                 @Override
                 public void windowGainedFocus(WindowEvent windowEvent) {
 
@@ -301,7 +301,7 @@ public class Shortcuts {
                 @Override
                 public void windowLostFocus(WindowEvent windowEvent) {
                     if (displayedFrame!=null && displayedFrame.isVisible()) {
-                        //displayedFrame.setVisible(false);
+                        displayedFrame.setVisible(false);
                     }
                 }
             });

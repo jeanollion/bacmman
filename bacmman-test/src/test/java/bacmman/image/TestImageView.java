@@ -17,14 +17,14 @@ public class TestImageView {
         SimpleBoundingBox bds = new SimpleBoundingBox(2, 3, 3, 4, 0, 5);
         Image dup = im.crop(bds);
         ImageView view = new ImageView(im, bds);
-        compareImages(dup, view);
+        compareImages(dup, view, 1e-7);
     }
-    public static void compareImages(Image expected, Image actual) {
+    public static void compareImages(Image expected, Image actual, double delta) {
         BoundingBox.loop(expected, (x, y, z) -> {
-            assertEquals("getPixelWithOffset differ at "+x+";"+y+"z", expected.getPixelWithOffset(x, y, z), actual.getPixelWithOffset(x, y, z), 1e-6);
+            assertEquals("getPixelWithOffset differ at "+x+";"+y+"z", expected.getPixelWithOffset(x, y, z), actual.getPixelWithOffset(x, y, z), delta);
         });
         BoundingBox.loop(new SimpleBoundingBox(expected).resetOffset(), (x, y, z) -> {
-            assertEquals("getPixelWithOffset differ at "+x+";"+y+"z", expected.getPixel(x, y, z), actual.getPixel(x, y, z), 1e-6);
+            assertEquals("getPixelWithOffset differ at "+x+";"+y+"z", expected.getPixel(x, y, z), actual.getPixel(x, y, z), delta);
         });
     }
 }
