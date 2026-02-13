@@ -66,7 +66,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                 .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
         FloatParameter catWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between category classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
-        FloatParameter catFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(1).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
+        FloatParameter catFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(3).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
         GroupParameter catLossParameters = new GroupParameter("Category Loss Parameters", catWeightPowerLaw, catFocalWeight);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
@@ -148,7 +148,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
 
         FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 0.5).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between link multiplicity classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
-        FloatParameter lmFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(1).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
+        FloatParameter lmFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(3).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
         GroupParameter lmLossParameters = new GroupParameter("LM Loss Parameters", lmWeightPowerLaw, lmFocalWeight);
 
 

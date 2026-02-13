@@ -174,7 +174,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
 
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
     private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
-    private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
+    private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 1, 0.1, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
             "  1 means to allocate all of the GPU memory, 0.5 means the process\n" +
             "  allocates up to ~50% of the available GPU memory.\n" +
             "  GPU memory is pre-allocated unless the allow_growth option is enabled.\n" +

@@ -53,6 +53,9 @@ import static bacmman.processing.track_post_processing.Track.getTrack;
 public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2D.class);
     // prediction
+    public enum FRAME_AWARE_MODE {NORMAL, SUCCESSIVE, ZERO}
+    EnumChoiceParameter<DiSTNet2D.FRAME_AWARE_MODE> faMode= new EnumChoiceParameter<>("Frame Aware Mode", DiSTNet2D.FRAME_AWARE_MODE.values(), DiSTNet2D.FRAME_AWARE_MODE.NORMAL);
+
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
@@ -155,7 +158,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     // misc
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
-    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling, predictCategory).setEmphasized(true).setHint("Parameters related to prediction by the neural network");
+    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, predictionFrameSegment, inputWindow, next, frameSubsampling, predictCategory, faMode).setEmphasized(true).setHint("Parameters related to prediction by the neural network");
     GroupParameter segmentation = new GroupParameter("Segmentation", edmThreshold, minMaxEDM, objectThickness, minObjectSize, centerParameters, mergeCriterion, useGDCMGradientCriterionCond, manualCurationMargin).setEmphasized(true).setHint("Segmentation parameters");
     GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, nGaps, contactCriterionCond, trackPostProcessingList, trackPPRange, growthRateRange).setEmphasized(true).setHint("Link assignment parameters. Post-processing section allows to correct inconsistencies that can arise between displacement/link multiplicity/segmentation. The method SOLVE_SPLIT_MERGE only works if there are few errors, and can take a very long time otherwise. To reduce it's processing time, set the post-processing range to PER_SEGMENT");
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
@@ -1801,7 +1804,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 .toArray(Image[][]::new);
     }
 
-    public static Image[][][] getInputs(InputImages inputImages, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval, int gapClosing, boolean frameIndex) {
+    public static Image[][][] getInputs(InputImages inputImages, int[] allFrames, int[] frames, int inputWindow, boolean addNext, int frameInterval, int gapClosing, boolean frameIndex, FRAME_AWARE_MODE faMode) {
         Image[][][] res = new Image[inputImages.nInputs()+(frameIndex ? 1 : 0)][][];
         for (int i = 0; i<inputImages.nInputs(); ++i) {
             res[i] = getInput(i,  inputImages, allFrames, frames, inputWindow, addNext, frameInterval, gapClosing);
@@ -1817,7 +1820,23 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
         if (frameIndex) {
-            res[inputImages.nInputs()] = IntStream.of(frames).mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval, gapClosing))
+            IntFunction<List<Integer>> neighFun;
+            switch (faMode) {
+                case NORMAL:
+                default:
+                    neighFun = f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval, gapClosing);
+                    break;
+                case SUCCESSIVE:
+                    neighFun = f -> IntStream.range(0, inputWindow * (addNext?2:1) + 1 ).boxed().collect(Collectors.toList());
+                    break;
+                case ZERO:
+                    neighFun = f -> IntStream.range(0, inputWindow * (addNext?2:1) + 1 ).mapToObj(i -> 0).collect(Collectors.toList());
+                    break;
+            }
+            res[inputImages.nInputs()] = IntStream.of(frames)
+                    .mapToObj(neighFun)
+                    .peek(n -> logger.debug("fa mode: {} -> {}", faMode, n))
+                    //.mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval, gapClosing))
                     .map(l -> l.stream().map( f -> new ImageFloat("", 1, new float[]{f})).toArray(Image[]::new)).toArray(Image[][]::new);
         }
         return res;
@@ -2184,7 +2203,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = 0; i < framesToPredict.length; i += increment ) {
                 int idxMax = Math.min(i + increment, framesToPredict.length);
-                Image[][][] input = getInputs(inputImages, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval, nGaps, frameAware);
+                Image[][][] input = getInputs(inputImages, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval, nGaps, frameAware, faMode.getSelectedEnum());
                 logger.debug("input: [{}; {}] / [{}; {}]", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
                 Image[][][] predictions = getDlResizeAndScale(frameAware).predict(engine, input); // output 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
                 appendPrediction(predictions, i);

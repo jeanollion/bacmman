@@ -62,8 +62,8 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     BoundedNumberParameter minObjectSizeGDCMGradient = new BoundedNumberParameter("Min Object Size", 1, 100, 0, null).setEmphasized(false).setHint("GDCM gradient constraint do not apply to objects below this size (in pixels)");
     ConditionalParameter<Boolean> useGDCMGradientCriterionCond = new ConditionalParameter<>(useGDCMGradientCriterion).setActionParameters(true, minObjectSizeGDCMGradient);
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
-
-    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, inputWindow, next, frameSubsampling, predictCategory);
+    EnumChoiceParameter<DiSTNet2D.FRAME_AWARE_MODE> faMode= new EnumChoiceParameter<>("Frame Aware Mode", DiSTNet2D.FRAME_AWARE_MODE.values(), DiSTNet2D.FRAME_AWARE_MODE.NORMAL);
+    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, additionalInputChannels, additionalInputLabels, dlResizeAndScale, batchSize, inputWindow, next, frameSubsampling, predictCategory, faMode);
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 50, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
 
     @Override
@@ -294,7 +294,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             }
             //logger.debug("input: [{}; {}) / [{}; {}] (effective max frame: [{}; {}] idx=[{}; {}])", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], effectiveMinFrame, effectiveMaxFrameIncl, effectiveMinIdx, effectiveMaxIdxIncl);
             boolean frameAware  = engine.getInputNames().length == inputImages.nInputs() + 1;
-            Image[][][] input = DiSTNet2D.getInputs(inputImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware);
+            Image[][][] input = DiSTNet2D.getInputs(inputImages, sortedFrames, Arrays.copyOfRange(sortedFrames, i, maxIdx), inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0, frameAware, faMode.getSelectedEnum());
             long t2 = System.currentTimeMillis();
             Image[][][] predictionONC = getDlResizeAndScale(frameAware).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
             long t3 = System.currentTimeMillis();
