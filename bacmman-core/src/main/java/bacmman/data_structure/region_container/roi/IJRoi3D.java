@@ -194,7 +194,7 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
         if (is2D) {
             for (int z = zMin; z<=zMaxIncl; ++z) res.put(z, (Roi)get(0).clone());
         } else {
-            for (int z = zMin; z<=zMaxIncl; ++z) res.put(z, (Roi)get(z).clone());
+            for (int z = zMin; z<=zMaxIncl; ++z) if (get(z)!=null) res.put(z, (Roi)get(z).clone());
         }
         return res;
     }

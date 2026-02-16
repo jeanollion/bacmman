@@ -65,6 +65,7 @@ public class Shortcuts {
         DELETE_AFTER_FRAME("Delete all object(s) after first selected object"),
         PRUNE("Prune track starting from selected object(s)"),
         MERGE("Merge selected objects / track(s)"),
+        MERGE_Z("Merge selected objects along Z: select lower and upper slice: this will connect them by merging intermediate most overlapping objects"),
         SPLIT("Split selected object(s) / track(s)"),
         SPLIT_UP("Split selected 3D object(s) / track(s) at current slice, current slice is included in lower object"),
         SPLIT_DOWN("Split selected 3D object(s) / track(s) at current slice, current slice is included in upper object"),
@@ -162,7 +163,6 @@ public class Shortcuts {
         switch(preset) {
             case AZERTY:
             default:
-                //keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), TEST);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), TO_FRONT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, 0), TOGGLE_SAFE_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.CTRL_DOWN_MASK), ACTION.LINK);
@@ -175,6 +175,7 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.ALT_DOWN_MASK), ACTION.DELETE_AFTER_FRAME);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, KeyEvent.CTRL_DOWN_MASK), ACTION.PRUNE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, KeyEvent.CTRL_DOWN_MASK), ACTION.MERGE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, KeyEvent.CTRL_DOWN_MASK+KeyEvent.SHIFT_DOWN_MASK), ACTION.MERGE_Z);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK), ACTION.SPLIT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.SHIFT_DOWN_MASK), ACTION.SPLIT_UP);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.ALT_DOWN_MASK), ACTION.SPLIT_DOWN);
@@ -222,6 +223,7 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.ALT_DOWN_MASK), ACTION.DELETE_AFTER_FRAME);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, KeyEvent.CTRL_DOWN_MASK), ACTION.PRUNE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, KeyEvent.CTRL_DOWN_MASK), ACTION.MERGE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, KeyEvent.CTRL_DOWN_MASK+KeyEvent.SHIFT_DOWN_MASK), ACTION.MERGE_Z);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK), ACTION.SPLIT);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.SHIFT_DOWN_MASK), ACTION.SPLIT_UP);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.ALT_DOWN_MASK), ACTION.SPLIT_DOWN);
@@ -367,7 +369,7 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Manual Curation: all action are performed on active image</b>", TOGGLE_SAFE_MODE,
             "<b>Object Edition:</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MANUAL_SPLIT_SLICE, MERGE, SPLIT, SPLIT_UP, SPLIT_DOWN, SPLIT_UP_DOWN, POST_FILTER, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MANUAL_SPLIT_SLICE, MERGE, MERGE_Z, SPLIT, SPLIT_UP, SPLIT_DOWN, SPLIT_UP_DOWN, POST_FILTER, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
             "<b>Lineage Edition:</b>",
             RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK
         };

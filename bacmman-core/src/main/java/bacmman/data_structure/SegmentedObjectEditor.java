@@ -2,7 +2,9 @@ package bacmman.data_structure;
 
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
+import bacmman.image.BoundingBox;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -325,6 +327,71 @@ public class SegmentedObjectEditor {
             allNewObjects.addAll(newObjects);
         }
         return allNewObjects;
+    }
+
+    // input objects are lower L and upper U slices, for each slice look for most overlapping slice in Z, if there is a path from U to L then merge. exactly one L and one U must be provided per parent
+    public static List<SegmentedObject> mergeObjectsZ(MasterDAO db, Collection<SegmentedObject> objects, SegmentedObjectFactory factory, TrackLinkEditor editor, boolean relabel) {
+        if (objects.isEmpty()) return Collections.EMPTY_LIST;
+        int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
+        Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
+        List<SegmentedObject> allObjectsToMerge = new ArrayList<>();
+        for (Map.Entry<String, List<SegmentedObject>> e : objectsByPosition.entrySet()) {
+            Map<SegmentedObject, List<SegmentedObject>> objectsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParent(e.getValue()));
+            for (List<SegmentedObject> toMerge : objectsByParent.values()) {
+                if (toMerge.size() != 2) {
+                    Utils.displayTemporaryMessage("Select only 2 objects per frame / parent", 5000);
+                    logger.debug("{} object in parent: {} were found instead of 2", toMerge.size(), toMerge.get(0).getParent());
+                    continue;
+                }
+                if (toMerge.get(0).is2D()) {
+                    Utils.displayTemporaryMessage("Merge in Z cannot be applied to 2D objects", 5000);
+                    logger.debug("merge in Z cannot be applied to 2D objects");
+                    continue;
+                }
+                toMerge.sort(Comparator.comparingDouble(o -> o.getRegion().getCenterOrGeomCenter().get(2)));
+                SegmentedObject lower = toMerge.get(0);
+                SegmentedObject upper = toMerge.get(1);
+                int zL = lower.getBounds().zMax();
+                int zU = upper.getBounds().zMin();
+                if (zL >= zU) {
+                    Utils.displayTemporaryMessage("Select only 2 objects that are separated in Z", 5000);
+                    logger.debug("zL={} zU={} -> no space between L={} U={}", zL, zU, lower, upper);
+                    continue;
+                }
+                List<SegmentedObject> allCandidates = lower.getParent().getChildren(structureIdx).collect(Collectors.toList());
+                int nextZ = zL + 1;
+                SegmentedObject currentL = lower;
+                while(nextZ<=zU) {
+                    Region currentLZ = currentL.getRegion().intersectWithZPlane(nextZ-1, true, false);
+                    if (currentLZ == null) {
+                        logger.debug("no inter between {} and plane: {}", currentL, nextZ-1);
+                        break; // intersection with plane is null
+                    }
+                    int zf = nextZ;
+                    BoundingBox currentBds = currentL.getBounds();
+                    Pair<SegmentedObject, Region> mostOverlapping = allCandidates.stream().filter(o -> BoundingBox.intersect2D(o.getBounds(), currentBds))
+                            .filter(o -> o.getBounds().zMin() - 1 <= zf )
+                            .map(o -> new Pair<>(o, o.getRegion().intersectWithZPlane(zf, true, false)))
+                            .filter(p -> p.value != null)
+                            .sorted( Comparator.comparingDouble(p -> -p.value.getOverlapArea(currentLZ))).findFirst().orElse(null);
+                    if (mostOverlapping == null || mostOverlapping.value.getOverlapArea(currentLZ)==0) {
+                        logger.debug("no overlapping objects at plane : {}", zf);
+                        break;
+                    }
+                    currentL = mostOverlapping.key;
+                    toMerge.add(currentL);
+                    nextZ = Math.min(zU, currentL.getBounds().zMax()+1);
+                    logger.debug("L={}z{} U={}z{} curr={}z{}", lower, zL, upper, zU, currentL, nextZ);
+                }
+                if (currentL.equals(upper)) { // there is a path from L to U
+                    allObjectsToMerge.addAll(toMerge);
+                } else {
+                    Utils.displayTemporaryMessage("Some objects could not be merged in Z", 5000);
+                    logger.debug("no path from {} to {}", lower, upper);
+                }
+            }
+        }
+        return mergeObjects(db, allObjectsToMerge, factory, editor, relabel);
     }
 
     /**

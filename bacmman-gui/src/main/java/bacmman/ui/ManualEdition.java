@@ -753,6 +753,16 @@ public class ManualEdition {
         return newObjects;
     }
 
+    public static List<SegmentedObject> mergeObjectsZ(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
+        int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
+        if (!canEdit(objects.stream(), db)) return Collections.emptyList();
+        TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
+        SegmentedObjectFactory factory = getFactory(structureIdx);
+        List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjectsZ(db, objects, factory, editor, relabel);
+        if (updateDisplay) updateDisplayAndSelectObjects(newObjects, false);
+        return newObjects;
+    }
+
     public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         String position = SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
@@ -799,9 +809,9 @@ public class ManualEdition {
     }
 
     public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects, boolean fill) {
-        logger.debug("hide labile objects...");
+        //logger.debug("hide labile objects...");
         ImageWindowManagerFactory.getImageManager().hideLabileObjects(null, false);
-        logger.debug("remove tracks...");
+        //logger.debug("remove tracks...");
         ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);
         Map<Integer, List<SegmentedObject>> oBySidx = SegmentedObjectUtils.splitByStructureIdx(objects, true);
         for (Entry<Integer, List<SegmentedObject>> e : oBySidx.entrySet()) {

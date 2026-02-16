@@ -774,6 +774,13 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 mergeObjectsButtonActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.MERGE_Z, new AbstractAction("Merge Z") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                mergeZObjectsButtonActionPerformed(e);
+            }
+        });
         actionMap.put(Shortcuts.ACTION.SPLIT, new AbstractAction("Split") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -5280,6 +5287,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least two objects to Merge first!");
         else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects ? ", null))  ManualEdition.mergeObjects(db, selList, relabel.getSelected(), true);
+    }//GEN-LAST:event_mergeObjectsButtonActionPerformed
+
+    private void mergeZObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_mergeObjectsButtonActionPerformed
+        if (!checkConnection()) return;
+        //if (db.isReadOnly()) return;
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
+        if (selList.isEmpty()) logger.warn("Select at least two objects to Merge first!");
+        else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects along Z ? ", null))  ManualEdition.mergeObjectsZ(db, selList, relabel.getSelected(), true);
     }//GEN-LAST:event_mergeObjectsButtonActionPerformed
 
     private void splitObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_splitObjectsButtonActionPerformed
