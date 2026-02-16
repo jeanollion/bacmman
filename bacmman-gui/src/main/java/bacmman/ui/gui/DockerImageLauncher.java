@@ -44,6 +44,7 @@ public class DockerImageLauncher {
     FloatParameter shm = new FloatParameter("Shared Memory", 2).setLowerBound(0).setHint("Shared Memory allowed to container in Gb");
     private final String containerDir;
     private final boolean useShm;
+    private final int nPorts;
     private final int[] containerPorts;
     private final UnaryPair<String>[] environmentVariables;
     private final BiConsumer<String, int[]> startCb;
@@ -63,6 +64,7 @@ public class DockerImageLauncher {
         this.bacmmanLogger = bacmmanLogger;
         this.containerDir = containerDir;
         this.useShm = shm;
+        this.nPorts = ports == null ? 0 : ports.length ;
         this.containerPorts = ports;
         this.startCb = startCb;
         this.environmentVariables = environmentVariables;
@@ -82,19 +84,23 @@ public class DockerImageLauncher {
                         } else {
                             bacmmanLogger.log("Error could not parse working dir from container "+c+ " got: "+wd);
                         }
-                        port.setValue(c.getPorts().findFirst().map(p -> p.key).orElse(port.getIntValue()));
+                        if (nPorts > 0) {
+                            List<UnaryPair<Integer>> actualPortsL = c.getPorts().collect(Collectors.toList());
+                            int[] currentPorts = getHostPorts();
+                            int[] actualPorts = IntStream.range(0, nPorts).map(i -> actualPortsL.stream().filter(p -> p.value == containerPorts[i]).findFirst().map(p->p.key).orElse(currentPorts[i])).toArray();
+                            if (nPorts == 1) port.setValue(actualPorts[0]);
+                            else this.ports.setValue(actualPorts);
+                        }
                     }
                 });
         List<Parameter> params = new ArrayList<>();
         params.add(dockerImage);
-        if (ports != null && ports.length > 0) {
-            if (ports.length == 1) {
-                this.port.setValue(ports[0]);
-                params.add(this.port);
-            } else {
-                this.ports.setValue(ports).setMaxChildCount(ports.length).setMinChildCount(ports.length);
-                params.add(this.ports);
-            }
+        if (nPorts == 1) {
+            this.port.setValue(ports[0]);
+            params.add(this.port);
+        } else if (nPorts > 0) {
+            this.ports.setValue(ports).setMaxChildCount(ports.length).setMinChildCount(ports.length);
+            params.add(this.ports);
         }
         if (shm) params.add(this.shm);
         params.add(dockerContainer);
@@ -107,10 +113,9 @@ public class DockerImageLauncher {
     }
 
     public int[] getHostPorts() {
-        if (containerPorts != null && containerPorts.length > 0) {
-            if (containerPorts.length == 1) return new int[]{port.getIntValue()};
-            else return this.ports.getArrayInt();
-        } else return null;
+        if (nPorts == 0) return null;
+        else if (nPorts == 1) return new int[]{port.getIntValue()};
+        else return this.ports.getArrayInt();
     }
 
     public boolean hasContainer() {
@@ -157,7 +162,7 @@ public class DockerImageLauncher {
             String image = ensureImage(dockerImage.getValue());
             if (image != null) {
                 int[] exposedPorts = getHostPorts();
-                List<UnaryPair<Integer>> portList = containerPorts == null ? new ArrayList<>() : IntStream.range(0, containerPorts.length).mapToObj(i -> new UnaryPair<>(exposedPorts[i], containerPorts[i])).collect(Collectors.toList());
+                List<UnaryPair<Integer>> portList = IntStream.range(0, nPorts).mapToObj(i -> new UnaryPair<>(exposedPorts[i], containerPorts[i])).collect(Collectors.toList());
                 if (GUI.getPythonGateway() != null) portList.addAll(GUI.getPythonGateway().getPorts());
                 List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv(true) : new ArrayList<>();
                 if (environmentVariables.length > 0) env.addAll(Arrays.asList(environmentVariables));
