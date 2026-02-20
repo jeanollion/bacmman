@@ -789,4 +789,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             } else return true;
         };
     }
+
+    public static ChoiceParameter getActivationParameter() {
+        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "SiLU", "Mish"}, "ReLU", false);
+    }
 }

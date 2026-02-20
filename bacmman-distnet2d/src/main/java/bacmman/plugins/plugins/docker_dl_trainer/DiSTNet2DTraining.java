@@ -410,6 +410,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 3, 2, 4);
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("Include skip connections to EDM decoder. Note that is early downsampling is True, there will be no skip connection at first level");
         BooleanParameter earlyDownsampling = new BooleanParameter("Early Downsampling", true).setHint("If true, no convolution will be performed at first level. Reduces memory footprint, but may reduce segmentation details");
+        ChoiceParameter activationFunction = TrainingConfigurationParameter.getActivationParameter();
         IntegerParameter windowAttention = new IntegerParameter("Window Attention", 16).setLowerBound(0)
                 .setHint("Number of heads of the window attention. Window attention is performed on overlapping windows of size defined in Attention Window parameter. Window attention is used as self-attention as well as temporal attention layers in the blending module (i.e. attention between each pair of frames).");
         IntegerParameter attention = new IntegerParameter("Attention", 0).setLowerBound(0)
@@ -438,12 +439,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         public ArchitectureParameter(String name, boolean includeInferenceGap, int defaultFrameWindow) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
-                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
-                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, windowAttention, attentionFilters, attentionWindow, categoryNumber);
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, activationFunction, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, activationFunction, windowAttention, attentionFilters, attentionWindow, categoryNumber);
 
             } else {
-                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
-                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, windowAttention, attentionFilters, attentionWindow, categoryNumber);
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, activationFunction, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, activationFunction, windowAttention, attentionFilters, attentionWindow, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
@@ -518,6 +519,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("skip_connections", skip.toJSONEntry());
             res.put("early_downsampling", earlyDownsampling.toJSONEntry());
             res.put("attention_filters", attentionFilters.getValue());
+            res.put("activation", activationFunction.getValue());
 
             switch (atchType) { // specific
                 case TemPy: {

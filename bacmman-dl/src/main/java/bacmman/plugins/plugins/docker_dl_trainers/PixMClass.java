@@ -145,22 +145,18 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
         IntegerParameter classNumber = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 256, 32, 1024).setHint("Number of filters at the feature level");
         BoundedNumberParameter filtersMin = new BoundedNumberParameter("Min. Filters", 0, 32, 8, 1024).setHint("Minimum Number of filters at all levels. <br>For each level L, the number of filter is filters / 2**(n_downsampling - l). This parameter ensures a minimum value for filters.");
-        IntegerParameter attentionHeads = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
-        IntegerParameter attentionFilters = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
-        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{16, 16}, null).setName("Attention Window").setMaxChildCount(2);
-        BooleanParameter attention = new BooleanParameter("Attention", false);
-        ConditionalParameter<Boolean> attentionCond = new ConditionalParameter<>(attention).setActionParameters(true, attentionHeads, attentionFilters, attentionWindow);
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 4, 2, 5).addListener(p-> {
             SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);
             list.setChildrenNumber(p.getIntValue());
         });
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("If true, skip connections are included at all levels otherwise skip connection at first level is omited. Skip connection at first level increase the details");
         BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
+        ChoiceParameter activation = TrainingConfigurationParameter.getActivationParameter();
         IntSupplier channelNumberSupplier;
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool); //, attentionCond
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, activation);
         }
 
         public int getContraction() {
@@ -189,6 +185,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
             res.put("architecture_type", getActionValue().toString());
             res.put("n_classes", classNumber.getIntValue());
             res.put("n_inputs", inputNumber.getIntValue());
+            res.put("activation", activation.getValue());
             JSONArray sc = new JSONArray();
             if (!skip.getSelected()) sc.add(0);
 
@@ -200,11 +197,6 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
                     res.put("n_downsampling", downsamplingNumber.getIntValue());
                     res.put("filters", filters.getIntValue());
                     res.put("filters_min", filtersMin.getIntValue());
-                    if (attention.getSelected()) {
-                        res.put("attention_heads", attentionHeads.getIntValue());
-                        res.put("attention_filters", attentionFilters.getIntValue());
-                        res.put("attention_window", attentionWindow.toJSONEntry());
-                    }
                     break;
                 }
             }
