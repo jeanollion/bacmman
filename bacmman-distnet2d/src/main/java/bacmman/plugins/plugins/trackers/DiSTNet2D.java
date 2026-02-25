@@ -1835,7 +1835,6 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             res[inputImages.nInputs()] = IntStream.of(frames)
                     .mapToObj(neighFun)
-                    .peek(n -> logger.debug("fa mode: {} -> {}", faMode, n))
                     //.mapToObj(f -> getNeighborhood(allFrames, f, inputWindow, addNext, frameInterval, gapClosing))
                     .map(l -> l.stream().map( f -> new ImageFloat("", 1, new float[]{f})).toArray(Image[]::new)).toArray(Image[][]::new);
         }

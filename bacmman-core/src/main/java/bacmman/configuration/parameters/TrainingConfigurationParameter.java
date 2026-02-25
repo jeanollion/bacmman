@@ -791,6 +791,13 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
 
     public static ChoiceParameter getActivationParameter() {
-        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "SiLU", "Mish"}, "ReLU", false);
+        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "ELU", "GELU", "SiLU", "Softplus"}, "ReLU", false);
+    }
+
+    public static IntegerParameter getGradientAccumulationSteps() {
+        return new IntegerParameter("Gradient Accumulation Steps", 1).setLowerBound(1)
+                .setHint("Accumulate gradients over N forward/backward passes before performing a single weight update. " +
+                        "<br>This effectively simulates a larger batch size (<em>batch_size × N</em>) while keeping memory usage constant, but increases training time per update. " +
+                        "<br>Useful for training with large batch sizes on memory-constrained GPUs.");
     }
 }
