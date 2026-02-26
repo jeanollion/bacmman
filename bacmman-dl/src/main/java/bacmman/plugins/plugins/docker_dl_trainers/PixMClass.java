@@ -152,7 +152,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("If true, skip connections are included at all levels otherwise skip connection at first level is omited. Skip connection at first level increase the details");
         BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
         ChoiceParameter activation = TrainingConfigurationParameter.getActivationParameter();
-add        BooleanParameter batchNorm = new BooleanParameter("Batch Norm", true).setLegacyInitializationValue(Boolean.FALSE).setHint("Add a batch norm regularization layer at each convolution");
+        BooleanParameter batchNorm = new BooleanParameter("Batch Norm", true).setLegacyInitializationValue(Boolean.FALSE).setHint("Add a batch norm regularization layer at each convolution");
         IntSupplier channelNumberSupplier;
 
         protected ArchitectureParameter(String name) {
