@@ -152,11 +152,12 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("If true, skip connections are included at all levels otherwise skip connection at first level is omited. Skip connection at first level increase the details");
         BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
         ChoiceParameter activation = TrainingConfigurationParameter.getActivationParameter();
+add        BooleanParameter batchNorm = new BooleanParameter("Batch Norm", true).setLegacyInitializationValue(Boolean.FALSE).setHint("Add a batch norm regularization layer at each convolution");
         IntSupplier channelNumberSupplier;
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, activation);
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, activation, batchNorm);
         }
 
         public int getContraction() {
@@ -185,6 +186,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
             res.put("architecture_type", getActionValue().toString());
             res.put("n_classes", classNumber.getIntValue());
             res.put("n_inputs", inputNumber.getIntValue());
+            res.put("batch_norm", batchNorm.getValue());
             res.put("activation", activation.getValue());
             JSONArray sc = new JSONArray();
             if (!skip.getSelected()) sc.add(0);
