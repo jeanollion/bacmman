@@ -439,12 +439,12 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         public ArchitectureParameter(String name, boolean includeInferenceGap, int defaultFrameWindow) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.BLEND));
             if (includeInferenceGap) {
-                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, activationFunction, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
-                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, activationFunction, windowAttention, attentionFilters, attentionWindow, categoryNumber);
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, nGaps, downsamplingNumber, skip, earlyDownsampling, filters, windowAttention, attentionFilters, attentionWindow, categoryNumber);
 
             } else {
-                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, activationFunction, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
-                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, activationFunction, windowAttention, attentionFilters, attentionWindow, categoryNumber);
+                setActionParameters(ARCH_TYPE.BLEND, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, blendingFilterFactor, attention, selfAttention, attentionFilters, attentionPosEncMode, categoryNumber); //frameAwareCond
+                setActionParameters(ARCH_TYPE.TemPy, next, frameWindow, downsamplingNumber, skip, earlyDownsampling, filters, windowAttention, attentionFilters, attentionWindow, categoryNumber);
             }
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);

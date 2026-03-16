@@ -791,7 +791,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
 
     public static ChoiceParameter getActivationParameter() {
-        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "ELU", "GELU", "SiLU", "Softplus"}, "ReLU", false);
+        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "ELU", "GELU", "SiLU"}, "ReLU", false);
     }
 
     public static IntegerParameter getGradientAccumulationSteps() {

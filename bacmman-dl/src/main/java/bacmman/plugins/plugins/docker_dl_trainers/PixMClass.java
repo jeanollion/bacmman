@@ -157,7 +157,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, activation, batchNorm);
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, batchNorm);
         }
 
         public int getContraction() {
