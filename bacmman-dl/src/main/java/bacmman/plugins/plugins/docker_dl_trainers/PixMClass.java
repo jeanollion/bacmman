@@ -77,7 +77,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
 
     @Override
     public String minimalScriptVersion() {
-        return "1.1.4";
+        return "1.1.5";
     }
 
     @Override

@@ -290,7 +290,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     @Override
     public String minimalScriptVersion() {
-        return "1.1.4";
+        return "1.1.5";
     }
 
     @Override
