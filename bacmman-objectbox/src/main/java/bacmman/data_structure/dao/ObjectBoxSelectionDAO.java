@@ -216,6 +216,12 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
     }
 
     @Override
+    public synchronized boolean contains(String name) {
+        if (nameCache.isEmpty()) retrieveAllSelections();
+        return nameCache.get(name)!=null;
+    }
+
+    @Override
     public synchronized void deleteAllObjects() {
         nameCache.clear();
         if (readOnly) return;

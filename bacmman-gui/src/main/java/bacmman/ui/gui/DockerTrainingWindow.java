@@ -131,8 +131,9 @@ public class DockerTrainingWindow implements ProgressLogger {
     final protected ActionListener moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
-    protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
+    protected long lastStepTime = 0, lastEpochTime = 0, trainStartTime = 0;
     protected double stepDuration = Double.NaN, epochDuration = Double.NaN, elapsedSteps = Double.NaN;
+    protected int startEpoch = 0;
 
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
     ProgressCallback bacmmanLogger;
@@ -259,6 +260,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         });
         startTrainingButton.addActionListener(ae -> {
             currentProgressBar = trainingProgressBar;
+            startEpoch = 0;
             promptSaveConfig();
             writeConfigFile(false, true, false, false);
             writeModelTrainConfigFile();
@@ -273,6 +275,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         boolean exportModel = trainer.getConfiguration().getSelectedDockerImage(false).equals(trainer.getConfiguration().getSelectedDockerImage(true));
                         String[] cmds = exportModel ? new String[]{"python", "train.py", "/data", "--min_script_version", trainer.minimalScriptVersion()} : new String[]{"python", "train.py", "/data", "--train_only", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
@@ -356,6 +362,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         if (outputFile.exists()) outputFile.delete();
                         String[] cmds = new String[]{"python", "train.py", "/data", "--compute_metrics", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
@@ -483,6 +493,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                     try {
                         if (outputFile.exists()) outputFile.delete();
                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_data_augmentation", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, false, cmds);
                         if (needUpdate) {
                             logger.debug("stopping container: {}", currentContainer);
@@ -548,6 +562,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                                     try {
                                         if (outputFile.exists()) outputFile.delete();
                                         String[] cmds = new String[]{"python", "train.py", "/data", "--test_predict", "--min_script_version", trainer.minimalScriptVersion()};
+                                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
+                                        }
                                         dockerGateway.exec(currentContainer, DockerTrainingWindow.this::parseTestDataAugProgress, DockerTrainingWindow.this::printError, false, cmds);
                                         if (needUpdate) {
                                             dockerGateway.stopContainer(currentContainer);
@@ -614,6 +632,10 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (currentContainer != null) {
                     try {
                         String[] cmds = new String[]{"python", "train.py", "/data", "--export_only", "--min_script_version", trainer.minimalScriptVersion()};
+                        if (trainer instanceof DockerDLTrainer.MixedPrecision) {
+                            if (((DockerDLTrainer.MixedPrecision)trainer).mixedPrecision()) cmds = ArrayUtil.append(cmds, "--mixed_precision");
+                            if (((DockerDLTrainer.MixedPrecision)trainer).exportFP16()) cmds = ArrayUtil.append(cmds, "--export_fp16");
+                        }
                         dockerGateway.exec(currentContainer, this::parseTrainingProgress, this::printError, true, cmds);
                         if (needUpdate) {
                             dockerGateway.stopContainer(currentContainer);
@@ -751,7 +773,10 @@ public class DockerTrainingWindow implements ProgressLogger {
             Path dest = getMoveModelDestinationDir().toPath().resolve(source.getFileName());
             if (Files.exists(dest)) {
                 if (promptBoolean("Model already exists at destination, overwrite ?", this.parent)) {
-                    Utils.deleteDirectory(dest.toFile());
+                    if (!Utils.deleteDirectory(dest.toFile())) {
+                        setMessage("File "+dest.toFile()+" could not be deleted");
+                        return;
+                    }
                 } else return;
             }
             try {
@@ -1082,7 +1107,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         maxLoss = Double.NEGATIVE_INFINITY;
         lastEpochTime = 0;
         lastStepTime = 0;
-        trainTime = 0;
+        trainStartTime = 0;
         stepDuration = Double.NaN;
         epochDuration = Double.NaN;
         elapsedSteps = Double.NaN;
@@ -1187,13 +1212,15 @@ public class DockerTrainingWindow implements ProgressLogger {
         int maxEpoch = currentProgressBar.getMaximum();
         int currentStep = stepProgressBar.getValue();
         int maxStep = stepProgressBar.getMaximum();
-        if (currentStep <= 1 && currentEpoch == 1) {
-            trainTime = System.currentTimeMillis();
+        boolean firstEpoch = startEpoch <=0;
+        if (firstEpoch) {
+            startEpoch = currentEpoch;
+            trainStartTime = System.currentTimeMillis();
             elapsedSteps = Double.NaN;
             stepDuration = Double.NaN;
         }
         if (!isStep) {
-            if (currentEpoch == 1) {
+            if (firstEpoch) {
                 lastEpochTime = System.currentTimeMillis();
             } else if (currentEpoch > 1) {
                 long currentEpochTime = System.currentTimeMillis();
@@ -1222,10 +1249,10 @@ public class DockerTrainingWindow implements ProgressLogger {
             stepTime = "     /step";
         }
         if (currentEpoch >= 1 && !currentProgressBar.isIndeterminate() && (!Double.isNaN(epochDuration) || (!Double.isNaN(stepDuration) && !Double.isNaN(elapsedSteps)))) {
-            double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - 1);
+            double avgEpochTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / (currentEpoch - startEpoch);
             long avgEpochTimeMSL = (long) avgEpochTimeMS;
             long elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
-            long elapsedTraining = System.currentTimeMillis() - trainTime;
+            long elapsedTraining = System.currentTimeMillis() - trainStartTime;
             long totalTraining = (long) (avgEpochTimeMS * maxEpoch);
             epochTime = Utils.formatDuration(elapsedEpoch) + " / " + Utils.formatDuration(avgEpochTimeMSL);
             trainingTime = Utils.formatDuration(elapsedTraining) + " / " + Utils.formatDuration(totalTraining);
@@ -1255,7 +1282,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    String[] ignoreError = new String[]{"Type inference failed", "Skipping the delay kernel, measurement accuracy will be reduced", "Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
+    String[] ignoreError = new String[]{"Skipping loop optimization for Merge node with control input", "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR", "WARNING:tensorflow:Skipping full serialization of TF-Keras","WARNING:tensorflow:Skipping full serialization of Keras layer", "Type inference failed", "Skipping the delay kernel, measurement accuracy will be reduced", "Matplotlib created a temporary cache directory", "TransposeNHWCToNCHW-LayoutOptimizer", "XLA will be used", "disabling MLIR crash reproducer", "Compiled cluster using XLA", "oneDNN custom operations are on", "Attempting to register factory for plugin cuBLAS when one has already been registered", "TensorFloat-32 will be used for the matrix multiplication", "successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
     String[] isInfo = new String[]{"Created device"};
 
     protected void printError(String message) {

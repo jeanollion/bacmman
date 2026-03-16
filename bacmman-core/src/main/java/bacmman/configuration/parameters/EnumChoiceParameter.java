@@ -67,10 +67,9 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
     }
 
     public E getSelectedEnum() {
-        int idx = this.getSelectedIndex();
-        if (idx>=0) return enumChoiceList[idx];
-        else return null;
+        return selectedItem;
     }
+
     public EnumChoiceParameter<E> setSelectedEnum(E selectedEnum) {
         if (selectedEnum==null) this.setSelectedItem(null);
         else setSelectedItem(toString.apply(selectedEnum));

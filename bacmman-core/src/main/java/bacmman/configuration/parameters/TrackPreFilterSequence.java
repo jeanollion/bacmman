@@ -53,14 +53,10 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         transferStateArguments(this, res);
         return res;
     }
-    private static boolean allPFImagesAreSet(List<SegmentedObject> parentTrack, int structureIdx) {
-        return parentTrack.stream().noneMatch(o->o.getPreFilteredImage(structureIdx)==null);
-    }
+
     public void filter(int structureIdx, List<SegmentedObject> parentTrack) throws MultipleException {
         if (parentTrack.isEmpty()) return;
-        if (isEmpty() && allPFImagesAreSet(parentTrack, structureIdx)) { // if no preFilters &  only add raw images if no prefiltered image is present
-            return;
-        }
+        if (isEmpty()) return;
         SegmentedObjectImageMap images = filterImages(structureIdx, parentTrack);
         //logger.debug("track pre-filter is empty: {} -> {}", isEmpty(), Utils.toStringList(parentTrack, p->p+" "+images.get(p)));
         SegmentedObjectAccessor accessor = getAccessor();
@@ -68,13 +64,14 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
     }
 
     public SegmentedObjectImageMap filterImages(int structureIdx, List<SegmentedObject> parentTrack) {
-        if (parentTrack.isEmpty()) return new SegmentedObjectImageMap(Collections.EMPTY_LIST, o->o.getRawImage(structureIdx));
+        if (parentTrack.isEmpty()) return new SegmentedObjectImageMap(Collections.EMPTY_LIST, structureIdx);
+        if (parentTrack.stream().anyMatch(p -> p.getRawImage(structureIdx)==null)) throw new RuntimeException("No input image for object class: "+structureIdx);
         long neededMemory = (long) parentTrack.size() * parentTrack.get(0).getMaskProperties().sizeXYZ() * (4 + parentTrack.get(0).getRawImage(structureIdx).byteCount());
         boolean needDiskBackedImage = (Utils.getTotalMemory() / neededMemory) <= 4 || (parentTrack.get(0).getRawImage(structureIdx) instanceof DiskBackedImage);
-        if (needDiskBackedImage) logger.debug("needed memory: {} / {} -> request disk backed manager. byte count: {} size XY: {} size Z: {}", neededMemory/(1000d*1000), Utils.getTotalMemory()/(1000*1000),parentTrack.get(0).getRawImage(structureIdx).byteCount(), parentTrack.get(0).getMaskProperties().sizeXY(), parentTrack.get(0).getMaskProperties().sizeZ());
+        if (needDiskBackedImage) logger.debug("needed memory: {} / {} -> request disk backed manager. byte count: {} size XY: {} size Z: {}", neededMemory/(1024d*1024), Utils.getTotalMemory()/(1024*1024),parentTrack.get(0).getRawImage(structureIdx).byteCount(), parentTrack.get(0).getMaskProperties().sizeXY(), parentTrack.get(0).getMaskProperties().sizeZ());
         DiskBackedImageManager dbim = needDiskBackedImage ? Core.getDiskBackedManager(parentTrack.get(0)) : null;
 
-        SegmentedObjectImageMap images = new SegmentedObjectImageMap(parentTrack, needDiskBackedImage ? o -> dbim.createSimpleDiskBackedImage(o.getRawImage(structureIdx), true, false) : o->o.getRawImage(structureIdx));
+        SegmentedObjectImageMap images = new SegmentedObjectImageMap(parentTrack, structureIdx, dbim);
         // apply global scaling if necessary
         SegmentedObjectAccessor accessor = getAccessor();
         HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());

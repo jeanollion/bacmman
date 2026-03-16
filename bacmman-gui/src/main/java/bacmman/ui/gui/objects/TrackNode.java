@@ -158,9 +158,9 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         if (singleFrame) {
             return getStructureName() + " " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead));
         } else {
-            //getTrack();
+            //getTrack(); // lazy-loading
             int tl = track == null || track.isEmpty() ? -1 : track.get(track.size() - 1).getFrame() - track.get(0).getFrame() + 1;
-            return getStructureName() + " Track: " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + " Frames: [" + trackHead.getFrame() + ";" + (track != null && !track.isEmpty() ? track.get(track.size() - 1).getFrame() : "???") + "] (N=" + (track != null ? track.size() : ".........") + ")" + (track != null && tl != track.size() ? " (Gaps=" + (tl - track.size()) + ")" : "");
+            return getStructureName() + " Track: " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + (track != null && !track.isEmpty() ? " Frames: [" + trackHead.getFrame() + ";" + track.get(track.size() - 1).getFrame() + "] " : "                  ")  + (track != null ? "(N=" + track.size() + ")" : "                ")  + (track != null && tl != track.size() ? " (Gaps=" + (tl - track.size()) + ")" : "           ");
         }
     }
     private String getStructureName() {
@@ -193,6 +193,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     @Override public boolean isLeaf() {
         if (singleFrame) return true;
         if (track==null && getParent() instanceof RootTrackNode && firstStructureAfterRoot()) return false; // Lazy loading only for 1st structure after root
+        if (root.generator.db == null) return true; // in case remove all is called after db is set to null
         return getChildCount()==0;
     }
     private boolean firstStructureAfterRoot() {

@@ -44,7 +44,7 @@ public class IQRScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, -center);
         else { // perform on single image
-            double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(image::stream));
             log(IQR_scale_center);
             return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, IQR_scale_center[1], -IQR_scale_center[2]);
         }

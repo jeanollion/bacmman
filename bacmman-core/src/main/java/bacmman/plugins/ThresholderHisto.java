@@ -20,7 +20,6 @@ package bacmman.plugins;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
-import bacmman.utils.Utils;
 
 /**
  *
@@ -35,7 +34,7 @@ public interface ThresholderHisto extends SimpleThresholder {
     }
 
     default double runSimpleThresholder(Image image, ImageMask mask) {
-        Histogram histo = HistogramFactory.getHistogram(()-> image.stream(mask, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram histo = HistogramFactory.getHistogram(()-> image.stream(mask, true));
         histo.removeSaturatingValue(4, true);
         return runThresholderHisto(histo);
     }

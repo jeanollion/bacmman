@@ -19,16 +19,14 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 
 public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S extends SelectionDAO> implements PersistentMasterDAO<ID, T> {
     static final Logger logger = LoggerFactory.getLogger(PersistentMasterDAOImpl.class);
     public static int MAX_OPEN_DAO = 5; // ObjectBox limit: limited number of dataset can be open at the same time.
-    protected final Path datasetDir;
+    protected final Path dir;
 
-    protected final String dbName;
     final HashMap<String, T> DAOs = new HashMap<>();
     final LinkedList<T> openDAO = new LinkedList<>();
     final Set<String> positionLock = new HashSet<>();
@@ -48,19 +46,17 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     @FunctionalInterface public interface SelectionDAOFactory<S> {
         S makeDAO(MasterDAO<?, ?> mDAO, String dir, boolean readOnly);
     }
-    public PersistentMasterDAOImpl(String dbName, String datasetDir, ObjectDAOFactory<ID, T> factory, SelectionDAOFactory<S> selectionDAOFactory, SegmentedObjectAccessor accessor) {
-        if (datasetDir==null) throw new IllegalArgumentException("Invalid directory: "+ datasetDir);
-        if (dbName==null) throw new IllegalArgumentException("Invalid DbName: "+ dbName);
-        logger.debug("create persistent master DAO: dir: {}, dbName: {}", datasetDir, dbName);
-        this.datasetDir = Paths.get(datasetDir);
-        if (!Files.exists(this.datasetDir)) {
+    public PersistentMasterDAOImpl(Path dir, ObjectDAOFactory<ID, T> factory, SelectionDAOFactory<S> selectionDAOFactory, SegmentedObjectAccessor accessor) {
+        if (dir==null) throw new IllegalArgumentException("Invalid directory: "+ dir);
+        logger.debug("create persistent master DAO: dir: {}, dbName: {}", dir, dir.getFileName().toString());
+        this.dir = dir;
+        if (!Files.exists(this.dir)) {
             try {
-                Files.createDirectories(this.datasetDir);
+                Files.createDirectories(this.dir);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
-        this.dbName = dbName;
         this.accessor=accessor;
         this.factory=factory;
         this.selectionDAOFactory=selectionDAOFactory;
@@ -157,7 +153,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     @Override
-    public void eraseAll() {
+    public void eraseAll() throws IOException {
         String outputPath = getExperiment()!=null ? getExperiment().getOutputDirectory() : null;
         String outputImagePath = getExperiment()!=null ? getExperiment().getOutputImageDirectory() : null;
         unlockPositions();
@@ -165,12 +161,34 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         Utils.deleteDirectory(outputPath);
         Utils.deleteDirectory(outputImagePath);
         deleteExperiment();
-        boolean del = datasetDir.toFile().delete(); // deletes XP directory only if void.
-        logger.debug("deleted config dir: {}", del);
+        try { // deletes XP directory only if void. do not throw error
+            Files.delete(dir);
+        } catch (IOException e) {}
     }
 
-    private File getConfigFile() {
-        return datasetDir.resolve(dbName + "_config.json").toFile();
+    private Path getConfigFile(boolean checkLegacy, boolean rename) {
+        Path res = dir.resolve("config.json");
+        if (checkLegacy) {
+            if (!Files.exists(res)) { // check legacy path and move it if necessary
+                Path legacy = dir.resolve(getDBName() + "_config.json");
+                if (!Files.exists(legacy)) { // dbName could differ from
+                    try {
+                        legacy = Files.list(dir).filter(p -> p.getFileName().toString().endsWith("_config.json")).findFirst().orElse(null);
+                    } catch (IOException exc) {
+                        legacy = null;
+                    }
+                }
+                if (legacy != null) {
+                    if (!readOnly && rename) { // try to move.
+                        try {
+                            return Files.move(legacy, res);
+                        } catch (IOException exc) {
+                            return legacy; // impossible to move: return legacy path
+                        }
+                    } else return legacy;
+                } else return res;
+            } else return res;
+        } else return res;
     }
 
     @Override
@@ -235,11 +253,11 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
 
     @Override
     public String getDBName() {
-        return dbName;
+        return dir.getFileName().toString();
     }
     @Override
     public Path getDatasetDir() {
-        return this.datasetDir;
+        return this.dir;
     }
 
     @Override
@@ -251,11 +269,11 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     }
 
     @Override
-    public void deleteExperiment() {
+    public void deleteExperiment() throws IOException {
         if (readOnly) return;
         unlockAndCloseXP();
-        File cfg = getConfigFile();
-        if (cfg.isFile()) cfg.delete();
+        Path cfg = getConfigFile(true, false);
+        if (Files.exists(cfg)) Files.delete(cfg);
     }
 
     private synchronized void accessConfigFileAndLockXP() {
@@ -267,10 +285,9 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
                 lock = lock();
             }
             if (!lock) readOnly = true;
-            File f = getConfigFile();
-            if (!f.exists()) f.createNewFile();
-            cfg = new RandomAccessFile(f, readOnly?"r":"rw");
-            logger.debug("lock at creation: {}, for file: {}", xpFileLock, getConfigFile());
+            Path f = getConfigFile(true, false);
+            cfg = new RandomAccessFile(f.toFile(), readOnly?"r":"rw");
+            logger.debug("lock at creation: {}, for file: {}", xpFileLock, f);
         } catch (FileNotFoundException ex) {
             logger.debug("no config file found!");
         } catch (OverlappingFileLockException e) {
@@ -280,8 +297,9 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         }
     }
     private Path getLockedFilePath() {
-        return datasetDir.resolve(dbName + "_config.json.lock");
+        return dir.resolve("config.json.lock");
     }
+
     private synchronized boolean lock() {
         try {
             Path p = getLockedFilePath();
@@ -413,7 +431,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
             return null;
         }
         if (xpString==null || xpString.isEmpty()) return null;
-        Experiment xp = new Experiment(dbName).setPath(datasetDir);
+        Experiment xp = new Experiment(getDBName()).setPath(dir);
         try {
             xp.initFromJSONEntry(JSONUtils.parse(xpString));
         } catch (ParseException e) {
@@ -430,7 +448,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         String outS = image ? xp.getOutputImageDirectory() : xp.getOutputDirectory();
         File out = outS!=null ? new File(outS) : null;
         if (out==null || !out.exists() || !out.isDirectory()) { // look for default output dir and set it up if exists
-            out = datasetDir.resolve("Output").toFile().getAbsoluteFile();
+            out = dir.resolve("Output").toFile().getAbsoluteFile();
             out.mkdirs();
             if (out.isDirectory()) {
                 if (image) xp.setOutputImageDirectory(out.getAbsolutePath());

@@ -5,7 +5,6 @@ import bacmman.core.Task;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
-import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.selection.SelectionRenderer;
@@ -85,13 +84,13 @@ public class ExtractDataset extends JDialog {
             SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter) t.getParent(), SelectionParameter.class, false).get(0);
             sel.setSelectionObjectClass(t.getSelectedClassIdx());
         }).addListener(t -> setEnableOk());
-        Predicate<ObjectClassParameter> isOneEntryPerInstanceFeature = p -> {
+        Predicate<ObjectClassParameter> selOCisOC = p -> {
             GroupParameter g = (GroupParameter) p.getParent();
             PluginParameter<FeatureExtractor> f = (PluginParameter<FeatureExtractor>) g.getChildAt(2);
             if (!f.isOnePluginSet()) return false;
-            return FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass());
+            return FeatureExtractor.FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass()) || FeatureExtractor.FeatureExtractorOneEntryPerTrack.class.isAssignableFrom(f.getSelectedPluginClass());
         };
-        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
+        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getObjectClassIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && selOCisOC.test(p) )));
         defName.addListener(t -> setEnableOk());
         defFeature.addListener(t -> setEnableOk());
         selectionParameter.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream());
@@ -184,7 +183,7 @@ public class ExtractDataset extends JDialog {
                 PluginParameter<FeatureExtractor> pp = ((PluginParameter<FeatureExtractor>) g.getChildAt(2));
                 pp.setPlugin(f.getFeatureExtractor(), true);
                 SelectionParameter sel = ((SelectionParameter) g.getChildAt(3));
-                if (f.getSelectionFilter() != null) sel.setSelectedItem(f.getSelectionFilter());
+                if (f.getSelectionFilterName() != null) sel.setSelectedItem(f.getSelectionFilterName());
             }
         } else this.outputFeatureList.setChildrenNumber(0);
         if (resizeMode != null) {
@@ -234,7 +233,7 @@ public class ExtractDataset extends JDialog {
         ExtractDataset dialog = new ExtractDataset(mDAO);
         dialog.setTitle("Configure Dataset extraction");
         if (selectedTask != null)
-            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelections(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSResizeMode(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
+            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelectionNames(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSResizeMode(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
         dialog.pack();
         dialog.setVisible(true);
         //System.exit(0);

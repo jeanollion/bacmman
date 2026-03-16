@@ -101,7 +101,7 @@ public class FillHoles2D {
             if (ip.getPixel(x,0)==background) ff.fill(x, 0);
             if (ip.getPixel(x,height-1)==background) ff.fill(x, height-1);
         }
-        ImageInteger im = (ImageInteger) Image.createImageFrom2DPixelArray("", ip.getPixels(), width);
+        ImageInteger im = (ImageInteger) Image.newImage(ip.getPixels(), width, null);
         int n = width*height;
         for (int xy = 0;xy<n; ++xy) {
             if (im.getPixelInt(xy, 0)==127) im.setPixel(xy, 0, background);
@@ -122,7 +122,7 @@ public class FillHoles2D {
             if (ip.getPixel(x,0)==0) ff.fill(x, 0);
             if (ip.getPixel(x,height-1)==0) ff.fill(x, height-1);
         }
-        ImageInteger im = (ImageInteger)Image.createImageFrom2DPixelArray("", ip.getPixels(), width);
+        ImageInteger im = (ImageInteger)Image.newImage(ip.getPixels(), width, null);
         int n = width*height;
         for (int xy = 0;xy<n; ++xy) {
             if (im.getPixelInt(xy, 0)==midValue) im.setPixel(xy, 0, 0);

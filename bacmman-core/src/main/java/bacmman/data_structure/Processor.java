@@ -26,6 +26,7 @@ import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
+import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
@@ -310,9 +311,18 @@ public class Processor {
         ensureScalerConfiguration(dao, structureIdx);
         MultipleException me=null;
         try { // execute sequentially, store what has been processed, and throw exception in the end
+            allParentTracks = new TreeMap<>(allParentTracks); // sort parents
+            int total = allParentTracks.size();
+            int totalFrame = allParentTracks.values().stream().mapToInt(List::size).sum();
+            int[] count = new int[2];
+            long t0 = System.currentTimeMillis();
             ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
                 execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
                 if (pcb !=null) pcb.incrementSubTask();
+                count[0]+=1;
+                count[1]+=pt.size();
+                long t1 = System.currentTimeMillis();
+                logger.debug("Progress for oc={} : {}/{} {}s/track (frames: {}/{} {}ms/frame)", structureIdx, count[0], total, Utils.format((t1-t0)/(1000 * count[0]), 5), count[1], totalFrame, Utils.format((t1-t0)/count[1], 5));
             });
         } catch (MultipleException e) {
             me=e;
@@ -415,18 +425,20 @@ public class Processor {
                 throw e;
             } finally { // clear voxels & pre-filtered images
                 parentTrack.stream().peek(p -> {
-                    p.setPreFilteredImage(null, structureIdx); // erase preFiltered images
+                    p.flushImages(false, true); // erase preFiltered images
                         }).filter(p -> p.childrenRetrieved(structureIdx))
                   .forEachOrdered(p -> {
                       p.getChildren(structureIdx)
                               .filter(SegmentedObject::hasRegion)
-                              .forEachOrdered((c) -> c.getRegion().clearVoxels());
+                              .forEachOrdered((c) -> c.getRegion().freeMemory());
                 });
                 // sub segmentation: clear pre-filtered images
                 int segPIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
                 if (segPIdx!=parentTrack.get(0).structureIdx) {
                     parentTrack.stream().flatMap(p -> p.getChildren(segPIdx)).distinct().forEach( p -> p.setPreFilteredImage(null, structureIdx));
                 }
+                DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
+                imageManager.clear(true);
                 logger.debug("prefiltered images erased: {} for structure: {}", parentTrack.get(0), structureIdx);
             }
         }
@@ -606,7 +618,8 @@ public class Processor {
         }
     }
 
-    public static List<SegmentedObject> applyFilterToSegmentedObjects(SegmentedObject parent, List<SegmentedObject> children, BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> filter, boolean requiresRelativeLandmark, SegmentedObjectFactory factory, Set<SegmentedObject> modifiedObjects) {
+    // apply filter to children. children can be a subset of parent objects. if new objects are created they are added to parent, and relabeled
+    public static List<SegmentedObject> applyFilterToSegmentedObjects(SegmentedObject parent, List<SegmentedObject> children, BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> filter, boolean requiresRelativeLandmark, SegmentedObjectFactory factory, boolean relabel, Set<SegmentedObject> modifiedObjects) {
         if (children.isEmpty()) return Collections.emptyList();
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(children);
         RegionPopulation pop = new RegionPopulation(children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), parent.getMaskProperties());
@@ -626,7 +639,7 @@ public class Processor {
             } else pop.getRegions().forEach(r -> r.setIsAbsoluteLandmark(true));
         }
         List<SegmentedObject> toRemove=null;
-        // first map regions with segmented object by hashcode
+        // first map regions with segmented object by hashcode (same object instance)
         List<Region> newRegions = pop.getRegions();
         int idx = 0;
         while (idx<children.size()) {
@@ -643,34 +656,58 @@ public class Processor {
         if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
             OverlapMatcher<Region> matcher = new OverlapMatcher<>(OverlapMatcher.regionOverlap(null, null));
             Map<Region, OverlapMatcher.Overlap<Region>> oldMaxOverlap = new HashMap<>();
+            Map<Region, OverlapMatcher.Overlap<Region>> newMaxOverlap = new HashMap<>();
             List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-            matcher.addMaxOverlap(oldR, newRegions, oldMaxOverlap, null);
+            matcher.addMaxOverlap(oldR, newRegions, oldMaxOverlap, newMaxOverlap);
+            // edge case: if 2 objects match the same new object: resolve conflict
+            children.stream().filter(c -> oldMaxOverlap.get(c.getRegion())!=null).collect(Collectors.groupingBy(c -> oldMaxOverlap.get(c.getRegion()).o2)).forEach((newO, oldL) -> {
+                if (oldL.size()>1) {
+                    //logger.debug("new: {} matches: {}", newO.getLabel(), oldL.stream().mapToInt(o -> o.getRegion().getLabel()).toArray());
+                    oldL.sort( Comparator.comparingDouble( old -> -oldMaxOverlap.get(old.getRegion()).overlap ) ); // max overlap first
+                    oldL.remove(0); // discard max overlap
+                    for (SegmentedObject old : oldL) {
+                        Map.Entry<Region, OverlapMatcher.Overlap<Region>> newO2 = newMaxOverlap.entrySet().stream()
+                                .filter( e -> e.getValue().o1.equals(old.getRegion())) // look for new max overlap that overlap with this old object
+                                .filter(e -> oldMaxOverlap.values().stream().noneMatch(o -> o.o2.equals(e.getValue().o2))) // the new max overlap should not be the max of another old
+                                .max( Comparator.comparingDouble( e -> e.getValue().overlap)).orElse(null);
+
+                        if (newO2 != null) oldMaxOverlap.put(old.getRegion(), newO2.getValue());
+                        else oldMaxOverlap.remove(old.getRegion());
+                    }
+                }
+            });
             for (SegmentedObject o : children) {
                 OverlapMatcher.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
                 if (maxNew==null) {
                     if (toRemove==null) toRemove= new ArrayList<>();
                     toRemove.add(o);
                 } else {
+                    // copy some region attributes to avoid loosing them
+                    if (o.getAttribute("Category")!=null) {
+                        maxNew.o2.setCategory(o.getAttribute("Category", 0), o.getAttribute("CategoryProbability", 1.));
+                    }
                     factory.setRegion(o, maxNew.o2);
                     newRegions.remove(maxNew.o2);
                     if (modifiedObjects!=null) modifiedObjects.add(o);
                 }
             }
+
         } else if (!children.isEmpty()) {
             toRemove=children;
         }
+        //logger.debug("total before modification: {} added: {} removed: {} ", parent.getChildren(structureIdx).count(), newRegions.size(), toRemove==null ? 0 : toRemove.size());
         if (!newRegions.isEmpty()) { // create unmatched objects
             Stream<SegmentedObject> s = parent.getChildren(structureIdx);
             List<SegmentedObject> newChildren = s==null ? new ArrayList<>(newRegions.size()) : s.collect(Collectors.toList());
             int startLabel = newChildren.stream().mapToInt(o->o.getRegion().getLabel()).max().orElse(0)+1;
-            logger.debug("creating {} objects starting from label: {}", newRegions, startLabel);
+            //logger.debug("creating {} objects starting from label: {}", newRegions, startLabel);
             for (Region r : newRegions) {
                 SegmentedObject o =  new SegmentedObject(parent.getFrame(), structureIdx, startLabel++, r, parent);
                 newChildren.add(o);
                 if (modifiedObjects!=null) modifiedObjects.add(o);
             }
             factory.setChildren(parent, newChildren);
-            factory.relabelChildren(parent);
+            if (relabel) factory.relabelChildren(parent);
         }
         if (toRemove==null) return Collections.emptyList();
         return toRemove;

@@ -3,7 +3,7 @@ package bacmman.data_structure.dao;
 import bacmman.image.DiskBackedImage;
 import bacmman.image.Image;
 import bacmman.image.PrimitiveType;
-import bacmman.image.SimpleDiskBackedImage;
+import bacmman.image.TiledDiskBackedImage;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +14,7 @@ import java.nio.channels.FileChannel;
 import java.util.*;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     static Logger logger = LoggerFactory.getLogger(DiskBackedImageManagerImpl.class);
@@ -21,7 +22,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     Map<DiskBackedImage, File> files = new ConcurrentHashMap<>();
     Thread daemon;
     long daemonTimeInterval;
-    double memoryFraction = 0.75;
+    double memoryFraction = DiskBackedImageManager.memoryFraction;
     boolean stopDaemon = false;
     boolean freeingMemory = false;
     final String directory;
@@ -46,6 +47,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         stopDaemon = false;
         daemon = new Thread(run);
         daemon.setName("DiskBackedImageManagerDaemon@"+directory);
+        logger.debug("start {}", "DiskBackedImageManagerDaemon@"+directory);
         daemon.setDaemon(true);
         daemon.start();
         return true;
@@ -78,31 +80,40 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed || freeingMemory) return;
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
-        long toFree = used - maxUsed;
         freeingMemory = true;
+        long freed = 0;
         int loopCount = 0;
         while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && loopCount <= queue.size()) {
-            DiskBackedImage im = null;
-            synchronized (queue) {
-                im = queue.poll();
-                queue.add(im);
-            }
-            if (im != null) {
-                if (im.isOpen()) {
-                    used -= im.heapMemory();
-                    im.freeMemory(true); // sync on im
-                    loopCount = 0;
+            if (!queue.isEmpty()) {
+                DiskBackedImage im = null;
+                synchronized (queue) {
+                    im = queue.poll();
+                    queue.add(im);
                 }
+                if (im != null) {
+                    if (im.isOpen()) {
+                        long usedHM = im.usedHeapMemory();
+                        used -= usedHM;
+                        freed += usedHM;
+                        im.freeMemory(true);
+                    }
+                }
+                ++loopCount; // if memory fraction is too low : avoid infinite loop
             }
-            ++loopCount; // if memory fraction is too low : avoid infinite loop
         }
         freeingMemory = false;
-        logger.debug("freed : {}Mb/{}Mb used: {}", (double)toFree / (1000*1000), (double)Runtime.getRuntime().maxMemory() / (1000*1000), Utils.getMemoryUsageProportion());
+        if (freed > 1024 * 1024 * 1024) {
+            double total;
+            synchronized (queue) {
+                total = queue.stream().mapToDouble(im -> (double) im.heapMemory() / (1024 * 1024 * 1024)).sum();
+            }
+            logger.debug("freed : {}Gb/{}Gb used: {}% (total: {})", Utils.format((double)freed / (1024*1024*1024), 5), Utils.format(total, 5), Utils.format(Utils.getMemoryUsageProportion()*100, 5), Utils.format((double)Runtime.getRuntime().maxMemory() / (1024*1024*1024), 5));
+        }
         if (!(fromDaemon && stopDaemon)) System.gc();
     }
 
     @Override
-    public <I extends Image<I>> I openImageContent(SimpleDiskBackedImage<I> fmi) throws IOException {
+    public <I extends Image<I>> I openImageContent(DiskBackedImage<I> fmi) throws IOException {
         File file = files.get(fmi);
         if (file == null) {
             logger.error("Image {} was erased", fmi.getName());
@@ -115,30 +126,31 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             queue.remove(fmi);
             queue.add(fmi);
         }
-        freeMemory(memoryFraction);
         return res;
     }
 
     @Override
-    public <I extends Image<I>> void storeSimpleDiskBackedImage(SimpleDiskBackedImage<I> fmi) throws IOException {
-        if (!fmi.isOpen()) throw new IOException("Cannot store a SimpleDiskBackedImage whose image is not open");
+    public <I extends Image<I>> void storeDiskBackedImage(DiskBackedImage<I> fmi) throws IOException {
+        if (!fmi.isOpen()) throw new IOException("Cannot store a DiskBackedImage whose image is not open");
         File f = files.get(fmi);
         if (f == null) {
             f = new File(directory, UUID.randomUUID() + ".bmimage");
             f.deleteOnExit();
-            synchronized (queue) {
+            synchronized (files) {
                 files.put(fmi, f);
             }
         }
         write(f, fmi.getImage());
     }
     @Override
-    public <I extends Image<I>> SimpleDiskBackedImage<I> createSimpleDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
-        if (image instanceof SimpleDiskBackedImage ) {
-            if (((SimpleDiskBackedImage)image).getManager().equals(this)) return (SimpleDiskBackedImage<I>)image;
-            else throw new IllegalArgumentException("Image is already disk-backed");
+    public <I extends Image<I>> DiskBackedImage<I> createDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
+        if (image instanceof DiskBackedImage ) {
+            if (((DiskBackedImage)image).getManager().equals(this)) {
+                if (freeMemory) ((DiskBackedImage)image).freeMemory(true);
+                return (DiskBackedImage<I>)image;
+            } else throw new IllegalArgumentException("Image is already disk-backed");
         } else if (image==null) throw new IllegalArgumentException("Null image");
-        SimpleDiskBackedImage<I> res = new SimpleDiskBackedImage<>(image, this, writable);
+        DiskBackedImage<I> res = DiskBackedImage.createDiskBackedImage(image, writable, this);
         res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
         synchronized (queue) {
             queue.add(res);
@@ -156,15 +168,25 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
 
     @Override
     public boolean detach(DiskBackedImage image, boolean freeMemory) {
-        File f;
+        List<File> toRemove = new ArrayList<>();
         boolean rem;
         synchronized (queue) {
             rem = queue.remove(image);
-            f = files.remove(image);
-            if (freeMemory) image.freeMemory(false);
-            image.detach();
+            File f = files.remove(image);
+            if (f != null) toRemove.add(f);
+            if (image instanceof TiledDiskBackedImage) {
+                List<File> tileFiles = ((TiledDiskBackedImage<?>)image).streamTiles().map(t -> {
+                    t.detach();
+                    queue.remove(t);
+                    return files.remove(t);
+                }).filter(Objects::nonNull).collect(Collectors.toList());
+                if (!toRemove.isEmpty()) tileFiles.addAll(toRemove);
+                toRemove = tileFiles;
+            }
         }
-        if (f!=null) f.delete();
+        image.detach();
+        if (freeMemory) image.freeMemory(false);
+        toRemove.forEach(File::delete);
         return rem;
     }
 
@@ -187,7 +209,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
 
 
     // internal methods
-    protected void read(File f, Image image) throws IOException {
+    static void read(File f, Image image) throws IOException {
         if (image instanceof PrimitiveType.ByteType) {
             read(f, ((PrimitiveType.ByteType)image).getPixelArray());
         } else if (image instanceof PrimitiveType.ShortType) {
@@ -202,7 +224,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             throw new IllegalArgumentException("Type not supported: " + image.getClass());
         }
     }
-    protected void write(File f, Image image) throws IOException {
+
+    static void write(File f, Image image) throws IOException {
         if (image instanceof PrimitiveType.ByteType) {
             write(f, ((PrimitiveType.ByteType)image).getPixelArray());
         } else if (image instanceof PrimitiveType.ShortType) {
@@ -217,7 +240,6 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             throw new IllegalArgumentException("Type not supported: " + image.getClass());
         }
     }
-
 
     private static void read(File file, byte[][] array) throws IOException {
         int sizeXY = array[0].length;

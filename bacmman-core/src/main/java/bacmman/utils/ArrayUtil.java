@@ -723,6 +723,13 @@ public class ArrayUtil {
         }
         return res;
     }
+    public static double getMAD(double[] values, double median) {
+        double[] deviations = new double[values.length];
+        for (int i = 0; i < values.length; i++) {
+            deviations[i] = Math.abs(values[i] - median);
+        }
+        return ArrayUtil.quantile(deviations, 0.5);
+    }
     public static int[] toInt(float[] array) {
         int[] res= new int[array.length];
         for (int i = 0; i<array.length; ++i) res[i] = Math.round(array[i]);
@@ -744,6 +751,11 @@ public class ArrayUtil {
         return res;
     }
     public static double[] toDouble(long[] array) {
+        double[] res= new double[array.length];
+        for (int i = 0; i<array.length; ++i) res[i] = array[i];
+        return res;
+    }
+    public static double[] toDouble(float[] array) {
         double[] res= new double[array.length];
         for (int i = 0; i<array.length; ++i) res[i] = array[i];
         return res;
@@ -841,5 +853,12 @@ public class ArrayUtil {
             }
         }
         return target;
+    }
+
+    public static <T> T[] append(T[] array, T... elements) {
+        if (elements==null || elements.length==0) return array;
+        T[] res = Arrays.copyOf(array, array.length + elements.length);
+        System.arraycopy(elements, 0, res, array.length, elements.length);
+        return res;
     }
 }

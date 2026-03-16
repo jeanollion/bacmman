@@ -109,7 +109,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
         Supplier<Histogram> getHistoParent = () -> {
             if (histoParent[0]==null) {
                 Map<Image, ImageMask> imageMapMask = parentTrack.stream().filter(p->!voidMC.contains(p)).collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask() ));
-                histoParent[0] = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                histoParent[0] = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel());
             }
             return histoParent[0];
         };
@@ -153,7 +153,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
                     Histogram histo;
                     if (histoStore!=null && histoStore[0]!=null ) histo = histoStore[0];
                     else {
-                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS) ;
+                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel()) ;
                         if (histoStore!=null) histoStore[0] = histo;
                     }
                     double thld = thlder.runThresholderHisto(histo);
@@ -180,7 +180,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
                     if (histoStore!=null && histoStore[0]!=null) histo = histoStore[0];
                     else {
                         List<Image> im = parents.stream().map(p->p.getRoot()).map(p->p.getRawImage(structureIdx)).collect(Collectors.toList());
-                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+                        histo = HistogramFactory.getHistogram(()->Image.stream(im).parallel());
                         if (histoStore!=null) histoStore[0] = histo;
                     }
                     double[] ms = new double[2];

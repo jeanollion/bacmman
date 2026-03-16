@@ -18,16 +18,12 @@
  */
 package bacmman.image.io;
 
+import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
-import bacmman.image.Image;
 import ij.ImagePlus;
 import ij.io.FileInfo;
 import ij.io.FileSaver;
 import ij.io.TiffEncoder;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageShort;
-import bacmman.image.TypeConverter;
 
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
@@ -164,12 +160,16 @@ public class ImageWriter {
     }
     
     private static byte[] getBytePlane(Image image, int z, boolean littleEndian) {
-        if (image instanceof ImageByte) {
-            return ((ImageByte)image).getPixelArray()[z];
-        } else if (image instanceof ImageShort) {
-            return DataTools.shortsToBytes( (short[]) ((ImageShort)image).getPixelArray()[z], littleEndian);
-        } else if (image instanceof ImageFloat) {
-            return DataTools.floatsToBytes( (float[]) ((ImageFloat)image).getPixelArray()[z], littleEndian);
+        if (image instanceof PrimitiveType.ByteType) {
+            return ((PrimitiveType.ByteType)image).getPixelArray()[z];
+        } else if (image instanceof PrimitiveType.ShortType) {
+            return DataTools.shortsToBytes(((PrimitiveType.ShortType)image).getPixelArray()[z], littleEndian);
+        } else if (image instanceof PrimitiveType.FloatType) {
+            return DataTools.floatsToBytes( ((PrimitiveType.FloatType)image).getPixelArray()[z], littleEndian);
+        } else if (image instanceof PrimitiveType.DoubleType) {
+            return DataTools.doublesToBytes( ((PrimitiveType.DoubleType)image).getPixelArray()[z], littleEndian);
+        } else if (image instanceof PrimitiveType.IntType) {
+            return DataTools.intsToBytes( ((PrimitiveType.IntType)image).getPixelArray()[z], littleEndian);
         } else return null;
     }
     

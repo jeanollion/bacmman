@@ -175,6 +175,12 @@ public class MapDBSelectionDAO implements SelectionDAO {
     }
 
     @Override
+    public synchronized boolean contains(String name) {
+        if (idCache.isEmpty()) retrieveAllSelections();
+        return idCache.get(name)!=null;
+    }
+
+    @Override
     public synchronized void deleteAllObjects() {
         idCache.clear();
         if (db!=null) {

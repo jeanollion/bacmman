@@ -147,7 +147,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             res = new SegmentedObject(timePoint, (BlankMask)(duplicateRegion?getMask().duplicateMask():getMask()), dao);
         } else {
             if (parent == null && dao == null) throw new IllegalArgumentException("Either Parent or DAO must be provided for non-root objects");
-            res = new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?getRegion().duplicate():getRegion(), parent);
+            res = new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?(getRegion()==null?null:getRegion().duplicate()):getRegion(), parent);
             if (parent == null) { // new ID was not generated
                 res.setDAO(dao);
                 res.id = dao.generateID(res.getStructureIdx(), res.getFrame());
@@ -477,7 +477,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                             next.setTrackHead(next, false, propagateTrackHead, modifiedObjects);
                             nextModified = true;
                         }
-                    } else if (next.getTrackHead() != getTrackHead()) {
+                    } else if (!next.getTrackHead().equals(getTrackHead())) {
                         next.setTrackHead(getTrackHead(), false, propagateTrackHead, modifiedObjects);
                         nextModified = true;
                     }
@@ -725,6 +725,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     SegmentedObject setTrackHead(SegmentedObject trackHead, boolean resetPreviousIfTrackHead, boolean propagateToNextObjects, Collection<SegmentedObject> modifiedObjects) {
         if (trackHead==null) trackHead=this;
         else if (!trackHead.equals(this) && !trackHead.isTrackHead()) {
+            logger.error("Set trackhead to {} with non trackhead: {} (trackhead's trackhead: {})", this, trackHead, trackHead.getTrackHead());
             throw new IllegalArgumentException("Set TrackHead called with non-trackhead element");
         }
         if (resetPreviousIfTrackHead && this.equals(trackHead) && previous!=null && previous.next==this) {
@@ -738,14 +739,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         if (propagateToNextObjects) {
             SegmentedObject n = this;
-            while(n.getNext()!=null && n.equals(n.getNext().getPrevious())) {
+            while(n.getNext()!=null && n.equals(n.getNext().getPrevious())) { // navigate through track = double links
                 n = n.getNext();
                 n.setTrackHead(trackHead, false, false, modifiedObjects);
             }
         }
         return this;
     }
-    
     // track correction-related methods 
 
     
@@ -806,7 +806,21 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             logger.debug("could not split: {} number of segments: {}", this, pop==null?"null" : pop.getRegions().size());
             return null;
         }
-        if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()), true);
+        if (pop.getRegions().size()>2) {
+            List<Region> fragments= pop.getRegions();
+            Collections.sort(fragments, Comparator.comparingDouble(r -> -r.size())); // biggest objects first
+            pop.mergeWithConnected(fragments.subList(2, pop.getRegions().size()), false);
+            if (pop.getRegions().size()>2) { // there are unconnected fragments -> merge them with closest object
+                Point center0 = pop.getRegions().get(0).getCenterOrGeomCenter();
+                Point center1 = pop.getRegions().get(1).getCenterOrGeomCenter();
+                for (Region toMerge : new ArrayList<>(pop.getRegions().subList(2, pop.getRegions().size()))) {
+                    Point center = toMerge.getCenterOrGeomCenter();
+                    if (center0.distSq(center) <= center1.distSq(center)) pop.getRegions().get(0).merge(toMerge);
+                    else pop.getRegions().get(1).merge(toMerge);
+                    pop.eraseObject(toMerge, true);
+                }
+            }
+        }
         return split(pop, modifiedObjects).get(0);
     }
 
@@ -922,6 +936,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             attributes.remove("MinorAxis");
             attributes.remove("Theta");
             attributes.remove("AspectRatio");
+            attributes.remove("Category");
+            attributes.remove("CategoryProbability");
         }
         if (region!= null) {
             if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());
@@ -1072,11 +1088,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                         if (((DiskBackedImage)im).detached()) { // image has been erased -> set a null value and re-open image.
                             rawImagesC.set(null, channelIdx);
                             return getRawImageByChannel(channelIdx);
-                        } else return ((SimpleDiskBackedImage)im).getImage();
-                    } else return im;
+                        }
+                    }
                 }
-            } else return ((SimpleDiskBackedImage)im).getImage();
-        } else return im;
+            }
+        }
+        return im;
     }
     /**
      *
@@ -1085,7 +1102,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      */
     public Image getPreFilteredImage(int structureIdx) {
         Image im = this.preFilteredImagesS.get(structureIdx);
-        if (im instanceof DiskBackedImage) return ((SimpleDiskBackedImage)im).getImage();
+        if (im == null) return getRawImage(structureIdx);
         else return im;
     }
 

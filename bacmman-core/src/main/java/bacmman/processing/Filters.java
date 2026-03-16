@@ -517,18 +517,18 @@ public class Filters {
         }
         @Override public double applyFilter(int x, int y, int z) {
             double centralValue = image.getPixel(x, y, z);
-            if (image.getPixel(x, y, z)!=0) return centralValue;
+            if (centralValue!=0) return centralValue;
             if (!mask.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, null);
-            int idx = 0; // central value == 0, pixels are sorted acording to distance to center -> first non null label = closest
+            int idx = 0; // central value == 0, pixels are sorted according to distance to center -> first non null label = closest
             int count = neighborhood.getValueCount();
             double[] values = neighborhood.getPixelValues();
             while (++idx<count && values[idx]==0) {}
             if (idx==count) return 0;
-            if (idx+1==count) return neighborhood.getPixelValues()[idx];
+            if (idx+1==count) return values[idx];
             int idx2=idx;
             while (++idx2<count && (values[idx2]==0 || values[idx2]==values[idx])) {}
-            if (idx2==count) return neighborhood.getPixelValues()[idx];
+            if (idx2==count) return values[idx];
             if (neighborhood.getDistancesToCenter()[idx]<neighborhood.getDistancesToCenter()[idx2]) return values[idx];
             return 0;
         }

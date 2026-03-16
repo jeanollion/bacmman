@@ -495,7 +495,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         //logger.debug("{} parent: {} xp: {} clearing cache for Dao: {} / objects: {}, measurements: {}", this.hashCode(), this.mDAO.hashCode(), this.mDAO.getExperiment().hashCode(), this.positionName, this.dbS.keySet(), this.measurementdbS.keySet());
         applyOnAllOpenedObjects(o->{
             getMasterDAO().getAccess().flushImages(o);
-            if (o.hasRegion()) o.getRegion().clearVoxels();
+            if (o.hasRegion()) o.getRegion().freeMemory();
         }); // free memory in case objects are stored elsewhere (eg selection, track mask...)
         cache.clear();
         allObjectsRetrievedInCache.clear();

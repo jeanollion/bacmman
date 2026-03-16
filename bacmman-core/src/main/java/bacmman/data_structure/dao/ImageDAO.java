@@ -36,8 +36,8 @@ public interface ImageDAO {
     Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException;
     Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException;
     BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException;
-    void writePreProcessedImage(Image image, int channelImageIdx, int timePoint);
-    void deletePreProcessedImage(int channelImageIdx, int timePoint);
+    void writePreProcessedImage(Image image, int channelImageIdx, int timePoint) throws IOException;
+    void deletePreProcessedImage(int channelImageIdx, int timePoint) throws IOException;
 
     boolean isEmpty();
 }

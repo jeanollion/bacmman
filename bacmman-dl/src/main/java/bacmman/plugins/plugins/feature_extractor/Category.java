@@ -53,7 +53,7 @@ public class Category implements FeatureExtractorConfigurable, Hint {
             int l = 0;
             for (int i = 0; i<selections.size(); ++i) {
                 if (selections.get(i).contains(o)) {
-                    if (l != 0) throw new RuntimeException("Object "+o+ "belongs to category:" +l+ " and "+i+1);
+                    if (l != 0) throw new RuntimeException("Object "+o+ "belongs to category:" +l+ " and "+(i+1));
                     l = i + 1;
                 }
             }

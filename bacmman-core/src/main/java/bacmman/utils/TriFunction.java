@@ -9,8 +9,6 @@ public interface TriFunction<T, U, V, R> {
 
     default <S> TriFunction<T, U, V, S> andThen(Function<? super R, ? extends S> after) {
         Objects.requireNonNull(after);
-        return (t, u, v) -> {
-            return after.apply(this.apply(t, u, v));
-        };
+        return (t, u, v) -> after.apply(this.apply(t, u, v));
     }
 }

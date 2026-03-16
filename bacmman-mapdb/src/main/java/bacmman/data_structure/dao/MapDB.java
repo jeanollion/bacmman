@@ -49,15 +49,15 @@ import bacmman.utils.Utils;
 public class MapDB<T extends ObjectDAO<String>> extends PersistentMasterDAOImpl<String, T, MapDBSelectionDAO> {
     static final Logger logger = LoggerFactory.getLogger(MapDB.class);
 
-    public MapDB(String dbName, String datasetDir, SegmentedObjectAccessor accessor) {
-        super(dbName, datasetDir,
+    public MapDB(Path dir, SegmentedObjectAccessor accessor) {
+        super(dir,
                 (mDAO, positionName, outputDir, readOnly) -> (T)new MapDBObjectDAO(mDAO, positionName, outputDir, readOnly),
                 MapDBSelectionDAO::new,
                 accessor);
     }
 
     @Override
-    public boolean containsDatabase(String outputPath) {
+    public boolean containsDatabase(Path outputPath) {
         return MasterDAOFactory.containsMapDBDatabase(outputPath);
     }
 

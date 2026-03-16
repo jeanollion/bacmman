@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 
 public class MixChannel implements ConfigurableTransformation, TransformationApplyDirectly, Hint {
     ChannelImageParameter otherChannel = new ChannelImageParameter("Other Channel").setEmphasized(true).setHint("Other Channel to be mixed with this channel");
@@ -66,7 +65,7 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
 
     private Histogram getHisto(int c) {
         List<Image> allImages = Arrays.asList(InputImages.getImageForChannel(ii, c, false));
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).parallel());
         return histo;
     }
 
@@ -103,7 +102,7 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
             bacmman.plugins.HistogramScaler scalerI = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
             if (scalerI!=null) {
                 Image i = image;
-                scalerI.setHistogram(HistogramFactory.getHistogram(i::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+                scalerI.setHistogram(HistogramFactory.getHistogram(i::stream));
             }
             bacmman.plugins.HistogramScaler otherScalerI = otherScaler.isOnePluginSet() ? otherScaler.instantiatePlugin() : null;
             if (otherScalerI!=null) otherImage = otherScalerI.scale(otherImage);

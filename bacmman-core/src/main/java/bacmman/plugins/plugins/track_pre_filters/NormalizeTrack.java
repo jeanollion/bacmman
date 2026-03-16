@@ -50,7 +50,7 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
     }
     @Override
     public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
-        Histogram histo = HistogramFactory.getHistogram(()->preFilteredImages.streamImages().flatMapToDouble(im -> im.stream()), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram histo = HistogramFactory.getHistogram(()->preFilteredImages.streamImages().flatMapToDouble(im -> im.stream()));
         double[] minAndMax = new double[2];
         minAndMax[0] = histo.getMinValue();
         if (saturation.getValue().doubleValue()<1) minAndMax[1] = histo.getQuantiles(saturation.getValue().doubleValue())[0];

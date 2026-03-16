@@ -63,6 +63,9 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     String name;
     int objectClassIdx;
     Map<String, List<String>> elements; // position maps bar-code stored as list for simplicity
+    public final static String indexSeparator ="-";
+    Map<String, List<SegmentedObject>> retrievedElements= new HashMap<>();
+    MasterDAO mDAO;
     String color="Green";
     // volatile state
     boolean displayingTracks=false;
@@ -85,9 +88,6 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         navigate = other.navigate;
         addObjects = other.addObjects;
     }
-    public final static String indexSeparator ="-";
-    Map<String, List<SegmentedObject>> retrievedElements= new HashMap<>();
-    MasterDAO mDAO;
     
     public Selection(String name, MasterDAO mDAO) {
         this(name, -2, mDAO);

@@ -13,15 +13,17 @@ import bacmman.utils.HashMapGetCreate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
+import org.tensorflow.ndarray.FloatNdArray;
 import org.tensorflow.ndarray.buffer.DataBuffer;
-import org.tensorflow.proto.framework.ConfigProto;
-import org.tensorflow.proto.framework.GPUOptions;
-//import org.tensorflow.proto.ConfigProto;
-//import org.tensorflow.proto.GPUOptions;
-import org.tensorflow.types.TFloat32;
+//import org.tensorflow.proto.framework.ConfigProto; // prior to v1
+//import org.tensorflow.proto.framework.GPUOptions; // prior to v1
+import org.tensorflow.proto.ConfigProto; // from v1
+import org.tensorflow.proto.DataType;
+import org.tensorflow.proto.GPUOptions; // from v1
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -49,10 +51,9 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
             .setActionParameters(Z_AXIS.CHANNEL, channelIdx)
             .setLegacyParameter((p, a) -> a.setActionValue( ((BooleanParameter)p[0]).getSelected()? Z_AXIS.CHANNEL : Z_AXIS.Z), new BooleanParameter("Z as Channel", false));
 
-    BooleanParameter halfPrecision = new BooleanParameter("Half Precision", false).setEmphasized(true).setHint("Prediction are performed in float 16 precision to lower memory usage");
+    BooleanParameter halfPrecision = new BooleanParameter("Half Precision", false).setEmphasized(true).setHint("Forces output to float 16 precision to lower memory usage");
     String[] inputNames, outputNames;
     SavedModelBundle model;
-    public boolean halfPrecision() {return halfPrecision.getSelected();}
 
     @Override
     public int[] getGPUs() {
@@ -94,8 +95,8 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
             Signature s = model.function("serving_default").signature();
             //System.setOut(stdout);
             logger.debug("model signature : {}", s.toString());
-            inputNames = s.inputNames().stream().sorted().toArray(String[]::new);
-            outputNames = s.outputNames().stream().sorted().toArray(String[]::new);
+            inputNames = s.inputNames().stream().sorted(Comparator.comparing(String::toLowerCase)).toArray(String[]::new);
+            outputNames = s.outputNames().stream().sorted(Comparator.comparing(String::toLowerCase)).toArray(String[]::new);
             logger.debug("model loaded: inputs: {} (imported order: {}), outputs: {} (imported order: {})", inputNames, s.inputNames(), outputNames, s.outputNames());
             if (inputNames==null || inputNames.length==0 || outputNames ==null || outputNames.length==0 ) throw new RuntimeException("invalid input/output");
         }
@@ -137,7 +138,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
     }
 
     @Override
-    public void close() { // TODO this do not deallocate GPU memory
+    public void close() { // this does not deallocate GPU memory
         if (model!=null) {
             model.close();
             model = null;
@@ -250,10 +251,10 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
     }
     private void predict(Image[][][] inputINC, int idx, int idxMaxExcl, DataBufferContainer bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
         Tensor[] input = IntStream.range(0, inputINC.length).mapToObj(i ->  TensorWrapper.fromImagesNC(inputINC[i], idx, idxMaxExcl, bufferContainer.getDataBufferContainer(i), flipXYZ)).toArray(Tensor[]::new);
-        TFloat32[] output = predict(input);
+        Tensor[] output = predict(input);
         if (flipXYZ==null || flipXYZ.length==0) {
             for (int io = 0; io < outputNames.length; ++io) {
-                Image[][] resIm = TensorWrapper.getImagesNC(output[io], halfPrecision.getSelected() );
+                Image[][] resIm = TensorWrapper.getImagesNC((FloatNdArray)output[io], halfPrecision.getSelected() );
                 output[io].close();
                 for (int i = idx; i < idxMaxExcl; ++i) outputONC[io][i] = resIm[i - idx];
             }
@@ -261,22 +262,23 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
             for (int io = 0; io < outputNames.length; ++io) {
                 int fio = io;
                 Image[][] resImNC = IntStream.range(idx, idxMaxExcl).mapToObj(i -> outputONC[fio][i]).toArray(Image[][]::new);
-                TensorWrapper.addToImagesNC(resImNC, output[io], flipXYZ);
+                TensorWrapper.addToImagesNC(resImNC, (FloatNdArray)output[io], flipXYZ);
                 output[io].close();
             }
         }
     }
 
-    private TFloat32[] predict(Tensor[] input) {
+    private Tensor[] predict(Tensor[] input) {
         assert input.length == inputNames.length;
         Map<String, Tensor> inputMap = new HashMap<>(inputNames.length);
         for (int i = 0; i<input.length; ++i) inputMap.put(inputNames[i], input[i]);
-        Map<String, Tensor> output = model.call(inputMap);
+        //Map<String, Tensor> output = model.call(inputMap); // prior to v1
+        //for (Tensor t : input) t.close(); // prior to v1
+        //return Arrays.stream(outputNames).map(output::get).toArray(TFloat32[]::new); // prior to v1
+        Result output = model.call(inputMap);
         for (Tensor t : input) t.close();
-        return Arrays.stream(outputNames).map(output::get).toArray(TFloat32[]::new);
-        //Result output = model.call(inputMap);
-        //for (Tensor t : input) t.close();
-        //return Arrays.stream(outputNames).map(n -> output.get(n).get()).toArray(TFloat32[]::new);
+        Tensor[] res = Arrays.stream(outputNames).map(n -> output.get(n).get()) .toArray(Tensor[]::new);
+        return res;
     }
 
     static class DataBufferContainer {

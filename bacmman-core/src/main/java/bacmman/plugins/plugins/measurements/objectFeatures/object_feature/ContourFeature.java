@@ -39,8 +39,9 @@ public class ContourFeature extends IntensityMeasurement implements Hint {
 
     @Override
     public double performMeasurement(Region object) {
+        if (core==null) synchronized(this) {setUpOrAddCore(null, null);}
         if (z>=0) {
-            object = regionSlice.get(object);
+            object = core.getRegionSlice(object);
             if (object == null) return Double.NaN;
         }
         switch (stat.getSelectedEnum()) {

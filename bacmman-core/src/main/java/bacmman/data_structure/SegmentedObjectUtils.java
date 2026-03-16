@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure;
 
+import bacmman.core.Core;
 import bacmman.data_structure.dao.MemoryObjectDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.MemoryMasterDAO;
@@ -339,7 +340,7 @@ public class SegmentedObjectUtils {
             currentSegment.add(currentPrev);
             res.put(currentPrev, currentSegment);
             for (int i = 1; i<track.size(); ++i) {
-                if (track.get(i).getPrevious().equals(currentPrev)) {
+                if (currentPrev.equals(track.get(i).getPrevious())) {
                     currentPrev = track.get(i);
                     currentSegment.add(currentPrev);
                 } else { // create new segment

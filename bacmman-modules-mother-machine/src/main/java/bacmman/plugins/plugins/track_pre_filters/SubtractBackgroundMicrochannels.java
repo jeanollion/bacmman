@@ -26,14 +26,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectImageMap;
 import bacmman.data_structure.Voxel;
-import bacmman.image.BlankMask;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageMask;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.SimpleOffset;
-import bacmman.image.TypeConverter;
+import bacmman.image.*;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.ProcessingPipeline;
@@ -112,8 +105,12 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         // recover data
         idx = 0;
         for (SegmentedObject o : tm.parents) {
-            Image dest = preFilteredImages.getImage(o);
+            Image dest = preFilteredImages.get(o);
             if (!preFilteredImages.allowInplaceModification()) dest = Image.createEmptyImage("filtered", allImagesY, dest);
+            else if (dest instanceof DiskBackedImage) {
+                if (((DiskBackedImage<?>) dest).isOpen()) dest = ((DiskBackedImage)dest).getImage();
+                else dest = Image.createEmptyImage("filtered", allImagesY, dest);
+            }
             Image.pasteImageView(allImagesY, dest, null, tm.getObjectOffset(idx++, 1));
             preFilteredImages.set(o, dest);
             //fillOutsideMask(o.getRegion(), preFilteredImages.get(o));

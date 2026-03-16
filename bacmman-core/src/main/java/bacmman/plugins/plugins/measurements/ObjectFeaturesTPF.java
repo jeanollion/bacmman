@@ -127,13 +127,13 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
             }
         }
         if (parentTrack.isEmpty()) return;
-        Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
+        IntensityMeasurementCore.IntensityMeasurementCoreCollection cores = new IntensityMeasurementCore.IntensityMeasurementCoreCollection();
         Set<Integer> allChildOC = features.getActivatedChildren().stream().map(PluginParameter::instantiatePlugin).filter(o -> o instanceof IntensityMeasurement).map(o -> ((IntensityMeasurement)o).getIntensityChannel()).collect(Collectors.toSet());;
         Map<Integer, BiFunction<Image, ImageMask, Image>> preFilterSequenceMapByOC = new HashMap<>();
         for (int oc : allChildOC) {
             SegmentedObjectImageMap preFiltered = preFilters.filterImages(oc, parentTrack);
             Map<Image, SegmentedObject> rawToObject = preFiltered.streamKeys().collect(Collectors.toMap(o -> o.getRawImage(oc), o->o));
-            preFilterSequenceMapByOC.put(oc, (im, mask)->preFiltered.getImage(rawToObject.get(im)));
+            preFilterSequenceMapByOC.put(oc, (im, mask)->preFiltered.get(rawToObject.get(im)));
         }
         ThreadRunner.executeAndThrowErrors(parentTrack.parallelStream(), parent -> {
             for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {

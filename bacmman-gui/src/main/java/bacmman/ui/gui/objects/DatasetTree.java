@@ -22,7 +22,6 @@ import bacmman.core.ProgressCallback;
 import bacmman.plugins.Hint;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.TransparentTreeCellRenderer;
-import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
@@ -36,13 +35,17 @@ import javax.swing.tree.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static bacmman.ui.logger.ExperimentSearchUtils.getExistingConfigFile;
+import static bacmman.ui.logger.ExperimentSearchUtils.processDir;
 import static javax.swing.tree.TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION;
 
 /**
@@ -106,26 +109,26 @@ public class DatasetTree {
                 if (path!=null) {
                     DatasetTreeNode n = (DatasetTreeNode)path.getLastPathComponent();
                     // read conf file and get note if existing
-                    File f = n.file;
+                    Path f = n.dir;
                     if (n.isFolder) tree.setToolTipText(null);
                     else {
-                        String dir = Paths.get(f.getAbsolutePath() , n.name + "_config.json").toString(); // TODO use DAO method to get path
-                        if (!new File(dir).exists()) tree.setToolTipText(null);
+                        Path configFile = getExistingConfigFile(f);
+                        if (configFile==null) tree.setToolTipText(null);
                         else {
                             try {
-                                RandomAccessFile raf = new RandomAccessFile(dir, "r");
+                                RandomAccessFile raf = new RandomAccessFile(configFile.toFile(), "r");
                                 String xpString = raf.readLine();
                                 raf.close();
                                 JSONObject json = xpString==null || xpString.isEmpty() ? null : JSONUtils.parse(xpString);
                                 String note = json==null ? "" : (json.get("note")==null? "" : (String) json.get("note"));
-                                if (note.length() == 0) tree.setToolTipText(null);
+                                if (note.isEmpty()) tree.setToolTipText(null);
                                 else tree.setToolTipText(Hint.formatHint(note, true));
                             } catch (ParseException ex) {
                                 tree.setToolTipText(null);
                                 // do nothing
                             } catch (Exception ex) {
                                 tree.setToolTipText(null);
-                                logger.debug("error reading dataset note for file: " + dir, ex);
+                                logger.debug("error reading dataset note for file: " + configFile, ex);
                             }
                         }
                     }
@@ -139,35 +142,38 @@ public class DatasetTree {
     }
 
     public List<String> getDatasetNames() {
-        return getNodeStream().map(n->n.name).collect(Collectors.toList());
+        return getNodeStream().map(DatasetTreeNode::getName).collect(Collectors.toList());
     }
-    public File getFirstSelectedFolder() {
+
+    public Path getFirstSelectedFolder(boolean relativePath) {
         TreePath[] sel = tree.getSelectionPaths();
         if (sel==null || sel.length==0) return null;
         TreePath p = sel[0];
         DatasetTreeNode n = (DatasetTreeNode)p.getLastPathComponent();
-        if (n.isFolder) return n.file;
-        else return ((DatasetTreeNode)n.getParent()).file;
+        if (!n.isFolder) n = (DatasetTreeNode)n.getParent();
+        if (relativePath) return n.getRelativePath();
+        else return n.dir;
     }
-    public File getFileForDataset(String dataset) {
+
+    public Path getDatasetPath(String dataset) {
         DatasetTreeNode n = getDatasetNode(dataset); // try as relative path
-        if (n==null) n = getNodeStream().filter(nn->nn.name.equals(dataset)).findFirst().orElse(null);
-        if (n!=null) return n.file;
+        if (n==null) n = getNodeStream().filter(nn->nn.getName().equals(dataset)).findFirst().orElse(null);
+        if (n!=null) return n.dir;
         else return null;
     }
     public boolean datasetNameExists(String datasetName) {
-        return getNodeStream().anyMatch(n->n.name.equals(datasetName));
+        return getNodeStream().anyMatch(n->n.getName().equals(datasetName));
     }
 
-    public void setWorkingDirectory(String dir, ProgressCallback pcb) {
+    public void setWorkingDirectory(Path dir, ProgressCallback pcb) {
         logger.debug("Setting wd: {}", dir);
         if (dir==null) {
             treeModel.setRoot(null);
             tree.updateUI();
             return;
         }
-        if (getRoot()==null || !getRoot().file.getAbsolutePath().equals(dir)) {
-            addDir(null, new File(dir), new HashSet<>(), pcb);
+        if (getRoot()==null || !getRoot().dir.equals(dir)) {
+            addDir(null, dir, pcb);
             removeEmptyFolders(true);
             tree.expandPath(getRootPath());
         } else updateDatasets(pcb);
@@ -177,40 +183,28 @@ public class DatasetTree {
         bacmman.ui.gui.Utils.SaveExpandState<DatasetTreeNode> exp = new bacmman.ui.gui.Utils.SaveExpandState<>(tree, getRoot())
                 .setEquals();
         TreePath[] sel = tree.getSelectionPaths();
-        addDir(null, getRoot().file, new HashSet<>(), pcb);
+        addDir(null, getRoot().dir, pcb);
         exp.restoreExpandedPaths();
         removeEmptyFolders(false);
-        Utils.addToSelectionPaths(tree, sel); // TODO check that selection still in tree ?
+        Utils.addToSelectionPaths(tree, sel);
         tree.updateUI();
     }
-    private void addDir(DatasetTreeNode parent, File dir, Set<String> datasetNames, ProgressCallback pcb) {
-        if (parent==null) {
+
+    private void addDir(DatasetTreeNode parent, Path dir, ProgressCallback pcb) {
+        if (parent==null) { // simply create root
             tree.removeAll();
-            this.treeModel=new DefaultTreeModel(new DatasetTreeNode(dir, dir.getName(), "", true, datasetNames, pcb));
+            this.treeModel=new DefaultTreeModel(new DatasetTreeNode(dir, true, pcb));
             tree.setModel(this.treeModel);
             return;
         }
-        File[] subDirs = dir.listFiles(d -> d.isDirectory() && !d.getName().equals("Output")); // a dataset cannot contain other datasets -> no need to search in its dir
-        if (subDirs==null) return;
-        Map<String, File> configs = new HashMap<>();
-        Set<Pair<String, File>> dup = new HashSet<>();
-        List<File> dirs = new ArrayList<>();
-        for (File f : subDirs) {
-            boolean config = ExperimentSearchUtils.addConfig(f, configs, dup);
-            if (!config) dirs.add(f);
-        }
-        if (!dup.isEmpty()) {
-            for (Pair<String, File> p : dup) {
-                configs.remove(p.key);
-                if (pcb!=null) pcb.log("Duplicated Experiment: "+p.key +"@:"+p.value+ " will not be listed");
+        processDir(dir,
+            confDir -> parent.add(new DatasetTreeNode(confDir, false, pcb)),
+            subDir -> { // only add if contains at least a sub-folder
+                try {
+                    if (Files.list(subDir).anyMatch(Files::isDirectory)) parent.add(new DatasetTreeNode(subDir, true, pcb));
+                } catch (IOException e) {}
             }
-        }
-        configs.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEachOrdered(e->{
-            if (datasetNames.contains(e.getKey())) pcb.log("Dataset "+e.getKey()+ " is duplicated: only one will appear");
-            else parent.add(new DatasetTreeNode(e.getValue(), e.getKey(), false, datasetNames, pcb));
-        });
-        for (File f : dirs) parent.add(new DatasetTreeNode(f, f.getName(), true, datasetNames, pcb));
-
+        );
     }
     public DatasetTreeNode getRoot() {
         if (treeModel.getRoot()==null) return null;
@@ -230,7 +224,7 @@ public class DatasetTree {
         if (sel==null || sel.length!=1) return null;
         DatasetTreeNode n = (DatasetTreeNode)sel[0].getLastPathComponent();
         if (n.isFolder) return null;
-        else return n.getRelativePath();
+        else return n.getRelativePath().toString();
     }
 
     public DatasetTreeNode getSelectedDatasetIfOnlyOneSelected() {
@@ -247,9 +241,9 @@ public class DatasetTree {
         return Arrays.stream(sel).map(s -> (DatasetTreeNode)s.getLastPathComponent()).filter(n->!n.isFolder).collect(Collectors.toList());
     }
 
-    public void setSelectedDataset(String dataset) {
-        DatasetTreeNode n = getDatasetNode(dataset); // first try as relative path:
-        if (n==null) n = getNodeStream().filter(d->d.name.equals(dataset)).findFirst().orElse(null);
+    public void setSelectedDataset(String relPath) {
+        DatasetTreeNode n = getDatasetNode(relPath); // first try as relative path:
+        if (n==null) n = getNodeStream().filter(d->d.getName().equals(relPath)).findFirst().orElse(null);
         if (n==null) tree.setSelectionPaths(new TreePath[0]);
         else {
             expanding = true;
@@ -321,11 +315,10 @@ public class DatasetTree {
         return res;
     }
 
-    public Triplet<String, String, File> parseRelativePath(String relativePath) {
-        Path root = Paths.get(getRoot().file.getAbsolutePath());
+    public Path getAbsolutePath(String relativePath) {
+        Path root = getRoot().dir;
         try {
-            File f = root.resolve(Paths.get(relativePath)).normalize().toFile();
-            return new Triplet<>(f.getName(), relativePath, f.getParentFile());
+            return root.resolve(Paths.get(relativePath)).normalize();
         } catch (Exception e) {
             return null;
         }
@@ -334,61 +327,29 @@ public class DatasetTree {
     public String getRelativePath(String datasetName) {
         DatasetTreeNode n = getDatasetNode(datasetName);
         if (n==null) return null;
-        return n.getRelativePath();
-    }
-
-    protected String generateRelativePath(File dir, String name) {
-        if (getRoot()==null) return "";
-        Path root = Paths.get(getRoot().file.getAbsolutePath());
-        Path p = name == null ? Paths.get(dir.getAbsolutePath()) : Paths.get(dir.getParent(), name);
-        try {
-            return root.relativize(p).toString();
-        } catch (Throwable t) {
-            logger.error("Error rel path: root: {}, p : {}", root, p);
-            throw t;
-        }
-    }
-
-    public static String getRelPathFromNameAndDir(String dbName, String dbDir, String baseDir) {
-        try {
-            Path rel = Utils.getRelativePath(dbDir, baseDir);
-            Path parent = rel.getParent();
-            if (parent == null) return dbName;
-            else return parent.resolve(dbName).toString();
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("no relative path from "+baseDir+ " to "+dbDir, e);
-        }
+        return n.getRelativePath().toString();
     }
 
     public class DatasetTreeNode extends DefaultMutableTreeNode {
-        final File file;
-        final String name;
-        final String relPath;
+        final Path dir;
         final boolean isFolder;
-        final Set<String> datasetNames;
         final ProgressCallback pcb;
-        DatasetTreeNode(File file, String name, boolean isFolder, Set<String>datasetNames, ProgressCallback pcb) {
-            this(file, name, generateRelativePath(file, isFolder ? null : name), isFolder, datasetNames, pcb);
-        }
-        DatasetTreeNode(File file, String name, String relPath, boolean isFolder, Set<String>datasetNames, ProgressCallback pcb) {
-            this.file = file;
-            this.name = name;
-            this.relPath = relPath;
+        DatasetTreeNode(Path dir, boolean isFolder, ProgressCallback pcb) {
+            this.dir = dir;
             this.isFolder = isFolder;
-            this.datasetNames = datasetNames;
             this.pcb = pcb;
         }
 
-        public String getRelativePath() {
-            return relPath;
+        public Path getRelativePath() {
+            return ((DatasetTreeNode)getRoot()).dir.relativize(dir);
         }
 
-        public File getFile() {
-            return file;
+        public Path getDir() {
+            return dir;
         }
 
         public String getName() {
-            return name;
+            return dir.getFileName().toString();
         }
 
         public boolean isFolder() {
@@ -397,7 +358,7 @@ public class DatasetTree {
 
         @Override
         public String toString() {
-            return name;
+            return getName();
         }
 
         // lazy loading
@@ -410,7 +371,7 @@ public class DatasetTree {
                 synchronized (this) {
                     if (children==null) {
                         children = new Vector<>();
-                        addDir(this, file, datasetNames, pcb);
+                        addDir(this, dir, pcb);
                     }
                 }
             }
@@ -445,12 +406,12 @@ public class DatasetTree {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DatasetTreeNode that = (DatasetTreeNode) o;
-            return Objects.equals(relPath, that.relPath);
+            return Objects.equals(dir, that.dir);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(relPath);
+            return Objects.hash(dir);
         }
     }
 }

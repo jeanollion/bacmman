@@ -57,7 +57,7 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
         else { // perform on single image
-            double center = getCenter(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            double center = getCenter(HistogramFactory.getHistogram(image::stream));
             log(center);
             return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
         }

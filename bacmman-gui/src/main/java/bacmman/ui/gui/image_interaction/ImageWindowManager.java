@@ -1309,7 +1309,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     }
 
     private static void displayHistogram(String name, List<Number> values) {
-        Histogram h = HistogramFactory.getHistogram(()->values.stream().mapToDouble(Number::doubleValue), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram h = HistogramFactory.getHistogram(()->values.stream().mapToDouble(Number::doubleValue));
         double binSize = h.getBinSize();
         double min = h.getMin() + binSize/2;
         IJUtils.plotHistogram("Histogram of "+name, IntStream.range(0, h.getData().length).mapToDouble(i -> min + i*binSize).toArray(), LongStream.of(h.getData()).mapToDouble(l->(double)l).toArray());

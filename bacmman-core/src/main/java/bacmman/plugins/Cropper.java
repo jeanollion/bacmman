@@ -26,5 +26,5 @@ import bacmman.image.MutableBoundingBox;
  * @author Jean Ollion
  */
 public interface Cropper extends Plugin {
-    public MutableBoundingBox getCropBoundginBox(int channelIdx, InputImages inputImages);
+    MutableBoundingBox getCropBoundingBox(int channelIdx, InputImages inputImages);
 }

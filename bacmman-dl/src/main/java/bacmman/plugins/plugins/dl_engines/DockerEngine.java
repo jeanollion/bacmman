@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -84,7 +85,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public void init() {
+    public synchronized void init() {
         if (containerID != null) return;
         containerID = getContainer();
         if (containerID == null) throw new RuntimeException("Container could not be initialized");
@@ -132,8 +133,13 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public Image[][][] process(Image[][]... inputNC) {
+    public synchronized Image[][][] process(Image[][]... inputNC) {
         if (containerID == null) throw new RuntimeException("Engine not initialized (no container)");
+        if (!dockerGateway.isContainerRunning(containerID)) { // restart container
+            containerID = null;
+            init();
+        }
+
         if (inputNames == null || outputNames == null) throw new RuntimeException("Engine not initialized (model not loaded properly)");
         if (inputNC.length != inputNames.length) {
             throw new RuntimeException("Provided input number is: " + inputNC.length + " while model expects : " + inputNames.length + " inputs");

@@ -246,6 +246,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public static BoundedNumberParameter getPatienceParameter(int defaultValue) {
         return new BoundedNumberParameter("Patience", 0, defaultValue, 1, null);
     }
+
     public static BoundedNumberParameter getMinLearningRateParameter(double defaultValue) {
         return new BoundedNumberParameter("Min Learning Rate", 8, defaultValue, Math.min(10e-8, defaultValue), null);
     }
@@ -269,6 +270,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
     public static BoundedNumberParameter getValidationFreqParameter(int defaultValue) {
         return new BoundedNumberParameter("Validation Frequency", 0, defaultValue, 1, null).setHint("Specifies how many training epochs to run before a new validation run is performed, e.g. validation_freq=2 runs validation every 2 epochs.<br/>Validation is only performed if datasets of type TEST are provided");
+    }
+
+    public static BooleanParameter getMixedPrecisionParameter(boolean defaultValue) {
+        return new BooleanParameter("Mixed Precision", defaultValue).setHint("If true, training is performed in mixed precision mode which reduces memory footprint (up to a factor 2) as well as computation time, at the cost of a small decrease in accuracy. <br/>Most operations are performed in float16 but gradients are still computed in float32. <br/>Not supported on all GPUs not CPUs. ");
+    }
+    public enum EXPORT_PRECISION {AUTO, FP16, FP32}
+    public static EnumChoiceParameter<EXPORT_PRECISION> getExportPrecisionParameter() {
+        return new EnumChoiceParameter<>("Export Precision", EXPORT_PRECISION.values(), EXPORT_PRECISION.FP32).setHint("If FP16, model is exported with weights converted to FP16 (with some notable exception such as Batch norm weights), and most prediction computation will be performed in float16. On capable GPUs this reduces reduces memory footprint as well as computation time (up to a factor 2). This also reduced the model size by a factor 2. Not supported on most CPUs. AUTO: will export in FP16 only is mixed precision is enabled");
     }
 
     public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}
@@ -714,6 +723,64 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         }
     }
 
+    public static class CategoryLossParameter extends GroupParameterAbstract<CategoryLossParameter> implements PythonConfiguration {
+        FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Value=1 means weights are inverse frequency. Value below 1: Power law applied to inverse class frequency weight, in order to limits them");
+        FloatParameter focalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(5).setHint("<strong>focal_weight (γ):</strong> Focusing parameter (γ ≥ 0). Controls hard example emphasis.<br>" +
+                "<ul>" +
+                "    <li><strong>γ=0.0</strong> → standard cross entropy (no focal effect)</li>" +
+                "    <li><strong>γ=1.0</strong> → mild focus on hard examples</li>" +
+                "    <li><strong>γ=2.0</strong> → standard focal</li>" +
+                "    <li><strong>γ=5.0</strong> → extreme focus (for very imbalanced data)</li>" +
+                "</ul>");
+        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(1).setUpperBound(3).setHint("<strong>Temperature (t):</strong> Tempering parameter (t ≥ 1). Controls gradient bounding.<br>" +
+                "<ul>" +
+                "    <li><strong>t=1.0</strong> → standard cross entropy (unbounded gradients)</li>" +
+                "    <li><strong>t=2.0</strong> → moderate bounding</li>" +
+                "    <li><strong>t=3.0+</strong> → strong bounding (very stable, may slow learning)</li>" +
+                "</ul>");
+        FloatParameter labelSmoothing = new FloatParameter("Label Smoothing", 0).setLowerBound(0).setUpperBound(0.5).setHint(
+                "Effect: y<sub>smooth</sub> = y * (1-&epsilon;) + &epsilon;/K <br>where K = num_classes<br><br>" +
+                        "<strong>Benefits:</strong><br>" +
+                        "<ul>" +
+                        "    <li>Prevents overconfidence (probabilities ≠ 0 or 1)</li>" +
+                        "    <li>Improves calibration (predicted probs match true frequencies)</li>" +
+                        "    <li>Acts as regularization (reduces overfitting)</li>" +
+                        "    <li>Better generalization on test data</li>" +
+                        "</ul>" +
+                        "<strong>When useful:</strong><br>" +
+                        "<ul>" +
+                        "    <li>Models prone to overconfidence</li>" +
+                        "    <li>Limited training data</li>" +
+                        "    <li>Noisy labels</li>" +
+                        "    <li>When calibration matters (e.g., medical, finance)</li>" +
+                        "</ul>" +
+                        "<strong>Trade-offs:</strong><br>" +
+                        "<ul>" +
+                        "    <li>May slightly hurt training accuracy</li>" +
+                        "    <li>Improves test accuracy & calibration</li>" +
+                        "    <li>Can conflict with focal loss (both modify targets)</li>" +
+                        "</ul>"
+        );
+
+
+        public CategoryLossParameter(String name) {
+            super(name);
+            this.setChildren(weightPowerLaw, focalWeight, labelSmoothing);
+        }
+
+        @Override
+        public CategoryLossParameter duplicate() {
+            CategoryLossParameter res = new CategoryLossParameter(name);
+            ParameterUtils.setContent(res.children, children);
+            transferStateArguments(this, res);
+            return res;
+        }
+
+        @Override
+        public String getPythonConfigurationKey() {return "category_loss_parameters";}
+
+    }
+
     public static <T extends ListParameter> Predicate<T> channelNumberValidation(boolean allowOneForAll) {
         return p -> {
             if (allowOneForAll && p.getChildCount() == 1) return true;
@@ -721,5 +788,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 return p.getChildCount() == ((DatasetParameter)p.getParent()).getChannelNumber();
             } else return true;
         };
+    }
+
+    public static ChoiceParameter getActivationParameter() {
+        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "ELU", "GELU", "SiLU"}, "ReLU", false);
+    }
+
+    public static IntegerParameter getGradientAccumulationSteps() {
+        return new IntegerParameter("Gradient Accumulation Steps", 1).setLowerBound(1)
+                .setHint("Accumulate gradients over N forward/backward passes before performing a single weight update. " +
+                        "<br>This effectively simulates a larger batch size (<em>batch_size × N</em>) while keeping memory usage constant, but increases training time per update. " +
+                        "<br>Useful for training with large batch sizes on memory-constrained GPUs.");
     }
 }

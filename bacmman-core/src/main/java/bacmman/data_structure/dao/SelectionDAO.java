@@ -52,7 +52,9 @@ public interface SelectionDAO {
     void delete(String id);
     
     void delete(Selection o);
-    
+
+    boolean contains(String name);
+
     public void deleteAllObjects();
     void erase();
     boolean isReadOnly();

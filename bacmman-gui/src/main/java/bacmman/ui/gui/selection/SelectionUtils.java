@@ -470,7 +470,7 @@ public class SelectionUtils {
 
         JMenuItem intersection = new JMenuItem("Intersection");
         intersection.addActionListener((ActionEvent e) -> {
-            String name = JOptionPane.showInputDialog("Union Selection name:");
+            String name = JOptionPane.showInputDialog("Intersection Selection name:");
             if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
                 Selection interSel = SelectionOperations.intersection(name, selectedValues);
                 interSel.getMasterDAO().getSelectionDAO().store(interSel);

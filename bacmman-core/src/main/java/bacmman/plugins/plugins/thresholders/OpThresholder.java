@@ -108,7 +108,7 @@ public class OpThresholder  { //implements ThresholderHisto, SimpleThresholder
     }
     //@Override
     public double runSimpleThresholder(Image image, ImageMask mask) {
-        return runThresholderHisto(HistogramFactory.getHistogram(() -> image.stream(mask, true), HistogramFactory.BIN_SIZE_METHOD.AUTO));
+        return runThresholderHisto(HistogramFactory.getHistogram(() -> image.stream(mask, true)));
     }
     //@Override
     public double runThresholderHisto(Histogram histogram) {

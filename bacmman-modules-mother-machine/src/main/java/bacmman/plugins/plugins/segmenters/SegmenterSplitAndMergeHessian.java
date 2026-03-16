@@ -206,7 +206,7 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
 
     static double  getGlobalOtsuThreshold(Stream<SegmentedObject> parent, int structureIdx) {
         Map<Image, ImageMask> imageMapMask = parent.collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask() ));
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel());
         return IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
 
     }

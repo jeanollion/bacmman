@@ -17,9 +17,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.IntSupplier;
 
-public class PixMClass implements DockerDLTrainer {
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40), TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1)};
-    Parameter[] datasetParameters = new Parameter[]{TrainingConfigurationParameter.getLossMaxWeightParameter(10), new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
+import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
+
+public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision {
+    BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(true);
+    EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getEpsilonRangeParameter(1e-7, 1e-7), TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters"), mixedPrecision, exportPrecision};
+    Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
 
@@ -54,8 +58,26 @@ public class PixMClass implements DockerDLTrainer {
     }
 
     @Override
+    public boolean mixedPrecision() {
+        return mixedPrecision.getSelected();
+    }
+
+    @Override
+    public boolean exportFP16() {
+        switch (exportPrecision.getSelectedEnum()) {
+            case FP16:
+                return true;
+            case FP32:
+                return false;
+            case AUTO:
+            default:
+                return mixedPrecision();
+        }
+    }
+
+    @Override
     public String minimalScriptVersion() {
-        return "1.1.3";
+        return "1.1.5";
     }
 
     @Override
@@ -123,18 +145,19 @@ public class PixMClass implements DockerDLTrainer {
         IntegerParameter classNumber = new IntegerParameter("Class Number", 3).setLowerBound(2).setHint("Number of classes to predict (usually 3: background, foreground and contours or 2: background and foreground). Must be consistent with dataset");
         BoundedNumberParameter filters = new BoundedNumberParameter("Feature Filters", 0, 256, 32, 1024).setHint("Number of filters at the feature level");
         BoundedNumberParameter filtersMin = new BoundedNumberParameter("Min. Filters", 0, 32, 8, 1024).setHint("Minimum Number of filters at all levels. <br>For each level L, the number of filter is filters / 2**(n_downsampling - l). This parameter ensures a minimum value for filters.");
-
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 4, 2, 5).addListener(p-> {
             SimpleListParameter list = ParameterUtils.getParameterFromSiblings(SimpleListParameter.class, p, null);
             list.setChildrenNumber(p.getIntValue());
         });
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("If true, skip connections are included at all levels otherwise skip connection at first level is omited. Skip connection at first level increase the details");
         BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
+        ChoiceParameter activation = TrainingConfigurationParameter.getActivationParameter();
+        BooleanParameter batchNorm = new BooleanParameter("Batch Norm", true).setLegacyInitializationValue(Boolean.FALSE).setHint("Add a batch norm regularization layer at each convolution");
         IntSupplier channelNumberSupplier;
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool);
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, batchNorm);
         }
 
         public int getContraction() {
@@ -163,6 +186,8 @@ public class PixMClass implements DockerDLTrainer {
             res.put("architecture_type", getActionValue().toString());
             res.put("n_classes", classNumber.getIntValue());
             res.put("n_inputs", inputNumber.getIntValue());
+            res.put("batch_norm", batchNorm.getValue());
+            res.put("activation", activation.getValue());
             JSONArray sc = new JSONArray();
             if (!skip.getSelected()) sc.add(0);
 

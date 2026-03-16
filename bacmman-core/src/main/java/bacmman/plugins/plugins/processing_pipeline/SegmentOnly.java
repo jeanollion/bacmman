@@ -83,10 +83,16 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     }
     
     @Override public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        long t0 = System.currentTimeMillis();
         getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
+        long t1 = System.currentTimeMillis();
         TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
+        long t2 = System.currentTimeMillis();
         //logger.debug("segmenter with track configuration: {}", apply!=null);
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
+        long t3 = System.currentTimeMillis();
+        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}ms (pf: {} trackconf: {} seg {})", parentTrack.get(0), parentTrack.size(), t3-t0, t1-t0, t2-t1, t3-t2);
+
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {
         SegmentedObjectAccessor accessor = getAccessor();
@@ -115,7 +121,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         }
         //logger.debug("single frame: {} parent track size: {}", singleFrame, allParents.size());
         if (parallel) Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
-        final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getRawImage(structureIdx).sizeZ()>1;
+        final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getExperimentStructure().sizeZ( parentTrack.get(0).getPositionName(), parentTrack.get(0).getExperimentStructure().getChannelIdx(structureIdx) )>1;
         long t0 = System.currentTimeMillis();
         List<RegionPopulation> pops;
         try {
@@ -189,7 +195,6 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
            }
         }
         long t4 = System.currentTimeMillis();
-        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}", parentTrack.get(0), parentTrack.size(), t4-t0);
         if (!me.isEmpty()) throw me;
     }
     

@@ -138,8 +138,8 @@ public class Core {
     public static DiskBackedImageManager getDiskBackedManager(SegmentedObject segmentedObject) {
         return diskBackedImageManagerProvider.getManager(segmentedObject);
     }
-    public static DiskBackedImageManagerImageDAO getDiskBackedManager(String position, ImageDAO imageDAO, boolean forceCreation) {
-        return diskBackedImageManagerProvider.getImageDAOManager(position, imageDAO, forceCreation);
+    public static DiskBackedImageManagerImageDAO getDiskBackedManager(String position, ImageDAO imageDAO, String tmpDir, boolean forceCreation) {
+        return diskBackedImageManagerProvider.getImageDAOManager(position, imageDAO, tmpDir, forceCreation);
     }
     public static void clearDiskBackedImageManagers() {
         diskBackedImageManagerProvider.clear();

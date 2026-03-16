@@ -359,40 +359,6 @@ public class RegionPopulation {
         relabel(true);
     }
 
-    public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject) {
-        return localThreshold(erodeMap, iqrFactor, darkBackground, keepOnlyBiggestObject, 0, null);
-    }
-
-    /**
-     * @param erodeMap
-     * @param iqrFactor
-     * @param darkBackground
-     * @param keepOnlyBiggestObject when applying local threhsold one object could be split in several, if true only the biggest will be kept
-     * @param dilateRegionRadius    radius for dilate region label-wise. 0 -> no dilatation
-     * @param mask                  mask for region dilatation
-     * @return
-     */
-    public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
-        if (erodeMap == null) throw new IllegalArgumentException("Erode Map cannot be null");
-        Function<Region, Double> thldFct = o -> {
-            List<Double> values = new ArrayList<>();
-            o.loop((x, y, z) -> values.add((double)erodeMap.getPixel(x, y, z)));
-            double q1 = ArrayUtil.quantile(values, 0.25);
-            double q2 = ArrayUtil.quantile(values, 0.5);
-            double q3 = ArrayUtil.quantile(values, 0.75);
-            double thld;
-            if (darkBackground) {
-                thld = q2 - iqrFactor * (q3 - q1);
-                if (dilateRegionRadius > 0 || values.get(0) < thld) return thld; // if no dilatation: put the threshold only if some pixels are under thld
-                else return null;
-            } else {
-                thld = q2 + iqrFactor * (q3 - q1);
-                if (dilateRegionRadius > 0 || values.get(values.size() - 1) > thld) return thld;
-                else return null;
-            }
-        };
-        return localThreshold(erodeMap, thldFct, darkBackground, keepOnlyBiggestObject, dilateRegionRadius, mask);
-    }
     /**
      *
      * @param erodeMap
@@ -406,38 +372,42 @@ public class RegionPopulation {
     public RegionPopulation localThreshold(Image erodeMap, Function<Region, Double> thresholdFunction, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
         //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
         List<Region> addedObjects = new ArrayList<>();
+        List<Region> toRemove = new ArrayList<>();
         Map<Integer, Double> labelMapThld = Utils.toMapWithNullValues(getRegions().stream(), Region::getLabel, thresholdFunction, false);
         if (dilateRegionRadius>0) {
-            labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
+            labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, getLabelMap()));
             constructObjects();
         }
         for (Region r : getRegions()) {
-            if (!labelMapThld.containsKey(r.getLabel())) continue;
+            if (!labelMapThld.containsKey(r.getLabel())) continue; // no threshold
             double thld = labelMapThld.get(r.getLabel());
             boolean change = r.erodeContours(erodeMap, thld, darkBackground, keepOnlyBiggestObject, r.getContour(), null);
-            if (change && !keepOnlyBiggestObject) {
+            if (change) {
                 List<Region> subRegions = ImageLabeller.labelImageListLowConnectivity(r.mask);
                 if (subRegions.size()>1) {
-                    subRegions.remove(0);
+                    subRegions.sort(Comparator.comparingDouble(sr -> -sr.size()));
+                    subRegions.remove(0); // exclude biggest
                     r.ensureMaskIsImageInteger();
                     ImageInteger regionMask = r.getMaskAsImageInteger();
-                    for (Region toErase: subRegions) {
-                        toErase.draw(regionMask, 0);
-                        toErase.translate(r.getBounds());
+                    for (Region subR: subRegions) {
+                        subR.draw(regionMask, 0);
+                        subR.translate(r.getBounds()).setIsAbsoluteLandmark(r.absoluteLandmark).setIs2D(r.is2D);
                     }
-                    addedObjects.addAll(subRegions);
+                    if (!keepOnlyBiggestObject) addedObjects.addAll(subRegions);
                 }
+                r.resetMask(); // bounds may have changed -> will update bounds
             }
+            if (change && r.size() == 0) toRemove.add(r);
         }
         objects.addAll(addedObjects);
+        objects.removeAll(toRemove);
+        labelImage = null;
         relabel(true);
-        getLabelMap();
-        constructObjects(); // updates bounds of objects
         return this;
     }
     public RegionPopulation localThresholdEdges(Image erodeMap, Image edgeMap, double sigmaFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask, Predicate<Voxel> removeContourVoxel) {
         if (dilateRegionRadius>0) {
-            labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
+            labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, getLabelMap()));
             constructObjects();
         }
         List<Region> addedObjects = new ArrayList<>();

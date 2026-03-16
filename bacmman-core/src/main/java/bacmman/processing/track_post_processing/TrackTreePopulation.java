@@ -262,7 +262,21 @@ public class TrackTreePopulation {
 
     public void solveByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, TrackEvent trackEvent, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         trackTrees.stream().filter(tt -> tt.size()>1).forEach(tt -> {
-            Consumer<Track> remove = t -> tt.remove(t.head());
+            Consumer<Track> remove = t -> {
+                boolean rem = tt.remove(t.head()) != null;
+                if (!rem) {
+                    Iterator<Track> it = tt.values().iterator();
+                    while(it.hasNext()) {
+                        Track n = it.next();
+                        if (n.equals(t)) {
+                            it.remove();
+                            rem = true;
+                            break;
+                        }
+                    }
+                    logger.debug("warning: track : {} could not be removed by ref. removed by it: {}", t, rem);
+                }
+            };
             Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
             Set<Track> seen = new HashSet<>();
             trackEvent.next(tt, seen);

@@ -133,7 +133,7 @@ public class SNR extends IntensityMeasurement implements Hint {
                 }).collect(Collectors.toList());
             }
         }
-        if (z>=0) backgroundObjects = backgroundObjects.stream().map(regionSlice::get).filter(Objects::nonNull).collect(Collectors.toList());
+        if (z>=0) backgroundObjects = backgroundObjects.stream().map(core::getRegionSlice).filter(Objects::nonNull).collect(Collectors.toList());
         double erodeRad= this.erodeBorders.getScaleXY();
         double erodeRadZ = z<=0 ? this.erodeBorders.getScaleZ(parent.getScaleXY(), parent.getScaleZ()) : 0;
         double dilRad = this.dilateExcluded.getScaleXY();
@@ -182,7 +182,7 @@ public class SNR extends IntensityMeasurement implements Hint {
             }
         }
         if (z>=0) {
-            object = regionSlice.get(object);
+            object = core.getRegionSlice(object);
             if (object == null) return Double.NaN;
         }
         Region bckObject;

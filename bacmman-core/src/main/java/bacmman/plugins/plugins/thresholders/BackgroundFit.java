@@ -21,7 +21,6 @@ package bacmman.plugins.plugins.thresholders;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
-import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
@@ -77,7 +76,7 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     
     @Override
     public double runSimpleThresholder(Image input, ImageMask mask) {
-        return runThresholderHisto(HistogramFactory.getHistogram(()->Utils.parallel(input.stream(mask, true), parallel), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND) );
+        return runThresholderHisto(HistogramFactory.getHistogram(()->Utils.parallel(input.stream(mask, true), parallel)) );
     }
 
     public static float[] smooth(long[] data, double scale) {

@@ -27,11 +27,8 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 
-import java.util.List;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
-
-import java.util.Arrays;
 
 /**
  *
@@ -58,7 +55,7 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
         long t0 = System.currentTimeMillis();
-        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream));
         double[] bckMuStd = new double[2];
         double bckThld = BackgroundFit.backgroundFit(histo, 10, bckMuStd);
         Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(bckThld)+1, histo.getData().length);

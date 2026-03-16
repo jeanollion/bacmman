@@ -19,112 +19,156 @@
 package bacmman.ui.logger;
 
 import bacmman.ui.PropertyUtils;
-import bacmman.core.ProgressCallback;
-
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import bacmman.utils.Pair;
-import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class ExperimentSearchUtils {
-    
-    
-    
+    private static final Logger logger = LoggerFactory.getLogger(ExperimentSearchUtils.class);
+
+    public static Path getExistingConfigFile(Path dir) {
+        Path res = dir.resolve("config.json");
+        if (Files.exists(res)) return res;
+        // legacy path
+        res = dir.resolve(dir.getFileName() + "_config.json");
+        if (Files.exists(res)) return res;
+        try {
+            return Files.list(dir).filter(p -> p.getFileName().toString().endsWith("_config.json")).findFirst().orElse(null);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     public static void filter(List<String> list, String prefix) {
         Iterator<String> it = list.iterator();
         while(it.hasNext()) {
             if (!it.next().startsWith(prefix)) it.remove();
         }
     }
-    public static String removePrefix(String name, String prefix) {
-        if (prefix == null || prefix.isEmpty()) return name;
-        while (name.startsWith(prefix)) name= name.substring(prefix.length());
-        return name;
-    }
-    public static String addPrefix(String name, String prefix) {
-        if (name==null) return null;
-        if (!name.startsWith(prefix)) name= prefix+name;
-        return name;
-    }
+
     public static String searchForLocalDir(String dbName) {
         String defPath = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH);
-        String d = null;
-        if (defPath!=null) d = searchLocalDirForDB(dbName, defPath);
+        Path d = null;
+        if (defPath!=null) d = searchLocalDirForDB(Paths.get(defPath), dbName);
         //logger.debug("searching db: {} in path: {}, res: {}", dbName, defPath, d );
         if (d==null) {
             for (String path : PropertyUtils.getStrings(PropertyUtils.LOCAL_DATA_PATH)) {
                 if (path.equals(defPath)) continue;
-                d = searchLocalDirForDB(dbName, path);
+                d = searchLocalDirForDB(Paths.get(path), dbName);
                 //logger.debug("searching db: {} in path: {}, res: {}", dbName, path, d );
-                if (d!=null) return d;
+                if (d!=null) return d.toString();
             }
-        }
-        return d;
-    }
-    public static String searchLocalDirForDB(String dbName, String dir) {
-        File config = Utils.search(dir, dbName+"_config.json", 2);
-        if (config!=null) return config.getParent();
-        else {
-            config = Utils.search(new File(dir).getParent(), dbName+"_config.json", 2);
-            if (config!=null) return config.getParent();
-            else return null;
-        }
-    }
-    public static boolean dbRelPathMatch(String dbRelPathToTest, String refDir, String refDbName) {
-        String refPath = Paths.get(refDir).resolve(refDbName).toString();
-        return refPath.endsWith(dbRelPathToTest);
-    }
-    public static Map<String, File> listExperiments(String path, boolean excludeDuplicated, ProgressCallback pcb) {
-        File f = new File(path);
-        Map<String, File> configs = new HashMap<>();
-        Set<Pair<String, File>> dup = new HashSet<>();
-        if (f.isDirectory()) { // only in directories included in path
-            File[] sub = f.listFiles(File::isDirectory);
-            if (sub != null) for (File subF : sub) addConfig(subF, configs, dup);
-        } 
-        if (!dup.isEmpty()) {
-            for (Pair<String, File> p : dup) {
-                if (excludeDuplicated) configs.remove(p.key);
-                if (pcb!=null) pcb.log("Duplicated Experiment: "+p.key +"@:"+p.value+ (excludeDuplicated?" will not be listed":" only one will be listed"));
-            }
-        }
-        return configs;
-    }
-    public static boolean addConfig(File f, Map<String, File> configs, Set<Pair<String, File>> duplicated) {
-        File[] dbs = f.listFiles(subF -> subF.isFile() && subF.getName().endsWith("_config.json"));
-        if (dbs==null || dbs.length==0) return false;
-        for (File c : dbs) addConfigFile(c, configs, duplicated);
-        return true;
-    }
-    private static void addConfigFile(File c, Map<String, File> configs, Set<Pair<String, File>> duplicated) {
-        String dbName = removeConfig(c.getName());
-        if (configs.containsKey(dbName)) {
-            duplicated.add(new Pair<>(dbName, c.getParentFile()));
-            duplicated.add(new Pair<>(dbName, configs.get(dbName)));
-        } else configs.put(dbName, c.getParentFile());
+        } else return d.toString();
+        return null;
     }
 
-    private static String removeConfig(String name) {
-        return name.substring(0, name.indexOf("_config.json"));
+    public static Path searchLocalDirForDB(Path dir, String dbName) {
+        Pair<Path, String> relpathAndName = convertRelPathToFilename(dir, dbName);
+        dbName = relpathAndName.value;
+        Path configDir = searchConfigDir(dir, dbName, 2);
+        if (configDir!=null) return configDir;
+        else if (relpathAndName.key == null) return searchConfigDir(dir.getParent(), dbName, 2);
+        else return null;
     }
-    static long minMem = 2000000000;
-    public static void checkMemoryAndFlushIfNecessary(String... exceptPositions) {
-        long freeMem= Runtime.getRuntime().freeMemory();
-        long usedMem = Runtime.getRuntime().totalMemory();
-        long totalMem = freeMem + usedMem;
-        if (freeMem<minMem || usedMem>2*minMem) {
-            
+
+    public static void processDir(Path directory, Consumer<Path> processConfigDir, Consumer<Path> processSubDir) {
+        try {
+            Files.list(directory).forEach(sub -> {
+                if (isConfigDir(sub)) processConfigDir.accept(sub);
+                else if (Files.isDirectory(sub)) processSubDir.accept(sub);
+            });
+        } catch (IOException e) {
+
         }
+    }
+
+    public static String removeLeadingSeparator(String path) {
+        if (path==null) return path;
+        String sep = FileSystems.getDefault().getSeparator();
+        while (path.startsWith(sep)) path = path.substring(sep.length());
+        if (path.isEmpty()) return null;
+        return path;
+    }
+
+    private static Pair<Path, String> splitNameAndRelpath(String relPath) {
+        relPath = removeLeadingSeparator(relPath);
+        Path p = Paths.get(relPath);
+        String fileName = p.getFileName().toString();
+        Path path = p.getParent()==null? null: p.getParent();
+        return new Pair<>(path, fileName);
+    }
+
+    protected static Pair<Path, String> convertRelPathToFilename(Path basePath, String relPath) {
+        Pair<Path, String> split = splitNameAndRelpath(relPath);
+        if (basePath==null) return split;
+        if (split.key==null) {
+            split.key = basePath;
+            return split;
+        }
+        split.key = basePath.resolve(split.key);
+        return split;
+    }
+
+    public static Path searchConfigDir(Path path, String dirName, int recLevels) {
+        if (path==null || Files.exists(path)) return null;
+        if (Files.isDirectory(path)) return searchConfigDir(new ArrayList<Path>(1){{add(path);}}, dirName, recLevels, 0);
+        else return null;
+    }
+
+    public static boolean isConfigDir(Path p) {
+        try {
+            //logger.debug("isConfigDir: {} -> {}", p, Files.list(p).anyMatch(f -> f.getFileName().toString().endsWith("config.json") && Files.isRegularFile(f)));
+            return Files.list(p).anyMatch(f -> {
+                if (!Files.isRegularFile(f)) return false;
+                String fn = f.getFileName().toString();
+                return fn.equals("config.json") || fn.endsWith("_config.json");
+            });
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static Predicate<Path> isConfigDir(String name) {
+        return p -> {
+            if (!p.getFileName().toString().equals(name)) return false;
+            return isConfigDir(p);
+        };
+    }
+
+    private static Path searchConfigDir(List<Path> pathCandidates, String dirName, int recLevels, int currentLevel) {
+        for (Path cand : pathCandidates) {
+            try {
+                Path dir = Files.list(cand).filter(isConfigDir(dirName)).findFirst().orElse(null);
+                if (dir != null) return dir;
+            } catch (IOException e) {
+
+            }
+        }
+        if (currentLevel==recLevels) return null;
+        // list next candidates
+        pathCandidates = pathCandidates.stream().flatMap(cand -> {
+            try {
+                return Files.list(cand).filter(Files::isDirectory);
+            } catch (IOException e) {
+                return Stream.empty();
+            }
+        }).collect(Collectors.toList());
+        return searchConfigDir(pathCandidates, dirName, recLevels, currentLevel+1);
     }
 
 }

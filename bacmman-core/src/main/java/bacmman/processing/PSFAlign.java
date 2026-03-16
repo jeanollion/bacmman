@@ -1,16 +1,12 @@
 package bacmman.processing;
 
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Spot;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.SimpleImageProperties;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
-import bacmman.plugins.Plugin;
 import bacmman.plugins.plugins.pre_filters.IJSubtractBackground;
-import bacmman.plugins.plugins.transformations.Flip;
-import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
@@ -107,7 +103,7 @@ public class PSFAlign {
         return output;
     }
     public static <T extends RealType<T>> RealRandomAccessible<T> getRRA(Image image, InterpolatorFactory interpolation) {
-        Img in = ImgLib2ImageWrapper.getImage(image);
+        Img in = ImgLib2ImageWrapper.toImg(image);
         return Views.interpolate(Views.extendMirrorSingle(in), interpolation);
     }
     public static <T extends RealType<T>> void set(RealRandomAccessible<T> parentImage, Point center, Image targetImage) {

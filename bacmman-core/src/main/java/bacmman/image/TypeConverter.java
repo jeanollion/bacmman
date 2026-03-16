@@ -271,8 +271,9 @@ public class TypeConverter {
         return output;
     }
 
-    public static ImageByte toByteMaskZ(ImageMask image, ImageByte output, int value, int z) {
-        BoundingBox targetBounds = new MutableBoundingBox(image).setzMin(z).setzMax(z);
+    public static ImageByte toByteMaskZ(ImageMask image, ImageByte output, int value, int zMin, int zMaxIncl) {
+        if (zMaxIncl < zMin) throw new IllegalArgumentException("Invalid z range");
+        BoundingBox targetBounds = new MutableBoundingBox(image).setzMin(zMin).setzMax(zMaxIncl);
         if (output==null || !output.sameDimensions(targetBounds) ) output = new ImageByte(image.getName(), new SimpleImageProperties(targetBounds, image.getScaleXY(), image.getScaleZ()));
         if (value>255) value = 255;
         if (value<0) value = 0;
@@ -281,9 +282,11 @@ public class TypeConverter {
         if (image instanceof BlankMask) {
             Arrays.fill(newPixels[0], (byte)value);
         } else {
-            if (BoundingBox.containsZ(image, z)) {
-                for (int xy = 0; xy < image.sizeXY(); ++xy) {
-                    if (image.insideMask(xy, z)) newPixels[0][xy] = v;
+            for (int z = zMin; z<=zMaxIncl; ++z) {
+                if (BoundingBox.containsZ(image, z)) {
+                    for (int xy = 0; xy < image.sizeXY(); ++xy) {
+                        if (image.insideMask(xy, z)) newPixels[z-zMin][xy] = v;
+                    }
                 }
             }
         }

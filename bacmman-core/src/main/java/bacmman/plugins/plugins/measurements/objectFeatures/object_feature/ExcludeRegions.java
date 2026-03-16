@@ -88,7 +88,7 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
     }
 
     @Override
-    public void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> preFilters) {
+    public void setUpOrAddCore(IntensityMeasurementCore.IntensityMeasurementCoreCollection availableCores, BiFunction<Image, ImageMask, Image> preFilters) {
         if (currentFeature instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)currentFeature).setUpOrAddCore(availableCores, preFilters);
     }
 
@@ -96,5 +96,11 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
     public int getIntensityChannel() {
         if (currentFeature instanceof ObjectFeatureWithCore) return ((ObjectFeatureWithCore)currentFeature).getIntensityChannel();
         else return -1;
+    }
+
+    @Override
+    public Image getIntensityMap(boolean transformed) {
+        if (currentFeature instanceof ObjectFeatureWithCore) return ((ObjectFeatureWithCore)currentFeature).getIntensityMap(transformed);
+        else return null;
     }
 }

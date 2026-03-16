@@ -325,7 +325,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
         }
         else parentTrack_ = parentTrack;
         Supplier<DoubleStream> supplier = () -> ThreadRunner.parallelStreamBySegment(i -> parentTrack_.get(i).getPreFilteredImage(objectClassIdx).stream(parentTrack_.get(i).getMask(), true), 0, parentTrack_.size(), 100, endOfSegment).flatMapToDouble(ds -> ds);
-        Histogram histo = HistogramFactory.getHistogram(supplier, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        Histogram histo = HistogramFactory.getHistogram(supplier);
         double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
         int thldIdx = (int)histo.getIdxFromValue(thld);
         double foreground = histo.duplicate(thldIdx, histo.getData().length).getQuantiles(0.5)[0];

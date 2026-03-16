@@ -28,7 +28,6 @@ import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.data_structure.input_image.InputImages;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -106,7 +105,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         // compute one threshold for all images
         ThresholderHisto thlder = thresholder.instantiatePlugin();
-        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream).filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
+        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream).filter(v->v!=0)); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
         threshold = thlder.runThresholderHisto(histo);
 
         buffers = new MicrochannelFluo2D.Buffers(inputImages.getImage(channelIdx, 0).getZPlane(0));
@@ -122,7 +121,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     @Override
     public MutableBoundingBox getBoundingBox(Image image) {
         double thld = Double.isNaN(threshold)? 
-                thresholder.instantiatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream().filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND)) // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
+                thresholder.instantiatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream().filter(v->v!=0))) // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
                 : threshold;
         return getBoundingBox(image, null , thld);
     }

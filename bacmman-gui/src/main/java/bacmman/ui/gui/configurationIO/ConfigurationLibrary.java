@@ -206,8 +206,8 @@ public class ConfigurationLibrary {
                     Experiment xp = ((Experiment) localConfig.getRoot()).duplicate();
                     xp.getPositionParameter().removeAllElements();
                     xp.setNote("");
-                    xp.setOutputDirectory("");
-                    xp.setOutputImageDirectory("");
+                    xp.setOutputDirectory("Output");
+                    xp.setOutputImageDirectory("Output");
                     content = xp.toJSONEntry();
                 } else content = (JSONObject) localConfig.getRoot().toJSONEntry();
             }
