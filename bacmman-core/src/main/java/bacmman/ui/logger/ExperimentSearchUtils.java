@@ -88,7 +88,7 @@ public class ExperimentSearchUtils {
 
     public static void processDir(Path directory, Consumer<Path> processConfigDir, Consumer<Path> processSubDir) {
         try {
-            Files.list(directory).forEach(sub -> {
+            Files.list(directory).sorted().forEach(sub -> {
                 if (isConfigDir(sub)) processConfigDir.accept(sub);
                 else if (Files.isDirectory(sub)) processSubDir.accept(sub);
             });
