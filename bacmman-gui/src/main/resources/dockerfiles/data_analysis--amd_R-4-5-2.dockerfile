@@ -1,6 +1,6 @@
 FROM quay.io/jupyter/r-notebook:x86_64-lab-4.5.2
 USER root
-RUN R -e "install.packages(c('data.table', 'ggplot2', 'rjson'))"
+RUN Rscript -e 'install.packages(c("data.table", "ggplot2", "rjson"), repos="https://cloud.r-project.org")'
 USER $NB_UID
 # Override settings: dark theme
 RUN mkdir -p /opt/conda/share/jupyter/lab/settings
