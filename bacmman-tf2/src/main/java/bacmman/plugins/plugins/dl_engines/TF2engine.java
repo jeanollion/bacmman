@@ -295,6 +295,6 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
 
     @Override
     public String getHintText() {
-        return "Deep Learning engine based on tensorflow 2.x. <br />For GPU computing, install CUDA 11.2 (see bacmman wiki installation page) select BACMMAN-DL-GPU update site. <br/>If CUDA is not installed or no GPU is found, CPU will be used. Note that this is currently not compatible with ARM CPUs (such as Mac M1). See DockerEngine instead.";
+        return "Deep Learning engine based on tensorflow 2.x. <br />For GPU computing (linux only), install CUDA 12.5 (see bacmman wiki installation page) select BACMMAN-TF2-GPU update site. <br/>If CUDA is not installed or no GPU is found, CPU will be used. For Windows run bacmman from WSL. <br>To compute on CPU (including ARM CPUs such as Apple Silicon) select BACMMAN-TF2";
     }
 }
