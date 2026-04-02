@@ -410,7 +410,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     public Task setDB(MasterDAO db) {
-        if (db!=null && ownDB) {
+        if (this.db!=null && ownDB) {
             this.db.unlockPositions();
             this.db.unlockConfiguration();
             this.db.clearCache(true, true, true);
