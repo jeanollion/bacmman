@@ -43,7 +43,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix for measurement names");
     enum STAT {MEAN, MEDIAN}
     EnumChoiceParameter<STAT> stat =  new EnumChoiceParameter<>("Quantification", STAT.values(), STAT.MEDIAN).setHint("Operation to reduce estimated probability in each segmented object");
-    boolean legacyMode = false;
+    BooleanParameter legacyMode = new BooleanParameter("Legacy Mode", false);
     public DLObjectClassifier() {
         channels.addValidationFunction(chs -> dlResizeAndScale.getInputNumber() == chs.getSelectedIndices().length);
         dlResizeAndScale.addInputNumberValidation( () -> channels.getSelectedIndices().length );
@@ -78,6 +78,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
 
     @Override
     public void performMeasurement(SegmentedObject parentTrackHead) {
+        boolean legacyMode = this.legacyMode.getSelected();
         //dlResizeAndScale.setScaleLogger(Core::userLog);
         Map<SegmentedObject, List<SegmentedObject>> parentMapChildren = SegmentedObjectUtils.getTrack(parentTrackHead).stream().collect(Collectors.toMap(i->i, i->i.getChildren(objects.getSelectedClassIdx()).collect(Collectors.toList())));
         parentMapChildren.entrySet().removeIf(e -> e.getValue().isEmpty()); // do not predict when no objects
@@ -152,7 +153,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{objects, channels, probaCond, dlEngine, dlResizeAndScale, stat, eraseTouchingContours, prefix};
+        return new Parameter[]{objects, channels, probaCond, dlEngine, dlResizeAndScale, stat, eraseTouchingContours, prefix, legacyMode};
     }
     boolean parallel;
     @Override
