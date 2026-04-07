@@ -76,11 +76,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
         int[] structures;
         List<Pair<String, int[]>> exportDir = new ArrayList<>();
         MultipleException errors = new MultipleException();
-        MasterDAO db;
+        volatile MasterDAO db;
         boolean ownDB;
         int[] taskCounter;
         double subtaskNumber=0, subtaskCounter =0;
         double preProcessingMemoryThreshold = 0.5;
+        double cleanMemoryProportionThld = 0.25; // if memory is over this thld after a task item is performed, cleans memory
         ProgressLogger ui;
         String selectionName;
 
@@ -1028,6 +1029,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         publish("Dataset" + getDBName()+ " Position: "+position);
         logger.debug("position: {} delete all position: {}", position, deleteAllPosition);
         if (deleteAllPosition) db.getDao(position).erase();
+        boolean ok = true;
         if (preProcess) {
             publish("Pre-Processing...");
             logger.info("Pre-Processing: DB: {}, Position: {}", getDBName(), position);
@@ -1047,7 +1049,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
         }
         
-        if ((segmentAndTrack || trackOnly)) {
+        if (ok && (segmentAndTrack || trackOnly)) {
             publish("Processing...");
             if (selection==null) {
                 int[] structuresToDelete = IntStream.of(structures).filter(s -> db.getExperiment().getStructure(s).getProcessingPipelineParameter().isOnePluginSet()).toArray();
@@ -1064,8 +1066,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 try {
                     executeProcessingScheme(root, s, trackOnly, selection!=null, selection, this);
                 } catch (MultipleException e) {
+                    ok = false;
                     errors.addExceptions(e.getExceptions());
                 } catch (Throwable e) {
+                    ok = false;
                     errors.addExceptions(new Pair<>("Error while processing: db: "+db.getDBName()+" pos: "+position+" structure: "+s, e));
                 }
                 incrementProgress();
@@ -1073,11 +1077,31 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 // TODO : when no more processing with direct parent as root: get all images of direct root children & remove images from root
                 System.gc();
                 publishMemoryUsage("After Processing structure:"+s);
+                if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) { // for heavy tasks: intermediate free memory
+                    Core.freeDiskManagersMemory();
+                    try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
+                        db.getDao(position).clearCache();
+                        System.gc();
+                        try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    }
+                    if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
+                        db.clearCache(position);
+                        System.gc();
+                        try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    }
+                    if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
+                        db.getExperiment().getDLengineProvider().closeAllEngines();
+                        System.gc();
+                        try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    }
+                }
+                if (!ok) break;
             }
             publishMemoryUsage("After Processing:");
         }
         
-        if (measurements) {
+        if (ok && measurements) {
             publish("Measurements...");
             logger.info("Measurements: DB: {}, Position: {}", getDBName(), position);
             Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);

@@ -54,8 +54,8 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     List<ImageIOCoordinates.RGB> rgbC; // color image -> rgb index per channel
     int[] sizeZC;
     Map<String, Boolean> invertTZ_CT;
-    List<List<String>> fileCT;
-    Map<String, Double> timePointCZT;
+    volatile List<List<String>> fileCT;
+    volatile Map<String, Double> timePointCZT;
     boolean fromOmero;
     @Override
     public boolean sameContent(MultipleImageContainer other) {

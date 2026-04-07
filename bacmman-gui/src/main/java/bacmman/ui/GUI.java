@@ -4437,7 +4437,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         for (String p : positions) db.getDao(p).clearCache();
     }
     private void clearMemoryMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearMemoryMenuItemActionPerformed
-        Core.freeMemory();
+        Core.waitDiskManagerFreeMemory();
         if (!checkConnection()) return;
 
     }//GEN-LAST:event_clearMemoryMenuItemActionPerformed

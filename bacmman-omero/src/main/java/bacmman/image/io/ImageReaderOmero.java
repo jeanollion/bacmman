@@ -22,7 +22,7 @@ public class ImageReaderOmero implements ImageReader {
     public static final Logger logger = LoggerFactory.getLogger(ImageReaderOmero.class);
     OmeroGatewayI gateway;
     boolean invertTZ;
-    RawPixelsStorePrx rawData;
+    volatile RawPixelsStorePrx rawData;
     PixelsData pixels;
     long fileId;
     double scaleXY, scaleZ;

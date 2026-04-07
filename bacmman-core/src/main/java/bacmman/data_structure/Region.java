@@ -77,10 +77,10 @@ import java.util.stream.Stream;
  */
 public class Region {
     public final static Logger logger = LoggerFactory.getLogger(Region.class);
-    protected ImageMask mask; //lazy -> use getter // bounds par rapport au root si absoluteLandMark==true, au parent sinon
-    protected BoundingBox bounds;
+    protected volatile ImageMask mask; //lazy -> use getter // bounds par rapport au root si absoluteLandMark==true, au parent sinon
+    protected volatile BoundingBox bounds;
     protected int label;
-    protected Set<Voxel> voxels; //lazy -> use getter // coordonnées des voxel = coord dans l'image mask + offset du masque.  
+    protected volatile Set<Voxel> voxels; //lazy -> use getter // coordonnées des voxel = coord dans l'image mask + offset du masque.
     protected double scaleXY=1, scaleZ=1;
     protected boolean absoluteLandmark=false; // false = coordinates relative to the direct parent
     protected double quality=Double.NaN;
@@ -89,7 +89,7 @@ public class Region {
     protected Point center;
     protected boolean is2D;
     boolean regionModified;
-    IJRoi3D roi; // TODO make an interface to allow other types of ROIs
+    volatile IJRoi3D roi; // TODO make an interface to allow other types of ROIs
     /**
      * @param mask : image containing only the object, and whose bounding box is the same as the one of the object
      * @param label

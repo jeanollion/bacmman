@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.util.stream.DoubleStream;
 
 public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I> {
-    I image;
+    volatile I image;
 
     public SimpleDiskBackedImage(I image, DiskBackedImageManager manager, boolean writable) {
         super(image.getName(), image, Image.copyType(image), manager, writable);

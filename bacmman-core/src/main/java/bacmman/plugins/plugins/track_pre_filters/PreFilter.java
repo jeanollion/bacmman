@@ -74,7 +74,7 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
             Image filtered = instance.runPreFilter(source, o.getMask(), preFilteredImages.allowInplaceModification());
             preFilteredImages.set(o, filtered);
         };
-        ThreadRunner.parallelExecutionBySegments(c, 0, track.size(), 100, s -> Core.freeMemory());
+        ThreadRunner.parallelExecutionBySegments(c, 0, track.size(), 100, s -> Core.waitDiskManagerFreeMemory());
     }
 
     @Override

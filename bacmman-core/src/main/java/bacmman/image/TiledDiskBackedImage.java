@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I> {
     static int targetTileSize = 512 * 512;
     int[] tileDimensions;
-    DiskBackedImage<I>[][][] tilesZYX;
+    volatile DiskBackedImage<I>[][][] tilesZYX;
     I image;
 
     public TiledDiskBackedImage(I image, DiskBackedImageManager manager, boolean writable) {

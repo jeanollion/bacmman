@@ -202,10 +202,11 @@ public class Track implements Comparable<Track> {
     }
     public static void fillTrackToTrackHead(List<SegmentedObject> track) {
         if (track.get(0).isTrackHead()) return ;
+        SegmentedObject trackHead = track.get(0).getTrackHead();
         SegmentedObject first = track.get(0);
         while (!first.isTrackHead()) {
             first = first.getPrevious();
-            if (first == null) {
+            if (first == null || !first.getTrackHeadId().equals(trackHead.getId())) {
                 logger.error("No trackhead in track {}", track);
                 throw new RuntimeException("Missing trackhead");
             }
@@ -217,15 +218,70 @@ public class Track implements Comparable<Track> {
     public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<UnaryPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
         Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
         Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
+        for (SegmentedObject p : parent) p.getChildren(segmentedObjectClass).forEach(SegmentedObject::getTrackHead); // initialize trackheads
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
-        for (List<SegmentedObject> t: allTracks.values()) {
+        Set<SegmentedObject> invalidTrack = new HashSet<>();
+        for (Map.Entry<SegmentedObject, List<SegmentedObject>> e: allTracks.entrySet()) {
+            List<SegmentedObject> t= e.getValue();
             t.sort(SegmentedObject.frameComparator());
             if (!t.get(0).isTrackHead()) {
-                if (allowTrackheadsOutsideParentTrack) fillTrackToTrackHead(t);
+                if (allowTrackheadsOutsideParentTrack) {
+                    try {
+                        fillTrackToTrackHead(t);
+                    } catch (RuntimeException ex) {
+                        invalidTrack.add(e.getKey());
+                    }
+                }
                 else {
                     SegmentedObject th = t.get(0).getTrackHead();
                     logger.error("missing th: {}, parent in list: {}, parent contains: {}", th, parent.contains(th.getParent()), th.getParent().getChildren(segmentedObjectClass).anyMatch(o->o==th));
                 }
+            }
+        }
+        for (SegmentedObject invalidTh : invalidTrack) {
+            List<SegmentedObject> t = allTracks.remove(invalidTh);
+            /*logger.error("Invalid track: track head not in track: {}", Utils.toStringList(t, o -> o.toString()+" (th="+o.getTrackHead().toString()+") "));
+            Set<SegmentedObject> nexts = new HashSet<>();
+            nexts.add(t.get(0).getTrackHead());
+            logger.debug("trackhead nexts");
+            for (int f = invalidTh.getFrame(); f<=t.get(0).getFrame(); ++f) {
+                Set<SegmentedObject> newNexts = new HashSet<>();
+                for (SegmentedObject n : nexts) {
+                    List<SegmentedObject> nn = SegmentedObjectEditor.getNext(n).collect(Collectors.toList());
+                    logger.debug("next of : {} (th={}) = {}", n, n.getTrackHead(),  Utils.toStringList(nn, o -> o.toString()+" (th="+o.getTrackHead().toString()+") "));
+                    newNexts.addAll(nn);
+                }
+                nexts = newNexts;
+            }*/
+            SegmentedObject th = t.get(0).getTrackHead();
+            while (!t.get(0).equals(th)) {
+                SegmentedObject prev = t.get(0).getPrevious();
+                if (prev == null) break; // no or several previous objects
+                else {
+                    if (t.get(0).equals(prev.getNext())) { // double link. propagate trackhead
+                        if (!prev.getTrackHead().equals(th)) {
+                            SegmentedObject prevTh = prev.getTrackHead();
+                            List<SegmentedObject> prevTrack = allTracks.get(prevTh);
+                            if (prevTrack!=null) {
+                                prevTrack.remove(prev);
+                                if (prevTrack.isEmpty()) allTracks.remove(prevTh);
+                            }
+                            prev.setTrackHead(th);
+                        }
+                        t.add(0, prev);
+
+                    } else break;
+                }
+            }
+            if (t.get(0).equals(th)) {
+                allTracks.put(th, t);
+                logger.debug("repaired track with original th: {} -> {}", th, t);
+            } else {
+                t.sort(SegmentedObject.frameComparator());
+                SegmentedObject newTh = t.get(0);
+                for (SegmentedObject o : t) o.setTrackHead(newTh);
+                allTracks.put(newTh, t);
+                logger.debug("repaired track with new th: {} -> {}", th, t);
             }
         }
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));

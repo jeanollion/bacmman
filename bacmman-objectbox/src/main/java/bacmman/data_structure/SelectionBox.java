@@ -20,7 +20,7 @@ public class SelectionBox {
     @Uid(1004)
     String jsonContent;
     @Transient
-    Selection selection;
+    volatile Selection selection;
     public SelectionBox() {}
     public SelectionBox(long id, String name, int objectCLassIdx, String jsonContent) {
         this.id=id;

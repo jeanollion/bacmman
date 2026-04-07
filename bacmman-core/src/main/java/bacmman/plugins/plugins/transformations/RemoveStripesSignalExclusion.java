@@ -152,7 +152,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
             if (backgroundMask!=null) backgroundMask[frame] = SubtractGaussSignalExclusion.getBackgroundImage(currentImage, m, scale, scaleZ);
         };
         try {
-            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.waitDiskManagerFreeMemory());
         } catch (RuntimeException e) {
             if (e.getCause() instanceof IOException) throw (IOException) e.getCause();
             else throw e;

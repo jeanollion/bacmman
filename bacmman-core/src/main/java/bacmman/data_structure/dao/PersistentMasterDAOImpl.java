@@ -30,7 +30,7 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
     final HashMap<String, T> DAOs = new HashMap<>();
     final LinkedList<T> openDAO = new LinkedList<>();
     final Set<String> positionLock = new HashSet<>();
-    protected Experiment xp;
+    protected volatile Experiment xp;
     java.nio.channels.FileLock xpFileLock;
     private FileChannel xpLockChannel;
     RandomAccessFile cfg;

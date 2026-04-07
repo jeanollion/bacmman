@@ -64,7 +64,7 @@ public class ImageReaderFile implements ImageReader {
     String path;
     String imageTitle;
     private String fullPath;
-    List<Double> timePoints;
+    volatile List<Double> timePoints;
     //BioFormats
     IFormatReader reader;
     IMetadata meta;

@@ -39,7 +39,7 @@ import bacmman.utils.HashMapGetCreate;
  * @author Jean Ollion
  */
 public abstract class IntensityMeasurement extends SimpleObjectFeature implements ObjectFeatureWithCore {
-    protected IntensityMeasurementCore core;
+    protected volatile IntensityMeasurementCore core;
     protected ChannelImageParameter channel = new ChannelImageParameter("Channel").setEmphasized(true)
             .setLegacyParameter( (params, cp) -> {
                 ObjectClassParameter oc = (ObjectClassParameter)params[0];

@@ -41,7 +41,7 @@ public class SegmentedObjectBox {
     @Uid(19)
     String jsonAttributes;
     @Transient
-    SegmentedObject object;
+    volatile SegmentedObject object;
 
     public SegmentedObjectBox() {}
     public SegmentedObjectBox(long id, int frame, int idx, long parentId, long trackHeadId, long previousId, long nextId, byte[] jsonRegion, String jsonAttributes) {
