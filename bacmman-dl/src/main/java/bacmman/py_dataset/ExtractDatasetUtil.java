@@ -44,7 +44,14 @@ public class ExtractDatasetUtil {
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();
-        TrainingConfigurationParameter.RESIZE_MODE resizeMode = t.getExtractDSResizeMode() == null ? TrainingConfigurationParameter.RESIZE_MODE.NONE :  t.getExtractDSResizeMode();
+        int spatialDownsamplingFactor = t.getExtractDSSpatialDownsamplingFactor();
+        TrainingConfigurationParameter.RESIZE_MODE resizeMode;
+        if (t.getExtractDSResizeMode() == null || t.getExtractDSResizeMode().equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) {
+            if (spatialDownsamplingFactor > 1) {
+                Arrays.fill(dimensions, 0);
+                resizeMode = TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE;
+            } else resizeMode = TrainingConfigurationParameter.RESIZE_MODE.NONE;
+        } else resizeMode = t.getExtractDSResizeMode();
         ConvertToBoundingBox boxConverter = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.boxConverter(dimensions) : null;
         UnaryOperator<SegmentedObject> duplicateAsBox = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.duplicateAsBox(boxConverter) : o->o; // extend parent bounds
         List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
@@ -52,7 +59,6 @@ public class ExtractDatasetUtil {
         int subsamplingFactor = t.getExtractDSSubsamplingFactor();
         int subsamplingNumber = t.getExtractDSSubsamplingNumber();
         int[] subsamplingOffsets = ArrayUtil.generateIntegerArray(0, subsamplingFactor, subsamplingNumber);
-        int spatialDownsamplingFactor = t.getExtractDSSpatialDownsamplingFactor();
         int compression = t.getExtractDSCompression();
         int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
         boolean trackingDataset = t.isExtractDSTimelapse();
@@ -276,7 +282,7 @@ public class ExtractDatasetUtil {
         if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE) || resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD)) {
             UnaryOperator<ImageInteger> resizeOp = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE) ?
                     m -> resample(m, true, dimensions_) :
-                    m -> pad(m, Resize.EXPAND_MODE.ZERO, Resize.EXPAND_POSITION.CENTER, dimensions);
+                    m -> pad(m, Resize.EXPAND_MODE.ZERO, Resize.EXPAND_POSITION.CENTER, dimensions_);
             if (mask instanceof ImageShort)
                 maskR = TypeConverter.toShort(resizeOp.apply(mask), null).resetOffset();
             else if (mask instanceof ImageInt)

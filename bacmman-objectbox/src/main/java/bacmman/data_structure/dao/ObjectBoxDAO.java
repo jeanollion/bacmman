@@ -66,10 +66,14 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     protected BoxStore makeStore(int ocIdx, boolean object) {
         if (!Files.exists(dir)) {
-            try {
-                Files.createDirectories(this.dir);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            synchronized (this) {
+                if (!Files.exists(dir)) {
+                    try {
+                        Files.createDirectories(this.dir);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
             }
         }
         String name = (object ? "objects_" : "measurements_")+ocIdx;
@@ -89,7 +93,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             BoxStore b = objectBuilder.build();
             return b;
         } catch (DbException e) {
-            logger.error("Error creating BoxStore. Too many db may be open.", e);
+            logger.error("Error creating BoxStore.", e);
             throw e;
         }
     }
