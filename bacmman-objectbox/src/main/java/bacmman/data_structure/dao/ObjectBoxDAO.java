@@ -34,7 +34,7 @@ import java.util.stream.Stream;
 
 public class ObjectBoxDAO implements ObjectDAO<Long> {
     static final Logger logger = LoggerFactory.getLogger(ObjectBoxDAO.class);
-    static int batchSize = 1000*1000*1000;
+    static int batchSize = 1000000;
     final MasterDAO<Long, ? extends ObjectDAO<Long>> mDAO;
     final String positionName;
     final Path dir;
@@ -479,8 +479,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             });
         }
         logger.debug("will put: {} objects", toStore.size());
-        db.put(toStore);
-        //db.putBatched(toStore, Math.min(toStore.size(), batchSize));
+        //db.put(toStore);
+        db.putBatched(toStore, Math.min(toStore.size(), batchSize));
     }
 
     protected void remove(int objectClassIdx, long[] ids) {
@@ -559,8 +559,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             }
             long t2 = System.currentTimeMillis();
             try {
-                measurementBoxes.get(ocIdx).put(toStoreBox);
-                //measurementBoxes.get(ocIdx).putBatched(toStoreBox, Math.min(toStoreBox.size(), batchSize));
+                //measurementBoxes.get(ocIdx).put(toStoreBox);
+                measurementBoxes.get(ocIdx).putBatched(toStoreBox, Math.min(toStoreBox.size(), batchSize));
             } finally {
                 measurementBoxes.get(ocIdx).closeThreadResources();
             }
@@ -670,8 +670,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public synchronized void rollback() {
         if (!safeMode) return;
         toRestoreAtRollback.forEach((ocIdx, objects) -> {
-            objectBoxes.get(ocIdx).put(objects.values());
-            //objectBoxes.get(ocIdx).putBatched(objects.values(), Math.min(objects.size(), batchSize));
+            //objectBoxes.get(ocIdx).put(objects.values());
+            objectBoxes.get(ocIdx).putBatched(objects.values(), Math.min(objects.size(), batchSize));
         });
         toRemoveAtRollback.forEach((ocIdx, ids) -> {
             objectBoxes.get(ocIdx).remove(ids.stream().mapToLong(l->l).toArray());

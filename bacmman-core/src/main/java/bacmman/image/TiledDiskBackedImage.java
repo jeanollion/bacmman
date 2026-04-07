@@ -4,6 +4,7 @@ import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.utils.StreamConcatenation;
 
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -100,10 +101,17 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
             synchronized (this) {
                 if (isOpen()) {
                     if (modified && storeIfModified) {
-                        if (image!=null && tilesZYX == null) tileImage(true);
+                        if (image!=null && tilesZYX == null) {
+                            try {
+                                tileImage(true);
+                            } catch (Exception e) {
+                                streamTiles().filter(Objects::nonNull).forEach(t -> manager.detach(t, true));
+                                tilesZYX = null;  // leave object in consistent state
+                            }
+                        }
                         modified = false;
                     }
-                    image = null;
+                    if (tilesZYX != null) image = null;
                     if (tilesZYX != null) streamTiles().forEach(t -> t.freeMemory(storeIfModified));
                 }
             }
