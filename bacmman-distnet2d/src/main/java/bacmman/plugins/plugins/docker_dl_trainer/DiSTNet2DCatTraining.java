@@ -25,7 +25,7 @@ public class DiSTNet2DCatTraining extends DiSTNet2DSegTraining {
         this.extractCategory.addValidationFunction(CategoryParameter::getSelected);
         segmentationParam = new DiSTNet2DTraining.SegmentationParameters( false, false);
         otherParameters = new Parameter[]{segmentationParam, arch};
-        configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
+        configuration = new TrainingConfigurationParameter("Configuration", true, true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
                 .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(500).setStepNumber(200)
                 .setDockerImageRequirements(getDockerImageName(), null, null, null);
     }

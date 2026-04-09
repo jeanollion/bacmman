@@ -3,6 +3,8 @@ package bacmman.configuration.parameters;
 import bacmman.core.DockerGateway;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -11,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -19,6 +22,7 @@ import java.util.stream.IntStream;
 
 import static bacmman.configuration.parameters.PythonConfiguration.toSnakeCase;
 public class TrainingConfigurationParameter extends GroupParameterAbstract<TrainingConfigurationParameter> implements PythonConfiguration {
+    private final static Logger logger = LoggerFactory.getLogger(TrainingConfigurationParameter.class);
     TrainingParameter trainingParameters;
     GlobalDatasetParameters globalDatasetParameters;
     SimpleListParameter<? extends DatasetParameter> datasetList;
@@ -28,14 +32,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     Parameter[] otherParameters;
     Supplier<Path> refPathFun;
 
-    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean inputLabel, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
-        this(name, multipleInputChannels, inputLabel, true, trainingParameters, globalDatasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testDataAugmentationParameters);
+    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean inputLabel, boolean allow3D, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
+        this(name, multipleInputChannels, inputLabel, allow3D, true, trainingParameters, globalDatasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testDataAugmentationParameters);
     }
     
-    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean inputLabel, boolean scaling, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
+    public TrainingConfigurationParameter(String name, boolean multipleInputChannels, boolean inputLabel, boolean allow3D, boolean scaling, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         super(name);
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);
-        this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
+        this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", allow3D, globalDatasetParameters);
         this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, inputLabel, scaling, dataAugmentationParameters, otherDatasetParameters))
             .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true)
             .addchildrenPropertyValidation(DatasetParameter::getLabelNumber, true)
@@ -174,6 +178,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return "training_configuration";
     }
 
+    public TrainingConfigurationParameter add3DValidation(Supplier<Boolean> is3D) {
+        globalDatasetParameters.inputShape.addValidationFunction(a -> is3D.get() == null || (is3D.get() ? a.getArrayInt().length == 3 : a.getArrayInt().length == 2));
+        testInputShape.addValidationFunction(a -> is3D.get() == null || (is3D.get() ? a.getArrayInt().length == 3 : a.getArrayInt().length == 2));
+        return this;
+    }
+
+    public Supplier<Boolean> is3D() {
+        return () -> globalDatasetParameters.inputShape.getArrayInt().length == 3;
+    }
+
     public TrainingParameter getTrainingParameters() {
         return trainingParameters;
     }
@@ -205,11 +219,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter concatBatchSize = new BoundedNumberParameter("Concat Batch Size", 0, 1, 1, null ).setHint("In case several datasets are set, allows to draw mini-batches from different datasets: each final mini-batch size will be <em>Concat Batch Size</em> x <em>Batch Size</em> ");
         ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{512, 512}, null)
                 .setMaxChildCount(3)
-                .setName("Input Shape").setHint("Shape (Y, X) of the input image of the neural network");
-        protected GlobalDatasetParameters(String name, Parameter[] additionnalParameter) {
+                .setName("Input Shape").setHint("Shape (Y, X) or (Z, Y, X) of the input image of the neural network");
+        BoundedNumberParameter zRadius = new BoundedNumberParameter("Z Radius", 5, 1, 0.01, null).setHint("Anisotropy ratio for Z-axis. Usually correspond to the ratio between spacing between slices and pixel size along XY axis");
+        boolean allow3D;
+        protected GlobalDatasetParameters(String name, boolean allow3D, Parameter[] additionnalParameter) {
             super(name);
             this.children = new ArrayList<>();
             children.add(inputShape);
+            if (allow3D) children.add(zRadius);
+            else inputShape.setMaxChildCount(2);
+            this.allow3D = allow3D;
             children.add(batchSize);
             children.add(concatBatchSize);
             children.addAll(Arrays.asList(additionnalParameter));
@@ -222,7 +241,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
         @Override
         public GlobalDatasetParameters duplicate() {
-            GlobalDatasetParameters res = new GlobalDatasetParameters(name, children.stream().skip(3).toArray(Parameter[]::new) );
+            GlobalDatasetParameters res = new GlobalDatasetParameters(name, allow3D, children.stream().skip( allow3D ? 4  : 3).toArray(Parameter[]::new) );
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
@@ -280,7 +299,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         return new EnumChoiceParameter<>("Export Precision", EXPORT_PRECISION.values(), EXPORT_PRECISION.FP32).setHint("If FP16, model is exported with weights converted to FP16 (with some notable exception such as Batch norm weights), and most prediction computation will be performed in float16. On capable GPUs this reduces reduces memory footprint as well as computation time (up to a factor 2). This also reduced the model size by a factor 2. Not supported on most CPUs. AUTO: will export in FP16 only is mixed precision is enabled");
     }
 
-    public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND}
+    public enum RESIZE_MODE {NONE, RESAMPLE, PAD, EXTEND, CROP}
     public static EnumChoiceParameter<RESIZE_MODE> getResizeModeParameter(RESIZE_MODE defaultValue, IntSupplier parentObjectClass, Supplier<int[]> resizeDim, RESIZE_MODE... options) {
         if (options.length == 0) options = RESIZE_MODE.values();
         return new EnumChoiceParameter<>("Resize Mode", options, defaultValue).addValidationFunction(rm -> {
@@ -288,15 +307,19 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 case EXTEND:
                     if (resizeDim != null) {
                         if (IntStream.of(resizeDim.get()).anyMatch(i -> i==0)) return false; // dimension cannot be null
-                    }
+                    } else return false;
                     if (parentObjectClass!=null) return parentObjectClass.getAsInt() >=0;
                     return true;
                 case RESAMPLE:
                 case PAD:
                     if (resizeDim != null) {
                         if (IntStream.of(resizeDim.get()).anyMatch(i -> i==0)) return false; // dimension cannot be null
-                    }
+                    } else return false;
                     return true;
+                case CROP:
+                    if (resizeDim != null) {
+                        if (IntStream.of(resizeDim.get()).allMatch(i -> i==0)) return false; // at least one dimension must not be null
+                    } else return false;
                 default:
                     return true;
             }
@@ -304,6 +327,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 "<li>EXTEND: extracted images are extended to target dimensions even outside the parent bounds, dimensions cannot be null, and parent object class (selection object class) cannot be viewfield objects (root).</li>" +
                 "<li>RESAMPLE: Resizes all images to a fixed size that must be compatible with the network input requirements.</li>" +
                 "<li>PAD: Expands image on sides with border value. Differs from EXTEND because padded values are values at border.</li>" +
+                "<li>CROP: Crop image so that cropped image contains most segmented objects. If one axis is 0, the image is not cropped. If the image is smalled than the desired size, it is padded with border value.</li>" +
                 "</ul>");
     }
 
@@ -584,6 +608,11 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             super(name);
             this.children = new ArrayList<>();
             setConstant(false, true);
+            jitter.addValidationFunction( a -> {
+                GlobalDatasetParameters gdp = ParameterUtils.getFirstParameterFromParents(GlobalDatasetParameters.class, a, true);
+                if (gdp != null) return a.getArrayInt().length == gdp.inputShape.getArrayInt().length;
+                else return true;
+            });
         }
 
         public RandomTilingParameter setConstant(boolean constant, boolean allowJitter) {

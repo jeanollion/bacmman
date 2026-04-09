@@ -17,6 +17,7 @@ import org.json.simple.JSONObject;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
@@ -178,8 +179,9 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     Parameter[] otherParameters = new Parameter[]{new SegmentationParameters(true, true), new TrackingParameters(), arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
-    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
+    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(1000).setStepNumber(200)
+            .add3DValidation(arch.is3D())
             .setDockerImageRequirements(getDockerImageName(), null, null, null);
 
     // dataset extraction
@@ -192,7 +194,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         })
         .setHint("Select object class of reference segmented objects");
     ChannelImageParameter channel = new ChannelImageParameter("Channel Image", -1).setHint("Input raw image channel");
-    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE);
+    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.IMAGE3D, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.IMAGE3D);
     ObjectClassParameter parentObjectClass = new ObjectClassParameter("Parent Object Class", -1, true, false)
         .setNoSelectionString("Viewfield")
         .setHint("Select object class that will define the frame (usually parent object class)");
@@ -211,7 +213,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             }
         });
         TextParameter key = new TextParameter("Name", "", false, false);
-        ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE);
+        ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.IMAGE3D, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.IMAGE3D);
 
         public OtherObjectClassParameter() {
             this("Type");
@@ -269,6 +271,10 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     // store in a group so that parameters have same parent -> needed because of listener
     GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", objectClass, channel, otherOCList, extractCategory, extractDims, resizeMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, subsamplingFactor, subsamplingNumber);
+
+    public DiSTNet2DTraining() {
+        arch.add3DValidation(configuration.is3D());
+    }
 
     @Override
     public boolean mixedPrecision() {
@@ -422,7 +428,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         IntegerParameter attentionFilters = new IntegerParameter("Attention Filters", 64).setLowerBound(1)
                 .setLegacyParameter((p,i)->i.setValue(((BoundedNumberParameter)p[0]).getIntValue()), filters)
                 .setHint("Number of filter for each head of the attention layers.");
-        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{16, 16}, null).setName("Attention Window").setMaxChildCount(2).setHint("Spatial Range of the attention");
+        ArrayNumberParameter attentionWindow = getInputShapeParameter(false, false, new int[]{16, 16}, null).setName("Attention Window").setMaxChildCount(3).setHint("Spatial Range of the attention");
         EnumChoiceParameter<ATTENTION_POS_ENC_MODE> attentionPosEncMode = new EnumChoiceParameter<>("Positional Encoding", ATTENTION_POS_ENC_MODE.values(), ATTENTION_POS_ENC_MODE.EMBEDDING).setLegacyInitializationValue(ATTENTION_POS_ENC_MODE.EMBEDDING_2D).setHint("Positional encoding mode for attention layers");
         BooleanParameter next = new BooleanParameter("Next", true).setHint("Input frame window is symmetrical in future and past");
         BoundedNumberParameter frameWindow= new BoundedNumberParameter("Frame Window", 0, 3, 1, null).setHint("Number of input frames. If Next is enabled, total number of input frame is 2 x FRAME_WINDOW + 1, otherwise FRAME_WINDOW + 1");
@@ -449,7 +455,6 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             frameWindow.setValue(defaultFrameWindow);
             if (defaultFrameWindow == 0) frameWindow.setLowerBound(0);
             attention.addValidationFunction(att -> frameWindow.getIntValue() != 0 || att.getIntValue() == 0);
-            attention.addValidationFunction(p -> frameWindow.getIntValue() >0);
 
             maxFrameDistance.addValidationFunction(d -> {
                 SimpleListParameter<TrainingConfigurationParameter.DatasetParameter> dsList = (SimpleListParameter<TrainingConfigurationParameter.DatasetParameter>) ParameterUtils.getFirstParameterFromParents(p -> p.getName().equals("Dataset List"), d, true);
@@ -458,6 +463,15 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
                     return d.getIntValue() >= maxFrameSubSampling;
                 } else return true;
             });
+        }
+
+        public Supplier<Boolean> is3D() {
+            return () -> getActionValue().equals(ARCH_TYPE.BLEND) ? null : attentionWindow.getArrayInt().length == 3;
+        }
+
+        public ArchitectureParameter add3DValidation(Supplier<Boolean> is3D) {
+            attentionWindow.addValidationFunction(a -> is3D.get() == null || (is3D.get() ? a.getArrayInt().length == 3 : a.getArrayInt().length == 2) );
+            return this;
         }
 
         @Override

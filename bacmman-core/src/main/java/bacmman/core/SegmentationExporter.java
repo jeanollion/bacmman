@@ -33,7 +33,7 @@ public class SegmentationExporter {
         Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));;
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
         features.add(new FeatureExtractor.Feature("masks",  new Labels(), objectClass, selFilter ));
-        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, new int[0], true, 1, 1, 1, compression);
+        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, -1, new int[0], true, 1, 1, 1, compression);
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());
     }
@@ -50,7 +50,7 @@ public class SegmentationExporter {
         Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
         features.add(new FeatureExtractor.Feature("Contours", new Contours(), objectClass, (String)null ));
-        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, new int[0], false, 1, 1, 1, compression);
+        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, -1, new int[0], false, 1, 1, 1, compression);
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());
     }

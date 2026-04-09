@@ -92,6 +92,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         List<Selection> extractDSSelections;
         int[] extractDSDimensions;
         TrainingConfigurationParameter.RESIZE_MODE extractDSResizeMode;
+        int extractDSCropRefOC;
         int[] extractDSEraseTouchingContoursOC;
         boolean extractDSTimelapse;
         int extractDSSubsamplingFactor=1;
@@ -144,6 +145,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 extractDS.put("selections", extractDSSels);
                 extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
                 if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) extractDS.put("extractDSResizeMode", extractDSResizeMode.toString());
+                if (TrainingConfigurationParameter.RESIZE_MODE.CROP.equals(extractDSResizeMode)) extractDS.put("extractDSCropRefOC", extractDSCropRefOC);
                 JSONArray extractDSFeats = new JSONArray();
                 for (FeatureExtractor.Feature feature: extractDSFeatures) {
                     JSONObject feat = new JSONObject();
@@ -237,6 +239,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 }
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
                 extractDSResizeMode = TrainingConfigurationParameter.RESIZE_MODE.valueOf((String)extractDS.getOrDefault("extractDSResizeMode", TrainingConfigurationParameter.RESIZE_MODE.NONE.toString()));
+                extractDSCropRefOC = (int)extractDS.getOrDefault("extractDSCropRefOC", -1);
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
                 else extractDSEraseTouchingContoursOC = new int[0];
                 if (extractDS.containsKey("extractDSSubsamplingFactor")) extractDSSubsamplingFactor = ((Number)extractDS.get("extractDSSubsamplingFactor")).intValue();
@@ -463,6 +466,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
         return extractDSResizeMode;
     }
 
+    public int getExtractDSCropRefOC() {
+        return extractDSCropRefOC;
+    }
+
     public int[] getExtractDSEraseTouchingContoursOC() {
         return extractDSEraseTouchingContoursOC;
     }
@@ -519,19 +526,20 @@ public class Task implements TaskI<Task>, ProgressCallback {
         return measurements;
     }
 
-    public Task setExtractDSWithSelection(String extractDSFile, List<Selection> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
+    public Task setExtractDSWithSelection(String extractDSFile, List<Selection> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int extractDSCropRefOC, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSSelections = extractDSSelections;
         clearSelections(); // if dao cache is cleared, this will avoid inconsistencies between cached object in selection and dao
         List<String> extractDSSelectionNames = extractDSSelections.stream().map(Selection::getName).collect(Collectors.toList());
-        return this.setExtractDS(extractDSFile, extractDSSelectionNames, extractDS, dimensions, resizeMode, eraseTouchingContoursOC, timelapse, spatialDownSamplingFactor, subsamplingFactor, subsamplingNumber, compression);
+        return this.setExtractDS(extractDSFile, extractDSSelectionNames, extractDS, dimensions, resizeMode, extractDSCropRefOC, eraseTouchingContoursOC, timelapse, spatialDownSamplingFactor, subsamplingFactor, subsamplingNumber, compression);
     }
 
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int extractDSCropRefOC, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelectionNames = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
         this.extractDSResizeMode = resizeMode;
+        this.extractDSCropRefOC = extractDSCropRefOC;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         this.extractDSSpatialDownsamplingFactor = spatialDownSamplingFactor;
         this.extractDSSubsamplingFactor = subsamplingFactor;
@@ -731,10 +739,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
         // dataset extraction
         if (extractDSFile!=null || extractDSFeatures!=null || extractDSSelectionNames !=null || extractDSDimensions!=null) {
-            if (extractDSDimensions==null || extractDSDimensions.length!=2) {
+            if (extractDSDimensions==null || extractDSDimensions.length<2 || extractDSDimensions.length>3) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
             }
-            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE) && IntStream.of(extractDSDimensions).anyMatch(d->d==0)) {
+            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE) && !extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.CROP) && IntStream.of(extractDSDimensions).anyMatch(d->d==0)) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions (resize mode not null):"+ Utils.toStringArray(extractDSDimensions))));
             }
             if (extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) && extractDSSelectionNames.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).getObjectClassIdx()==-1)) {

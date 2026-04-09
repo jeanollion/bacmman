@@ -54,6 +54,7 @@ public class ExtractDatasetUtil {
         } else resizeMode = t.getExtractDSResizeMode();
         ConvertToBoundingBox boxConverter = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.boxConverter(dimensions) : null;
         UnaryOperator<SegmentedObject> duplicateAsBox = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.duplicateAsBox(boxConverter) : o->o; // extend parent bounds
+        final int cropRefOC = t.getExtractDSCropRefOC();
         List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
         List<Selection> selections = t.getExtractDSSelections();
         int subsamplingFactor = t.getExtractDSSubsamplingFactor();
@@ -91,13 +92,14 @@ public class ExtractDatasetUtil {
                 }
                 for (String position : sel.getAllPositions()) {
                     logger.debug("position: {}", position);
+                    Map<SegmentedObject, int[]> cropStartMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(parent -> TrainingConfigurationParameter.RESIZE_MODE.CROP.equals(resizeMode) ? getCropStart(parent.getChildRegionPopulation(cropRefOC, false), dimensions) : null);
                     Map<Integer, Map<SegmentedObject, RegionPopulation>> resizedPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                         //if (parent.getStructureIdx() == oc) return null; // this case is handled separately
                         //logger.debug("resampling pop for parent: {} oc: {}", parent, oc);
                         RegionPopulation pop = boxConverter == null ? parent.getChildRegionPopulation(oc, false)
                             : new RegionPopulation(parent.getChildren(oc, false).map(SegmentedObject::getRegion).collect(Collectors.toList()), boxConverter.transformToImageProperties(parent.getParent(), parent.getRegion()));
                         //logger.debug("resampling pop for parent: {} -> #{} dimensions: {} -> {}", parent, pop.getRegions().size(), pop.getImageProperties().dimensions(), dimensions);
-                        return resizePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(oc), resizeMode);
+                        return resizePopulation(pop, dimensions, cropStartMap.get(parent), spatialDownsamplingFactor, eraseTouchingContours.test(oc), resizeMode);
                     }));
                     String curSelName = sel.getName();
                     String thName = null;
@@ -118,6 +120,7 @@ public class ExtractDatasetUtil {
                         logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilterName());
                         Function<SegmentedObject, Image> extractFunction;
                         Selection parentSelection;
+                        final Map<SegmentedObject, int[]> curCropStartMap;
                         Map<Integer, Map<SegmentedObject, RegionPopulation>> curResizedPops;
                         Selection selFilter;
                         if (feature.getSelectionFilterName() != null) {
@@ -126,11 +129,24 @@ public class ExtractDatasetUtil {
                         } else selFilter = null;
                         if (selFilter != null) { // filter children objects -> override global resized populations
                             List<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptyList();
+                            if (cropRefOC == feature.getObjectClass()) {
+                                curCropStartMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                                    if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.CROP)) {
+                                        List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).getId().equals(parent.getId())).map(SegmentedObject::getRegion).collect(Collectors.toList());
+                                        RegionPopulation pop = new RegionPopulation(childrenFiltered, boxConverter == null ? parent.getMaskProperties() : boxConverter.transformToImageProperties(parent.getParent(), parent.getRegion()));
+                                        return getCropStart(pop, dimensions);
+                                    } else return null;
+                                });
+                            } else curCropStartMap = cropStartMap;
+
                             Map<SegmentedObject, RegionPopulation> resizedPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                                 List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).getId().equals(parent.getId())).map(SegmentedObject::getRegion).collect(Collectors.toList());
                                 //logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel() - 1).toArray());
                                 RegionPopulation pop = new RegionPopulation(childrenFiltered, boxConverter==null?parent.getMaskProperties():boxConverter.transformToImageProperties(parent.getParent(), parent.getRegion()));
-                                return resizePopulation(pop, dimensions, spatialDownsamplingFactor, eraseTouchingContours.test(feature.getObjectClass()), resizeMode);
+                                if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.CROP) && cropRefOC == selFilter.getObjectClassIdx() && !curCropStartMap.containsKey(parent)) {
+                                    cropStartMap.put(parent, getCropStart(pop, dimensions));
+                                }
+                                return resizePopulation(pop, dimensions, cropStartMap.get(parent), spatialDownsamplingFactor, eraseTouchingContours.test(feature.getObjectClass()), resizeMode);
                             });
                             curResizedPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> {
                                 if (oc == feature.getObjectClass()) return resizedPop;
@@ -156,6 +172,7 @@ public class ExtractDatasetUtil {
                                 logger.debug("filter parent selection {} / {}", parentSelection.count(), sel.count());
                             } else parentSelection = sel;
                         } else {
+                            curCropStartMap = cropStartMap;
                             curResizedPops = resizedPops;
                             parentSelection = sel;
                         }
@@ -175,7 +192,7 @@ public class ExtractDatasetUtil {
                                 boolean noResize = feature.getFeatureExtractor().interpolation() == null || TrainingConfigurationParameter.RESIZE_MODE.NONE.equals(resizeMode);
                                 TrainingConfigurationParameter.RESIZE_MODE curResizeMode = noResize ? TrainingConfigurationParameter.RESIZE_MODE.NONE : (isLabel ? TrainingConfigurationParameter.RESIZE_MODE.PAD : resizeMode);
                                 extractFunction = e -> feature.getFeatureExtractor().extractFeature(!noResize && !isLabel?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
-                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, oneEntryPerTrack, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions);
+                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, oneEntryPerTrack, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions, curCropStartMap);
                             }
                             saveLabels = false;
                         }
@@ -274,26 +291,152 @@ public class ExtractDatasetUtil {
         writer.close();
     }
 
-    private static RegionPopulation resizePopulation(RegionPopulation pop, int[] dimensions, int downsamplingFactor, boolean eraseTouchingContours, TrainingConfigurationParameter.RESIZE_MODE resizeMode) {
+    private static RegionPopulation resizePopulation(RegionPopulation pop, int[] dimensions, int[] cropStart, int downsamplingFactor, boolean eraseTouchingContours, TrainingConfigurationParameter.RESIZE_MODE resizeMode) {
         //logger.debug("resampling population: {} -> {}", pop.getImageProperties().dimensions(), dimensions);
         ImageInteger mask = pop.getLabelMap();
         ImageInteger maskR;
-        int[] dimensions_ = getDimensions(mask.dimensions(), dimensions, downsamplingFactor);
+        UnaryOperator<ImageInteger> convertOp = m -> {
+            if (mask instanceof ImageShort)
+                return TypeConverter.toShort(m, null).resetOffset();
+            else if (mask instanceof ImageInt)
+                return TypeConverter.toInt(m, null).resetOffset();
+            else {
+                return TypeConverter.toByte(m, null).resetOffset();
+            }
+        };
         if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE) || resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD)) {
+            int[] dimensions_ = getDimensions(mask.dimensions(), dimensions, downsamplingFactor);
             UnaryOperator<ImageInteger> resizeOp = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE) ?
                     m -> resample(m, true, dimensions_) :
                     m -> pad(m, Resize.EXPAND_MODE.ZERO, Resize.EXPAND_POSITION.CENTER, dimensions_);
-            if (mask instanceof ImageShort)
-                maskR = TypeConverter.toShort(resizeOp.apply(mask), null).resetOffset();
-            else if (mask instanceof ImageInt)
-                maskR = TypeConverter.toInt(resizeOp.apply(mask), null).resetOffset();
-            else {
-                maskR = TypeConverter.toByte(resizeOp.apply(mask), null).resetOffset();
+            maskR = convertOp.apply(resizeOp.apply(mask));
+        } else if (TrainingConfigurationParameter.RESIZE_MODE.CROP.equals(resizeMode)) {
+            int[] dimensions_ = getDimensions(mask.dimensions(), dimensions, 1);
+            maskR = (ImageInteger)mask.crop(new SimpleBoundingBox(cropStart[0], cropStart[0]+dimensions_[0]-1, cropStart[1], cropStart[1]+dimensions_[1]-1, cropStart[2], cropStart[2]+dimensions_[2]-1));
+            if (downsamplingFactor > 1) {
+                dimensions_ = getDimensions(mask.dimensions(), dimensions, downsamplingFactor);
+                maskR = resample(maskR, true, dimensions_);
             }
-        } else maskR = mask;
+            maskR = convertOp.apply(maskR);
+        } else {
+            if (!eraseTouchingContours) return pop;
+            maskR = pop.getLabelMap();
+        }
         RegionPopulation res = new RegionPopulation(maskR, true);
         if (eraseTouchingContours) res.eraseTouchingContours(false);
         return res;
+    }
+
+    private static int[] getCropStart(RegionPopulation pop, int[] dimension) {
+        ImageProperties props = pop.getImageProperties();
+        int nAxes = dimension.length;
+        int[] result = new int[nAxes];
+        List<Region> regions = pop.getRegions();
+        if (regions.isEmpty()) return result;
+        int[] maxStarts = new int[nAxes];
+        // Build coarse non-overlapping grid candidates per axis
+        int[][] gridCandidates = new int[nAxes][];
+        int totalCombinations = 1;
+        for (int ax = 0; ax < nAxes; ax++) {
+            if (dimension[ax] <= 0) {
+                gridCandidates[ax] = new int[]{0};
+            } else if (dimension[ax] >= props.size(ax)) {
+                result[ax] = -(dimension[ax] - props.size(ax)) / 2;
+                gridCandidates[ax] = new int[]{result[ax]};
+            } else {
+                maxStarts[ax] = props.size(ax) - dimension[ax];
+                // If all regions span the full image on this axis, any position gives same volume → center
+                boolean allSpan = true;
+                for (Region r : regions) {
+                    BoundingBox<?> b = r.getBounds();
+                    if (b.getMin(ax) > 0 || b.getMax(ax) < props.size(ax) - 1) { allSpan = false; break; }
+                }
+                if (allSpan) {
+                    result[ax] = maxStarts[ax] / 2;
+                    gridCandidates[ax] = new int[]{result[ax]};
+                    totalCombinations *= gridCandidates[ax].length;
+                    continue;
+                }
+                int step = dimension[ax];
+                int n = maxStarts[ax] / step + 1;
+                boolean addLast = (n - 1) * step < maxStarts[ax];
+                gridCandidates[ax] = new int[n + (addLast ? 1 : 0)];
+                for (int i = 0; i < n; i++) gridCandidates[ax][i] = i * step;
+                if (addLast) gridCandidates[ax][n] = maxStarts[ax];
+            }
+            totalCombinations *= gridCandidates[ax].length;
+        }
+        // Phase 1: evaluate all grid positions (nD)
+        long bestScore = -1;
+        int[] trial = new int[nAxes];
+        for (int c = 0; c < totalCombinations; c++) {
+            int idx = c;
+            for (int ax = 0; ax < nAxes; ax++) {
+                trial[ax] = gridCandidates[ax][idx % gridCandidates[ax].length];
+                idx /= gridCandidates[ax].length;
+            }
+            long score = intersectionVolume(regions, props, trial, dimension);
+            if (score > bestScore) {
+                bestScore = score;
+                System.arraycopy(trial, 0, result, 0, nAxes);
+            }
+        }
+        // Phase 2: nD pyramid refinement (offsets {-step, 0, +step} on each axis, halving)
+        int[] steps = new int[nAxes];
+        boolean hasStep = false;
+        for (int ax = 0; ax < nAxes; ax++) {
+            steps[ax] = (dimension[ax] > 0 && dimension[ax] < props.size(ax)) ? dimension[ax] / 2 : 0;
+            if (steps[ax] > 0) hasStep = true;
+        }
+        while (hasStep) {
+            hasStep = false;
+            int nCombo = 1;
+            for (int ax = 0; ax < nAxes; ax++) nCombo *= (steps[ax] > 0) ? 3 : 1;
+            int[] bestPos = Arrays.copyOf(result, nAxes);
+            for (int c = 0; c < nCombo; c++) {
+                int idx = c;
+                for (int ax = 0; ax < nAxes; ax++) {
+                    if (steps[ax] > 0) {
+                        trial[ax] = Math.max(0, Math.min(maxStarts[ax], result[ax] + (idx % 3 - 1) * steps[ax]));
+                        idx /= 3;
+                    } else {
+                        trial[ax] = result[ax];
+                    }
+                }
+                long score = intersectionVolume(regions, props, trial, dimension);
+                if (score > bestScore) {
+                    bestScore = score;
+                    System.arraycopy(trial, 0, bestPos, 0, nAxes);
+                }
+            }
+            System.arraycopy(bestPos, 0, result, 0, nAxes);
+            for (int ax = 0; ax < nAxes; ax++) {
+                steps[ax] /= 2;
+                if (steps[ax] > 0) hasStep = true;
+            }
+        }
+        return result;
+    }
+
+    private static long intersectionVolume(List<Region> regions, ImageProperties props, int[] start, int[] dimension) {
+        int oX = start[0];
+        int oY = start.length > 1 ? start[1] : 0;
+        int oZ = start.length > 2 ? start[2] : 0;
+        int eX = oX + (dimension[0] > 0 ? dimension[0] : props.sizeX()) - 1;
+        int eY = oY + (dimension.length > 1 && dimension[1] > 0 ? dimension[1] : props.sizeY()) - 1;
+        int eZ = oZ + (dimension.length > 2 && dimension[2] > 0 ? dimension[2] : props.sizeZ()) - 1;
+        long total = 0;
+        for (Region r : regions) {
+            BoundingBox<?> b = r.getBounds();
+            int dx = Math.min(b.xMax(), eX) - Math.max(b.xMin(), oX) + 1;
+            if (dx <= 0) continue;
+            int dy = Math.min(b.yMax(), eY) - Math.max(b.yMin(), oY) + 1;
+            if (dy <= 0) continue;
+            int dz = Math.min(b.zMax(), eZ) - Math.max(b.zMin(), oZ) + 1;
+            if (dz <= 0) continue;
+            total += (long) dx * dy * dz;
+        }
+        return total;
     }
 
     public static int[] getDimensions(int[] originalDimensions, int[] targetDimensions, int downsamplingFactor) {
@@ -311,10 +454,12 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_" + getLabel(e.getFrame());
     }
+
     public static String getLabel(int frame) {
         return "f" + String.format("%05d", frame);
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean isLabel, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions) {
+
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean isLabel, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions, Map<SegmentedObject, int[]> cropStartMap) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
         logger.debug("extract + resize dataset: {}...", dsName);
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -325,6 +470,18 @@ public class ExtractDatasetUtil {
                 out = resample(im, interpolation, dimensions_);
             } else if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.PAD) || resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND)) { // also include extend in case viewfield is too small
                 out = pad(im, isLabel ? Resize.EXPAND_MODE.ZERO : Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions_);
+            } else if (resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.CROP)) {
+                int[] dims_ = getDimensions(im.dimensions(), dimensions, 1);
+                int[] cropStart = cropStartMap.get(e);
+                BoundingBox cropBds = new SimpleBoundingBox(cropStart[0], cropStart[0]+dims_[0]-1, cropStart[1], cropStart[1]+dims_[1]-1, cropStart[2], cropStart[2]+dims_[2]-1);
+                if (isLabel) out = im.crop(cropBds);
+                else {
+                    //logger.debug("crop start: {} dims: {} image bds: {} inter: {}", cropStart, dims_, im.getBoundingBox().resetOffset(), BoundingBox.getIntersection(cropBds, im.getBoundingBox().resetOffset()));
+                    out = im.crop(BoundingBox.getIntersection(cropBds, im.getBoundingBox().resetOffset()));
+                    boolean needPadding = Arrays.stream(cropStart).anyMatch(i -> i<0);
+                    if (needPadding) out = pad(out, Resize.EXPAND_MODE.BORDER, Resize.EXPAND_POSITION.CENTER, dimensions_);
+                }
+                if (downsamplingFactor > 1) out = resample(im, interpolation, dimensions_);
             } else {
                 out = im;
             }
@@ -347,6 +504,7 @@ public class ExtractDatasetUtil {
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
         extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance, oneEntryPerTrack, compression);
     }
+
     public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression) {
         Image type = Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get());
         int originalBitDepth = TypeConverter.castToIJ1ImageType(type).byteCount() * 8;
@@ -469,7 +627,7 @@ public class ExtractDatasetUtil {
 
         int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, dims, TrainingConfigurationParameter.RESIZE_MODE.NONE, eraseContoursOC, false, 1, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, dims, TrainingConfigurationParameter.RESIZE_MODE.NONE, -1, eraseContoursOC, false, 1, 1, 1, compression);
         return resultingTask;
     }
 
@@ -502,7 +660,7 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
         return resultingTask;
     }
 
@@ -515,7 +673,7 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 
