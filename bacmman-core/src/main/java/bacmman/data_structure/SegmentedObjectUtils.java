@@ -219,12 +219,11 @@ public class SegmentedObjectUtils {
 
         if (allowSearchInPreviousFrames) { // also add objects of track ?
             res.forEach((th, l) -> {
-                SegmentedObject first = l.get(0);
-                while(first!=null && !first.equals(th)) {
+                SegmentedObject first = l.get(0).getPrevious();
+                while(first!=null && !first.equals(th) && first.getTrackHead().equals(th)) {
+                    l.add(0, first);
                     first = first.getPrevious();
-                    l.add(first);
                 }
-                Collections.sort(l);
             });
         }
         if (allowSearchInNextFrames) {
