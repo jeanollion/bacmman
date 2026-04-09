@@ -84,8 +84,6 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         return simpleHint + dispImageSimple;
     }
 
-    public enum METHOD {LEGACY, PEAK}
-
     public MicrochannelFluo2D() {}
     public MicrochannelFluo2D(int channelHeight, int channelWidth, int yMargin, double fillingProportion, int minObjectSize) {
         this.channelLength.setValue(channelHeight);
@@ -103,7 +101,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runThresholder(input, parent) : thresholdValue;
         logger.debug("thresholder: {} : {}", threshold.getPluginName(), threshold.getParameters());
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), buffers);
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), 0.25, fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), buffers);
         if (r==null) return null;
         else return r.getObjectPopulation(input, true);
     }
@@ -111,7 +109,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     @Override
     public Result segment(Image input, int structureIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runSimpleThresholder(input, null) : thresholdValue;
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), buffers);
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), 0.25, fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), peakProportion.getDoubleValue(), TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent), buffers);
         return r;
     }
     
@@ -173,7 +171,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
      * @param thld optiona lused for image binarization, can be NaN
      * @return 
      */
-    public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double fillingProportion, double thld, int minObjectSize, double peakProportion, METHOD method, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer, Buffers buffers) {
+    public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double yMarginProportion, double fillingProportion, double thld, int minObjectSize, double peakProportion, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer, Buffers buffers) {
 
         // get thresholded image
         if (Double.isNaN(thld) && thresholdedImage == null) {
@@ -192,110 +190,59 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         ImageByte minBuffer = buffers == null ? null : buffers.imageBytePool.pull();
         Filters.binaryOpen(mask, mask, minBuffer, Filters.getNeighborhood(1.5, 0, image), false); // case of low intensity signal -> noisy. removes individual pixels
         if (buffers != null) buffers.imageBytePool.push(minBuffer);
-        ImageInt labelBuffer = buffers == null ? null : buffers.imageIntPool.pull();
-        List<Region> bacteria = ImageOperations.filterObjects(mask, mask, labelBuffer, (Region o) -> o.size() < minObjectSize);
-        if (buffers != null) buffers.imageIntPool.push(labelBuffer);
 
+        // limit Y
+        double yMargin = channelLength  * yMarginProportion;
+        int yMin, yMax;
+        if (mask.sizeY() > channelLength + 2 * yMargin) {
+            float[] yProj = ImageOperations.meanProjection(mask, ImageOperations.Axis.Y, null);
+            ImageFloat imProjY = new ImageFloat("Y proj", mask.sizeY(), new float[][]{yProj});
+            imProjY = Filters.mean(imProjY, null, Filters.getNeighborhood((float) channelLength / 2, imProjY), false);
+            int yCenter = ArrayUtil.max(imProjY.getPixelArray()[0]);
+
+            int yRad = channelLength / 2 + (int)(yMargin+0.5);
+            yMin = Math.max(0, yCenter - yRad);
+            yMax = Math.min(yProj.length - 1, Math.max(yMin + channelLength + (int)(yMargin * 2 + 0.5), yCenter + yRad));
+        } else {
+            yMin = 0;
+            yMax = mask.sizeY()-1;
+        }
         // selected filled microchannels
-        float[] xProj = ImageOperations.meanProjection(mask, ImageOperations.Axis.X, null);
+        float[] xProj = ImageOperations.meanProjection(mask, ImageOperations.Axis.X, new SimpleBoundingBox(0, mask.sizeX()-1, yMin, yMax, 0, mask.sizeZ()-1));
         ImageFloat imProjX = new ImageFloat("Total segmented bacteria length", mask.sizeX(), new float[][]{xProj});
         ImageOperations.affineOpMulAdd(imProjX, imProjX, (double) (image.sizeY() * image.sizeZ()) / channelLength, 0);
         if (imageTestDisplayer != null) imageTestDisplayer.accept(mask.setName("Thresholded Bacteria"));
-        if (miscDataDisplayer != null)
-            miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> IJUtils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
+        if (miscDataDisplayer != null)  miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> IJUtils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
 
-        switch (method) {
-            case LEGACY: {
-                ImageByte projXThlded = ImageOperations.threshold(imProjX, fillingProportion, true, false);
-
-                List<Region> xObjectList = ImageLabeller.labelImageList(projXThlded);
-                if (xObjectList.isEmpty()) {
-                    return null;
-                }
-                if (channelWidth <= 1) {
-                    channelWidth = (int) xObjectList.stream().mapToInt((Region o) -> o.getBounds().sizeX()).average().getAsDouble();
-                }
-                int leftLimit = channelWidth / 2 + 1;
-                int rightLimit = image.sizeX() - leftLimit;
-                Iterator<Region> it = xObjectList.iterator();
-                while (it.hasNext()) {
-                    BoundingBox b = it.next().getBounds();
-                    if (b.xMean() < leftLimit || b.xMean() > rightLimit) {
-                        it.remove(); //if (b.getxMin()<Xmargin || b.getxMax()>rightLimit) it.remove(); //
-                    }
-                }
-                if (xObjectList.isEmpty()) {
-                    return null;
-                }
-
-                // fusion of overlapping objects in X direction
-                it = xObjectList.iterator();
-                Region prev = it.next();
-                while (it.hasNext()) {
-                    Region next = it.next();
-                    if (prev.getBounds().xMax() + 1 > next.getBounds().xMin()) {
-                        prev.merge(next);
-                        it.remove();
-                    } else {
-                        prev = next;
-                    }
-                }
-                Region[] xObjects = xObjectList.toArray(new Region[xObjectList.size()]);
-                if (xObjects.length == 0) {
-                    return null;
-                }
-
-                if (bacteria.isEmpty()) {
-                    return null;
-                }
-                int[] yMins = new int[xObjects.length];
-                Arrays.fill(yMins, Integer.MAX_VALUE);
-                for (Region o : bacteria) {
-                    BoundingBox b = o.getBounds();
-                    //if (debug) logger.debug("object: {}");
-                    X_SEARCH:
-                    for (int i = 0; i < xObjects.length; ++i) {
-                        BoundingBox inter = BoundingBox.getIntersection(b, xObjects[i].getBounds());
-                        if (inter.sizeX() >= 2) {
-                            if (b.yMin() < yMins[i]) {
-                                yMins[i] = b.yMin();
-                            }
-                            break X_SEARCH;
-                        }
-                    }
-                }
-                return getResult(yMins, xObjects, channelWidth, channelLength, yShift, image.sizeX());
-            }
-            default : case PEAK: {
-                if (channelWidth<1) throw new IllegalArgumentException("channel width should be >1");
-                // get center of microchannel: peaks of xProjection
-                ArrayUtil.gaussianSmooth(xProj, Math.max(2, channelWidth/8));
-                List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth/2, true);
-                if (peakProportion < 1) {
-                    localMax = localMax.stream().map(p -> {
-                        int startOfPeak = ArrayUtil.getFirstIndexOf(xProj, p, 0, v->v<xProj[p] * peakProportion);
-                        int endOfPeak = ArrayUtil.getFirstIndexOf(xProj, p, xProj.length, v->v<xProj[p] * peakProportion);
-                        return (startOfPeak + endOfPeak) / 2;
-                    }).collect(Collectors.toList());
-                }
-                //logger.debug("channelWidth: {}, peaks: {}", channelWidth, localMax);
-                int leftLimit = channelWidth / 2 + 1;
-                int rightLimit = image.sizeX() - leftLimit;
-                localMax.removeIf(l -> l<leftLimit || l>rightLimit || xProj[l]<fillingProportion);
-                if (localMax.isEmpty()) return null;
-
-                // for each local max, get yMin
-                float[] yProj = new float[mask.sizeY()];
-                int halfWidth = channelWidth/2;
-                int[] yMins = localMax.stream().mapToInt(l -> {
-                    ImageOperations.meanProjection(mask, ImageOperations.Axis.Y, new SimpleBoundingBox(l-halfWidth, l+halfWidth, 0, mask.sizeY()-1, 0, mask.sizeZ()-1), d->true, yProj);
-                    return ArrayUtil.getFirstIndexOf(yProj, 0, yProj.length, d->d>0);
-                }).toArray();
-                Region[] xObjects = localMax.stream().map(l -> new Region(new BlankMask(0, 0, 0, l.intValue(), 0, 0, 1, 1), 1, true)).toArray(r->new Region[r]);
-                return getResult(yMins, xObjects, channelWidth, channelLength, yShift, image.sizeX());
-            }
+        if (channelWidth<1) throw new IllegalArgumentException("channel width should be >1");
+        // get center of microchannel: peaks of xProjection
+        ArrayUtil.gaussianSmooth(xProj, Math.max(2, channelWidth/8));
+        List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth/2, true);
+        if (peakProportion < 1) {
+            localMax = localMax.stream().map(p -> {
+                int startOfPeak = ArrayUtil.getFirstIndexOf(xProj, p, 0, v->v<xProj[p] * peakProportion);
+                int endOfPeak = ArrayUtil.getFirstIndexOf(xProj, p, xProj.length, v->v<xProj[p] * peakProportion);
+                return (startOfPeak + endOfPeak) / 2;
+            }).collect(Collectors.toList());
         }
+        //logger.debug("channelWidth: {}, peaks: {}", channelWidth, localMax);
+        int leftLimit = channelWidth / 2 + 1;
+        int rightLimit = image.sizeX() - leftLimit;
+        localMax.removeIf(l -> l<leftLimit || l>rightLimit || xProj[l]<fillingProportion);
+        if (localMax.isEmpty()) return null;
+
+        // for each local max, get yMin
+        float[] yProjLocal = new float[yMax - yMin + 1];
+        int halfWidth = channelWidth/2;
+        int[] yMins = localMax.stream().mapToInt(l -> {
+            ImageOperations.meanProjection(mask, ImageOperations.Axis.Y, new SimpleBoundingBox(l-halfWidth, l+halfWidth, yMin, yMax, 0, mask.sizeZ()-1), d->true, yProjLocal);
+            return ArrayUtil.getFirstIndexOf(yProjLocal, 0, yProjLocal.length, d->d>0) + yMin;
+        }).toArray();
+        Region[] xObjects = localMax.stream().map(l -> new Region(new BlankMask(0, 0, 0, l.intValue(), 0, 0, 1, 1), 1, true)).toArray(r->new Region[r]);
+        return getResult(yMins, xObjects, channelWidth, channelLength, yShift, image.sizeX());
+
     }
+
     private static Result getResult(int[] yMins, Region[] xObjects, int channelWidth, int channelLength, int yShift, int imageSizeX) {
         // get median yMin
         List<Integer> yMinsList = new ArrayList<>(yMins.length);

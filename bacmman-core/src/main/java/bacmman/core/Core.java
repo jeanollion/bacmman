@@ -57,7 +57,7 @@ public class Core {
     public static int PRE_PROCESSING_WINDOW = 100;
     private static ImageJ ij;
     private static OpService opService;
-    private static Core core;
+    private static volatile Core core;
     private static final Object lock = new Object();
     private static ProgressLogger progressLogger;
     private static Consumer<Image> imageDisplayer;
@@ -145,8 +145,13 @@ public class Core {
         diskBackedImageManagerProvider.clear();
     }
 
-    public static void freeMemory() {
+    public static void waitDiskManagerFreeMemory() {
         diskBackedImageManagerProvider.waitFreeMemory();
+        System.gc();
+    }
+
+    public static void freeDiskManagersMemory() {
+        diskBackedImageManagerProvider.freeMemory();
         System.gc();
     }
 

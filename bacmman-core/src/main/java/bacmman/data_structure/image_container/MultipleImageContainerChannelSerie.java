@@ -54,10 +54,10 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     int timePointNumber;
     int[] sizeZC;
     MutableBoundingBox bounds;
-    private ImageReader reader[];
-    private Image[] singleFrameImages;
+    private volatile ImageReader reader[];
+    private volatile Image[] singleFrameImages;
     boolean[] singleFrameC;
-    Map<String, Double> timePointCZT;
+    volatile Map<String, Double> timePointCZT;
     private boolean invertTZ;
     private int[] channelIndices, channelModulo;
     boolean[] invertTZbyC;

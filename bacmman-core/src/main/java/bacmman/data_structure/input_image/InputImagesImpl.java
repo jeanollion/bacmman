@@ -266,7 +266,7 @@ public class InputImagesImpl implements InputImages {
                 }
                 if (f%100==0) System.gc();
             };
-            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
+            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, Core.PRE_PROCESSING_WINDOW, s -> Core.waitDiskManagerFreeMemory());
             System.gc();
             logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
         });

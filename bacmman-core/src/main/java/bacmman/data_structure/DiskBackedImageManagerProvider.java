@@ -75,6 +75,12 @@ public class DiskBackedImageManagerProvider {
         managers.clear();
     }
 
+    public synchronized void freeMemory() {
+        for (DiskBackedImageManager m : managers.values()) {
+            m.freeMemory(0.1);
+        }
+    }
+
     public static String getTempDirectory(Path parent, boolean createIfNotExisting) {
         Path tmp = parent.resolve("tmp");
         if (!Files.exists(tmp)) {

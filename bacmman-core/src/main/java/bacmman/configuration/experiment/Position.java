@@ -57,10 +57,10 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     private MultipleImageContainer sourceImages;
     PreProcessingChain preProcessingChain=new PreProcessingChain("Pre-Processing", false);
     BoundedNumberParameter defaultTimePoint = new BoundedNumberParameter("Default TimePoint", 0, defaultTP, 0, null).setHint("Frame used by default by transformations that requires a single frame");
-    InputImagesImpl inputImages;
+    volatile InputImagesImpl inputImages;
     public static final int defaultTP = 50;
     private final Map<Integer, Integer> channelMapSizeZ = new HashMap<>();
-    ImageDAO originalImageDAO, tempImageDAO;
+    volatile ImageDAO originalImageDAO, tempImageDAO;
     DiskBackedImageManagerImageDAO imageDAO;
     @Override
     public Object toJSONEntry() {

@@ -23,7 +23,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false)
             .setEmphasized(true).setHint("Deep learning with Tensorflow: Select the folder containing the saved model (.pb file)<br/>Ilastik: select project file (.ilp). <br/>Caution: ensure there are no spaces in the absolute path of this file.");
     TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
-    LargeFileGist lf;
+    volatile LargeFileGist lf;
     String lfId;
     Predicate<String> validDirectory;
     public static Predicate<String> containsTensorflowModel = p -> {

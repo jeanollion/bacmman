@@ -12,6 +12,7 @@ public interface DiskBackedImageManager {
     long timeInterval = 100;
     boolean startDaemon(double memoryFraction, long timeInterval);
     boolean stopDaemon();
+    void freeMemory(double memoryFraction);
     boolean isFreeingMemory();
     <I extends Image<I>> I openImageContent(DiskBackedImage<I> fmi) throws IOException;
     <I extends Image<I>> void storeDiskBackedImage(DiskBackedImage<I> fmi) throws IOException;

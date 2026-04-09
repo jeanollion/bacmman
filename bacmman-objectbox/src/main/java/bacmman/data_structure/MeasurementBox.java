@@ -23,7 +23,7 @@ public class MeasurementBox {
     @Uid(104)
     byte[] jsonMap;
     @Transient
-    Measurements measurement;
+    volatile Measurements measurement;
     public MeasurementBox() {}
 
     public MeasurementBox(long id, int objectClassIdx, String positionName, byte[] jsonMap) {

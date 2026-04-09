@@ -506,7 +506,7 @@ public class OmeroTree {
     }
 
     public class ImageNode extends LazyLoadingMutableTreeNode<ImageData> {
-        BufferedImage icon;
+        volatile BufferedImage icon;
         ImageNode(ImageData data) {
             super(data);
         }

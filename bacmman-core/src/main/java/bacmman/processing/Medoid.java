@@ -3,11 +3,12 @@ package bacmman.processing;
 import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Voxel;
+import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.image.Offset;
+import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.geom.Point;
-import net.imglib2.Localizable;
 import net.imglib2.RealLocalizable;
 
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ public class Medoid {
         }
         return computeMedoid(region.getMask(), ratio);
     }
+
     public static Point computeMedoid(ImageMask mask, double sizeZRatio) {
         CoordCollection.ListCoordCollection points = CoordCollection.create(mask);
         double s = points.size();
@@ -48,6 +50,7 @@ public class Medoid {
         points.getCoord(i, c1);
         return new Point(c1[0], c1[1], c1[2]).translate(mask);
     }
+
     public static <T> T computeMedoid(Collection<T> points, ToDoubleBiFunction<T, T> distanceFunction) {
         double s = points.size();
         float[] sum = new float[points.size()];
@@ -62,7 +65,21 @@ public class Medoid {
         int i = ArrayUtil.min(sum);
         return pointList.get(i);
     }
+
     public static <T extends RealLocalizable> T computeMedoid(Collection<T> points) {
         return computeMedoid(points, (p1, p2)-> Math.sqrt(Point.distSq(p1, p2)));
+    }
+
+    public static Point computeSkeletonMedoid(Region region) {
+        double ratio = region.getScaleXY()<=0 || region.getScaleZ()<=0 ? 1 : region.getScaleZ() / region.getScaleXY();
+        List<Voxel> skeletonPoints = new ArrayList<>();
+        Image distanceMap = EDT.transform(region.getMask(), true, region.getScaleXY(), region.getScaleZ(), false);
+        Neighborhood n = Filters.getNeighborhood(1.5, 1, distanceMap);
+        ImageMask lm = Filters.localExtrema(distanceMap, null, true, region.getMask(), n, false);
+        ImageMask.loopWithOffset(lm, (x, y, z) -> skeletonPoints.add(new Voxel(x, y, z)));
+        ToDoubleBiFunction<Voxel, Voxel> distanceFunction = region.is2D() ? (v1, v2) -> Math.sqrt(Math.pow(v1.x-v2.x, 2)+Math.pow(v1.y-v2.y, 2)) :
+                (v1, v2) -> Math.sqrt(Math.pow(v1.x-v2.x, 2)+Math.pow(v1.y-v2.y, 2)+Math.pow(v1.z-v2.z, 2) * ratio);
+        Voxel v = computeMedoid(skeletonPoints, distanceFunction);
+        return Point.asPoint((Offset)v);
     }
 }

@@ -43,7 +43,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         if (daemon != null ) return false;
         this.memoryFraction=memoryFraction;
         Runnable run = () -> {
-            while(true) {
+            while(!stopDaemon) {
                 freeMemory(memoryFraction, true);
                 try {
                     Thread.sleep(timeInterval);
@@ -69,9 +69,9 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             stopDaemon = true;
             daemon.interrupt();
             try {
-                Thread.sleep(daemonTimeInterval);
+                daemon.join(daemonTimeInterval * 2);  // wait for clean exit
             } catch (InterruptedException e) {
-
+                Thread.currentThread().interrupt();
             }
             daemon = null;
             return true;
@@ -191,7 +191,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         freeingMemory = true;
         long freed = 0;
         int loopCount = 0;
-        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && loopCount <= queue.size() ) {
+        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && !Thread.currentThread().isInterrupted() && loopCount <= queue.size() ) {
             if (!queue.isEmpty()) {
                 DiskBackedImage im = null;
                 synchronized (queue) {
@@ -200,6 +200,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 }
                 if (im != null) {
                     if (im.isOpen()) {
+                        if (Thread.currentThread().isInterrupted()) break;
                         long usedHM = im.usedHeapMemory();
                         used -= usedHM;
                         freed += usedHM;

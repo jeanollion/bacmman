@@ -73,7 +73,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
             };
-            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.freeMemory());
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), Core.PRE_PROCESSING_WINDOW, s -> Core.waitDiskManagerFreeMemory());
             if (ioe[0]!=null) throw ioe[0];
         }
         bestFocusPlaneIdxT.addAll(Arrays.asList(conf));

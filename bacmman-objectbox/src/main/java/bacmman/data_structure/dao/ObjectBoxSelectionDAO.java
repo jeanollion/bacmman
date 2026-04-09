@@ -53,8 +53,8 @@ public class ObjectBoxSelectionDAO implements SelectionDAO {
     protected final Map<String, SelectionBox> nameCache = new HashMap<>();
     protected final boolean readOnly;
 
-    protected BoxStore store;
-    protected Box<SelectionBox> box;
+    protected volatile BoxStore store;
+    protected volatile Box<SelectionBox> box;
     public ObjectBoxSelectionDAO(MasterDAO<?, ?> mDAO, String dir, boolean readOnly) {
         this.mDAO=mDAO;
         this.dir = Paths.get(dir, "Selections");

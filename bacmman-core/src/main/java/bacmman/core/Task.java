@@ -76,11 +76,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
         int[] structures;
         List<Pair<String, int[]>> exportDir = new ArrayList<>();
         MultipleException errors = new MultipleException();
-        MasterDAO db;
+        volatile MasterDAO db;
         boolean ownDB;
         int[] taskCounter;
         double subtaskNumber=0, subtaskCounter =0;
         double preProcessingMemoryThreshold = 0.5;
+        double cleanMemoryProportionThld = 0.25; // if memory is over this thld after a task item is performed, cleans memory
         ProgressLogger ui;
         String selectionName;
 
@@ -91,6 +92,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         List<Selection> extractDSSelections;
         int[] extractDSDimensions;
         TrainingConfigurationParameter.RESIZE_MODE extractDSResizeMode;
+        int extractDSCropRefOC;
         int[] extractDSEraseTouchingContoursOC;
         boolean extractDSTimelapse;
         int extractDSSubsamplingFactor=1;
@@ -143,6 +145,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 extractDS.put("selections", extractDSSels);
                 extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
                 if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) extractDS.put("extractDSResizeMode", extractDSResizeMode.toString());
+                if (TrainingConfigurationParameter.RESIZE_MODE.CROP.equals(extractDSResizeMode)) extractDS.put("extractDSCropRefOC", extractDSCropRefOC);
                 JSONArray extractDSFeats = new JSONArray();
                 for (FeatureExtractor.Feature feature: extractDSFeatures) {
                     JSONObject feat = new JSONObject();
@@ -236,6 +239,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 }
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
                 extractDSResizeMode = TrainingConfigurationParameter.RESIZE_MODE.valueOf((String)extractDS.getOrDefault("extractDSResizeMode", TrainingConfigurationParameter.RESIZE_MODE.NONE.toString()));
+                extractDSCropRefOC = (int)extractDS.getOrDefault("extractDSCropRefOC", -1);
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
                 else extractDSEraseTouchingContoursOC = new int[0];
                 if (extractDS.containsKey("extractDSSubsamplingFactor")) extractDSSubsamplingFactor = ((Number)extractDS.get("extractDSSubsamplingFactor")).intValue();
@@ -410,7 +414,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     public Task setDB(MasterDAO db) {
-        if (db!=null && ownDB) {
+        if (this.db!=null && ownDB) {
             this.db.unlockPositions();
             this.db.unlockConfiguration();
             this.db.clearCache(true, true, true);
@@ -460,6 +464,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     public TrainingConfigurationParameter.RESIZE_MODE getExtractDSResizeMode() {
         return extractDSResizeMode;
+    }
+
+    public int getExtractDSCropRefOC() {
+        return extractDSCropRefOC;
     }
 
     public int[] getExtractDSEraseTouchingContoursOC() {
@@ -518,19 +526,20 @@ public class Task implements TaskI<Task>, ProgressCallback {
         return measurements;
     }
 
-    public Task setExtractDSWithSelection(String extractDSFile, List<Selection> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
+    public Task setExtractDSWithSelection(String extractDSFile, List<Selection> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int extractDSCropRefOC, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSSelections = extractDSSelections;
         clearSelections(); // if dao cache is cleared, this will avoid inconsistencies between cached object in selection and dao
         List<String> extractDSSelectionNames = extractDSSelections.stream().map(Selection::getName).collect(Collectors.toList());
-        return this.setExtractDS(extractDSFile, extractDSSelectionNames, extractDS, dimensions, resizeMode, eraseTouchingContoursOC, timelapse, spatialDownSamplingFactor, subsamplingFactor, subsamplingNumber, compression);
+        return this.setExtractDS(extractDSFile, extractDSSelectionNames, extractDS, dimensions, resizeMode, extractDSCropRefOC, eraseTouchingContoursOC, timelapse, spatialDownSamplingFactor, subsamplingFactor, subsamplingNumber, compression);
     }
 
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, int extractDSCropRefOC, int[] eraseTouchingContoursOC, boolean timelapse, int spatialDownSamplingFactor, int subsamplingFactor, int subsamplingNumber, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelectionNames = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
         this.extractDSResizeMode = resizeMode;
+        this.extractDSCropRefOC = extractDSCropRefOC;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         this.extractDSSpatialDownsamplingFactor = spatialDownSamplingFactor;
         this.extractDSSubsamplingFactor = subsamplingFactor;
@@ -730,10 +739,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
         // dataset extraction
         if (extractDSFile!=null || extractDSFeatures!=null || extractDSSelectionNames !=null || extractDSDimensions!=null) {
-            if (extractDSDimensions==null || extractDSDimensions.length!=2) {
+            if (extractDSDimensions==null || extractDSDimensions.length<2 || extractDSDimensions.length>3) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
             }
-            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE) && IntStream.of(extractDSDimensions).anyMatch(d->d==0)) {
+            if (!extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.NONE) && !extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.CROP) && IntStream.of(extractDSDimensions).anyMatch(d->d==0)) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions (resize mode not null):"+ Utils.toStringArray(extractDSDimensions))));
             }
             if (extractDSResizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) && extractDSSelectionNames.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).getObjectClassIdx()==-1)) {
@@ -1028,6 +1037,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         publish("Dataset" + getDBName()+ " Position: "+position);
         logger.debug("position: {} delete all position: {}", position, deleteAllPosition);
         if (deleteAllPosition) db.getDao(position).erase();
+        boolean ok = true;
         if (preProcess) {
             publish("Pre-Processing...");
             logger.info("Pre-Processing: DB: {}, Position: {}", getDBName(), position);
@@ -1047,7 +1057,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
         }
         
-        if ((segmentAndTrack || trackOnly)) {
+        if (ok && (segmentAndTrack || trackOnly)) {
             publish("Processing...");
             if (selection==null) {
                 int[] structuresToDelete = IntStream.of(structures).filter(s -> db.getExperiment().getStructure(s).getProcessingPipelineParameter().isOnePluginSet()).toArray();
@@ -1064,8 +1074,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 try {
                     executeProcessingScheme(root, s, trackOnly, selection!=null, selection, this);
                 } catch (MultipleException e) {
+                    ok = false;
                     errors.addExceptions(e.getExceptions());
                 } catch (Throwable e) {
+                    ok = false;
                     errors.addExceptions(new Pair<>("Error while processing: db: "+db.getDBName()+" pos: "+position+" structure: "+s, e));
                 }
                 incrementProgress();
@@ -1073,11 +1085,31 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 // TODO : when no more processing with direct parent as root: get all images of direct root children & remove images from root
                 System.gc();
                 publishMemoryUsage("After Processing structure:"+s);
+                if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) { // for heavy tasks: intermediate free memory
+                    Core.freeDiskManagersMemory();
+                    try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
+                        db.getDao(position).clearCache();
+                        System.gc();
+                        try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    }
+                    if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
+                        db.clearCache(position);
+                        System.gc();
+                        try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    }
+                    if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
+                        db.getExperiment().getDLengineProvider().closeAllEngines();
+                        System.gc();
+                        try { Thread.sleep(10000); } catch (InterruptedException e) { }
+                    }
+                }
+                if (!ok) break;
             }
             publishMemoryUsage("After Processing:");
         }
         
-        if (measurements) {
+        if (ok && measurements) {
             publish("Measurements...");
             logger.info("Measurements: DB: {}, Position: {}", getDBName(), position);
             Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);

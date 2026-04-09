@@ -338,8 +338,8 @@ public class Processor {
             if (s==null) return Stream.empty();
             else return s;
         }).forEachOrdered(children::add);
+        logger.debug("total objects to store: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
         dao.store(children);
-        logger.debug("total objects: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
         if (pcb!=null) {
             pcb.incrementSubTask();
         }

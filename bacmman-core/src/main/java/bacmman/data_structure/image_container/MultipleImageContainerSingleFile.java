@@ -47,7 +47,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     int seriesIdx;
     int sizeZ;
     MutableBoundingBox bounds;
-    private ImageReader reader;
+    private volatile ImageReader reader;
     private Map<String, Double> timePointCZT;
     private boolean invertTZ;
     @Override

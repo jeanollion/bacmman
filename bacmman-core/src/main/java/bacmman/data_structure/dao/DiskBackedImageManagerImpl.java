@@ -34,7 +34,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         if (daemon != null ) return false;
         this.memoryFraction=memoryFraction;
         Runnable run = () -> {
-            while(true) {
+            while(!stopDaemon) {
                 freeMemory(memoryFraction, true);
                 try {
                     Thread.sleep(timeInterval);
@@ -58,9 +58,9 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             stopDaemon = true;
             daemon.interrupt();
             try {
-                Thread.sleep(daemonTimeInterval);
+                daemon.join(daemonTimeInterval * 2);  // wait for clean exit
             } catch (InterruptedException e) {
-
+                Thread.currentThread().interrupt();
             }
             daemon = null;
             return true;
@@ -83,7 +83,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         freeingMemory = true;
         long freed = 0;
         int loopCount = 0;
-        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && loopCount <= queue.size()) {
+        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && !Thread.currentThread().isInterrupted() && loopCount <= queue.size()) {
             if (!queue.isEmpty()) {
                 DiskBackedImage im = null;
                 synchronized (queue) {
@@ -92,6 +92,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
                 }
                 if (im != null) {
                     if (im.isOpen()) {
+                        if (Thread.currentThread().isInterrupted()) break;
                         long usedHM = im.usedHeapMemory();
                         used -= usedHM;
                         freed += usedHM;

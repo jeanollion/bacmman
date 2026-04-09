@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 
 public class ObjectBoxDAO implements ObjectDAO<Long> {
     static final Logger logger = LoggerFactory.getLogger(ObjectBoxDAO.class);
+    static int batchSize = 1000000;
     final MasterDAO<Long, ? extends ObjectDAO<Long>> mDAO;
     final String positionName;
     final Path dir;
@@ -65,10 +66,14 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     protected BoxStore makeStore(int ocIdx, boolean object) {
         if (!Files.exists(dir)) {
-            try {
-                Files.createDirectories(this.dir);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            synchronized (this) {
+                if (!Files.exists(dir)) {
+                    try {
+                        Files.createDirectories(this.dir);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
             }
         }
         String name = (object ? "objects_" : "measurements_")+ocIdx;
@@ -88,7 +93,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             BoxStore b = objectBuilder.build();
             return b;
         } catch (DbException e) {
-            logger.error("Error creating BoxStore. Too many db may be open.", e);
+            logger.error("Error creating BoxStore.", e);
             throw e;
         }
     }
@@ -473,7 +478,9 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                 }
             });
         }
-        db.put(toStore);
+        logger.debug("will put: {} objects", toStore.size());
+        //db.put(toStore);
+        db.putBatched(toStore, Math.min(toStore.size(), batchSize));
     }
 
     protected void remove(int objectClassIdx, long[] ids) {
@@ -552,7 +559,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             }
             long t2 = System.currentTimeMillis();
             try {
-                measurementBoxes.get(ocIdx).put(toStoreBox);
+                //measurementBoxes.get(ocIdx).put(toStoreBox);
+                measurementBoxes.get(ocIdx).putBatched(toStoreBox, Math.min(toStoreBox.size(), batchSize));
             } finally {
                 measurementBoxes.get(ocIdx).closeThreadResources();
             }
@@ -662,7 +670,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public synchronized void rollback() {
         if (!safeMode) return;
         toRestoreAtRollback.forEach((ocIdx, objects) -> {
-            objectBoxes.get(ocIdx).put(objects.values());
+            //objectBoxes.get(ocIdx).put(objects.values());
+            objectBoxes.get(ocIdx).putBatched(objects.values(), Math.min(objects.size(), batchSize));
         });
         toRemoveAtRollback.forEach((ocIdx, ids) -> {
             objectBoxes.get(ocIdx).remove(ids.stream().mapToLong(l->l).toArray());

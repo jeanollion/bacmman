@@ -314,6 +314,7 @@ public class DLModelsLibrary {
     }
 
     public boolean setSelectedGist(String id, boolean modelID) {
+        if (tree==null) return false;
         if (id == null) tree.setSelectedGist(null);
         else {
             GistDLModel gist = tree.getByID(id, modelID);

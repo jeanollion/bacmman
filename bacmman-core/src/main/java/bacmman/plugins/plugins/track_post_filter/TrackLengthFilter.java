@@ -35,6 +35,7 @@ import bacmman.plugins.TrackPostFilter;
 
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static bacmman.plugins.plugins.track_post_filter.PostFilter.getPredicate;
 
@@ -100,15 +101,15 @@ public class TrackLengthFilter implements TrackPostFilter, Hint {
     protected static int getConnectedSize(SegmentedObject trackHead, Map<SegmentedObject, List<SegmentedObject>> allTracks, Map<SegmentedObject, Integer> sizeMap, boolean next) {
         if (sizeMap.containsKey(trackHead)) return sizeMap.get(trackHead);
         List<SegmentedObject> track = allTracks.get(trackHead);
-        List<SegmentedObject> connected = next ? SegmentedObjectEditor.getNext(track.get(track.size()-1)).collect(Collectors.toList()) :
-                SegmentedObjectEditor.getPrevious(trackHead).map(SegmentedObject::getTrackHead).collect(Collectors.toList());
-        int size = 0;
-        for (SegmentedObject th : connected) {
+        Stream<SegmentedObject> connected = next ? SegmentedObjectEditor.getNext(track.get(track.size()-1)) :
+                SegmentedObjectEditor.getPrevious(trackHead).map(SegmentedObject::getTrackHead);
+        final int[] size = new int[1];
+        connected.filter(allTracks::containsKey).forEach(th -> {
             int s = allTracks.get(th).size() + getConnectedSize(th, allTracks, sizeMap, next);
-            if (s > size) size = s;
-        }
-        sizeMap.put(trackHead, size);
-        return size;
+            if (s > size[0]) size[0] = s;
+        });
+        sizeMap.put(trackHead, size[0]);
+        return size[0];
     }
 
     @Override

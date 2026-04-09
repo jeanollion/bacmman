@@ -39,7 +39,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
     DiSTNet2DTraining.SegmentationParameters segmentationParam = new DiSTNet2DTraining.SegmentationParameters( true, false);
     Parameter[] otherParameters = new Parameter[]{segmentationParam, arch};
     Parameter[] testParameters = new Parameter[]{new BoundedNumberParameter("Frame Subsampling", 0, 1, 1, null)};
-    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
+    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, true, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, otherParameters, testParameters)
             .setBatchSize(4).setConcatBatchSize(2).setEpochNumber(500).setStepNumber(200)
             .setDockerImageRequirements(getDockerImageName(), null, null, null);
 
@@ -51,7 +51,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
             if (chan.getSelectedIndex() < 0 && ParameterUtils.getExperiment(chan) != null) chan.setChannelFromObjectClass(poc.getSelectedClassIdx());
         }).setHint("Select object class of reference segmented objects");
     ChannelImageParameter channel = new ChannelImageParameter("Channel Image").setHint("Input raw image channel");
-    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE);
+    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.IMAGE3D, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.IMAGE3D);
     BooleanParameter timelapse = new BooleanParameter("Timelapse", false).setHint("If true, extracts a timelapse dataset, which is necessary if <em>Architecture &gt; Frame Window</em> parameter is &gt; 0 (i.e. neural network inputs a frame window instead of a single frame)");
     SimpleListParameter<DiSTNet2DTraining.OtherObjectClassParameter> otherOCList = new SimpleListParameter<>("Other Channels", new DiSTNet2DTraining.OtherObjectClassParameter())
             .addValidationFunctionToChildren(g -> {
@@ -82,6 +82,9 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
 
     GroupParameter datasetExtractionParameters = new GroupParameter("Dataset Extraction Parameters", objectClass, channel, otherOCList, extractCategory, extractDims, resizeMode, extractZAxisParameter, selModeCond, selectionFilter, spatialDownsampling, timelapse);
 
+    public DiSTNet2DSegTraining() {
+        arch.add3DValidation(configuration.is3D());
+    }
 
     @Override
     public boolean mixedPrecision() {

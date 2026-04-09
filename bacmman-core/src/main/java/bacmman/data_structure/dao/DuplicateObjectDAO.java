@@ -18,7 +18,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     static final Logger logger = LoggerFactory.getLogger(DuplicateObjectDAO.class);
     final MasterDAO<ID, DuplicateObjectDAO<sourceID, ID>> masterDAO;
     final ObjectDAO<sourceID> source;
-    List<SegmentedObject> roots;
+    volatile List<SegmentedObject> roots;
     final Map<Integer, SegmentedObject> rootMap = new HashMap<>();
     final Map<Integer, Map<sourceID, SegmentedObject>> sourceIdMapDupObject = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>()); // maps source ID to new object
     final Map<Integer, Map<ID, SegmentedObject>> newIdMapSourceObject = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.MapFactory<>()); // maps new ID to source object

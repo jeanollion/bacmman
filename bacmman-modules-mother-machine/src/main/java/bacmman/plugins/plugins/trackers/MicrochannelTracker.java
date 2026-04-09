@@ -49,7 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static bacmman.utils.Utils.parallel;
-import java.util.function.Consumer;
+
 import java.util.stream.IntStream;
 
 /**
@@ -207,7 +207,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             //String log = IntStream.range(min, Math.min(min+200, boundingBoxes.length)).boxed().map(i->(i+"->"+boundingBoxes[i].size())).collect(Collectors.joining(";"));
             //int count = IntStream.range(min, Math.min(min+200, boundingBoxes.length)).map(i -> boundingBoxes[i].size()).sum();
             //logger.debug("Window: {} -> {} ({})", s, count, log);
-            Core.freeMemory();
+            Core.waitDiskManagerFreeMemory();
         };
         ThreadRunner.parallelExecutionBySegments(exe, 0, parentTrack.size(), 200, endOfSegment);
         if (applyToSegmenter !=null) applyToSegmenter.close();

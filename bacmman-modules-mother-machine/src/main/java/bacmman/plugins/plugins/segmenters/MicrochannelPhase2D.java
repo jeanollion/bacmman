@@ -316,7 +316,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
     protected double getRelativeThreshold(List<SegmentedObject> parentTrack, int objectClassIdx) {
         //logger.debug("getting histogram for {} images", parentTrack.size());
         IntConsumer endOfSegment = w -> {
-            Core.freeMemory();
+            Core.waitDiskManagerFreeMemory();
             //logger.debug("after end of segment: {}, memory: {}", w, Utils.getMemoryUsageProportion());
         };
         List<SegmentedObject> parentTrack_;

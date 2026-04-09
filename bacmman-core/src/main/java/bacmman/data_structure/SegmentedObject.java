@@ -59,11 +59,11 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     
     // track-related attributes
     protected int timePoint;
-    protected transient SegmentedObject previous, next;
+    protected transient volatile SegmentedObject previous, next;
     Object nextId, previousId;
-    Object trackHeadId;
-    protected transient SegmentedObject trackHead;
-    protected Map<String, Object> attributes;
+    volatile Object trackHeadId;
+    protected transient volatile SegmentedObject trackHead;
+    protected volatile Map<String, Object> attributes;
     // object- and images-related attributes
     private transient Region region;
     protected RegionContainer regionContainer;
@@ -535,7 +535,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return previous object of the track in which this object is contained if existing, else null. In case there are several previous objects it means they belong to different tracks so null is returned
      */
     public SegmentedObject getPrevious() {
-        if (previous==null && previousId!=null) previous = dao.getById(structureIdx, previousId, -1, dao.getIdUsesParentTrackHead() ? getParentTrackHeadId() : null);
+        if (previous==null && previousId!=null) {
+            synchronized (this) {
+                if (previous == null) previous = dao.getById(structureIdx, previousId, -1, dao.getIdUsesParentTrackHead() ? getParentTrackHeadId() : null);
+
+            }
+        }
         return previous;
     }
 
@@ -544,7 +549,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return next element of the track in which this object is contained if existing else null.
      */
     public SegmentedObject getNext() {
-        if (next==null && nextId!=null) next = dao.getById(structureIdx, nextId, -1, dao.getIdUsesParentTrackHead() ? getParentTrackHeadId() : null);
+        if (next==null && nextId!=null) {
+            synchronized (this) {
+                if (next == null) next = dao.getById(structureIdx, nextId, -1, dao.getIdUsesParentTrackHead() ? getParentTrackHeadId() : null);
+
+            }
+        }
         return next;
     }
 
@@ -632,31 +642,32 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     
     public SegmentedObject getTrackHead() {
         if (trackHead==null) {
-            if (isTrackHead()) {
-                this.trackHead=this;
-                this.trackHeadId=this.id;
-            } else if (trackHeadId!=null ) {
-                trackHead = dao.getById(structureIdx, trackHeadId, -1, dao.getIdUsesParentTrackHead() ? getParentTrackHeadId() : null);
-            } else if (getPrevious()!=null) {
-                if (previous.isTrackHead()) this.trackHead=previous;
-                else if (previous.trackHead!=null) this.trackHead=previous.trackHead;
-                else {
-                    ArrayList<SegmentedObject> prevList = new ArrayList<>();
-                    prevList.add(this);
-                    prevList.add(previous);
-                    SegmentedObject prev = previous;
-                    while (prev.getPrevious()!=null && (prev.getPrevious().trackHead==null || !prev.getPrevious().isTrackHead())) {
-                        prev=prev.previous;
-                        prevList.add(prev);
+            Object parentThId = dao.getIdUsesParentTrackHead() ? getParentTrackHeadId() : null;
+            synchronized (this) {
+                if (trackHead == null) {
+                    if (isTrackHead()) {
+                        this.trackHead = this;
+                    } else if (trackHeadId != null) {
+                        trackHead = dao.getById(structureIdx, trackHeadId, -1, parentThId);
                     }
-                    if (prev.isTrackHead()) for (SegmentedObject o : prevList) o.trackHead=prev;
-                    else if (prev.trackHead!=null) for (SegmentedObject o : prevList) o.trackHead=prev.trackHead;
+                    if (trackHead == null && getPrevious() != null) {
+                        if (previous.isTrackHead()) this.trackHead = previous;
+                        else if (previous.trackHead != null) this.trackHead = previous.trackHead;
+                        else {
+                            SegmentedObject prev = previous;
+                            while (prev.getPrevious() != null && (prev.getPrevious().trackHead == null || !prev.getPrevious().isTrackHead())) {
+                                prev = prev.previous;
+                            }
+                            if (prev.isTrackHead()) this.trackHead = prev;
+                            else if (prev.trackHead != null) this.trackHead = prev.trackHead;
+                        }
+                    }
+                    if (trackHead == null) { // set trackHead if no trackHead found
+                        this.trackHead = this;
+                    }
+                    this.trackHeadId = trackHead.id;
                 }
             }
-            if (trackHead==null) { // set trackHead if no trackHead found
-                this.trackHead=this;
-            } 
-            this.trackHeadId=trackHead.id;
         }
         return trackHead;
     }
@@ -673,8 +684,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     
     public Object getTrackHeadId() {
         if (trackHeadId==null) {
-            getTrackHead();
-            if (trackHead!=null) trackHeadId = trackHead.id;
+            synchronized (this) {
+                if (trackHeadId == null) {
+                    getTrackHead();
+                    if (trackHead != null) trackHeadId = trackHead.id;
+                }
+            }
         }
         return trackHeadId;
     }
@@ -701,7 +716,11 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
      * @return
      */
     public boolean isTrackHead() {
-        if (trackHeadId == null) trackHeadId = this.id;
+        if (trackHeadId == null) {
+            synchronized (this) {
+                if (trackHeadId == null) trackHeadId = this.id;
+            }
+        }
         return trackHeadId.equals(id);
     }
     
