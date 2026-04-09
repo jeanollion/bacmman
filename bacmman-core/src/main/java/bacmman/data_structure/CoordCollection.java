@@ -257,7 +257,7 @@ public interface CoordCollection {
 
         @Override
         public boolean addAll(ImageMask mask) {
-            if (mask.sizeX()!=sizeX || mask.sizeY()!=sizeZ || mask.sizeY()!=sizeZ) throw new IllegalArgumentException("Mask size must correspond to collection size");
+            if (mask.sizeX()!=sizeX || mask.sizeY()!=sizeY || mask.sizeZ()!=sizeZ) throw new IllegalArgumentException("Mask size must correspond to collection size");
             boolean[] add = new boolean[1];
             ImageMask.loop(mask, (x, y, z) -> add[0] = add(toCoord(x, y, z)));
             return add[0];

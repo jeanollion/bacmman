@@ -57,7 +57,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
     }
 
     enum LINK_MODE {NORMAL, SPLIT, MERGE}
-    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, MEDOID_DISTANCE, SKELETON_MEDOID_DISTANCE, OVERLAP, HAUSDORFF}
+    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, MEDOID_DISTANCE, OVERLAP, HAUSDORFF} //SKELETON_MEDOID_DISTANCE
 
     @Override
     public Parameter[] getParameters() {
@@ -106,14 +106,14 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
                     c.getRegion().setCenter(Medoid.computeMedoid(c.getRegion()));
                 });
             });
-        } else if (SKELETON_MEDOID_DISTANCE.equals(distance.getSelectedEnum())) {
+        } /*else if (SKELETON_MEDOID_DISTANCE.equals(distance.getSelectedEnum())) {
             parentTrack.parallelStream().forEach( p -> {
                 p.getChildren(structureIdx).forEach( c -> {
                     if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
                     c.getRegion().setCenter(Medoid.computeSkeletonMedoid(c.getRegion()));
                 });
             });
-        }
+        }*/
         // precompute FTF overlaps
         Map<UnaryPair<Region>, Overlap> overlapMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> overlapFun.apply(p.key, p.value));
         List<Region> currentRegions = parentTrack.get(0).getChildren(structureIdx).map(SegmentedObject::getRegion).collect(Collectors.toList());
@@ -187,7 +187,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         }
         if (ok) tmi.setTrackLinks(map, editor);
         // restore centers
-        if ((GEOM_CENTER_DISTANCE.equals(distance.getSelectedEnum()) || MASS_CENTER_DISTANCE.equals(distance.getSelectedEnum()) || MEDOID_DISTANCE.equals(distance.getSelectedEnum()) || SKELETON_MEDOID_DISTANCE.equals(distance.getSelectedEnum())) && !previousCenters.isEmpty()) {
+        if ((GEOM_CENTER_DISTANCE.equals(distance.getSelectedEnum()) || MASS_CENTER_DISTANCE.equals(distance.getSelectedEnum()) || MEDOID_DISTANCE.equals(distance.getSelectedEnum()) ) && !previousCenters.isEmpty()) { //|| SKELETON_MEDOID_DISTANCE.equals(distance.getSelectedEnum())
             parentTrack.parallelStream().forEach( p -> p.getChildren(structureIdx).forEach(c -> {
                 Point center = previousCenters.get(c);
                 if (c!=null) c.getRegion().setCenter(center);
@@ -248,9 +248,12 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
 
         public static SparseSkeleton<Voxel> getSkeleton(Region r, Image distanceMap, Neighborhood n, boolean addPoles) {
             List<Voxel> skeletonPoints = new ArrayList<>();
+            double thld = r.is2D() ? r.getScaleXY() : Math.max(r.getScaleXY(), r.getScaleZ());
             if (distanceMap==null) distanceMap = EDT.transform(r.getMask(), true, r.getScaleXY(), r.getScaleZ(), false);
-            if (n == null) n = Filters.getNeighborhood(1.5, 1, distanceMap);
-            ImageMask lm = Filters.localExtrema(distanceMap, null, true, r.getMask(), n, false);
+            boolean hasInterior = distanceMap.stream().anyMatch(d -> d>thld); // if has pixel deeper than edge pixel, edge pixels are discarded from local maxima
+            if (n == null) n = Filters.getNeighborhood(1.5, 1.5, distanceMap);
+            ImageMask lm = hasInterior ? Filters.localExtrema(distanceMap, null, true, thld+1e-5, r.getMask(), n, false) :
+                    Filters.localExtrema(distanceMap, null, true, r.getMask(), n, false);
             ImageMask.loopWithOffset(lm, (x, y, z) -> skeletonPoints.add(new Voxel(x, y, z)));
             SparseSkeleton<Voxel> res = new SparseSkeleton<Voxel>(skeletonPoints);
             if (addPoles) res.addBacteriaPoles(r.getContour());

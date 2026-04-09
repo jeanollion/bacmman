@@ -25,13 +25,11 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
+import bacmman.processing.Medoid;
 import bacmman.utils.geom.Point;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static bacmman.plugins.plugins.measurements.RelativePosition.REF_POINT.MASS_CENTER;
-
 import java.util.Arrays;
 
 /**
@@ -40,7 +38,7 @@ import java.util.Arrays;
  */
 public class RelativePosition implements Measurement, Hint {
     public enum REF_POINT {
-        MASS_CENTER("Mass Center"), GEOM_CENTER("Geometrical Center"), FROM_SEGMENTATION("From segmentation"), UPPER_LEFT_CORNER("Upper Left Corner");
+        MASS_CENTER("Mass Center"), GEOM_CENTER("Geometrical Center"), MEDOID("Medoid"), FROM_SEGMENTATION("From segmentation"), UPPER_LEFT_CORNER("Upper Left Corner"); //, SKELETON_MEDOID("Skeleton Medoid")
         public final String name;
         REF_POINT(String name) {this.name = name;}
         public static REF_POINT get(String name) {
@@ -58,9 +56,11 @@ public class RelativePosition implements Measurement, Hint {
             + "<li>"+ REF_POINT.UPPER_LEFT_CORNER +": Upper left corner of the bounding box of the object</li>"
             + "<li>"+ REF_POINT.GEOM_CENTER +": Geometrical center of the object</li>"
             + "<li>"+ REF_POINT.MASS_CENTER +": Intensity barycenter of the object</li>"
+            + "<li>"+ REF_POINT.MEDOID +": Pixel of the object with minimal distance to other pixel. Always within the object</li>"
+            //+ "<li>"+ REF_POINT.SKELETON_MEDOID +": Medoid of the skeleton</li>"
             + "<li>"+ REF_POINT.FROM_SEGMENTATION +": Center defined by segmenter if exists. If not, an error will be thrown</li></ol>";
-    ChoiceParameter objectCenter= new ChoiceParameter("Object Point", REF_POINT.names(), MASS_CENTER.name, false).setEmphasized(true).setHint("Which point of the object should be used for distance computation?<br />"+REF_POINT_TT);
-    ChoiceParameter refPoint = new ChoiceParameter("Reference Point", REF_POINT.names(), MASS_CENTER.name, false).setEmphasized(true).setHint("Which point of the reference object should be used for distance computation?<br />"+REF_POINT_TT);
+    EnumChoiceParameter<REF_POINT> objectCenter= new EnumChoiceParameter<>("Object Point", REF_POINT.values(), REF_POINT.GEOM_CENTER, e -> e.name).setEmphasized(true).setHint("Which point of the object should be used for distance computation?<br />"+REF_POINT_TT);
+    EnumChoiceParameter<REF_POINT> refPoint = new EnumChoiceParameter<>("Reference Point", REF_POINT.values(), REF_POINT.UPPER_LEFT_CORNER, e -> e.name).setEmphasized(true).setHint("Which point of the reference object should be used for distance computation?<br />"+REF_POINT_TT);
     TextParameter key = new TextParameter("Column Name", "RelativeCoord", false).setEmphasized(true).setHint("Set here the prefix of the name of the column in the extracted data table. Final column name for each axis is indicated below.");
     //ConditionalParameter refCond = new ConditionalParameter(reference); structure param not actionable...
     protected Parameter[] parameters = new Parameter[]{objects, reference, objectCenter, refPoint, key, includeZ, scaled};
@@ -128,21 +128,26 @@ public class RelativePosition implements Measurement, Hint {
             object.getMeasurements().setValue(getKey("Z"), null);
             return;
         }
-        Point objectCenter=null;
-        switch (this.objectCenter.getSelectedIndex()) {
-            case 0: // mass center
+        Point objectCenter;
+        switch (this.objectCenter.getSelectedEnum()) {
+            case MASS_CENTER:
                 objectCenter = object.getRegion().getMassCenter(object.getParent().getRawImage(object.getStructureIdx()), false); 
                 break;
-            case 1: // geom center
-                objectCenter = object.getRegion().getGeomCenter(false); 
+            case MEDOID:
+                objectCenter = Medoid.computeMedoid(object.getRegion());
                 break;
-            case 2: // from segmentation
+            /*case SKELETON_MEDOID:
+                objectCenter = Medoid.computeSkeletonMedoid(object.getRegion());
+                break;*/
+            case FROM_SEGMENTATION:
                 objectCenter = object.getRegion().getCenter().duplicate();
                 break;
-            case 3: // corner
+            case UPPER_LEFT_CORNER:
                 objectCenter = Point.asPoint(object.getRegion().getBounds());
                 break;
+            case GEOM_CENTER:
             default:
+                objectCenter = object.getRegion().getGeomCenter(false);
                 break;
         }
         if (objectCenter==null) throw new RuntimeException("No center found for object");
@@ -155,13 +160,20 @@ public class RelativePosition implements Measurement, Hint {
 
         Point refPoint=null;
         if (refObject!=null) {
-            switch (this.refPoint.getSelectedIndex()) {
-                case 0: // mass center
+            switch (this.refPoint.getSelectedEnum()) {
+                case MASS_CENTER:
                     refPoint = refObject.getRegion().getMassCenter(refObject.isRoot() ? refObject.getRawImage(refObject.getStructureIdx()) : refObject.getParent().getRawImage(refObject.getStructureIdx()), false);
                     break;
-                case 1: // geom center
+                case GEOM_CENTER:
                     refPoint = refObject.getRegion().getGeomCenter(false);
                     break;
+                case MEDOID:
+                    refPoint = Medoid.computeMedoid(refObject.getRegion());
+                    break;
+                /*case SKELETON_MEDOID:
+                    refPoint = Medoid.computeSkeletonMedoid(refObject.getRegion());
+                    break;*/
+                case UPPER_LEFT_CORNER:
                 default: // upper-left corner
                     refPoint = Point.asPoint(refObject.getBounds());
                     break;

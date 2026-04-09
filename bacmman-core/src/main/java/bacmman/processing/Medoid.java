@@ -3,9 +3,7 @@ package bacmman.processing;
 import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Voxel;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.image.Offset;
+import bacmman.image.*;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.geom.Point;
@@ -74,8 +72,11 @@ public class Medoid {
         double ratio = region.getScaleXY()<=0 || region.getScaleZ()<=0 ? 1 : region.getScaleZ() / region.getScaleXY();
         List<Voxel> skeletonPoints = new ArrayList<>();
         Image distanceMap = EDT.transform(region.getMask(), true, region.getScaleXY(), region.getScaleZ(), false);
-        Neighborhood n = Filters.getNeighborhood(1.5, 1, distanceMap);
-        ImageMask lm = Filters.localExtrema(distanceMap, null, true, region.getMask(), n, false);
+        double thld = region.is2D() ? region.getScaleXY() : Math.max(region.getScaleXY(), region.getScaleZ());
+        boolean hasInterior = distanceMap.stream().anyMatch(d -> d>thld); // if has pixel deeper than edge pixel, edge pixels are discarded from local maxima
+        Neighborhood n = Filters.getNeighborhood(1.5, 1.5, distanceMap);
+        ImageByte lm = hasInterior ? Filters.localExtrema(distanceMap, null, true, thld+1e-5, region.getMask(), n, false) :
+                Filters.localExtrema(distanceMap, null, true, region.getMask(), n, false);
         ImageMask.loopWithOffset(lm, (x, y, z) -> skeletonPoints.add(new Voxel(x, y, z)));
         ToDoubleBiFunction<Voxel, Voxel> distanceFunction = region.is2D() ? (v1, v2) -> Math.sqrt(Math.pow(v1.x-v2.x, 2)+Math.pow(v1.y-v2.y, 2)) :
                 (v1, v2) -> Math.sqrt(Math.pow(v1.x-v2.x, 2)+Math.pow(v1.y-v2.y, 2)+Math.pow(v1.z-v2.z, 2) * ratio);
