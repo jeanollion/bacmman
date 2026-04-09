@@ -8,6 +8,7 @@ import bacmman.image.Offset;
 import bacmman.plugins.*;
 import bacmman.processing.EDT;
 import bacmman.processing.Filters;
+import bacmman.processing.Medoid;
 import bacmman.processing.matching.LAPLinker;
 import bacmman.processing.matching.trackmate.Spot;
 import bacmman.processing.neighborhood.Neighborhood;
@@ -29,7 +30,7 @@ import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.*;
 public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
     public final static Logger logger = LoggerFactory.getLogger(LAPTracker.class);
 
-    EnumChoiceParameter<DISTANCE> distance = new EnumChoiceParameter<>("Distance", DISTANCE.values(), DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li><li>HAUSDORFF: Hausdorff distance between skeleton points (BETA TESTING)</li></ul>");
+    EnumChoiceParameter<DISTANCE> distance = new EnumChoiceParameter<>("Distance", DISTANCE.values(), DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>GEOM_CENTER_DISTANCE/MASS_CENTER_DISTANCE/MEDOID_DISTANCE/SKELETON_DISTANCE: center-to-center Euclidean distance in pixels. GEOM_CENTER is the geometrical center, MASS_CENTER the center of mass, MEDOID is the pixel of the object that minimizes distances to all other pixels of the object. MEDOID always belongs to the object. SKELETON_MEDOID is the medoid of the skeleton (experimental) </li><li>OVERLAP: 1 - IoU (intersection over union)</li><li>HAUSDORFF: Hausdorff distance between skeleton points (BETA TESTING)</li></ul>");
     BoundedNumberParameter distanceSearchThreshold = new BoundedNumberParameter("Distance Search Threshold", 5, -1, 1, null).setEmphasized(true).setHint("Hausdorff distance can be computationally expensive. When two objects have center-center distance above this threshold, hausdorff distance is not computed");
     BooleanParameter hausdorffAVG = new BooleanParameter("Average Distances",false).setHint("If true, HAUSDORFF is avg(min) instead of max(min) which is the classical definition");
     BooleanParameter skAddPoles = new BooleanParameter("Add Bacteria Poles",false).setHint("If true, bacteria poles are added to skeleton");
@@ -56,7 +57,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
     }
 
     enum LINK_MODE {NORMAL, SPLIT, MERGE}
-    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, OVERLAP, HAUSDORFF}
+    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, MEDOID_DISTANCE, SKELETON_MEDOID_DISTANCE, OVERLAP, HAUSDORFF}
 
     @Override
     public Parameter[] getParameters() {
@@ -83,12 +84,33 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             });
         }
         Map<SegmentedObject, Point> previousCenters = new HashMap<>();
-        if (MASS_CENTER_DISTANCE.equals(distance.getSelectedEnum())) { // pre-compute all mass centers
+        if (GEOM_CENTER_DISTANCE.equals(distance.getSelectedEnum())) { // pre-compute all mass centers
+            parentTrack.parallelStream().forEach( p -> {
+                p.getChildren(structureIdx).forEach( c -> {
+                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
+                    c.getRegion().setCenter(c.getRegion().getGeomCenter(false));
+                });
+            });
+        } else if (MASS_CENTER_DISTANCE.equals(distance.getSelectedEnum())) { // pre-compute all mass centers
             parentTrack.parallelStream().forEach( p -> {
                 Image im = p.getRawImage(structureIdx);
                 p.getChildren(structureIdx).forEach( c -> {
                     if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
                     c.getRegion().setCenter(c.getRegion().getMassCenter(im, false));
+                });
+            });
+        } else if (MEDOID_DISTANCE.equals(distance.getSelectedEnum())) {
+            parentTrack.parallelStream().forEach( p -> {
+                p.getChildren(structureIdx).forEach( c -> {
+                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
+                    c.getRegion().setCenter(Medoid.computeMedoid(c.getRegion()));
+                });
+            });
+        } else if (SKELETON_MEDOID_DISTANCE.equals(distance.getSelectedEnum())) {
+            parentTrack.parallelStream().forEach( p -> {
+                p.getChildren(structureIdx).forEach( c -> {
+                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
+                    c.getRegion().setCenter(Medoid.computeSkeletonMedoid(c.getRegion()));
                 });
             });
         }
@@ -165,7 +187,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         }
         if (ok) tmi.setTrackLinks(map, editor);
         // restore centers
-        if (MASS_CENTER_DISTANCE.equals(distance.getSelectedEnum()) && !previousCenters.isEmpty()) {
+        if ((GEOM_CENTER_DISTANCE.equals(distance.getSelectedEnum()) || MASS_CENTER_DISTANCE.equals(distance.getSelectedEnum()) || MEDOID_DISTANCE.equals(distance.getSelectedEnum()) || SKELETON_MEDOID_DISTANCE.equals(distance.getSelectedEnum())) && !previousCenters.isEmpty()) {
             parentTrack.parallelStream().forEach( p -> p.getChildren(structureIdx).forEach(c -> {
                 Point center = previousCenters.get(c);
                 if (c!=null) c.getRegion().setCenter(center);
@@ -312,16 +334,14 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
     }
     public <T extends AbstractLAPObject<T>> LAPLinker<T> getTMInterface(Map<UnaryPair<Region>, Overlap> overlapMap) {
         switch (distance.getSelectedEnum()) {
-            case GEOM_CENTER_DISTANCE:
-            case MASS_CENTER_DISTANCE:
-            default: {
-                return new LAPLinker<>((o, frame) -> (T)new LAPObject(o, frame));
-            }
             case OVERLAP: {
-                new LAPLinker<>((o, frame) -> (T)new LAPObjectOverlap(o, frame, overlapMap));
+                return new LAPLinker<>((o, frame) -> (T)new LAPObjectOverlap(o, frame, overlapMap));
             }
             case HAUSDORFF: {
                 return new LAPLinker<>((o, frame) -> (T)new LAPObjectHausdorff(o, frame, distanceSearchThreshold.getDoubleValue(), hausdorffAVG.getSelected(), skAddPoles.getSelected()));
+            }
+            default: {
+                return new LAPLinker<>((o, frame) -> (T)new LAPObject(o, frame));
             }
         }
     };
