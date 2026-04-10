@@ -159,7 +159,7 @@ public class EDT {
             //Transformation 3. h (in s) -> s
             Step3Thread[] s3t = new Step3Thread[nThreads];
             for (int thread = 0; thread < nThreads; thread++) {
-                s3t[thread] = new Step3Thread(thread, nThreads, w, h, d, s, mask, insideMask, (float)scale);
+                s3t[thread] = new Step3Thread(thread, nThreads, w, h, d, s, mask, insideMask, scale);
                 s3t[thread].start();
             }
             try {
@@ -172,18 +172,18 @@ public class EDT {
         }
         //Find the largest distance for scaling
         //Also fill in the background values.
-        float distMax = 0;
+        double distMax = 0;
         int wh = w * h;
-        float dist;
+        double dist;
         for (int k = 0; k < d; k++) {
             sk = s[k];
             for (int ind = 0; ind < wh; ind++) {
                 if (mask.insideMask(ind, k)!=insideMask) { //xor
                     sk[ind] = 0;
                 } else {
-                    dist = (float) (Math.sqrt(sk[ind]) * scaleXY);
-                    sk[ind] = dist;
-                    distMax = (dist > distMax) ? dist : distMax;
+                    dist =  Math.sqrt(sk[ind]) * scaleXY;
+                    sk[ind] = (float)dist;
+                    if (dist > distMax) distMax = dist;
                 }
             }
         }
@@ -213,10 +213,9 @@ public class EDT {
             int n = w;
             if (h > n) n = h;
             if (d > n) n = d;
-            
-            int noResult = 3 * (n + 1) * (n + 1);
+            double noResult = 3 * (n + 1) * (n + 1);
             boolean[] background = new boolean[w];
-            float test, min;
+            double test, min;
             for (int k = thread; k < d; k += nThreads) {
                 sk = s[k];
                 for (int j = 0; j < h; j++) {
@@ -224,18 +223,13 @@ public class EDT {
                     else for (int i = 0; i < w; i++) background[i] = mask.insideMask(i + w * j, k);
                     
                     for (int i = 0; i < w; i++) {
-                        if (insideMask) { // si insideMask: distance minimale = distance au bord le plus proche + 1
-                            //min = Math.min(i+1, w-i);
-                            min = outOfBoundPolicy.getMinDistBorderX(i,w);
-                            min*=min;
-                        } else min = noResult;
+                        if (insideMask) min = Math.pow(outOfBoundPolicy.getMinDistBorderX(i,w), 2);
+                        else min = noResult;
                         for (int x = i; x < w; x++) {
                             if (background[x]) {
                                 test = i - x;
                                 test *= test;
-                                if (test < min) {
-                                    min = test;
-                                }
+                                if (test < min) min = test;
                                 break;
                             }
                         }
@@ -249,7 +243,7 @@ public class EDT {
                                 break;
                             }
                         }
-                        sk[i + w * j] = min;
+                        sk[i + w * j] = (float)min;
                     }
                 }
             }
@@ -276,37 +270,29 @@ public class EDT {
             int n = w;
             if (h > n) n = h;
             if (d > n) n = d;
-            int noResult = 3 * (n + 1) * (n + 1);
+            double noResult = 3 * (n + 1) * (n + 1);
             float[] tempInt = new float[h];
             float[] tempS = new float[h];
             boolean nonempty;
-            float test, min;
-            int delta;
+            double test, min, delta;
             for (int k = thread; k < d; k += nThreads) {
                 sk = s[k];
                 for (int i = 0; i < w; i++) {
                     nonempty = false;
                     for (int j = 0; j < h; j++) {
                         tempS[j] = sk[i + w * j];
-                        if (tempS[j] > 0) {
-                            nonempty = true;
-                        }
+                        if (tempS[j] > 0) nonempty = true;
                     }
                     if (nonempty) {
                         for (int j = 0; j < h; j++) {
-                            if (insideMask) {
-                                //min = Math.min(j+1, h-j);
-                                min = outOfBoundPolicy.getMinDistBorderY(j,h);
-                                min*=min;
-                            } else min = noResult;
+                            if (insideMask) min = Math.pow(outOfBoundPolicy.getMinDistBorderY(j,h), 2);
+                            else min = noResult;
                             delta = j;
                             for (int y = 0; y < h; y++) {
                                 test = tempS[y] + delta * delta--;
-                                if (test < min) {
-                                    min = test;
-                                }
+                                if (test < min) min = test;
                             }
-                            tempInt[j] = min;
+                            tempInt[j] = (float)min;
                         }
                         for (int j = 0; j < h; j++) {
                             sk[i + w * j] = tempInt[j];
@@ -321,10 +307,10 @@ public class EDT {
         int thread, nThreads, w, h, d;
         float[][] s;
         ImageMask mask;
-        float scaleZ, scaleZ2;
+        double scaleZ, scaleZ2;
         boolean insideMask;
         
-        public Step3Thread(int thread, int nThreads, int w, int h, int d, float[][] s, ImageMask mask, boolean insideMask, float scaleZ) {
+        public Step3Thread(int thread, int nThreads, int w, int h, int d, float[][] s, ImageMask mask, boolean insideMask, double scaleZ) {
             this.thread = thread;
             this.nThreads = nThreads;
             this.w = w;
@@ -340,51 +326,33 @@ public class EDT {
         public void run() {
             int zStart, zStop, zBegin, zEnd;
             int n = w;
-            if (h > n) {
-                n = h;
-            }
-            if (d > n) {
-                n = d;
-            }
-            int noResult = 3 * (n + 1) * (n + 1);
+            if (h > n) n = h;
+            if (d > n) n = d;
+            double noResult = 3 * (n + 1) * (n + 1);
             float[] tempInt = new float[d];
             float[] tempS = new float[d];
             boolean nonempty;
-            float test, min;
-            int delta;
+            double test, min, delta;
             for (int j = thread; j < h; j += nThreads) {
                 for (int i = 0; i < w; i++) {
                     nonempty = false;
                     for (int k = 0; k < d; k++) {
                         tempS[k] = s[k][i + w * j];
-                        if (tempS[k] > 0) {
-                            nonempty = true;
-                        }
+                        if (tempS[k] > 0) nonempty = true;
                     }
                     if (nonempty) {
                         zStart = 0;
-                        while ((zStart < (d - 1)) && (tempS[zStart] == 0)) {
-                            zStart++;
-                        }
-                        if (zStart > 0) {
-                            zStart--;
-                        }
+                        while ((zStart < (d - 1)) && (tempS[zStart] == 0)) zStart++;
+                        if (zStart > 0) zStart--;
                         zStop = d - 1;
-                        while ((zStop > 0) && (tempS[zStop] == 0)) {
-                            zStop--;
-                        }
-                        if (zStop < (d - 1)) {
-                            zStop++;
-                        }
+                        while ((zStop > 0) && (tempS[zStop] == 0)) zStop--;
+                        if (zStop < (d - 1)) zStop++;
 
                         for (int k = 0; k < d; k++) {
                             //Limit to the non-background to save time,
                             if (insideMask==mask.insideMask(i+w*j, k)) { //!xor
-                                if (insideMask) { //&& d>1
-                                    //min=Math.min(k+1, d-k);
-                                    min = outOfBoundPolicy.getMinDistBorderZ(k, d);
-                                    min *= min * scaleZ;
-                                }  else min = noResult;
+                                if (insideMask) min = Math.pow(outOfBoundPolicy.getMinDistBorderZ(k, d) * scaleZ, 2);
+                                else min = noResult;
                                 zBegin = zStart;
                                 zEnd = zStop;
                                 if (zBegin > k) {
@@ -397,12 +365,9 @@ public class EDT {
 
                                 for (int z = zBegin; z <= zEnd; z++) {
                                     test = tempS[z] + delta * delta-- * scaleZ2;
-                                    if (test < min) {
-                                        min = test;
-                                    }
-                                    //min = (test < min) ? test : min;
+                                    if (test < min) min = test;
                                 }
-                                tempInt[k] = min;
+                                tempInt[k] = (float)min;
                             }
                         }
                         for (int k = 0; k < d; k++) {

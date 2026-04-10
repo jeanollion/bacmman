@@ -7,29 +7,23 @@ import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.BinaryOpen;
-import bacmman.plugins.plugins.post_filters.Dilate;
+import bacmman.plugins.plugins.post_filters.BinaryDilate;
 import bacmman.plugins.plugins.track_post_filter.PostFilter;
-import bacmman.plugins.plugins.track_post_filter.RemoveTrackByFeature;
 import bacmman.plugins.plugins.track_post_filter.TrackLengthFilter;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageDerivatives;
-import bacmman.processing.ImageLabeller;
-import bacmman.processing.ImageOperations;
 import bacmman.processing.matching.GraphObjectMapper;
 import bacmman.processing.matching.ObjectGraph;
 import bacmman.processing.matching.OverlapMatcher;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
-import bacmman.utils.geom.Point;
 
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class MicrofluidicPillars implements TrackerSegmenter, TestableProcessingPlugin {
     IntegerParameter frameWindow = new IntegerParameter("Frame Window", 250).setLowerBound(1);
@@ -130,7 +124,7 @@ public class MicrofluidicPillars implements TrackerSegmenter, TestableProcessing
             SegmentedObject[] toRemove = Utils.entriesSortedByValues(feature, true).stream().skip(pillarNumber.getIntValue()).flatMap(e -> tracks.get(e.getKey()).stream()).toArray(SegmentedObject[]::new);
             factory.removeFromParent(toRemove);
         }
-        if (dilate.getDoubleValue()>0) new PostFilter(new Dilate(this.dilate.getDoubleValue())).filter(objectClassIdx, parentTrack, factory, editor);
+        if (dilate.getDoubleValue()>0) new PostFilter(new BinaryDilate(this.dilate.getDoubleValue())).filter(objectClassIdx, parentTrack, factory, editor);
     }
 
     public static RegionPopulation segmentPillars(ImageMask parentMask, Image image, Image lap, double scale) {

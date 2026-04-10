@@ -986,6 +986,19 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (region == null) return new SimpleImageProperties(getBounds(), getScaleXY(), getScaleZ());
         return getRegion().getImageProperties();
     }
+    public ImageProperties getMaskPropertiesForObjects(int objectClassIdx, Collection<Region> regions) {
+        ImageProperties ip = getMaskProperties();
+        boolean ocIs2D = !regions.isEmpty() ? regions.iterator().next().is2D() : getExperimentStructure().is2D(objectClassIdx, getPositionName());
+        if (ocIs2D != is2D()) {
+            if (ocIs2D) { // child object class is 2D but this object class is 3D
+                ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
+            } else { // child object class is 3D but this object class is 2D
+                int sizeZ = getExperimentStructure().sizeZ(getPositionName(), getExperimentStructure().getChannelIdx(objectClassIdx));
+                ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), sizeZ, ip.getScaleXY(), ip.getScaleZ());
+            }
+        }
+        return ip;
+    }
     public ImageMask getMask() {return getRegion().getMask();}
     public BoundingBox<? extends BoundingBox<?>> getBounds() {
         if (region==null && regionContainer!=null) return regionContainer.getBounds();
@@ -1206,16 +1219,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         Stream<SegmentedObject> children = this.getChildren(structureIdx, strictInclusion);
         if (children==null) children = Stream.empty();
         List<Region> regions = children.map(SegmentedObject::getRegion).collect(Collectors.toList());
-        ImageProperties ip = this.getMaskProperties();
-        boolean ocIs2D = !regions.isEmpty() ? regions.get(0).is2D() : getExperimentStructure().is2D(structureIdx, getPositionName());
-        if (ocIs2D != is2D()) {
-            if (ocIs2D) { // child object class is 2D but this object class is 3D
-                ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
-            } else { // child object class is 3D but this object class is 2D
-                int sizeZ = getExperimentStructure().sizeZ(getPositionName(), getExperimentStructure().getChannelIdx(structureIdx));
-                ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), sizeZ, ip.getScaleXY(), ip.getScaleZ());
-            }
-        }
+        ImageProperties ip = this.getMaskPropertiesForObjects(structureIdx, regions);
         return new RegionPopulation(regions, ip);
     }
     public RegionPopulation getChildRegionPopulation(int structureIdx) {

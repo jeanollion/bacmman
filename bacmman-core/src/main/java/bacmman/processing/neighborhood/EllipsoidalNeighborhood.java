@@ -48,8 +48,8 @@ public class EllipsoidalNeighborhood extends DisplacementNeighborhood {
         else {
             is3D=radiusZ>0;
             double r = radiusZ>0 ? (double) radius / radiusZ : 0;
-            int rad = (int) (radius + 0.5f);
-            int radZ = (int) (radiusZ + 0.5f);
+            int rad = (int) (radius + 0.5);
+            int radZ = (int) (radiusZ + 0.5);
             List<double[]> coordsXYZD = new ArrayList<>();
             double rad2 = radius * radius;
             for (int zz = -radZ; zz <= radZ; zz++) {

@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
@@ -29,22 +30,28 @@ import bacmman.plugins.MultiThreaded;
 import bacmman.plugins.PostFilter;
 import bacmman.processing.BinaryMorphoEDT;
 import bacmman.processing.Filters;
+import bacmman.processing.ImageLabeller;
 import bacmman.processing.neighborhood.Neighborhood;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  *
  * @author Jean Ollion
  */
-public class Erode implements PostFilter, MultiThreaded, Hint {
+public class BinaryErode implements PostFilter, MultiThreaded, Hint {
     ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, false).setEmphasized(true);
     EnumChoiceParameter<BinaryClose.USE_EDT> useEDT = new EnumChoiceParameter<>("Use EDT", BinaryClose.USE_EDT.values(), BinaryClose.USE_EDT.AUTO).setHint("Perform filter using Euclidean Distance Transform or loop on neighborhood");
+    BooleanParameter relabel = new BooleanParameter("Relabel", false).setLegacyInitializationValue(true).setHint("If true the filter divides the object into non-contiguous pieces then several objects are created, otherwise the object remains a single (non-contiguous) instance");
 
     @Override
     public String getHintText() {
         return "Performs a min (erode) operation on region masks<br />When several segmented regions are present, the filter is applied label-wise";
     }
-    public Erode() {}
-    public Erode(double radius) {
+    public BinaryErode() {}
+    public BinaryErode(double radius) {
         this.scale.setScaleXY(radius);
     }
     @Override
@@ -61,27 +68,50 @@ public class Erode implements PostFilter, MultiThreaded, Hint {
             childPopulation.clearLabelMap();
             return childPopulation;
         }
-        // TODO manage case when only part are spots...
+
         double radius = scale.getScaleXY();
         double radiusZ = childPopulation.getImageProperties().sizeZ()==1 ? 1 : scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
         boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
 
         Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
         childPopulation.ensureEditableRegions();
+        List<Region> newRegions = new ArrayList<>();
+        List<Region> toRemove = new ArrayList<>();
         for (Region o : childPopulation.getRegions()) {
             ImageInteger min = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryErode(o.getMask(), radius, radiusZ, parallel), null)
                     : Filters.binaryMin(o.getMaskAsImageInteger(), null, n, parallel);
-            o.setMask(min);
-            o.resetMask(); // bounds can differ
+
+            if (relabel.getSelected()) { // check if objet is split or erased
+                List<Region> regions = ImageLabeller.labelImageList(min);
+                regions.forEach(r -> r.translate(o.getBounds()).setIsAbsoluteLandmark(o.isAbsoluteLandMark()).setIs2D(o.is2D()));
+                if (regions.size() > 1) {
+                    regions.sort(Comparator.comparingDouble(Region::size));
+                    Region biggest = regions.remove(regions.size() - 1);
+                    o.setMask(biggest.getMask());
+                    o.setBounds(biggest.getBounds());
+                    newRegions.addAll(regions);
+                } else if (regions.size() == 1) {
+                    o.setMask(min);
+                    o.resetMask(); // bounds can differ
+                } else toRemove.add(o);
+            } else { // check that object didn't disappear
+                boolean hasPixel = min.streamInt().anyMatch(i -> i>0);
+                if (!hasPixel) toRemove.add(o);
+                else {
+                    o.setMask(min);
+                    o.resetMask();
+                }
+            }
         }
-        childPopulation.filter(new RegionPopulation.Size().setMin(1)); // delete blank objects
+        if (!toRemove.isEmpty()) childPopulation.removeObjects(toRemove, false);
+        if (!newRegions.isEmpty()) childPopulation.addObjects(newRegions, false);
         childPopulation.relabel(true);
         return childPopulation;
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scale, useEDT};
+        return new Parameter[]{scale, useEDT, relabel};
     }
 
     boolean parallel;

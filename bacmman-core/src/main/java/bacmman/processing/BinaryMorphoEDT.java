@@ -82,10 +82,8 @@ public class BinaryMorphoEDT {
         ImageMask max = binaryDilate(in, radius, radiusZ, true, multithread);
         ImageMask min = binaryErode(max, radius, radiusZ, multithread);
         ImageByte res = new ImageByte("close of "+in.getName(), in);
-        int offXY = (int) (radius + 1);
-        int offZ = in.sizeZ()==1 ? 0 : (int) (radiusZ + 1);
-        BoundingBox.loop(new SimpleBoundingBox(res).resetOffset(), (x, y, z) -> { // copy result of min in resulting image
-            if (min.insideMask(x+offXY, y+offXY, z+offZ)) res.setPixel(x, y, z, 1);
+        BoundingBox.loop(res, (x, y, z) -> { // copy result of min in resulting image
+            if (min.insideMaskWithOffset(x, y, z)) res.setPixelWithOffset(x, y, z, 1);
         }, multithread);
         return res;
     }

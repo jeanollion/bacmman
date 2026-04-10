@@ -70,6 +70,7 @@ public class BinaryClose implements PostFilter, MultiThreaded, Hint {
             ImageInteger closed = edt ? BinaryMorphoEDT.binaryClose(o.getMaskAsImageInteger(), radius, radiusZ, parallel)
                     : Filters.binaryCloseExtend(o.getMaskAsImageInteger(), n, parallel);
             o.setMask(closed);
+            o.resetMask();
         }
         childPopulation.relabel(true);
         return childPopulation;

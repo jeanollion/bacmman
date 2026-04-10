@@ -622,7 +622,8 @@ public class Processor {
     public static List<SegmentedObject> applyFilterToSegmentedObjects(SegmentedObject parent, List<SegmentedObject> children, BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> filter, boolean requiresRelativeLandmark, SegmentedObjectFactory factory, boolean relabel, Set<SegmentedObject> modifiedObjects) {
         if (children.isEmpty()) return Collections.emptyList();
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(children);
-        RegionPopulation pop = new RegionPopulation(children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), parent.getMaskProperties());
+        List<Region> chilrenR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+        RegionPopulation pop = new RegionPopulation(chilrenR, parent.getMaskPropertiesForObjects(structureIdx, chilrenR));
         if (requiresRelativeLandmark && !parent.isRoot()) {
             pop.translate(parent.getBounds().duplicate().reverseOffset(), false); // go back to relative landmark for post-filter
         }

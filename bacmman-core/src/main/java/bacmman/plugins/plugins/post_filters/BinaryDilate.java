@@ -18,14 +18,15 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
-import bacmman.data_structure.Ellipse2D;
-import bacmman.data_structure.RegionPopulation;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Spot;
+import bacmman.data_structure.*;
+import bacmman.image.BoundingBox;
 import bacmman.image.ImageInteger;
+import bacmman.image.TypeConverter;
 import bacmman.plugins.Hint;
+import bacmman.processing.BinaryMorphoEDT;
 import bacmman.processing.Filters;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.MultiThreaded;
@@ -35,15 +36,16 @@ import bacmman.plugins.PostFilter;
  *
  * @author Jean Ollion
  */
-public class Dilate implements PostFilter, MultiThreaded, Hint {
+public class BinaryDilate implements PostFilter, MultiThreaded, Hint {
     ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, false).setEmphasized(true);
+    EnumChoiceParameter<BinaryClose.USE_EDT> useEDT = new EnumChoiceParameter<>("Use EDT", BinaryClose.USE_EDT.values(), BinaryClose.USE_EDT.AUTO).setHint("Perform filter using Euclidean Distance Transform or loop on neighborhood");
 
     @Override
     public String getHintText() {
         return "Performs a max (dilate) operation on region masks<br />When several segmented regions are present, the filter is applied label-wise";
     }
-    public Dilate() {}
-    public Dilate(double radius) {
+    public BinaryDilate() {}
+    public BinaryDilate(double radius) {
         this.scale.setScaleXY(radius);
     }
     @Override
@@ -60,18 +62,32 @@ public class Dilate implements PostFilter, MultiThreaded, Hint {
             childPopulation.clearLabelMap();
             return childPopulation;
         }
-        // TODO manage case when only part are spots...
 
-        Neighborhood n = Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), childPopulation.getImageProperties());
-        childPopulation.relabel(false); // ensure label are ordered
-        ImageInteger labelMap =  (ImageInteger)Filters.applyFilter(childPopulation.getLabelMap(), null, new Filters.BinaryMaxLabelWise(), n, parallel);
-        RegionPopulation res = new RegionPopulation(labelMap, true);
-        return res;
+        double radius = scale.getScaleXY();
+        double radiusZ = childPopulation.getImageProperties().sizeZ()==1 ? 1 : scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
+        childPopulation.ensureEditableRegions();
+        Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
+        for (Region o : childPopulation.getRegions()) {
+            ImageInteger max = edt ? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryDilate(o.getMaskAsImageInteger(), radius, radiusZ, true, parallel), null)
+                    : Filters.binaryMax(o.getMaskAsImageInteger(), null, n, true, parallel);
+            BoundingBox parentBounds = parent.getMaskPropertiesForObjects(childStructureIdx, childPopulation.getRegions());
+            if (!BoundingBox.isIncluded(max, parentBounds)) {
+                max = (ImageInteger)max.cropWithOffset(BoundingBox.getIntersection(max, parentBounds));
+            }
+            o.setMask(max);
+            o.resetMask();
+        }
+        childPopulation.relabel(true);
+        if (!parent.getExperimentStructure().allowOverlap(childStructureIdx)) { // handle conflicts : by label order
+            childPopulation = new RegionPopulation(childPopulation.getLabelMap(), true);
+        }
+        return childPopulation;
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scale};
+        return new Parameter[]{scale, useEDT};
     }
 
     boolean parallel;

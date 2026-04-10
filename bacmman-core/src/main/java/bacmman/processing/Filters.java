@@ -71,7 +71,7 @@ public class Filters {
         return applyFilter(image, output, new Min(), neighborhood, parallele);
     }
     
-    public static <T extends ImageInteger<T>, I extends ImageInteger<I>> T binaryMax(I image, T output, Neighborhood neighborhood, boolean extendImage, boolean parallele) {
+    public static <T extends ImageInteger<T>, I extends ImageInteger<I>> T binaryMax(ImageInteger<T> image, T output, Neighborhood neighborhood, boolean extendImage, boolean parallele) {
         if (extendImage) image =  image.extend(neighborhood.getBoundingBox());
         return applyFilter(image, output, new BinaryMax(false), neighborhood, parallele);
     }

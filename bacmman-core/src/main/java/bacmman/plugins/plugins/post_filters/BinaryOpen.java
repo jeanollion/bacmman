@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
@@ -31,7 +32,6 @@ import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.MultiThreaded;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
-import bacmman.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,6 +45,7 @@ import java.util.List;
 public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
     ScaleXYZParameter scale = new ScaleXYZParameter("Opening Radius", 3, 0, false).setEmphasized(true).setHint("Radius of the filter. For 3D iamges , if ScaleZ==0 filter is applied plane by plane");
     EnumChoiceParameter<BinaryClose.USE_EDT> useEDT = new EnumChoiceParameter<>("Use EDT", BinaryClose.USE_EDT.values(), BinaryClose.USE_EDT.AUTO).setHint("Perform filter using Euclidean Distance Transform or loop on neighborhood");
+    BooleanParameter relabel = new BooleanParameter("Relabel", false).setLegacyInitializationValue(true).setHint("If true the filter divides the object into non-contiguous pieces then several objects are created, otherwise the object remains a single (non-contiguous) instance");
 
     @Override
     public String getHintText() {
@@ -72,19 +73,28 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
         for (Region o : childPopulation.getRegions()) {
             ImageInteger open = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), radius, radiusZ, parallel), null)
                     : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallel);
-            // check that only one object remains
-            List<Region> regions = ImageLabeller.labelImageList(open);
-            regions.forEach(r -> r.translate(o.getBounds()).setIsAbsoluteLandmark(o.isAbsoluteLandMark()).setIs2D(o.is2D()));
-            if (regions.size() > 1) {
-                regions.sort(Comparator.comparingDouble(Region::size));
-                Region biggest = regions.remove(regions.size()-1);
-                o.setMask(biggest.getMask());
-                o.setBounds(biggest.getBounds());
-                newRegions.addAll(regions);
-            } else if (regions.size() == 1){
-                o.setMask(open);
-                o.resetMask(); // bounds can differ
-            } else toRemove.add(o);
+
+            if (relabel.getSelected()) { // check if objet is split or erased
+                List<Region> regions = ImageLabeller.labelImageList(open);
+                regions.forEach(r -> r.translate(o.getBounds()).setIsAbsoluteLandmark(o.isAbsoluteLandMark()).setIs2D(o.is2D()));
+                if (regions.size() > 1) {
+                    regions.sort(Comparator.comparingDouble(Region::size));
+                    Region biggest = regions.remove(regions.size() - 1);
+                    o.setMask(biggest.getMask());
+                    o.setBounds(biggest.getBounds());
+                    newRegions.addAll(regions);
+                } else if (regions.size() == 1) {
+                    o.setMask(open);
+                    o.resetMask(); // bounds can differ
+                } else toRemove.add(o);
+            } else { // check that object didn't disappear
+                boolean hasPixel = open.streamInt().anyMatch(i -> i>0);
+                if (!hasPixel) toRemove.add(o);
+                else {
+                    o.setMask(open);
+                    o.resetMask();
+                }
+            }
         }
         if (!toRemove.isEmpty()) childPopulation.removeObjects(toRemove, false);
         if (!newRegions.isEmpty()) childPopulation.addObjects(newRegions, false);
@@ -94,7 +104,7 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scale, useEDT};
+        return new Parameter[]{scale, useEDT, relabel};
     }
     boolean parallel;
     @Override
