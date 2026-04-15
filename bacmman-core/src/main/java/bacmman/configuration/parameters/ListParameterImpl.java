@@ -84,6 +84,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         if (source instanceof Deactivable && dest instanceof Deactivable) {
             ((Deactivable)dest).setActivated(((Deactivable)source).isActivated());
         }
+        dest.setLegacyParameter(source.setValue, source.getLegacyParameters());
+        dest.setLegacyInitializationValue(source.legacyInitItems);
     }
     @Override public boolean isEmpty() {return getChildren().isEmpty();}
     @Override

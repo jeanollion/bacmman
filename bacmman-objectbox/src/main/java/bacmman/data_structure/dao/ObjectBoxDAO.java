@@ -69,7 +69,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
             synchronized (this) {
                 if (!Files.exists(dir)) {
                     try {
-                        Files.createDirectories(this.dir);
+                        Files.createDirectories(dir);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

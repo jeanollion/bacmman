@@ -32,6 +32,14 @@ import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.MultiThreaded;
 import bacmman.plugins.PostFilter;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.ToDoubleBiFunction;
+import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
+
 /**
  *
  * @author Jean Ollion
@@ -68,20 +76,53 @@ public class BinaryDilate implements PostFilter, MultiThreaded, Hint {
         boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
         childPopulation.ensureEditableRegions();
         Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
+        boolean allowOverlap = parent.getExperimentStructure().allowOverlap(childStructureIdx);
+        Map<Region, Set<Voxel>> contourMap = allowOverlap? null : childPopulation.getRegions().stream().collect(Collectors.toMap(Function.identity(), Region::getContour));
         for (Region o : childPopulation.getRegions()) {
             ImageInteger max = edt ? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryDilate(o.getMaskAsImageInteger(), radius, radiusZ, true, parallel), null)
                     : Filters.binaryMax(o.getMaskAsImageInteger(), null, n, true, parallel);
-            BoundingBox parentBounds = parent.getMaskPropertiesForObjects(childStructureIdx, childPopulation.getRegions());
+            BoundingBox parentBounds = (BoundingBox)parent.getMaskPropertiesForObjects(childStructureIdx, childPopulation.getRegions()).resetOffset();
             if (!BoundingBox.isIncluded(max, parentBounds)) {
                 max = (ImageInteger)max.cropWithOffset(BoundingBox.getIntersection(max, parentBounds));
             }
             o.setMask(max);
             o.resetMask();
         }
-        childPopulation.relabel(true);
-        if (!parent.getExperimentStructure().allowOverlap(childStructureIdx)) { // handle conflicts : by label order
-            childPopulation = new RegionPopulation(childPopulation.getLabelMap(), true);
+        if (!allowOverlap) { // remove overlapping pixels using the distance to the original contour
+            double scaleXY = parent.getScaleXY();
+            double scaleZ = parent.getScaleZ();
+            for (int i = 0; i< contourMap.size()-1; ++i) {
+                for (int j = i+1; j<contourMap.size(); ++j) {
+                    Region r1 = childPopulation.getRegions().get(i);
+                    Region r2 = childPopulation.getRegions().get(j);
+                    if (BoundingBox.intersect(r1.getBounds(), r2.getBounds())) {
+                        BoundingBox inter = BoundingBox.getIntersection(r1.getBounds(), r2.getBounds());
+                        BoundingBox.loop(inter, (x, y, z) -> {
+                            Voxel v= new Voxel(x, y, z);
+                            if (r1.contains(v) && r2.contains(v)) {
+                                double distSq1 = Double.POSITIVE_INFINITY;
+                                boolean r1Closest = true;
+                                for (Voxel c : contourMap.get(r1)) {
+                                    double d2 = c.getDistanceSquare(v, scaleXY, scaleZ);
+                                    if (d2 < distSq1) distSq1 = d2;
+                                }
+                                for (Voxel c : contourMap.get(r2)) {
+                                    double d2 = c.getDistanceSquare(v, scaleXY, scaleZ);
+                                    if (d2 < distSq1) {
+                                        r1Closest = false;
+                                        break;
+                                    };
+                                }
+                                if (r1Closest) r2.removeVoxels(Collections.singletonList(v));
+                                else r1.removeVoxels(Collections.singletonList(v));
+                            }
+                        });
+                    }
+                }
+            }
         }
+        childPopulation = childPopulation.hasImage() ? new RegionPopulation(childPopulation.getRegions(), childPopulation.getImageProperties()) : childPopulation; // remove label image
+        childPopulation.relabel();
         return childPopulation;
     }
 

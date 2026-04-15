@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -237,30 +238,31 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         List<Spot> segmentedSpots;
         Image fitImage = getParent(parent, objectClassIdx).getPreFilteredImage(objectClassIdx); // we need full image to fit. In case segmentation is occurring in segmentation parent, then fit will occur in parent
 
-        BiConsumer<List<Spot>, List<Point>> removeSpotsFarFromSeeds = (spots, seedList) -> { // filter by distance from original seed
-            Map<Spot, Double> distSqFromSeed = IntStream.range(0, spots.size()).mapToObj(i->i).collect(Collectors.toMap(spots::get, i->spots.get(i).getCenter().distSq(seedList.get((i)))));
+        Consumer<Map<Point, Spot>> removeSpotsFarFromSeeds = seedMapSpot -> { // filter by distance from original seed
+            Map<Point, Double> distSqFromSeed = seedMapSpot.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().getCenter().distSq(e.getKey())));
             double maxDistSq = Math.pow(2 * typicalSigma.getValue().doubleValue(), 2);
-            List<Spot> toRemove = distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq || Double.isNaN(e.getValue()) || Double.isInfinite(e.getValue()) ).map(Map.Entry::getKey).collect(Collectors.toList());
-            spots.removeAll(toRemove);
+            distSqFromSeed.entrySet().stream()
+                    .filter(e->e.getValue()>=maxDistSq || Double.isNaN(e.getValue()) || Double.isInfinite(e.getValue()) )
+                    .forEach(e -> seedMapSpot.remove(e.getKey()));
         };
 
+        segmentedSpots = new ArrayList<>();
         if (planeByPlane && seedMap.sizeZ()>1) {
-            segmentedSpots = new ArrayList<>();
             List<Image> fitImagePlanes = fitImage.splitZPlanes();
             List<Image> smoothPlanes = smooth.splitZPlanes();
             List<Image> radSymPlanes = radSym.splitZPlanes();
             IntStream.range(0, fitImagePlanes.size()).forEachOrdered(z -> {
                 List<Point> seedsZ = seeds.stream().filter(p -> p.get(2)==z).collect(Collectors.toList());
-                List<Spot> segmentedSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
-                removeSpotsFarFromSeeds.accept(segmentedSpotsZ, seedsZ);
-                segmentedSpots.addAll(segmentedSpotsZ);
+                Map<Point, Spot> seedMapSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
+                removeSpotsFarFromSeeds.accept(seedMapSpotsZ);
+                segmentedSpots.addAll(seedMapSpotsZ.values());
             });
             segmentedSpots.forEach(s->s.setIs2D(false));
         } else {
             //logger.debug("gaussian fit...");
-            segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
-            //logger.debug("gaussian fit done.");
-            removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
+            Map<Point, Spot> seedMapSpot = fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
+            removeSpotsFarFromSeeds.accept(seedMapSpot);
+            segmentedSpots.addAll(seedMapSpot.values());
         }
         // remove spots with center outside mask
         double minOverlap = this.minOverlap.getValue().doubleValue()/100d;
@@ -298,8 +300,8 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             }
         }
     }
-    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma, double typicalSigmaZ, QUALITY formula, boolean parallel) {
-        if (seedsToSpots.isEmpty()) return Collections.emptyList();
+    private static Map<Point, Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma, double typicalSigmaZ, QUALITY formula, boolean parallel) {
+        if (seedsToSpots.isEmpty()) return Collections.emptyMap();
         Offset off = !fitImage.sameDimensions(radSym) ? new SimpleOffset(radSym).translate(fitImage.getBoundingBox().reverseOffset()) : null;
         if (off!=null) allSeeds.forEach(p->p.translate(off)); // translate point to fitImages bounds
         long t0 = System.currentTimeMillis();
@@ -309,19 +311,21 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, config, null, parallel);
          long t1 = System.currentTimeMillis();
         //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
-        List<Spot> res = seedsToSpots.stream().map(fit::get).filter(Objects::nonNull).map(d -> GaussianFit.spotMapper.apply(d, false, fitImage))
-                .filter(s -> !Double.isNaN(s.getRadius()) || s.getRadius()<1)
-                .filter(s -> !Double.isNaN(s.getIntensity()))
-                .filter(s -> s.getCenter().isValid())
-                .filter(s-> s.getBounds().isValid())
-                .collect(Collectors.toList());
+        Map<Point, Spot> res = seedsToSpots.stream()
+                .collect(Collectors.toMap(Function.identity(), s -> GaussianFit.spotMapper.apply(fit.get(s), false, fitImage)));
+        res.entrySet().removeIf(e -> {
+            Spot s = e.getValue();
+            return Double.isNaN(s.getRadius()) || Double.isNaN(s.getIntensity()) || !s.getCenter().isValid() || !s.getBounds().isValid();
+        });
         if (off!=null) {
-            allSeeds.forEach(p->p.translateRev(off)); // translate back
-            Offset rev = off.reverseOffset();
-            res.forEach(p->p.translate(rev));
+            Offset rev = off.duplicate().reverseOffset();
+            res.forEach((seed, spot)-> {
+                seed.translateRev(off); // translate back
+                spot.translate(rev);
+            });
         }
         BoundingBox bounds = radSym.getBoundingBox().resetOffset();
-        for (Spot o : res) { // quality criterion : sqrt (smooth * radSym)
+        for (Spot o : res.values()) { // quality criterion : sqrt (smooth * radSym)
             Point center = bounds.contains(o.getCenter()) ? o.getCenter() : o.getCenter().duplicate().ensureWithinBounds(bounds);
             double zz = center.numDimensions()>2?center.get(2):0;
             double R = radSym.getPixel(center.get(0), center.get(1), zz);
@@ -384,8 +388,8 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                 .collect(Collectors.toList());
 
         allObjects.addAll(seedObjects);
-        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
-        RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
+        Map<Point, Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getDoubleValue(), typicalSigma.getDoubleValue() * getAnisotropyRatio(input), quality.getSelectedEnum(), parallel);
+        RegionPopulation pop = new RegionPopulation(segmentedSpots.values(), smooth);
         pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);

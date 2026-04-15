@@ -104,6 +104,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             }
         }, frames, 100);*/
         IOException[] ex = new IOException[1];
+        List<Integer> frameWithError = new ArrayList<>();
         Function<Integer, MutableBoundingBox> getBds = f -> {
             Image<? extends Image> im = InputImages.getImage(inputImages,channelIdx, f, ex);
             if (im.sizeZ()>1) {
@@ -111,7 +112,12 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
                 if (plane<0) throw new RuntimeException("CropMicrochannel can only be run on 2D images AND no autofocus algorithm was set");
                 im = im.splitZPlanes().get(plane);
             }
-            return getBoundingBox(im);
+            try {
+                return getBoundingBox(im);
+            } catch (RuntimeException e) {
+                frameWithError.add(f);
+                throw new RuntimeException(e.getMessage()+ " frame: "+f, e);
+            }
         };
         TEST_MODE test = testMode;
         logger.debug("test mode: {}", test);
@@ -123,7 +129,16 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
         if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);
         logger.debug("computing bounding box on {} frames", frames.size());
         List<MutableBoundingBox> bds = ThreadRunner.parallelExecutionBySegmentsFunction(getBds, frames, Core.PRE_PROCESSING_WINDOW, true);
-        if (ex[0]!=null) throw ex[0];
+        if (ex[0]!=null) {
+            if (!frameWithError.isEmpty() && framesN!=1 && (test.testSimple() || test.testExpert())) {
+                setTestMode(test);
+                int f = frameWithError.iterator().next();
+                try {
+                    getBds.apply(f);
+                } catch (RuntimeException exc) { }
+            }
+            throw ex[0];
+        }
         Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(frames.stream(), i->i, bds::get, true); // not using Collectors.toMap because result of getBounds can be null
 
         List<Integer> nullBounds = bounds.entrySet().stream().filter(e->e.getValue()==null).map(Map.Entry::getKey).collect(Collectors.toList());

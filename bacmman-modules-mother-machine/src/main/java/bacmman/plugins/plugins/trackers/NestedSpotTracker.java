@@ -183,8 +183,8 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                 .setProjOnSameSide(this.projectOnSameSide.getSelected());
         
         logger.debug("distanceFTF: {}, distance GC: {}, gapP: {}", maxLinkingDistance, maxLinkingDistanceGC, gapPenalty);
-        Map<Region, SegmentedObject> mutationMapParentBacteria = Utils.toMapWithNullValues(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx), e->e.getRegion(), e->SegmentedObjectUtils.getContainer(e.getRegion(), e.getParent().getChildren(compartmentStructure), null), false);
-        final Map<SegmentedObject, List<Region>> bacteriaMapMutation = mutationMapParentBacteria.keySet().stream().collect(Collectors.groupingBy(m->mutationMapParentBacteria.get(m)));
+        Map<Region, SegmentedObject> mutationMapParentBacteria = Utils.toMapWithNullValues(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx), SegmentedObject::getRegion, e->SegmentedObjectUtils.getContainer(e.getRegion(), e.getParent().getChildren(compartmentStructure), null), false);
+        final Map<SegmentedObject, List<Region>> bacteriaMapMutation = mutationMapParentBacteria.keySet().stream().collect(Collectors.groupingBy(mutationMapParentBacteria::get));
 
         // get all potential spine localizers: for each bacteria with mutation look if there are bacteria with mutations in previous bacteria within gap range
         Set<SegmentedObject> parentWithSpine = new HashSet<>();

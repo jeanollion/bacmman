@@ -358,6 +358,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
                             ProgressLogger ui = GUI.getInstance();
                             DefaultWorker.WorkerTask wt =  idx -> {
+                                ui.setRunning(true);
                                 String p = positions.get(idx).key;
                                 TrackNode n = positions.get(idx).value;
                                 ui.setMessage("Running Segmentation and Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
@@ -384,8 +385,9 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                 ImageWindowManagerFactory.getImageManager().resetObjects(trackHead.getPositionName(), structureIdx);
                                 // reload selection
                                 GUI.getInstance().populateSelections();
+                                ui.setRunning(false);
                             });
-                            worker.run();
+                            worker.execute();
                         }
                     }
                 );
@@ -403,6 +405,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
                             ProgressLogger ui = GUI.getInstance();
                             DefaultWorker.WorkerTask wt =  idx -> {
+                                ui.setRunning(true);
                                 String p = positions.get(idx).key;
                                 TrackNode n = positions.get(idx).value;
                                 ui.setMessage("Running Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
@@ -429,8 +432,9 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                 ImageWindowManagerFactory.getImageManager().resetObjects(trackHead.getPositionName(), structureIdx);
                                 // reload selection
                                 GUI.getInstance().populateSelections();
+                                ui.setRunning(false);
                             });
-                            worker.run();
+                            worker.execute();
                         }
                     }
                 );

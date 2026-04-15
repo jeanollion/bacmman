@@ -116,7 +116,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         if (testMode.testSimple()) logger.debug("non null bounds: {}", nonNullBound);
         if (!twoPeaks.getSelected()) {
             Image imCrop = image.crop(nonNullBound);
-            Image imDerY = ImageDerivatives.getGradient(imCrop, 2, false, true, 1).get(0);
+            Image imDerY = ImageDerivatives.getGradient(imCrop, 2, false, false, 1).get(0);
             float[] yProj = ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
             if (testMode.testExpert()) IJUtils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check
