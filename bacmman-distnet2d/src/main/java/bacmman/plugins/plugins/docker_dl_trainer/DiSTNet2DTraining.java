@@ -387,13 +387,18 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         }
 
         boolean cat = archP.categoryNumber.getIntValue() > 1;
-        DLModelMetadata.DLModelOutputParameter[] outputs = new DLModelMetadata.DLModelOutputParameter[cat?6:5];
-        outputs[0] = new DLModelMetadata.DLModelOutputParameter("output0_edm");
-        outputs[1] = new DLModelMetadata.DLModelOutputParameter("output1_cdm");
-        outputs[2] = new DLModelMetadata.DLModelOutputParameter("output2_dy");
-        outputs[3] = new DLModelMetadata.DLModelOutputParameter("output3_dx");
-        outputs[4] = new DLModelMetadata.DLModelOutputParameter("output4_lm");
-        if (cat) outputs[5] = new DLModelMetadata.DLModelOutputParameter("output5_cat");
+        Boolean is3D = configuration.is3D().get();
+        boolean model3D = is3D != null && is3D;
+        int nOutputs = (model3D ? 6 : 5) + (cat ? 1 : 0);
+        DLModelMetadata.DLModelOutputParameter[] outputs = new DLModelMetadata.DLModelOutputParameter[nOutputs];
+        int oi = 0;
+        outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output" + oi + "_edm"); oi++;
+        outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output" + oi + "_cdm"); oi++;
+        if (model3D) { outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output" + oi + "_dz"); oi++; }
+        outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output" + oi + "_dy"); oi++;
+        outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output" + oi + "_dx"); oi++;
+        outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output0" + oi + "_linkmultiplicity"); oi++;  // output04 or output05: keep "0" prefix for backward compat with legacy detection
+        if (cat) outputs[oi] = new DLModelMetadata.DLModelOutputParameter("output" + oi + "_cat");
         DLModelMetadata meta = new DLModelMetadata()
                 .setInputs(inputs)
                 .setOutputs(outputs)

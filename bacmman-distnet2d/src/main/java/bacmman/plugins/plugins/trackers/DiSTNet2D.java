@@ -395,6 +395,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         for (int g = 0; g < predictions.dyBW.length; ++g) freeMem.accept(predictions.dyBW[g].get(p));
                         for (int g = 0; g < predictions.dxFW.length; ++g) freeMem.accept(predictions.dxFW[g].get(p));
                         for (int g = 0; g < predictions.dyFW.length; ++g) freeMem.accept(predictions.dyFW[g].get(p));
+                        if (predictions.is3D) {
+                            for (int g = 0; g < predictions.dzBW.length; ++g) freeMem.accept(predictions.dzBW[g].get(p));
+                            for (int g = 0; g < predictions.dzFW.length; ++g) freeMem.accept(predictions.dzFW[g].get(p));
+                        }
                         for (int g = 0; g < predictions.multipleLinkBW.length; ++g) freeMem.accept(predictions.multipleLinkBW[g].get(p));
                         for (int g = 0; g < predictions.multipleLinkFW.length; ++g) freeMem.accept(predictions.multipleLinkFW[g].get(p));
                         for (int g = 0; g < predictions.noLinkBW.length; ++g) freeMem.accept(predictions.noLinkBW[g].get(p));
@@ -418,6 +422,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 for (int g = 0; g < predictions.dyBW.length; ++g) detach.accept(predictions.dyBW[g].remove(p));
                 for (int g = 0; g < predictions.dxFW.length; ++g) detach.accept(predictions.dxFW[g].remove(p));
                 for (int g = 0; g < predictions.dyFW.length; ++g) detach.accept(predictions.dyFW[g].remove(p));
+                if (predictions.is3D) {
+                    for (int g = 0; g < predictions.dzBW.length; ++g) detach.accept(predictions.dzBW[g].remove(p));
+                    for (int g = 0; g < predictions.dzFW.length; ++g) detach.accept(predictions.dzFW[g].remove(p));
+                }
                 for (int g = 0; g < predictions.multipleLinkBW.length; ++g) detach.accept(predictions.multipleLinkBW[g].remove(p));
                 for (int g = 0; g < predictions.multipleLinkFW.length; ++g)  detach.accept(predictions.multipleLinkFW[g].remove(p));
                 for (int g = 0; g < predictions.noLinkBW.length; ++g) detach.accept(predictions.noLinkBW[g].remove(p));
@@ -435,15 +443,18 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return Math.max(1, thickness / 4);
     }
     public static RegionPopulation segment(SegmentedObject parent, int objectClassIdx, Image edmI, Image gcdmI, double thickness, double edmThreshold, double minMaxEDMThreshold, double centerSmoothRad, double centerLapThld, double[] centerSizeFactorRange, double mergeCriterion, boolean useGDCMgradient, int minSize, int minSizeGCDM, PostFilterSequence postFilters, Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
+        boolean is3D = edmI.sizeZ() > 1;
         double sigma = computeSigma(thickness);
         double C = 1/(Math.sqrt(2 * Math.PI) * sigma);
         double seedRad = Math.max(2, thickness/2 - 1);
+        double seedRadZ = is3D ? Math.max(1, seedRad * parent.getScaleXY() / parent.getScaleZ() ) : 0;
+        double smoothRadZ = is3D && centerSmoothRad > 0 ? Math.max(1, centerSmoothRad * parent.getScaleXY() / parent.getScaleZ() ) : 0;
         ImageMask insideCells = new PredicateMask(edmI, edmThreshold, true, false);
         ImageMask insideCellsM = PredicateMask.and(parent.getMask(), insideCells);
 
         // 1) Perform segmentation on EDM : watershed seeded with EDM local maxima
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
-        ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, gcdmI), false);
+        ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, seedRadZ, gcdmI), false);
         //if (stores != null) stores.get(parent).addIntermediateImage("EDM Seeds", localExtremaEDM);
         RegionPopulation pop = WatershedTransform.watershed(edmI, insideCellsM, localExtremaEDM, config);
         if (stores!=null) {
@@ -468,7 +479,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         // 2) Segment centers.
         // compute center map -> gaussian transform of predicted gdcm map
-        Image gcdmSmoothI = centerSmoothRad==0 ? gcdmI : Filters.applyFilter(gcdmI, null, new Filters.Mean(insideCells), Filters.getNeighborhood(centerSmoothRad, 0, gcdmI), false);
+        Image gcdmSmoothI = centerSmoothRad==0 ? gcdmI : Filters.applyFilter(gcdmI, null, new Filters.Mean(insideCells), Filters.getNeighborhood(centerSmoothRad, smoothRadZ, gcdmI), false);
         if (stores != null && centerSmoothRad>0 && stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("GCDM Smooth", gcdmSmoothI);
         Image centerI = new ImageFloat("Center", gcdmSmoothI);
         BiConsumer<String, Image> dispDer = (name, im) -> {
@@ -495,17 +506,19 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Image centerLap = ImageDerivatives.getLaplacian(centerI, ImageDerivatives.getScaleArray(sigma, centerI), true, false, true, false); // change 10/05/24 : use imglib2 instead of imagescience
         ImageMask LMMask = PredicateMask.and(insideCellsM, new PredicateMask(centerLap, centerLapThld, true, true));
         if (stores!=null) stores.get(parent).addIntermediateImage("Center Laplacian", centerLap);
-        ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, 0, centerI));
+        ImageByte localExtremaCenter = Filters.applyFilter(centerLap, new ImageByte("center LM", centerLap), new LocalMax2(LMMask), Filters.getNeighborhood(seedRad, seedRadZ, centerI));
         WatershedTransform.WatershedConfiguration centerConfig = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(centerLapThld));
         RegionPopulation centerPop = WatershedTransform.watershed(centerLap, insideCellsM, localExtremaCenter, centerConfig);
 
         // 2.2) Filter out centers by size and eccentricity
-        double theoreticalSize = Math.PI * Math.pow(sigma * 1.9, 2);
+        double theoreticalSize = is3D
+            ? (4.0/3.0) * Math.PI * Math.pow(sigma * 1.9, 2) * (sigma * 1.9 * parent.getScaleXY() / parent.getScaleZ() ) // ellipsoid with smaller Z radius
+            : Math.PI * Math.pow(sigma * 1.9, 2);
         BoundingBox parentRelBB = parent.getBounds().duplicate(); parentRelBB.resetOffset();
         centerPop.filter(object -> {
             double size = object.size();
             if (size > theoreticalSize * centerSizeFactorRange[1]) return false;
-            boolean touchEdge = BoundingBox.touchEdges2D(parentRelBB, object.getBounds());
+            boolean touchEdge = is3D ? BoundingBox.touchEdges(parentRelBB, object.getBounds()) : BoundingBox.touchEdges2D(parentRelBB, object.getBounds());
             if (!touchEdge && size < theoreticalSize * centerSizeFactorRange[0] || size < theoreticalSize * centerSizeFactorRange[0] * 0.5) return false;
             //if (touchEdge) return true; // eccentricity criterion not applicable
             FitEllipseShape.Ellipse ellipse = FitEllipseShape.fitShape(object);
@@ -886,7 +899,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
         if (!metadata.getOutputs().isEmpty()) {
-            predictCategory.setSelected(metadata.getOutputs().size() == 6);
+            // 2D: 5 without category, 6 with category; 3D: 6 without category, 7 with category
+            int nOutputs = metadata.getOutputs().size();
+            boolean has3DOutput = nOutputs == 6 || nOutputs == 7;
+            // check if dz output is present to distinguish 3D-no-cat (6) from 2D-with-cat (6)
+            if (nOutputs == 6) {
+                has3DOutput = metadata.getOutputs().stream().anyMatch(o -> o.getName().toLowerCase().contains("dz"));
+            }
+            predictCategory.setSelected(has3DOutput ? nOutputs == 7 : nOutputs == 6);
         }
     }
 
@@ -911,6 +931,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dy fw", prediction.dyFW[gap].get(o)));
             if (prediction != null && prediction.dxFW != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
                 parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dx fw", prediction.dxFW[gap].get(o)));
+            if (prediction != null && prediction.is3D) {
+                if (stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                    parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dz bw", prediction.dzBW[gap].get(o)));
+                if (prediction.dzFW != null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                    parentTrack.forEach(o -> stores.get(o).addIntermediateImage("dz fw", prediction.dzFW[gap].get(o)));
+            }
         }
         boolean verbose = stores != null;
         if (verbose && false) {
@@ -1008,6 +1034,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             prediction==null || prediction.dxFW ==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[gap].get(o.getParent()), 0.5)[0],
             HashMapGetCreate.Syncronization.SYNC_ON_KEY
         );
+        Map<SegmentedObject, Double> dzBWMap = prediction == null || !prediction.is3D ? null : HashMapGetCreate.getRedirectedMap(
+            parentTrack.stream().skip(1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dzBW[gap].get(o.getParent()), 0.5)[0],
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
+        );
+        Map<SegmentedObject, Double> dzFWMap = prediction == null || !prediction.is3D || prediction.dzFW == null ? null : HashMapGetCreate.getRedirectedMap(
+            parentTrack.stream().limit(parentTrack.size()-1).flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+            o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dzFW[gap].get(o.getParent()), 0.5)[0],
+            HashMapGetCreate.Syncronization.SYNC_ON_KEY
+        );
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
         if (objectsF.isEmpty()) return Collections.emptySet();
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
@@ -1034,7 +1070,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     if (p.value.getFrame() == f) cur.remove(p.value);
                 }
             }
-            assignV2(prev, cur, gap==0 ? null : new ArrayList<>(objectsF.get(prevF)), gap==0 ? null : new ArrayList<>(objectsF.get(f)), graph, dxFWMap::get, dxBWMap::get, dyFWMap::get, dyBWMap::get, linkDistanceTolerance.getIntValue(), o->lmFW.get(o).lm, o->lmBW.get(o).lm, contour, growthRateRange.getValuesAsDouble(), gap>0, verbose);
+            assignV2(prev, cur, gap==0 ? null : new ArrayList<>(objectsF.get(prevF)), gap==0 ? null : new ArrayList<>(objectsF.get(f)), graph, dxFWMap::get, dxBWMap::get, dyFWMap::get, dyBWMap::get, dzFWMap != null ? dzFWMap::get : null, dzBWMap != null ? dzBWMap::get : null, linkDistanceTolerance.getIntValue(), o->lmFW.get(o).lm, o->lmBW.get(o).lm, contour, growthRateRange.getValuesAsDouble(), gap>0, verbose);
             prev.forEach(contour::remove); // save memory
         }
         logger.debug("After linking {}: edges: {} (total number of objects: {})", gap==0?"":"(gap=={"+gap+"})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
@@ -1084,7 +1120,9 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         sel.forEach(o -> {
                             if ( SINGLE.equals(lmBW.get(o).lm) ) {
                                 Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translateRev(o.getParent().getBounds());
-                                Vector vector = new Vector(dxBWMap.get(o), dyBWMap.get(o)).reverse();
+                                Vector vector = dzBWMap != null
+                                    ? new Vector(dxBWMap.get(o), dyBWMap.get(o), dzBWMap.get(o)).reverse()
+                                    : new Vector(dxBWMap.get(o), dyBWMap.get(o)).reverse();
                                 disp.displayArrow(start, vector, o.getFrame(), o.getFrame() - 1 - gap, false, true, 0, colorMap.get(o));
                             }
                         });
@@ -1100,7 +1138,9 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         sel.forEach(o -> {
                             if ( SINGLE.equals(lmFW.get(o).lm) ) {
                                 Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translateRev(o.getParent().getBounds());
-                                Vector vector = new Vector(dxFWMap.get(o), dyFWMap.get(o)).reverse();
+                                Vector vector = dzFWMap != null
+                                    ? new Vector(dxFWMap.get(o), dyFWMap.get(o), dzFWMap.get(o)).reverse()
+                                    : new Vector(dxFWMap.get(o), dyFWMap.get(o)).reverse();
                                 disp.displayArrow(start, vector, o.getFrame(), o.getFrame() + 1 + gap, false, true, 0, colorMap.get(o));
                             }
                         });
@@ -1113,7 +1153,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     // used in TrackAssignerDistnet
-    static void assign(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, ToDoubleBiFunction<SegmentedObject, Integer> dx, ToDoubleBiFunction<SegmentedObject, Integer> dy, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, boolean nextToPrev, Predicate<SegmentedObject> noTarget, boolean onlyUnlinked, boolean verbose) {
+    static void assign(Collection<SegmentedObject> source, Collection<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, ToDoubleBiFunction<SegmentedObject, Integer> dx, ToDoubleBiFunction<SegmentedObject, Integer> dy, ToDoubleBiFunction<SegmentedObject, Integer> dz, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, boolean nextToPrev, Predicate<SegmentedObject> noTarget, boolean onlyUnlinked, boolean verbose) {
         if (target==null || target.isEmpty() || source==null || source.isEmpty()) return;
         Offset trans = target.iterator().next().getParent().getBounds().duplicate().translate(source.iterator().next().getParent().getBounds().duplicate().reverseOffset());
         int targetFrame = target.iterator().next().getFrame();
@@ -1121,7 +1161,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         for (SegmentedObject s : source) {
             if (verbose) {
                 s.setAttribute("Center", s.getRegion().getCenter());
-                s.setAttribute("Center Translated", getTranslatedCenter(s, dx.applyAsDouble(s, 0), dy.applyAsDouble(s, 0), trans));
+                s.setAttribute("Center Translated", getTranslatedCenter(s, dx.applyAsDouble(s, 0), dy.applyAsDouble(s, 0), dz != null ? dz.applyAsDouble(s, 0) : Double.NaN, trans));
             }
             if (onlyUnlinked) {
                 if (nextToPrev) {
@@ -1134,7 +1174,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             SegmentedObject t;
             if (sameTargetFrame) { // TODO: test with correction + gaps
                 int gap = Math.abs(s.getFrame() - targetFrame) - 1;
-                Point centerTrans = getTranslatedCenter(s, dx.applyAsDouble(s, gap), dy.applyAsDouble(s, gap), trans);
+                Point centerTrans = getTranslatedCenter(s, dx.applyAsDouble(s, gap), dy.applyAsDouble(s, gap), dz != null ? dz.applyAsDouble(s, gap) : Double.NaN, trans);
                 if (centerTrans == null) t = null; // gap not supported
                 else {
                     if (linkDistTolerance > 0) {
@@ -1146,7 +1186,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             } else {
                 Map<Integer, Point> centerTrans = new HashMapGetCreate.HashMapGetCreateRedirected<>(currentTargetFrame -> {
                     int gap = Math.abs(s.getFrame() - currentTargetFrame) - 1;
-                    return getTranslatedCenter(s, dx.applyAsDouble(s, gap), dy.applyAsDouble(s, gap), trans);
+                    return getTranslatedCenter(s, dx.applyAsDouble(s, gap), dy.applyAsDouble(s, gap), dz != null ? dz.applyAsDouble(s, gap) : Double.NaN, trans);
                 });
                 if (linkDistTolerance > 0) {
                     t = getTarget(centerTrans, target.stream(), linkDistTolerance, contour).findFirst().orElse(null);
@@ -1158,16 +1198,17 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    static void assignV2(Collection<SegmentedObject> prev, Collection<SegmentedObject> next, Collection<SegmentedObject> allPrevs, Collection<SegmentedObject> allNexts, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange, boolean gap, boolean verbose) {
+    static void assignV2(Collection<SegmentedObject> prev, Collection<SegmentedObject> next, Collection<SegmentedObject> allPrevs, Collection<SegmentedObject> allNexts, ObjectGraph<SegmentedObject> graph, ToDoubleFunction<SegmentedObject> dxFW, ToDoubleFunction<SegmentedObject> dxBW, ToDoubleFunction<SegmentedObject> dyFW, ToDoubleFunction<SegmentedObject> dyBW, ToDoubleFunction<SegmentedObject> dzFW, ToDoubleFunction<SegmentedObject> dzBW, int linkDistTolerance, Function<SegmentedObject, LINK_MULTIPLICITY> lmFW, Function<SegmentedObject, LINK_MULTIPLICITY> lmBW, Map<SegmentedObject, Set<Voxel>> contour, double[] growthRateRange, boolean gap, boolean verbose) {
         if (next==null || next.isEmpty() || prev==null || prev.isEmpty()) return;
+        boolean is3D = dzFW != null;
         Offset transFW = next.iterator().next().getParent().getBounds().duplicate().translate(prev.iterator().next().getParent().getBounds().duplicate().reverseOffset());
         Offset transBW = prev.iterator().next().getParent().getBounds().duplicate().translate(next.iterator().next().getParent().getBounds().duplicate().reverseOffset());
         Map<LINK_MULTIPLICITY, List<SegmentedObject>> prevByLM = prev.stream().collect(Collectors.groupingBy(lmFW));
         Map<LINK_MULTIPLICITY, List<SegmentedObject>> nextByLM = next.stream().collect(Collectors.groupingBy(lmBW));
         Map<LINK_MULTIPLICITY, List<SegmentedObject>> allPrevByLM = !gap ? null:allPrevs.stream().collect(Collectors.groupingBy(lmFW));
         Map<LINK_MULTIPLICITY, List<SegmentedObject>> allNextByLM = !gap ? null:allNexts.stream().collect(Collectors.groupingBy(lmBW));
-        Map<SegmentedObject, Point> prevTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->getTranslatedCenter(o, dxFW.applyAsDouble(o), dyFW.applyAsDouble(o), transFW));
-        Map<SegmentedObject, Point> nextTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>( o->getTranslatedCenter(o, dxBW.applyAsDouble(o), dyBW.applyAsDouble(o), transBW));
+        Map<SegmentedObject, Point> prevTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->getTranslatedCenter(o, dxFW.applyAsDouble(o), dyFW.applyAsDouble(o), is3D ? dzFW.applyAsDouble(o) : Double.NaN, transFW));
+        Map<SegmentedObject, Point> nextTranslatedCenter = new HashMapGetCreate.HashMapGetCreateRedirected<>( o->getTranslatedCenter(o, dxBW.applyAsDouble(o), dyBW.applyAsDouble(o), is3D ? dzBW.applyAsDouble(o) : Double.NaN, transBW));
         QuadriFunction<Boolean, SegmentedObject, List<SegmentedObject>, List<SegmentedObject>, SegmentedObject> getTarget = (sourceIsPrev, s, sourceSingle, targetSingle) -> {
             Point sCenter = sourceIsPrev ? prevTranslatedCenter.get(s) : nextTranslatedCenter.get(s);
             SegmentedObject t = getTarget(sCenter, targetSingle.stream());
@@ -1351,15 +1392,34 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return targetIsNext ? sourceSize * growthRateRange[0] <= neighSize : neighSize * growthRateRange[1] >= sourceSize;
     }
 
-    static Point getTranslatedCenter(SegmentedObject o, double dx, double dy, Offset trans) {
+    static Point getTranslatedCenter(SegmentedObject o, double dx, double dy, double dz, Offset trans) {
         if (Double.isNaN(dx) || Double.isNaN(dy)) return null; // gap not supported
-        return o.getRegion().getCenterOrGeomCenter().duplicate()
-                .translateRev(new Vector(dx, dy)) // translate by predicted displacement
-                .translate(trans);
+        boolean is3D = !Double.isNaN(dz);
+        Point center = o.getRegion().getCenterOrGeomCenter().duplicate();
+        if (is3D) {
+            center.translateRev(new Vector(dx, dy, dz));
+        } else {
+            center.translateRev(new Vector(dx, dy));
+        }
+        return center.translate(trans);
+    }
+
+    static boolean isIncluded(Point center, BoundingBox bounds, boolean is3D) {
+        return is3D ? BoundingBox.isIncluded(center, bounds) : BoundingBox.isIncluded2D(center, bounds);
+    }
+
+    static boolean isIncludedWithTolerance(Point center, BoundingBox bounds, int tolerance, boolean is3D) {
+        if (is3D) {
+            return center.get(0)+tolerance>=bounds.xMin() && center.get(0)-tolerance<=bounds.xMax()
+                && center.get(1)+tolerance>=bounds.yMin() && center.get(1)-tolerance<=bounds.yMax()
+                && center.get(2)+tolerance>=bounds.zMin() && center.get(2)-tolerance<=bounds.zMax();
+        }
+        return BoundingBox.isIncluded2D(center, bounds, tolerance);
     }
 
     static SegmentedObject getTarget(Point center, Stream<SegmentedObject> candidates) {
-        return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds()))
+        boolean is3D = center.numDimensions() > 2 && !Double.isNaN(center.get(2));
+        return candidates.filter(o -> isIncluded(center, o.getBounds(), is3D))
                 .filter(o -> o.getRegion().contains(center)).findAny().orElse(null);
     }
 
@@ -1369,8 +1429,9 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (target == null) return Stream.empty();
             else return Stream.of(target);
         }
+        boolean is3D = center.numDimensions() > 2 && !Double.isNaN(center.get(2));
         Map<SegmentedObject, Double> distance = new HashMap<>();
-        return candidates.filter(o -> BoundingBox.isIncluded2D(center, o.getBounds(), tolerance))
+        return candidates.filter(o -> isIncludedWithTolerance(center, o.getBounds(), tolerance, is3D))
             .filter(o -> {
                 double thld = tolerance * tolerance;
                 for (Voxel v : contour.get(o)) {
@@ -1388,7 +1449,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     static SegmentedObject getTarget(Map<Integer, Point> center, Stream<SegmentedObject> candidates) {
         return candidates
                 .filter(o -> center.get(o.getFrame()) != null) // if null -> gap not supported
-                .filter(o -> BoundingBox.isIncluded2D(center.get(o.getFrame()), o.getBounds()))
+                .filter(o -> {
+                    Point c = center.get(o.getFrame());
+                    boolean is3D = c.numDimensions() > 2 && !Double.isNaN(c.get(2));
+                    return isIncluded(c, o.getBounds(), is3D);
+                })
                 .filter(o -> o.getRegion().contains(center.get(o.getFrame()))).findAny().orElse(null);
     }
 
@@ -1400,7 +1465,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             else return Stream.of(target);
         }
         Map<SegmentedObject, Double> distance = new HashMap<>();
-        return candidates.filter(o -> BoundingBox.isIncluded2D(center.get(o.getFrame()), o.getBounds(), tolerance))
+        return candidates.filter(o -> {
+                Point c = center.get(o.getFrame());
+                if (c == null) return false;
+                boolean is3D = c.numDimensions() > 2 && !Double.isNaN(c.get(2));
+                return isIncludedWithTolerance(c, o.getBounds(), tolerance, is3D);
+            })
             .filter(o -> {
                 Point currentCenter = center.get(o.getFrame());
                 if (currentCenter == null) return false; // gap not supported
@@ -2043,6 +2113,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (gap >= prediction.dyBW.length ) return Double.NaN; // gap not supported
             return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyBW[gap].get(o.getParent()), 0.5)[0];
         }
+        private double getDz(SegmentedObject o, int gap) {
+            if (!prediction.is3D || gap >= prediction.dzBW.length) return Double.NaN;
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dzBW[gap].get(o.getParent()), 0.5)[0];
+        }
         private double getDxN(SegmentedObject o, int gap) {
             if (gap >= prediction.dxFW.length ) return Double.NaN; // gap not supported
             return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dxFW[gap].get(o.getParent()), 0.5)[0];
@@ -2050,6 +2124,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         private double getDyN(SegmentedObject o, int gap) {
             if (gap >= prediction.dyFW.length ) return Double.NaN; // gap not supported
             return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dyFW[gap].get(o.getParent()), 0.5)[0];
+        }
+        private double getDzN(SegmentedObject o, int gap) {
+            if (!prediction.is3D || gap >= prediction.dzFW.length) return Double.NaN;
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dzFW[gap].get(o.getParent()), 0.5)[0];
         }
         public void setPrediction(PredictionResults prediction) {
             this.prediction = prediction;
@@ -2089,11 +2167,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             Predicate<SegmentedObject> noPrev = s -> false;
             Map<SegmentedObject, Set<Voxel>> contour = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().getContour());
             boolean assignNext = prediction.dxFW !=null;
-            assign(next, allPrev, graph, this::getDx, this::getDy, 0, contour, true, noPrev, false, false);
-            if (assignNext) assign(prev, allNext, graph, this::getDxN, this::getDyN, 0, contour, false, noNext, true, false);
+            ToDoubleBiFunction<SegmentedObject, Integer> dzBW = prediction.is3D ? this::getDz : null;
+            ToDoubleBiFunction<SegmentedObject, Integer> dzFW = prediction.is3D ? this::getDzN : null;
+            assign(next, allPrev, graph, this::getDx, this::getDy, dzBW, 0, contour, true, noPrev, false, false);
+            if (assignNext) assign(prev, allNext, graph, this::getDxN, this::getDyN, dzFW, 0, contour, false, noNext, true, false);
             if (dTol>0) {
-                assign(next, allPrev, graph, this::getDx, this::getDy, dTol, contour, true, noPrev, true, false);
-                if (assignNext) assign(prev, allNext, graph, this::getDxN, this::getDyN, dTol, contour, false, noNext, true, false);
+                assign(next, allPrev, graph, this::getDx, this::getDy, dzBW, dTol, contour, true, noPrev, true, false);
+                if (assignNext) assign(prev, allNext, graph, this::getDxN, this::getDyN, dzFW, dTol, contour, false, noNext, true, false);
             }
             Stream.concat(nextTracks.stream(), otherNextTracks.stream()).forEach(n -> {
                 List<SegmentedObject> allPrevLinks = graph.getAllPrevious(n.head());
@@ -2156,9 +2236,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Image[] gcdm;
         Image[][] dyBW, dyFW;
         Image[][] dxBW, dxFW;
+        Image[][] dzBW, dzFW;
         Image[][] multipleLinkFW, multipleLinkBW, noLinkBW, noLinkFW;
         Image[][] catNC;
         boolean next;
+        boolean is3D;
         int inputWindow, nGaps;
         PredictedChannels(int inputWindow, boolean next, int nGaps) {
             this.next = next;
@@ -2177,9 +2259,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             dxFW = new Image[nGaps+1][n];
             multipleLinkFW = new Image[nGaps+1][n];
             noLinkFW = new Image[nGaps+1][n];
+            if (is3D) {
+                dzBW = new Image[nGaps+1][n];
+                dzFW = new Image[nGaps+1][n];
+            }
         }
 
         void predict(DLEngine engine, InputImages inputImages, int[] allFrames, int[] framesToPredict, int frameInterval) {
+            // detect 3D from input image
+            Image firstImage = inputImages.getImage(framesToPredict[0], 0);
+            is3D = firstImage != null && firstImage.sizeZ() > 1;
             init(framesToPredict.length);
             boolean frameAware  = engine.getInputNames().length == inputImages.nInputs() + 1;
             double interval = framesToPredict.length;
@@ -2187,8 +2276,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             for (int i = 0; i < framesToPredict.length; i += increment ) {
                 int idxMax = Math.min(i + increment, framesToPredict.length);
                 Image[][][] input = getInputs(inputImages, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval, nGaps, frameAware, faMode.getSelectedEnum());
-                logger.debug("input: [{}; {}] / [{}; {}]", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1]);
-                Image[][][] predictions = getDlResizeAndScale(frameAware).predict(engine, input); // output 0=edm, 1= gcdm, 2=dy, 3=dx, 4=cat
+                logger.debug("input: [{}; {}] / [{}; {}] is3D: {}", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1], is3D);
+                Image[][][] predictions = getDlResizeAndScale(frameAware).predict(engine, input); // 2D output: 0=edm, 1=gcdm, 2=dy, 3=dx, 4=linkMul, 5=cat ; 3D output: 0=edm, 1=gcdm, 2=dz, 3=dy, 4=dx, 5=linkMul, 6=cat
                 appendPrediction(predictions, i);
             }
         }
@@ -2198,25 +2287,36 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.arraycopy(ResizeUtils.getChannel(predictions[0], 0), 0, this.edm, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[1], 0), 0, this.gcdm, idx, n);
             for (int i = idx; i<idx+n; ++i) ImageOperations.applyFunction(this.gcdm[i], c -> c<0 ? 0 : c, true);
+            // output indices shift when 3D: dz is inserted at index 2
+            int dzOutputIdx = 2; // only used when is3D
+            int dyOutputIdx = is3D ? 3 : 2;
+            int dxOutputIdx = is3D ? 4 : 3;
+            int linkMulOutputIdx = is3D ? 5 : 4;
+            int catOutputIdx = is3D ? 6 : 5;
             if (predictCategory.getSelected()) {
-                if (catNC == null) catNC = new Image[edm.length][predictions[5][0].length - 1];
+                if (catNC == null) catNC = new Image[edm.length][predictions[catOutputIdx][0].length - 1];
                 for (int i = 0; i<n; ++i) {
-                    for (int c = 0; c < catNC[0].length; ++c) catNC[i+idx][c] = predictions[5][i][c];
+                    for (int c = 0; c < catNC[0].length; ++c) catNC[i+idx][c] = predictions[catOutputIdx][i][c];
                 }
             }
-            int totalFramePairs = predictions[2][0].length / 2;
+            int totalFramePairs = predictions[dyOutputIdx][0].length / 2;
             //logger.debug("total frame pairs: {}", totalFramePairs);
             if (nGaps >= totalFramePairs) throw new RuntimeException("Model predicts only "+(totalFramePairs - 1)+" gaps");
             for (int i = 0; i <= nGaps; ++i) {
-                System.arraycopy(ResizeUtils.getChannel(predictions[2], i), 0, this.dyBW[i], idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[3], i), 0, this.dxBW[i], idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[2], i+totalFramePairs), 0, this.dyFW[i], idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[3], i+totalFramePairs), 0, this.dxFW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[dyOutputIdx], i), 0, this.dyBW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[dxOutputIdx], i), 0, this.dxBW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[dyOutputIdx], i+totalFramePairs), 0, this.dyFW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[dxOutputIdx], i+totalFramePairs), 0, this.dxFW[i], idx, n);
 
-                System.arraycopy(ResizeUtils.getChannel(predictions[4], i * 3 + 1), 0, this.multipleLinkBW[i], idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[4], i * 3 + 2), 0, this.noLinkBW[i], idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[4], i * 3 + 1 + totalFramePairs * 3), 0, this.multipleLinkFW[i], idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[4], i * 3 + 2 + totalFramePairs * 3), 0, this.noLinkFW[i], idx, n);
+                if (is3D) {
+                    System.arraycopy(ResizeUtils.getChannel(predictions[dzOutputIdx], i), 0, this.dzBW[i], idx, n);
+                    System.arraycopy(ResizeUtils.getChannel(predictions[dzOutputIdx], i+totalFramePairs), 0, this.dzFW[i], idx, n);
+                }
+
+                System.arraycopy(ResizeUtils.getChannel(predictions[linkMulOutputIdx], i * 3 + 1), 0, this.multipleLinkBW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[linkMulOutputIdx], i * 3 + 2), 0, this.noLinkBW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[linkMulOutputIdx], i * 3 + 1 + totalFramePairs * 3), 0, this.multipleLinkFW[i], idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[linkMulOutputIdx], i * 3 + 2 + totalFramePairs * 3), 0, this.noLinkFW[i], idx, n);
             }
         }
     }
@@ -2240,13 +2340,18 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         logger.info("{} predictions made in {}s", parentTrack.size(), Utils.format((t3 - t2)/1000d, 5));
 
         // resampling
-        Consumer<Map.Entry<SegmentedObject, Image>> resample, resampleDX, resampleDY;
+        boolean is3D = pred.is3D;
+        Consumer<Map.Entry<SegmentedObject, Image>> resample, resampleDX, resampleDY, resampleDZ;
         Consumer<Map.Entry<SegmentedObject, Image[]>> resampleCat;
         if (dlResizeAndScale.getMode().equals(DLResizeAndScale.MODE.RESAMPLE)) {
-            int[][] dim = parentTrack.stream().map(SegmentedObject::getBounds).map(bds -> new int[]{bds.sizeX(), bds.sizeY()}).toArray(int[][]::new);
             InterpolatorFactory linInterp = new NLinearInterpolatorFactory();
-            resample = e -> e.setValue(Resize.resample(e.getValue(), linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY()));
-            resampleCat = e -> e.setValue(Arrays.stream(e.getValue()).map(im -> Resize.resample(im, linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY())).toArray(Image[]::new));
+            if (is3D) {
+                resample = e -> e.setValue(Resize.resample(e.getValue(), linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY(), e.getKey().getBounds().sizeZ()));
+                resampleCat = e -> e.setValue(Arrays.stream(e.getValue()).map(im -> Resize.resample(im, linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY(), e.getKey().getBounds().sizeZ())).toArray(Image[]::new));
+            } else {
+                resample = e -> e.setValue(Resize.resample(e.getValue(), linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY()));
+                resampleCat = e -> e.setValue(Arrays.stream(e.getValue()).map(im -> Resize.resample(im, linInterp, e.getKey().getBounds().sizeX(), e.getKey().getBounds().sizeY())).toArray(Image[]::new));
+            }
             resampleDX = e -> {
                 ImageOperations.affineOpMulAdd(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeX() / e.getValue().sizeX(), 0);
                 resample.accept(e);
@@ -2255,10 +2360,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 ImageOperations.affineOpMulAdd(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeY() / e.getValue().sizeY(), 0);
                 resample.accept(e);
             };
+            resampleDZ = e -> {
+                ImageOperations.affineOpMulAdd(e.getValue(), e.getValue(), (double) e.getKey().getBounds().sizeZ() / e.getValue().sizeZ(), 0);
+                resample.accept(e);
+            };
         } else {
             resample = e -> {};
             resampleDX = resample;
             resampleDY = resample;
+            resampleDZ = resample;
             resampleCat = e -> {};
         }
         // offset & calibration
@@ -2293,13 +2403,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             return res;
         };
         BiFunction<Image[], Consumer<Map.Entry<SegmentedObject, Image>>, Map<SegmentedObject, Image>> getFWMap = legacyVersion ? getFWMapLegacy : getFWMapNew;
-        PredictionResults res = (previousPredictions == null ? new PredictionResults(nGaps.getIntValue(), inputImages.dbim) : previousPredictions)
+        PredictionResults res = (previousPredictions == null ? new PredictionResults(nGaps.getIntValue(), is3D, inputImages.dbim) : previousPredictions)
                 .setEdm(getSegMap.apply(pred.edm)).setGCDM(getSegMap.apply(pred.gcdm)).setCat(predictCategory.getSelected() ? getCatMap.apply(pred.catNC) : null);
         for (int g = 0; g<=nGaps.getIntValue(); ++g) {
             res.setDxBW(getBWMap.apply(pred.dxBW[g], resampleDX), g).setDyBW(getBWMap.apply(pred.dyBW[g], resampleDY), g)
             .setMultipleLinkBW(getBWMap.apply(pred.multipleLinkBW[g], resample), g).setNoLinkBW(getBWMap.apply(pred.noLinkBW[g], resample), g)
             .setDxFW(getFWMap.apply(pred.dxFW[g], resampleDX), g).setDyFW(getFWMap.apply(pred.dyFW[g], resampleDX), g)
             .setMultipleLinkFW(getFWMap.apply(pred.multipleLinkFW[g], resample), g).setNoLinkFW(getFWMap.apply(pred.noLinkFW[g], resample), g);
+            if (is3D) {
+                res.setDzBW(getBWMap.apply(pred.dzBW[g], resampleDZ), g).setDzFW(getFWMap.apply(pred.dzFW[g], resampleDZ), g);
+            }
         }
         return res;
     }
@@ -2316,9 +2429,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Map<SegmentedObject, Image> edm, gcdm;
         Map<SegmentedObject, Image[]> cat;
         Map<SegmentedObject, Image> lastCat;
-        Map<SegmentedObject, Image>[] dxBW, dxFW, dyBW, dyFW, multipleLinkBW, multipleLinkFW, noLinkBW, noLinkFW;
+        Map<SegmentedObject, Image>[] dxBW, dxFW, dyBW, dyFW, dzBW, dzFW, multipleLinkBW, multipleLinkFW, noLinkBW, noLinkFW;
+        boolean is3D;
         DiskBackedImageManager dbim;
-        public PredictionResults(int nGaps, DiskBackedImageManager dbim) {
+        public PredictionResults(int nGaps, boolean is3D, DiskBackedImageManager dbim) {
             dxBW = new Map[nGaps+1];
             dxFW = new Map[nGaps+1];
             dyBW = new Map[nGaps+1];
@@ -2327,6 +2441,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             multipleLinkFW = new Map[nGaps+1];
             noLinkBW = new Map[nGaps+1];
             noLinkFW = new Map[nGaps+1];
+            this.is3D = is3D;
+            if (is3D) {
+                dzBW = new Map[nGaps+1];
+                dzFW = new Map[nGaps+1];
+            }
             this.dbim=dbim;
         }
 
@@ -2420,6 +2539,20 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             ensureDBI(dyFW, i -> TypeConverter.toFloat8(i, null));
             if (this.dyFW[gap]!=null) this.dyFW[gap].putAll(dyFW);
             else this.dyFW[gap]=dyFW;
+            return this;
+        }
+
+        public PredictionResults setDzBW(Map<SegmentedObject, Image> dzBW, int gap) {
+            ensureDBI(dzBW, i -> TypeConverter.toFloat8(i, null));
+            if (this.dzBW[gap]!=null) this.dzBW[gap].putAll(dzBW);
+            else this.dzBW[gap]=dzBW;
+            return this;
+        }
+
+        public PredictionResults setDzFW(Map<SegmentedObject, Image> dzFW, int gap) {
+            ensureDBI(dzFW, i -> TypeConverter.toFloat8(i, null));
+            if (this.dzFW[gap]!=null) this.dzFW[gap].putAll(dzFW);
+            else this.dzFW[gap]=dzFW;
             return this;
         }
 
