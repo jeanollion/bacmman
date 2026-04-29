@@ -9,6 +9,7 @@ import bacmman.plugins.Hint;
 import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class RawImage implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<RawImage>, Hint {
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
@@ -35,7 +36,7 @@ public class RawImage implements FeatureExtractor, FeatureExtractor.FeatureExtra
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res = byChannel ? parent.getRawImageByChannel(objectClassIdx) : parent.getRawImage(objectClassIdx);
         if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
         else return extractZ.getConfig().handleZ(res);

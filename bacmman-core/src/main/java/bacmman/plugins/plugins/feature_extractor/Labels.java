@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class Labels implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<Labels>, Hint {
     final static Logger logger = LoggerFactory.getLogger(Labels.class);
@@ -24,7 +25,7 @@ public class Labels implements FeatureExtractor, FeatureExtractor.FeatureExtract
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         Image res= resampledPopulations.get(objectClassIdx).get(parent).getLabelMap();
         if (extractZ.getExtractZDim().equals(ExtractZAxisParameter.ExtractZAxis.CHANNEL)) return res; // handled later
         else return extractZ.getConfig().handleZ(res);

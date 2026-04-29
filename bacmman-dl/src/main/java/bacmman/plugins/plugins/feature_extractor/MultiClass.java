@@ -12,6 +12,7 @@ import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -37,7 +38,7 @@ public class MultiClass implements FeatureExtractor, FeatureExtractor.FeatureExt
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         List<ImageMask> images = IntStream.of(classes.getSelectedIndices()).mapToObj(oc -> resampledPopulations.get(oc).get(parent).getLabelMap()).collect(Collectors.toList());
         ImageByte res = new ImageByte("", images.get(0));
         for (int i = 0; i<images.size(); ++i) {

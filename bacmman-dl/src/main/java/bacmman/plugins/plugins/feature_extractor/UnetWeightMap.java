@@ -1,6 +1,7 @@
 package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
@@ -11,6 +12,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class UnetWeightMap implements FeatureExtractor, FeatureExtractor.FeatureExtractorConfigurableZDim<UnetWeightMap>, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 2, 5, 0.1, null).setHint("Controls the value between segmented regions");
@@ -30,10 +32,10 @@ public class UnetWeightMap implements FeatureExtractor, FeatureExtractor.Feature
         double apply(int x, int y, int z);
     }
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         RegionPopulation pop = resampledPopulations.get(objectClassIdx).get(parent);
         // compute class frequency
-        double foreground = pop.getRegions().stream().mapToDouble(r->r.size()).sum();
+        double foreground = pop.getRegions().stream().mapToDouble(Region::size).sum();
         int total = pop.getImageProperties().sizeXY();
         double background = total - foreground;
         double[] wc = new double[]{1, background  / foreground};

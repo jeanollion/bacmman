@@ -12,6 +12,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class PreviousLabels implements FeatureExtractorTemporal, Hint {
@@ -35,15 +36,15 @@ public class PreviousLabels implements FeatureExtractorTemporal, Hint {
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         RegionPopulation curPop = resampledPopulations.get(objectClassIdx).get(parent);
         Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().stream().mapToInt(Region::getLabel).max().orElse(0), curPop.getImageProperties());
         int previousFrame = parent.getFrame() - subsamplingFactor;
         SegmentedObject previousParent = parent.getPreviousAtFrame(previousFrame, false);
         if (previousParent!=null && resampledPopulations.get(objectClassIdx).get(previousParent)!=null) { // if first frame previous image is self: no previous labels
-            parent.getChildren(objectClassIdx).forEach(c -> {
+            parent.getChildren(objectClassIdx).filter(includeObject == null ? o -> true : includeObject).forEach(c -> {
                 SegmentedObject previous = c.getPreviousAtFrame(previousFrame, false);
-                if (previous != null) {
+                if (previous != null && (includeObject == null || includeObject.test(previous)) ) {
                     Region r = curPop.getRegion(c.getIdx() + 1);
                     if (r == null) {
                         logger.error("Object: {} (rel center: {}, bds: {}) not found from it's label. all labels (-1): {}, all objects: {}", c, c.getRegion().getGeomCenter(false).translate(c.getParent().getBounds().duplicate().reverseOffset()), c.getRelativeBoundingBox(c.getParent()), curPop.getRegions().stream().mapToInt(re -> re.getLabel() - 1).toArray(), parent.getChildren(objectClassIdx).filter(o -> o.getPrevious() != null).collect(Collectors.toList()));

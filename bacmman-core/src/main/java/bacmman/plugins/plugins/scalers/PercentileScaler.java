@@ -17,6 +17,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
     double offset, scale;
     IntervalParameter percentile = new IntervalParameter("Min/Max Percentiles", 5, 0, 1, 0.01, 0.99).setEmphasized(true);
     ArrayNumberParameter saturate = new ArrayNumberParameter("Saturate", 1, new BoundedNumberParameter("Power Law", 5, 1, 0, 1)).setLegacyParameter((lp, a) -> {
+        //logger.debug("legacy init for saturate param: {}", lp[0]);
         if (((BooleanParameter)lp[0]).getSelected()) a.setValue(0, 0);
         else a.setValue(1, 1);
     }, new BooleanParameter("Saturate", true)).setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2).setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +

@@ -12,6 +12,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,16 +36,18 @@ public class Category implements FeatureExtractorConfigurable, Hint {
     int maxObjectIdx = -1;
 
     @Override
-    public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx) {
-        maxObjectIdx = parentTrack.mapToInt(p -> p.getChildren(objectClassIdx).mapToInt(SegmentedObject::getIdx).max().orElse(0)).max().orElse(0);
+    public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx, Predicate<SegmentedObject> includeObject) {
+        Predicate<SegmentedObject> includeObjectF = includeObject==null ? o->true : includeObject;
+        maxObjectIdx = parentTrack.mapToInt(p -> p.getChildren(objectClassIdx).filter(includeObjectF).mapToInt(SegmentedObject::getIdx).max().orElse(0)).max().orElse(0);
     }
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (maxObjectIdx <0) throw new RuntimeException("Feature not configured");
         ImageShort res=new ImageShort("category", 1, maxObjectIdx + 1, 1);
         List<Selection> selections = selection.getSelectedSelections().collect(Collectors.toList());
-        parent.getChildren(objectClassIdx).sorted().forEach(c -> res.setPixel( 0, c.getIdx(), 0, getCategory(c, selections)));
+        Predicate<SegmentedObject> includeObjectF = includeObject==null ? o->true : includeObject;
+        parent.getChildren(objectClassIdx).filter(includeObjectF).sorted().forEach(c -> res.setPixel( 0, c.getIdx(), 0, getCategory(c, selections)));
         return res;
     }
 

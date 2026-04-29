@@ -16,6 +16,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -38,7 +39,7 @@ public class PixelData implements FeatureExtractor.FeatureExtractorOneEntryPerIn
     ConditionalParameter<Boolean> includeCoordsCond = new ConditionalParameter<>(includeCoordinates).setActionParameters(true, includeXCoordinate, includeYCoordinate, includeZCoordinate, referencePoint);
 
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (objectClassIdx != parent.getStructureIdx()) throw new IllegalArgumentException("invalid object class: should correspond to parent selection that has object class==: "+parent.getStructureIdx());
         double zAspectRatio = parent.getScaleZ()/parent.getScaleXY();
         boolean resample = !evfList.isEmpty() && evfList.getChildAt(0).getResampleZ() || downsamplingFactor>1;

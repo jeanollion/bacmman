@@ -187,11 +187,12 @@ public class ExtractDatasetUtil {
                                 }
                                 String outputName = subsamplingFactor <= 1 ? baseOutputName : baseOutputName + "sub" + subsamplingFactor + "/" + "off" + Utils.formatInteger(subsamplingFactor - 1, 1, offset) + "/";
                                 if (temporal)  ((FeatureExtractorTemporal) feature.getFeatureExtractor()).setSubsampling(subsamplingFactor, offset);
-                                if (configurable)  ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass());
+                                Predicate<SegmentedObject> objectFilter = selFilter == null ? o -> true : selFilter::contains;
+                                if (configurable)  ((FeatureExtractorConfigurable) feature.getFeatureExtractor()).configure(parentSubSelection.getAllElementsAsStream(), feature.getObjectClass(), objectFilter);
                                 boolean isLabel = feature.getFeatureExtractor() instanceof Labels;
                                 boolean noResize = feature.getFeatureExtractor().interpolation() == null || TrainingConfigurationParameter.RESIZE_MODE.NONE.equals(resizeMode);
                                 TrainingConfigurationParameter.RESIZE_MODE curResizeMode = noResize ? TrainingConfigurationParameter.RESIZE_MODE.NONE : (isLabel ? TrainingConfigurationParameter.RESIZE_MODE.PAD : resizeMode);
-                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(!noResize && !isLabel?duplicateAsBox.apply(e):e, feature.getObjectClass(), curResizedPops, spatialDownsamplingFactor, dimensions);
+                                extractFunction = e -> feature.getFeatureExtractor().extractFeature(!noResize && !isLabel?duplicateAsBox.apply(e):e, feature.getObjectClass(), objectFilter, curResizedPops, spatialDownsamplingFactor, dimensions);
                                 extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, oneEntryPerTrack, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions, curCropStartMap);
                             }
                             saveLabels = false;
@@ -657,20 +658,20 @@ public class ExtractDatasetUtil {
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
         features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass, selectionFilter ));
         if (categorySelection != null && !categorySelection.isEmpty()) {
-            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
+            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass, selectionFilter));
         }
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String filterSelection, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
-        features.add(new FeatureExtractor.Feature( new Labels(), objectClass, filterSelection ));
+        features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
         if (categorySelection != null && !categorySelection.isEmpty()) {
-            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass));
+            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass, selectionFilter));
         }
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);

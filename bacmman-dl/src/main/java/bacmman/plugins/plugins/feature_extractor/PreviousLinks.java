@@ -15,28 +15,31 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtractorTemporal, Hint {
     int maxLinkNumber = -1;
     @Override
-    public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx) {
+    public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx, Predicate<SegmentedObject> includeObject) {
+        Predicate<SegmentedObject> includeObjectF = includeObject==null ? o->true : includeObject;
         maxLinkNumber = Math.max(1, parentTrack.mapToInt(p -> {
             SegmentedObject prevParent = p.getPreviousAtFrame(p.getFrame() - subsamplingFactor, false);
             Set<SegmentedObject> remainingPreviousObjects = prevParent != null ? prevParent.getChildren(objectClassIdx).collect(Collectors.toSet()) : new HashSet<>(0);
-            int count = p.getChildren(objectClassIdx).mapToInt(c -> (int)Math.max(1, SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).peek(remainingPreviousObjects::remove).count())).sum();
+            int count = p.getChildren(objectClassIdx).filter(includeObjectF).mapToInt(c -> (int)Math.max(1, SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).peek(remainingPreviousObjects::remove).count())).sum();
             return count + remainingPreviousObjects.size();
         }).max().orElse(1));
     }
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions) {
         if (maxLinkNumber <0) throw new RuntimeException("Feature not configured");
         int[] idx = new int[1];
+        Predicate<SegmentedObject> includeObjectF = includeObject == null ? o -> true : includeObject;
         ImageShort res=new ImageShort("linksPrev", 3, maxLinkNumber, 1);
         SegmentedObject prevParent = parent.getPreviousAtFrame(parent.getFrame() - subsamplingFactor, false);
-        Set<SegmentedObject> remainingPreviousObjects = prevParent != null ? prevParent.getChildren(objectClassIdx).collect(Collectors.toSet()) : new HashSet<>(0);
-        parent.getChildren(objectClassIdx).sorted().forEach(c -> {
+        Set<SegmentedObject> remainingPreviousObjects = prevParent != null ? prevParent.getChildren(objectClassIdx).filter(includeObjectF).collect(Collectors.toSet()) : new HashSet<>(0);
+        parent.getChildren(objectClassIdx).filter(includeObjectF).sorted().forEach(c -> {
             int count = idx[0];
             SegmentedObjectEditor.getPreviousAtFrame(c, c.getFrame() - subsamplingFactor).sorted().forEach(p -> {
                 if (p.getFrame() != c.getFrame() - subsamplingFactor) throw new RuntimeException("ERROR GET PREVIOUS: " + c + " has prev: " + p + " sub factor:" + subsamplingFactor);

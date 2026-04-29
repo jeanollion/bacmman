@@ -8,9 +8,10 @@ import bacmman.image.Image;
 import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Map;
+import java.util.function.Predicate;
 
 public interface FeatureExtractor extends Plugin {
-    Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions);
+    Image extractFeature(SegmentedObject parent, int objectClassIdx, Predicate<SegmentedObject> includeObject, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int downsamplingFactor, int[] resampleDimensions);
     InterpolatorFactory interpolation();
     String defaultName();
     ExtractZAxisParameter.ExtractZAxis getExtractZDim();
