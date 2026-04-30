@@ -1,21 +1,14 @@
-package bacmman.plugins.plugins.measurements;
+package bacmman.plugins.plugins.track_post_filter;
 
 import bacmman.configuration.parameters.*;
-import bacmman.data_structure.Region;
-import bacmman.data_structure.RegionPopulation;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.*;
 import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.DLEngine;
-import bacmman.plugins.Hint;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.MultiThreaded;
+import bacmman.plugins.*;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,8 +20,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
-    protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
+public class DLObjectClassifier implements TrackPostFilter, Hint, MultiThreaded {
     protected ChannelImageParameter channels = new ChannelImageParameter("Channels", true, true)
             .setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
@@ -43,50 +35,28 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix for measurement names");
     enum STAT {MEAN, MEDIAN}
     EnumChoiceParameter<STAT> stat =  new EnumChoiceParameter<>("Quantification", STAT.values(), STAT.MEDIAN).setHint("Operation to reduce estimated probability in each segmented object");
-    BooleanParameter legacyMode = new BooleanParameter("Legacy Mode", false);
+    IntegerParameter frameWindow = new IntegerParameter("FrameWindow", 0).setHint("Define the size of the input frame window. Set 0 if prediction is performed on single frames");
+
     public DLObjectClassifier() {
         channels.addValidationFunction(chs -> dlResizeAndScale.getInputNumber() == chs.getSelectedIndices().length);
         dlResizeAndScale.addInputNumberValidation( () -> channels.getSelectedIndices().length );
     }
 
     @Override
-    public String getHintText() {
-        return "Runs a DL model fed with one or several channels as well as EDM/CDM of segmented objects (in this order, one input for EDM and one input for each channel) ; it predicts a category for each object";
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return frameWindow.getIntValue() == 0 ? ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS : ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL;
     }
 
     @Override
-    public int getCallObjectClassIdx() {
-        return objects.getParentObjectClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-
-    @Override
-    public List<MeasurementKey> getMeasurementKeys() {
-        ArrayList<MeasurementKey> res = new ArrayList<>();
-        res.add(new MeasurementKeyObject(prefix.getValue()+"ClassIdx", objects.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix.getValue()+"Proba", objects.getSelectedClassIdx()));
-        if (proba.getSelected()) {
-            for (int i = 0; i < classNumber.getIntValue(); ++i)
-                res.add(new MeasurementKeyObject(prefix.getValue() + "ProbaClass_" + i, objects.getSelectedClassIdx()));
-        }
-        return res;
-    }
-
-    @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
-        boolean legacyMode = this.legacyMode.getSelected();
+    public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         //dlResizeAndScale.setScaleLogger(Core::userLog);
-        Map<SegmentedObject, List<SegmentedObject>> parentMapChildren = SegmentedObjectUtils.getTrack(parentTrackHead).stream().collect(Collectors.toMap(i->i, i->i.getChildren(objects.getSelectedClassIdx()).collect(Collectors.toList())));
+        Map<SegmentedObject, List<SegmentedObject>> parentMapChildren = parentTrack.stream().collect(Collectors.toMap(i->i, i->i.getChildren(structureIdx).collect(Collectors.toList())));
         parentMapChildren.entrySet().removeIf(e -> e.getValue().isEmpty()); // do not predict when no objects
         SegmentedObject[] parentArray = parentMapChildren.keySet().toArray(new SegmentedObject[0]);
         // prepare inputs: EDM/CDM + channels
         Map<SegmentedObject, Region> regions = new HashMapGetCreate.HashMapGetCreateRedirected<>(SegmentedObject::getRegion);
         Function<SegmentedObject, RegionPopulation> createPop = p -> {
-            RegionPopulation res = p.getChildRegionPopulation(objects.getSelectedClassIdx());
+            RegionPopulation res = p.getChildRegionPopulation(structureIdx);
             if (eraseTouchingContours.getSelected()) {
                 res = res.duplicate();
                 List<SegmentedObject> so = parentMapChildren.get(p);
@@ -94,18 +64,19 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
             }
             return res;
         };
-        int[] channels = this.channels.getSelectedIndices().length==0 ? new int[]{parentTrackHead.getExperimentStructure().getChannelIdx(this.objects.getSelectedClassIdx())} : this.channels.getSelectedIndices();
-        Supplier<IntStream> chanStream = legacyMode ? ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1)) : ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1, -2));
+        int[] channels = this.channels.getSelectedIndices().length==0 ? new int[]{parentTrack.get(0).getExperimentStructure().getChannelIdx(structureIdx)} : this.channels.getSelectedIndices();
+        Supplier<IntStream> chanStream = ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1, -2));
+        // TODO : add timelapse mode.
         Image[][][] chans = chanStream.get()
                 .mapToObj(i -> parentMapChildren.keySet().stream()
-                .map(p->i>=0 ? p.getRawImageByChannel(i) : (i==-1 ? createPop.apply(p).getEDM(true, true) : createPop.apply(p).getGCDM(true) ) )
-                .map(im -> new Image[]{im})// per channel per object
-                .toArray(Image[][]::new)) // per channel
+                        .map(p->i>=0 ? p.getRawImageByChannel(i) : (i==-1 ? createPop.apply(p).getEDM(true, true) : createPop.apply(p).getGCDM(true) ) )
+                        .map(im -> new Image[]{im})// per channel per object
+                        .toArray(Image[][]::new)) // per channel
                 .toArray(Image[][][]::new);
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         //dlResizeAndScale.setScaleLogger(Core::userLog);
-        Image[][] predNC = getDlResizeAndScale(channels.length, legacyMode).predict(engine, chans)[0];
+        Image[][] predNC = getDlResizeAndScale(channels.length).predict(engine, chans)[0];
         boolean allProba = this.proba.getSelected();
         if (allProba && predNC[0].length!=classNumber.getIntValue()) throw new RuntimeException("ClassNumber parameter differs from number of predicted classes: "+predNC[0].length);
         BiFunction<Region, Image[], double[]> reduction;
@@ -120,32 +91,34 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
         }
         for (int i = 0; i<predNC.length; ++i) {
             Image[] predC = predNC[i];
-            int corr = legacyMode ? -1 : 0;
             parentMapChildren.get(parentArray[i]).forEach(o -> {
                 double[] probas = reduction.apply(regions.get(o), predC);
                 int idxMax = ArrayUtil.max(probas);
-                o.getMeasurements().setValue(prefix.getValue()+"ClassIdx", idxMax+corr);
-                o.getMeasurements().setValue(prefix.getValue()+"Proba", probas[idxMax]);
+                o.setAttribute(prefix.getValue()+"ClassIdx", idxMax);
+                o.setAttribute(prefix.getValue()+"Proba", probas[idxMax]);
                 if (allProba) {
-                    for (int c = 0; c<probas.length; ++c) o.getMeasurements().setValue(prefix.getValue() + "ProbaClass_" + c, probas[c]);
+                    for (int c = 0; c<probas.length; ++c) o.setAttribute(prefix.getValue() + "ProbaClass_" + c, probas[c]);
                 }
             });
         }
     }
 
-    protected DLResizeAndScale getDlResizeAndScale(int nChannels, boolean legacyMode) {
+
+
+    @Override
+    public String getHintText() {
+        return "Runs a DL model fed with one or several channels as well as EDM/CDM of segmented objects (in this order, one input for EDM and one input for each channel) ; it predicts a category for each object";
+    }
+
+    protected DLResizeAndScale getDlResizeAndScale(int nChannels) {
         // add scaling & interpolation for EDM and GCDM for each label
         DLResizeAndScale res = dlResizeAndScale.duplicate().setScaleLogger(dlResizeAndScale.getScaleLogger());
-        if (legacyMode) { // legacy mode: channels then EDM
-            res.setInputNumber( nChannels + 1 );
-            res.setScaler(nChannels, null);
-        } else { // normal mode: channel, then EDM then CDM
-            res.setInputNumber( nChannels + 2 );
-            int[] labelIdx = IntStream.range(nChannels, nChannels + 2).toArray();
-            for (int i : labelIdx) res.setScaler(i, null); // no intensity scaling for EDM and CDM
-            if (res.getMode().equals(DLResizeAndScale.MODE.RESAMPLE)) { // set interpolation : identical to 1st channel (EDM & CDM are floating point maps)
-                res.setInterpolationForInput(res.getInputInterpolation(0), labelIdx);
-            }
+        // channel, then EDM then CDM
+        res.setInputNumber( nChannels + 2 );
+        int[] labelIdx = IntStream.range(nChannels, nChannels + 2).toArray();
+        for (int i : labelIdx) res.setScaler(i, null); // no intensity scaling for EDM and CDM
+        if (res.getMode().equals(DLResizeAndScale.MODE.RESAMPLE)) { // set interpolation : identical to 1st channel (EDM & CDM are floating point maps)
+            res.setInterpolationForInput(res.getInputInterpolation(0), labelIdx);
         }
         return res;
 
@@ -153,7 +126,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{objects, channels, probaCond, dlEngine, dlResizeAndScale, stat, eraseTouchingContours, prefix, legacyMode};
+        return new Parameter[]{channels, probaCond, dlEngine, dlResizeAndScale, stat, eraseTouchingContours, prefix};
     }
     boolean parallel;
     @Override
