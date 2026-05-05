@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.ByteBuffer;
+import java.nio.*;
 import java.nio.channels.FileChannel;
 import java.util.*;
 import java.util.UUID;
@@ -243,167 +243,142 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     }
 
     private static void read(File file, byte[][] array) throws IOException {
-        int sizeXY = array[0].length;
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "r");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = (long) array.length * array[0].length;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, array.length * array[0].length);
-            int off = 0;
-            for (int z = 0; z<array.length; ++z) {
-                for (int xy = 0; xy<sizeXY; ++xy) array[z][xy] = buf.get(xy + off);
-                off+=sizeXY;
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            for (byte[] row : array) buf.get(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void read(File file, short[][] array) throws IOException {
-        int sizeXY = array[0].length;
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "r");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 2L * array.length * array[0].length;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, 2 * array.length * array[0].length);
-            int off = 0;
-            for (int z = 0; z<array.length; ++z) {
-                for (int xy = 0; xy<sizeXY; ++xy) array[z][xy] = buf.getShort(2 * xy + off);
-                off+=2 * sizeXY;
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            ShortBuffer db = buf.asShortBuffer(); // bulk-read via native copy
+            for (short[] row : array) db.get(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void read(File file, int[][] array) throws IOException {
-        int sizeXY = array[0].length;
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "r");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 4L * array.length * array[0].length;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, 4 * array.length * array[0].length);
-            int off = 0;
-            for (int z = 0; z<array.length; ++z) {
-                for (int xy = 0; xy<sizeXY; ++xy) array[z][xy] = buf.getInt(4 * xy + off);
-                off+=4 * sizeXY;
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            IntBuffer db = buf.asIntBuffer(); // bulk-read via native copy
+            for (int[] row : array) db.get(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void read(File file, float[][] array) throws IOException {
-        int sizeXY = array[0].length;
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "r");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 4L * array.length * array[0].length;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, 4 * array.length * array[0].length);
-            int off = 0;
-            for (int z = 0; z<array.length; ++z) {
-                for (int xy = 0; xy<sizeXY; ++xy) array[z][xy] = buf.getFloat(4 * xy + off);
-                off+=4 * sizeXY;
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            FloatBuffer db = buf.asFloatBuffer(); // bulk-read via native copy
+            for (float[] row : array) db.get(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void read(File file, double[][] array) throws IOException {
-        int sizeXY = array[0].length;
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "r");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 8L * array.length * array[0].length;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, 8 * array.length * array[0].length);
-            int off = 0;
-            for (int z = 0; z<array.length; ++z) {
-                for (int xy = 0; xy<sizeXY; ++xy) array[z][xy] = buf.getDouble(8 * xy + off);
-                off+=8 * sizeXY;
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
-        }
-    }
-
-
-    private static void write(File file, int[][] array) throws IOException {
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "rw");
-            FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, 4 * array.length * array[0].length);
-            for (int z = 0; z<array.length; ++z) {
-                for (int i : array[z]) buf.putInt(i);
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            DoubleBuffer db = buf.asDoubleBuffer(); // bulk-read via native copy
+            for (double[] row : array) db.get(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void write(File file, byte[][] array) throws IOException {
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "rw");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = (long) array.length * array[0].length; // avoid int overflow
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(totalSize); // <-- ensures the file is large enough before mapping
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, array.length * array[0].length);
-            for (int z = 0; z<array.length; ++z) {
-                for (byte i : array[z]) buf.put(i);
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            for (byte[] row : array) buf.put(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void write(File file, short[][] array) throws IOException {
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "rw");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 2L * array.length * array[0].length; // 2 bytes per short, long to avoid overflow
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, 2 * array.length * array[0].length);
-            for (int z = 0; z<array.length; ++z) {
-                for (short i : array[z]) buf.putShort(i);
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            ShortBuffer sb = buf.asShortBuffer(); // view avoids repeated byte-packing overhead
+            for (short[] row : array) sb.put(row);
+            unmapBuffer(buf);
+        }
+    }
+
+    private static void write(File file, int[][] array) throws IOException {
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 4L * array.length * array[0].length; // 4 bytes per int, long to avoid overflow
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(totalSize);
+            FileChannel fc = raf.getChannel();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            IntBuffer sb = buf.asIntBuffer(); // view avoids repeated byte-packing overhead
+            for (int[] row : array) sb.put(row);
+            unmapBuffer(buf);
         }
     }
 
     private static void write(File file, float[][] array) throws IOException {
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "rw");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 4L * array.length * array[0].length; // 4 bytes per float, long to avoid overflow
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, 4 * array.length * array[0].length);
-            for (int z = 0; z<array.length; ++z) {
-                for (float i : array[z]) buf.putFloat(i);
-            }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            FloatBuffer sb = buf.asFloatBuffer(); // view avoids repeated byte-packing overhead
+            for (float[] row : array) sb.put(row);
+            unmapBuffer(buf);
         }
     }
+
     private static void write(File file, double[][] array) throws IOException {
-        RandomAccessFile raf = null;
-        try {
-            raf = new RandomAccessFile(file, "rw");
+        if (array.length == 0 || array[0].length == 0) return;
+        long totalSize = 8L * array.length * array[0].length; // 8 bytes per float, long to avoid overflow
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
-            ByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, 8 * array.length * array[0].length);
-            for (int z = 0; z<array.length; ++z) {
-                for (double i : array[z]) buf.putDouble(i);
+            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            DoubleBuffer sb = buf.asDoubleBuffer(); // view avoids repeated byte-packing overhead
+            for (double[] row : array) sb.put(row);
+            unmapBuffer(buf);
+        }
+    }
+
+    private static void unmapBuffer(MappedByteBuffer buf) {
+        if (buf == null) return;
+        try {
+            // Java 9+: use Cleaner via DirectBuffer if available
+            Class<?> directBufferClass = Class.forName("sun.nio.ch.DirectBuffer");
+            if (directBufferClass.isInstance(buf)) {
+                Object cleaner = directBufferClass.getMethod("cleaner").invoke(buf);
+                if (cleaner != null) {
+                    cleaner.getClass().getMethod("clean").invoke(cleaner);
+                }
             }
-            fc.close();
-        } finally {
-            if (raf!=null) raf.close();
+        } catch (Exception e) {
+            // Fallback: not a DirectBuffer or reflection blocked — let GC handle it
+            // Safe on all platforms, just less immediate
         }
     }
 }

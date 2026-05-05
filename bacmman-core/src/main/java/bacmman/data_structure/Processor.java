@@ -422,6 +422,7 @@ public class Processor {
                 logger.debug("processing pipeline {} executed on track: {}, structure: {}", ps.getClass(), parentTrack.get(0), structureIdx);
             } catch(Throwable e) {
                 parentTrack.forEach(p -> p.setChildren(Collections.EMPTY_LIST, structureIdx)); // remove segmented objects if present to avoid saving them in DAO
+                logger.debug("error while executing processing pipeline: @"+parentTrack.get(0)+ " oc="+structureIdx, e);
                 throw e;
             } finally { // clear voxels & pre-filtered images
                 parentTrack.stream().peek(p -> {

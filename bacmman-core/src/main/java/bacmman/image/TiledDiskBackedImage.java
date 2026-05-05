@@ -13,7 +13,9 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
     static int targetTileSize = 512 * 512;
     int[] tileDimensions;
     volatile DiskBackedImage<I>[][][] tilesZYX;
-    I image;
+    final Object tileLock = new Object();
+    volatile boolean tilingImage = false;
+    volatile I image;
 
     public TiledDiskBackedImage(I image, DiskBackedImageManager manager, boolean writable) {
         super(image.getName(), image, Image.copyType(image), manager, writable);
@@ -22,10 +24,12 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
 
     public Stream<DiskBackedImage<I>> streamTiles() {
         if (tilesZYX == null) return Stream.empty();
+        if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
         return Stream.of(tilesZYX).flatMap(Stream::of).flatMap(Stream::of);
     }
 
     protected void tileImage(boolean freeMemory) {
+        tilingImage = true;
         if (tileDimensions == null) tileDimensions = TileUtils.getOptimalTileSize(image.dimensions(), targetTileSize);
         if (tileDimensions.length == 2) tileDimensions = new int[]{tileDimensions[0], tileDimensions[1], 1};
         int[] size = image.dimensions();
@@ -50,11 +54,13 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
             zCoord += tileDimensions[2];
             yCoord = 0;
         }
+        tilingImage = false;
         if (freeMemory) image = null;
     }
 
     protected void stitchImage() {
         image = newImage(name, this);
+        if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
         for (int z = 0; z< tilesZYX.length; ++z) {
             for (int y = 0; y< tilesZYX[0].length; ++y) {
                 for (int x = 0; x< tilesZYX[0][0].length; ++x) {
@@ -97,19 +103,31 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
 
     @Override
     public void freeMemory(boolean storeIfModified) {
-        if (isOpen()) {
+        if (image != null) {
             synchronized (this) {
-                if (isOpen()) {
+                if (image != null) {
                     if (modified && storeIfModified) {
-                        if (image!=null && tilesZYX == null) {
-                            try {
-                                tileImage(true);
-                            } catch (Exception e) {
-                                streamTiles().filter(Objects::nonNull).forEach(t -> manager.detach(t, true));
-                                tilesZYX = null;  // leave object in consistent state
+                        if (tilesZYX == null) {
+                            synchronized (tileLock) {
+                                try {
+                                    tileImage(true);
+                                } catch (Exception e) {
+                                    try {
+                                        streamTiles().filter(Objects::nonNull).forEach(t -> {
+                                            try {
+                                                manager.detach(t, true);
+                                            } catch (Exception ex) { }
+                                        });
+                                    } finally {
+                                        tilesZYX = null;  // leave TiledDiskNackedImage object in consistent state
+                                        logger.error("error tiling image: ", e);
+                                    }
+                                } finally {
+                                    tilingImage = false;
+                                }
                             }
                         }
-                        modified = false;
+                        if (tilesZYX != null) modified = false;
                     }
                     if (tilesZYX != null) image = null;
                     if (tilesZYX != null) streamTiles().forEach(t -> t.freeMemory(storeIfModified));
@@ -163,7 +181,10 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 modified = true;
             }
         } else throw new RuntimeException("Image not writable");
-        if (tilesZYX != null) tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].setPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
+        if (tilesZYX != null) {
+            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
+            tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].setPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
+        }
         if (image != null) image.setPixel(x, y, z, value);
     }
 
@@ -179,7 +200,10 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 modified = true;
             }
         } else throw new RuntimeException("Image not writable");
-        if (tilesZYX != null) tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].addPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
+        if (tilesZYX != null) {
+            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
+            tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].addPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
+        }
         if (image != null) image.addPixel(x, y, z, value);
     }
 
@@ -198,6 +222,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
         if (tilesZYX != null) {
             int x = xy % sizeX;
             int y = xy / sizeX;
+            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
             tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].setPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
         }
         if (image != null) image.setPixel(xy, z, value);
@@ -310,6 +335,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
         } else throw new RuntimeException("Image not writable");
         if (image != null) image.invert();
         if (tilesZYX != null) {
+            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
             for (int z = 0; z< tilesZYX.length; ++z) {
                 for (int y = 0; y< tilesZYX[0].length; ++y) {
                     for (int x = 0; x< tilesZYX[0][0].length; ++x) {
