@@ -92,18 +92,21 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
+        if (yStop==0) yStop = image.sizeY()-1;
+        if (xStop==0) xStop = image.sizeX()-1;
+        BoundingBox bds = new SimpleBoundingBox(xStart, xStop, yStart, yStop, 0, image.sizeZ()-1);
         int yMarginEndChannel = yOpenedEndMargin.getValue().intValue();
-        int yMin=0, yMax, yMinMax;
+        int yMin=yStart, yMax, yMinMax;
         if (twoPeaks.getSelected()) {
             cropMargin = 0;
-            int[] yMinAndMax = searchYLimWithTwoBrightLines(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode.testSimple());
+            int[] yMinAndMax = searchYLimWithTwoBrightLines(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, bds, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode.testSimple());
             yMin = yMinAndMax[0];
             yMax = yMinAndMax[1];
             yMinMax = yMax;
             if (yMin<0 || yMax<0) throw new RuntimeException("Did not found two bright lines");
         } else {
             int[] distanceRange=  maxDistanceRangeFromAberration.getValuesAsInt();
-            yMax =  searchYLimWithBrightLine(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, testMode.testSimple()) ;
+            yMax =  searchYLimWithBrightLine(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, bds, testMode.testSimple()) ;
             if (yMax<0) throw new RuntimeException("No bright line found");
             if (distanceRange[1]>0) {
                 yMin = Math.max(yMin, yMax - distanceRange[1]);
@@ -112,7 +115,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         }
 
         // in case image was rotated and 0 were added, search for xMin & xMax so that no 0's are in the image
-        BoundingBox nonNullBound = getNonNullBound(image, yMin, yMax);
+        BoundingBox nonNullBound = getNonNullBound(image, Math.max(yStart, yMin-cropMargin), yMax);
         if (testMode.testSimple()) logger.debug("non null bounds: {}", nonNullBound);
         if (!twoPeaks.getSelected()) {
             Image imCrop = image.crop(nonNullBound);
@@ -121,11 +124,10 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
             if (testMode.testExpert()) IJUtils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check
             //if (yProj.length-1<channelHeight/10) throw new RuntimeException("No microchannels found in image. Out-of-Focus image ?");
-            yMin = ArrayUtil.max(yProj, 0, yMinMax-nonNullBound.yMin()) + nonNullBound.yMin();
+            yMin = ArrayUtil.max(yProj, yMin-nonNullBound.yMin(), yMinMax-nonNullBound.yMin()) + nonNullBound.yMin();
             //if (yMax<=0) yMax = yMin + channelHeight;
         }
-        if (yStop==0) yStop = image.sizeY()-1;
-        if (xStop==0) xStop = image.sizeX()-1;
+
         //yMax = Math.min(yMin+channelHeight, yMax);
         yMin = Math.max(yStart,yMin);
         yStop = Math.min(yStop, yMax);
@@ -138,7 +140,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     }
     
     /**
-     * Search of bright line (shadow produced by the microfluidic device at the edge of main chanel microchannels
+     * Search of bright line (shadow produced by the microfluidic device at the edge of main chnanel microchannels
      * The closed-end should be towards top of image
      * All the following steps are performed on the mean projection of {@param image} along Y axis
      * 1) search for global max yMax
@@ -150,8 +152,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
      * @param testMode
      * @return the y coordinate over the bright line
      */
-    public static int searchYLimWithBrightLine(Image image, double peakProportion, int margin, boolean testMode) {
-        float[] yProj = ImageOperations.meanProjection(image, ImageOperations.Axis.Y, null, (double v) -> v > 0); // when image was rotated by a high angle zeros are introduced
+    public static int searchYLimWithBrightLine(Image image, double peakProportion, int margin, BoundingBox limit, boolean testMode) {
+        float[] yProj = ImageOperations.meanProjection(image, ImageOperations.Axis.Y, limit, (double v) -> v > 0); // when image was rotated by a high angle zeros are introduced
         ArrayUtil.gaussianSmooth(yProj, 10);
         int start = getFirstNonNanIdx(yProj, true);
         int end = getFirstNonNanIdx(yProj, false);
@@ -160,7 +162,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         double peakHeight = yProj[peakIdx] - median;
         float thld = (float) (peakHeight * peakProportion + median);
         int endOfPeakYIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx, start, v->v<thld);
-        int startOfMicroChannel = endOfPeakYIdx - margin;
+        int startOfMicroChannel = endOfPeakYIdx - margin + limit.yMin();
         if (testMode) {
             //Core.showImage(image.setName("Peak detection Input Image"));
             IJUtils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" end of microchannels: y = "+startOfMicroChannel, yProj, "Y", "Mean Intensity projection along X");
@@ -182,8 +184,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
      * @param testMode
      * @return the y coordinate over the bright line [yMin, yMax]
      */
-    public static int[] searchYLimWithTwoBrightLines(Image image, double peakProportionL, int marginL, double peakProportionUp, int marginUp, boolean testMode) {
-        float[] yProj = ImageOperations.meanProjection(image, ImageOperations.Axis.Y, null, (double v) -> v > 0); // when image was rotated by a high angle zeros are introduced
+    public static int[] searchYLimWithTwoBrightLines(Image image, double peakProportionL, int marginL, BoundingBox limit, double peakProportionUp, int marginUp, boolean testMode) {
+        float[] yProj = ImageOperations.meanProjection(image, ImageOperations.Axis.Y, limit, (double v) -> v > 0); // when image was rotated by a high angle zeros are introduced
         ArrayUtil.gaussianSmooth(yProj, 10);
         int start = getFirstNonNanIdx(yProj, true);
         int end = getFirstNonNanIdx(yProj, false);
@@ -217,9 +219,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         double thld2 =  (peakHeight2 * (peak2IsLower?peakProportionL:peakProportionUp) + median);
         int endOfPeak2YIdx = ArrayUtil.getFirstIndexOf(yProj, peakIdx2, endOfPeakYIdx, v->v<=thld2);
 
-
-
-        int[] startOfMicroChannel = peak2IsLower ? new int[] {endOfPeakYIdx + marginUp, endOfPeak2YIdx - marginL} : new int[] {endOfPeak2YIdx + marginUp, endOfPeakYIdx - marginL};
+        int[] startOfMicroChannel = peak2IsLower ? new int[] {endOfPeakYIdx + marginUp + limit.yMin(), endOfPeak2YIdx - marginL + limit.yMin()} : new int[] {endOfPeak2YIdx + marginUp, endOfPeakYIdx - marginL};
         if (startOfMicroChannel[0]>=startOfMicroChannel[1]) throw new RuntimeException("Null length for microchannels while try to crop: margins are to large?");
         if (startOfMicroChannel[0]<0) startOfMicroChannel[0] = 0;
         if (startOfMicroChannel[1]>image.yMax()) startOfMicroChannel[1] = image.yMax();
