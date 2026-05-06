@@ -1,6 +1,7 @@
 package bacmman.processing.track_post_processing;
 
 import bacmman.data_structure.*;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.UnaryPair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
@@ -424,15 +425,28 @@ public class Track implements Comparable<Track> {
                 assigner.assignTracks(currentTracks, neighborTracks, otherCurrentTracks, otherNextTracks, trackEditor);
                 //logger.debug("assigned nexts: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getNext())));
             }
-            if (split) {
+            if (split) { // correct over-fragmentation
                 // merge tracks that have been assigned to the same track (avoid fragmentation)
                 Map<Track, List<Track>> trackByNeigh = currentTracks.stream().filter(singleNeigh).collect(Collectors.groupingBy(forward ? t -> t.previous.get(0) : t -> t.next.get(0)));
                 trackByNeigh.forEach((n, group) -> Track.mergeTracks(group, factory, currentTracks::remove));
 
-                /*List<Track> noLink = currentTracks.stream().filter(forward ? t -> t.previous.isEmpty() : t -> t.next.isEmpty()).collect(Collectors.toList());
-                if (noLink.size() > 1) { // TODO merge fragmented unassigned tracks
-
-                }*/
+                List<Track> fragments = currentTracks.stream()
+                        .filter(t -> t.length()==1)
+                        .filter(forward ? t -> t.previous.isEmpty() : t -> t.next.isEmpty()).collect(Collectors.toList());
+                for (Track fragmentT : fragments) {
+                    int f = fragmentT.getFirstFrame();
+                    SegmentedObject fragment = fragmentT.getObject(f);
+                    Map<Region, Integer> contactSize = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(r -> fragment.getRegion().contactSurface(r));
+                    Track mostInContact = currentTracks.stream().filter(t -> !fragments.contains(t))
+                            .filter(t -> t.getFirstFrame()<=f && t.getLastFrame()>=f)
+                            .sorted(Comparator.comparingInt(t -> -contactSize.get(t.getObject(f).getRegion()))).findFirst().orElse(null);
+                    if (mostInContact != null && contactSize.get(mostInContact.getObject(f).getRegion())>0) {
+                        SegmentedObject o1 = mostInContact.getObject(f);
+                        o1.getRegion().merge(fragment.getRegion());
+                        factory.removeFromParent(fragment);
+                        currentTracks.remove(fragmentT);
+                    }
+                }
             }
             // simplify tracks
             Consumer<Track> toRemove2 = t -> {

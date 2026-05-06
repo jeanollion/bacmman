@@ -856,6 +856,25 @@ public class Region {
         return false;
     }
 
+    public int contactSurface(Region other) {
+        if (is2D || other.is2D) {
+            if (!BoundingBox.intersect2D(getBounds(), other.getBounds(), 1)) return 0;
+        } else {
+            if (!BoundingBox.intersect(getBounds(), other.getBounds(), 1)) return 0;
+        }
+        int count = 0;
+        Set<Voxel> otherContours=other.getContour();
+        for (Voxel v : getContour()) {
+            for (Voxel w : otherContours) {
+                if (Math.abs(v.x - w.x) <= 1 && Math.abs(v.y - w.y) <= 1 && Math.abs(v.z - w.z) <= 1) {
+                    ++count;
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
     /**
      * 
      * @param x

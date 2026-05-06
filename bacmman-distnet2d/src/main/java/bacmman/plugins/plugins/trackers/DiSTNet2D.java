@@ -29,6 +29,8 @@ import bacmman.ui.gui.image_interaction.OverlayDisplayer;
 import bacmman.utils.*;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
+import it.unimi.dsi.fastutil.doubles.DoubleCollection;
 import net.imglib2.RealLocalizable;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
@@ -82,7 +84,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     GroupParameter centerParameters = new GroupParameter("Center Segmentation", gcdmSmoothRad, centerLapThld, centerSizeFactor).setEmphasized(true).setHint("Parameters controlling center segmentation");
     BoundedNumberParameter objectThickness = new BoundedNumberParameter("Object Thickness", 5, 6, 3, null).setEmphasized(true).setHint("Minimal thickness of objects to segment. Increase this parameter to reduce over-segmentation and false positives");
     BoundedNumberParameter mergeCriterion = new BoundedNumberParameter("Merge Criterion", 5, 0.001, 1e-5, 1).setEmphasized(false).setHint("Increase to reduce over-segmentation.  <br />When two objects are in contact, the intensity of their center is compared. If the ratio (max/min) is below this threshold, objects are merged.");
-    BooleanParameter useGDCMGradientCriterion = new BooleanParameter("Use GDCM Gradient", false).setHint("If True, an additional constraint based on GDCM gradient is added to merge segmented regions. <br/> It can avoid under-segmentation when when DNN misses some centers (which happens for instance when the DNN hesitates on which frame a cell divides). <br/>When two segmented regions are in contact, if both or one of them do not contain a segmented center, they are merged only if the GDCM gradient of the region that do not contain a center points towards the interface between the two region. GDCM gradient is computed in the area between the interface and the center of the segmented region.");
+    BooleanParameter useGDCMGradientCriterion = new BooleanParameter("Use GDCM Gradient", false).setHint("If True, an additional constraint based on GDCM gradient is added to merge segmented regions. <br/> It can avoid under-segmentation when when DNN misses some centers (which happens for instance when the DNN hesitates on which frame a cell divides). <br/>When two segmented regions are in contact, if both or one of them do not contain a segmented center, they are merged only if the GDCM gradient of the region that do not contain a center points towards the interface between the two region. GDCM gradient is computed in the area between the interface and the center of the segmented region at a distance to the interface lower than thickness parameter.");
     BoundedNumberParameter minObjectSizeGDCMGradient = new BoundedNumberParameter("Min Object Size", 1, 100, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
     ConditionalParameter<Boolean> useGDCMGradientCriterionCond = new ConditionalParameter<>(useGDCMGradientCriterion).setActionParameters(true, minObjectSizeGDCMGradient);
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(true).setHint("GDCM gradient constraint do not apply to objects below this size (in pixels)");
@@ -414,7 +416,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE.equals(ppMode)) {
             postFilterTracking(objectClassIdx, parentTrack, true, allAdditionalLinks, predictions, lwFW, lmBW, assigner, editor, factory);
         }
-        if (predictions != null) { // force free memory
+        if (predictions != null && stores == null) { // force free memory
             for (SegmentedObject p : parentTrack) {
                 detach.accept(predictions.edm.remove(p));
                 detach.accept(predictions.gcdm.remove(p));
@@ -569,7 +571,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             stores.get(parent).addIntermediateImage("dGDCM/dY", gdcmGrad.get(1));
         }
 
-        RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, minMaxEDMThreshold > edmThreshold ? minMaxEDMThreshold : 0, minSize, minSizeGCDM, gdcmGrad.get(0), gdcmGrad.get(1), mergeCriterion));
+        RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, minMaxEDMThreshold > edmThreshold ? minMaxEDMThreshold : 0, minSize, minSizeGCDM, thickness, gdcmGrad.get(0), gdcmGrad.get(1), mergeCriterion)); //, parent.toStringShort()
 
         // 4) Post-filtering (honor minSize + user-defined post-filters)
         if (minSize>0) {
@@ -646,6 +648,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     Image gdcm = prediction.gcdm.get(p);
                     List<ImageFloat> gdcmGrad = ImageDerivatives.getGradient(gdcm, computeSigma(this.objectThickness.getDoubleValue()), false, true);
                     OverlayDisplayer disp = stores.get(p).overlayDisplayer;
+                    double thickness = this.objectThickness.getDoubleValue();
                     if (disp != null) {
                         disp.hideLabileObjects();
                         sel.forEach(o -> {
@@ -666,8 +669,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             }
                             v1Max.translate(off);
                             v2Max.translate(off);
-                            Vector v1 = new Vector(avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(0), off), avgHalf(center, v1Max, o.getRegion(), gdcmGrad.get(1), off)).reverse();
-                            Vector v2 = new Vector(avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(0), off), avgHalf(center, v2Max, o.getRegion(), gdcmGrad.get(1), off)).reverse();
+                            Vector v1 = new Vector(medianLocal(center, v1Max, thickness, o.getRegion(), gdcmGrad.get(0), off), medianLocal(center, v1Max, thickness, o.getRegion(), gdcmGrad.get(1), off)).reverse();
+                            Vector v2 = new Vector(medianLocal(center, v2Max, thickness, o.getRegion(), gdcmGrad.get(0), off), medianLocal(center, v2Max, thickness, o.getRegion(), gdcmGrad.get(1), off)).reverse();
                             logger.debug("Gradient vector: o={} center: {} p1={} grad={}, norm={} p2={} grad={}, norm={}", o, center, v1Max, v1, v1.norm(), v2Max, v2, v2.norm());
                             disp.displayArrow(Point.asPoint((Offset)v1Max), v1, o.getFrame(), o.getFrame(), false, true, 0, colorMap.get(o));
                             disp.displayArrow(Point.asPoint((Offset)v2Max), v2, o.getFrame(), o.getFrame(), false, true, 0, colorMap.get(o));
@@ -696,14 +699,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         double value = Double.NaN;
         final Set<Voxel> voxels;
         final Image edm;
-        final double minMaxEDM, minSize, fusionCriterion, minSizeGCDM;
+        final double minMaxEDM, minSize, fusionCriterion, minSizeGCDM, thickness;
         final Map<Region, Set<Region>> regionMapCenter;
         // gdcm-gradient related parameters
         final Image gdcmDerX, gdcmDerY;
         Voxel interfaceCenter;
         Point center1, center2;
         Vector gdcmDir1, gdcmDir2;
-        public Interface(Region e1, Region e2, Map<Region, Set<Region>> regionMapCenter, Image edm, double minMaxEdm, double minSize, double minSizeGCDM, Image gdcmdX, Image gdcmdY, double fusionCriterion) {
+        //String label;
+        public Interface(Region e1, Region e2, Map<Region, Set<Region>> regionMapCenter, Image edm, double minMaxEdm, double minSize, double minSizeGCDM, double thickness, Image gdcmdX, Image gdcmdY, double fusionCriterion) { //, String label
             super(e1, e2);
             voxels = new HashSet<>();
             this.regionMapCenter = regionMapCenter;
@@ -713,7 +717,9 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.minSize = minSize;
             this.minSizeGCDM = minSizeGCDM;
             this.minMaxEDM = minMaxEdm;
+            this.thickness=thickness;
             this.fusionCriterion = fusionCriterion;
+            //this.label = label;
         }
 
         @Override
@@ -758,22 +764,25 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             Set<Region> centers1 = regionMapCenter.get(e1);
             Set<Region> centers2 = regionMapCenter.get(e2);
-            //logger.debug("check fusion: {} + {} center {} (n={}) + {} (n={})", e1.getBounds(), e2.getBounds(), centers1.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().orElse(-1), centers1.size(), centers2.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().orElse(-1), centers2.size());
+            //logger.debug("checking fusion @{}: {} + {} center {} (n={}) + {} (n={})", label, e1.getBounds(), e2.getBounds(), Utils.toStringList(centers1, Region::getCenterOrGeomCenter), centers1.size(), Utils.toStringList(centers2, Region::getCenterOrGeomCenter), centers2.size());
+            // missing center
             if (centers1.isEmpty() && centers2.isEmpty()) return checkFusionGrad(true, true);
             else if (centers1.isEmpty()) return checkFusionGrad(true, false);
             else if (centers2.isEmpty()) return checkFusionGrad(false, true);
+
+            // no missing center: compare intensity
             double I1 = centers1.stream().mapToDouble(DiSTNet2D::getCenterIntensity).max().getAsDouble();
             double I2 = centers2.stream().mapToDouble(DiSTNet2D::getCenterIntensity).max().getAsDouble();
             double ratio = getRatio(I1, I2);
             if (ratio < fusionCriterion) {
-                //logger.debug("fusion of {} + {} centers: {} + {} intensity: {} + {}", e1.getBounds(), e2.getBounds(), Utils.toStringList(centers1, Region::getCenter), Utils.toStringList(centers2, Region::getCenter), I1, I2);
+                //logger.debug("{}  fusion of {} + {} centers: {} + {} intensity: {} + {}", label, e1.getBounds(), e2.getBounds(), Utils.toStringList(centers1, Region::getCenterOrGeomCenter), Utils.toStringList(centers2, Region::getCenterOrGeomCenter), I1, I2);
                 return checkFusionGrad(I1<I2, I1>=I2);
             }
             // case: one center in shared
             Region inter = centers1.stream().filter(centers2::contains).max(Comparator.comparingDouble(DiSTNet2D::getCenterIntensity)).orElse(null);
-            //logger.debug("check fusion: {} + {} center {} (n={}) + {} (n={}) inter: {}", e1.getBounds(), e2.getBounds(), I1, centers1.size(), I2, centers2.size(), inter==null ? "null" : inter.getBounds());
             if (inter!=null) { // when center is shared -> merge, except if intersection is not significant compared to two different seeds
-                //logger.debug("Interface: {}+{} shared spot: {} intensity: {}, I1: {}, I2: {}", e1.getBounds(), e2.getBounds(), inter.getCenterOrGeomCenter(), getCenterIntensity(inter), I1, I2);
+                //logger.debug("{} check fusion: {} + {} center {} (n={}) + {} (n={}) inter: {}", label, e1.getBounds(), e2.getBounds(), I1, centers1.size(), I2, centers2.size(), inter==null ? "null" : inter.getBounds());
+                //logger.debug("{} Interface: {}+{} shared spot: {} intensity: {}, I1: {}, I2: {}", label, e1.getBounds(), e2.getBounds(), inter.getCenterOrGeomCenter(), getCenterIntensity(inter), I1, I2);
                 Region c1 = centers1.stream().max(Comparator.comparingDouble(DiSTNet2D::getCenterIntensity)).get();
                 if (c1.equals(inter)) return true;
                 Region c2 = centers2.stream().max(Comparator.comparingDouble(DiSTNet2D::getCenterIntensity)).get();
@@ -791,6 +800,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             return Vector.vector2D(first ? center1 : center2, interfaceCenter).sameSense(first ? gdcmDir1 : gdcmDir2);
         }
         protected boolean checkFusionGrad(boolean first, boolean second) {
+            //logger.debug("{} check fusion grad. dex==null? {} derY==null? {} size1: {} size2: {} missing center1 {} center2: {}", label, gdcmDerX ==null, gdcmDerY ==null, e1.size(), e2.size(), first, second);
             if (gdcmDerX ==null && gdcmDerY ==null) return true;
             if (e1.size() < minSizeGCDM || e2.size() < minSizeGCDM) return true;
             double normThld = 0.33; // invalid gradient : norm < 0.33
@@ -801,13 +811,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (first) {
                 if (center1 == null) center1 = Medoid.computeMedoid(e1);
                 if (center1.distSq((Offset)interfaceCenter)<=distSqThld) return true; // center is too close to interface -> flat region
-                if (gdcmDir1 == null) gdcmDir1 = new Vector(avgHalf(center1, interfaceCenter, e1, gdcmDerX, null), avgHalf(center1, interfaceCenter, e1, gdcmDerY, null)).reverse();
+                if (gdcmDir1 == null) gdcmDir1 = new Vector(medianLocal(center1, interfaceCenter, thickness, e1, gdcmDerX, null), medianLocal(center1, interfaceCenter, thickness, e1, gdcmDerY, null)).reverse();
                 dir1IsValid = gdcmDir1.norm() >= normThld;
             }
             if (second) {
                 if (center2 == null ) center2 = Medoid.computeMedoid(e2);
                 if (center2.distSq((Offset)interfaceCenter)<=distSqThld) return true; // center is too close to interface -> flat region
-                if (gdcmDir2 == null) gdcmDir2 = new Vector(avgHalf(center2, interfaceCenter, e2, gdcmDerX, null), avgHalf(center2, interfaceCenter, e2, gdcmDerY, null)).reverse();
+                if (gdcmDir2 == null) gdcmDir2 = new Vector(medianLocal(center2, interfaceCenter, thickness, e2, gdcmDerX, null), medianLocal(center2, interfaceCenter, thickness, e2, gdcmDerY, null)).reverse();
                 dir2IsValid = gdcmDir2.norm() >= normThld;
             }
             if (first && second) {
@@ -846,17 +856,23 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
     static double rightAngle = Math.PI / 2;
-    protected static double avgHalf(RealLocalizable center, RealLocalizable referencePoint, Region region, Image image, Offset off) {
-        double[] res = new double[2];
+    protected static double medianLocal(RealLocalizable center, RealLocalizable referencePoint, double maxDist, Region region, Image image, Offset off) {
+        if (image==null) return 0;
+        DoubleCollection coll = new DoubleArrayList();
+        double maxDistSq = maxDist * maxDist;
         Vector refDir = Vector.vector2D(center, referencePoint);
+        BoundingBox.LoopPredicate closeToRefPoint = image.sizeZ() > 1 ? (x, y, z) -> Math.pow(x - referencePoint.getDoublePosition(0), 2) + Math.pow(y - referencePoint.getDoublePosition(1), 2) + Math.pow(z - referencePoint.getDoublePosition(2), 2) <= maxDistSq :
+                (x, y, z) -> Math.pow(x - referencePoint.getDoublePosition(0), 2) + Math.pow(y - referencePoint.getDoublePosition(1), 2) <= maxDistSq;
+
         region.loop((x, y, z) -> {
-            if (refDir.angleXY180(new Vector(x - center.getDoublePosition(0), y - center.getDoublePosition(1))) < rightAngle && refDir.angleXY180(new Vector(x - referencePoint.getDoublePosition(0), y - referencePoint.getDoublePosition(1)))>rightAngle) { // only pixels between center and reference point
-                res[0] += image.getPixel(x, y, z);
-                ++res[1];
+            if (closeToRefPoint.test(x, y, z) && refDir.angleXY180(new Vector(x - center.getDoublePosition(0), y - center.getDoublePosition(1))) < rightAngle && refDir.angleXY180(new Vector(x - referencePoint.getDoublePosition(0), y - referencePoint.getDoublePosition(1)))>rightAngle) { // only pixels between center and reference point & close to reference point
+                coll.add(image.getPixel(x, y, z));
             }
         }, off);
-        if (res[1]==0) return 0;
-        return res[0]/res[1];
+        if (coll.isEmpty()) return 0;
+        int size = coll.size();
+        if (size % 2 == 0) return coll.doubleStream().skip((size / 2) - 1).limit(2).average().getAsDouble();
+        else return coll.doubleStream().skip(size / 2).findFirst().getAsDouble();
     }
 
     protected static double getCenterIntensity(Region seed) {
