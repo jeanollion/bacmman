@@ -383,14 +383,14 @@ public class Track implements Comparable<Track> {
         //logger.debug("Splitting {} track: {}", forward?"fw" : "bw",  Utils.toStringList(track.objects, SegmentedObject::toStringShort));
         Predicate<Track> unassigned = forward ? t->t.next.isEmpty() : t->t.previous.isEmpty();
         Predicate<Track> singleNeigh = forward ? t->t.previous.size()==1 : t->t.next.size()==1;
-        Predicate<Track> singleNeigh2 = t->t.next.size()==1 || t.previous.size()==1;
+        Predicate<Track> singleNeighBothDir = t->t.next.size()==1 || t.previous.size()==1;
         Set<Track> neighborTracks = forward ? new HashSet<>(track.previous) : new HashSet<>(track.next);
         Set<Track> neighborTracks2 = !forward ? new HashSet<>(track.previous) : new HashSet<>(track.next);
 
         removeTrack.accept(track);
         track.getPrevious().forEach(p -> p.getNext().remove(track));
         track.getNext().forEach(p -> p.getPrevious().remove(track));
-
+        boolean splitPerformed = false;
         Set<Track> newTracks = new HashSet<>();
         for (int i = 0; i<=track.length(); ++i) {
             int ii = forward ? i : track.length() - i - 1;
@@ -400,7 +400,7 @@ public class Track implements Comparable<Track> {
             boolean gap = false;
             //logger.debug("Split: {}  frame: {}", track, frame);
             Set<Track> currentTracks;
-            if (!split) {
+            if (!split) { // simply assign neighbors at the other end of the track
                 currentTracks = neighborTracks2;
             } else {
                 SegmentedObject toSplit = track.objects.get(ii);
@@ -425,7 +425,7 @@ public class Track implements Comparable<Track> {
                 assigner.assignTracks(currentTracks, neighborTracks, otherCurrentTracks, otherNextTracks, trackEditor);
                 //logger.debug("assigned nexts: {}", Utils.toStringList(currentTracks, t->t.toString()+ "->"+Utils.toStringList(t.getNext())));
             }
-            if (split) { // correct over-fragmentation
+            if (split && !gap) { // correct over-fragmentation: merge fragments with no neighbors
                 // merge tracks that have been assigned to the same track (avoid fragmentation)
                 Map<Track, List<Track>> trackByNeigh = currentTracks.stream().filter(singleNeigh).collect(Collectors.groupingBy(forward ? t -> t.previous.get(0) : t -> t.next.get(0)));
                 trackByNeigh.forEach((n, group) -> Track.mergeTracks(group, factory, currentTracks::remove));
@@ -447,27 +447,28 @@ public class Track implements Comparable<Track> {
                         currentTracks.remove(fragmentT);
                     }
                 }
+                if (currentTracks.size()>1) splitPerformed = true; // otherwise no split is actually performed at this frame
             }
             // simplify tracks
-            Consumer<Track> toRemove2 = t -> {
+            Consumer<Track> removeTrackSimplify = t -> {
                 removeTrack.accept(t);
                 currentTracks.remove(t);
                 newTracks.remove(t);
             };
-            currentTracks.stream().filter(singleNeigh2).collect(Collectors.toList()).forEach(t -> {
+            currentTracks.stream().filter(singleNeighBothDir).collect(Collectors.toList()).forEach(t -> {
                 int minFrame = t.getFirstFrame();
                 int maxFrame = t.getLastFrame();
-                Track t2 = t.simplifyTrack(trackEditor, toRemove2, false);
+                Track t2 = t.simplifyTrack(trackEditor, removeTrackSimplify, false);
                 if (t2.getFirstFrame()<minFrame || t2.getLastFrame()>maxFrame) { // track was simplified and thus removed from current tracks
                     if ( (forward && t2.getLastFrame()==frame) || !(forward && t2.getFirstFrame()==frame)) currentTracks.add(t2);
                     else newTracks.add(t2); // track was linked with another track
                 }
             });
             // also simplify neighborTracks
-            neighborTracks.stream().filter(singleNeigh2).collect(Collectors.toList()).forEach(t -> {
+            neighborTracks.stream().filter(singleNeighBothDir).collect(Collectors.toList()).forEach(t -> {
                 int minFrame = t.getFirstFrame();
                 int maxFrame = t.getLastFrame();
-                Track t2 = t.simplifyTrack(trackEditor, toRemove2, false);
+                Track t2 = t.simplifyTrack(trackEditor, removeTrackSimplify, false);
                 if (t2.getFirstFrame()<minFrame || t2.getLastFrame()>maxFrame) { // track was simplified and thus removed from current tracks
                     newTracks.add(t2); // track was linked with another track
                 }
@@ -479,9 +480,17 @@ public class Track implements Comparable<Track> {
             }
             neighborTracks = currentTracks;
         }
-        logger.debug("Split: {} new tracks {}", track, newTracks);
+        if (!splitPerformed) { // no split was performed, check if track tree structure has changed (difference in assignment)
+            List<Track> trackCandidates = newTracks.stream().filter(t -> t.getFirstFrame() == track.getFirstFrame() && t.getLastFrame() == track.getLastFrame()).collect(Collectors.toList());
+            if (trackCandidates.size() == 1) { // check if neighbors are the same
+                Track track2 = trackCandidates.get(0);
+                if ( !new HashSet<>(track2.getPrevious()).equals(new HashSet<>(track.getPrevious())) || !new HashSet<>(track2.getNext()).equals(new HashSet<>(track.getNext())) ) splitPerformed = true;
+            } else splitPerformed = true; // equivalent of track is not found -> track tree structure has changed
+        }
+        if (splitPerformed) logger.debug("Split: {} new tracks {}", track, newTracks);
+        else logger.debug("Split: {} no change", track);
         newTracks.forEach(addTrack);
-        return true;
+        return splitPerformed;
     }
 
     public boolean checkTrackConsistency() {
