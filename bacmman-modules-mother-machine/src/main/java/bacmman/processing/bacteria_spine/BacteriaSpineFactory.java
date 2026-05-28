@@ -65,6 +65,8 @@ public class BacteriaSpineFactory {
     public static final Logger logger = LoggerFactory.getLogger(BacteriaSpineFactory.class);
     public static Consumer<Image> imageDisp = null;
     public static int verboseZoomFactor = 13;
+    public static double centerlineSmoothScale = 2; // smoothing strength for the final shrinkage-free (Taubin) centerline smoothing
+    public static double contourHalfVoxelOffset = 0.5; // outward contour offset (px) compensating that contour voxels are measured at their centers
     public static class InvalidObjectException extends Exception {
         public InvalidObjectException(String message) {
             super(message);
@@ -146,7 +148,8 @@ public class BacteriaSpineFactory {
         circContour = (CircularNode)CircularContourFactory.smoothContour2D(circContour,0.5);
         long t6 = System.currentTimeMillis();
         circContour=CircularContourFactory.resampleContour((CircularNode)circContour,0.5);
-        circContour = (CircularNode)CircularContourFactory.smoothContour2D(circContour,contourSmoothSigma);
+        circContour = (CircularNode)CircularContourFactory.smoothContour2DTaubin((CircularNode)circContour,contourSmoothSigma); // shrinkage-free smoothing (Taubin): avoids deflating spine length & width
+        circContour = (CircularNode)CircularContourFactory.inflateContour((CircularNode)circContour, contourHalfVoxelOffset); // contour voxels are measured at their centers: offset outward by half a voxel to reach the true object edge
         long t7 = System.currentTimeMillis();
         //CircularNode.apply(circContour, c->logger.debug("{} after smooth {}", count[0]++, c.element), true);
         contour = (Set)CircularContourFactory.getSet(circContour);
@@ -216,13 +219,16 @@ public class BacteriaSpineFactory {
         spList.addAll(spListSk);
         spList.addAll(getSpineInSkeletonDirection(mask, contourPairs.get(contourPairs.size()-1).key, contourPairs.get(contourPairs.size()-1).value, spListSk, persistanceRadius, false, logOff));
         if (imageDisp!=null) logger.debug("sk spine: total points: {}", spList.size());
+        // 4) compute cumulative distances (used as smoothing coordinate / spacing estimate)
+        setCumulativeDistance(spList);
+        // 5) shrinkage-free (Taubin) smoothing of the whole centerline (poles included) keeping the two pole
+        //    endpoints fixed. Unlike Gaussian smoothing, Taubin removes jitter without pulling curved spines
+        //    toward their chord, so the curved length is not under-estimated. It also re-smooths the pole
+        //    extensions, which were previously appended raw.
+        smoothCenterlineTaubin(spList, centerlineSmoothScale);
+        // 6) cumulative length from first pole on the smoothed centerline
+        setCumulativeDistance(spList);
         PointContainer2<Vector, Double>[] spine = spList.toArray(new PointContainer2[spList.size()]);
-        // 4) compute distances from first poles
-        for (int i = 1; i<spine.length; ++i) spine[i].setContent2((spine[i-1].getContent2() + spine[i].dist(spine[i-1])));
-        //if (verbose) ImageWindowManagerFactory.showImage(drawSpine(mask, spine, circContour, verboseZoomFactor).setName("skeleton spine"));
-        // 5) smooth end of spine ? 
-        //smoothSpine( spListSk, true, 2);
-        //smoothSpine( spListSk, false, 2);
         if (imageDisp!=null) imageDisp.accept(drawSpine(mask, spine, circContour, verboseZoomFactor, true).setName("skeleton Spine after smooth"));
         // 6) TODO recompute center in actual smoothed direction, using intersection with contour function
         return spine;
@@ -477,7 +483,7 @@ public class BacteriaSpineFactory {
             Point nextPoint2 = next.duplicate().translate(spineDir);
             Voxel nextVox2 = nextPoint2.asVoxel();
             if (!mask.containsWithOffset(nextVox2.x, nextVox2.y, mask.zMin()) || !mask.insideMaskWithOffset(nextVox2.x, nextVox2.y, mask.zMin())) {
-                adjustPointToContour(next, spineDir, CircularNode.getMiddlePoint(s1, s2, firstNext), bucketFirst); // adjust to contour. First search is middle point between the 2 sides points
+                adjustPointToContour(next, spineDir, CircularNode.getMiddlePoint(s1, s2, firstNext), bucketFirst); // snap pole to contour along spine direction (sub-pixel ray-contour intersection)
                 if (sp.size()>2) { // check that adjusted point is after previous point AND not too close to previous point (if too close may cause projection issues)
                     Point ref = sp.get(sp.size()-3);
                     if (sp.get(sp.size()-2).distSqXY(ref)>next.distSqXY(ref)) sp.remove(sp.size()-2); // adjusted before previous
@@ -556,7 +562,6 @@ public class BacteriaSpineFactory {
      */
     private static <T extends Localizable> void adjustPointToContour(Point p, Vector dir, CircularNode<T> firstSearchPoint, List<CircularNode<T>> bucket) {
         CircularNode.addTwoLocalNearestPoints(p, firstSearchPoint, bucket);
-        //logger.debug("adjust to contour: closest points: {}, dir: {}, start point: {}", Utils.toStringList(bucket, b->b.element.toString()), dir, p);
         if (bucket.size()==1) {
             p.setData(bucket.get(0).element.getFloatPosition(0), bucket.get(0).element.getFloatPosition(1));
         } else {
@@ -564,12 +569,10 @@ public class BacteriaSpineFactory {
             if (Vector.vector2D(inter, bucket.get(0).element).dotProduct(Vector.vector2D(inter, bucket.get(1).element))>0) { // intersection is not between the two closest points
                 inter = Point.asPoint(Collections.min(bucket, (p1, p2) -> Double.compare(p.distSq(p1.element), p.distSq(p2.element))).element); // set the closest point
             }
-            //logger.debug("adjust to contour: intersection: {}", inter);
             if (inter!=null) p.setData(inter);
         }
     }
-    
-    public static <T extends RealLocalizable> Image drawSpine(BoundingBox bounds, PointContainer2<Vector, Double>[] spine, CircularNode<T> circularContour, int zoomFactor, boolean drawDistance) { 
+    public static <T extends RealLocalizable> Image drawSpine(BoundingBox bounds, PointContainer2<Vector, Double>[] spine, CircularNode<T> circularContour, int zoomFactor, boolean drawDistance) {
         boolean spineDirIdx = false;
         if (zoomFactor%2==0) throw new IllegalArgumentException("Zoom Factor should be uneven");
         ImageProperties props = new SimpleImageProperties(new SimpleBoundingBox(0, bounds.sizeX()*zoomFactor-1, 0, bounds.sizeY()*zoomFactor-1, 0, 0), 1, 1);
@@ -716,6 +719,44 @@ public class BacteriaSpineFactory {
             smoothed.add(v.getSmoothed());
         }
         for (int i = 0; i<spine.size(); ++i) setSmoothedToInput.accept(spine.get(i), smoothed.get(i));
+    }
+    private static void setCumulativeDistance(List<PointContainer2<Vector, Double>> centerline) {
+        if (centerline.isEmpty()) return;
+        centerline.get(0).setContent2(0d);
+        for (int i = 1; i<centerline.size(); ++i) centerline.get(i).setContent2(centerline.get(i-1).getContent2() + centerline.get(i).dist(centerline.get(i-1)));
+    }
+    /**
+     * Shrinkage-free (Taubin λ|μ) smoothing of an open centerline, keeping the two endpoints (poles) fixed.
+     * Alternates a shrinking pass (+λ·Δ) and an un-shrinking pass (+μ·Δ, μ&lt;−λ) so jitter is removed without
+     * pulling curved spines toward their chord (which would under-estimate the length). XY only.
+     * @param sp centerline points (positions are modified in place); cumulative distances (content2) must be set
+     * @param sigma smoothing strength; mapped to an iteration count from the mean point spacing
+     */
+    private static void smoothCenterlineTaubin(List<PointContainer2<Vector, Double>> sp, double sigma) {
+        int n = sp.size();
+        if (n<3 || sigma<=0) return;
+        double total = sp.get(n-1).getContent2();
+        double spacing = total>0 ? total/(n-1) : 1;
+        final double lambda = 0.6307, mu = -0.6732;
+        int iterations = Math.max(1, Math.min(200, (int)Math.round((sigma/spacing)*(sigma/spacing)/(2*lambda))));
+        double[] dx = new double[n], dy = new double[n];
+        for (int it = 0; it<iterations; ++it) {
+            taubinPassOpen(sp, dx, dy, lambda);
+            taubinPassOpen(sp, dx, dy, mu);
+        }
+    }
+    private static void taubinPassOpen(List<PointContainer2<Vector, Double>> sp, double[] dx, double[] dy, double factor) {
+        int n = sp.size();
+        for (int i = 1; i<n-1; ++i) { // endpoints (poles) stay fixed
+            Point cur = sp.get(i), prev = sp.get(i-1), next = sp.get(i+1);
+            dx[i] = factor * 0.5 * (prev.get(0) + next.get(0) - 2 * cur.get(0));
+            dy[i] = factor * 0.5 * (prev.get(1) + next.get(1) - 2 * cur.get(1));
+        }
+        for (int i = 1; i<n-1; ++i) {
+            Point cur = sp.get(i);
+            cur.set((float)(cur.get(0) + dx[i]), 0);
+            cur.set((float)(cur.get(1) + dy[i]), 1);
+        }
     }
     public static double getSpineLength(Region r) {
         try {

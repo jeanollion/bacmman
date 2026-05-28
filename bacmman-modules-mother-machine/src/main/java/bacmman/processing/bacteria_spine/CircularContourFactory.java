@@ -219,6 +219,78 @@ public class CircularContourFactory {
         }
         return smoother.getSmoothed();
     }
+    /**
+     * Shrinkage-free contour smoothing (Taubin λ|μ). A Gaussian/Laplacian low-pass of a closed contour
+     * shrinks it inward (mean-curvature flow), which deflates downstream spine width and length. Taubin
+     * smoothing alternates a shrinking step (+λ·Δ) with an un-shrinking step (+μ·Δ, μ&lt;−λ), removing
+     * high-frequency noise while preserving the overall scale.
+     * Operates in-place on the (mutable) {@link Point} elements (XY only) and returns the same contour.
+     * @param circContour closed contour of mutable Points (e.g. after {@link #resampleContour})
+     * @param sigma smoothing strength (in same unit as coordinates); mapped to a Taubin iteration count
+     */
+    public static CircularNode<Point> smoothContour2DTaubin(CircularNode<Point> circContour, double sigma) {
+        if (sigma<=0) return circContour;
+        List<CircularNode<Point>> nodes = new ArrayList<>();
+        CircularNode.apply(circContour, nodes::add, true);
+        int n = nodes.size();
+        if (n<5) return circContour; // too small to smooth meaningfully
+        double meanSpacing = 0;
+        for (CircularNode<Point> nd : nodes) meanSpacing += nd.element.distXY(nd.next.element);
+        meanSpacing /= n;
+        if (meanSpacing<=0) return circContour;
+        final double lambda = 0.6307, mu = -0.6732; // Taubin classic pass-band values
+        int iterations = Math.max(1, Math.min(200, (int)Math.round((sigma/meanSpacing)*(sigma/meanSpacing)/(2*lambda))));
+        double[] dx = new double[n], dy = new double[n];
+        for (int it = 0; it<iterations; ++it) {
+            taubinPass(nodes, dx, dy, lambda);
+            taubinPass(nodes, dx, dy, mu);
+        }
+        return circContour;
+    }
+    private static void taubinPass(List<CircularNode<Point>> nodes, double[] dx, double[] dy, double factor) {
+        int n = nodes.size();
+        for (int i = 0; i<n; ++i) { // compute displacements from current positions (simultaneous update)
+            Point cur = nodes.get(i).element, prev = nodes.get(i).prev.element, next = nodes.get(i).next.element;
+            dx[i] = factor * 0.5 * (prev.get(0) + next.get(0) - 2 * cur.get(0));
+            dy[i] = factor * 0.5 * (prev.get(1) + next.get(1) - 2 * cur.get(1));
+        }
+        for (int i = 0; i<n; ++i) {
+            Point cur = nodes.get(i).element;
+            cur.set((float)(cur.get(0) + dx[i]), 0);
+            cur.set((float)(cur.get(1) + dy[i]), 1);
+        }
+    }
+    /**
+     * Offsets each contour point outward along the local normal by {@param d}. The contour is the set of boundary
+     * voxel <em>centers</em>, which sit ~half a voxel inside the true object edge; offsetting by 0.5 makes the
+     * contour represent the object footprint, removing the systematic ~0.5px/side under-estimation of spine
+     * width and length. Operates in-place on the (mutable) {@link Point} elements (XY only).
+     */
+    public static CircularNode<Point> inflateContour(CircularNode<Point> circContour, double d) {
+        if (d==0) return circContour;
+        List<CircularNode<Point>> nodes = new ArrayList<>();
+        CircularNode.apply(circContour, nodes::add, true);
+        int n = nodes.size();
+        if (n<3) return circContour;
+        double[] nx = new double[n], ny = new double[n];
+        for (int i = 0; i<n; ++i) { // outward normal candidate = tangent rotated +90
+            Point prev = nodes.get(i).prev.element, next = nodes.get(i).next.element;
+            double tx = next.get(0) - prev.get(0), ty = next.get(1) - prev.get(1);
+            double tn = Math.sqrt(tx * tx + ty * ty);
+            if (tn>0) { tx /= tn; ty /= tn; }
+            nx[i] = -ty; ny[i] = tx;
+        }
+        // fix global orientation: the rightmost point's outward normal must point in +x
+        int rm = 0; double maxx = nodes.get(0).element.get(0);
+        for (int i = 1; i<n; ++i) { double x = nodes.get(i).element.get(0); if (x>maxx) { maxx = x; rm = i; } }
+        double sign = nx[rm]<0 ? -1 : 1;
+        for (int i = 0; i<n; ++i) {
+            Point p = nodes.get(i).element;
+            p.set((float)(p.get(0) + sign * d * nx[i]), 0);
+            p.set((float)(p.get(1) + sign * d * ny[i]), 1);
+        }
+        return circContour;
+    }
     public static <T> Set<T> getSet(CircularNode<T> circContour) {
         HashSet<T> res = new HashSet<>();
         CircularNode.apply(circContour, c->res.add(c.element), true);
