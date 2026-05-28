@@ -707,6 +707,7 @@ public class SelectionUtils {
         JMenuItem delete = new JMenuItem("Delete Selection");
         delete.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
+            if (!Utils.promptBoolean("Permanently delete selected selection (s) ?", list)) return;
             DefaultListModel<Selection> model = (DefaultListModel<Selection>)list.getModel();
             for (Selection s : selectedValues ) dao.delete(s);
             for (Selection s : selectedValues) model.removeElement(s);

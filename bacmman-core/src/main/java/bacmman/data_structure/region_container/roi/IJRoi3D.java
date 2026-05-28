@@ -6,6 +6,7 @@ import bacmman.image.wrappers.IJImageWrapper;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.*;
+import ij.process.ByteProcessor;
 import ij.process.FloatPolygon;
 import ij.process.ImageProcessor;
 import org.slf4j.Logger;
@@ -42,9 +43,12 @@ public class IJRoi3D extends HashMap<Integer, Roi> implements ObjectRoi<IJRoi3D>
             if (r!=null) {
                 Rectangle bds = r.getBounds();
                 ImageProcessor mask = r.getMask();
-                if (mask == null) { // mask is rectangle
-                    mask = IJImageWrapper.getImagePlus(TypeConverter.maskToImageInteger(new BlankMask(bounds.sizeX(), bounds.sizeY(), 1, bounds.xMin(), bounds.yMin(), 0, 1, 1), null)).getProcessor();
-                } else if (mask.getWidth() != stack.getWidth() || mask.getHeight() != stack.getHeight()) { // need to paste image // TODO simply change ROI with before calling getMask
+                if (mask == null) { // rectangular roi: getMask() is null -> full mask covering only the rectangle bounds
+                    mask = new ByteProcessor(bds.width, bds.height);
+                    mask.setValue(1);
+                    mask.fill();
+                }
+                if (mask.getWidth() != stack.getWidth() || mask.getHeight() != stack.getHeight()) { // paste roi mask into the object's 2D bounds
                     ImageByte i = (ImageByte) IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
                     mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
                 }

@@ -135,6 +135,26 @@ public class DiskBackedImageTests {
 
     }
 
+    @Test
+    public void testTiledGetZPlane() throws IOException {
+        int thld = TiledDiskBackedImage.targetTileSize;
+        ImageFloat original = new ImageFloat("", (int)(Math.sqrt(thld) * 3.5), (int)(Math.sqrt(thld) * 2.2), 4);
+        Random r = new Random();
+        BoundingBox.loop(original, (x, y, z) -> original.setPixel(x, y, z, r.nextDouble()));
+        DiskBackedImage<ImageFloat> dbImage = manager.createDiskBackedImage(original, true, true);
+        assertTrue("not tiled image", dbImage instanceof TiledDiskBackedImage);
+        TiledDiskBackedImage<ImageFloat> tiledIm = (TiledDiskBackedImage<ImageFloat>) dbImage;
+        dbImage.freeMemory(true); // ensure tiled state: image == null so getZPlane goes through the tile path
+        assertTrue("image not tiled", tiledIm.image == null && tiledIm.tilesZYX != null);
+        for (int z = 0; z < original.sizeZ(); ++z) {
+            ImageFloat expected = original.getZPlane(z);
+            Image plane = dbImage.getZPlane(z);
+            assertEquals("z-plane " + z + " not single-slice", 1, plane.sizeZ());
+            assertImageEquals("z-plane " + z + " differs", expected, plane);
+            assertTrue("getZPlane should not stitch the full image", tiledIm.image == null && tiledIm.tilesZYX != null);
+        }
+    }
+
     protected <T extends Image<T>> void testImage(T image) throws IOException {
         image.setPixel(2, 3, 4, 1);
         image.setPixel(3, 3, 4, 2);

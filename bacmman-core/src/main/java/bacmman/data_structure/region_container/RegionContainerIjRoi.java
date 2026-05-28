@@ -62,7 +62,10 @@ public class RegionContainerIjRoi extends RegionContainer {
         if (roi==null) createRoi(segmentedObject.getRegion());
         roiZ = new ArrayList<>(roi.sizeZ());
         roi.entrySet().stream().filter(e->e.getKey()>=0).sorted(Comparator.comparingInt(Map.Entry::getKey))
-                .forEach(e->roiZ.add(RoiEncoder.saveAsByteArray(e.getValue())));
+                .forEach(e->{
+                    e.getValue().setPosition(e.getKey() + 1); // encode absolute z (1-based) so empty slices don't shift positions on reload
+                    roiZ.add(RoiEncoder.saveAsByteArray(e.getValue()));
+                });
     }
     /**
      * 
@@ -74,12 +77,15 @@ public class RegionContainerIjRoi extends RegionContainer {
     private void decodeRoi() {
         roi = new IJRoi3D(roiZ.size());
         roi.setIs2D(is2D);
-        int z=0;
+        int idx=0;
         for (byte[] b : roiZ) {
             Roi r = RoiDecoder.openFromByteArray(b);
-            r.setPosition(z+1+bounds.zMin());
-            roi.put(z+bounds.zMin(), r);
-            ++z;
+            int pos = r.getPosition(); // absolute z (1-based) encoded by encodeRoi
+            if (pos<=0) pos = r.getZPosition(); // hyperstack-positioned (legacy) rois
+            int z = pos>0 ? pos - 1 : idx + bounds.zMin(); // last resort: legacy contiguous indexing
+            r.setPosition(z+1);
+            roi.put(z, r);
+            ++idx;
         }
         //if (roi.isEmpty()) logger.debug("empty roi for: {}", segmentedObject);
     }

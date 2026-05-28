@@ -194,6 +194,11 @@ public class Ellipse2D extends Region implements Analytical {
     }
 
     @Override
+    public boolean isEmpty() {
+        return size() == 0;
+    }
+
+    @Override
     public double size() {
         double a = Math.PI * major * minor / 4;
         return is2D() ? a : this.getBounds().sizeZ() * a;

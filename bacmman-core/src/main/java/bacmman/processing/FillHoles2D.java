@@ -19,15 +19,10 @@
 package bacmman.processing;
 
 import bacmman.core.Core;
+import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
-import bacmman.image.BlankMask;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.wrappers.IJImageWrapper;
-import ij.ImageStack;
-import ij.process.FloodFiller;
-import ij.process.ImageProcessor;
+import bacmman.image.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,7 +40,101 @@ import bacmman.processing.clustering.RegionCluster;
  */
 public class FillHoles2D {
     public static boolean debug=false;
-    
+
+    public static void fillHoles(RegionPopulation pop) { // object-wise 2D fill holes
+        for (Region o : pop.getRegions()) {
+            if (o.getMask() instanceof ImageInteger) { // ensure mask value is 1
+                ImageInteger mask = (ImageInteger)o.getMask();
+                ImageMask.loop(mask, (x, y, z)->mask.setPixel(x, y, z, 1));
+            }
+            o.ensureMaskIsImageInteger(); // mask need to be dense to be modified
+            fillHoles(o.getMaskAsImageInteger(), 2);
+            o.setMask(o.getMask()); // set mask to reset contours,voxels, bounds etc...
+        }
+        pop.relabel(true);
+    }
+
+    public static void fillHoles(ImageInteger image, int midValue) {
+        int sizeZ = image.sizeZ();
+        CoordStack stack = new CoordStack();
+        for (int z = 0; z<sizeZ; ++z) fillHolesPlane(image, midValue, z, stack);
+    }
+
+    // background (0) pixels connected to a border are temporarily set to midValue then back to 0;
+    // remaining 0 pixels are holes -> set to foreground (1). foreground is normalized to 1.
+    private static void fillHolesPlane(ImageInteger image, int midValue, int z, CoordStack stack) {
+        int sizeX = image.sizeX();
+        int sizeY = image.sizeY();
+        for (int y = 0; y<sizeY; ++y) {
+            if (image.getPixelInt(0, y, z)==0) floodFill(image, 0, y, z, midValue, sizeX, sizeY, stack);
+            if (image.getPixelInt(sizeX-1, y, z)==0) floodFill(image, sizeX-1, y, z, midValue, sizeX, sizeY, stack);
+        }
+        for (int x = 0; x<sizeX; ++x) {
+            if (image.getPixelInt(x, 0, z)==0) floodFill(image, x, 0, z, midValue, sizeX, sizeY, stack);
+            if (image.getPixelInt(x, sizeY-1, z)==0) floodFill(image, x, sizeY-1, z, midValue, sizeX, sizeY, stack);
+        }
+        int n = sizeX * sizeY;
+        for (int xy = 0; xy<n; ++xy) {
+            if (image.getPixelInt(xy, z)==midValue) image.setPixel(xy, z, 0);
+            else image.setPixel(xy, z, 1);
+        }
+    }
+
+    // 4-connected scan-line flood fill of background (0) with fillColor, on plane z.
+    // Adapted from ij.process.FloodFiller.
+    private static void floodFill(ImageInteger image, int xStart, int yStart, int z, int fillColor, int sizeX, int sizeY, CoordStack stack) {
+        if (image.getPixelInt(xStart, yStart, z)==fillColor) return; // target color is background (0)
+        stack.clear();
+        stack.push(xStart, yStart);
+        while (!stack.isEmpty()) {
+            int x = stack.popX();
+            int y = stack.popY();
+            if (image.getPixelInt(x, y, z)!=0) continue;
+            int x1 = x, x2 = x;
+            while (x1>=0 && image.getPixelInt(x1, y, z)==0) x1--; // find start of scan-line
+            x1++;
+            while (x2<sizeX && image.getPixelInt(x2, y, z)==0) x2++; // find end of scan-line
+            x2--;
+            for (int i = x1; i<=x2; ++i) image.setPixel(i, y, z, fillColor); // fill scan-line
+            if (y>0) { // find scan-lines above this one
+                boolean inScanLine = false;
+                for (int i = x1; i<=x2; ++i) {
+                    boolean match = image.getPixelInt(i, y-1, z)==0;
+                    if (!inScanLine && match) { stack.push(i, y-1); inScanLine = true; }
+                    else if (inScanLine && !match) inScanLine = false;
+                }
+            }
+            if (y<sizeY-1) { // find scan-lines below this one
+                boolean inScanLine = false;
+                for (int i = x1; i<=x2; ++i) {
+                    boolean match = image.getPixelInt(i, y+1, z)==0;
+                    if (!inScanLine && match) { stack.push(i, y+1); inScanLine = true; }
+                    else if (inScanLine && !match) inScanLine = false;
+                }
+            }
+        }
+    }
+
+    // growable stack of (x,y) coordinates, reused across planes and seeds
+    private static final class CoordStack {
+        private int[] xs = new int[1024];
+        private int[] ys = new int[1024];
+        private int size = 0;
+        void clear() { size = 0; }
+        boolean isEmpty() { return size==0; }
+        void push(int x, int y) {
+            if (size==xs.length) {
+                xs = java.util.Arrays.copyOf(xs, size*2);
+                ys = java.util.Arrays.copyOf(ys, size*2);
+            }
+            xs[size] = x;
+            ys[size] = y;
+            ++size;
+        }
+        int popX() { return xs[size-1]; }
+        int popY() { int y = ys[size-1]; --size; return y; }
+    }
+
     public static boolean fillHolesClosing(ImageInteger image, double closeRadius, double backgroundProportion, double minSizeFusion, boolean parallele) {
         ImageInteger close = Filters.binaryCloseExtend(image, Filters.getNeighborhood(closeRadius, closeRadius, image), parallele);
         FillHoles2D.fillHoles(close, 2); // binary close generate an image with only 1's
@@ -64,71 +153,7 @@ public class FillHoles2D {
             return true;
         } else return false;
     }
-    
 
-// Binary fill by Gabriel Landini, G.Landini at bham.ac.uk
-
-    public static void fillHoles(RegionPopulation pop) { // object-wise
-        for (Region o : pop.getRegions()) {
-            o.ensureMaskIsImageInteger();
-            fillHoles(o.getMaskAsImageInteger(), 127);
-            o.setMask(o.getMask()); // set mask to reset contours,voxels, bounds etc...
-        }
-        pop.relabel(true);
-    }
-    // TODO fix for other than byte processor!!
-    public static void fillHoles(ImageInteger image, int midValue) {
-        if (image.sizeZ()==1) {
-            fillHoles(IJImageWrapper.getImagePlus(image).getProcessor(), midValue);
-        } else {
-            ImageStack stack = IJImageWrapper.getImagePlus(image).getImageStack();
-            for (int i = 1; i<=image.sizeZ(); i++) { 
-                fillHoles(stack.getProcessor(i), midValue);
-            }
-        }
-    }
-    
-    protected static void fillHoles(ImageProcessor ip, int foreground, int background) {
-        int width = ip.getWidth();
-        int height = ip.getHeight();
-        FloodFiller ff = new FloodFiller(ip);
-        ip.setColor(127); // intermediate color
-        for (int y=0; y<height; y++) {
-            if (ip.getPixel(0,y)==background) ff.fill(0, y);
-            if (ip.getPixel(width-1,y)==background) ff.fill(width-1, y);
-        }
-        for (int x=0; x<width; x++){
-            if (ip.getPixel(x,0)==background) ff.fill(x, 0);
-            if (ip.getPixel(x,height-1)==background) ff.fill(x, height-1);
-        }
-        ImageInteger im = (ImageInteger) Image.newImage(ip.getPixels(), width, null);
-        int n = width*height;
-        for (int xy = 0;xy<n; ++xy) {
-            if (im.getPixelInt(xy, 0)==127) im.setPixel(xy, 0, background);
-            else im.setPixel(xy, 0, foreground);
-        }
-    }
-    
-    protected static void fillHoles(ImageProcessor ip, int midValue) { // set foreground to 1
-        int width = ip.getWidth();
-        int height = ip.getHeight();
-        FloodFiller ff = new FloodFiller(ip);
-        ip.setColor(midValue); // intermediate color
-        for (int y=0; y<height; y++) {
-            if (ip.getPixel(0,y)==0) ff.fill(0, y);
-            if (ip.getPixel(width-1,y)==0) ff.fill(width-1, y);
-        }
-        for (int x=0; x<width; x++){
-            if (ip.getPixel(x,0)==0) ff.fill(x, 0);
-            if (ip.getPixel(x,height-1)==0) ff.fill(x, height-1);
-        }
-        ImageInteger im = (ImageInteger)Image.newImage(ip.getPixels(), width, null);
-        int n = width*height;
-        for (int xy = 0;xy<n; ++xy) {
-            if (im.getPixelInt(xy, 0)==midValue) im.setPixel(xy, 0, 0);
-            else im.setPixel(xy, 0, 1);
-        }
-    }
     private static class InterfaceSizeFilter implements RegionPopulation.Filter {
         RegionCluster clust;
         final RegionPopulation foregroundObjects;

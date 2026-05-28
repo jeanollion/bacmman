@@ -325,7 +325,20 @@ public class Region {
     public double getScaleZ() {
         return scaleZ;
     }
-    
+
+    public boolean isEmpty() {
+        if (this.voxelsCreated()) return voxels.isEmpty();
+        else {
+            getMask();
+            for (int z = 0; z < this.mask.sizeZ(); z++) {
+                for (int xy = 0; xy<this.mask.sizeXY(); xy++) {
+                    if (this.mask.insideMask(xy, z)) return false;
+                }
+            }
+            return true;
+        }
+    }
+
     public double size() {
         if (this.voxelsCreated()) return voxels.size();
         else return getMask().count();

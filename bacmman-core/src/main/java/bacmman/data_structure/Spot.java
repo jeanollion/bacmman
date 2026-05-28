@@ -176,6 +176,11 @@ public class Spot extends Region implements Analytical {
     }
 
     @Override
+    public boolean isEmpty() {
+        return size() == 0;
+    }
+
+    @Override
     public double size() {
         return is2D() || aspectRatioZ==0 ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3) * aspectRatioZ;
     }

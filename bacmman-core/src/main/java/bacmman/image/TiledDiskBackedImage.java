@@ -78,7 +78,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
         int z = idxZ/tileDimensions[2];
         for (int y = 0; y< tilesZYX[0].length; ++y) {
             for (int x = 0; x< tilesZYX[0][0].length; ++x) {
-                Image.pasteImage(tilesZYX[z][y][x].getZPlane(idxZ%tileDimensions[2]), image, new SimpleOffset(tilesZYX[z][y][x].xMin - xMin, tilesZYX[z][y][x].yMin - yMin, tilesZYX[z][y][x].zMin - zMin));
+                Image.pasteImage(tilesZYX[z][y][x].getZPlane(idxZ%tileDimensions[2]), plane, new SimpleOffset(tilesZYX[z][y][x].xMin - xMin, tilesZYX[z][y][x].yMin - yMin, 0));
             }
         }
         plane.translate(xMin, yMin, zMin + idxZ);

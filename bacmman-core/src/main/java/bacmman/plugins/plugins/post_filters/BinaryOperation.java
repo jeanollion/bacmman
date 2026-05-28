@@ -9,11 +9,15 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PostFilter;
+import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.UnaryPair;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.ToDoubleBiFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -29,31 +33,55 @@ public class BinaryOperation implements PostFilter, Hint {
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        RegionPopulation post = postFilter.filter(childPopulation.duplicate(), childStructureIdx, parent);
+        RegionPopulation postFiltered = postFilter.filter(childPopulation.duplicate(), childStructureIdx, parent);
         BiFunction<Region, Region, Region> op;
         switch (gate.getSelectedEnum()) {
             case A_PLUS_B:
             default:
-                op = (a, b) -> {a.add(b);return a;};
+                op = (a, b) -> {
+                    b.add(a);
+                    return b;
+                };
                 break;
             case A_MINUS_B:
-                op = (a,b) -> {a.remove(b); return a;};
+                op = (a,b) -> {
+                    a = a.duplicate(false);
+                    a.remove(b);
+                    if (a.isEmpty()) return null;
+                    else return a;
+                };
                 break;
             case B_MINUS_A:
-                op = (a,b) -> {b.remove(a); return b;};
+                op = (a,b) -> {
+                    b.remove(a);
+                    if (b.isEmpty()) return null;
+                    return b;
+                };
                 break;
         }
-        UnaryOperator<Region> getMaxOverlap = r -> {
-            Region other = post.getRegions().stream().max(Comparator.comparingInt(rr->BoundingBox.getIntersection(r.getBounds(), rr.getBounds()).getSizeXYZ())).get();
-            if (BoundingBox.getIntersection(r.getBounds(), other.getBounds()).getSizeXYZ()==0) return null;
-            else return other;
+        HashMapGetCreate<UnaryPair<Region>, Double> ABMapIntersection =  new HashMapGetCreate<>(p -> p.key.getOverlapArea(p.value));
+        UnaryOperator<Region> getMaxOverlap = a -> {
+            Comparator<Region> maxOverlap = (b1, b2) -> {
+                boolean r1Inter = BoundingBox.intersect(a.getBounds(), b1.getBounds());
+                boolean r2Inter = BoundingBox.intersect(a.getBounds(), b2.getBounds());
+                if (!r1Inter && !r2Inter) return 0;
+                else if (!r1Inter) return -1;
+                else if (!r2Inter) return 1;
+                // both intersect, compare intersection pixelwise.
+                else return Comparator.comparingDouble(r -> ABMapIntersection.getAndCreateIfNecessary(new UnaryPair<>(a, (Region)r))).compare(b1, b2);
+            };
+            Region b = postFiltered.getRegions().stream().max(maxOverlap).get();
+            if (BoundingBox.getIntersection(a.getBounds(), b.getBounds()).getSizeXYZ()==0) return null;
+            else return b;
         };
         List<Region> modifiedRegions = childPopulation.getRegions().stream().map(a -> {
             Region b = getMaxOverlap.apply(a);
             if (b == null) {
                 if (gate.getSelectedEnum().equals(GATE.B_MINUS_A)) return null;
-                else return a;
-            } else return op.apply(a, b);
+                else return a.duplicate(true); // a_minus_b or a_plus_b
+            } else {
+                return op.apply(a, b);
+            }
         }).filter(Objects::nonNull).collect(Collectors.toList());
         return new RegionPopulation(modifiedRegions, childPopulation.getImageProperties());
     }
