@@ -485,11 +485,20 @@ public class Track implements Comparable<Track> {
             if (trackCandidates.size() == 1) { // check if neighbors are the same
                 Track track2 = trackCandidates.get(0);
                 if ( !new HashSet<>(track2.getPrevious()).equals(new HashSet<>(track.getPrevious())) || !new HashSet<>(track2.getNext()).equals(new HashSet<>(track.getNext())) ) splitPerformed = true;
+                else { // restore initial state
+                    track2.getPrevious().forEach(p -> p.getNext().remove(track2));
+                    track2.getNext().forEach(p -> p.getPrevious().remove(track2));
+                    track.getPrevious().forEach(p -> p.getNext().add(track));
+                    track.getNext().forEach(p -> p.getPrevious().add(track));
+                    addTrack.accept(track);
+                    logger.debug("Split: {} no change", track);
+                }
             } else splitPerformed = true; // equivalent of track is not found -> track tree structure has changed
         }
-        if (splitPerformed) logger.debug("Split: {} new tracks {}", track, newTracks);
-        else logger.debug("Split: {} no change", track);
-        newTracks.forEach(addTrack);
+        if (splitPerformed) {
+            logger.debug("Split: {} new tracks {}", track, newTracks);
+            newTracks.forEach(addTrack);
+        }
         return splitPerformed;
     }
 
