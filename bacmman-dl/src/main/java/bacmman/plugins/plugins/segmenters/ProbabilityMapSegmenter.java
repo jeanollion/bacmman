@@ -51,6 +51,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
 
     public ProbabilityMapSegmenter() {
         inputChannels.addValidationFunction(cp -> Math.max(cp.getChildCount(), 1) == dlResample.getInputNumber());
+        dlResample.addRankValidation( DLEngine.getRankSupplier(dlEngine, 0) );
     }
 
     @Override

@@ -8,6 +8,7 @@ import bacmman.image.Image;
 import bacmman.processing.ResizeUtils;
 
 import java.util.Arrays;
+import java.util.function.IntSupplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
@@ -48,9 +49,9 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
     enum Z_AXIS {Z, CHANNEL, BATCH}
 
     static boolean setZAxis(PluginParameter<DLEngine> pp, Z_AXIS zAxis) {
-        ConditionalParameter<Z_AXIS> zAxisParam = ParameterUtils.getParameter(ConditionalParameter.class, pp.getParameters(), p -> p.getName().toLowerCase().contains("z") && p.getName().toLowerCase().contains("ax"));
+        ConditionalParameter<DLEngine.Z_AXIS> zAxisParam = ParameterUtils.getParameter(ConditionalParameter.class, pp.getParameters(), p -> p.getActionValue() instanceof DLEngine.Z_AXIS);
         if (zAxisParam == null) {
-            EnumChoiceParameter<Z_AXIS> zAxisParamChoice = ParameterUtils.getParameter(EnumChoiceParameter.class, pp.getParameters(), p -> p.getName().toLowerCase().contains("z") && p.getName().toLowerCase().contains("ax"));
+            EnumChoiceParameter<DLEngine.Z_AXIS> zAxisParamChoice = ParameterUtils.getParameter(EnumChoiceParameter.class, pp.getParameters(), p -> p.getSelectedEnum() instanceof DLEngine.Z_AXIS);
             if (zAxisParamChoice!=null) {
                 zAxisParamChoice.setValue(zAxis);
                 return true;
@@ -60,5 +61,17 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
             return true;
         }
         return false;
+    }
+
+    static IntSupplier getRankSupplier(PluginParameter<DLEngine> pp, int defaultRank) {
+        return () -> {
+            if (pp.getParameters() == null) return defaultRank;
+            ConditionalParameter<DLEngine.Z_AXIS> zAxisParam = ParameterUtils.getParameter(ConditionalParameter.class, pp.getParameters(), p -> p.getActionValue() instanceof DLEngine.Z_AXIS);
+            if (zAxisParam == null) {
+                EnumChoiceParameter<DLEngine.Z_AXIS> zAxisParamChoice = ParameterUtils.getParameter(EnumChoiceParameter.class, pp.getParameters(), p -> p.getSelectedEnum() instanceof DLEngine.Z_AXIS);
+                if (zAxisParamChoice != null) return zAxisParamChoice.getSelectedEnum().equals(DLEngine.Z_AXIS.Z) ? 3 : 2;
+            } else return zAxisParam.getActionValue().equals(DLEngine.Z_AXIS.Z) ? 3 : 2;
+            return defaultRank;
+        };
     }
 }

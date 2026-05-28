@@ -171,6 +171,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Consumer<BooleanParameter> lis = b -> dlResizeAndScale.setOutputNumber( 4 + (b.getSelected() ? 1 : 0) + ( next.getSelected() ? 1 : 0) ) ;
         predictCategory.addListener( lis );
         next.addListener( lis );
+        dlResizeAndScale.addRankValidation( DLEngine.getRankSupplier(dlEngine, 0) );
     }
 
     @Override

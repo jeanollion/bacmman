@@ -38,12 +38,12 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.EXISTING, extractSel)
             .setActionParameters(SELECTION_MODE.NEW, extractParentClass, extractPos);
-    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.BATCH, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.BATCH);
+    ExtractZAxisParameter extractZAxisParameter = new ExtractZAxisParameter(new ExtractZAxisParameter.ExtractZAxis[]{ExtractZAxisParameter.ExtractZAxis.IMAGE3D, ExtractZAxisParameter.ExtractZAxis.BATCH, ExtractZAxisParameter.ExtractZAxis.MIDDLE_PLANE, ExtractZAxisParameter.ExtractZAxis.SINGLE_PLANE}, ExtractZAxisParameter.ExtractZAxis.IMAGE3D);
     ArchitectureParameter arch = new ArchitectureParameter("Architecture");
 
     GroupParameter extractionParameters = new GroupParameter("ExtractionParameters", extractChannels, extractClasses, extractZAxisParameter, selModeCond);
 
-    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, false, false, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, new Parameter[]{arch}, null)
+    TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, false, true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, new Parameter[]{arch}, null)
             .setEpochNumber(500).setStepNumber(100).setDockerImageRequirements(getDockerImageName(), null, null, null);
 
     public PixMClass() {

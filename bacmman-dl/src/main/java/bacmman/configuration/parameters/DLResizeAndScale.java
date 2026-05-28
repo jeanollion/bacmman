@@ -94,6 +94,18 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 "<li>PAD: Expands image either to a fixed user-defined size, or to the nearest size compatible with the contraction level of the network</li>" +
                 "<li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
     }
+
+    public DLResizeAndScale addRankValidation(IntSupplier rankSupplier) {
+        if (rankSupplier != null) {
+            targetShape.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
+            contraction.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
+            tileShape.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
+            minOverlap.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
+            minPad.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
+        }
+        return this;
+    }
+
     public DLResizeAndScale setScaleLogger(Consumer<String> scaleLogger) {
         this.scaleLogger = scaleLogger;
         return this;
