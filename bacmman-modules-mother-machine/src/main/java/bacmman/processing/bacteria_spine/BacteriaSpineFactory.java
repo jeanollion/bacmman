@@ -21,8 +21,10 @@ package bacmman.processing.bacteria_spine;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Voxel;
 import bacmman.processing.EDT;
+import bacmman.processing.FillHoles2D;
+import bacmman.processing.skeleton.EDTSkeleton;
+import bacmman.image.TypeConverter;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
-import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
@@ -44,7 +46,6 @@ import bacmman.utils.geom.Point;
 import bacmman.utils.geom.PointContainer2;
 import bacmman.utils.geom.Vector;
 import bacmman.utils.geom.PointSmoother;
-import ij.ImagePlus;
 
 import java.util.*;
 import java.util.function.*;
@@ -55,7 +56,6 @@ import net.imglib2.Localizable;
 import net.imglib2.RealLocalizable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sc.fiji.skeletonize3D.Skeletonize3D_;
 
 /**
  *
@@ -67,6 +67,9 @@ public class BacteriaSpineFactory {
     public static int verboseZoomFactor = 13;
     public static double centerlineSmoothScale = 2; // smoothing strength for the final shrinkage-free (Taubin) centerline smoothing
     public static double contourHalfVoxelOffset = 0.5; // outward contour offset (px) compensating that contour voxels are measured at their centers
+    public static int ridgeRefineIterations = 6; // 3D: iterations of EDT-ridge refinement of the centerline (saturates ~6)
+    public static double centerlineUpsampleStep = 0.5; // 3D: upsample the centerline to this spacing (px) before smoothing
+    public static boolean spine3D2_5D = true; // 3D: measure width & pole from per-slice 2D contours (2.5D) instead of the 3D EDT/mask
     public static class InvalidObjectException extends Exception {
         public InvalidObjectException(String message) {
             super(message);
@@ -128,7 +131,7 @@ public class BacteriaSpineFactory {
         return createSpine(bacteria, 2);
     }
     public static SpineResult createSpine(Region bacteria, double contourSmoothSigma) throws InvalidObjectException {
-        if (!bacteria.is2D()) throw new InvalidObjectException("Only works on 2D regions");
+        if (!bacteria.is2D()) return createSpine3D(bacteria);
         SpineResult res = new SpineResult();
         res.bounds = new SimpleBoundingBox(bacteria.getBounds());
         long t0 = System.currentTimeMillis();
@@ -166,7 +169,190 @@ public class BacteriaSpineFactory {
         if (imageDisp!=null) logger.debug("getContour: {}ms, clean contour: {}ms, get skeleton: {}ms, close contour: {}ms, smooth contour: {}ms, resample contour: {}ms, get contour set: {}ms, create spine: {}ms total: {}ms", t1-t0, t2-t1, t3-t2, t5-t4, t6-t5, t7-t6, t8-t7, t9-t8, t9-t0);
         return res;
     }
-    
+
+    /**
+     * 3D spine: curved length + width only (no curvilinear coordinate system). The centerline is the 3D skeleton's
+     * longest geodesic path, extended to the poles along the local direction; width is taken from the Euclidean
+     * distance transform. All distances are in XY-pixel units; anisotropy is handled via az = scaleZ/scaleXY (z is
+     * scaled by az).
+     */
+    private static SpineResult createSpine3D(Region bacteria) throws InvalidObjectException {
+        SpineResult res = new SpineResult();
+        res.bounds = new SimpleBoundingBox(bacteria.getBounds());
+        double scaleXY = bacteria.getScaleXY(), scaleZ = bacteria.getScaleZ();
+        double az = scaleXY>0 ? scaleZ/scaleXY : 1;
+        ImageByte mask = TypeConverter.toByteMask(bacteria.getMask(), null, 1);
+        FillHoles2D.fillHoles(mask, 2); // fill per-slice holes (as in the 2D path)
+        ImageFloat edt = EDT.transform(mask, true, 1, az, false); // radius in XY-pixel units (z weighted by az); single-thread (per-object image is small)
+        // Centerline = EDT minimal-cost path between the two geodesically-farthest poles. This is anisotropy-aware
+        // (EDT and edge lengths use az) and avoids skeletonization, which thins in voxel space and over-erodes /
+        // distorts thin anisotropic objects.
+        List<Point> path = EDTSkeleton.getCenterline(mask, edt, az);
+        if (path == null || path.size()<2) throw new InvalidObjectException("3D spine: could not trace centerline");
+        // 2.5D representation: per-slice smoothed XY ring contour for interior slices; null = "region" representation
+        // (cap / too-small slices) where the boundary is in z and the filled mask is used instead.
+        CircularNode<Point>[] sliceContours = spine3D2_5D ? buildSliceContours(bacteria, mask) : null;
+        // re-center on the EDT ridge (sub-voxel), then extend the medial endpoints to the object boundary (the
+        // EDT ridge stops ~one radius short of the tips, so this adds the pole caps to reach the true length).
+        EDTSkeleton.refineToEDTRidge(path, edt, mask, az, ridgeRefineIterations);
+        int k = Math.min(5, path.size()-1);
+        Vector dHead = meanDir3D(path, true, k), dTail = meanDir3D(path, false, k);
+        Point head = spine3D2_5D ? extendPole2_5D(sliceContours, mask, path.get(0), dHead) : extendPole3D(mask, path.get(0), dHead);
+        Point tail = spine3D2_5D ? extendPole2_5D(sliceContours, mask, path.get(path.size()-1), dTail) : extendPole3D(mask, path.get(path.size()-1), dTail);
+        path.add(0, head);
+        path.add(tail);
+        res.skeleton = path.stream().map(p -> new Voxel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2))).collect(Collectors.toList());
+        // build spine points: z scaled by az (isotropic XY-pixel space); width = 2.5D contour-pair (else 2*EDT)
+        List<PointContainer2<Vector, Double>> spList = new ArrayList<>(path.size());
+        for (int i = 0; i<path.size(); ++i) {
+            Point p = path.get(i);
+            double width;
+            if (spine3D2_5D) {
+                Point pa = path.get(Math.max(0, i-1)), pb = path.get(Math.min(path.size()-1, i+1));
+                double tx = pb.get(0)-pa.get(0), ty = pb.get(1)-pa.get(1), tn = Math.sqrt(tx*tx+ty*ty);
+                double perpX = tn<1e-6 ? 1 : -ty/tn, perpY = tn<1e-6 ? 0 : tx/tn;
+                int zr = (int)Math.round(p.get(2))-mask.zMin();
+                CircularNode<Point> c = (zr>=0 && zr<sliceContours.length) ? sliceContours[zr] : null;
+                double w = c!=null ? contourWidth(c, p.get(0), p.get(1), perpX, perpY) : -1;
+                width = w>0 ? w : 2*sampleEDT(edt, mask, p); // cap/region slices: fall back to EDT
+            } else width = 2*sampleEDT(edt, mask, p);
+            spList.add(PointContainer2.fromPoint(new Point(p.get(0), p.get(1), (float)(p.get(2)*az)), new Vector((float)width, 0f), 0d));
+        }
+        spList = upsampleCenterline(spList, centerlineUpsampleStep); // denser sampling for a stable length integration
+        setCumulativeDistance(spList);
+        smoothCenterlineTaubin(spList, centerlineSmoothScale);
+        setCumulativeDistance(spList);
+        res.spine = spList.toArray(new PointContainer2[spList.size()]);
+        return res;
+    }
+    /** Inserts interpolated points (position + width vector) so consecutive spacing is &le; {@param step}. */
+    private static List<PointContainer2<Vector, Double>> upsampleCenterline(List<PointContainer2<Vector, Double>> sp, double step) {
+        int n = sp.size();
+        if (n<2 || step<=0) return sp;
+        List<PointContainer2<Vector, Double>> res = new ArrayList<>();
+        for (int i = 0; i<n-1; ++i) {
+            PointContainer2<Vector, Double> a = sp.get(i), b = sp.get(i+1);
+            res.add(a);
+            int k = (int)Math.floor(a.dist(b)/step);
+            for (int j = 1; j<=k; ++j) {
+                double w = j/(double)(k+1);
+                Point pos = Point.asPoint((RealLocalizable)a).weightedSum(Point.asPoint((RealLocalizable)b), 1-w, w);
+                Vector wv = a.getContent1().duplicate().weightedSum(b.getContent1(), 1-w, w);
+                res.add(PointContainer2.fromPoint(pos, wv, 0d));
+            }
+        }
+        res.add(sp.get(n-1));
+        return res;
+    }
+    private static double sampleEDT(ImageFloat edt, ImageMask mask, Point p) {
+        int x = p.getIntPosition(0), y = p.getIntPosition(1), z = p.getIntPosition(2);
+        if (!mask.containsWithOffset(x, y, z)) return 0;
+        return edt.getPixelWithOffset(x, y, z);
+    }
+    private static Vector meanDir3D(List<Point> path, boolean head, int k) {
+        int n = path.size();
+        Vector d = new Vector(0, 0, 0);
+        for (int i = 0; i<k; ++i) {
+            if (head) d.add(Vector.vector(path.get(i+1), path.get(i)), 1); // points outward at the head
+            else { int j = n-1-i; d.add(Vector.vector(path.get(j-1), path.get(j)), 1); } // outward at the tail
+        }
+        return d;
+    }
+    /**
+     * Per-slice 2.5D representation: for each z-slice, a smoothed+inflated XY ring contour (same pipeline as the 2D
+     * path). Returns null for a slice that is a cap or too small to form a ring — the "edge case" where the
+     * representation switches to a 2D region (the filled mask is used instead). Indexed by relative z.
+     */
+    @SuppressWarnings("unchecked")
+    private static CircularNode<Point>[] buildSliceContours(Region bacteria, ImageByte mask) {
+        int sizeZ = mask.sizeZ(), zMin = mask.zMin();
+        CircularNode<Point>[] res = new CircularNode[sizeZ];
+        for (int zr = 0; zr<sizeZ; ++zr) {
+            try {
+                Region slice = bacteria.intersectWithZPlanes(zMin+zr, zMin+zr, true, false);
+                if (slice==null) { res[zr] = null; continue; }
+                Set cont = slice.getContour();
+                if (cont.size()<6) { res[zr] = null; continue; } // edge case: cap/tiny slice -> region representation
+                CleanVoxelLine.cleanContour(cont);
+                CircularNode circ = CircularContourFactory.getCircularContour(cont);
+                CircularNode<Point> c = CircularContourFactory.smoothContour2D(circ, 0.5);
+                c = CircularContourFactory.resampleContour(c, 0.5);
+                c = CircularContourFactory.smoothContour2DTaubin(c, 2);
+                c = CircularContourFactory.inflateContour(c, contourHalfVoxelOffset);
+                res[zr] = c;
+            } catch (Throwable t) { res[zr] = null; } // degenerate slice -> region representation
+        }
+        return res;
+    }
+    /** Even-odd point-in-polygon test for a closed contour (XY). */
+    private static boolean pointInContour(CircularNode<Point> c, double x, double y) {
+        boolean in = false;
+        CircularNode<Point> cur = c;
+        do {
+            Point a = cur.getElement(), b = cur.next().getElement();
+            double ay = a.get(1), by = b.get(1);
+            if ((ay>y) != (by>y)) {
+                double xint = a.get(0) + (y-ay)/(by-ay) * (b.get(0)-a.get(0));
+                if (x<xint) in = !in;
+            }
+            cur = cur.next();
+        } while (cur!=c);
+        return in;
+    }
+    /** 2.5D inside test: ring contour where available (sub-voxel XY), else the filled mask (cap/region slices). */
+    private static boolean inside2_5D(CircularNode<Point>[] contours, ImageMask mask, double x, double y, double z) {
+        int zk = (int)Math.round(z), zr = zk-mask.zMin();
+        if (zr<0 || zr>=contours.length) return false;
+        CircularNode<Point> c = contours[zr];
+        if (c!=null) return pointInContour(c, x, y);
+        int xi = (int)Math.round(x), yi = (int)Math.round(y);
+        return mask.containsWithOffset(xi, yi, zk) && mask.insideMaskWithOffset(xi, yi, zk);
+    }
+    /** Pole extension using the 2.5D representation (sub-voxel lateral boundary via contours, z-cap via region). */
+    private static Point extendPole2_5D(CircularNode<Point>[] contours, ImageMask mask, Point fromInside, Vector dirOutward) {
+        if (dirOutward.norm()==0) return fromInside.duplicate();
+        Vector step = dirOutward.duplicate().normalize().multiply(0.1);
+        Point p = fromInside.duplicate(), last = fromInside.duplicate();
+        int guard = 0;
+        while (guard++ < 20000) {
+            p.translate(step);
+            if (!inside2_5D(contours, mask, p.get(0), p.get(1), p.get(2))) break;
+            last.setData(p.get(0), p.get(1), p.get(2));
+        }
+        return last.translate(step.multiply(0.5));
+    }
+    /** Width = distance between the two intersections of the line through (cx,cy) along unit (dx,dy) with the contour. */
+    private static double contourWidth(CircularNode<Point> circ, double cx, double cy, double dx, double dy) {
+        double tPos = Double.POSITIVE_INFINITY, tNeg = Double.NEGATIVE_INFINITY;
+        CircularNode<Point> cur = circ;
+        do {
+            Point a = cur.getElement(), b = cur.next().getElement();
+            double ex = b.get(0)-a.get(0), ey = b.get(1)-a.get(1);
+            double denom = ex*dy - ey*dx;
+            if (Math.abs(denom)>1e-12) {
+                double qx = a.get(0)-cx, qy = a.get(1)-cy;
+                double t = (ex*qy - ey*qx) / denom;
+                double s = (dx*qy - dy*qx) / denom;
+                if (s>=0 && s<=1) { if (t>0 && t<tPos) tPos = t; if (t<0 && t>tNeg) tNeg = t; }
+            }
+            cur = cur.next();
+        } while (cur!=circ);
+        if (tPos==Double.POSITIVE_INFINITY || tNeg==Double.NEGATIVE_INFINITY) return -1;
+        return tPos - tNeg;
+    }
+    private static Point extendPole3D(ImageMask mask, Point fromInside, Vector dirOutward) {
+        if (dirOutward.norm()==0) return fromInside.duplicate();
+        Vector step = dirOutward.duplicate().normalize().multiply(0.25);
+        Point p = fromInside.duplicate(), last = fromInside.duplicate();
+        int guard = 0;
+        while (guard++ < 8000) {
+            p.translate(step);
+            int x = p.getIntPosition(0), y = p.getIntPosition(1), z = p.getIntPosition(2);
+            if (!mask.containsWithOffset(x, y, z) || !mask.insideMaskWithOffset(x, y, z)) break;
+            last.setData(p.get(0), p.get(1), p.get(2));
+        }
+        return last.translate(step.multiply(0.5)); // ~ object edge between last-inside and first-outside samples
+    }
     private Voxel getEdtCenter(ImageMask mask) {
         Image edt = EDT.transform(mask, true, 1, 1, false);
         Voxel[] max = new Voxel[1];
@@ -177,20 +363,18 @@ public class BacteriaSpineFactory {
         return max[0];
     }
     /**
-     * Get largest shortest path from skeleton created as in  Skeletonize3D_ plugin
-     * Each point has exactly 2 neighbors exepts the two ends that have only one
-     * @param mask mask contaiing foreground. WARNING: will be modified
-     * @return list of skeleton voxels, ordered from upper-left end
+     * Centerline (medial-axis ridge) of the mask as an ordered list of voxels, from one pole to the other.
+     * Uses the anisotropy-aware EDT minimal-path method (no skeletonization); the two ends are the medial-axis
+     * endpoints (~one radius inside the object tips).
+     * @param mask mask containing foreground (not modified)
+     * @return list of centerline voxels, ordered tip to tip
      */
     public static List<Voxel> getSkeleton(ImageByte mask) throws InvalidObjectException {
-        Skeletonize3D_ skProc = new Skeletonize3D_();
-        ImagePlus imp = IJImageWrapper.getImagePlus(mask);
-        skProc.setup("", imp);
-        skProc.run(imp.getProcessor());
-        Set<Voxel> sk = new HashSet<>();
-        ImageMask.loopWithOffset(mask, (x, y, z)-> sk.add(new Voxel(x, y, z)));
-        //if (verbose) ImageWindowManagerFactory.showImage(new Region(sk, 1, true, 1, 1).getMaskAsImageInteger().setName("skeleton before clean"));
-        return CleanVoxelLine.cleanSkeleton(sk, imageDisp, mask);
+        List<Point> ridge = EDTSkeleton.getCenterline(mask, 1);
+        if (ridge==null || ridge.isEmpty()) throw new InvalidObjectException("could not extract centerline");
+        List<Voxel> sk = new ArrayList<>(ridge.size());
+        for (Point p : ridge) sk.add(new Voxel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2)));
+        return sk;
     }
     
     public static <T extends Localizable> PointContainer2<Vector, Double>[] createSpineFromSkeleton(ImageMask mask, List<Voxel> skeleton, Set<T> contour, CircularNode<T> circContour) throws InvalidObjectException {
@@ -735,27 +919,26 @@ public class BacteriaSpineFactory {
     private static void smoothCenterlineTaubin(List<PointContainer2<Vector, Double>> sp, double sigma) {
         int n = sp.size();
         if (n<3 || sigma<=0) return;
+        int dim = sp.get(0).numDimensions();
         double total = sp.get(n-1).getContent2();
         double spacing = total>0 ? total/(n-1) : 1;
         final double lambda = 0.6307, mu = -0.6732;
         int iterations = Math.max(1, Math.min(200, (int)Math.round((sigma/spacing)*(sigma/spacing)/(2*lambda))));
-        double[] dx = new double[n], dy = new double[n];
+        double[][] d = new double[dim][n];
         for (int it = 0; it<iterations; ++it) {
-            taubinPassOpen(sp, dx, dy, lambda);
-            taubinPassOpen(sp, dx, dy, mu);
+            taubinPassOpen(sp, d, dim, lambda);
+            taubinPassOpen(sp, d, dim, mu);
         }
     }
-    private static void taubinPassOpen(List<PointContainer2<Vector, Double>> sp, double[] dx, double[] dy, double factor) {
+    private static void taubinPassOpen(List<PointContainer2<Vector, Double>> sp, double[][] d, int dim, double factor) {
         int n = sp.size();
         for (int i = 1; i<n-1; ++i) { // endpoints (poles) stay fixed
             Point cur = sp.get(i), prev = sp.get(i-1), next = sp.get(i+1);
-            dx[i] = factor * 0.5 * (prev.get(0) + next.get(0) - 2 * cur.get(0));
-            dy[i] = factor * 0.5 * (prev.get(1) + next.get(1) - 2 * cur.get(1));
+            for (int k = 0; k<dim; ++k) d[k][i] = factor * 0.5 * (prev.get(k) + next.get(k) - 2 * cur.get(k));
         }
         for (int i = 1; i<n-1; ++i) {
             Point cur = sp.get(i);
-            cur.set((float)(cur.get(0) + dx[i]), 0);
-            cur.set((float)(cur.get(1) + dy[i]), 1);
+            for (int k = 0; k<dim; ++k) cur.set((float)(cur.get(k) + d[k][i]), k);
         }
     }
     public static double getSpineLength(Region r) {
