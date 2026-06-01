@@ -761,11 +761,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 "    <li><strong>γ=2.0</strong> → standard focal</li>" +
                 "    <li><strong>γ=5.0</strong> → extreme focus (for very imbalanced data)</li>" +
                 "</ul>");
-        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(1).setUpperBound(3).setHint("<strong>Temperature (t):</strong> Tempering parameter (t ≥ 1). Controls gradient bounding.<br>" +
+        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(1).setUpperBound(3).setHint(
+                "<strong>Temperature (t):</strong> Tempering parameter (t &ge; 1). Replaces log(p) with " +
+                "a tempered logarithm whose gradient is p<sup>-1/t</sup> instead of 1/p, bounding the " +
+                "loss and gradient on confident-wrong / hard pixels (loss &rarr; 1/(1-1/t) as p&rarr;0). " +
+                "Reduces gradient spikes from ambiguous or mislabeled examples and adds robustness to " +
+                "label noise.<br>" +
                 "<ul>" +
-                "    <li><strong>t=1.0</strong> → standard cross entropy (unbounded gradients)</li>" +
-                "    <li><strong>t=2.0</strong> → moderate bounding</li>" +
-                "    <li><strong>t=3.0+</strong> → strong bounding (very stable, may slow learning)</li>" +
+                "    <li><strong>t=1.0</strong> &rarr; standard cross entropy (log, unbounded gradient)</li>" +
+                "    <li><strong>t=1.1</strong> &rarr; moderate bounding (loss capped at ~-11)</li>" +
+                "    <li><strong>t=2.0+</strong> &rarr; strong bounding (loss capped at -2, very stable, may slow learning)</li>" +
                 "</ul>");
         FloatParameter labelSmoothing = new FloatParameter("Label Smoothing", 0).setLowerBound(0).setUpperBound(0.5).setHint(
                 "Effect: y<sub>smooth</sub> = y * (1-&epsilon;) + &epsilon;/K <br>where K = num_classes<br><br>" +
@@ -790,23 +795,33 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                         "    <li>Can conflict with focal loss (both modify targets)</li>" +
                         "</ul>"
         );
+        final String configName;
+        final boolean useTemperature, useLabelSmoothing;
+        public CategoryLossParameter(String name, boolean temperature, boolean labelSmoothing) {
+            this(name, PythonConfiguration.toSnakeCase(name), temperature, labelSmoothing);
+        }
 
-
-        public CategoryLossParameter(String name) {
+        public CategoryLossParameter(String name, String configName, boolean temperature, boolean labelSmoothing) {
             super(name);
-            this.setChildren(weightPowerLaw, focalWeight, labelSmoothing);
+            this.useLabelSmoothing = labelSmoothing;
+            this.useTemperature = temperature;
+            if (temperature && labelSmoothing) this.setChildren(weightPowerLaw, focalWeight, this.labelSmoothing, this.temperature);
+            else if (temperature) this.setChildren(weightPowerLaw, focalWeight, this.temperature);
+            else if (labelSmoothing) this.setChildren(weightPowerLaw, focalWeight, this.labelSmoothing);
+            else  this.setChildren(weightPowerLaw, focalWeight);
+            this.configName = configName;
         }
 
         @Override
         public CategoryLossParameter duplicate() {
-            CategoryLossParameter res = new CategoryLossParameter(name);
+            CategoryLossParameter res = new CategoryLossParameter(name, configName, this.useTemperature, this.useLabelSmoothing);
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
         }
 
         @Override
-        public String getPythonConfigurationKey() {return "category_loss_parameters";}
+        public String getPythonConfigurationKey() {return configName;}
 
     }
 

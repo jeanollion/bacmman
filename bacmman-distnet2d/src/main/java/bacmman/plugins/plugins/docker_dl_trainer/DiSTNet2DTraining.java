@@ -149,11 +149,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     }
 
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
-
-        FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 0.5).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between link multiplicity classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
-        FloatParameter lmFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(3).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
-        GroupParameter lmLossParameters = new GroupParameter("LM Loss Parameters", lmWeightPowerLaw, lmFocalWeight);
-
+        TrainingConfigurationParameter.CategoryLossParameter lmLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("LM Loss Parameters", true, false);
 
         public TrackingParameters() {
             super("Tracking");
@@ -168,15 +164,6 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             return res;
         }
 
-        @Override
-        public Object getPythonConfiguration() {
-            JSONObject res = new JSONObject();
-            JSONObject lmLossParams = new JSONObject();
-            lmLossParams.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
-            lmLossParams.put(PythonConfiguration.toSnakeCase(lmFocalWeight.getName()), lmFocalWeight.toJSONEntry());
-            res.put("lm_loss_parameters", lmLossParams);
-            return res;
-        }
     }
 
     Parameter[] otherParameters = new Parameter[]{new SegmentationParameters(true, true), new TrackingParameters(), arch};
