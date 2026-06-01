@@ -761,16 +761,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 "    <li><strong>γ=2.0</strong> → standard focal</li>" +
                 "    <li><strong>γ=5.0</strong> → extreme focus (for very imbalanced data)</li>" +
                 "</ul>");
-        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(1).setUpperBound(3).setHint(
+        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(0).setUpperBound(0.5).setHint(
                 "<strong>Temperature (t):</strong> Tempering parameter (t &ge; 1). Replaces log(p) with " +
-                "a tempered logarithm whose gradient is p<sup>-1/t</sup> instead of 1/p, bounding the " +
-                "loss and gradient on confident-wrong / hard pixels (loss &rarr; 1/(1-1/t) as p&rarr;0). " +
+                "a tempered logarithm whose gradient is p<sup>t-1</sup> instead of 1/p, bounding the " +
+                "loss and gradient on confident-wrong / hard pixels (loss &rarr; 1/t as p&rarr;0). " +
                 "Reduces gradient spikes from ambiguous or mislabeled examples and adds robustness to " +
                 "label noise.<br>" +
                 "<ul>" +
-                "    <li><strong>t=1.0</strong> &rarr; standard cross entropy (log, unbounded gradient)</li>" +
-                "    <li><strong>t=1.1</strong> &rarr; moderate bounding (loss capped at ~-11)</li>" +
-                "    <li><strong>t=2.0+</strong> &rarr; strong bounding (loss capped at -2, very stable, may slow learning)</li>" +
+                "    <li><strong>t=0.0</strong> &rarr; standard cross entropy (log, unbounded gradient)</li>" +
+                "    <li><strong>t=0.1</strong> &rarr; moderate bounding (loss capped at -10)</li>" +
+                "    <li><strong>t=0.5+</strong> &rarr; strong bounding (loss capped at -2, very stable, may slow learning)</li>" +
                 "</ul>");
         FloatParameter labelSmoothing = new FloatParameter("Label Smoothing", 0).setLowerBound(0).setUpperBound(0.5).setHint(
                 "Effect: y<sub>smooth</sub> = y * (1-&epsilon;) + &epsilon;/K <br>where K = num_classes<br><br>" +
