@@ -66,10 +66,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<Boolean> edmBalanceFreqCond = new ConditionalParameter<>(edmBalanceFreq)
                 .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
-        FloatParameter catWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between category classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
-        FloatParameter catFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(3).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
-        BooleanParameter classBalancedLossMasking = new BooleanParameter("Class Balanced Loss Masking", false);
-        GroupParameter catLossParameters = new GroupParameter("Category Loss Parameters", catWeightPowerLaw, catFocalWeight, classBalancedLossMasking);
+        TrainingConfigurationParameter.CategoryLossParameter catLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("Category Loss Parameters", true, true, true);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
@@ -136,11 +133,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             } else { // category only
                 res.put("input_label_center_idx", 0);
             }
-            JSONObject catParams = new JSONObject();
-            catParams.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
-            catParams.put(PythonConfiguration.toSnakeCase(catFocalWeight.getName()), catFocalWeight.toJSONEntry());
-            catParams.put(PythonConfiguration.toSnakeCase(classBalancedLossMasking.getName()), classBalancedLossMasking.toJSONEntry());
-            res.put("category_loss_parameters", catParams);
+            res.put(catLossParameters.getPythonConfigurationKey(), catLossParameters.getPythonConfiguration());
 
             res.put("segmentation", segmentation);
             res.put("tracking", tracking);
@@ -149,7 +142,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     }
 
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
-        TrainingConfigurationParameter.CategoryLossParameter lmLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("LM Loss Parameters", true, false);
+        TrainingConfigurationParameter.CategoryLossParameter lmLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("LM Loss Parameters", true, true, false);
 
         public TrackingParameters() {
             super("Tracking");
