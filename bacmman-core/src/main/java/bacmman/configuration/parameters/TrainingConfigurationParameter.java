@@ -773,6 +773,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 "    <li><strong>t=0.1</strong> &rarr; moderate bounding (loss capped at -10)</li>" +
                 "    <li><strong>t=0.5+</strong> &rarr; strong bounding (loss capped at -2, very stable, may slow learning)</li>" +
                 "</ul>");
+        FloatParameter pseudoHuber = new FloatParameter("Pseudo Huber", 0).setLowerBound(0).setUpperBound(1);
         FloatParameter labelSmoothing = new FloatParameter("Label Smoothing", 0).setLowerBound(0).setUpperBound(0.5).setHint(
                 "Effect: y<sub>smooth</sub> = y * (1-&epsilon;) + &epsilon;/K <br>where K = num_classes<br><br>" +
                         "<strong>Benefits:</strong><br>" +
@@ -798,20 +799,22 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         );
         BooleanParameter classBalancedLossMasking = new BooleanParameter("Class Balanced Loss Masking", false);
         final String configName;
-        final boolean useTemperature, useLabelSmoothing, useClassBalancedLossMasking;
-        public CategoryLossParameter(String name, boolean temperature, boolean labelSmoothing, boolean classBalancedLossMasking) {
-            this(name, PythonConfiguration.toSnakeCase(name), temperature, labelSmoothing, classBalancedLossMasking);
+        final boolean useTemperature, usePseudoHuber, useLabelSmoothing, useClassBalancedLossMasking;
+        public CategoryLossParameter(String name, boolean temperature, boolean pseudoHuber, boolean labelSmoothing, boolean classBalancedLossMasking) {
+            this(name, PythonConfiguration.toSnakeCase(name), temperature, pseudoHuber, labelSmoothing, classBalancedLossMasking);
         }
 
-        public CategoryLossParameter(String name, String configName, boolean temperature, boolean labelSmoothing, boolean classBalancedLossMasking) {
+        public CategoryLossParameter(String name, String configName, boolean temperature, boolean pseudoHuber, boolean labelSmoothing, boolean classBalancedLossMasking) {
             super(name);
             this.useLabelSmoothing = labelSmoothing;
             this.useTemperature = temperature;
+            this.usePseudoHuber = pseudoHuber;
             this.useClassBalancedLossMasking = classBalancedLossMasking;
             List<Parameter> params = new ArrayList<>();
             params.add(weightPowerLaw); params.add(maxWeight); params.add(focalWeight);
             if (labelSmoothing) params.add( this.labelSmoothing);
             if (temperature) params.add( this.temperature);
+            if (pseudoHuber) params.add( this.pseudoHuber);
             if (classBalancedLossMasking) params.add( this.classBalancedLossMasking);
             this.setChildren(params);
             this.configName = configName;
@@ -819,7 +822,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
 
         @Override
         public CategoryLossParameter duplicate() {
-            CategoryLossParameter res = new CategoryLossParameter(name, configName, this.useTemperature, this.useLabelSmoothing, this.useClassBalancedLossMasking);
+            CategoryLossParameter res = new CategoryLossParameter(name, configName, this.useTemperature, this.usePseudoHuber, this.useLabelSmoothing, this.useClassBalancedLossMasking);
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;

@@ -66,7 +66,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<Boolean> edmBalanceFreqCond = new ConditionalParameter<>(edmBalanceFreq)
                 .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
-        TrainingConfigurationParameter.CategoryLossParameter catLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("Category Loss Parameters", true, true, true);
+        TrainingConfigurationParameter.CategoryLossParameter catLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("Category Loss Parameters", true, false, true, true);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
@@ -142,7 +142,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     }
 
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
-        TrainingConfigurationParameter.CategoryLossParameter lmLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("LM Loss Parameters", true, true, false);
+        TrainingConfigurationParameter.CategoryLossParameter lmLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("LM Loss Parameters", true, true, true, false);
 
         public TrackingParameters() {
             super("Tracking");
