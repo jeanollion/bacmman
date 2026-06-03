@@ -16,7 +16,7 @@ import java.util.function.Function;
 
 public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     static Logger logger = LoggerFactory.getLogger(DLFilter.class);
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine");
     enum INPUT_TYPE {RAW, BINARY_MASK}
     EnumChoiceParameter<INPUT_TYPE> type = new EnumChoiceParameter<>("Input Type", INPUT_TYPE.values(), INPUT_TYPE.BINARY_MASK);
     ObjectClassParameter oc = new ObjectClassParameter("Object class");

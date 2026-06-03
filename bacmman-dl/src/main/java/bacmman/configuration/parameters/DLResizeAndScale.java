@@ -97,13 +97,31 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
 
     public DLResizeAndScale addRankValidation(IntSupplier rankSupplier) {
         if (rankSupplier != null) {
-            targetShape.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
-            contraction.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
-            tileShape.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
-            minOverlap.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
-            minPad.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<=0);
+            targetShape.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<0);
+            contraction.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<0);
+            tileShape.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<0);
+            minOverlap.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<0);
+            minPad.addValidationFunction(a -> a.getChildCount() == rankSupplier.getAsInt() || rankSupplier.getAsInt()<0);
         }
         return this;
+    }
+
+    public IntSupplier getRankFunction() {
+        return () -> {
+            switch (getActionValue()) {
+                case TILE:
+                    if (tileShape.getChildCount() == minOverlap.getChildCount()) return tileShape.getChildCount();
+                    else return 0; // invalid
+                case PAD:
+                    if (minPad.getChildCount() == contraction.getChildCount() && minPad.getChildCount() == targetShape.getChildCount()) return minPad.getChildCount();
+                    else return 0; // invalid
+                case  RESAMPLE:
+                    if (targetShape.getChildCount() == contraction.getChildCount()) return targetShape.getChildCount();
+                    else return 0; // invalid
+                default:
+                    return -1; // no constraint
+            }
+        };
     }
 
     public DLResizeAndScale setScaleLogger(Consumer<String> scaleLogger) {

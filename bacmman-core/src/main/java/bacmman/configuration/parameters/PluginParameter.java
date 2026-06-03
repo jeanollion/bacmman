@@ -58,6 +58,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     protected List<Parameter> additionalParameters;
     protected Consumer<T> newInstanceConfiguration;
     protected Predicate<String> pluginFilter;
+    protected Predicate<Parameter> childrenValidation;
 
     @Override
     public JSONObject toJSONEntry() {
@@ -115,10 +116,20 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         return this;
     }
 
-    public PluginParameter<T> setNewInstanceConfiguration(Consumer<T> newInstanceConfiguration) {
-        this.newInstanceConfiguration = newInstanceConfiguration;
+    public PluginParameter<T> addNewInstanceConfiguration(Consumer<T> newInstanceConfiguration) {
+        if (newInstanceConfiguration == null) return this;
+        if (this.newInstanceConfiguration==null) this.newInstanceConfiguration=newInstanceConfiguration;
+        else this.newInstanceConfiguration=this.newInstanceConfiguration.andThen(newInstanceConfiguration);
         return this;
     }
+
+    public PluginParameter<T> addValidationFunctionToChildren(Predicate<Parameter> childrenValidation) {
+        if (childrenValidation == null) return this;
+        if (this.childrenValidation==null) this.childrenValidation=childrenValidation;
+        else this.childrenValidation = this.childrenValidation.and(childrenValidation);
+        return this;
+    }
+
     public PluginParameter<T> setAdditionalParameters(List<Parameter> additionalParameters) {
         if (additionalParameters.isEmpty()) return this;
         this.additionalParameters=additionalParameters;
@@ -163,6 +174,10 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 ParameterUtils.setContentMap(Arrays.asList(parameters), this.pluginParameters);
             }
             this.pluginParameters=new ArrayList<>(parameterList);
+            if (this.childrenValidation != null) {
+                for (Parameter p : parameterList) p.addValidationFunction(this.childrenValidation);
+                if (additionalParameters!=null) for (Parameter p : additionalParameters) p.addValidationFunction(this.childrenValidation);
+            }
             initChildList();
             this.pluginName=PluginFactory.getPluginName(pluginInstance.getClass());
         }
@@ -301,7 +316,8 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         if (additionalParameters!=null) res.setAdditionalParameters(ParameterUtils.duplicateList(additionalParameters));
         res.setContentFrom(this);
         transferStateArguments(this, res);
-        res.setNewInstanceConfiguration(newInstanceConfiguration);
+        res.addNewInstanceConfiguration(newInstanceConfiguration);
+        res.addValidationFunctionToChildren(childrenValidation);
         return res;
     }
     
