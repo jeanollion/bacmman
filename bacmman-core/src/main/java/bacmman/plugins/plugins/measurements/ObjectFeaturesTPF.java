@@ -33,7 +33,6 @@ import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 import bacmman.utils.ThreadRunner;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -44,7 +43,7 @@ import java.util.stream.Collectors;
 public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
     ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
-            .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
+            .setAdditionalParameters(new TextParameter("Name", "", false)).addNewInstanceConfiguration(oc->{
                 if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityObjectClass(structure.getSelectedClassIdx());
             });
     SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);

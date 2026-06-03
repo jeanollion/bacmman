@@ -58,7 +58,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public enum FRAME_AWARE_MODE {NORMAL, SUCCESSIVE, ZERO}
     EnumChoiceParameter<DiSTNet2D.FRAME_AWARE_MODE> faMode= new EnumChoiceParameter<>("Frame Aware Mode", DiSTNet2D.FRAME_AWARE_MODE.values(), DiSTNet2D.FRAME_AWARE_MODE.NORMAL);
 
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
@@ -171,7 +171,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Consumer<BooleanParameter> lis = b -> dlResizeAndScale.setOutputNumber( 4 + (b.getSelected() ? 1 : 0) + ( next.getSelected() ? 1 : 0) ) ;
         predictCategory.addListener( lis );
         next.addListener( lis );
-        dlResizeAndScale.addRankValidation( DLEngine.getRankSupplier(dlEngine, 0) );
+        dlResizeAndScale.addRankValidation( DLEngine.getRankSupplier(dlEngine, -1) );
+        DLEngine.setZAxisValidation( dlEngine, dlResizeAndScale.getRankFunction() );
     }
 
     @Override

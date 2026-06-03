@@ -4,13 +4,10 @@ import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
-import bacmman.measurement.MeasurementKey;
-import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.*;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +23,7 @@ public class DLObjectClassifier implements TrackPostFilter, Hint, MultiThreaded 
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
     protected BoundedNumberParameter classNumber = new BoundedNumberParameter("Class number", 0, -1, 0, null).setHint("Number of predicted classes");
     ConditionalParameter<Boolean> probaCond = new ConditionalParameter<>(proba).setActionParameters(true, classNumber);
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", true, true, false)
             .setMinInputNumber(1).setMaxOutputNumber(1).setMinOutputNumber(1).setOutputNumber(1)
             .setMode(DLResizeAndScale.MODE.PAD).setDefaultContraction(8, 8);

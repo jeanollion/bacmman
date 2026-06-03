@@ -17,7 +17,6 @@ import bacmman.processing.split_merge.SplitAndMerge;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
-import bacmman.utils.UnaryPair;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +28,7 @@ import java.util.stream.IntStream;
 public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProcessingPlugin, TrackConfigurable<DiSTNet2DSegmenter>, DLMetadataConfigurable, ObjectSplitter, ManualSegmenter, Hint {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2DSegmenter.class);
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DL Model", DLEngine.class, "DefaultEngine", false)
-            .setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: EDM and GCDM");
+            .setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: EDM and GCDM");
     SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
     BooleanParameter predictCategory = new BooleanParameter("Predict Category", false)

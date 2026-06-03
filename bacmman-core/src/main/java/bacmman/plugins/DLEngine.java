@@ -1,9 +1,6 @@
 package bacmman.plugins;
 
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.EnumChoiceParameter;
-import bacmman.configuration.parameters.ParameterUtils;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.processing.ResizeUtils;
 
@@ -73,5 +70,18 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
             } else return zAxisParam.getActionValue().equals(DLEngine.Z_AXIS.Z) ? 3 : 2;
             return defaultRank;
         };
+    }
+
+    static void setZAxisValidation(PluginParameter<DLEngine> pp, IntSupplier rankSupplier) {
+        pp.addValidationFunctionToChildren(ppp -> {
+            if (ppp instanceof ConditionalParameter && ((ConditionalParameter)ppp).getActionValue() instanceof DLEngine.Z_AXIS) {
+                ConditionalParameter<DLEngine.Z_AXIS> zAxisParam = (ConditionalParameter<DLEngine.Z_AXIS>) ppp;
+                return rankSupplier.getAsInt()<0 || zAxisParam.getActionValue().equals(DLEngine.Z_AXIS.Z) == (rankSupplier.getAsInt()==3);
+            } else if (ppp instanceof EnumChoiceParameter && ((EnumChoiceParameter<?>) ppp).getSelectedEnum() instanceof DLEngine.Z_AXIS) {
+                EnumChoiceParameter<DLEngine.Z_AXIS> zAxisParam = (EnumChoiceParameter<DLEngine.Z_AXIS>) ppp;
+                return rankSupplier.getAsInt()<0 || zAxisParam.getSelectedEnum().equals(DLEngine.Z_AXIS.Z) == (rankSupplier.getAsInt()==3);
+            }
+            return true;
+        });
     }
 }

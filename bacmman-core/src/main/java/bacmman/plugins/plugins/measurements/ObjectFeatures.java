@@ -34,8 +34,6 @@ import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -48,7 +46,7 @@ public class ObjectFeatures implements Measurement, Hint {
             .setNoSelectionString("Viewfield")
             .setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
-            .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
+            .setAdditionalParameters(new TextParameter("Name", "", false)).addNewInstanceConfiguration(oc->{
                 if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityObjectClass(structure.getSelectedClassIdx());
             });
     SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", def).setMinChildCount(1).setChildrenNumber(1).setEmphasized(true);

@@ -110,7 +110,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected ConfigurationTreeGenerator config, configRef, extractConfig, dockerOptions, dockerOptionsRef;
 
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
-            .setNewInstanceConfiguration(i -> {
+            .addNewInstanceConfiguration(i -> {
                 if (workingDirPanel.getCurrentWorkingDirectory() != null)
                     i.getConfiguration().setReferencePathFunction(() -> Paths.get(workingDirPanel.getCurrentWorkingDirectory()));
             }).addListener(tp -> {

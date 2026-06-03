@@ -44,7 +44,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
     MLModelFileParameter modelFile = new MLModelFileParameter("Model").setValidDirectory(MLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device. Set 0 to process all samples at once.");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
-    EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z)
+    EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.BATCH)
             .setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");
     BoundedNumberParameter channelIdx = new BoundedNumberParameter("Channel Index", 0, 0, 0, null).setHint("Channel Used when Z axis is transposed to channel axis");
     ConditionalParameter<Z_AXIS> zAxisCond = new ConditionalParameter<>(zAxis)
@@ -66,7 +66,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
             logger.debug("GPU options: visible device list {}, per process memory fraction: {}, allow growth: {}" ,Core.getCore().tfVisibleDeviceList, Core.getCore().tfPerProcessGpuMemoryFraction, Core.getCore().tfSetAllowGrowth);
             // TO SET THE GPU : https://github.com/tensorflow/java/issues/443
             ConfigProto configProto = null;
-            if (Core.getCore().tfVisibleDeviceList!=null && Core.getCore().tfVisibleDeviceList.length()>0) {
+            if (Core.getCore().tfVisibleDeviceList!=null && !Core.getCore().tfVisibleDeviceList.isEmpty()) {
                 GPUOptions gpu = GPUOptions.newBuilder() //
                         .setVisibleDeviceList(Core.getCore().tfVisibleDeviceList)
                         .setPerProcessGpuMemoryFraction(Core.getCore().tfPerProcessGpuMemoryFraction) //
@@ -185,7 +185,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
         DataBufferContainer bufferContainer = new DataBufferContainer();
         long wrapTime = 0, predictTime = 0;
         int increment = batchSize == 0 ? nSamples : (int)Math.max(1, Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) ));
-        logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, nSamples, increment);
+        //logger.debug("batch size: {} nSamples: {} increment: {}", batchSize, nSamples, increment);
         for (int idx = 0; idx<nSamples; idx+=increment) {
             int idxMax = Math.min(idx+increment, nSamples);
             logger.debug("batch: [{};{}) / [0;{})", idx, idxMax, nSamples);
@@ -237,9 +237,9 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
             case BATCH: {
                 if (sizeZ>1) {
                     for (int o = 0; o<res.length; ++o) {
-                        logger.debug("before batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                        //logger.debug("before batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
                         res[o] = ResizeUtils.setBatchToZ(res[o], sizeZ);
-                        logger.debug("after batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                        //logger.debug("after batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
                     }
                 }
                 break;

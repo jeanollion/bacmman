@@ -31,7 +31,7 @@ import java.util.stream.Stream;
 
 public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
     public final static Logger logger = LoggerFactory.getLogger(ProbabilityMapSegmenter.class);
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, "DefaultEngine", false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, "DefaultEngine", false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Limit the number of frames predicted at once");
     SimpleListParameter<ChannelImageParameter> inputChannels = new SimpleListParameter<>("Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Input channel fed to the neural network. If None is selected, the channel associated to the current object class is used. <br>Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     BoundedNumberParameter outputChannel = new BoundedNumberParameter("Output Channel", 0, 0, 0, null).setLegacyParameter((leg, p) -> p.setValue(((NumberParameter)leg[0]).getValue()), new BoundedNumberParameter("Channel", 0, 0, 0, null)).setHint("In case the model predicts several channel, set here the channel to be used");
@@ -51,7 +51,8 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
 
     public ProbabilityMapSegmenter() {
         inputChannels.addValidationFunction(cp -> Math.max(cp.getChildCount(), 1) == dlResample.getInputNumber());
-        dlResample.addRankValidation( DLEngine.getRankSupplier(dlEngine, 0) );
+        dlResample.addRankValidation( DLEngine.getRankSupplier(dlEngine, -1) );
+        DLEngine.setZAxisValidation( dlEngine, dlResample.getRankFunction() );
     }
 
     @Override
