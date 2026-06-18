@@ -106,12 +106,6 @@
             <artifactId>jgrapht-core</artifactId>
             <version>1.4.0</version>
         </dependency>
-        <!-->for non-local means denoising plugin<-->
-        <dependency>
-            <groupId>com.github.thorstenwagner</groupId>
-            <artifactId>ij-nl-means</artifactId>
-            <version>1.4.6</version>
-        </dependency>
         <dependency>
             <groupId>net.imagej</groupId>
             <artifactId>ij1-patcher</artifactId>
