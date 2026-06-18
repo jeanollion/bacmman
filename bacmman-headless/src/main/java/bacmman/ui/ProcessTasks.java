@@ -116,6 +116,7 @@ public class ProcessTasks {
         ui.setMessage("All jobs finished. Errors: "+errorCount);
         for (Task t: jobs) t.publishErrors();
         ui.setRunning(false);
+        System.exit(0);
     }
 
 }
