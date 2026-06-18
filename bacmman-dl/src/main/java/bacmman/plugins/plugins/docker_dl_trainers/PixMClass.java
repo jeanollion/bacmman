@@ -19,10 +19,10 @@ import java.util.function.IntSupplier;
 
 import static bacmman.configuration.parameters.InputShapesParameter.getInputShapeParameter;
 
-public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision {
+public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision, DockerDLTrainer.TestPredict {
     BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(true);
     EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters", "category_loss_parameters", false, false, true, false), mixedPrecision, exportPrecision};
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters", "category_loss_parameters", true, true, true, false), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};

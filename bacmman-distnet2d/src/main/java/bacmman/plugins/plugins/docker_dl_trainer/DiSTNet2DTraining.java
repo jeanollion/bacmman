@@ -66,7 +66,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<Boolean> edmBalanceFreqCond = new ConditionalParameter<>(edmBalanceFreq)
                 .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
-        TrainingConfigurationParameter.CategoryLossParameter catLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("Category Loss Parameters", true, false, true, true);
+        TrainingConfigurationParameter.CategoryLossParameter catLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("Category Loss Parameters", true, true, true, true);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
