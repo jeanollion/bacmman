@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DLObjectClassifier implements TrackPostFilter, Hint, MultiThreaded {
+public class DLObjectClassifierPF implements TrackPostFilter, Hint, MultiThreaded {
     protected ChannelImageParameter channels = new ChannelImageParameter("Channels", true, true)
             .setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
@@ -34,7 +34,7 @@ public class DLObjectClassifier implements TrackPostFilter, Hint, MultiThreaded 
     EnumChoiceParameter<STAT> stat =  new EnumChoiceParameter<>("Quantification", STAT.values(), STAT.MEDIAN).setHint("Operation to reduce estimated probability in each segmented object");
     IntegerParameter frameWindow = new IntegerParameter("FrameWindow", 0).setHint("Define the size of the input frame window. Set 0 if prediction is performed on single frames");
 
-    public DLObjectClassifier() {
+    public DLObjectClassifierPF() {
         channels.addValidationFunction(chs -> dlResizeAndScale.getInputNumber() == chs.getSelectedIndices().length);
         dlResizeAndScale.addInputNumberValidation( () -> channels.getSelectedIndices().length );
     }
