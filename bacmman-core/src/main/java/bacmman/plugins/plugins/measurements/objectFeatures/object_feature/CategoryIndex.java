@@ -29,7 +29,7 @@ import bacmman.plugins.ObjectFeature;
  *
  * @author Jean Ollion
  */
-public class Category implements ObjectFeature, Hint {
+public class CategoryIndex implements ObjectFeature, Hint {
     @Override
     public Parameter[] getParameters() {
         return new Parameter[0];

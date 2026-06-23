@@ -304,9 +304,9 @@ public class PluginFactory {
             T instance = plugClass.getDeclaredConstructor().newInstance();
             return instance;
         } catch (InstantiationException|InvocationTargetException |NoSuchMethodException ex) {
-            logger.error("plugin :"+pluginName+" of class: "+clazz+" could not be instanciated, missing null constructor?", ex);
+            logger.error("plugin :"+pluginName+" of class: "+clazz+" could not be instantiated, missing null constructor?", ex);
         } catch (IllegalAccessException ex) {
-            logger.error("plugin :"+pluginName+" of class: "+clazz+" could not be instanciated", ex);
+            logger.error("plugin :"+pluginName+" of class: "+clazz+" could not be instantiated", ex);
         }
         return null;
     }
