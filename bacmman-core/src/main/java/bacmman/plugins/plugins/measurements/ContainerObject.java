@@ -38,7 +38,7 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public class ContainerObject implements Measurement, Hint {
+public class ContainerObject implements Measurement.ObjectMeasurement, Hint {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
     protected ObjectClassParameter reference = new ObjectClassParameter("Container Object", -1, false, false).setHint("Objects class that contain <em>Objects</em>");
     protected MultipleChoiceParameter returnAttributes = new MultipleChoiceParameter("Attribute of container to return", new String[]{"Simple Index", "Indices"}, true);
@@ -74,11 +74,6 @@ public class ContainerObject implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return objects.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

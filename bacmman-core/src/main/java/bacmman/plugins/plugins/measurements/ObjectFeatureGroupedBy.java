@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ObjectFeatureGroupedBy implements Measurement, Hint {
+public class ObjectFeatureGroupedBy implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter groupClass = new ObjectClassParameter("Group By Class");
 
     @Override
@@ -57,11 +57,6 @@ public class ObjectFeatureGroupedBy implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return groupClass.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class JACOP implements Measurement, Hint {
+public class JACOP implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter mask = new ObjectClassParameter("Segmentation Mask", 0, false, false).setHint("Segmented Object class within which colocalization will be computed");
     ObjectClassParameter signal1 = new ObjectClassParameter("Signal 1", -1, false, false).setHint("First signal to colocalize");
     ObjectClassParameter signal2 = new ObjectClassParameter("Signal 2", -1, false, false).setHint("Second signal to colocalize");
@@ -43,11 +43,6 @@ public class JACOP implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return mask.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     protected List<Pair<Integer, String>> getZPlanes(int middleZ, int sizeZ) {

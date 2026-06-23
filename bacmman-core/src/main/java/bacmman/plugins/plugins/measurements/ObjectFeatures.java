@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class ObjectFeatures implements Measurement, Hint {
+public class ObjectFeatures implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, true, false)
             .setNoSelectionString("Viewfield")
             .setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
@@ -104,10 +104,7 @@ public class ObjectFeatures implements Measurement, Hint {
     public int getCallObjectClassIdx() {
         return structure.getSelectedClassIdx()==-1 ? -1 : structure.getParentObjectClassIdx();
     }
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
-    }
+
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res=  new ArrayList<>(features.getChildCount());

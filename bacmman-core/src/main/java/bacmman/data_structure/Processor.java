@@ -41,13 +41,9 @@ import java.util.*;
 import java.util.Map.Entry;
 
 import bacmman.processing.matching.OverlapMatcher;
+import bacmman.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import bacmman.utils.MultipleException;
-import bacmman.utils.Pair;
-import bacmman.utils.StreamConcatenation;
-import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
 
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -483,7 +479,7 @@ public class Processor {
         MultipleException globE = new MultipleException();
         Set<SegmentedObject> selectionTH = selection==null ? null : selection.getElements(dao.getPositionName()).stream().map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
         for(Entry<Integer, List<Measurement>> e : measurements.entrySet()) { // measurements by call structure idx
-            Map<SegmentedObject, List<SegmentedObject>> allParentTracks;
+            Map<SegmentedObject, List<SegmentedObject>> allParentTracks, filteredParentTracks, filteredParentTracksSegment;
             if (e.getKey()==-1) {
                 allParentTracks= rootTrack;
             } else {
@@ -492,22 +488,57 @@ public class Processor {
             if (selection!=null) { // compute measurement only on objects contained in selection or children. only full tracks
                 if (e.getKey()==selection.getObjectClassIdx()) {
                     allParentTracks.keySet().retainAll(selectionTH);
+                    filteredParentTracks = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(t -> {
+                        List<SegmentedObject> track = new ArrayList<>(allParentTracks.get(t));
+                        track.retainAll(selection.getElements(t.getPositionName()));
+                        return track;
+                    });
+
                 } else {
-                    Set<SegmentedObject> th = selection.getElements(dao.getPositionName()).stream().flatMap(o->{
+                    Set<SegmentedObject> sel = selection.getElements(dao.getPositionName()).stream().flatMap(o->{
                         Stream<SegmentedObject> s = o.getChildren(e.getKey(), false);
                         if (s==null) return Stream.empty();
                         return s;
-                    }).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+                    }).collect(Collectors.toSet());
+                    Set<SegmentedObject> th = sel.stream().map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
                     allParentTracks.keySet().retainAll(th);
+                    filteredParentTracks = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(t -> {
+                        List<SegmentedObject> track = new ArrayList<>(allParentTracks.get(t));
+                        track.retainAll(sel);
+                        return track;
+                    });
                 }
+                filteredParentTracksSegment = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(t -> {
+                    List<SegmentedObject> track = new ArrayList<>(allParentTracks.get(t)); // ensure continuity
+                    List<SegmentedObject> selT = filteredParentTracks.get(t);
+                    if (selT.isEmpty()) return Collections.emptyList();
+                    int minFrame = selT.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+                    int maxFrame = selT.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
+                    track.removeIf(o -> o.getFrame()<minFrame || o.getFrame()>maxFrame);
+                    return track;
+                });
+            } else {
+                filteredParentTracks = allParentTracks;
+                filteredParentTracksSegment = allParentTracks;
             }
+            BiFunction<Measurement.TrackMeasurement, SegmentedObject, List<SegmentedObject>> getTrackArg = (m, th) -> {
+                switch (m.parentTrackMode()) {
+                    case MULTIPLE_INTERVALS:
+                        return filteredParentTracks.get(th);
+                    case SINGLE_INTERVAL:
+                        return filteredParentTracksSegment.get(th);
+                    default:
+                        return allParentTracks.get(th);
+                }
+            };
             //if (pcb!=null) pcb.log("Executing #"+e.getValue().size()+" measurement"+(e.getValue().size()>1?"s":"")+" on object class: "+e.getKey()+" (#"+allParentTracks.size()+" tracks): "+Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
             logger.debug("Executing: #{} measurements from parent: {} (#{} parentTracks) : {}", e.getValue().size(), e.getKey(), allParentTracks.size(), Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
             // measurement are run separately depending on their characteristics to optimize parallel processing
             // start with non parallel measurements on tracks -> give 1 CPU to the measurement and perform track by track
-            List<Pair<Measurement, SegmentedObject>> nonParallelTrackMeasurements = new ArrayList<>();
+            List<Pair<Measurement.TrackMeasurement, SegmentedObject>> nonParallelTrackMeasurements = new ArrayList<>();
             allParentTracks.keySet().forEach(pt -> dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
-                    .filter(m->m.callOnlyOnTrackHeads() && !(m instanceof MultiThreaded))
+                    .filter(m->m instanceof Measurement.TrackMeasurement && !(m instanceof MultiThreaded))
+                    .map(m -> (Measurement.TrackMeasurement)m)
                     .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
                     .forEach(m-> nonParallelTrackMeasurements.add(new Pair<>(m, pt))));
             int subTaskNumber = 0;
@@ -515,13 +546,13 @@ public class Processor {
                 subTaskNumber+=nonParallelTrackMeasurements.size();
             }
             // count parallel measurement on tracks -
-            int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
+            int parallelMeasCount = (int)e.getValue().stream().filter(m->m instanceof Measurement.TrackMeasurement && (m instanceof MultiThreaded) ).count();
             if (parallelMeasCount>0) {
                 subTaskNumber+=allParentTracks.size() * parallelMeasCount;
             }
             // count measurements on objects
-            List<Measurement> measObj = dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
-                    .filter(m->!m.callOnlyOnTrackHeads()).collect(Collectors.toList());
+            List<Measurement.ObjectMeasurement> measObj = dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
+                    .filter(m->m instanceof Measurement.ObjectMeasurement).map(m -> (Measurement.ObjectMeasurement)m).collect(Collectors.toList());
             if (!measObj.isEmpty()) subTaskNumber+=measObj.size();
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
             if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
@@ -555,7 +586,7 @@ public class Processor {
                 try {
                     ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {
                         //pcb.log("performing: "+p.key+"@"+p.value);
-                        p.key.performMeasurement(p.value);
+                        p.key.performMeasurement(getTrackArg.apply(p.key, p.value));
                         if (pcb != null) pcb.incrementSubTask();
                     });
                 } catch (MultipleException me) {
@@ -568,11 +599,12 @@ public class Processor {
                 try {
                     ThreadRunner.executeAndThrowErrors(allParentTracks.keySet().stream(), pt -> {
                         dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
-                                .filter(m -> m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded))
+                                .filter(m -> m instanceof Measurement.TrackMeasurement && (m instanceof MultiThreaded))
+                                .map(m -> (Measurement.TrackMeasurement)m)
                                 .filter(m -> measurementMissing.test(pt, m)) // only test on trackhead object
                                 .forEach(m -> {
                                     ((MultiThreaded) m).setMultiThread(true);
-                                    m.performMeasurement(pt);
+                                    m.performMeasurement(getTrackArg.apply(m, pt));
                                     if (pcb != null) pcb.incrementSubTask();
                                 });
                     });
@@ -585,7 +617,7 @@ public class Processor {
             // measurements on objects
             measObj.forEach(m-> {
                 //if (pcb!=null) pcb.log("Executing Measurement: "+m.getClass().getSimpleName()+" on #"+allObCount+" objects");
-                Stream<SegmentedObject> callObjectStream = StreamConcatenation.concat((Stream<SegmentedObject>[])allParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]));
+                Stream<SegmentedObject> callObjectStream = StreamConcatenation.concat((Stream<SegmentedObject>[])filteredParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]));
                 try {
                     //callObjectStream.sequential().filter(o->measurementMissing.test(o, m)).forEach(o->m.performMeasurement(o));
                     ThreadRunner.executeAndThrowErrors(callObjectStream.filter(o->measurementMissing.test(o, m)), o->m.performMeasurement(o));
@@ -598,7 +630,7 @@ public class Processor {
                 }
             });
             //f (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
-            if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->!m.callOnlyOnTrackHeads()).findAny().orElse(null)!=null;
+            if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->m instanceof Measurement.ObjectMeasurement).findAny().orElse(null)!=null;
         }
         long t1 = System.currentTimeMillis();
         final Set<SegmentedObject> allModifiedObjects = new HashSet<>();

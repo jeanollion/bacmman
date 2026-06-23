@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 
 import static bacmman.utils.geom.Point.asPoint;
 
-public class DistanceMin implements Measurement, Hint {
+public class DistanceMin implements Measurement.ObjectMeasurement, Hint {
     @Override
     public String getHintText() {
         return "For each object of the source object class, computes the minimal distance to all the objects of the target object class. <br />" +
@@ -63,10 +63,6 @@ public class DistanceMin implements Measurement, Hint {
         return ocSource.getParentObjectClassIdx();
     }
 
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
-    }
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
         List<MeasurementKey> keys = distanceMode.getSelectedItems().stream()

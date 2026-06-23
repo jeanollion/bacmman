@@ -41,7 +41,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class SimpleIntensityMeasurementStructureExclusion implements Measurement, DevPlugin {
+public class SimpleIntensityMeasurementStructureExclusion implements Measurement.ObjectMeasurement, DevPlugin {
     protected ObjectClassParameter structureObject = new ObjectClassParameter("Object", -1, false, false);
     protected ObjectClassParameter excludedStructure = new ObjectClassParameter("Excluded Structure", -1, false, false);
     protected ObjectClassParameter structureImage = new ObjectClassParameter("Image", -1, false, false);
@@ -72,10 +72,6 @@ public class SimpleIntensityMeasurementStructureExclusion implements Measurement
     
     @Override public int getCallObjectClassIdx() {
         return structureObject.getSelectedClassIdx();
-    }
-
-    @Override public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override public List<MeasurementKey> getMeasurementKeys() {

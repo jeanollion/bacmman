@@ -39,7 +39,7 @@ import java.util.stream.DoubleStream;
  *
  * @author Jean Ollion
  */
-public class XZSlope implements Measurement {
+public class XZSlope implements Measurement.ObjectMeasurement {
     protected ObjectClassParameter microchannel = new ObjectClassParameter("Object Class", 0, false, false).setHint("Select object class corresponding to microchannel");
     NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 0, 10);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters");
@@ -49,11 +49,6 @@ public class XZSlope implements Measurement {
     @Override
     public int getCallObjectClassIdx() {
         return microchannel.getParentObjectClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

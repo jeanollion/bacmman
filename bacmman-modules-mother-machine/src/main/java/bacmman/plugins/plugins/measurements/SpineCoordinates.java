@@ -24,6 +24,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
 import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
 import bacmman.measurement.MeasurementKey;
@@ -50,7 +51,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
+public class SpineCoordinates implements Measurement.TrackMeasurement, MultiThreaded, Hint {
     protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria", -1, false, false).setHint("Reference object class. Must be Rod-shaped");
     protected ObjectClassParameter spot = new ObjectClassParameter("Spot", -1, false, false);
     protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", false).setHint(SCALED_TT);
@@ -77,11 +78,6 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     }
 
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-
-    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>();
         String prefix = this.prefix.getValue();
@@ -94,10 +90,10 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     }
 
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
-        double scale = scaled.getSelected() ? parentTrackHead.getScaleXY() : 1d;
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
+        if (parentTrack.isEmpty()) return;
+        double scale = scaled.getSelected() ? parentTrack.get(0).getScaleXY() : 1d;
         String prefix = this.prefix.getValue();
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<SegmentedObject, SegmentedObject> spotMapBacteria = new ConcurrentHashMap<>();
         parentTrack.parallelStream().forEach(parent -> {
             Stream<SegmentedObject> stream = parent.getChildren(spot.getSelectedClassIdx());
@@ -125,6 +121,11 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
             }
         });
         if (!me.isEmpty()) throw me; // throw after measurement to indicate that there were errors on some objects, but do not block measurement for valid objects
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     @Override

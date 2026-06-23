@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class ObjectInclusionCount implements Measurement, Hint {
+public class ObjectInclusionCount implements Measurement.ObjectMeasurement, Hint {
     protected ObjectClassParameter structureContainer = new ObjectClassParameter("Containing Objects", -1, false, false).setEmphasized(true).setHint("Objects to perform measurement on");
     protected ObjectClassParameter structureToCount = new ObjectClassParameter("Objects to count", -1, false, false).setEmphasized(true).setHint("Objects to count when included in <em>Containing Objects</em>");
     protected BooleanParameter onlyTrackHeads = new BooleanParameter("Count Only TrackHeads", false).setHint("<ul><li>If set to <em>true</em>, only first element of tracks will be counted</li><li>If set to <em>false</em> all objects will be counted</li></ul>");
@@ -121,10 +121,5 @@ public class ObjectInclusionCount implements Measurement, Hint {
     public boolean does3D() {
         return true;
     }
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
-    }
 
-    
 }

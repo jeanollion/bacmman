@@ -12,16 +12,11 @@ import bacmman.plugins.Measurement;
 import java.util.ArrayList;
 import java.util.List;
 
-public class FitEllipseShape2D implements Measurement, Hint {
+public class FitEllipseShape2D implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class");
     @Override
     public int getCallObjectClassIdx() {
         return objectClass.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

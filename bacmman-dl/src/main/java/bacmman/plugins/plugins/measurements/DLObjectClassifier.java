@@ -9,10 +9,7 @@ import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.DLEngine;
-import bacmman.plugins.Hint;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.MultiThreaded;
+import bacmman.plugins.*;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 
@@ -26,7 +23,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
+public class DLObjectClassifier implements Measurement.TrackMeasurement, Hint, MultiThreaded {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
     protected ChannelImageParameter channels = new ChannelImageParameter("Channels", true, true)
             .setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
@@ -59,11 +56,6 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     }
 
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-
-    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>();
         res.add(new MeasurementKeyObject(prefix.getValue()+"ClassIdx", objects.getSelectedClassIdx()));
@@ -76,10 +68,11 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     }
 
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
+        if (parentTrack.isEmpty()) return;
         boolean legacyMode = this.legacyMode.getSelected();
         //dlResizeAndScale.setScaleLogger(Core::userLog);
-        Map<SegmentedObject, List<SegmentedObject>> parentMapChildren = SegmentedObjectUtils.getTrack(parentTrackHead).stream().collect(Collectors.toMap(i->i, i->i.getChildren(objects.getSelectedClassIdx()).collect(Collectors.toList())));
+        Map<SegmentedObject, List<SegmentedObject>> parentMapChildren = parentTrack.stream().collect(Collectors.toMap(i->i, i->i.getChildren(objects.getSelectedClassIdx()).collect(Collectors.toList())));
         parentMapChildren.entrySet().removeIf(e -> e.getValue().isEmpty()); // do not predict when no objects
         SegmentedObject[] parentArray = parentMapChildren.keySet().toArray(new SegmentedObject[0]);
         // prepare inputs: EDM/CDM + channels
@@ -93,7 +86,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
             }
             return res;
         };
-        int[] channels = this.channels.getSelectedIndices().length==0 ? new int[]{parentTrackHead.getExperimentStructure().getChannelIdx(this.objects.getSelectedClassIdx())} : this.channels.getSelectedIndices();
+        int[] channels = this.channels.getSelectedIndices().length==0 ? new int[]{parentTrack.get(0).getExperimentStructure().getChannelIdx(this.objects.getSelectedClassIdx())} : this.channels.getSelectedIndices();
         Supplier<IntStream> chanStream = legacyMode ? ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1)) : ()->IntStream.concat(IntStream.of(channels), IntStream.of(-1, -2));
         Image[][][] chans = chanStream.get()
                 .mapToObj(i -> parentMapChildren.keySet().stream()
@@ -130,6 +123,11 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
                 }
             });
         }
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS; // TODO change to SINGLE_INTERVAL if temporal mode is implemented & activated
     }
 
     protected DLResizeAndScale getDlResizeAndScale(int nChannels, boolean legacyMode) {

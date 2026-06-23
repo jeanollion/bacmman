@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class EVF implements Measurement, Hint {
+public class EVF implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false).setHint("Object class to locate. For each object the EVF at its center will be computed. EVF is computed within the volume of the parent object class.");
     EVFParameter evf = new EVFParameter("EVF Parameters");
     TextParameter key = new TextParameter("Key Name", "EVF", false).setHint("Name of the measurement");
@@ -22,11 +22,6 @@ public class EVF implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return objectClass.getParentObjectClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

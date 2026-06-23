@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class EVSF implements Measurement, Hint {
+public class EVSF implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter container = new ObjectClassParameter("Container", 0, false, false).setHint("Segmented object class used to compute the EVF");
     ObjectClassParameter channels = new ObjectClassParameter("Channel", -1, false, true).setHint("Channel(s) to analyze");
     EVFParameter evf = new EVFParameter("EVF Parameters").setAllowResampleZ(false);
@@ -35,11 +35,6 @@ public class EVSF implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return container.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

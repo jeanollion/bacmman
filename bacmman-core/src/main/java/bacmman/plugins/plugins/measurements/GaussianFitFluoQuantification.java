@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class GaussianFitFluoQuantification implements Measurement, Hint {
+public class GaussianFitFluoQuantification implements Measurement.ObjectMeasurement, Hint {
 
     protected ObjectClassParameter structure = new ObjectClassParameter("Objects", -1, false, false);
     protected BooleanParameter forceCompute = new BooleanParameter("Force computation", false).setHint("If set to false and selected segmented objects are already gaussian-fitted spots, instead of performing a gaussian fit on centers, the radius and intensity of spots will be extracted");
@@ -30,11 +30,6 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return structure.getParentObjectClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

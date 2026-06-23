@@ -36,7 +36,7 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class RelativePosition implements Measurement, Hint {
+public class RelativePosition implements Measurement.ObjectMeasurement, Hint {
     public enum REF_POINT {
         MASS_CENTER("Mass Center"), GEOM_CENTER("Geometrical Center"), MEDOID("Medoid"), FROM_SEGMENTATION("From segmentation"), UPPER_LEFT_CORNER("Upper Left Corner"); //, SKELETON_MEDOID("Skeleton Medoid")
         public final String name;
@@ -87,11 +87,6 @@ public class RelativePosition implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return objects.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override
