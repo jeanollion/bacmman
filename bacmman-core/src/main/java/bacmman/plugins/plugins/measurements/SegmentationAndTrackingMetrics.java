@@ -5,10 +5,7 @@ import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.Hint;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.MultiThreaded;
-import bacmman.plugins.PostFilterFeature;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.FeatureFilter;
 import bacmman.processing.matching.LAPLinker;
 import bacmman.processing.matching.OverlapMatcher;
@@ -33,7 +30,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import static java.util.stream.Collectors.toSet;
 
-public class SegmentationAndTrackingMetrics implements MultiThreaded, Measurement {
+public class SegmentationAndTrackingMetrics implements MultiThreaded, Measurement.TrackMeasurement {
     public final static Logger logger = LoggerFactory.getLogger(SegmentationAndTrackingMetrics.class);
     ObjectClassParameter groundTruth = new ObjectClassParameter("Ground truth", -1, false, false).setHint("Reference object class");
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setHint("Object class to compare to the ground truth");
@@ -72,11 +69,6 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     @Override
     public int getCallObjectClassIdx() {
         return groundTruth.getParentObjectClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
     }
 
     @Override
@@ -120,12 +112,11 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     }
 
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
         int gtIdx = groundTruth.getSelectedClassIdx();
         int sIdx = objectClass.getSelectedClassIdx();
         String prefix = this.prefix.getValue();
         boolean objectWise= this.objectWise.getSelected();
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<Integer, List<SegmentedObject>> GbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), gtIdx));
         Map<Integer, List<SegmentedObject>> PbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sIdx));
         Map<Integer, Set<SegmentedObject>> GbyFExcluded;
@@ -308,6 +299,11 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 }
             }
         }
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     public static class ObjectGraph {

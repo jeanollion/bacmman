@@ -8,6 +8,7 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.utils.geom.Point;
 
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ import java.util.function.IntFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-public class MotionMetrics implements Measurement, Hint {
+public class MotionMetrics implements Measurement.TrackMeasurement, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false);
     BoundedNumberParameter msdScales = new BoundedNumberParameter("Number Of Time Lags", 0, 1, 1, null).setHint("MSD is computed for intervals of 1 to n frames.");
     BooleanParameter massCenter = new BooleanParameter("Mass Center", false).setHint("Compute distances between mass centers. If the object class is fitted (spot / ellipse), leave false to use the fitted center");
@@ -26,11 +27,6 @@ public class MotionMetrics implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return objectClass.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
     }
 
     @Override
@@ -45,8 +41,9 @@ public class MotionMetrics implements Measurement, Hint {
     }
 
     @Override
-    public void performMeasurement(SegmentedObject object) {
-        List<SegmentedObject> t = SegmentedObjectUtils.getTrack(object);
+    public void performMeasurement(List<SegmentedObject> t) {
+        if (t.isEmpty()) return;
+        SegmentedObject object = t.get(0);
         List<SegmentedObject> track = trim.getIntValue()>0 && trim.getIntValue() + 1 < t.size() ? t.subList(0, trim.getIntValue()+1) : t;
         List<Point> centers;
         UnaryOperator<Point> scaler = scale.getSelected() ? p -> {
@@ -73,6 +70,12 @@ public class MotionMetrics implements Measurement, Hint {
             }
         }
     }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL;
+    }
+
     public static double[] getMeanAndCount(List<Point> centers, int[] frames, int delta, boolean msd) {
         double sum = 0;
         int count = 0;

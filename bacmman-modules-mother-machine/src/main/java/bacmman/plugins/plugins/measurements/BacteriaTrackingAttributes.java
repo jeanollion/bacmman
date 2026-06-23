@@ -34,7 +34,7 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public class BacteriaTrackingAttributes implements Measurement, Hint {
+public class BacteriaTrackingAttributes implements Measurement.ObjectMeasurement, Hint {
     protected ObjectClassParameter bacteria = new ObjectClassParameter("Object Class", -1, false, false).setHint("Select object class corresponding to bacteria");;
     protected Parameter[] parameters = new Parameter[]{bacteria};
     
@@ -52,10 +52,6 @@ public class BacteriaTrackingAttributes implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return bacteria.getSelectedClassIdx();
-    }
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
     @Override
     public List<MeasurementKey> getMeasurementKeys() {

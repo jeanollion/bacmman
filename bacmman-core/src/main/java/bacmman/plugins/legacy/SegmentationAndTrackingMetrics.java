@@ -6,10 +6,7 @@ import bacmman.image.ImageByte;
 import bacmman.image.ImageMask;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.DevPlugin;
-import bacmman.plugins.Hint;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.PostFilterFeature;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.FeatureFilter;
 import bacmman.processing.matching.OverlapMatcher;
 import bacmman.processing.matching.SimpleTrackGraph;
@@ -29,7 +26,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.*;
 
-public class SegmentationAndTrackingMetrics implements Measurement, Hint, DevPlugin {
+public class SegmentationAndTrackingMetrics implements Measurement.TrackMeasurement, Hint, DevPlugin {
     ObjectClassParameter groundTruth = new ObjectClassParameter("Ground truth", -1, false, false).setHint("Reference object class");
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setHint("Object class to compare to the ground truth");
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix to add to measurement keys");
@@ -53,11 +50,6 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint, DevPlu
     }
 
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-
-    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         int gClass = groundTruth.getSelectedClassIdx();
         int sClass = objectClass.getSelectedClassIdx();
@@ -74,10 +66,9 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint, DevPlu
     }
 
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
         int gtIdx = groundTruth.getSelectedClassIdx();
         int sIdx = objectClass.getSelectedClassIdx();
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<Integer, List<SegmentedObject>> GbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), gtIdx));
         Map<Integer, List<SegmentedObject>> SbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sIdx));
         Map<Integer, Set<SegmentedObject>> GbyFToRemove;
@@ -259,6 +250,11 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint, DevPlu
                 }
             }
         });
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     private static double getIntersection(SegmentedObject parent, List<SegmentedObject> l1, List<SegmentedObject> l2) {

@@ -16,7 +16,7 @@ import static bacmman.plugins.plugins.measurements.RelativePosition.REF_POINT.MA
 import static bacmman.plugins.plugins.measurements.RelativePosition.REF_POINT.UPPER_LEFT_CORNER;
 import static bacmman.plugins.plugins.measurements.RelativePosition.REF_POINT_TT;
 
-public class BoundingBox implements Measurement, Hint {
+public class BoundingBox implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter objects = new ObjectClassParameter("Object Class");
     TextParameter prefix = new TextParameter("Prefix", "Bounds", false).setEmphasized(false).setHint("Set here the prefix of the name of the column in the extracted data table. Final column name for each axis is indicated below.");
 
@@ -31,11 +31,6 @@ public class BoundingBox implements Measurement, Hint {
     @Override
     public int getCallObjectClassIdx() {
         return objects.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

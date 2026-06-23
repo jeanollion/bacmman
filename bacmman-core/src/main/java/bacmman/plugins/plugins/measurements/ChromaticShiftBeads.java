@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class ChromaticShiftBeads implements Measurement, DevPlugin {
+public class ChromaticShiftBeads implements Measurement.ObjectMeasurement, DevPlugin {
     protected ObjectClassParameter structure = new ObjectClassParameter("Structure 1", 0, false, false);
     protected ObjectClassParameter structure2 = new ObjectClassParameter("Structure 2", 1, false, false);
     protected Parameter[] parameters = new Parameter[]{structure, structure2};
@@ -48,15 +48,13 @@ public class ChromaticShiftBeads implements Measurement, DevPlugin {
        structure.setSelectedIndex(structureIdx1);
        structure2.setSelectedIndex(structureIdx2);
     }
-    
+
+    @Override
     public int getCallObjectClassIdx() {
         return structure.getFirstCommonParentObjectClassIdx(structure2.getSelectedIndex());
     }
 
-    public boolean callOnlyOnTrackHeads() {
-        return false;
-    }
-
+    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<MeasurementKey>(1);
         res.add(new MeasurementKeyObject("dXPix", structure.getSelectedIndex()));
@@ -65,6 +63,7 @@ public class ChromaticShiftBeads implements Measurement, DevPlugin {
         return res;
     }
 
+    @Override
     public void performMeasurement(SegmentedObject object) {
         
         Stream<SegmentedObject> objects1 = object.getChildren(structure.getSelectedIndex());

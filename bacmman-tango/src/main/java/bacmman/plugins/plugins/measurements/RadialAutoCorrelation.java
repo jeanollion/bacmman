@@ -22,7 +22,7 @@ import java.util.List;
 import static bacmman.plugins.plugins.measurements.RadialAutoCorrelation.ANISOTROPY_CORRECTION.CUSTOM_SCALE;
 import static bacmman.plugins.plugins.measurements.RadialAutoCorrelation.ANISOTROPY_CORRECTION.RESAMPLE;
 
-public class RadialAutoCorrelation implements Measurement {
+public class RadialAutoCorrelation implements Measurement.ObjectMeasurement {
     ArrayNumberParameter radii = new ArrayNumberParameter("Radii", 0, new BoundedNumberParameter("Radius", 3, 1, 1, null));
     BoundedNumberParameter zFactor = new BoundedNumberParameter("Z-Factor", 3, 1, 0, 1).setHint("Z-radius = radius / Z-Factor");
     ObjectClassParameter segOC = new ObjectClassParameter("Segmented Object Class");
@@ -45,11 +45,6 @@ public class RadialAutoCorrelation implements Measurement {
     @Override
     public int getCallObjectClassIdx() {
         return segOC.getSelectedClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

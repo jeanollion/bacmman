@@ -7,6 +7,7 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.matching.OverlapMatcher;
 import bacmman.utils.Utils;
 import org.jgrapht.graph.DefaultWeightedEdge;
@@ -17,7 +18,7 @@ import java.util.function.Function;
 import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 
-public class SegmentationMetrics implements Measurement, Hint, DevPlugin {
+public class SegmentationMetrics implements Measurement.TrackMeasurement, Hint, DevPlugin {
     ObjectClassParameter groundTruth = new ObjectClassParameter("Ground truth", -1, false, false).setHint("Reference object class");
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setHint("Object class to compare to the ground truth");
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix to add to measurement keys");
@@ -39,11 +40,6 @@ public class SegmentationMetrics implements Measurement, Hint, DevPlugin {
     }
 
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-
-    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         int gClass = groundTruth.getSelectedClassIdx();
         int sClass = objectClass.getSelectedClassIdx();
@@ -61,15 +57,19 @@ public class SegmentationMetrics implements Measurement, Hint, DevPlugin {
     }
 
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
-        performMeasurement(parentTrackHead, true);
-        performMeasurement(parentTrackHead, false);
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
+        performMeasurement(parentTrack, true);
+        performMeasurement(parentTrack, false);
     }
 
-    private void performMeasurement(SegmentedObject parentTrackHead, boolean invert) {
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+    }
+
+    private void performMeasurement(List<SegmentedObject> parentTrack, boolean invert) {
         int gtIdx = !invert ? groundTruth.getSelectedClassIdx() : objectClass.getSelectedClassIdx();
         int sIdx = !invert ? objectClass.getSelectedClassIdx() : groundTruth.getSelectedClassIdx();
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<Integer, List<SegmentedObject>> GbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), gtIdx));
         Map<Integer, List<SegmentedObject>> SbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sIdx));
 

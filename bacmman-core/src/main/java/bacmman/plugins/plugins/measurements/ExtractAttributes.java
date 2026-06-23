@@ -36,7 +36,7 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public class ExtractAttributes implements Measurement, Hint {
+public class ExtractAttributes implements Measurement.ObjectMeasurement, Hint {
     ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false);
     BooleanParameter parseArraysAsCoordinates = new BooleanParameter("Parse arrays as coordinates", true);
     SimpleListParameter<TextParameter> attributes = new SimpleListParameter("Attributes", new TextParameter("Attribute Key", "", false));
@@ -63,18 +63,11 @@ public class ExtractAttributes implements Measurement, Hint {
     }
 
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
-    }
-
-    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         List<MeasurementKey> res = new ArrayList<>(attributes.getChildCount());
         for (TextParameter att : attributes.getChildren()) res.add(new MeasurementKeyObject(att.getValue(), structure.getSelectedClassIdx()));
         return res;
     }
-    
-    
 
     @Override
     public void performMeasurement(SegmentedObject object) {

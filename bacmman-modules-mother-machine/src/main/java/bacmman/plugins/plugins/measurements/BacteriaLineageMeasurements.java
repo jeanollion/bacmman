@@ -27,6 +27,7 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
@@ -41,7 +42,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class BacteriaLineageMeasurements implements Measurement, Hint {
+public class BacteriaLineageMeasurements implements Measurement.TrackMeasurement, Hint {
     protected ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false).setHint("Select object class corresponding to bacteria");
     protected TextParameter keyName = new TextParameter("Lineage Index Name", "BacteriaLineage", false).setHint("Name of the measurement");
     protected Parameter[] parameters = new Parameter[]{structure, keyName};
@@ -69,31 +70,33 @@ public class BacteriaLineageMeasurements implements Measurement, Hint {
         return structure.getParentObjectClassIdx();
     }
     
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
     private static List<SegmentedObject> getAllNextSortedY(SegmentedObject o, List<SegmentedObject> bucket) {
         bucket = SegmentedObjectUtils.getDaughterObjectsAtNextFrame(o, bucket);
         Collections.sort(bucket, Comparator.comparingDouble(o2 -> o2.getBounds().yMin()));
         return bucket;
     }
+
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL;
+    }
+
+    @Override
+    public void performMeasurement(List<SegmentedObject> track) {
+        if (track.isEmpty()) return;
         int bIdx = structure.getSelectedIndex();
         String key = this.keyName.getValue();
         MultipleException ex = new MultipleException();
         HashMapGetCreate<SegmentedObject, List<SegmentedObject>> siblings = new HashMapGetCreate<>(o -> getAllNextSortedY(o, null));
-        SegmentedObject currentParent = parentTrackHead;
-        List<SegmentedObject> bacteria = currentParent.getChildren(bIdx).collect(Collectors.toList());
+        List<SegmentedObject> bacteria = track.get(0).getChildren(bIdx).collect(Collectors.toList());
         int trackHeadIdx = 0;
         for (SegmentedObject o : bacteria) {
             o.getMeasurements().setStringValue(key, getTrackHeadName(trackHeadIdx++));
             int nextTP = getNextDivisionTimePoint(o);
             o.getMeasurements().setValue("NextDivisionFrame", nextTP>=0?nextTP:null );
         }
-        while(currentParent.getNext()!=null) {
-            currentParent = currentParent.getNext();
+        for (int i = 1; i<track.size(); ++i) {
+            SegmentedObject currentParent = track.get(i);
             bacteria = currentParent.getChildren(bIdx).collect(Collectors.toList());
             for (SegmentedObject o : bacteria) {
                 if (o.getPrevious()==null) o.getMeasurements().setStringValue(key, getTrackHeadName(trackHeadIdx++));

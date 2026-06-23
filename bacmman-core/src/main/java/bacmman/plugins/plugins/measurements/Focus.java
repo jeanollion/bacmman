@@ -40,7 +40,7 @@ import java.util.Set;
  *
  * @author Jean Ollion
  */
-public class Focus implements Measurement, DevPlugin {
+public class Focus implements Measurement.ObjectMeasurement, DevPlugin {
     ObjectClassParameter structure = new ObjectClassParameter("Structure");
     NumberParameter scale = new BoundedNumberParameter("Gradient Scale", 1, 2, 1, null);
     
@@ -55,11 +55,6 @@ public class Focus implements Measurement, DevPlugin {
     @Override
     public int getCallObjectClassIdx() {
         return structure.getParentObjectClassIdx();
-    }
-
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return false;
     }
 
     @Override

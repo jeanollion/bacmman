@@ -25,10 +25,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.Hint;
-import bacmman.plugins.HintSimple;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.MultiThreaded;
+import bacmman.plugins.*;
 import bacmman.processing.bacteria_spine.BacteriaSpineFactory;
 import bacmman.utils.Utils;
 
@@ -47,7 +44,7 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
  *
  * @author Jean Ollion
  */
-public class SpineFeatures implements Measurement, MultiThreaded, Hint, HintSimple {
+public class SpineFeatures implements Measurement.TrackMeasurement, MultiThreaded, Hint, HintSimple {
     protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria", -1, false, false);
     protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", false).setHint(SCALED_TT);
     protected Parameter[] parameters = new Parameter[]{bacteria, scaled};
@@ -74,11 +71,6 @@ public class SpineFeatures implements Measurement, MultiThreaded, Hint, HintSimp
     }
 
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-
-    @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>();
         res.add(new MeasurementKeyObject("SpineWidth", bacteria.getSelectedClassIdx()));
@@ -87,15 +79,20 @@ public class SpineFeatures implements Measurement, MultiThreaded, Hint, HintSimp
     }
 
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
-        double scale = scaled.getSelected() ? parentTrackHead.getScaleXY() : 1d;
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
+        if (parentTrack.isEmpty()) return;
+        double scale = scaled.getSelected() ? parentTrack.get(0).getScaleXY() : 1d;
         int objectClassIdx = bacteria.getSelectedClassIdx();
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Utils.parallel(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)), parallel).forEach(e-> {
             double[] lengthAndWidth = BacteriaSpineFactory.getSpineLengthAndWidth(e.getRegion());
             e.getMeasurements().setValue("SpineLength", lengthAndWidth[0]*scale);
             e.getMeasurements().setValue("SpineWidth", lengthAndWidth[1]*scale);
         });
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     @Override

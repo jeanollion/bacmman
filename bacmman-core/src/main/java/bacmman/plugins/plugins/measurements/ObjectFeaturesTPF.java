@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
+public class ObjectFeaturesTPF implements Measurement.TrackMeasurement, Hint, MultiThreaded {
     ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
             .setAdditionalParameters(new TextParameter("Name", "", false)).addNewInstanceConfiguration(oc->{
@@ -97,10 +97,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
     public int getCallObjectClassIdx() {
         return structure.getParentObjectClassIdx();
     }
-    @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
+
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res=  new ArrayList<>(features.getChildCount());
@@ -108,8 +105,7 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
         return res;
     }
     @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
         int structureIdx = structure.getSelectedIndex();
         // to save time, do not compute when no children object in track
         ProcessingPipeline.PARENT_TRACK_MODE mode =  preFilters.get().stream().map(TrackPreFilter::parentTrackMode).min(ProcessingPipeline.PARENT_TRACK_MODE.COMPARATOR).orElse(ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
@@ -148,6 +144,12 @@ public class ObjectFeaturesTPF implements Measurement, Hint, MultiThreaded {
             }
         });
     }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return  preFilters.get().stream().map(TrackPreFilter::parentTrackMode).min(ProcessingPipeline.PARENT_TRACK_MODE.COMPARATOR).orElse(ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
+    }
+
     @Override
     public Parameter[] getParameters() {
         return parameters;

@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class GrowthRate implements Measurement, MultiThreaded, Hint {
+public class GrowthRate implements Measurement.TrackMeasurement, MultiThreaded, Hint {
     protected ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false).setEmphasized(true).setHint("Select object class corresponding to bacteria");
     protected PluginParameter<GeometricalFeature> feature = new PluginParameter<>("Feature", GeometricalFeature.class, new Size(), false).setHint("Geometrical Feature of object used to estimate the size of a bacterium in order to compute the Growth Rate");
     protected BooleanParameter wholeCycle = new BooleanParameter("Whole Cycle", true).setHint("If true, growth rate is computed on the whole cycle, otherwise on a sliding window with the cycle");
@@ -107,11 +107,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
     }
     
     @Override
-    public boolean callOnlyOnTrackHeads() {
-        return true;
-    }
-    @Override
-    public void performMeasurement(SegmentedObject parentTrackHead) {
+    public void performMeasurement(List<SegmentedObject> parentTrack) {
         int bIdx = structure.getSelectedIndex();
         String featKey = this.featureKey.getValue();
         boolean saveSizeDiv = saveSizeAtDiv.getSelected();
@@ -122,7 +118,6 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);
             return of;
         });
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Utils.parallel(parentTrack.stream(), this.parallel).forEach(ofMap::getAndCreateIfNecessary);
         Map<SegmentedObject, List<SegmentedObject>> parentMapRemovedCells;
         if (filterCellsBool.getSelected()) {
@@ -134,7 +129,6 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
             }));
         } else parentMapRemovedCells = null;
         long t1 = System.currentTimeMillis();
-        logger.trace("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);
         Map<SegmentedObject, Double> logLengthMap = Utils.parallel(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));
         long t2 = System.currentTimeMillis();
         Map<SegmentedObject, List<SegmentedObject>> bacteriaTracks = SegmentedObjectUtils.getAllTracks(parentTrack, bIdx);
@@ -231,7 +225,12 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         long t4 = System.currentTimeMillis();
         logger.debug("Growth Rate: compute values: {}ms, process: {}ms", t2-t1, t4-t3);
     }
-    
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL;
+    }
+
     @Override 
     public ArrayList<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>(3);

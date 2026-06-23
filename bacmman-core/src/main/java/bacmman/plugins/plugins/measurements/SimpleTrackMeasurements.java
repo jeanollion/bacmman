@@ -27,6 +27,7 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
+import bacmman.plugins.ProcessingPipeline;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,7 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public class SimpleTrackMeasurements implements Measurement, Hint {
+public class SimpleTrackMeasurements implements Measurement.TrackMeasurement, Hint {
     protected ObjectClassParameter structure = new ObjectClassParameter("Objects", -1, false, false);
     protected Parameter[] parameters = new Parameter[]{structure};
     
@@ -48,10 +49,6 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
     
     @Override public int getCallObjectClassIdx() {
         return structure.getSelectedClassIdx();
-    }
-
-    @Override public boolean callOnlyOnTrackHeads() {
-        return true;
     }
 
     @Override public List<MeasurementKey> getMeasurementKeys() {
@@ -68,10 +65,10 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
         return res;
     }
 
-    @Override public void performMeasurement(SegmentedObject object) {
+    @Override public void performMeasurement(List<SegmentedObject> track) {
+        SegmentedObject object = track.get(0);
         String th = SegmentedObjectUtils.getIndices(object.getTrackHead());
         String pth = object.isRoot() ? Measurements.NA_STRING : SegmentedObjectUtils.getIndices(object.getParent().getTrackHead());
-        List<SegmentedObject> track = SegmentedObjectUtils.getTrack(object);
         int tl = track.get(track.size()-1).getFrame() - object.getFrame()+1;
         for (SegmentedObject o : track) {
             o.getMeasurements().setValue("TrackLength", tl);
@@ -83,6 +80,11 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
             o.getMeasurements().setStringValue("Prev", o.getPrevious()==null?null:SegmentedObjectUtils.getIndices(o.getPrevious()));
             o.getMeasurements().setStringValue("Next", o.getNext()==null?null:SegmentedObjectUtils.getIndices(o.getNext()));
         }
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     @Override public Parameter[] getParameters() {
