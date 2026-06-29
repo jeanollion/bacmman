@@ -148,13 +148,57 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 4, 2, 5);
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("If true, skip connections are included at all levels otherwise skip connection at first level is omited. Skip connection at first level increase the details");
         BooleanParameter maxpool = new BooleanParameter("Downsampling Mode", "Maxpool", "Stride", false);
-        ChoiceParameter activation = TrainingConfigurationParameter.getActivationParameter();
-        BooleanParameter batchNorm = new BooleanParameter("Batch Norm", true).setLegacyInitializationValue(Boolean.FALSE).setHint("Add a batch norm regularization layer at each convolution");
+        TrainingConfigurationParameter.ActivationParameter activation = TrainingConfigurationParameter.getActivationParameter();
+        enum NORM {BATCH_NORM, WGN}
+        EnumChoiceParameter<NORM> norm = new EnumChoiceParameter<>("Normalization", NORM.values(), NORM.WGN).setLegacyParameter((p, n)->{if (((BooleanParameter)p[0]).getSelected()) {n.setValue(NORM.BATCH_NORM);}}, new BooleanParameter("Batch Norm", true)).setHint("<b>Normalization</b> — normalization layer applied after convolutions to\n" +
+                "  stabilize and speed up training.<br><br>\n" +
+                "\n" +
+                "  <b>batch_norm</b> (Batch Normalization): normalizes each channel using the\n" +
+                "  mean/variance computed <i>across the batch</i>, and keeps a running average of\n" +
+                "  these statistics for inference.\n" +
+                "  <ul>\n" +
+                "    <li>+ Standard, fast, cheap; excellent with large batch sizes (typical in 2D).</li>\n" +
+                "    <li>&minus; Statistics are noisy when the batch is small (common in 3D with large\n" +
+                "        patches).</li>\n" +
+                "    <li>&minus; Uses stored \"population\" statistics at inference, which can differ from\n" +
+                "        training and make deep 3D networks collapse to a uniform/blank output.</li>\n" +
+                "  </ul>\n" +
+                "\n" +
+                "  <b>wgn</b> (Window Group Normalization): normalizes each feature map using\n" +
+                "  statistics computed <i>from the input itself</i>, locally, within a sliding\n" +
+                "  spatial window (no batch, no stored averages).\n" +
+                "  <ul>\n" +
+                "    <li>+ Behaves identically during training and inference &rarr; no collapse.</li>\n" +
+                "    <li>+ Independent of batch size (ideal for 3D / small batches).</li>\n" +
+                "    <li>+ Size-invariant: a small training tile and a full image are normalized\n" +
+                "        consistently.</li>\n" +
+                "    <li>&minus; More computation than batch_norm (sliding-window pooling).</li>\n" +
+                "    <li>&minus; Has a window-size parameter to set.</li>\n" +
+                "  </ul>\n" +
+                "\n" +
+                "  <b>Recommended:</b> <b>batch_norm</b> for 2D / large batches, <b>wgn</b> for 3D\n" +
+                "  or small batches.");
+        enum NORM_SCOPE {NO_NORM, ALL, PER_BLOCK, RESAMPLE}
+        EnumChoiceParameter<NORM_SCOPE> normScope = new EnumChoiceParameter<>("Normalization Scope", NORM_SCOPE.values(), NORM_SCOPE.NO_NORM).setHint("<b>Normalization scope</b> — which convolutions actually receive a normalization\n" +
+                "  layer. Fewer layers = faster and lighter; more layers = generally more stable.\n" +
+                "  The residual (skip) connections and the output layer are never normalized.\n" +
+                "  <ul>\n" +
+                "    <li><b>all</b>: every convolution is normalized (most stable; standard recipe,\n" +
+                "        e.g. nnU-Net). Recommended default.</li>\n" +
+                "    <li><b>per_block</b>: a single normalization per block, placed at the block\n" +
+                "        entry (first convolution). Lighter; transformer/ConvNeXt-style.</li>\n" +
+                "    <li><b>resample</b>: a single normalization per block, placed at the\n" +
+                "        resolution change (the convolution feeding the down-sampling, and the\n" +
+                "        up-sampling convolution). Lightest non-empty option.</li>\n" +
+                "    <li><b>none</b>: no normalization at all (fastest, but training is usually less\n" +
+                "        stable and may fail to converge).</li>\n" +
+                "  </ul>");
+
         IntSupplier channelNumberSupplier;
 
         protected ArchitectureParameter(String name) {
             super(new EnumChoiceParameter<>(name, ARCH_TYPE.values(), ARCH_TYPE.UNET));
-            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, batchNorm);
+            setActionParameters(ARCH_TYPE.UNET, classNumber, inputNumber, downsamplingNumber, filters, filtersMin, skip, maxpool, activation, norm, normScope);
         }
 
         public int getContraction() {
@@ -183,8 +227,9 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
             res.put("architecture_type", getActionValue().toString());
             res.put("n_classes", classNumber.getIntValue());
             res.put("n_inputs", inputNumber.getIntValue());
-            res.put("batch_norm", batchNorm.getValue());
-            res.put("activation", activation.getValue());
+            res.put("normalization", norm.getSelectedEnum().toString().toLowerCase());
+            res.put("normalization_scope", normScope.getSelectedEnum().toString().toLowerCase());
+            res.put(activation.getPythonConfigurationKey(), activation.getPythonConfiguration());
             JSONArray sc = new JSONArray();
             if (!skip.getSelected()) sc.add(0);
 

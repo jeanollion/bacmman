@@ -18,8 +18,8 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
     Logger logger = LoggerFactory.getLogger(DLScalingParameter.class);
 
     enum MODE {RANDOM_CENTILES, RANDOM_MIN_MAX, BRIGHT_FIELD, FLUORESCENCE}
-    IntervalParameter minCentileRange = new IntervalParameter("Min Centile Range", 6, 0, 100, 0.01, 5.).setHint("Zero (min value) of scaled image will correspond to a random centile drawn in this interval");
-    IntervalParameter maxCentileRange = new IntervalParameter("Max Centile Range", 6, 0, 100, 95., 99.9).setHint("One (max value) of scaled image will correspond to a random centile drawn in this interval");
+    IntervalParameter minCentileRange = new IntervalParameter("Min Centile Range", 6, 0, 100, 0.01, 2.).setHint("Zero (min value) of scaled image will correspond to a random centile drawn in this interval");
+    IntervalParameter maxCentileRange = new IntervalParameter("Max Centile Range", 6, 0, 100, 98., 99.9).setHint("One (max value) of scaled image will correspond to a random centile drawn in this interval");
     BoundedNumberParameter minCentile = new BoundedNumberParameter("Min Centile", 6, 1, 0, 100).setHint("Default min centile used to scale images at test time, for active learning etc.. <br/>pixels of value 0 in the scaled image will correspond to this centile");
     BoundedNumberParameter maxCentile = new BoundedNumberParameter("Max Centile", 6, 99, 0, 100).setHint("Default max centile used to scale images at test time, for metrics computation in hard sample mining etc... <br/>pixels of value 1 in the scaled image will correspond to this centile");
     FloatParameter saturateHigh = new FloatParameter("Saturate", 0.5).setLowerBound(0).setUpperBound(1).setLegacyInitializationValue(1)
@@ -38,7 +38,7 @@ public class DLScalingParameter extends ConditionalParameterAbstract<DLScalingPa
     BooleanParameter perImage = new BooleanParameter("Per Image", true).setHint("whether center and scale are computed per image or on the whole dataset");
 
     BoundedNumberParameter bfSdFactor = new BoundedNumberParameter("Sd Factor", 5, 3, 0, null);
-    IntervalParameter fluoScaleRange = new IntervalParameter("Scale Centile Range", 6, 0, 100, 75., 99.9).setHint("Interval [pMin, pMax] is computed on the whole dataset at user-defined percentiles values, scale_range = [pMin - M, pMax - M] with M = modal value");
+    IntervalParameter fluoScaleRange = new IntervalParameter("Scale Centile Range", 6, 0, 100, 98., 99.9).setHint("Interval [pMin, pMax] is computed on the whole dataset at user-defined percentiles values, scale_range = [pMin - M, pMax - M] with M = modal value");
     IntervalParameter fluoCenterRange = new IntervalParameter("Center Centile Range", 6, -100, 100, -20., 30.).addRightBound(0, 0).setHint("let P be the percentile of the modal value M, center_range is the interval at percentile values [P+p1, P+p2] with p1, p2 values of this parameter");
 
     public DLScalingParameter(String name) {
