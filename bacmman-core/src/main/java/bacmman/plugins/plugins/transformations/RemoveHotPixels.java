@@ -75,7 +75,7 @@ public class RemoveHotPixels implements Transformation.ConfigurableTransformatio
         double fRd= (double)frameWindow;
         final Image[][] testMeanTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
         final Image[][] testMedianTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
-        boolean parallelPerFrame = frameWindow > 1;
+        boolean parallelPerFrame = false; // TODO was frameWindow > 1; but do not work (no pixel detected)
         // perform sliding mean of image
         SlidingOperator<Integer, Pair<Integer, Image>, Void> operator = new SlidingOperator<Integer, Pair<Integer, Image>, Void>() {
             @Override public Pair<Integer, Image> instanciateAccumulator() {
