@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.function.*;
 import java.util.stream.Collectors;
 
-public class DLFilterSimple implements TrackPreFilter, Transformation, ConfigurableTransformation, Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
+public class DLFilterSimple implements TrackPreFilter, Transformation, Transformation.ConfigurableTransformation, Transformation.Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
     static Logger logger = LoggerFactory.getLogger(DLFilterSimple.class);
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine module");
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);

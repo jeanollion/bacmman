@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.IntConsumer;
 
-public class SubtractGaussSignalExclusion implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
+public class SubtractGaussSignalExclusion implements Transformation.ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
     public final static Logger logger = LoggerFactory.getLogger(SubtractGaussSignalExclusion.class);
     ChannelImageParameter signalExclusion = new ChannelImageParameter("Channel for Signal Exclusion", -1, false).setEmphasized(true);
     PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(), false).setEmphasized(true); //new ConstantValue(150)

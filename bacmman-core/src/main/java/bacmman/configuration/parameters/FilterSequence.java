@@ -23,33 +23,33 @@ import bacmman.image.ImageProperties;
 
 import java.util.Collection;
 
-import bacmman.plugins.Filter;
+import bacmman.plugins.Transformation;
 
 /**
  *
  * @author Jean Ollion
  */
-public class FilterSequence extends PluginParameterList<Filter, FilterSequence> {
+public class FilterSequence extends PluginParameterList<Transformation.Filter, FilterSequence> {
 
     public FilterSequence(String name) {
-        super(name, "Transformation", Filter.class, false);
+        super(name, "Transformation", Transformation.Filter.class, false);
     }
     
     public Image filter(Image input)  {
         ImageProperties prop = input.getProperties();
-        for (Filter t : get()) {
+        for (Transformation.Filter t : get()) {
             input = t.applyTransformation(0, 0, input);
         }
         input.setCalibration(prop);
         if (input.sameDimensions(prop)) input.resetOffset().translate(prop);
         return input;
     }
-    @Override public FilterSequence add(Filter... instances) {
+    @Override public FilterSequence add(Transformation.Filter... instances) {
         super.add(instances);
         return this;
     }
     
-    @Override public FilterSequence add(Collection<? extends Filter> instances) {
+    @Override public FilterSequence add(Collection<? extends Transformation.Filter> instances) {
         super.add(instances);
         return this;
     }

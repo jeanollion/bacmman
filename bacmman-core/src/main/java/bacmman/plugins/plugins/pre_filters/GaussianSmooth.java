@@ -22,17 +22,16 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
-import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PreFilter;
-import bacmman.processing.Filters;
+import bacmman.plugins.Transformation;
 import bacmman.processing.ImageDerivatives;
 
 /**
  *
  * @author Jean Ollion
  */
-public class GaussianSmooth implements PreFilter, Filter, Hint {
+public class GaussianSmooth implements PreFilter, Transformation.Filter, Hint {
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 2, 1, true).setHint("Radius in pixel").setEmphasized(true);
     Parameter[] parameters = new Parameter[]{radius};
     public GaussianSmooth() {}

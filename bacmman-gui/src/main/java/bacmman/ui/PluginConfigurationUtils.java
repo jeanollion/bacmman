@@ -523,7 +523,7 @@ public class PluginConfigurationUtils {
                             logger.debug("set test mode: {} to transformation", testMode);
                         }
                         try{
-                            if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
+                            if (transfo instanceof Transformation.ConfigurableTransformation) ((Transformation.ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
                         } catch (Throwable t) {
                             logger.error("error while configuring transformation:", t);
                             if (pcb!=null) pcb.log("Error while configuring transformation: "+t.toString());

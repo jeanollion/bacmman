@@ -22,9 +22,9 @@ import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
-import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PreFilter;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
@@ -33,7 +33,7 @@ import bacmman.processing.ImageOperations;
  *
  * @author Jean Ollion
  */
-public class DivideBackground implements PreFilter, Filter, Hint {
+public class DivideBackground implements PreFilter, Transformation.Filter, Hint {
     enum METHOD {MEAN, GAUSSIAN}
     EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Background", METHOD.values(), METHOD.MEAN).setHint("Background is computed by applying the selected filter");
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean/TopHat transform to be subtracted").setEmphasized(true);

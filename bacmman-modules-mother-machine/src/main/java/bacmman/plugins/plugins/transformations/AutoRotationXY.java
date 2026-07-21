@@ -39,13 +39,12 @@ import static bacmman.processing.RadonProjection.radonProject;
 
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
-import java.util.stream.Collectors;
 
 /**
  *
  * @author Jean Ollion
  */
-public class AutoRotationXY implements MultichannelTransformation, ConfigurableTransformation, TestableOperation, Hint, HintSimple {
+public class AutoRotationXY implements MultichannelTransformation, Transformation.ConfigurableTransformation, TestableOperation, Hint, HintSimple {
     IntervalParameter angleRange = new IntervalParameter("Angle range search", 2, -90, 90, -10, 10).setHint("Rotation angle search will be limited to this range (in degree) ");
     NumberParameter precision1 = new BoundedNumberParameter("Angular Precision of first search", 2, 1, 0, null).setHint("The algorithm performs a first angle search within the range defined in the <em>Angle range search</em> with a lower precision defined by this parameter. A second search is then performed as described in the <em>Angular precision</em> parameter.<br /> If this value is too low the computation time will increase significantly, and if it's too high the algorithm may miss the global optimum");
     NumberParameter precision2 = new BoundedNumberParameter("Angular Precision", 2, 0.1, 0, 1).setHint("After the first angle search performed with the precision defined in <em>Angular Precision of first search</em>, an optimal angle is found. To refine the precision, a second search is then performed around this angle with the precision defined by this parameter");

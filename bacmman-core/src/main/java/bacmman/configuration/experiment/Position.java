@@ -214,6 +214,26 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public boolean sourceImagesLinked() {
         return sourceImages!=null && !sourceImages.isEmpty();
     }
+
+    public InputImagesImpl createInputImages(ImageDAO dao, ImageDAO tempDAO) {
+        int tpOff = getStartTrimFrame();
+        int tpNp = getEndTrimFrame() - tpOff+1;
+        int[] duplicatedChannelSources = getExperiment().getDuplicatedChannelSources();
+        InputImage[][] res = new InputImage[sourceImages.getChannelNumber()+duplicatedChannelSources.length][];
+        for (int c = 0; c<res.length; ++c) {
+            int inputC = c<sourceImages.getChannelNumber() ? c : duplicatedChannelSources[c-sourceImages.getChannelNumber()];
+            res[c] = sourceImages.singleFrame(inputC) ? new InputImage[1] : new InputImage[tpNp];
+            for (int t = 0; t<res[c].length; ++t) {
+                res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, dao,tempDAO);
+                if (preProcessingChain.useCustomScale()) res[c][t].overwriteCalibration(preProcessingChain.getScaleXY(), preProcessingChain.getScaleZ());
+            }
+        }
+        int defTp = defaultTimePoint.getValue().intValue()-tpOff;
+        if (defTp<0) defTp=0;
+        if (defTp>=tpNp) defTp=tpNp-1;
+        String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()), true);
+        return new InputImagesImpl(res, defTp, getExperiment().getFocusChannelAndAlgorithm(), tmpDir).setMinFrame(tpOff);
+    }
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {
             logger.warn("current inputImages has: {} frames while there are {} input images", inputImages.getFrameNumber(), getFrameNumber(false));
@@ -224,24 +244,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     logger.debug("generate input images with {} frames (old: {}) ", getFrameNumber(false), inputImages !=null? inputImages.getFrameNumber() : "null");
                     if (originalImageDAO == null) createImageDAO();
                     if (originalImageDAO ==null || sourceImages==null) return null;
-                    int tpOff = getStartTrimFrame();
-                    int tpNp = getEndTrimFrame() - tpOff+1;
-                    int[] duplicatedChannelSources = getExperiment().getDuplicatedChannelSources();
-                    InputImage[][] res = new InputImage[sourceImages.getChannelNumber()+duplicatedChannelSources.length][];
-                    for (int c = 0; c<res.length; ++c) {
-                        int inputC = c<sourceImages.getChannelNumber() ? c : duplicatedChannelSources[c-sourceImages.getChannelNumber()];
-                        res[c] = sourceImages.singleFrame(inputC) ? new InputImage[1] : new InputImage[tpNp];
-                        for (int t = 0; t<res[c].length; ++t) {
-                            res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, originalImageDAO, getTempImageDAO());
-                            if (preProcessingChain.useCustomScale()) res[c][t].overwriteCalibration(preProcessingChain.getScaleXY(), preProcessingChain.getScaleZ());
-                        } 
-                    }
-                    int defTp = defaultTimePoint.getValue().intValue()-tpOff;
-                    if (defTp<0) defTp=0;
-                    if (defTp>=tpNp) defTp=tpNp-1;
-                    String tmpDir = DiskBackedImageManagerProvider.getTempDirectory(Paths.get(getExperiment().getOutputImageDirectory()), true);
-                    inputImages = new InputImagesImpl(res, defTp, getExperiment().getFocusChannelAndAlgorithm(), tmpDir).setMinFrame(tpOff);
-                    logger.debug("creation input images: def tp: {}, frames: {} ([{}; {}]), channels: {}",defTp, inputImages.getFrameNumber(), getStartTrimFrame(),getEndTrimFrame() , inputImages.getChannelNumber());
+                    inputImages = createInputImages(originalImageDAO, getTempImageDAO());
+                    logger.debug("creation input images: def tp: {}, frames: {} ([{}; {}]), channels: {}", inputImages.getDefaultTimePoint(), inputImages.getFrameNumber(), getStartTrimFrame(),getEndTrimFrame() , inputImages.getChannelNumber());
                 }
             }
         } else {

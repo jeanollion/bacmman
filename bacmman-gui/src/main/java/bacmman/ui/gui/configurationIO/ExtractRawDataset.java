@@ -150,7 +150,7 @@ public class ExtractRawDataset extends JDialog {
         int[] channels = channelSelector.getSelectedIndices();
         SimpleBoundingBox bounds = extractParameter.getBounds();
         Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> extractParameter.getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), extractParameter.frameChoiceChannelImage.getSelectedIndex())));
-        resultingTask.setExtractRawDS(extractParameter.outputFile.getFirstSelectedFilePath(), channels, bounds, extractParameter.extractZ.getConfig(), positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setExtractRawDS(extractParameter.outputFile.getFirstSelectedFilePath(), channels, bounds, extractParameter.extractZ.getConfig(), extractParameter.transformations, positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 

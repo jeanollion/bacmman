@@ -18,7 +18,10 @@
  */
 package bacmman.plugins;
 
+import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
+
+import java.io.IOException;
 
 /**
  *
@@ -26,4 +29,28 @@ import bacmman.image.Image;
  */
 public interface Transformation extends ImageProcessingPlugin {
     Image applyTransformation(int channelIdx, int timePoint, Image image);
+
+    /**
+     * Filters have same input channel as output channel
+     * @author Jean Ollion
+     */
+    interface Filter extends Transformation {
+
+    }
+
+    /**
+     *
+     * @author Jean Ollion
+     */
+    interface ConfigurableTransformation extends Transformation {
+        /**
+         * This method compute configuration data necessary for {@link Transformation#applyTransformation(int, int, Image)} method; in this method the objects should not be modified but created de novo.
+         * @param channelIdx
+         * @param inputImages
+         */
+        void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException;
+        boolean isConfigured(int totalChannelNumber, int totalTimePointNumber);
+        boolean highMemory();
+        default void clear() {}
+    }
 }

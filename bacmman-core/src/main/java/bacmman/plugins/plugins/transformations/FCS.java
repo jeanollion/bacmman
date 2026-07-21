@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
-import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
@@ -10,9 +9,7 @@ import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.neighborhood.Neighborhood;
 
-import java.io.IOException;
-
-public class FCS implements Filter, DevPlugin {
+public class FCS implements Transformation.Filter, DevPlugin {
     FloatParameter radiusXY = new FloatParameter("Radius", 0).setLowerBound(0);
     IntegerParameter dT = new IntegerParameter("dT", 1).setLowerBound(1);
     BooleanParameter norm = new BooleanParameter("Normalize", true).setHint("Normalize by stdev");

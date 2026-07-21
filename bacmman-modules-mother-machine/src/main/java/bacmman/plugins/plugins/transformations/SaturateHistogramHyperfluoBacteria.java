@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.plugins.Transformation;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
@@ -27,14 +28,13 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 
-import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
 
 /**
  *
  * @author Jean Ollion
  */
-public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransformation, Hint {
+public class SaturateHistogramHyperfluoBacteria implements Transformation.ConfigurableTransformation, Hint {
     NumberParameter maxSignalProportion = new BoundedNumberParameter("Maximum Saturated Signal Amount Proportion", 5, 0.02, 0, 1).setHint("Condition on amount of signal for detection of hyper-fluorescent bacteria: <br />Total amount of foreground signal / amount of hyper-fluorescent signal &lt; this threshold");
     NumberParameter minSignalRatio = new BoundedNumberParameter("Minimum Signal Ratio", 2, 10, 2, null).setHint("Condition on signal value for detection of hyper-fluorescent bacteria: <br />Mean Hyper-fluorescent signal / Mean Foreground signal > this threshold");
     NumberParameter frameModulo = new BoundedNumberParameter("Frame Increment", 0, 2, 1, null).setHint("To improve speed: 1 frame out of N is used for histogram computation");

@@ -20,7 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
-import bacmman.plugins.TestableOperation;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BlankMask;
@@ -32,15 +32,12 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.image.PredicateMask;
 import bacmman.image.TypeConverter;
-import bacmman.plugins.ConfigurableTransformation;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import bacmman.plugins.SimpleThresholder;
-import bacmman.plugins.Hint;
 import bacmman.utils.SlidingOperatorDouble;
 import bacmman.utils.ThreadRunner;
 import ij.process.AutoThresholder;
@@ -51,7 +48,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jean Ollion
  */
-public class RemoveStripesSignalExclusion implements ConfigurableTransformation, TestableOperation, Hint {
+public class RemoveStripesSignalExclusion implements Transformation.ConfigurableTransformation, TestableOperation, Hint {
     ChannelImageParameter signalExclusion = new ChannelImageParameter("Channel for Signal Exclusion", -1, true).setEmphasized(true);
     PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundFit(5), false).setEmphasized(true); //new ConstantValue(150)
     BooleanParameter signalExclusionBool2 = new BooleanParameter("Second Signal Exclusion", false);

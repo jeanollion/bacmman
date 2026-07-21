@@ -22,8 +22,8 @@ import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
-import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
+import bacmman.plugins.Transformation;
 import bacmman.processing.ImageFeatures;
 import bacmman.plugins.PreFilter;
 import bacmman.processing.ImageOperations;
@@ -38,7 +38,7 @@ import java.util.function.Function;
  *
  * @author Jean Ollion
  */
-public class ImageFeature implements PreFilter, Filter, Hint {
+public class ImageFeature implements PreFilter, Transformation.Filter, Hint {
 
     @Override
     public String getHintText() {

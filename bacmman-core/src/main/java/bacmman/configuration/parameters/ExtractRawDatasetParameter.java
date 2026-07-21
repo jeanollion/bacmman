@@ -3,6 +3,7 @@ package bacmman.configuration.parameters;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
+import bacmman.plugins.Transformation;
 
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +19,7 @@ public class ExtractRawDatasetParameter extends GroupParameterAbstract<ExtractRa
     final ConditionalParameter<FRAME_CHOICE_MODE> frameChoiceCond = new ConditionalParameter<>(frameChoiceMode)
             .setActionParameters(FRAME_CHOICE_MODE.FLUO_SIGNAL, frameChoiceChannelImage, nFrames)
             .setActionParameters(FRAME_CHOICE_MODE.RANDOM, nFrames);
+    public final SimpleListParameter<TransformationPluginParameter<Transformation>> transformations = new SimpleListParameter<>("Pre-Processing pipeline", new TransformationPluginParameter<>("Transformation", Transformation.class, false)).setHint("Transformation applied to channels before extraction");
     public final BoundedNumberParameter xMin = new BoundedNumberParameter("X start", 0, 0, 0, null);
     public final BoundedNumberParameter xSize = new BoundedNumberParameter("X size", 0, 0, 0, null);
     public final BoundedNumberParameter yMin = new BoundedNumberParameter("Y start", 0, 0, 0, null);
@@ -39,7 +41,7 @@ public class ExtractRawDatasetParameter extends GroupParameterAbstract<ExtractRa
                 .setRelativePath(false)
                 .mustExist(false)
                 .setHint("Set file where dataset will be extracted. If file exists and is of same format, data will be appended to the file");
-        this.setChildren(outputFile, frameChoiceCond, bounds, extractZ);
+        this.setChildren(outputFile, frameChoiceCond, bounds, extractZ, transformations);
     }
 
     public ExtractRawDatasetParameter(String name, boolean multipleChannels) { // constructor with all parameters
@@ -48,7 +50,7 @@ public class ExtractRawDatasetParameter extends GroupParameterAbstract<ExtractRa
         this.multipleChannels = multipleChannels;
         this.extractChannelImage = new ChannelImageParameter("Channel Image", false, multipleChannels).setIncludeDuplicatedChannels(false);
         this.positions = new PositionParameter("Positions", false, true);
-        this.setChildren(extractChannelImage, positions, frameChoiceCond, bounds, extractZ);
+        this.setChildren(extractChannelImage, positions, frameChoiceCond, bounds, extractZ, transformations);
     }
 
     @Override

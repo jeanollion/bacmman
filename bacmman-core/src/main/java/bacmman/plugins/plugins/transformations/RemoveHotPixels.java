@@ -31,12 +31,12 @@ import java.io.IOException;
 import java.util.*;
 
 import bacmman.plugins.TestableOperation;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Median;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
-import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
 import bacmman.utils.*;
 
@@ -49,7 +49,7 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class RemoveHotPixels implements ConfigurableTransformation, TestableOperation, Hint {
+public class RemoveHotPixels implements Transformation.ConfigurableTransformation, TestableOperation, Hint {
     NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higher than this threshold pixel is considered as dead and will be replaced by the median value");
     NumberParameter frameRadius = new BoundedNumberParameter("Frame Window", 0, 1, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
     Map<Integer, CoordCollection> configMapF;

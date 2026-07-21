@@ -9,10 +9,7 @@ import bacmman.image.ImageFloat;
 import bacmman.image.TypeConverter;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReaderFile;
-import bacmman.plugins.ConfigurableTransformation;
-import bacmman.plugins.Hint;
-import bacmman.plugins.PluginWithLegacyInitialization;
-import bacmman.plugins.TestableOperation;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
 import bacmman.processing.ImageOperations;
 import org.json.simple.JSONArray;
@@ -27,7 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class BackgroundAndShadingCorrection implements ConfigurableTransformation, Hint, TestableOperation, PluginWithLegacyInitialization {
+public class BackgroundAndShadingCorrection implements Transformation.ConfigurableTransformation, Hint, TestableOperation, PluginWithLegacyInitialization {
 
     FileChooser flatField = new FileChooser("Flat-field image", FileChooser.FileChooserOption.FILES_ONLY, false).setEmphasized(true).setHint("Choose a Flat-Field image (image acquired with no sample, that represents the change in effective illumination across an image) : output images will be divided by the values of this images: I = I / flat-field. <br>If several images are selected, they will be averaged");
     FileChooser darkField = new FileChooser("Dark-field image", FileChooser.FileChooserOption.FILES_ONLY, false).setEmphasized(true).setHint("Choose a Dark-field image (image acquired with no light, that represents the additive term, which is dominated by thermal noise, camera offset) : dark-field will be subtracted to output images: I = I - dark-field.<br>If several images are selected, they will be averaged");

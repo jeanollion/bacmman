@@ -42,7 +42,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jean Ollion
  */
-public class SelectBestFocusPlane implements ConfigurableTransformation, MultichannelTransformation, Autofocus, Hint {
+public class SelectBestFocusPlane implements Transformation.ConfigurableTransformation, MultichannelTransformation, Autofocus, Hint {
     ArrayList<Integer> bestFocusPlaneIdxT = new ArrayList<Integer>();
     NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 5, 2, 0, 10);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters");

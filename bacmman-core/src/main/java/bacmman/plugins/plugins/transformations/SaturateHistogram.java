@@ -24,13 +24,13 @@ import bacmman.configuration.parameters.Parameter;
 import static bacmman.image.BoundingBox.loop;
 import bacmman.image.Image;
 import bacmman.plugins.DevPlugin;
-import bacmman.plugins.Filter;
+import bacmman.plugins.Transformation;
 
 /**
  *
  * @author Jean Ollion
  */
-public class SaturateHistogram implements Filter, DevPlugin {
+public class SaturateHistogram implements Transformation.Filter, DevPlugin {
     NumberParameter threshold = new NumberParameter("Saturation initiation value", 4, 400);
     NumberParameter maxValue = new NumberParameter("Maximum value", 3, 500);
     Parameter[] parameters = new Parameter[]{threshold, maxValue};

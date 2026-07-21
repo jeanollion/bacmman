@@ -23,15 +23,15 @@ import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.Hint;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
-import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
 
 /**
  *
  * @author Jean Ollion
  */
-public class Median implements PreFilter, Filter, Hint {
+public class Median implements PreFilter, Transformation.Filter, Hint {
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 2, 1, true).setHint("Radius in pixel").setEmphasized(true);
     Parameter[] parameters = new Parameter[]{radius};
     public Median() {}

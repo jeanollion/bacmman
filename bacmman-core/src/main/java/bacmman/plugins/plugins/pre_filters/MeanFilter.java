@@ -22,16 +22,16 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
-import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PreFilter;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
 
 /**
  *
  * @author Jean Ollion
  */
-public class MeanFilter implements PreFilter, Filter, Hint {
+public class MeanFilter implements PreFilter, Transformation.Filter, Hint {
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 2, 1, true).setHint("Radius in pixel").setEmphasized(true);
     Parameter[] parameters = new Parameter[]{radius};
     public MeanFilter() {}

@@ -7,11 +7,11 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
-import bacmman.plugins.ConfigurableTransformation;
+import bacmman.plugins.Transformation;
 
 import java.io.IOException;
 
-public class HistogramScaler implements ConfigurableTransformation {
+public class HistogramScaler implements Transformation.ConfigurableTransformation {
     PluginParameter<bacmman.plugins.HistogramScaler> scaler = new PluginParameter<>("Method", bacmman.plugins.HistogramScaler.class, false);
     BooleanParameter scalePerFrame = new BooleanParameter("Scale Per Frame", true).setHint("If true each frame is scaled independently");
 

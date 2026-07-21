@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class MixChannel implements ConfigurableTransformation, TransformationApplyDirectly, Hint {
+public class MixChannel implements Transformation.ConfigurableTransformation, TransformationApplyDirectly, Hint {
     ChannelImageParameter otherChannel = new ChannelImageParameter("Other Channel").setEmphasized(true).setHint("Other Channel to be mixed with this channel");
     PluginParameter<bacmman.plugins.HistogramScaler> scaler = new PluginParameter<>("Scaler", bacmman.plugins.HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale this channel before mixing. Scaling will be reversed after mixing");
     PluginParameter<bacmman.plugins.HistogramScaler> otherScaler = new PluginParameter<>("Other Scaler", bacmman.plugins.HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale the other channel before mixing");
