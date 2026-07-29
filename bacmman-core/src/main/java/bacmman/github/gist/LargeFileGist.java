@@ -39,7 +39,7 @@ public class LargeFileGist {
     String description, id;
     boolean visible, wasZipped;
     List<String> subFileIds;
-    Consumer<String> ensureChunkRetrieved;
+    Runnable ensureChunkRetrieved;
     String stringContent, stringContentId; // if LFG is a string
 
     public LargeFileGist(String id, UserAuth auth) throws IOException {
@@ -153,24 +153,24 @@ public class LargeFileGist {
                     this.subFileIds = new ArrayList<>();
                     List<?> ids = ((JSONArray) masterFileJSON.get("sub_file_ids"));
                     for (Object id : ids) subFileIds.add((String)id);
-                    ensureChunkRetrieved = chunkName -> {
-                        if (chunksURL.containsKey(chunkName)) return;
-                        int idx = getChunkIndex(chunkName);
-                        if (idx>=nChunks) return;
-                        int i = idx/nChunksPerSubFile;
-                        if (i>0) {
-                            String id = subFileIds.get(i-1);
-                            try {
-                                logger.debug("retrieving chunks of subfile {}: id={}", idx, id);
-                                LargeFileGist lf = new LargeFileGist(id, auth);
-                                chunksURL.putAll(lf.chunksURL);
-                            } catch (IOException io) {
-                                throw new RuntimeException("Error while retrieving chunks of subfile ID="+id, io);
+                    if (subFileIds.isEmpty()) ensureChunkRetrieved = () -> {};
+                    else {
+                        ensureChunkRetrieved = () -> {
+                            if (chunksURL.size() < nChunks) {
+                                for (String id : subFileIds) {
+                                    try {
+                                        LargeFileGist lf = new LargeFileGist(id, auth);
+                                        logger.debug("current chunks: {} / {} retrieving chunks of subfile id={} -> {}", chunksURL.size(), nChunks, id, lf.chunksURL.keySet());
+                                        chunksURL.putAll(lf.chunksURL);
+                                    } catch (IOException io) {
+                                        throw new RuntimeException("Error while retrieving chunks of subfile ID=" + id, io);
+                                    }
+                                }
                             }
-                        }
-                    };
+                        };
+                    }
                 } else {
-                    ensureChunkRetrieved = id -> {};
+                    ensureChunkRetrieved = () -> {};
                 }
                 if (masterFileJSON.get("checksum_md5") != null) {
                     retrieveMD5((JSONArray) masterFileJSON.get("checksum_md5"));
@@ -188,7 +188,7 @@ public class LargeFileGist {
                 fileType = fullFileName.contains(".") ? fullFileName.substring(fullFileName.indexOf(".")) : "";
                 wasZipped = false;
                 subFileIds = null;
-                ensureChunkRetrieved = id -> {};
+                ensureChunkRetrieved = () -> {};
             }
         }
     }
@@ -220,7 +220,6 @@ public class LargeFileGist {
     }
 
     public byte[] retrieveChunk(String chunkName, UserAuth auth) throws IOException {
-        ensureChunkRetrieved.accept(chunkName);
         String chunkURL = chunksURL.get(chunkName);
         byte[] md5 = checksum_md5==null ? null:checksum_md5.get(chunkName);
         String chunkB64 = new JSONQuery(chunkURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetch();
@@ -255,6 +254,7 @@ public class LargeFileGist {
     public File retrieveFile(File outputFile, boolean background, boolean unzipIfPossible, UserAuth auth, Consumer<File> callback, ProgressLogger pcb) throws IOException {
         if (outputFile == null) throw new RuntimeException("OutputFile cannot be null");
         boolean willUnzip = unzipIfPossible && ( wasZipped || (fullFileName.endsWith(".zip") && !outputFile.getName().endsWith(".zip")) );
+        ensureChunkRetrieved.run();
         File actualOutputFile = outputFile.isDirectory()? new File(outputFile, willUnzip? (fullFileName.endsWith(".zip") ? fullFileName.substring(0, fullFileName.length()-4) : fullFileName) : fullFileName) : outputFile;
         File targetFile = willUnzip ? new File(actualOutputFile.getParentFile(), actualOutputFile.getName()+".zip") : (wasZipped ? new File(outputFile, fullFileName+".zip") : actualOutputFile);
         if (getStringContent(auth) != null) {
@@ -327,6 +327,7 @@ public class LargeFileGist {
         boolean willUnzip =  wasZipped || (fullFileName.endsWith(".zip") );
         PipedOutputStream outputStream = new PipedOutputStream();
         List<String> chunkNames = new ArrayList<>(this.chunksURL.keySet());
+        ensureChunkRetrieved.run();
         Runnable callback = () -> {
             try {
                 PipedInputStream inputStream = new PipedInputStream(outputStream);
@@ -639,6 +640,7 @@ public class LargeFileGist {
     public static boolean chunkUploaded(String id, String chunkName, UserAuth auth) {
         try {
             LargeFileGist lf = new LargeFileGist(id, auth);
+            lf.ensureChunkRetrieved.run();
             logger.debug("checking uploaded chunk {}: URL exists ? {}", chunkName, lf.chunksURL.containsKey(chunkName));
             return lf.retrieveChunk(chunkName, auth)!=null;
         } catch (IOException e) {

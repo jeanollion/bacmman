@@ -18,6 +18,8 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.configuration.experiment.Experiment;
+
 import java.util.function.Consumer;
 
 /**
@@ -37,8 +39,9 @@ public abstract class ObjectClassParameterAbstract<T extends ObjectClassParamete
         super(name, selectedStructures, allowNoSelection);
     }
     public int getParentObjectClassIdx() {
-        if (getXP()==null) logger.error("StructureParameter#getParentStructureIdx(): {}, could not get dataset", name);
-        if (getSelectedIndex()==-1) return -1;
+        Experiment xp = getXP();
+        if (xp==null) logger.error("StructureParameter#getParentStructureIdx(): {}, could not get dataset", name);
+        if (getSelectedIndex()==-1 || getSelectedIndex()>=xp.getStructureCount()) return -1;
         else return getXP().getStructure(getSelectedIndex()).getParentStructure();
     }
     
