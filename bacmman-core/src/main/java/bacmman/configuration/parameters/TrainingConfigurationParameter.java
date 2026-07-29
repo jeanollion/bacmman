@@ -753,7 +753,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
 
     public static class CategoryLossParameter extends GroupParameterAbstract<CategoryLossParameter> implements PythonConfiguration {
-        FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Value=1 means weights are inverse frequency. Value below 1: Power law applied to inverse class frequency weight, in order to limits them");
+        FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Class imbalance correction is corrected by applying inverse class frequency weights. This power law is applied to those weights to limit them. Value=1 means weights are inverse frequency. Value below 1: Power law applied to inverse class frequency weight, in order to limits them");
+        FloatParameter maxWeight = new FloatParameter("Max Weight", 0).setLowerBound(0).setHint("Limits the weights that correct class imbalance. 0 = no limit");
         FloatParameter focalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(5).setHint("<strong>focal_weight (γ):</strong> Focusing parameter (γ ≥ 0). Controls hard example emphasis.<br>" +
                 "<ul>" +
                 "    <li><strong>γ=0.0</strong> → standard cross entropy (no focal effect)</li>" +
@@ -761,12 +762,18 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 "    <li><strong>γ=2.0</strong> → standard focal</li>" +
                 "    <li><strong>γ=5.0</strong> → extreme focus (for very imbalanced data)</li>" +
                 "</ul>");
-        FloatParameter temperature = new FloatParameter("Temperature", 1).setLowerBound(1).setUpperBound(3).setHint("<strong>Temperature (t):</strong> Tempering parameter (t ≥ 1). Controls gradient bounding.<br>" +
+        FloatParameter temperature = new FloatParameter("Temperature", 0).setLowerBound(0).setUpperBound(0.5).setHint(
+                "<strong>Temperature (t):</strong> Tempering parameter (t &ge; 1). Replaces log(p) with " +
+                "a tempered logarithm whose gradient is p<sup>t-1</sup> instead of 1/p, bounding the " +
+                "loss and gradient on confident-wrong / hard pixels (loss &rarr; 1/t as p&rarr;0). " +
+                "Reduces gradient spikes from ambiguous or mislabeled examples and adds robustness to " +
+                "label noise.<br>" +
                 "<ul>" +
-                "    <li><strong>t=1.0</strong> → standard cross entropy (unbounded gradients)</li>" +
-                "    <li><strong>t=2.0</strong> → moderate bounding</li>" +
-                "    <li><strong>t=3.0+</strong> → strong bounding (very stable, may slow learning)</li>" +
+                "    <li><strong>t=0.0</strong> &rarr; standard cross entropy (log, unbounded gradient)</li>" +
+                "    <li><strong>t=0.1</strong> &rarr; moderate bounding (loss capped at -10)</li>" +
+                "    <li><strong>t=0.5+</strong> &rarr; strong bounding (loss capped at -2, very stable, may slow learning)</li>" +
                 "</ul>");
+        FloatParameter pseudoHuber = new FloatParameter("Pseudo Huber", 0).setLowerBound(0).setUpperBound(1);
         FloatParameter labelSmoothing = new FloatParameter("Label Smoothing", 0).setLowerBound(0).setUpperBound(0.5).setHint(
                 "Effect: y<sub>smooth</sub> = y * (1-&epsilon;) + &epsilon;/K <br>where K = num_classes<br><br>" +
                         "<strong>Benefits:</strong><br>" +
@@ -790,23 +797,39 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                         "    <li>Can conflict with focal loss (both modify targets)</li>" +
                         "</ul>"
         );
+        BooleanParameter classBalancedLossMasking = new BooleanParameter("Class Balanced Loss Masking", false);
+        final String configName;
+        final boolean useTemperature, usePseudoHuber, useLabelSmoothing, useClassBalancedLossMasking;
+        public CategoryLossParameter(String name, boolean temperature, boolean pseudoHuber, boolean labelSmoothing, boolean classBalancedLossMasking) {
+            this(name, PythonConfiguration.toSnakeCase(name), temperature, pseudoHuber, labelSmoothing, classBalancedLossMasking);
+        }
 
-
-        public CategoryLossParameter(String name) {
+        public CategoryLossParameter(String name, String configName, boolean temperature, boolean pseudoHuber, boolean labelSmoothing, boolean classBalancedLossMasking) {
             super(name);
-            this.setChildren(weightPowerLaw, focalWeight, labelSmoothing);
+            this.useLabelSmoothing = labelSmoothing;
+            this.useTemperature = temperature;
+            this.usePseudoHuber = pseudoHuber;
+            this.useClassBalancedLossMasking = classBalancedLossMasking;
+            List<Parameter> params = new ArrayList<>();
+            params.add(weightPowerLaw); params.add(maxWeight); params.add(focalWeight);
+            if (labelSmoothing) params.add( this.labelSmoothing);
+            if (temperature) params.add( this.temperature);
+            if (pseudoHuber) params.add( this.pseudoHuber);
+            if (classBalancedLossMasking) params.add( this.classBalancedLossMasking);
+            this.setChildren(params);
+            this.configName = configName;
         }
 
         @Override
         public CategoryLossParameter duplicate() {
-            CategoryLossParameter res = new CategoryLossParameter(name);
+            CategoryLossParameter res = new CategoryLossParameter(name, configName, this.useTemperature, this.usePseudoHuber, this.useLabelSmoothing, this.useClassBalancedLossMasking);
             ParameterUtils.setContent(res.children, children);
             transferStateArguments(this, res);
             return res;
         }
 
         @Override
-        public String getPythonConfigurationKey() {return "category_loss_parameters";}
+        public String getPythonConfigurationKey() {return configName;}
 
     }
 
@@ -818,9 +841,103 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             } else return true;
         };
     }
+    public static ActivationParameter getActivationParameter() {
+        return new ActivationParameter();
+    }
 
-    public static ChoiceParameter getActivationParameter() {
-        return new ChoiceParameter("Activation Function", new String[]{"ReLU", "Leaky_ReLU", "ELU", "GELU", "SiLU"}, "ReLU", false);
+    enum ACTIVATION_FUNCTION {ReLU, Leaky_ReLU, CReLU, SCReLU, DSCReLU, ELU, GELU, SiLU}
+    public static class ActivationParameter extends ConditionalParameterAbstract<ACTIVATION_FUNCTION, ActivationParameter> implements PythonConfiguration{
+        IntegerParameter cap = new IntegerParameter("Cap", 32).setLowerBound(1).setHint("<b>Cap</b> — upper bound of the activation output. The output is limited to the\n" +
+                "  range [0, Cap]. Bounding the activations keeps their magnitude under control and\n" +
+                "  prevents numerical overflow in mixed / half precision (fp16), especially in deep\n" +
+                "  networks.<br><br>\n" +
+                "\n" +
+                "  The Cap is a bound, <i>not</i> a capacity knob: increasing it does not necessarily\n" +
+                "  make the network more expressive. Empirically there is a sweet spot &mdash; too\n" +
+                "  small a Cap throttles the usable range and hurts accuracy, while too large a Cap\n" +
+                "  weakens the overflow protection without any gain (and can be slightly worse). It\n" +
+                "  is worth tuning. Typical values: 16&ndash;48.");
+        FloatParameter beta = new FloatParameter("Beta", 0.03).setLowerBound(0).setUpperBound(1).setHint("<b>Beta</b> — controls how much the cap is smoothed (and, for the doubly-smooth\n" +
+                "  variant, also how much the corner at 0 is smoothed). The smooth transition is a\n" +
+                "  SmeLU shoulder (Smooth ReLU; Shamir&nbsp;et&nbsp;al., 2020,\n" +
+                "  arXiv:2010.09931).<br><br>\n" +
+                "\n" +
+                "  Here <b>beta</b> is the smoothing half-width expressed as a <i>fraction of the\n" +
+                "  Cap</i>: each corner is rounded over a region of width &plusmn;(beta &times; Cap).\n" +
+                "  <b>Note:</b> this is <i>not</i> the usual &beta; of the original SmeLU, which is\n" +
+                "  the <i>absolute</i> half-width. Normalizing by the Cap here makes the activation's\n" +
+                "  shape independent of the Cap value (the curve simply scales with the Cap), so\n" +
+                "  beta and Cap can be tuned independently.<br><br>\n" +
+                "\n" +
+                "  Smaller beta &rarr; sharper, closer to a hard cap. Larger beta &rarr; gentler,\n" +
+                "  wider smoothing (better gradient flow near the corner, but less plateau where the\n" +
+                "  slope is exactly 1). Only used by the smooth capped variants; ignored by the hard\n" +
+                "  capped variant. Typical values: 0.02&ndash;0.05.");
+
+        public ActivationParameter() {
+            super(new EnumChoiceParameter<>("Activation Function", ACTIVATION_FUNCTION.values(), ACTIVATION_FUNCTION.ReLU));
+            this.setActionParameters(ACTIVATION_FUNCTION.CReLU, cap);
+            this.setActionParameters(ACTIVATION_FUNCTION.SCReLU, cap, beta);
+            this.setActionParameters(ACTIVATION_FUNCTION.DSCReLU, cap, beta);
+            this.setHint("<b>Activation function</b> — non-linearity applied after each convolution.\n" +
+                    "  \"Capped\" variants bound their output, which prevents numerical overflow in\n" +
+                    "  mixed / half precision (fp16).\n" +
+                    "  <ul>\n" +
+                    "    <li><b>ReLU</b>: max(0, x). Fast and standard, but unbounded (fp16 overflow\n" +
+                    "        risk) and units can \"die\" (zero gradient for negative inputs).</li>\n" +
+                    "    <li><b>Leaky_ReLU</b>: like ReLU but with a small slope for negative inputs, so\n" +
+                    "        units never fully die. Still unbounded.</li>\n" +
+                    "    <li><b>CReLU</b>: Capped ReLU &mdash; ReLU clamped to [0, Cap]. Bounds the output\n" +
+                    "        (fp16-safe), but with a hard corner at the cap.</li>\n" +
+                    "    <li><b>SCReLU</b>: Smooth Capped ReLU &mdash; the upper cap is rounded with a\n" +
+                    "        SmeLU shoulder (Smooth ReLU; Shamir&nbsp;et&nbsp;al., 2020,\n" +
+                    "        arXiv:2010.09931) instead of a hard corner, giving smoother gradient flow\n" +
+                    "        near the cap.</li>\n" +
+                    "    <li><b>DSCReLU</b>: Doubly Smooth Capped ReLU &mdash; smoothed with SmeLU\n" +
+                    "        shoulders (Shamir&nbsp;et&nbsp;al., 2020) at <i>both</i> ends (at 0 and at\n" +
+                    "        the cap). Bounded, no dead units, stable gradients. <b>Recommended\n" +
+                    "        default.</b></li>\n" +
+                    "    <li><b>ELU</b>: smooth, allows small negative outputs (closer to zero-mean);\n" +
+                    "        unbounded on the positive side.</li>\n" +
+                    "    <li><b>GELU</b>: smooth, self-gating; popular in transformers. Unbounded.</li>\n" +
+                    "    <li><b>SiLU</b>: x &middot; sigmoid(x) (a.k.a. swish); smooth and self-gating.\n" +
+                    "        Unbounded.</li>\n" +
+                    "  </ul>\n" +
+                    "  The capped variants (CReLU, SCReLU, DSCReLU) expose <b>Cap</b> &mdash; and the\n" +
+                    "  smooth ones also <b>Beta</b> &mdash; as sub-parameters.");
+        }
+
+        @Override
+        public String getPythonConfigurationKey() {
+            return "activation";
+        }
+
+        @Override
+        public Object getPythonConfiguration() {
+
+            switch (getActionValue()) {
+                case CReLU:
+                    return "crelu" + cap.getIntValue();
+                case SCReLU:
+                case DSCReLU:
+                    String betaS = String.valueOf(beta.getValue().floatValue());
+                    betaS = beta.getValue().floatValue() < 1 && beta.getValue().floatValue() > 0 ? "b0"+ betaS.substring(2) : "b"+betaS;
+                    return getActionValue().toString().toLowerCase() + cap.getIntValue()+betaS;
+                default:
+                    return getActionValue().toString().toLowerCase();
+            }
+        }
+
+        @Override
+        public void setContentFrom(Parameter other) {
+            if (other instanceof ChoiceParameter) {
+                String choice = ((ChoiceParameter)other).getValue();
+                ACTIVATION_FUNCTION act = ACTIVATION_FUNCTION.valueOf(choice);
+                if (act != null) this.setActionValue(act);
+                else throw new IllegalArgumentException("Invalid activation parameter type");
+            } else super.setContentFrom(other);
+        }
+
     }
 
     public static IntegerParameter getGradientAccumulationSteps() {

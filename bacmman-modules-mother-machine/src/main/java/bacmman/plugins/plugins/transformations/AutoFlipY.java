@@ -49,7 +49,7 @@ import bacmman.utils.*;
  *
  * @author Jean Ollion
  */
-public class AutoFlipY implements ConfigurableTransformation, MultichannelTransformation, Hint, TestableOperation {
+public class AutoFlipY implements Transformation.ConfigurableTransformation, MultichannelTransformation, Hint, TestableOperation {
     
     public enum AutoFlipMethod {
         OPTICAL_FLOW("Optical Flow", "Flips the image so that bacteria moves towards the lower part of the image.<br />Based on a simple estimation of bacteria motion along Y-axis"),

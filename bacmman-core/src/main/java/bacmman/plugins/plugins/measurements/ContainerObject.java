@@ -50,12 +50,11 @@ public class ContainerObject implements Measurement.ObjectMeasurement, Hint {
     }
     
     public ContainerObject() {
-        
         reference.addListener(p->{
             Experiment xp = ParameterUtils.getExperiment(p);
             if (xp==null) return;
-            int sIdx = ((ObjectClassParameter)p).getSelectedClassIdx();
-            if (sIdx>=0) key.setValue(xp.getStructure(sIdx).getName());
+            int sIdx = p.getSelectedClassIdx();
+            if (sIdx>=0 && sIdx<xp.getStructureCount()) key.setValue(xp.getStructure(sIdx).getName());
         });
     }
     

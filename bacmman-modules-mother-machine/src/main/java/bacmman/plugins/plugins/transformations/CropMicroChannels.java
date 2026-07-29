@@ -25,13 +25,13 @@ import bacmman.configuration.parameters.NumberParameter;
 import bacmman.core.Core;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
-import bacmman.plugins.ConfigurableTransformation;
 
 import java.io.IOException;
 import java.util.*;
 
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.TestableOperation;
+import bacmman.plugins.Transformation;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public abstract class CropMicroChannels implements ConfigurableTransformation, MultichannelTransformation, TestableOperation {
+public abstract class CropMicroChannels implements Transformation.ConfigurableTransformation, MultichannelTransformation, TestableOperation {
     public static boolean debug = false;
     private final static Logger logger = LoggerFactory.getLogger(CropMicroChannels.class);
     protected NumberParameter xStart = new BoundedNumberParameter("X start", 0, 0, 0, null);

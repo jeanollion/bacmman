@@ -21,11 +21,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>sc.fiji</groupId>
-            <artifactId>Skeletonize3D_</artifactId>
-            <version>2.1.1</version>
-        </dependency>
-        <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-core</artifactId>
             <version>${bacmman.version}</version>

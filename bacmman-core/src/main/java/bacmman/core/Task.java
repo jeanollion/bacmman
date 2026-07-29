@@ -31,6 +31,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.Transformation;
 import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
@@ -103,6 +104,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         int[] extractDSRawChannels;
         int extractDSCompression = 4;
         ExtractZAxisParameter.ExtractZAxisConfig extractRawZAxis = new ExtractZAxisParameter.IMAGE3D();
+        SimpleListParameter<TransformationPluginParameter<Transformation>> extractRawDSTransformations;
         boolean exportByPosition;
 
         @Override
@@ -176,6 +178,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 extractRawDS.put("positionMapFrame", pf);
                 extractRawDS.put("extractZAxis", extractRawZAxis.toJSONEntry());
                 res.put("extractRawDataset", extractRawDS);
+                if (extractRawDSTransformations != null) res.put("extractRawDSTransformations", extractRawDSTransformations.toJSONEntry());
             }
             return res;
         }
@@ -260,6 +263,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 JSONObject pf = (JSONObject)extractRawDS.get("positionMapFrame");
                 extractDSRawPositionMapFrames = new HashMap<>();
                 for (Object k: pf.keySet()) extractDSRawPositionMapFrames.put((String)k, JSONUtils.fromIntArrayToList((JSONArray)pf.get(k)));
+                if (extractRawDS.containsKey("extractRawDSTransformations")) extractRawDSTransformations.initFromJSONEntry(extractRawDS.get("extractRawDSTransformations"));
             }
             return;
         }
@@ -476,6 +480,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     public boolean isExtractDSTimelapse() {return extractDSTimelapse;}
     public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
     public ExtractZAxisParameter.ExtractZAxisConfig getExtractRawZAxis() {return extractRawZAxis; }
+    public SimpleListParameter<TransformationPluginParameter<Transformation>> getExtractRawDSTransformations() { return extractRawDSTransformations; }
     public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
     public int[] getExtractRawDSChannels() {return extractDSRawChannels;}
     public int getExtractDSCompression() {return extractDSCompression;}
@@ -553,15 +558,17 @@ public class Task implements TaskI<Task>, ProgressCallback {
             return extractDSTimelapse;
     }
 
-    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxisParameter.ExtractZAxisConfig zAxis, Map<String, List<Integer>> positionMapFrames, int compression) {
+    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxisParameter.ExtractZAxisConfig zAxis, SimpleListParameter<TransformationPluginParameter<Transformation>> filters, Map<String, List<Integer>> positionMapFrames, int compression) {
         this.extractRawDSFile = extractDSFile;
         this.extractDSRawPositionMapFrames = positionMapFrames;
         this.extractDSRawBounds = bounds;
         this.extractDSRawChannels = channels;
         this.extractRawZAxis = zAxis;
         this.extractDSCompression = compression;
+        this.extractRawDSTransformations = filters;
         return this;
     }
+
     public Task setExtractDSCompression(int compression) {
         this.extractDSCompression = compression;
         return this;

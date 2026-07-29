@@ -31,7 +31,7 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.input_image.SimpleInputImages;
 import bacmman.image.*;
 import bacmman.image.TypeConverter;
-import bacmman.plugins.TestableOperation;
+import bacmman.plugins.*;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
@@ -51,11 +51,7 @@ import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import bacmman.plugins.Cropper;
 import bacmman.processing.ImageTransformation;
-import bacmman.plugins.ConfigurableTransformation;
-import bacmman.plugins.MultichannelTransformation;
-import bacmman.plugins.Hint;
 import bacmman.utils.SynchronizedPoolWithSourceObject;
 import bacmman.utils.ThreadRunner;
 
@@ -63,7 +59,7 @@ import bacmman.utils.ThreadRunner;
  *
  * @author Jean Ollion
  */
-public class ImageStabilizerXY implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
+public class ImageStabilizerXY implements Transformation.ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
     public final static Logger logger = LoggerFactory.getLogger(ImageStabilizerXY.class);
     ChoiceParameter transformationType = new ChoiceParameter("Transformation", new String[]{"Translation"}, "Translation", false); //, "Affine"
     ChoiceParameter pyramidLevel = new ChoiceParameter("Pyramid Level", new String[]{"0", "1", "2", "3", "4"}, "1", false);

@@ -66,10 +66,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         ConditionalParameter<Boolean> edmBalanceFreqCond = new ConditionalParameter<>(edmBalanceFreq)
                 .setActionParameters(true, edmDynamicWeightsCond, edmWeightPowerLaw);
 
-        FloatParameter catWeightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between category classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
-        FloatParameter catFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(3).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
-        BooleanParameter classBalancedLossMasking = new BooleanParameter("Class Balanced Loss Masking", false);
-        GroupParameter catLossParameters = new GroupParameter("Category Loss Parameters", catWeightPowerLaw, catFocalWeight, classBalancedLossMasking);
+        TrainingConfigurationParameter.CategoryLossParameter catLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("Category Loss Parameters", true, true, true, true);
 
         BooleanParameter EDMderivatives = new BooleanParameter("EDM derivatives", true).setHint("If true, EDM loss is also computed on 1st order EDM derivatives");
         BooleanParameter CDMderivatives = new BooleanParameter("CDM derivatives", true).setHint("If true, CDM loss is also computed on 1st order CDM derivatives");
@@ -136,11 +133,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             } else { // category only
                 res.put("input_label_center_idx", 0);
             }
-            JSONObject catParams = new JSONObject();
-            catParams.put(PythonConfiguration.toSnakeCase(catWeightPowerLaw.getName()), catWeightPowerLaw.toJSONEntry());
-            catParams.put(PythonConfiguration.toSnakeCase(catFocalWeight.getName()), catFocalWeight.toJSONEntry());
-            catParams.put(PythonConfiguration.toSnakeCase(classBalancedLossMasking.getName()), classBalancedLossMasking.toJSONEntry());
-            res.put("category_loss_parameters", catParams);
+            res.put(catLossParameters.getPythonConfigurationKey(), catLossParameters.getPythonConfiguration());
 
             res.put("segmentation", segmentation);
             res.put("tracking", tracking);
@@ -149,11 +142,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
     }
 
     public static class TrackingParameters extends GroupParameterAbstract<TrackingParameters> {
-
-        FloatParameter lmWeightPowerLaw = new FloatParameter("Weight Power Law", 0.5).setLowerBound(0).setUpperBound(1).setHint("Correct frequency imbalance between link multiplicity classes by weightening loss with inverse class frequency. This parameter is the Power law applied to inverse class frequency weight, in order to limits them. Set 1 for regular balancing, 0 for no balancing, and an intermediate value for mild balancing");
-        FloatParameter lmFocalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(3).setHint("Focus on hard examples. 0 = no focus (classical CE), 1 = mild focus, 2 = strong focus");
-        GroupParameter lmLossParameters = new GroupParameter("LM Loss Parameters", lmWeightPowerLaw, lmFocalWeight);
-
+        TrainingConfigurationParameter.CategoryLossParameter lmLossParameters = new TrainingConfigurationParameter.CategoryLossParameter("LM Loss Parameters", true, true, true, false);
 
         public TrackingParameters() {
             super("Tracking");
@@ -168,15 +157,6 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             return res;
         }
 
-        @Override
-        public Object getPythonConfiguration() {
-            JSONObject res = new JSONObject();
-            JSONObject lmLossParams = new JSONObject();
-            lmLossParams.put(PythonConfiguration.toSnakeCase(lmWeightPowerLaw.getName()), lmWeightPowerLaw.toJSONEntry());
-            lmLossParams.put(PythonConfiguration.toSnakeCase(lmFocalWeight.getName()), lmFocalWeight.toJSONEntry());
-            res.put("lm_loss_parameters", lmLossParams);
-            return res;
-        }
     }
 
     Parameter[] otherParameters = new Parameter[]{new SegmentationParameters(true, true), new TrackingParameters(), arch};
@@ -353,7 +333,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
 
     @Override
     public DLModelMetadata getDLModelMetadata(String workingDirectory) {
-        ArchitectureParameter archP = (ArchitectureParameter)getConfiguration().getOtherParameters()[1];
+        ArchitectureParameter archP = ParameterUtils.getParameter(ArchitectureParameter.class, Arrays.asList(getConfiguration().getOtherParameters()), p -> p != null);
         boolean next = archP.next.getSelected();
         int frameWindow = archP.frameWindow.getIntValue();
         int nframes = ( next ? 2 : 1) * frameWindow + 1;
@@ -423,7 +403,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
         BoundedNumberParameter downsamplingNumber = new BoundedNumberParameter("Downsampling Number", 0, 3, 2, 4);
         BooleanParameter skip = new BooleanParameter("Skip Connections", true).setLegacyInitializationValue(false).setHint("Include skip connections to EDM decoder. Note that is early downsampling is True, there will be no skip connection at first level");
         BooleanParameter earlyDownsampling = new BooleanParameter("Early Downsampling", true).setHint("If true, no convolution will be performed at first level. Reduces memory footprint, but may reduce segmentation details");
-        ChoiceParameter activationFunction = TrainingConfigurationParameter.getActivationParameter();
+        TrainingConfigurationParameter.ActivationParameter activationFunction = TrainingConfigurationParameter.getActivationParameter();
         IntegerParameter windowAttention = new IntegerParameter("Window Attention", 16).setLowerBound(0)
                 .setHint("Number of heads of the window attention. Window attention is performed on overlapping windows of size defined in Attention Window parameter. Window attention is used as self-attention as well as temporal attention layers in the blending module (i.e. attention between each pair of frames).");
         IntegerParameter attention = new IntegerParameter("Attention", 0).setLowerBound(0)
@@ -540,7 +520,7 @@ public class DiSTNet2DTraining implements DockerDLTrainer, DockerDLTrainer.Compu
             res.put("skip_connections", skip.toJSONEntry());
             res.put("early_downsampling", earlyDownsampling.toJSONEntry());
             res.put("attention_filters", attentionFilters.getValue());
-            res.put("activation", activationFunction.getValue());
+            res.put(activationFunction.getPythonConfigurationKey(), activationFunction.getPythonConfiguration());
 
             switch (atchType) { // specific
                 case TemPy: {

@@ -1,16 +1,19 @@
 package bacmman.py_dataset;
 
+import bacmman.configuration.experiment.Position;
 import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.configuration.parameters.TrainingConfigurationParameter;
+import bacmman.configuration.parameters.TransformationPluginParameter;
 import bacmman.core.Core;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
-import bacmman.data_structure.input_image.InputImages;
+import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorTemporal;
+import bacmman.plugins.Transformation;
 import bacmman.plugins.plugins.feature_extractor.*;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
 import bacmman.processing.Resize;
@@ -233,7 +236,10 @@ public class ExtractDatasetUtil {
         };
         for (String position : positionMapFrames.keySet()) {
             //logger.debug("position: {}", position);
-            InputImages inputImages = mDAO.getExperiment().getPosition(position).getInputImages();
+            Position pos = mDAO.getExperiment().getPosition(position);
+            InputImagesImpl inputImages = pos.createInputImages(pos.getTempImageDAO(), pos.getTempImageDAO());
+            List<TransformationPluginParameter<Transformation>> transfos = t.getExtractRawDSTransformations().getActivatedChildren();
+            Runnable clearMem = transfos.isEmpty() ? () -> {} : Processor.setTransformations(inputImages, transfos, 0.5, null);
             List<Integer> frames = positionMapFrames.get(position);
             boolean saveLabels = false;
             for (int channel : channels) {
@@ -251,6 +257,7 @@ public class ExtractDatasetUtil {
                 extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false, false, compression);
                 saveLabels = false;
             }
+            clearMem.run();
             inputImages.freeMemory();
             t.incrementProgress();
         }
@@ -675,21 +682,6 @@ public class ExtractDatasetUtil {
         }
         int[] eraseContoursOC = new int[0];
         resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
-        return resultingTask;
-    }
-
-    public static Task getDenoisingDatasetTask(MasterDAO mDAO, int[] objectClasses, List<String> position, String outputFile, int compression) throws IllegalArgumentException {
-        if (objectClasses.length!=1) throw new IllegalArgumentException("Select a single object classes");
-        int channelIdx = mDAO.getExperiment().experimentStructure.getChannelIdx(objectClasses[0]);
-        if (position.isEmpty()) throw new IllegalArgumentException("Select at least one position");
-        Map<String, List<Integer>> positionMapFrames = position.stream().collect(Collectors.toMap(p -> p, p -> IntStream.range(0, mDAO.getExperiment().getPosition(p).getInputImages().getFrameNumber()).boxed().collect(Collectors.toList()) ));
-
-        Task resultingTask = new Task(mDAO);
-        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
-        features.add(new FeatureExtractor.Feature( new RawImage(), objectClasses[0] ));
-        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
-
-        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), new ExtractZAxisParameter.BATCH(), positionMapFrames, compression);
         return resultingTask;
     }
 

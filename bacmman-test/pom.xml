@@ -32,6 +32,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-modules-mother-machine</artifactId>
+            <version>${bacmman.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.13.1</version>

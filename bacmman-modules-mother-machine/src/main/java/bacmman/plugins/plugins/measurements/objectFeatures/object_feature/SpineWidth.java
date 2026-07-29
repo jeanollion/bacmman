@@ -72,7 +72,7 @@ public class SpineWidth implements GeometricalFeature, Hint, HintSimple {
     public String getSimpleHintText() {
         return  spineWidthTT + validTT;
     }
-    public static String validTT = "This module is only valid for regular rod-shaped objects. If objects are not regular (presence of holes, thickness of less than 3 pixels) results are not defined. If needed use regularization such as binary close and fill holes.";
+    public static String validTT = "This module is valid for regular rod-shaped objects, in 2D as well as in 3D. For anisotropic 3D acquisitions the Z spacing is taken into account (distances along Z are scaled by the Z/XY pixel-size ratio), and lengths/widths are returned in XY-pixel units (multiply by the XY pixel size to get physical units). If objects are not regular (presence of holes, thickness of less than 3 pixels) results are not defined. If needed use regularization such as binary close and fill holes.";
     public static String spineWidthTT = "Estimation of the thickness of a bacterium.";
-    public static String spineWidthAlgo = "<br />Computation details: for each point of the spine (see definition below), the distance between the two closest points of the contour on each side of the spine is computed. The value of the measurement is the median value of those distances. <br />";
+    public static String spineWidthAlgo = "<br />Computation details: for each point of the spine (see definition below), the local diameter is measured as the distance between the two contour points located on each side of the spine. The value of the measurement is the median of those diameters. For 3D objects the diameters are measured on the contours of each Z-slice. <br />";
 }

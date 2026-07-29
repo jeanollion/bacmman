@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
-public class CopyTo implements ConfigurableTransformation, MultichannelTransformation, TransformationNoInput, TransformationApplyDirectly, Hint {
+public class CopyTo implements Transformation.ConfigurableTransformation, MultichannelTransformation, TransformationNoInput, TransformationApplyDirectly, Hint {
 
     enum COPY_ZPLANES {COPY_ALL, MIDDLE_PLANE, TOP, BOTTOM, INTERVAL, AVERAGE, SINGLE_PLANE};
     EnumChoiceParameter<COPY_ZPLANES> copyPlanes = new EnumChoiceParameter<>("Copy all Z- planes", COPY_ZPLANES.values(), COPY_ZPLANES.COPY_ALL).setHint("If the channel has several planes, this option allows to copy only one plane to another channel");

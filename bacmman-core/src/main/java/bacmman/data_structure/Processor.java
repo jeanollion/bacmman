@@ -137,44 +137,50 @@ public class Processor {
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
     }
-    
     public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb) throws IOException {
         InputImagesImpl images = position.getInputImages();
-        images.setMemoryProportionLimit(memoryLimit);
         PreProcessingChain ppc = position.getPreProcessingChain();
+        logger.info("pre-processing position: {}", position.getName());
+        Runnable clearMem = setTransformations(images, ppc.getTransformations(true), memoryLimit, pcb);
+        logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
+        images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
+        clearMem.run();
+    }
+
+    public static Runnable setTransformations(InputImagesImpl images, List<TransformationPluginParameter<Transformation>> transformations, double memoryLimit, ProgressCallback pcb) throws IOException {
+        images.setMemoryProportionLimit(memoryLimit);
         if (pcb!=null) {
-            int confTransfo = (int)ppc.getTransformations(true).stream().filter(t->t.instantiatePlugin() instanceof ConfigurableTransformation).count();
+            int confTransfo = (int)transformations.stream().filter(t->t.instantiatePlugin() instanceof Transformation.ConfigurableTransformation).count();
             pcb.setSubtaskNumber(confTransfo+1);
         }
-        List<TransformationPluginParameter<Transformation>> transfos = ppc.getTransformations(true);
-        List<ConfigurableTransformation> configurableTransformations = new ArrayList<>();
-        for (int i = 0; i<transfos.size(); ++i) {
-            TransformationPluginParameter<Transformation> tpp = transfos.get(i);
+        List<Transformation.ConfigurableTransformation> configurableTransformations = new ArrayList<>();
+        for (int i = 0; i<transformations.size(); ++i) {
+            TransformationPluginParameter<Transformation> tpp = transformations.get(i);
             Transformation transfo = tpp.instantiatePlugin();
-            logger.info("adding transformation: {} of class: {} to position: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
-            if (transfo instanceof ConfigurableTransformation) {
-                ConfigurableTransformation ct = (ConfigurableTransformation)transfo;
+            logger.info("adding transformation: {} of class: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), tpp.getInputChannel(), tpp.getOutputChannels());
+            if (transfo instanceof Transformation.ConfigurableTransformation) {
+                Transformation.ConfigurableTransformation ct = (Transformation.ConfigurableTransformation)transfo;
                 logger.debug("before configuring: {}", Utils.getMemoryUsage());
                 ct.computeConfigurationData(tpp.getInputChannel(), images);
                 logger.debug("after configuring: {}", Utils.getMemoryUsage());
                 if (pcb!=null) pcb.incrementSubTask();
-                configurableTransformations.add((ConfigurableTransformation)transfo);
+                configurableTransformations.add((Transformation.ConfigurableTransformation)transfo);
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
-            if (i<transfos.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // TransformationApplyDirectly plugins are cases where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
+            if (i<transformations.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // TransformationApplyDirectly plugins are cases where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
                 //if (pcb!=null) pcb.log(Utils.getMemoryUsage() + "limit is set to "+memoryLimit+" -> saving temporarily images to disk");
                 logger.debug("{} -> performing temp save & close", Utils.getMemoryUsage());
                 images.applyTransformationsAndSave(true, true);
                 System.gc();
                 logger.debug("after temp save: {}", Utils.getMemoryUsage());
-                configurableTransformations.forEach(ConfigurableTransformation::clear);
+                configurableTransformations.forEach(Transformation.ConfigurableTransformation::clear);
                 configurableTransformations.clear();
             }
         }
-        logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
-        images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
-        configurableTransformations.forEach(ConfigurableTransformation::clear);
-        configurableTransformations.clear();
+        return () -> {
+            configurableTransformations.forEach(Transformation.ConfigurableTransformation::clear);
+            configurableTransformations.clear();
+        };
     }
     // processing-related methods
     

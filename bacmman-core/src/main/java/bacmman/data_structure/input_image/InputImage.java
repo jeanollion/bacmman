@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Transformation;
 import bacmman.plugins.TransformationApplyDirectly;
 import bacmman.plugins.TransformationNoInput;
@@ -93,7 +92,7 @@ public class InputImage {
     public boolean hasTransformations() {return !transformationsToApply.isEmpty();}
     public boolean hasHighMemoryTransformations() {
         for (Transformation t: transformationsToApply) {
-            if (t instanceof ConfigurableTransformation && ((ConfigurableTransformation)t).highMemory()) return true;
+            if (t instanceof Transformation.ConfigurableTransformation && ((Transformation.ConfigurableTransformation)t).highMemory()) return true;
         }
         return false;
     }

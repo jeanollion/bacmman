@@ -25,10 +25,9 @@ import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
-import bacmman.image.TypeConverter;
-import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PreFilter;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
@@ -37,7 +36,7 @@ import bacmman.processing.ImageOperations;
  *
  * @author Jean Ollion
  */
-public class SubtractBackground implements PreFilter, Filter, Hint {
+public class SubtractBackground implements PreFilter, Transformation.Filter, Hint {
     enum METHOD {SUBTRACT_MEAN, SUBTRACT_GAUSSIAN}
     EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), METHOD.SUBTRACT_MEAN).setHint("Background estimation method");
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean transform to be subtracted").setEmphasized(true);

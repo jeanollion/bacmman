@@ -2,15 +2,15 @@ package bacmman.plugins.plugins.pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.image.*;
-import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
 import bacmman.processing.neighborhood.Neighborhood;
 
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-public class EntropyFilter implements PreFilter, Filter {
+public class EntropyFilter implements PreFilter, Transformation.Filter {
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 9, 0, false);
     enum HISTOGRAM_METHOD {FIXED_BIN_SIZE}
     EnumChoiceParameter<HISTOGRAM_METHOD> histoMode = new EnumChoiceParameter<>("Histogram method", HISTOGRAM_METHOD.values(), HISTOGRAM_METHOD.FIXED_BIN_SIZE).setEmphasized(true);

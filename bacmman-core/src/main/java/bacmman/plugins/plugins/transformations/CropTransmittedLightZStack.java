@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class CropTransmittedLightZStack implements ConfigurableTransformation, MultichannelTransformation, Filter, Hint, PreFilter {
+public class CropTransmittedLightZStack implements Transformation.ConfigurableTransformation, MultichannelTransformation, Transformation.Filter, Hint, PreFilter {
     public final static Logger logger = LoggerFactory.getLogger(CropTransmittedLightZStack.class);
     BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 30, 5, null);
     PluginParameter<SimpleThresholder> thresholder = new PluginParameter<>("Threshold", SimpleThresholder.class, new IJAutoThresholder(), false);

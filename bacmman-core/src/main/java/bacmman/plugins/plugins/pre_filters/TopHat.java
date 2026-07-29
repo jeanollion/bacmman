@@ -21,18 +21,18 @@ package bacmman.plugins.plugins.pre_filters;
 import bacmman.configuration.parameters.*;
 import bacmman.image.*;
 import bacmman.plugins.Hint;
+import bacmman.plugins.Transformation;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageDerivatives;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.neighborhood.Neighborhood;
-import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
 
 /**
  *
  * @author Jean Ollion
  */
-public class TopHat implements PreFilter, Filter, Hint {
+public class TopHat implements PreFilter, Transformation.Filter, Hint {
 
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
     BooleanParameter darkBackground = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);

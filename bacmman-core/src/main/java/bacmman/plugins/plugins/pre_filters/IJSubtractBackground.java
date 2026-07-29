@@ -27,11 +27,7 @@ import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
 import bacmman.image.TypeConverter;
 import bacmman.image.wrappers.IJImageWrapper;
-import bacmman.plugins.Filter;
-import bacmman.plugins.Hint;
-import bacmman.plugins.MultiThreaded;
-import bacmman.plugins.PreFilter;
-import bacmman.processing.Filters;
+import bacmman.plugins.*;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 import ij.ImageStack;
@@ -49,7 +45,7 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class IJSubtractBackground implements PreFilter, Filter, Hint, MultiThreaded {
+public class IJSubtractBackground implements PreFilter, Transformation.Filter, Hint, MultiThreaded {
     BooleanParameter isRollingBall = new BooleanParameter("Method", "Rolling Ball", "Sliding Paraboloid", true).setEmphasized(true);
 
     BooleanParameter isDarkBackground = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);
