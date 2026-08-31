@@ -1610,6 +1610,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 n = n.getNext();
             }
         }
+        parentTrack.sort(Comparator.comparingInt(SegmentedObject::getFrame));
         InputImages inputImages = new InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, null);
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
         return predict(inputImages, sortedFrames, parentTrack, null, minimalBounds).edm.get(parent);
@@ -1836,7 +1837,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     public static List<Integer> getNeighborhood(int[] sortedFrames, int frame, int inputWindow, boolean addNext, int frameInterval, int gapClosing) {
         int idx = Arrays.binarySearch(sortedFrames, frame);
-        if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames");
+        if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames: "+Utils.toStringArray(sortedFrames));
         List<Integer> res = new ArrayList<>(inputWindow * 2 + 1);
         getNeighborhoodDir(sortedFrames, frame, inputWindow, frameInterval, gapClosing, false, res);
         res.add(frame);

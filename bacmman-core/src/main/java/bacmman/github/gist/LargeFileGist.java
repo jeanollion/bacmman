@@ -160,7 +160,7 @@ public class LargeFileGist {
                                 for (String id : subFileIds) {
                                     try {
                                         LargeFileGist lf = new LargeFileGist(id, auth);
-                                        logger.debug("current chunks: {} / {} retrieving chunks of subfile id={} -> {}", chunksURL.size(), nChunks, id, lf.chunksURL.keySet());
+                                        //logger.debug("current chunks: {} / {} retrieving chunks of subfile id={} -> {}", chunksURL.size(), nChunks, id, lf.chunksURL.keySet());
                                         chunksURL.putAll(lf.chunksURL);
                                     } catch (IOException io) {
                                         throw new RuntimeException("Error while retrieving chunks of subfile ID=" + id, io);

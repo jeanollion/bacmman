@@ -93,13 +93,25 @@ public class SelectionOperations {
         }
     }
 
-    public static void trackEndsFilter(Selection sel) {
+    public static void trackEndsFilter(Selection sel, boolean prev, boolean next) {
         if (sel.getObjectClassIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             List<SegmentedObject> toRemove = sel.getElements(pos).stream()
                     .filter(Objects::nonNull)
-                    .filter(t -> !SegmentedObjectEditor.getNext(t.getParent()).findAny().isPresent() || SegmentedObjectEditor.getNext(t).findAny().isPresent())
-                    .filter(t -> !SegmentedObjectEditor.getPrevious(t.getParent()).findAny().isPresent() || SegmentedObjectEditor.getPrevious(t).findAny().isPresent())
+                    .filter(t -> !next || (!SegmentedObjectEditor.getNext(t.getParent()).findAny().isPresent() || SegmentedObjectEditor.getNext(t).findAny().isPresent()))
+                    .filter(t -> !prev || (!SegmentedObjectEditor.getPrevious(t.getParent()).findAny().isPresent() || SegmentedObjectEditor.getPrevious(t).findAny().isPresent()))
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
+    public static void hasGapFilter(Selection sel, boolean prev, boolean next) {
+        if (sel.getObjectClassIdx()==-2) return;
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(t -> !next || (t.getNext()==null || t.getNext().getFrame() == t.getFrame()+1))
+                    .filter(t -> !prev || (t.getPrevious()==null || t.getPrevious().getFrame() == t.getFrame()-1))
                     .collect(Collectors.toList());
             sel.removeElements(toRemove);
         }
