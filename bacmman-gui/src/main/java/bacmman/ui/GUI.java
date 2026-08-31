@@ -3986,6 +3986,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             try {
                 db1 = MasterDAOFactory.getDAO(currentDataset.getDir());
                 if (db1 == null) return;
+                if (db1.getExperiment()==null) {
+                    setMessage("Could not open dataset "+currentDataset.getDir());
+                    return;
+                }
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 setMessage("Error instantiating dataset "+currentDataset.getName()+ ": "+e.getMessage());
                 logger.error("Error instantiating dataset", e);

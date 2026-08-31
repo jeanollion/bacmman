@@ -135,9 +135,9 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
     static Predicate<Position> getDeletePositionCallback(MasterDAO mDAO, Experiment xp) {
          return p -> {
             logger.debug("erase position: {}", p.getName());
-             mDAO.getDao(p.getName()).deleteAllObjects();
-             mDAO.unlockPositions(p.getName());
-            if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
+            mDAO.getDao(p.getName()).deleteAllObjects();
+            mDAO.unlockPositions(p.getName());
+            p.freeMemoryImages(true, true);
             Utils.deleteDirectory(Paths.get(xp.getOutputDirectory() , p.getName()).toString());
             return true;
         };
