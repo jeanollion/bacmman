@@ -324,7 +324,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             PluginParameter<HistogramScaler> scaler = inputs.get(i).getScaling();
             inputInterpAndScaling.getChildAt(i).getChildAt(1).setContentFrom(scaler);
             inputScaling.getChildAt(i).setContentFrom(scaler);
-            if (i==0) scaler.setContentFrom(scaler);
+            if (i==0) this.scaler.setContentFrom(scaler);
         }
         for (int i = 0; i<outputs.size(); ++i) {
             int scalerIndex = outputs.get(i).getReverseScalingIndex();

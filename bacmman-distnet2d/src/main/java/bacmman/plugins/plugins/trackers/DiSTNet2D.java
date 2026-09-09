@@ -58,7 +58,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public enum FRAME_AWARE_MODE {NORMAL, SUCCESSIVE, ZERO}
     EnumChoiceParameter<DiSTNet2D.FRAME_AWARE_MODE> faMode= new EnumChoiceParameter<>("Frame Aware Mode", DiSTNet2D.FRAME_AWARE_MODE.values(), DiSTNet2D.FRAME_AWARE_MODE.NORMAL);
 
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true)
+            .addNewInstanceConfiguration(dle -> {
+                dle.setInputNumber(1).setOutputNumber(3);
+                DLEngine.setZAxis(dle, DLEngine.Z_AXIS.BATCH);
+            })
+            .setHint("Deep learning engine used to run the DNN.");
     SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
@@ -882,7 +887,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public void configureFromMetadata(DLModelMetadata metadata) {
         BooleanParameter metaNext = metadata.getOtherParameter(BooleanParameter.class, "Predict Next", "Next");
         if (metaNext!=null) next.setSelected(metaNext.getSelected());
-        logger.debug("configure distnet from metadata : input: {}", metadata.getInputs());
+        //logger.debug("configure distnet from metadata : input: {}", metadata.getInputs());
         if (!metadata.getInputs().isEmpty()) {
             List<DLModelMetadata.DLModelInputParameter> inputs = metadata.getInputs();
             DLModelMetadata.DLModelInputParameter input = inputs.get(0);
@@ -907,10 +912,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 additionalInputChannels.setChildrenNumber(0);
                 additionalInputLabels.setChildrenNumber(0);
             }
-            dlResizeAndScale.setInputNumber( 1 + additionalInputChannels.getActivatedChildCount() );
+            // dlResizeAndScale is already configured generically
+            /*dlResizeAndScale.setInputNumber( 1 + additionalInputChannels.getActivatedChildCount() );
             for (int i = 0; i<additionalInputChannels.getActivatedChildCount()+1; ++i) {
                 dlResizeAndScale.setScaler(i, inputs.get(i).getScaling().instantiatePlugin());
-            }
+            }*/
         }
         if (!metadata.getOutputs().isEmpty()) {
             // 2D: 5 without category, 6 with category; 3D: 6 without category, 7 with category
