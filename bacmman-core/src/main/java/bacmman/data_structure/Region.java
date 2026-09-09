@@ -282,6 +282,51 @@ public class Region {
         }
     }
 
+    /**
+     * Returns a Region restricted to the intersection of this region with {@param bds}.
+     * If this region is fully contained within {@param bds}, the exact same instance is
+     * returned unchanged if {@param forceDuplicate} is false — this is what preserves analytical subtypes (e.g. Ellipse2D,
+     * or any other {@link Analytical} implementation) as-is when no clipping is needed.
+     * Otherwise, the region is rasterized and clipped to the intersection: an ellipse (or
+     * any other analytical shape) cut by an arbitrary box is no longer expressible in that
+     * shape's parametric form, so the result is always a plain, non-analytical Region.
+     * Rasterization goes through {@link #getMask()} / {@link #getVoxels()}, so it works
+     * uniformly for every Region subtype without needing to special-case any of them —
+     * each subtype's own override already knows how to materialize its pixels/voxels.
+     *
+     * @param bds bounding box to clip to, in the same coordinate system as this region's bounds
+     * @return this region if fully included in bds, a new clipped Region if partially
+     *         overlapping, or null if there is no intersection at all
+     */
+    public Region getCroppedRegion(BoundingBox bds, boolean forceDuplicate) {
+        BoundingBox thisBounds = getBounds();
+        if (!BoundingBox.intersect(thisBounds, bds)) return null;
+        if (BoundingBox.isIncluded(thisBounds, bds)) return forceDuplicate ? this.duplicate() : this; // fully contained: keep as-is, preserves analytical type
+        BoundingBox inter = BoundingBox.getIntersection(thisBounds, bds);
+        if (voxelsCreated()) {
+            Set<Voxel> newVoxels = getVoxels().stream()
+                    .filter(v -> inter.containsWithOffset(v.x, v.y, v.z))
+                    .map(Voxel::duplicate)
+                    .collect(Collectors.toSet());
+            if (newVoxels.isEmpty()) return null;
+            return new Region(newVoxels, label, is2D, scaleXY, scaleZ)
+                    .setIsAbsoluteLandmark(absoluteLandmark)
+                    .setQuality(quality)
+                    .setCategory(category, categoryProbability);
+        } else {
+            ImageMask mask_ = getMask(); // for Analytical regions this rasterizes the analytic shape on demand
+            ImageByte newMask = new ImageByte("cropped", new SimpleImageProperties(inter, scaleXY, scaleZ));
+            ImageMask.loopWithOffset(mask_, (x, y, z) -> {
+                if (inter.containsWithOffset(x, y, z)) newMask.setPixelWithOffset(x, y, z, 1);
+            });
+            if (newMask.count() == 0) return null;
+            return new Region(newMask, label, is2D)
+                    .setIsAbsoluteLandmark(absoluteLandmark)
+                    .setQuality(quality)
+                    .setCategory(category, categoryProbability);
+        }
+    }
+
     public Region setAttributesFrom(Region r) {
         return this.setIsAbsoluteLandmark(r.absoluteLandmark)
                 .setQuality(r.quality)

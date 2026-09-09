@@ -246,12 +246,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             try {
                 RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) {
-                    pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
+                    pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false, false);
                     //pop.getRegions().forEach(r -> r.setIsAbsoluteLandmark(true));
-                }
-                else { // TODO  object might be outside crop and fix offset
-                    //pop = new RegionPopulation(pop.getLabelMap(), true).translate(pop.getImageProperties(), true);
-                    //pop.getRegions().forEach(r -> r.translate(p.getBounds()));
                 }
                 Image edmIm = pop.getEDM(true, false);
                 Image gdcmIm = pop.getGCDM(false);
@@ -264,7 +260,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             } catch (Throwable e) {
                 RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) {
-                    RegionPopulation pop2 = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
+                    RegionPopulation pop2 = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false, false);
                     logger.debug("th: {} parent: {} bds: {} region bds: {} after crop: {}", p.getTrackHead(), p, bds.duplicate().translate(p.getBounds()), pop.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()), pop2.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()));
                 } else {
                     logger.debug("th: {} parent: {} bds: {} region bds: {}", p.getTrackHead(), p, new SimpleBoundingBox(pop.getImageProperties()), pop.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()));
