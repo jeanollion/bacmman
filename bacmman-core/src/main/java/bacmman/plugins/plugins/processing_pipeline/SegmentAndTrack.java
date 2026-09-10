@@ -28,6 +28,7 @@ import java.util.List;
 
 import bacmman.data_structure.TrackLinkEditor;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.ManualTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,6 +114,13 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
     public ManualSegmenter getManualSegmenter() {
         TrackerSegmenter t = tracker.instantiatePlugin();
         if (t!=null) return t.getManualSegmenter();
+        else return null;
+    }
+
+    @Override
+    public ManualTracker getManualTracker() {
+        Tracker tracker = getTracker();
+        if (tracker instanceof ManualTracker) return (ManualTracker)tracker;
         else return null;
     }
 }

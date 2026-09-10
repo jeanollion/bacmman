@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.ManualTracker;
 import com.google.common.collect.Sets;
 
 import java.lang.reflect.Constructor;
@@ -74,6 +75,11 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
 
     @Override
     public ManualSegmenter getManualSegmenter() {
+        return null;
+    }
+
+    @Override
+    public ManualTracker getManualTracker() {
         return null;
     }
 

@@ -29,6 +29,7 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.ManualTracker;
 import bacmman.plugins.plugins.processing_pipeline.SegmentationAndTrackingProcessingPipeline;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.utils.HashMapGetCreate;
@@ -51,6 +52,7 @@ import java.util.stream.Stream;
 import java.util.function.BiPredicate;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -419,6 +421,7 @@ public class ManualEdition {
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         int segmentationParentStructureIdx = db.getExperiment().getStructure(objectClassIdx).getSegmentationParentStructure();
         int parentStructureIdx = db.getExperiment().getStructure(objectClassIdx).getParentStructure();
+        boolean allowOverlap = db.getExperiment().getStructure(objectClassIdx).allowOverlap();
         ManualSegmenter segInstance = db.getExperiment().getStructure(objectClassIdx).getManualSegmenter();
         int maxSizeZ = ii.getMaxSizeZ();
         if (segInstance==null) {
@@ -475,7 +478,9 @@ public class ManualEdition {
                         }
                         mask = Image.mergeZPlanes(planes).setName("Segmentation Mask");
                     }
-                    for (SegmentedObject c : existingChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
+                    if (!allowOverlap) {
+                        for (SegmentedObject c : existingChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
+                    }
                 } else {
                     ocIs2D = globalParent.getExperimentStructure().is2D(objectClassIdx, globalParent.getPositionName());
                 }
@@ -535,6 +540,46 @@ public class ManualEdition {
             }
         }
     }
+
+    public static void manualTracking(MasterDAO db, Image image, boolean propagate) {
+        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        if (image==null) {
+            Object im = iwm.getDisplayer().getCurrentDisplayedImage();
+            if (im!=null) image = iwm.getDisplayer().getImage(im);
+            if (image==null) {
+                logger.warn("No image found");
+                return;
+            }
+        }
+        InteractiveImage ii =  iwm.getInteractiveImage(image);
+        if (ii==null) {
+            logger.warn("Current image is not registered");
+            return;
+        }
+        //int structureIdx = key.displayedStructureIdx;
+        int objectClassIdx = ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass();
+        Set<SegmentedObject> modifiedObjects = new HashSet<>();
+        TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
+        ManualTracker trackerInstance = db.getExperiment().getStructure(objectClassIdx).getManualTracker();
+        if (trackerInstance == null) return;
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        if (selList.isEmpty()) return;
+        Set<SegmentedObject> seenObjects = new HashSet<>();
+        Set<SegmentedObject> candidates = new HashSet<>(selList);
+        while(!candidates.isEmpty()) {
+            SegmentedObjectUtils.splitByParent(candidates).forEach((p, sel) -> {
+                List<SegmentedObject> prevCand = p.getPrevious() == null ? null : p.getPrevious().getChildren(objectClassIdx).collect(Collectors.toList());
+                List<SegmentedObject> nextCand = p.getNext() == null ? null : p.getNext().getChildren(objectClassIdx).collect(Collectors.toList());
+                trackerInstance.manualLink(sel, prevCand, nextCand, editor);
+            });
+            seenObjects.addAll(candidates);
+            candidates = propagate ? Sets.difference(modifiedObjects, seenObjects) : Collections.emptySet();
+        }
+        if (modifiedObjects.isEmpty()) return;
+        db.getDao(selList.get(0).getPositionName()).store(modifiedObjects);
+        updateDisplayAndSelectTracks(modifiedObjects, true);
+    }
+
     public static Map<SegmentedObject, List<SegmentedObject>> getTrackSegments(Stream<SegmentedObject> trackElements, ProcessingPipeline.PARENT_TRACK_MODE mode, final int temporalNeighborhoodExtent) {
         switch (mode) {
             case WHOLE_PARENT_TRACK_ONLY:
@@ -808,7 +853,7 @@ public class ManualEdition {
         db.getDao(i.getParent().getPositionName()).store(modifiedObjects);
     }
 
-    public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects, boolean fill) {
+    public static void updateDisplayAndSelectObjects(Collection<SegmentedObject> objects, boolean fill) {
         //logger.debug("hide labile objects...");
         ImageWindowManagerFactory.getImageManager().hideLabileObjects(null, false);
         //logger.debug("remove tracks...");
@@ -836,6 +881,34 @@ public class ManualEdition {
         // update trackTree
         if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
     }
+
+    public static void updateDisplayAndSelectTracks(Collection<SegmentedObject> objects, boolean wholeTracks) {
+        ImageWindowManagerFactory.getImageManager().hideLabileObjects(null, false);
+        ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);
+        Map<Integer, List<SegmentedObject>> oBySidx = SegmentedObjectUtils.splitByStructureIdx(objects, true);
+        for (Entry<Integer, List<SegmentedObject>> e : oBySidx.entrySet()) {
+            logger.debug("update display for oc: {}", e.getKey());
+            //Update all open images & objectImageInteraction
+            ImageWindowManagerFactory.getImageManager().resetObjects(e.getValue().get(0).getPositionName(), e.getKey());
+            // update selection
+            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getInteractiveImage(null);
+            logger.debug("display : {} objects from structure: {}, IOI null ? {}", e.getValue().size(), e.getKey(), i==null);
+            if (i!=null) {
+                Collection<List<SegmentedObject>> tracks;
+                if (wholeTracks) {
+                    tracks = e.getValue().stream().map(SegmentedObject::getTrackHead).distinct().map(SegmentedObjectUtils::getTrack).collect(Collectors.toList());
+                } else {
+                    e.getValue().sort(Comparator.comparingInt(SegmentedObject::getFrame));
+                    tracks = SegmentedObjectUtils.splitByTrackHead(e.getValue()).values();
+                }
+                ImageWindowManagerFactory.getImageManager().displayTracks(null, i, tracks, null, true, false);
+                GUI.updateRoiDisplayForSelections(null, i);
+            }
+        }
+        // update trackTree
+        if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
+    }
+
     public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean relabel, boolean updateDisplay) {
         if (!canEdit(objects.stream(), db)) return;
         Map<Integer, List<SegmentedObject>> objectsByStructureIdx = SegmentedObjectUtils.splitByStructureIdx(objects, true);

@@ -259,6 +259,7 @@ public class Utils {
     public static <T> boolean forEachWhile(Stream<T> stream, Consumer<T> action, Predicate<T> stop) {
         return stream.peek(action).anyMatch(stop);
     }
+
     public static <T, P> boolean objectsAllHaveSameProperty(Stream<T> objects, Function<T, P> propertyFunction) {
         if (objects==null) return true;
         boolean[] propSet = new boolean[1];

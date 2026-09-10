@@ -50,4 +50,5 @@ public class TrackLinkEditor {
     Set<SegmentedObject> getModifiedObjects() {
         return modifiedObjects;
     }
+    public int getEditableObjectClassIdx() {return editableObjectClassIdx;}
 }

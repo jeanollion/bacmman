@@ -26,6 +26,7 @@ import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.ManualTracker;
 import bacmman.utils.StreamConcatenation;
 import bacmman.utils.Utils;
 
@@ -70,6 +71,11 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
 
     @Override
     public ManualSegmenter getManualSegmenter() {
+        return null;
+    }
+
+    @Override
+    public ManualTracker getManualTracker() {
         return null;
     }
 
