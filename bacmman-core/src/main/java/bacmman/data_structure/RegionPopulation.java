@@ -23,17 +23,7 @@ import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.GeometricalMeasurements;
 import bacmman.processing.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.plugins.trackers.ObjectOrderTracker.IndexingOrder;
@@ -116,15 +106,16 @@ public class RegionPopulation {
     }
 
     // bds absolute offset
-    public RegionPopulation getCroppedRegionPopulation(BoundingBox bds, boolean relabel) {
+    public RegionPopulation getCroppedRegionPopulation(BoundingBox bds, boolean relabel, boolean forceDuplicate) {
         RegionPopulation res;
         if (labelImage == null) {
             ImageProperties resProps = new SimpleImageProperties(bds, properties.getScaleXY(), properties.getScaleZ());
-            List<Region> resObj = objects.stream().filter(r -> BoundingBox.intersect(bds, r.getBounds())).collect(Collectors.toList());
+            List<Region> resObj = objects.stream()
+                    .map(r -> r.getCroppedRegion(bds, forceDuplicate))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
             res = new RegionPopulation(resObj, resProps);
-            res.constructLabelImage();
-            res.objects = null;
-        } else { // from label map
+        } else {
             ImageInteger newImage = labelImage.cropWithOffset(bds);
             res = new RegionPopulation(newImage, true);
         }

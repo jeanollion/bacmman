@@ -881,8 +881,9 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     @Override
     public Measurements getMeasurements(SegmentedObject o) {
+        if (o==null) return null;
         Pair<DB, HTreeMap<String, String>> mDB = measurementdbS.get(o.getStructureIdx());
-        if (mDB==null) return null;
+        if (mDB==null || mDB.value==null) return null;
         try {
             String mS = mDB.value.get(o.getId());
             if (mS==null) return null;

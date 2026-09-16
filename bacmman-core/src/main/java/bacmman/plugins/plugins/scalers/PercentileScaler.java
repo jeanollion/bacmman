@@ -20,7 +20,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
         //logger.debug("legacy init for saturate param: {}", lp[0]);
         if (((BooleanParameter)lp[0]).getSelected()) a.setValue(0, 0);
         else a.setValue(1, 1);
-    }, new BooleanParameter("Saturate", true)).setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2).setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +
+    }, new BooleanParameter("Saturate", false)).setNewInstanceNameFunction((a, i) -> i==0 ? "Lower Tail" : "Higher Tail").setChildrenNumber(2).setMaxChildCount(2).setMinChildCount(2).setHint("This parameter set defines power law transformations for values that fall outside the normalized range of 0 to 1. " +
             "It consists of two components: <ul>" +
             "<li>Lower Tail: Values below 0 are smoothly saturated using a power law to ensure gradual transitions. This transformation helps to handle low values gently, preventing abrupt changes. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li>" +
             "<li>Higher Tail: Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li></ul> " +

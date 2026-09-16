@@ -576,10 +576,11 @@ public class SelectionUtils {
         shortTrackFilter.setEnabled(!selectedValues.isEmpty());
         shortTrackMenu.add(shortTrackFilter);
 
-        JMenuItem trackEndFilter = new JMenuItem("Track Ends");
-        trackEndFilter.addActionListener((ActionEvent e) -> {
+        JMenu trackEndMenu = new JMenu("Track Ends");
+        JMenuItem noPrevFilter = new JMenuItem("No Previous");
+        noPrevFilter.addActionListener((ActionEvent e) -> {
             for (Selection s : selectedValues) {
-                SelectionOperations.trackEndsFilter(s);
+                SelectionOperations.trackEndsFilter(s, true, false);
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -587,8 +588,49 @@ public class SelectionUtils {
             GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
-        trackEndFilter.setEnabled(!selectedValues.isEmpty());
-        filterMenu.add(trackEndFilter);
+        noPrevFilter.setEnabled(!selectedValues.isEmpty());
+        trackEndMenu.add(noPrevFilter);
+        JMenuItem noNextFilter = new JMenuItem("No Next");
+        noNextFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.trackEndsFilter(s, false, true);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections();
+            GUI.getInstance().populateSelections();
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        noNextFilter.setEnabled(!selectedValues.isEmpty());
+        trackEndMenu.add(noNextFilter);
+        JMenuItem bothEndFilter = new JMenuItem("Both Ends");
+        bothEndFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.trackEndsFilter(s, true, true);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections();
+            GUI.getInstance().populateSelections();
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        bothEndFilter.setEnabled(!selectedValues.isEmpty());
+        trackEndMenu.add(bothEndFilter);
+        filterMenu.add(trackEndMenu);
+
+        JMenuItem hasGapFilter = new JMenuItem("Has Gaps");
+        hasGapFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.hasGapFilter(s, true, true);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections();
+            GUI.getInstance().populateSelections();
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        hasGapFilter.setEnabled(!selectedValues.isEmpty());
+        filterMenu.add(hasGapFilter);
 
         JMenuItem trackMergeFilter = new JMenuItem("Merge");
         trackMergeFilter.addActionListener((ActionEvent e) -> {

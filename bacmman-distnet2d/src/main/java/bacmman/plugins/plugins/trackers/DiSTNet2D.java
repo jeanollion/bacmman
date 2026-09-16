@@ -58,7 +58,12 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public enum FRAME_AWARE_MODE {NORMAL, SUCCESSIVE, ZERO}
     EnumChoiceParameter<DiSTNet2D.FRAME_AWARE_MODE> faMode= new EnumChoiceParameter<>("Frame Aware Mode", DiSTNet2D.FRAME_AWARE_MODE.values(), DiSTNet2D.FRAME_AWARE_MODE.NORMAL);
 
-    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DLEngine", DLEngine.class, "DefaultEngine", false).setEmphasized(true)
+            .addNewInstanceConfiguration(dle -> {
+                dle.setInputNumber(1).setOutputNumber(3);
+                DLEngine.setZAxis(dle, DLEngine.Z_AXIS.BATCH);
+            })
+            .setHint("Deep learning engine used to run the DNN.");
     SimpleListParameter<ChannelImageParameter> additionalInputChannels = new SimpleListParameter<>("Additional Input Channels", new ChannelImageParameter("Channel", false, false)).setNewInstanceNameFunction( (l, i) -> "Channel #"+i).setHint("Additional input channel fed to the neural network. Add input to the <em>Input Size And Intensity Scaling</em> for each channel");
     SimpleListParameter<ParentObjectClassParameter> additionalInputLabels = new SimpleListParameter<>("Additional Input Labels", new ParentObjectClassParameter("Label", -1, -1, false, false)).setNewInstanceNameFunction( (l, i) -> "Label #"+i).setHint("Additional segmented object classes. The EDM and GCDM of the segmented object will be fed to the neural network.");
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true, true)
@@ -246,12 +251,8 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             try {
                 RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) {
-                    pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
+                    pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false, false);
                     //pop.getRegions().forEach(r -> r.setIsAbsoluteLandmark(true));
-                }
-                else { // TODO  object might be outside crop and fix offset
-                    //pop = new RegionPopulation(pop.getLabelMap(), true).translate(pop.getImageProperties(), true);
-                    //pop.getRegions().forEach(r -> r.translate(p.getBounds()));
                 }
                 Image edmIm = pop.getEDM(true, false);
                 Image gdcmIm = pop.getGCDM(false);
@@ -264,7 +265,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             } catch (Throwable e) {
                 RegionPopulation pop = p.getChildRegionPopulation(l, false);
                 if (bds != null) {
-                    RegionPopulation pop2 = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false);
+                    RegionPopulation pop2 = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false, false);
                     logger.debug("th: {} parent: {} bds: {} region bds: {} after crop: {}", p.getTrackHead(), p, bds.duplicate().translate(p.getBounds()), pop.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()), pop2.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()));
                 } else {
                     logger.debug("th: {} parent: {} bds: {} region bds: {}", p.getTrackHead(), p, new SimpleBoundingBox(pop.getImageProperties()), pop.getRegions().stream().map(Region::getBounds).collect(Collectors.toList()));
@@ -886,7 +887,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public void configureFromMetadata(DLModelMetadata metadata) {
         BooleanParameter metaNext = metadata.getOtherParameter(BooleanParameter.class, "Predict Next", "Next");
         if (metaNext!=null) next.setSelected(metaNext.getSelected());
-        logger.debug("configure distnet from metadata : input: {}", metadata.getInputs());
+        //logger.debug("configure distnet from metadata : input: {}", metadata.getInputs());
         if (!metadata.getInputs().isEmpty()) {
             List<DLModelMetadata.DLModelInputParameter> inputs = metadata.getInputs();
             DLModelMetadata.DLModelInputParameter input = inputs.get(0);
@@ -911,10 +912,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 additionalInputChannels.setChildrenNumber(0);
                 additionalInputLabels.setChildrenNumber(0);
             }
-            dlResizeAndScale.setInputNumber( 1 + additionalInputChannels.getActivatedChildCount() );
+            // dlResizeAndScale is already configured generically
+            /*dlResizeAndScale.setInputNumber( 1 + additionalInputChannels.getActivatedChildCount() );
             for (int i = 0; i<additionalInputChannels.getActivatedChildCount()+1; ++i) {
                 dlResizeAndScale.setScaler(i, inputs.get(i).getScaling().instantiatePlugin());
-            }
+            }*/
         }
         if (!metadata.getOutputs().isEmpty()) {
             // 2D: 5 without category, 6 with category; 3D: 6 without category, 7 with category
@@ -1610,6 +1612,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 n = n.getNext();
             }
         }
+        parentTrack.sort(Comparator.comparingInt(SegmentedObject::getFrame));
         InputImages inputImages = new InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, null);
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
         return predict(inputImages, sortedFrames, parentTrack, null, minimalBounds).edm.get(parent);
@@ -1836,7 +1839,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     public static List<Integer> getNeighborhood(int[] sortedFrames, int frame, int inputWindow, boolean addNext, int frameInterval, int gapClosing) {
         int idx = Arrays.binarySearch(sortedFrames, frame);
-        if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames");
+        if (idx<0) throw new RuntimeException("Frame to predict="+frame+" is not among existing frames: "+Utils.toStringArray(sortedFrames));
         List<Integer> res = new ArrayList<>(inputWindow * 2 + 1);
         getNeighborhoodDir(sortedFrames, frame, inputWindow, frameInterval, gapClosing, false, res);
         res.add(frame);

@@ -23,6 +23,7 @@ import bacmman.plugins.*;
 
 import javax.swing.tree.MutableTreeNode;
 
+import bacmman.plugins.plugins.ManualTracker;
 import bacmman.plugins.plugins.processing_pipeline.ObjectClassOperation;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.JSONSerializable;
@@ -47,6 +48,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     ChannelImageParameter channelImage = new ChannelImageParameter("Detection Channel", -1).setHint("Detection channel on which processing pipeline will be applied");
     PluginParameter<ObjectSplitter> objectSplitter = new PluginParameter<>("Object Splitter", ObjectSplitter.class, true).setEmphasized(false).setHint("Algorithm used to split segmented in manual edition. <br />If no algorithm is defined here and the segmenter is able to split objects, the segmenter will be used instead");
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
+    PluginParameter<ManualTracker> manualTracker = new PluginParameter<>("Manual Tracker", ManualTracker.class, new ManualTracker.OverlapTracker(), true).setEmphasized(false).setHint("Algorithm used to link selected objects with unlinked objects from previous and next frames. <br>If no algorithm is defined here and the tracker has manual tracking ability, it will be used instead");
     ProcessingChain processingPipeline = new ProcessingChain("Processing Pipeline");
     PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object by pressing ctrl + F");
     ChoiceParameter objectDimension = new ChoiceParameter("Dimension Mode", new String[]{"2D", "3D", "Auto"}, "Auto", false).setHint("Determines if manually created objects are 2D or 3D. When set to 2D, objects will appear on all slices. If set to <em>Auto</em>, objects will be 3D if the associated channel contains multiple slices; otherwise, they will be 2D. Note that for a specific object class, all segmented objects must uniformly be either 2D or 3D, and this consistency takes precedence over other rules.");
@@ -75,6 +77,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         res.put("channelImage", channelImage.toJSONEntry());
         res.put("objectSplitter", objectSplitter.toJSONEntry());
         res.put("manualSegmenter", manualSegmenter.toJSONEntry());
+        res.put("manualTracker", manualTracker.toJSONEntry());
         res.put("processingScheme", processingPipeline.toJSONEntry());
         res.put("manualPostFilters", manualPostFilters.toJSONEntry());
         res.put("allowOverlap", allowOverlap.toJSONEntry());
@@ -101,6 +104,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         channelImage.initFromJSONEntry(jsonO.get("channelImage"));
         if (!partialInit) objectSplitter.initFromJSONEntry(jsonO.get("objectSplitter"));
         if (!partialInit) manualSegmenter.initFromJSONEntry(jsonO.get("manualSegmenter"));
+        if (!partialInit && jsonO.containsKey("manualTracker")) manualTracker.initFromJSONEntry(jsonO.get("manualTracker"));
         processingPipeline.initFromJSONEntry(jsonO.get("processingScheme"), partialInit);
         if (jsonO.containsKey("manualPostFilters") && !partialInit) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
         if (jsonO.containsKey("objectDimension")) objectDimension.initFromJSONEntry(jsonO.get("objectDimension"));
@@ -167,7 +171,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, objectDimension, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualTracker, manualPostFilters, objectDimension, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
     }
 
     public boolean is2D(String position) {
@@ -271,7 +275,21 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     public void setManualSegmenter(ManualSegmenter manualSegmenter) {
         this.manualSegmenter.setPlugin(manualSegmenter);
     }
-    
+
+    public ManualTracker getManualTracker() {
+        ManualTracker res= manualTracker.instantiatePlugin();
+        if (res == null) {
+            ProcessingPipeline ps = this.processingPipeline.instantiatePlugin();
+            if (ps instanceof ProcessingPipelineWithTracking) return ((ProcessingPipelineWithTracking)ps).getManualTracker();
+        }
+        return res;
+    }
+
+    public void setManualTracker(ManualTracker manualTracker) {
+        this.manualTracker.setPlugin(manualTracker);
+    }
+
+
     public void setObjectSplitter(ObjectSplitter objectSplitter) {
         this.objectSplitter.setPlugin(objectSplitter);
     }

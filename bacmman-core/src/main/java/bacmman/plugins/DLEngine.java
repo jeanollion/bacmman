@@ -60,6 +60,21 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
         return false;
     }
 
+    static boolean setZAxis(DLEngine instance, Z_AXIS zAxis) {
+        ConditionalParameter<DLEngine.Z_AXIS> zAxisParam = ParameterUtils.getParameter(ConditionalParameter.class, Arrays.asList(instance.getParameters()), p -> p.getActionValue() instanceof DLEngine.Z_AXIS);
+        if (zAxisParam == null) {
+            EnumChoiceParameter<DLEngine.Z_AXIS> zAxisParamChoice = ParameterUtils.getParameter(EnumChoiceParameter.class, Arrays.asList(instance.getParameters()), p -> p.getSelectedEnum() instanceof DLEngine.Z_AXIS);
+            if (zAxisParamChoice!=null) {
+                zAxisParamChoice.setValue(zAxis);
+                return true;
+            }
+        } else {
+            zAxisParam.setActionValue(zAxis);
+            return true;
+        }
+        return false;
+    }
+
     static IntSupplier getRankSupplier(PluginParameter<DLEngine> pp, int defaultRank) {
         return () -> {
             if (pp.getParameters() == null) return defaultRank;

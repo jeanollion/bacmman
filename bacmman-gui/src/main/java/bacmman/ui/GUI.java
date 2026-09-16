@@ -858,6 +858,20 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 postFilterActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.MANUAL_TRACK, new AbstractAction("Manual Track") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ManualEdition.manualTracking(db, null, false);
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.MANUAL_TRACK_PROPAGATE, new AbstractAction("Manual Track (propagate)") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ManualEdition.manualTracking(db, null, true);
+            }
+        });
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_OBJECTS, new AbstractAction("Select All Objects") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -3986,6 +4000,10 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             try {
                 db1 = MasterDAOFactory.getDAO(currentDataset.getDir());
                 if (db1 == null) return;
+                if (db1.getExperiment()==null) {
+                    setMessage("Could not open dataset "+currentDataset.getDir());
+                    return;
+                }
             } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 setMessage("Error instantiating dataset "+currentDataset.getName()+ ": "+e.getMessage());
                 logger.error("Error instantiating dataset", e);

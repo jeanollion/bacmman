@@ -19,6 +19,7 @@
 package bacmman.plugins;
 
 import bacmman.configuration.parameters.TrackPostFilterSequence;
+import bacmman.plugins.plugins.ManualTracker;
 
 /**
  *
@@ -28,4 +29,5 @@ import bacmman.configuration.parameters.TrackPostFilterSequence;
 public interface ProcessingPipelineWithTracking<T extends ProcessingPipelineWithTracking, U extends Tracker> extends ProcessingPipeline<T> {
     U getTracker();
     TrackPostFilterSequence getTrackPostFilters();
+    ManualTracker getManualTracker();
 }
