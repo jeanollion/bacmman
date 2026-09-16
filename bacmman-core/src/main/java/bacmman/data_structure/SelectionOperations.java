@@ -1,6 +1,7 @@
 package bacmman.data_structure;
 
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.image.BoundingBox;
 import bacmman.ui.gui.image_interaction.ObjectDisplay;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
@@ -71,8 +72,29 @@ public class SelectionOperations {
         if (sel.getObjectClassIdx()<=-1) return;
         Predicate<SegmentedObject> filter = o -> {
             SegmentedObject parent = o.getParent(edgeOCIdx);
+            if (parent == null) return keepContact;
             RegionPopulation.ContactBorder contact = new RegionPopulation.ContactBorder(0, parent.getMask(), new RegionPopulation.Border(true, true, true, true, !o.is2D() && !parent.is2D(), !o.is2D() && !parent.is2D()));
             return keepContact != contact.contact(o.getRegion());
+        };
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(filter)
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
+    public static void oobFilter(Selection sel, int oobOCIdx, boolean keepOOB) {
+        if (sel.getObjectClassIdx()<=-1) return;
+        Predicate<SegmentedObject> filter = o -> {
+            SegmentedObject parent = o.getParent(oobOCIdx);
+            boolean oob = parent==null || !BoundingBox.isIncluded(o.getBounds(), parent.getBounds()); // bounds are not included
+            if (!oob) { // refine by computing overlap
+                double overlap = o.getRegion().getOverlapArea(parent.getRegion());
+                oob = overlap < o.getRegion().size();
+            }
+            return keepOOB != oob;
         };
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             List<SegmentedObject> toRemove = sel.getElements(pos).stream()

@@ -500,7 +500,7 @@ public class SelectionUtils {
             }));
             diffMenu.add(diff);
         }
-        diffMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
+        diffMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
         OpMenu.add(diffMenu);
 
         // filters
@@ -523,7 +523,7 @@ public class SelectionUtils {
             }));
             trimMenu.add(trim);
         }
-        trimMenu.setEnabled(selectedValues.size()>=1);
+        trimMenu.setEnabled(!selectedValues.isEmpty());
         filterMenu.add(trimMenu);
 
         JMenu edgeContactMenu = new JMenu("Edge Contact");
@@ -531,8 +531,8 @@ public class SelectionUtils {
         BooleanParameter keepTouching = new BooleanParameter("Keep Contact", false);
         PropertyUtils.setPersistent(keepTouching, "filter_edge_keep");
         ConfigurationTreeGenerator.addToMenuAsSubMenu(keepTouching, edgeContactMenu);
-        JMenu edgeContactOCMenu = new JMenu("Perform Filter");
-        if (selectedValues.size()>=1) {
+        JMenu edgeContactOCMenu = new JMenu("Edge Object Class");
+        if (!selectedValues.isEmpty()) {
             for (int ocIdx = -1; ocIdx<db.getExperiment().getStructureCount(); ocIdx++) {
                 if (ocIdx == selectedValues.get(0).getObjectClassIdx()) continue;
                 int OCIdx = ocIdx;
@@ -550,9 +550,35 @@ public class SelectionUtils {
                 edgeContactOCMenu.add(filter);
             }
         }
-
-        edgeContactOCMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
+        edgeContactOCMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
         edgeContactMenu.add(edgeContactOCMenu);
+
+        JMenu oobMenu = new JMenu("Out-of-bounds");
+        filterMenu.add(oobMenu);
+        BooleanParameter keepOOB = new BooleanParameter("Keep OOB", true);
+        PropertyUtils.setPersistent(keepOOB, "filter_oob_keep");
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(keepOOB, oobMenu);
+        JMenu oobOCMenu = new JMenu("Edge Object Class");
+        if (!selectedValues.isEmpty()) {
+            for (int ocIdx = -1; ocIdx<db.getExperiment().getStructureCount(); ocIdx++) {
+                if (ocIdx == selectedValues.get(0).getObjectClassIdx()) continue;
+                int OCIdx = ocIdx;
+                JMenuItem filter = new JMenuItem(ocIdx==-1 ? "ViewField" : db.getExperiment().getStructure(ocIdx).getName());
+                filter.addActionListener((ActionEvent e) -> {
+                    for (Selection s : selectedValues) {
+                        SelectionOperations.oobFilter(s, OCIdx, keepOOB.getSelected());
+                        s.getMasterDAO().getSelectionDAO().store(s);
+                    }
+                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                    GUI.updateRoiDisplayForSelections();
+                    GUI.getInstance().populateSelections();
+                    GUI.getInstance().resetSelectionHighlight();
+                });
+                oobOCMenu.add(filter);
+            }
+        }
+        oobOCMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getObjectClassIdx));
+        oobMenu.add(oobOCMenu);
 
         JMenu shortTrackMenu = new JMenu("Short Tracks");
         filterMenu.add(shortTrackMenu);
