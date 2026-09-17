@@ -722,6 +722,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 if (res.sizeY()<tileDim[1]) res.setSizeY(tileDim[1], MutableBoundingBox.DIRECTION.CENTER);
                 if (tileDim.length==3 && res.sizeZ()<tileDim[2]) res.setSizeZ(tileDim[2], MutableBoundingBox.DIRECTION.CENTER);
                 res.translateInto(globalBoundingBox);
+                res.contract(globalBoundingBox);
                 return res;
             case PAD: {
                 int[] targetDim = ArrayUtil.reverse(this.targetShape.getArrayInt(), true);
@@ -732,13 +733,13 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                     if (targetDim[i]>minimalBouningBox.size(i)) res.setSize(targetDim[i], MutableBoundingBox.DIRECTION.CENTER, i );
                 }
                 res.translateInto(globalBoundingBox);
+                res.contract(globalBoundingBox);
                 return res;
             }
             case RESAMPLE:
             case INTENSITY_ONLY:
             default: {
                 return globalBoundingBox;
-                //return new MutableBoundingBox(minimalBouningBox).translateInto(globalBoundingBox);
             }
         }
     }

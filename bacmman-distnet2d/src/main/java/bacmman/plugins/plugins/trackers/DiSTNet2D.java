@@ -1615,7 +1615,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         parentTrack.sort(Comparator.comparingInt(SegmentedObject::getFrame));
         InputImages inputImages = new InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, null);
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
-        return predict(inputImages, sortedFrames, parentTrack, null, minimalBounds).edm.get(parent);
+        return predict(inputImages, sortedFrames, Collections.singletonList(parent), null, minimalBounds).edm.get(parent);
     }
     // flaw : input image is not used -> prefiltered image is used instead because a temporal neighborhood is required
     @Override
@@ -1686,7 +1686,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 segmentationMask = new MaskView(segmentationMask, segMaskBds);
                 segmentationMask.resetOffset();
                 edm.resetOffset();
-                //logger.debug("manual seg: seed bds: {} minimal bds: {} optimal bds: {}, segmask: {}, edm: {}", bds, minimalBounds, key.v3, new SimpleBoundingBox<>(segmentationMask), new SimpleBoundingBox<>(edm));
+                //logger.debug("manual seg: seed bds: {} minimal bds: {} optimal bds: {}, segmask: {}, edm: {}", segMaskBds, minimalBounds, key.v3, new SimpleBoundingBox<>(segmentationMask), new SimpleBoundingBox<>(edm));
                 RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(edm, parent, segmentationMask, objectClassIdx, seedsXYZ);
                 pop.filter(new RegionPopulation.Size().setMin(2)); // exclude 1-pixel objects (outside mask)
                 pop.getRegions().forEach(Region::freeMemory);

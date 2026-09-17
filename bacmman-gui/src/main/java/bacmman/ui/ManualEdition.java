@@ -812,6 +812,7 @@ public class ManualEdition {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         String position = SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
         if (!canEdit(objects.stream(), db)) return;
+        boolean allowOverlap = db.getExperiment().getStructure(structureIdx).allowOverlap();
         SegmentedObjectFactory factory = getFactory(structureIdx);
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         PostFilterSequence postFilters = db.getExperiment().getStructure(structureIdx).getManualPostFilters();
@@ -820,7 +821,7 @@ public class ManualEdition {
         SegmentedObjectUtils.splitByParent(objects).entrySet().parallelStream().forEach(e -> {
             BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> f = (p, pop) -> postFilters.filter(pop, structureIdx, e.getKey());
             Set<SegmentedObject> modifiedObjects = new HashSet<>();
-            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(e.getKey(), e.getValue(), f, true, factory, relabel, modifiedObjects);
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(e.getKey(), e.getValue(), f, true, factory, allowOverlap, relabel, modifiedObjects);
             toRemoveAll.addAll(toRemove);
             modifiedObjectAll.addAll(modifiedObjects);
         });
