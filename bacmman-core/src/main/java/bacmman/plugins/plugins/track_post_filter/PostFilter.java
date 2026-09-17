@@ -122,7 +122,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                 if (instance instanceof TestableProcessingPlugin && stores!=null) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
                 return instance.runPostFilter(p, structureIdx, pop);
             };
-            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, true, null);
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, true, true, null); // set allow overlap to true regardless of it real value because all children are included
             if (!toRemove.isEmpty()) {
                 synchronized(objectsToRemove) {
                     objectsToRemove.addAll(toRemove);
