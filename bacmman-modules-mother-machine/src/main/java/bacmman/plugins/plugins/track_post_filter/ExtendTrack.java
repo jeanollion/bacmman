@@ -24,11 +24,11 @@ public class ExtendTrack implements TrackPostFilter, Hint {
         return "Extends a track by duplicating the last object";
     }
 
-    enum MODE {EXTEND, LENGTH, PARENT}
+    enum MODE {EXTEND, LENGTH, PARENT, EXTEND_BACKWARD, PARENT_BIDIRECTIONAL}
     EnumChoiceParameter<MODE> mode = new EnumChoiceParameter<>("Mode", MODE.values(), MODE.EXTEND).setEmphasized(true).setHint("EXTEND: extend track with a constant frame number. LENGTH: extend track so that track length is constant. PARENT: extend track untill the end of parent track");
     IntegerParameter extend = new IntegerParameter("Extent", 0).setLowerBound(1);
     IntegerParameter length = new IntegerParameter("Length", 0).setLowerBound(1);
-    ConditionalParameter<MODE> modeCond = new ConditionalParameter<>(mode).setActionParameters(MODE.EXTEND, extend).setActionParameters(MODE.LENGTH, length);
+    ConditionalParameter<MODE> modeCond = new ConditionalParameter<>(mode).setActionParameters(MODE.EXTEND, extend).setActionParameters(MODE.LENGTH, length).setActionParameters(MODE.EXTEND_BACKWARD, extend);
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
@@ -49,6 +49,17 @@ public class ExtendTrack implements TrackPostFilter, Hint {
                         tail = extend(tail, factory, editor, parentFrames);
                         if (tail == null) break;
                         createdObjects.get(tail.getFrame()).add(tail);
+                    }
+                });
+                break;
+            }
+            case EXTEND_BACKWARD: {
+                tracks.forEach((th, t) -> {
+                    SegmentedObject head = t.get(0);
+                    for (int i = 0; i<extend.getIntValue();++i) {
+                        head = extend_backward(head, factory, editor, parentFrames);
+                        if (head == null) break;
+                        createdObjects.get(head.getFrame()).add(head);
                     }
                 });
                 break;
@@ -81,6 +92,32 @@ public class ExtendTrack implements TrackPostFilter, Hint {
                 });
                 break;
             }
+
+            case PARENT_BIDIRECTIONAL: {
+                tracks.forEach((th, t) -> {
+                    SegmentedObject head = t.get(0);
+                    SegmentedObject tail = t.get(t.size() - 1);
+                    int extend_forward = parentByFrame.size() - 1 - parentFrames.indexOf(tail.getFrame());
+                    int extend_backward = parentFrames.indexOf(head.getFrame());
+
+                    if (extend_backward > 0) {
+                        for (int i = 0; i < extend_backward; ++i) {
+                            head = extend_backward(head, factory, editor, parentFrames);
+                            if (head == null) break;
+                            createdObjects.get(head.getFrame()).add(head);
+                        }
+                    }
+                    if (extend_forward > 0) {
+                        for (int i = 0; i < extend_forward; ++i) {
+                            tail = extend(tail, factory, editor, parentFrames);
+                            if (tail == null) break;
+                            createdObjects.get(tail.getFrame()).add(tail);
+                        }
+                    }
+
+                });
+                break;
+            }
         }
         createdObjects.forEach((f, o) -> factory.addToParent(parentByFrame.get(f), true, o.toArray(new SegmentedObject[0])));
     }
@@ -91,6 +128,15 @@ public class ExtendTrack implements TrackPostFilter, Hint {
         if (idx == allowedFrames.size()-1) return null;
         SegmentedObject res = factory.duplicate(tail, allowedFrames.get(idx+1), tail.getStructureIdx(), true, true, true, false);
         editor.setTrackLinks(tail, res, true, true, false);
+        return res;
+    }
+
+    public static SegmentedObject extend_backward(SegmentedObject head, SegmentedObjectFactory factory, TrackLinkEditor editor, List<Integer> allowedFrames) {
+        int idx = allowedFrames.indexOf(head.getFrame());
+        if (idx==-1) throw new RuntimeException("Head frame is not in allowed frames");
+        if (idx == 0) return null;
+        SegmentedObject res = factory.duplicate(head, allowedFrames.get(idx-1), head.getStructureIdx(), true, true, true, false);
+        editor.setTrackLinks(res, head, true, true, true);
         return res;
     }
 
