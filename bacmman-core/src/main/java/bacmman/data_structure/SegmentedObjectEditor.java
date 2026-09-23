@@ -233,11 +233,16 @@ public class SegmentedObjectEditor {
                 if (dao != null) {
                     logger.info("Deleting {} objects, from {} parents", toDelete.size(), parents.size());
                     dao.delete(toDelete, true, false, false);
-                    editor.getModifiedObjects().removeAll(toDelete); // avoid storing deleted objects at next line!!!
-                    dao.store(editor.getModifiedObjects());
-                } else {
-                    //Collections.sort(toDelete);
-                    //logger.debug("Deleting {} objects, from {} parents", toDelete.size(), parents.size());
+                    if (editor.getModifiedObjects() != null) {
+                        editor.getModifiedObjects().removeAll(toDelete); // avoid storing deleted objects at next line!!!
+                        dao.store(editor.getModifiedObjects());
+                    }
+                } else { // add to factory
+                    if (factory.getToDelete() != null) {
+                        factory.getToDelete().addAll(toDelete);
+                    } else {
+                        logger.warn("could not delete {} object : no dao provided, and factory do not recieve delete list");
+                    }
                 }
             }
         }

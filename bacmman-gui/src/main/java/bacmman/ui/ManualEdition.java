@@ -20,6 +20,7 @@ package bacmman.ui;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.PostFilterSequence;
+import bacmman.configuration.parameters.TrackPostFilterSequence;
 import bacmman.configuration.parameters.TrackPreFilterSequence;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -541,7 +542,7 @@ public class ManualEdition {
         }
     }
 
-    public static void manualTracking(MasterDAO db, Image image, boolean propagate) {
+    public static void manualTracking(MasterDAO db, Image image, boolean propagate, boolean updateDisplay) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         if (image==null) {
             Object im = iwm.getDisplayer().getCurrentDisplayedImage();
@@ -577,7 +578,65 @@ public class ManualEdition {
         }
         if (modifiedObjects.isEmpty()) return;
         db.getDao(selList.get(0).getPositionName()).store(modifiedObjects);
-        updateDisplayAndSelectTracks(modifiedObjects, true);
+        if (updateDisplay) updateDisplayAndSelectTracks(modifiedObjects, true);
+    }
+
+    public static void applyTrackPostFilters(MasterDAO db, Image image, boolean relabel, boolean updateDisplay) {
+        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        if (image==null) {
+            Object im = iwm.getDisplayer().getCurrentDisplayedImage();
+            if (im!=null) image = iwm.getDisplayer().getImage(im);
+            if (image==null) {
+                logger.warn("No image found");
+                return;
+            }
+        }
+        InteractiveImage ii =  iwm.getInteractiveImage(image);
+        if (ii==null) {
+            logger.warn("Current image is not registered");
+            return;
+        }
+        int objectClassIdx = ImageWindowManagerFactory.getImageManager().getInteractiveObjectClass();
+        TrackPostFilterSequence filters = db.getExperiment().getStructure(objectClassIdx).getManualTrackPostFilters();
+        if (filters.isEmpty()) return;
+        List<SegmentedObject> objects = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
+        if (objects.isEmpty()) return;
+        objects = objects.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
+        List<SegmentedObject> modifiedObjectAll = Collections.synchronizedList(new ArrayList<>());
+        List<SegmentedObject> toRemoveAll = Collections.synchronizedList(new ArrayList<>());
+        Set<SegmentedObject> toUpdate = updateDisplay ? Sets.newHashSet() : null;
+        SegmentedObjectUtils.splitByParentTrackHead(objects).entrySet().parallelStream().forEach(e -> {
+            // re-create a parent track with only subset of objects at this OC.
+            SegmentedObject pth = e.getKey();
+            List<SegmentedObject> allTracks = e.getValue().stream().flatMap(SegmentedObjectUtils::getTrackAsStream).collect(Collectors.toList());
+            int minFrame = allTracks.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+            int maxFrame = allTracks.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
+            List<SegmentedObject> pt = new ArrayList<>();
+            Set<SegmentedObject> toDelete = new HashSet<>();
+            SegmentedObjectFactory factory = getFactory(objectClassIdx, toDelete);
+            Set<SegmentedObject> modifiedObjects = new HashSet<>();
+            TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
+            for (int i = minFrame; i <= maxFrame; i++) {
+                SegmentedObject p = pth.getNextAtFrame(i, false);
+                if (p != null) {
+                    pt.add(p);
+                    if (toUpdate!=null) p.getChildren(objectClassIdx).forEach(toUpdate::add);
+                    factory.setChildren(p, allTracks.stream().filter(o -> o.getParent().equals(p)).collect(Collectors.toList()));
+                }
+            }
+            filters.filter(objectClassIdx, pt, factory, editor);
+            toDelete.forEach(modifiedObjects::remove);
+            toRemoveAll.addAll(toDelete);
+            modifiedObjectAll.addAll(modifiedObjects);
+            for (SegmentedObject p : pt) factory.setChildren(p, null); // reset children
+        });
+        if (!toRemoveAll.isEmpty()) SegmentedObjectEditor.deleteObjects(db, toRemoveAll, SegmentedObjectEditor.ALWAYS_MERGE(), getFactory(objectClassIdx), getEditor(objectClassIdx, null), relabel);
+        String position = objects.iterator().next().getPositionName();
+        if (!modifiedObjectAll.isEmpty()) db.getDao(position).store(modifiedObjectAll);
+        if (updateDisplay) {
+            ImageWindowManagerFactory.getImageManager().removeObjects(toUpdate, false);
+            if (!modifiedObjectAll.isEmpty()) updateDisplayAndSelectTracks(modifiedObjectAll, true);
+        }
     }
 
     public static Map<SegmentedObject, List<SegmentedObject>> getTrackSegments(Stream<SegmentedObject> trackElements, ProcessingPipeline.PARENT_TRACK_MODE mode, final int temporalNeighborhoodExtent) {
@@ -808,14 +867,15 @@ public class ManualEdition {
         return newObjects;
     }
 
-    public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
+    public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean secondary, boolean relabel, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         String position = SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
         if (!canEdit(objects.stream(), db)) return;
         boolean allowOverlap = db.getExperiment().getStructure(structureIdx).allowOverlap();
         SegmentedObjectFactory factory = getFactory(structureIdx);
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
-        PostFilterSequence postFilters = db.getExperiment().getStructure(structureIdx).getManualPostFilters();
+        PostFilterSequence postFilters = db.getExperiment().getStructure(structureIdx).getManualPostFilters(secondary);
+        if (postFilters.isEmpty()) return;
         List<SegmentedObject> modifiedObjectAll = Collections.synchronizedList(new ArrayList<>());
         List<SegmentedObject> toRemoveAll = Collections.synchronizedList(new ArrayList<>());
         SegmentedObjectUtils.splitByParent(objects).entrySet().parallelStream().forEach(e -> {
@@ -823,11 +883,15 @@ public class ManualEdition {
             Set<SegmentedObject> modifiedObjects = new HashSet<>();
             List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(e.getKey(), e.getValue(), f, true, factory, allowOverlap, relabel, modifiedObjects);
             toRemoveAll.addAll(toRemove);
+            toRemove.forEach(modifiedObjects::remove);
             modifiedObjectAll.addAll(modifiedObjects);
         });
         SegmentedObjectEditor.deleteObjects(db, toRemoveAll, SegmentedObjectEditor.ALWAYS_MERGE(), factory, editor, relabel);
-        db.getDao(position).store(modifiedObjectAll);
-        if (updateDisplay) updateDisplayAndSelectObjects(modifiedObjectAll, false);
+        if (!modifiedObjectAll.isEmpty()) db.getDao(position).store(modifiedObjectAll);
+        if (updateDisplay) {
+            if (!toRemoveAll.isEmpty()) ImageWindowManagerFactory.getImageManager().removeObjects(toRemoveAll, false);
+            if (!modifiedObjectAll.isEmpty()) updateDisplayAndSelectObjects(modifiedObjectAll, false);
+        }
     }
 
     public static void relabelAll(MasterDAO db, Image image) {
@@ -1019,7 +1083,16 @@ public class ManualEdition {
             constructor.setAccessible(true);
             return constructor.newInstance(objectClassIdx, modifiedObjects, true);
         } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException("Could not create track link editor", e);
+            throw new RuntimeException("Could not create segmented object factory", e);
+        }
+    }
+    private static SegmentedObjectFactory getFactory(int objectClassIdx, Set<SegmentedObject> toDelete) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class, Set.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx, toDelete);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create segmented object factory", e);
         }
     }
     private static SegmentedObjectFactory getFactory(int objectClassIdx) {

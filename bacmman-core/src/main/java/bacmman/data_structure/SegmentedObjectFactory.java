@@ -8,18 +8,24 @@ import bacmman.utils.Utils;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class SegmentedObjectFactory {
     private final int editableObjectClassIdx;
+    Set<SegmentedObject> toDelete;
     SegmentedObjectFactory(int editableObjectClassIdx) {
         if (editableObjectClassIdx<-1) throw new IllegalArgumentException("Invalid Editable object class idx");
         this.editableObjectClassIdx=editableObjectClassIdx;
     }
+    SegmentedObjectFactory(int editableObjectClassIdx, Set<SegmentedObject> toDelete) {
+        this(editableObjectClassIdx);
+        this.toDelete = toDelete;
+    }
     public int getEditableObjectClassIdx() {
         return editableObjectClassIdx;
     }
-
+    public Set<SegmentedObject> getToDelete() {return toDelete;}
     public SegmentedObject duplicate(SegmentedObject o, int targetFrame, int targetObjectClass, boolean generateNewId, boolean duplicateRegion, boolean duplicateImages, boolean removeParentAndTrackAttributes) {
         SegmentedObject res = o.duplicate(targetFrame, targetObjectClass, generateNewId, duplicateRegion, duplicateImages);
         if (removeParentAndTrackAttributes) {
