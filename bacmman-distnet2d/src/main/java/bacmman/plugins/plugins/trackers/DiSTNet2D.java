@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -253,12 +254,15 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 if (bds != null) {
                     pop = pop.getCroppedRegionPopulation(bds.duplicate().translate(pop.getImageProperties()), false, false);
                     //pop.getRegions().forEach(r -> r.setIsAbsoluteLandmark(true));
+                } else { // ensure that child population is strictly included in parent.
+                    pop = pop.getCroppedRegionPopulation(pop.getImageProperties(), false, false);
                 }
+
                 Image edmIm = pop.getEDM(true, false);
                 Image gdcmIm = pop.getGCDM(false);
                 if (dbim != null) {
-                    edmIm = dbim.createDiskBackedImage(edmIm, false, false);
-                    gdcmIm = dbim.createDiskBackedImage(gdcmIm, false, false);
+                    edmIm = dbim.createDiskBackedImage(edmIm, false);
+                    gdcmIm = dbim.createDiskBackedImage(gdcmIm, false);
                 }
                 edmMap.put(p.getFrame(), edmIm);
                 gcdmMap.put(p.getFrame(), gdcmIm);
@@ -317,7 +321,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (im instanceof DiskBackedImage) imageManager.detach((DiskBackedImage)im, true);
         };
         Consumer<Image> freeMem = im -> { // TODO this should be invoked only for big memory tasks
-            if (im instanceof DiskBackedImage) ((DiskBackedImage) im).freeMemory(true); // store if modified: store if not stored before
+            if (im instanceof DiskBackedImage) try {((DiskBackedImage) im).freeMemory(true); } catch (IOException e) {}; // store if modified: store if not stored before
         };
         boolean testMode = stores != null;
         if (testMode) dlResizeAndScale.setScaleLogger( Core::userLog );
@@ -379,7 +383,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1 + nGaps));
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1 + nGaps); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
-                predictions.edm.put(p, imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(predictions.edm.get(p), null), false, false));
+                predictions.edm.put(p, imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(predictions.edm.get(p), null), false));
                 if (p.getFrame()>maxF) maxF = p.getFrame();
                 p.getChildren(objectClassIdx).forEach(o -> { // save memory
                     if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
@@ -2477,7 +2481,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             } else {
                 for (Map.Entry<SegmentedObject, Image> e : map.entrySet()) {
-                    if (!(e.getValue() instanceof DiskBackedImage))  e.setValue(dbim.createDiskBackedImage(convertor.apply(e.getValue()), false, false));
+                    if (!(e.getValue() instanceof DiskBackedImage))  e.setValue(dbim.createDiskBackedImage(convertor.apply(e.getValue()), false));
                 }
             }
         }
@@ -2490,7 +2494,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             } else {
                 for (Map.Entry<SegmentedObject, Image[]> e : map.entrySet()) {
                     if (!(e.getValue()[0] instanceof DiskBackedImage))
-                        e.setValue(Arrays.stream(e.getValue()).map(a -> dbim.createDiskBackedImage(convertor.apply(a), false, false)).toArray(Image[]::new));
+                        e.setValue(Arrays.stream(e.getValue()).map(a -> dbim.createDiskBackedImage(convertor.apply(a), false)).toArray(Image[]::new));
                 }
             }
         }

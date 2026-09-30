@@ -3,8 +3,8 @@ package bacmman.image;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.utils.StreamConcatenation;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Objects;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -23,44 +23,55 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
     }
 
     public Stream<DiskBackedImage<I>> streamTiles() {
-        if (tilesZYX == null) return Stream.empty();
         if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
-        return Stream.of(tilesZYX).flatMap(Stream::of).flatMap(Stream::of);
+        DiskBackedImage<I>[][][] t = tilesZYX;
+        if (t == null) return Stream.empty();
+        else return Stream.of(t).flatMap(Stream::of).flatMap(Stream::of);
     }
 
-    protected void tileImage(boolean freeMemory) {
-        tilingImage = true;
+    protected int[] getNTileAxis() {
+        int[] size = image.dimensions();
+        return IntStream.range(0, 3).map(i -> i > size.length - 1 ? 1 : (int) Math.ceil((double) size[i] / tileDimensions[i])).toArray();
+    }
+
+    protected DiskBackedImage<I>[][][] tileImage(boolean freeMemory) throws IOException {
         if (tileDimensions == null) tileDimensions = TileUtils.getOptimalTileSize(image.dimensions(), targetTileSize);
         if (tileDimensions.length == 2) tileDimensions = new int[]{tileDimensions[0], tileDimensions[1], 1};
-        int[] size = image.dimensions();
-        int[] nTilesAxis = IntStream.range(0, 3).map(i -> i>size.length-1 ? 1 : (int)Math.ceil((double)size[i] / tileDimensions[i])).toArray();
-        tilesZYX = new DiskBackedImage[nTilesAxis[2]][nTilesAxis[1]][nTilesAxis[0]];
+        int[] nTilesAxis = getNTileAxis();
+        DiskBackedImage<I>[][][] tiles = new DiskBackedImage[nTilesAxis[2]][nTilesAxis[1]][nTilesAxis[0]];
         BoundingBox imageBds = image.getBoundingBox().resetOffset();
-        int zCoord = 0;
-        int yCoord = 0;
-        int xCoord = 0;
-        for (int z = 0; z< tilesZYX.length; ++z) {
-            for (int y = 0; y< tilesZYX[0].length; ++y) {
-                for (int x = 0; x< tilesZYX[0][0].length; ++x) {
-                    MutableBoundingBox bds = new MutableBoundingBox(xCoord, xCoord + tileDimensions[0] - 1, yCoord, yCoord + tileDimensions[1] - 1, zCoord, size.length==3? zCoord + tileDimensions[2] - 1 : 0)
-                            .contract(imageBds);
-                    //logger.debug("tile idx: {}x{}x{} coord: [{}; {}; {}] target tile dims: {} contracted dims: {} bds: {} crop bds: {}", z, y, x, xCoord, yCoord, zCoord, tileDimensions, bds.dimensions(), new SimpleBoundingBox(image), bds);
-                    tilesZYX[z][y][x] = manager.createDiskBackedImage(image.crop(bds), writable, freeMemory);
-                    xCoord += tileDimensions[0];
+        boolean ok = false;
+        try {
+            int zCoord = 0;
+            for (int z = 0; z < tiles.length; ++z) {
+                int yCoord = 0;
+                for (int y = 0; y < tiles[0].length; ++y) {
+                    int xCoord = 0;
+                    for (int x = 0; x < tiles[0][0].length; ++x) {
+                        if (manager.isClearRequested()) throw new DiskBackedImageManager.ClearRequestedException();
+                        MutableBoundingBox bds = new MutableBoundingBox(xCoord, xCoord + tileDimensions[0] - 1, yCoord, yCoord + tileDimensions[1] - 1, zCoord, nTilesAxis[2]>1 ? zCoord + tileDimensions[2] - 1 : 0)
+                                .contract(imageBds);
+                        tiles[z][y][x] = manager.createDiskBackedImage(image.crop(bds), writable, freeMemory);
+                        xCoord += tileDimensions[0];
+                    }
+                    yCoord += tileDimensions[1];
                 }
-                yCoord += tileDimensions[1];
-                xCoord = 0;
+                zCoord += tileDimensions[2];
             }
-            zCoord += tileDimensions[2];
-            yCoord = 0;
+            ok = true;
+            return tiles;
+        } finally {
+            if (!ok) { // any Throwable: release what was already created
+                for (DiskBackedImage<I>[][] a : tiles) for (DiskBackedImage<I>[] b : a) for (DiskBackedImage<I> t : b) {
+                    if (t != null) try { manager.detach(t, true); } catch (Throwable ignored) { }
+                }
+            }
         }
-        tilingImage = false;
-        if (freeMemory) image = null;
     }
 
     protected void stitchImage() {
-        image = newImage(name, this);
         if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
+        I image = newImage(name, this);
         for (int z = 0; z< tilesZYX.length; ++z) {
             for (int y = 0; y< tilesZYX[0].length; ++y) {
                 for (int x = 0; x< tilesZYX[0][0].length; ++x) {
@@ -68,6 +79,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 }
             }
         }
+        this.image = image;
     }
 
     @Override
@@ -102,7 +114,7 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
     }
 
     @Override
-    public void freeMemory(boolean storeIfModified) {
+    public void freeMemory(boolean storeIfModified) throws IOException {
         if (image != null) {
             synchronized (this) {
                 if (image != null) {
@@ -110,18 +122,13 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                         if (tilesZYX == null) {
                             synchronized (tileLock) {
                                 try {
-                                    tileImage(true);
-                                } catch (Exception e) {
-                                    try {
-                                        streamTiles().filter(Objects::nonNull).forEach(t -> {
-                                            try {
-                                                manager.detach(t, true);
-                                            } catch (Exception ex) { }
-                                        });
-                                    } finally {
-                                        tilesZYX = null;  // leave TiledDiskNackedImage object in consistent state
-                                        logger.error("error tiling image: ", e);
-                                    }
+                                    tilingImage = true;
+                                    tilesZYX = tileImage(true);
+                                } catch (Throwable e) {
+                                    tilesZYX = null;
+                                    if (e instanceof DiskBackedImageManager.ClearRequestedException) throw (IOException) e;
+                                    if (e instanceof IOException) throw e;
+                                    throw new IOException(e);
                                 } finally {
                                     tilingImage = false;
                                 }
@@ -129,8 +136,18 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                         }
                         if (tilesZYX != null) modified = false;
                     }
-                    if (tilesZYX != null) image = null;
-                    if (tilesZYX != null) streamTiles().forEach(t -> t.freeMemory(storeIfModified));
+                    if (tilesZYX != null || !storeIfModified) image = null;
+                    if (tilesZYX != null) { // free tiles memory
+                        IOException[] e = new IOException[1];
+                        streamTiles().forEach(t -> {
+                            try {
+                                t.freeMemory(storeIfModified);
+                            } catch (IOException ex) {
+                                e[0] = ex;
+                            }
+                        });
+                        if (e[0]!=null) throw e[0];
+                    }
                 }
             }
         }
@@ -181,8 +198,8 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 modified = true;
             }
         } else throw new RuntimeException("Image not writable");
+        if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
         if (tilesZYX != null) {
-            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
             tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].setPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
         }
         if (image != null) image.setPixel(x, y, z, value);
@@ -200,8 +217,8 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 modified = true;
             }
         } else throw new RuntimeException("Image not writable");
+        if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
         if (tilesZYX != null) {
-            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
             tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].addPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
         }
         if (image != null) image.addPixel(x, y, z, value);
@@ -219,10 +236,10 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
                 modified = true;
             }
         } else throw new RuntimeException("Image not writable");
+        if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
         if (tilesZYX != null) {
             int x = xy % sizeX;
             int y = xy / sizeX;
-            if (tilingImage) synchronized (tileLock) { } // wait for tiling to finish
             tilesZYX[z/tileDimensions[2]][y/tileDimensions[1]][x/tileDimensions[0]].setPixel(x%tileDimensions[0], y%tileDimensions[1], z%tileDimensions[2], value);
         }
         if (image != null) image.setPixel(xy, z, value);

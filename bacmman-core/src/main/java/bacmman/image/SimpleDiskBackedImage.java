@@ -19,16 +19,12 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I
     }
 
     @Override
-    public void freeMemory(boolean storeIfModified) {
+    public void freeMemory(boolean storeIfModified) throws IOException{
         if (image != null) {
             synchronized (this) {
                 if (image !=null) {
                     if (modified && storeIfModified) {
-                        try {
-                            manager.storeDiskBackedImage(this);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
+                        manager.storeDiskBackedImage(this);
                         modified = false;
                     }
                     image = null;

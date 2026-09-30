@@ -9,11 +9,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.*;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
@@ -23,19 +29,29 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     Thread daemon;
     long daemonTimeInterval;
     double memoryFraction = DiskBackedImageManager.memoryFraction;
-    boolean stopDaemon = false;
-    boolean freeingMemory = false;
+    volatile boolean stopDaemon = false;
+    volatile boolean clearRequested = false;
+    final AtomicBoolean freeing = new AtomicBoolean(false);
     final String directory;
+    final Thread shutdownHook;
+
     public DiskBackedImageManagerImpl(String directory) {
         this.directory = directory;
+        shutdownHook = new Thread(this::close, "DiskBackedImageManagerImplCleanup@" + directory);
+        Runtime.getRuntime().addShutdownHook(shutdownHook); // best-effort: only reached on normal JVM exit, not on kill -9 / power loss
     }
+
     @Override
     public synchronized boolean startDaemon(double memoryFraction, long timeInterval) {
         if (daemon != null ) return false;
         this.memoryFraction=memoryFraction;
         Runnable run = () -> {
             while(!stopDaemon) {
-                freeMemory(memoryFraction, true);
+                try {
+                    freeMemory(memoryFraction, true);
+                } catch (Throwable t) {
+                    logger.error("Error freeing memory", t);
+                }
                 try {
                     Thread.sleep(timeInterval);
                 } catch (InterruptedException e) {
@@ -68,41 +84,39 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     }
 
     @Override
-    public boolean isFreeingMemory() {
-        return freeingMemory;
-    }
+    public boolean isFreeingMemory() { return freeing.get(); }
 
-    public void freeMemory(double memoryFraction) {
+    public void freeMemory(double memoryFraction) throws IOException {
         freeMemory(memoryFraction, false);
     }
-    protected void freeMemory(double memoryFraction, boolean fromDaemon) {
+    protected void freeMemory(double memoryFraction, boolean fromDaemon) throws IOException {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
-        if (used <= maxUsed || freeingMemory) return;
+        if (used <= maxUsed || !freeing.compareAndSet(false, true)) return;
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
-        freeingMemory = true;
         long freed = 0;
         int loopCount = 0;
-        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && !Thread.currentThread().isInterrupted() && loopCount <= queue.size()) {
-            if (!queue.isEmpty()) {
-                DiskBackedImage im = null;
-                synchronized (queue) {
-                    im = queue.poll();
-                    queue.add(im);
-                }
-                if (im != null) {
-                    if (im.isOpen()) {
-                        if (Thread.currentThread().isInterrupted()) break;
+        try {
+            while (used > maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && !Thread.currentThread().isInterrupted() && !clearRequested && loopCount <= queue.size()) {
+                DiskBackedImage im;
+                synchronized (queue) { im = queue.poll(); if (im != null) queue.add(im); }
+                if (im == null) break;
+                if (im.isOpen()) {
+                    if (Thread.currentThread().isInterrupted()) break;
+                    try {
+                        im.freeMemory(true);
                         long usedHM = im.usedHeapMemory();
                         used -= usedHM;
                         freed += usedHM;
-                        im.freeMemory(true);
+                    } catch (DiskBackedImageManager.ClearRequestedException e) {
+                        break; // expected: clear() is running, stop writing and let it take over
                     }
                 }
                 ++loopCount; // if memory fraction is too low : avoid infinite loop
             }
+        } finally {
+            freeing.set(false);
         }
-        freeingMemory = false;
         if (freed > 1024 * 1024 * 1024) {
             double total;
             synchronized (queue) {
@@ -136,15 +150,15 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         File f = files.get(fmi);
         if (f == null) {
             f = new File(directory, UUID.randomUUID() + ".bmimage");
-            f.deleteOnExit();
             synchronized (files) {
                 files.put(fmi, f);
             }
         }
         write(f, fmi.getImage());
     }
+
     @Override
-    public <I extends Image<I>> DiskBackedImage<I> createDiskBackedImage(I image, boolean writable, boolean freeMemory)  {
+    public <I extends Image<I>> DiskBackedImage<I> createDiskBackedImage(I image, boolean writable, boolean freeMemory) throws IOException {
         if (image instanceof DiskBackedImage ) {
             if (((DiskBackedImage)image).getManager().equals(this)) {
                 if (freeMemory) ((DiskBackedImage)image).freeMemory(true);
@@ -152,11 +166,19 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             } else throw new IllegalArgumentException("Image is already disk-backed");
         } else if (image==null) throw new IllegalArgumentException("Null image");
         DiskBackedImage<I> res = DiskBackedImage.createDiskBackedImage(image, writable, this);
-        res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
+        res.setModified(true); // so that when free memory is called, image is stored (even if no modification has been performed)
         synchronized (queue) {
+            if (clearRequested) throw new IllegalStateException("Manager is being cleared");
             queue.add(res);
         }
-        if (freeMemory) res.freeMemory(true);
+        if (freeMemory) {
+            try {
+                res.freeMemory(true);
+            } catch (Throwable t) {
+                detach(res, false);
+                throw t;
+            }
+        }
         return res;
     }
 
@@ -169,76 +191,114 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
 
     @Override
     public boolean detach(DiskBackedImage image, boolean freeMemory) {
-        List<File> toRemove = new ArrayList<>();
+        List<File> toRemove = null;
         boolean rem;
+        List<DiskBackedImage<?>> tiles = image instanceof TiledDiskBackedImage ? ((TiledDiskBackedImage<?>) image).streamTiles().collect(Collectors.toList()) : null; // outside queue sync block to avoid deadlock. stream is non empty only if images had already been tiled
         synchronized (queue) {
             rem = queue.remove(image);
             File f = files.remove(image);
-            if (f != null) toRemove.add(f);
-            if (image instanceof TiledDiskBackedImage) {
-                List<File> tileFiles = ((TiledDiskBackedImage<?>)image).streamTiles().map(t -> {
+            if (f != null) { toRemove = new ArrayList<>(); toRemove.add(f); }
+            if (tiles != null) {
+                List<File> tileFiles = tiles.stream().map(t -> {
                     t.detach();
                     queue.remove(t);
                     return files.remove(t);
                 }).filter(Objects::nonNull).collect(Collectors.toList());
-                if (!toRemove.isEmpty()) tileFiles.addAll(toRemove);
+                if (toRemove != null) tileFiles.addAll(toRemove);
                 toRemove = tileFiles;
             }
         }
         image.detach();
-        if (freeMemory) image.freeMemory(false);
-        toRemove.forEach(File::delete);
+        if (freeMemory) try {image.freeMemory(false);} catch (IOException ignored) { } // image not stored so no IOException should be thrown here
+        if (toRemove != null) toRemove.forEach(File::delete);
         return rem;
     }
 
+    @Override
+    public boolean isClearRequested() {
+        return clearRequested;
+    }
+
+    @Override
     public void clear(boolean freeMemory) {
-        stopDaemon();
-        synchronized (queue) {
+        boolean wasRunning = stopDaemon(); // no new daemon-originated sweep can start
+        clearRequested = true;             // any in-flight tiling/writing (daemon or otherwise) aborts on its next check
+        try {
+            List<DiskBackedImage> copy;
+            synchronized (queue) {
+                copy = new ArrayList<>(queue);
+                queue.clear();
+            }
             if (freeMemory) {
-                for (DiskBackedImage im : queue) {
-                    im.freeMemory(false);
+                for (DiskBackedImage im : copy) {
+                    try { im.freeMemory(false); } catch (IOException ignored) { }
                 }
             }
-            for (DiskBackedImage im : queue) {
+            for (DiskBackedImage im : copy) {
                 File f = files.remove(im);
-                if (f!=null) f.delete();
+                if (f != null) f.delete();
                 im.detach();
             }
-            queue.clear();
+        } finally {
+            clearRequested = false;
+            if (wasRunning) startDaemon(memoryFraction, daemonTimeInterval);
         }
     }
 
+    @Override
+    public void close() {
+        stopDaemon();
+        clear(true);
+        try { Runtime.getRuntime().removeShutdownHook(shutdownHook); } catch (IllegalStateException ignored) { } // already shutting down
+    }
 
     // internal methods
     static void read(File f, Image image) throws IOException {
-        if (image instanceof PrimitiveType.ByteType) {
-            read(f, ((PrimitiveType.ByteType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.ShortType) {
-            read(f, ((PrimitiveType.ShortType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.FloatType) {
-            read(f, ((PrimitiveType.FloatType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.IntType) {
-            read(f, ((PrimitiveType.IntType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.DoubleType) {
-            read(f, ((PrimitiveType.DoubleType)image).getPixelArray());
-        } else {
-            throw new IllegalArgumentException("Type not supported: " + image.getClass());
+        try {
+            if (image instanceof PrimitiveType.ByteType) {
+                read(f, ((PrimitiveType.ByteType)image).getPixelArray());
+            } else if (image instanceof PrimitiveType.ShortType) {
+                read(f, ((PrimitiveType.ShortType)image).getPixelArray());
+            } else if (image instanceof PrimitiveType.FloatType) {
+                read(f, ((PrimitiveType.FloatType)image).getPixelArray());
+            } else if (image instanceof PrimitiveType.IntType) {
+                read(f, ((PrimitiveType.IntType)image).getPixelArray());
+            } else if (image instanceof PrimitiveType.DoubleType) {
+                read(f, ((PrimitiveType.DoubleType)image).getPixelArray());
+            } else {
+                throw new IllegalArgumentException("Type not supported: " + image.getClass());
+            }
+        } catch (Throwable e) {
+            if (e instanceof IOException) throw (IOException) e;
+            throw new IOException("Error reading tile from disk: " + f, e);
         }
     }
 
     static void write(File f, Image image) throws IOException {
-        if (image instanceof PrimitiveType.ByteType) {
-            write(f, ((PrimitiveType.ByteType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.ShortType) {
-            write(f, ((PrimitiveType.ShortType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.FloatType) {
-            write(f, ((PrimitiveType.FloatType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.IntType) {
-            write(f, ((PrimitiveType.IntType)image).getPixelArray());
-        } else if (image instanceof PrimitiveType.DoubleType) {
-            write(f, ((PrimitiveType.DoubleType)image).getPixelArray());
-        } else {
-            throw new IllegalArgumentException("Type not supported: " + image.getClass());
+        try {
+            if (image instanceof PrimitiveType.ByteType) {
+                write(f, ((PrimitiveType.ByteType) image).getPixelArray());
+            } else if (image instanceof PrimitiveType.ShortType) {
+                write(f, ((PrimitiveType.ShortType) image).getPixelArray());
+            } else if (image instanceof PrimitiveType.FloatType) {
+                write(f, ((PrimitiveType.FloatType) image).getPixelArray());
+            } else if (image instanceof PrimitiveType.IntType) {
+                write(f, ((PrimitiveType.IntType) image).getPixelArray());
+            } else if (image instanceof PrimitiveType.DoubleType) {
+                write(f, ((PrimitiveType.DoubleType) image).getPixelArray());
+            } else {
+                throw new IllegalArgumentException("Type not supported: " + image.getClass());
+            }
+        } catch (Throwable e) {
+            if (e instanceof IOException) throw e;
+            String msg = "Error writing tile to disk: " + f;
+            try {
+                long need = (long) image.byteCount() * image.sizeXYZ();
+                long usable = Files.getFileStore(f.getAbsoluteFile().getParentFile().toPath()).getUsableSpace();
+                if (usable < need + (64L << 20))
+                    msg += " (likely disk full: need ~" + (need >> 20) + "MB, usable ~" + (usable >> 20) + "MB)";
+            } catch (IOException ignored) { }
+            throw new IOException(msg, e);
         }
     }
 
@@ -248,6 +308,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             for (byte[] row : array) buf.get(row);
             unmapBuffer(buf);
         }
@@ -259,6 +320,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             ShortBuffer db = buf.asShortBuffer(); // bulk-read via native copy
             for (short[] row : array) db.get(row);
             unmapBuffer(buf);
@@ -271,6 +333,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             IntBuffer db = buf.asIntBuffer(); // bulk-read via native copy
             for (int[] row : array) db.get(row);
             unmapBuffer(buf);
@@ -283,6 +346,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             FloatBuffer db = buf.asFloatBuffer(); // bulk-read via native copy
             for (float[] row : array) db.get(row);
             unmapBuffer(buf);
@@ -295,6 +359,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             DoubleBuffer db = buf.asDoubleBuffer(); // bulk-read via native copy
             for (double[] row : array) db.get(row);
             unmapBuffer(buf);
@@ -308,6 +373,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             raf.setLength(totalSize); // <-- ensures the file is large enough before mapping
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             for (byte[] row : array) buf.put(row);
             unmapBuffer(buf);
         }
@@ -320,6 +386,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             ShortBuffer sb = buf.asShortBuffer(); // view avoids repeated byte-packing overhead
             for (short[] row : array) sb.put(row);
             unmapBuffer(buf);
@@ -333,6 +400,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             IntBuffer sb = buf.asIntBuffer(); // view avoids repeated byte-packing overhead
             for (int[] row : array) sb.put(row);
             unmapBuffer(buf);
@@ -346,6 +414,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             FloatBuffer sb = buf.asFloatBuffer(); // view avoids repeated byte-packing overhead
             for (float[] row : array) sb.put(row);
             unmapBuffer(buf);
@@ -359,26 +428,69 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             raf.setLength(totalSize);
             FileChannel fc = raf.getChannel();
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, totalSize);
+            buf.order(ByteOrder.nativeOrder());
             DoubleBuffer sb = buf.asDoubleBuffer(); // view avoids repeated byte-packing overhead
             for (double[] row : array) sb.put(row);
             unmapBuffer(buf);
         }
     }
 
-    private static void unmapBuffer(MappedByteBuffer buf) {
-        if (buf == null) return;
+    private interface Unmapper { void unmap(MappedByteBuffer b) throws Throwable; }
+
+    /** null => no explicit unmap available, mappings are released by the GC. */
+    private static final Unmapper UNMAPPER = findUnmapper();
+
+    private static Unmapper findUnmapper() {
+        List<Unmapper> candidates = new ArrayList<>();
+
+        // Java 9+: Unsafe.invokeCleaner (jdk.unsupported)
         try {
-            // Java 9+: use Cleaner via DirectBuffer if available
-            Class<?> directBufferClass = Class.forName("sun.nio.ch.DirectBuffer");
-            if (directBufferClass.isInstance(buf)) {
-                Object cleaner = directBufferClass.getMethod("cleaner").invoke(buf);
-                if (cleaner != null) {
-                    cleaner.getClass().getMethod("clean").invoke(cleaner);
-                }
+            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+            Field f = unsafeClass.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            Object unsafe = f.get(null);
+            Method invokeCleaner = unsafeClass.getMethod("invokeCleaner", ByteBuffer.class);
+            candidates.add(b -> invokeCleaner.invoke(unsafe, b));
+        } catch (Throwable ignored) { }
+
+        // Java 8: DirectBuffer.cleaner().clean()
+        try {
+            Class<?> directBuffer = Class.forName("sun.nio.ch.DirectBuffer");
+            Method cleaner = directBuffer.getMethod("cleaner");
+            Method clean = cleaner.getReturnType().getMethod("clean");
+            candidates.add(b -> {
+                Object c = cleaner.invoke(b);
+                if (c != null) clean.invoke(c);
+            });
+        } catch (Throwable ignored) { }
+
+        for (Unmapper u : candidates) if (works(u)) return u;
+        return null;
+    }
+
+    /** Probe: map a tiny temp file and try to unmap it, so an inaccessible strategy is rejected at startup. */
+    private static boolean works(Unmapper u) {
+        Path p = null;
+        try {
+            p = Files.createTempFile("unmap", ".probe");
+            try (FileChannel fc = FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                MappedByteBuffer b = fc.map(FileChannel.MapMode.READ_WRITE, 0, 8);
+                u.unmap(b);
             }
-        } catch (Exception e) {
-            // Fallback: not a DirectBuffer or reflection blocked — let GC handle it
-            // Safe on all platforms, just less immediate
+            return true;
+        } catch (Throwable t) {
+            return false;
+        } finally {
+            if (p != null) try { Files.deleteIfExists(p); } catch (IOException ignored) { }
+        }
+    }
+
+    private static void unmapBuffer(MappedByteBuffer buf) {
+        if (buf == null || UNMAPPER == null) return;
+        try {
+            UNMAPPER.unmap(buf);
+        } catch (Throwable ignored) {
+            // best effort: the GC will release the mapping eventually
         }
     }
 }

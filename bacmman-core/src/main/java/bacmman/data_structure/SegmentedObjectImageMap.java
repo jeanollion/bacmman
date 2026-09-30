@@ -68,10 +68,10 @@ public class SegmentedObjectImageMap {
                 //logger.debug("could not replace existing image {} @ {} with {} will create a new disk backed image", existingImage.getName(), o, image.getName());
                 DiskBackedImageManager manager = existingSDBI.getManager();
                 manager.detach(existingSDBI, true);
-                Image newSDBI = manager.createDiskBackedImage(image, true, false);
+                Image newSDBI = manager.createDiskBackedImage(image, true);
                 imageMap.put(o, newSDBI);
             }
-        } else if (dbim != null) imageMap.put(o, dbim.createDiskBackedImage(image, true, false));
+        } else if (dbim != null) imageMap.put(o, dbim.createDiskBackedImage(image, true));
         else imageMap.put(o, image);
     }
 }

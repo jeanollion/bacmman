@@ -137,7 +137,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
 
             @Override
             public void set(int frame, Image img) throws IOException {
-                DiskBackedImage sdbi = preProcessedImagesManager.createDiskBackedImage(img, false, false);
+                DiskBackedImage sdbi = preProcessedImagesManager.createDiskBackedImage(img, false);
                 preProcessedImagesManager.storeDiskBackedImage(sdbi);
                 preProcessedImages.put(frame-minFrame, sdbi);
             }
@@ -157,7 +157,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
 
     @Override
     public void clear() {
-        preProcessedImagesManager.clear(true);
+        preProcessedImagesManager.close();
         preProcessedImagesManager = null;
     }
 

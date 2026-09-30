@@ -1093,7 +1093,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 System.gc();
                 publishMemoryUsage("After Processing structure:"+s);
                 if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) { // for heavy tasks: intermediate free memory
-                    Core.freeDiskManagersMemory();
+                    try {
+                        Core.freeDiskManagersMemory();
+                    } catch (IOException e) {
+                        this.errors.addExceptions(new Pair<>("Task level", e));
+                        ok = false;
+                    }
                     try { Thread.sleep(10000); } catch (InterruptedException e) { }
                     if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) {
                         db.getDao(position).clearCache();

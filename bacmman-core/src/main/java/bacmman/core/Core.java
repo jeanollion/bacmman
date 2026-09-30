@@ -150,7 +150,7 @@ public class Core {
         System.gc();
     }
 
-    public static void freeDiskManagersMemory() {
+    public static void freeDiskManagersMemory() throws IOException {
         diskBackedImageManagerProvider.freeMemory();
         System.gc();
     }

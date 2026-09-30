@@ -142,7 +142,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
                 if (f instanceof ObjectFeatureWithCore) {
                     Image image = ((ObjectFeatureWithCore) f).getIntensityMap(true);
                     if (!(image instanceof DiskBackedImage) && dbim != null) {
-                        image = dbim.createDiskBackedImage(image, false, false);
+                        image = dbim.createDiskBackedImage(image, false);
                     }
                     allImages.add(image);
                 }

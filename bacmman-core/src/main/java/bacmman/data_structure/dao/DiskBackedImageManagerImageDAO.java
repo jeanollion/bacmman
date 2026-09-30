@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImageManager {
@@ -20,18 +21,22 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     Thread daemon;
     double memoryFraction;
     long daemonTimeInterval;
-    boolean stopDaemon = false;
-    boolean freeingMemory = false;
+    volatile boolean stopDaemon = false;
+    volatile boolean clearRequested = false;
+    final AtomicBoolean freeing = new AtomicBoolean(false);
     final Queue<DiskBackedImage> queue = new LinkedList<>();
     Map<UnaryPair<Integer>, DiskBackedImage> openImages = new HashMap<>();
     Map<DiskBackedImage, UnaryPair<Integer>> openImagesRev = new HashMap<>();
     Map<DiskBackedImage, File> files = new ConcurrentHashMap<>();
     final String directory;
+    final Thread shutdownHook;
 
     public DiskBackedImageManagerImageDAO(String position, ImageDAO imageDAO, String directory) {
         this.position = position;
         this.imageDAO=imageDAO;
         this.directory=directory;
+        shutdownHook = new Thread(this::close, "DiskBackedImageManagerImageDAOCleanup@" + directory);
+        Runtime.getRuntime().addShutdownHook(shutdownHook); // best-effort: only reached on normal JVM exit, not on kill -9 / power loss
     }
 
     public ImageDAO getSourceImageDAO() {
@@ -44,7 +49,11 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         this.memoryFraction=memoryFraction;
         Runnable run = () -> {
             while(!stopDaemon) {
-                freeMemory(memoryFraction, true);
+                try {
+                    freeMemory(memoryFraction, true);
+                } catch (Throwable e) {
+                    logger.error("Error freeing memory from daemon", e);
+                }
                 try {
                     Thread.sleep(timeInterval);
                 } catch (InterruptedException e) {
@@ -80,7 +89,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
 
     @Override
     public boolean isFreeingMemory() {
-        return freeingMemory;
+        return freeing.get();
     }
 
     protected boolean useTmpStorage(Image image) {
@@ -115,7 +124,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     }
 
     @Override
-    public <I extends Image<I>> DiskBackedImage<I> createDiskBackedImage(I image, boolean writable, boolean freeMemory) {
+    public <I extends Image<I>> DiskBackedImage<I> createDiskBackedImage(I image, boolean writable, boolean freeMemory) throws IOException {
         if (image instanceof DiskBackedImage ) {
             if (((DiskBackedImage)image).getManager().equals(this)) {
                 if (freeMemory) ((DiskBackedImage)image).freeMemory(true);
@@ -125,27 +134,33 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         DiskBackedImage<I> res = DiskBackedImage.createDiskBackedImage(image, writable, this);
         res.setModified(true); // so that when free memory is called, image is stored (event if no modification has been performed)
         synchronized (queue) {
+            if (clearRequested) throw new IllegalStateException("Manager is being cleared");
             queue.add(res);
         }
-        if (freeMemory) res.freeMemory(true);
+        if (freeMemory) {
+            try {
+                res.freeMemory(true);
+            } catch (Throwable t) {
+                detach(res, false);
+                throw t;
+            }
+        }
         return res;
     }
 
     @Override
     public boolean detach(DiskBackedImage image, boolean freeMemory) {
-        boolean rem = false;
+        boolean rem;
         List<File> toRemove = null;
+        List<DiskBackedImage<?>> tiles = image instanceof TiledDiskBackedImage ? ((TiledDiskBackedImage<?>) image).streamTiles().collect(Collectors.toList()) : null; // outside queue sync, avoids deadlock
         synchronized (queue) {
             rem = queue.remove(image);
             File f = files.remove(image);
-            if (f!=null) {
-                toRemove = new ArrayList<>();
-                toRemove.add(f);
-            }
+            if (f != null) { toRemove = new ArrayList<>(); toRemove.add(f); }
             UnaryPair<Integer> key = openImagesRev.remove(image);
             if (key != null) openImages.remove(key);
-            if (image instanceof TiledDiskBackedImage) {
-                List<File> tileFiles = ((TiledDiskBackedImage<?>)image).streamTiles().map(t -> {
+            if (tiles != null) {
+                List<File> tileFiles = tiles.stream().map(t -> {
                     t.detach();
                     queue.remove(t);
                     return files.remove(t);
@@ -155,62 +170,89 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             }
         }
         image.detach();
-        if (freeMemory) image.freeMemory(false);
-        if (toRemove!=null) toRemove.forEach(File::delete);
+        if (freeMemory) try {image.freeMemory(false);} catch (IOException ignored) { } // image not stored so no IOException should be thrown here
+        if (toRemove != null) toRemove.forEach(File::delete);
         return rem;
     }
 
     @Override
+    public boolean isClearRequested() {
+        return clearRequested;
+    }
+
+    @Override
     public void clear(boolean freeMemory) {
-        stopDaemon();
-        synchronized (queue) {
+        boolean daemonWasOn = stopDaemon(); // no new daemon-originated sweep can start
+        clearRequested = true;             // any in-flight tiling/writing (daemon or otherwise) aborts on its next check
+        try {
+            List<DiskBackedImage> copy;
+            synchronized (queue) {
+                copy = new ArrayList<>(queue);
+                queue.clear();
+            }
+
             if (freeMemory) {
-                for (DiskBackedImage im : queue) {
-                    im.freeMemory(false);
+                for (DiskBackedImage im : copy) {
+                    try {
+                        im.freeMemory(false);
+                    } catch (IOException ignored) {
+                    } // image is not stored so no IOException should be thrown here
                 }
             }
-            for (DiskBackedImage im : queue) {
+            for (DiskBackedImage im : copy) {
                 File f = files.remove(im);
-                if (f!=null) f.delete();
+                if (f != null) f.delete();
                 im.detach(); // remove reference to manager
             }
-            queue.clear();
             openImages.clear();
             openImagesRev.clear();
+
+        } finally {
+            clearRequested = false;
+            if (daemonWasOn) startDaemon(memoryFraction, daemonTimeInterval);
         }
     }
 
-    public void freeMemory(double memoryFraction) {
+    @Override
+    public void close() {
+        stopDaemon();
+        clear(true);
+        try { Runtime.getRuntime().removeShutdownHook(shutdownHook); } catch (IllegalStateException ignored) { } // already shutting down
+
+    }
+
+    @Override
+    public void freeMemory(double memoryFraction) throws IOException {
         freeMemory(memoryFraction, false);
     }
-    protected void freeMemory(double memoryFraction, boolean fromDaemon) {
+    protected void freeMemory(double memoryFraction, boolean fromDaemon) throws IOException {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
-        if (used <= maxUsed || freeingMemory) return;
+        if (used <= maxUsed || !freeing.compareAndSet(false, true)) return;
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
-        freeingMemory = true;
         long freed = 0;
         int loopCount = 0;
-        while(used>maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && !Thread.currentThread().isInterrupted() && loopCount <= queue.size() ) {
-            if (!queue.isEmpty()) {
-                DiskBackedImage im = null;
-                synchronized (queue) {
-                    im = queue.poll();
-                    queue.add(im);
-                }
-                if (im != null) {
-                    if (im.isOpen()) {
-                        if (Thread.currentThread().isInterrupted()) break;
+        try {
+            while (used > maxUsed && !queue.isEmpty() && !(fromDaemon && stopDaemon) && !Thread.currentThread().isInterrupted() && !clearRequested && loopCount <= queue.size()) {
+                DiskBackedImage im;
+                synchronized (queue) { im = queue.poll(); if (im != null) queue.add(im); }
+                if (im == null) break;
+                if (im.isOpen()) {
+                    if (Thread.currentThread().isInterrupted()) break;
+                    try {
+                        im.freeMemory(true);
                         long usedHM = im.usedHeapMemory();
                         used -= usedHM;
                         freed += usedHM;
-                        im.freeMemory(true);
+                    } catch (DiskBackedImageManager.ClearRequestedException e) {
+                        break; // expected: clear() is running, stop writing and let it take over
                     }
                 }
                 ++loopCount; // if memory fraction is too low : avoid infinite loop
             }
+        } finally {
+            freeing.set(false);
         }
-        freeingMemory = false;
         if (freed > 1024 * 1024 * 1024) {
             double total;
             synchronized (queue) {
@@ -288,7 +330,6 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         File f = files.get(fmi);
         if (f == null) {
             f = new File(directory, UUID.randomUUID() + ".bmimage");
-            f.deleteOnExit();
             synchronized (files) {
                 files.put(fmi, f);
             }
