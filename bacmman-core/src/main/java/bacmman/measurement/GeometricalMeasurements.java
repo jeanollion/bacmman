@@ -80,12 +80,15 @@ public class GeometricalMeasurements {
         return getDistanceSquare(o1.getGeomCenter(false), o2.getGeomCenter(false), o1.getScaleXY(), o1.getScaleZ());
     }
     public static double getDistanceBB(Region o1, Region o2, boolean scaled) {
-        double dMin = Double.POSITIVE_INFINITY;
         double sXY = scaled ? o1.getScaleXY():1;
         double sZ = scaled ? o1.getScaleZ():1;
-        for (Voxel v1 : o1.getContour()) {
-            for (Voxel v2 : o2.getContour()) {
-                double d = v1.getDistanceSquare(v2, sXY, sZ);
+        return getDistance(o1.getContour(), o2.getContour(), sXY, sZ);
+    }
+    public static double getDistance(Collection<Voxel> o1, Collection<Voxel> o2, double scaleXY, double scaleZ) {
+        double dMin = Double.POSITIVE_INFINITY;
+        for (Voxel v1 : o1) {
+            for (Voxel v2 : o2) {
+                double d = v1.getDistanceSquare(v2, scaleXY, scaleZ);
                 if (d<dMin) dMin =d;
             }
         }

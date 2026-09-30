@@ -18,10 +18,8 @@
  */
 package bacmman.image;
 
-import bacmman.processing.ImageDerivatives;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
@@ -75,16 +73,27 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @param b2
      * @return euclidean distance between centers of {@param b1} & {@param other}
      */
-    public static double getDistance(BoundingBox b1, BoundingBox b2) {
+    static double getDistance(BoundingBox b1, BoundingBox b2) {
         return Math.sqrt(Math.pow((b1.xMax()+b1.xMin()-(b2.xMin()+b2.xMax()))/2d, 2) + Math.pow((b1.yMax()+b1.yMin()-(b2.yMin()+b2.yMax()))/2d, 2) + Math.pow((b1.zMax()+b1.zMin()-(b2.zMin()-b2.zMax()))/2d, 2));
     }
+    /**
+     *
+     * @param b1
+     * @param b2
+     * @return whether {@param b1} & {@param b2} intersect or not in XY space
+     */
+    static boolean intersect1D(BoundingBox b1, BoundingBox b2, int dim) {
+        if (!b1.isValid() || !b2.isValid()) return false;
+        return Math.max(b1.getMin(dim), b2.getMin(dim))<=Math.min(b1.getMax(dim), b2.getMax(dim));
+    }
+
     /**
      * 
      * @param b1
      * @param b2
      * @return whether {@param b1} & {@param b2} intersect or not in XY space
      */
-    public static boolean intersect2D(BoundingBox b1, BoundingBox b2) {
+    static boolean intersect2D(BoundingBox b1, BoundingBox b2) {
         if (!b1.isValid() || !b2.isValid()) return false;
         return Math.max(b1.xMin(), b2.xMin())<=Math.min(b1.xMax(), b2.xMax()) && Math.max(b1.yMin(), b2.yMin())<=Math.min(b1.yMax(), b2.yMax());
     }
@@ -94,7 +103,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @param b2
      * @return whether {@param b1} & {@param b2} intersect or not in 3D space
      */
-    public static boolean intersect(BoundingBox b1, BoundingBox b2) {
+    static boolean intersect(BoundingBox b1, BoundingBox b2) {
         if (!b1.isValid() || !b2.isValid()) return false;
         return Math.max(b1.xMin(), b2.xMin())<=Math.min(b1.xMax(), b2.xMax()) && Math.max(b1.yMin(), b2.yMin())<=Math.min(b1.yMax(), b2.yMax()) && Math.max(b1.zMin(), b2.zMin())<=Math.min(b1.zMax(), b2.zMax());
     }
@@ -186,16 +195,16 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         return bds.zMin()<=z && bds.zMax()>=z;
     }
 
-    static double outterDistanceSq2D(Point point, BoundingBox bds) {
-        return Math.pow(outterDistance1D(point.get(0), bds, 0), 2) + Math.pow(outterDistance1D(point.get(1), bds, 1), 2);
+    static double outerDistanceSq2D(Point point, BoundingBox bds) {
+        return Math.pow(outerDistance1D(point.get(0), bds, 0), 2) + Math.pow(outerDistance1D(point.get(1), bds, 1), 2);
     }
 
-    static double outterDistanceSq(Point point, BoundingBox bds) {
-        return Math.pow(outterDistance1D(point.get(0), bds, 0), 2) + Math.pow(outterDistance1D(point.get(1), bds, 1), 2)  + Math.pow(outterDistance1D(point.get(2), bds, 2), 2);
+    static double outerDistanceSq(Point point, BoundingBox bds) {
+        return Math.pow(outerDistance1D(point.get(0), bds, 0), 2) + Math.pow(outerDistance1D(point.get(1), bds, 1), 2)  + Math.pow(outerDistance1D(point.get(2), bds, 2), 2);
     }
 
     // returns zero when inside
-    static double outterDistance1D(double coord, BoundingBox bds, int dim) {
+    static double outerDistance1D(double coord, BoundingBox bds, int dim) {
         int min = bds.getMin(dim);
         if (coord < min) return min - coord;
         int max = bds.getMax(dim);
@@ -209,6 +218,15 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         int max = bds.getMax(dim);
         if (coord > max) return 0;
         return Math.min(coord - min, max - coord);
+    }
+
+    // zero when overlap
+    static double outerDistance(BoundingBox bds1, BoundingBox bds2) {
+        if (intersect(bds1, bds2)) return 0;
+        double dX = intersect1D(bds1, bds2, 0) ? 0 : Math.min(outerDistance1D(bds1.xMin(), bds2, 0), outerDistance1D(bds1.xMax(), bds2, 0));
+        double dY = intersect1D(bds1, bds2, 1) ? 0 : Math.min(outerDistance1D(bds1.yMin(), bds2, 1), outerDistance1D(bds1.yMax(), bds2, 1));
+        double dZ = intersect1D(bds1, bds2, 2) ? 0 : Math.min(outerDistance1D(bds1.zMin(), bds2, 2), outerDistance1D(bds1.zMax(), bds2, 2));
+        return Math.sqrt(dX*dX + dY*dY + dZ*dZ);
     }
     
     public static MutableBoundingBox getMergedBoundingBox(Stream<BoundingBox> bounds) {

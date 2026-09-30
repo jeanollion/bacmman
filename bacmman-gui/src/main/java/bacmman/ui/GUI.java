@@ -858,18 +858,32 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
                 postFilterActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.POST_FILTER_2, new AbstractAction("Post-Filter(2)") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                secondaryPostFilterActionPerformed(e);
+            }
+        });
         actionMap.put(Shortcuts.ACTION.MANUAL_TRACK, new AbstractAction("Manual Track") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                ManualEdition.manualTracking(db, null, false);
+                ManualEdition.manualTracking(db, null, false, true);
             }
         });
         actionMap.put(Shortcuts.ACTION.MANUAL_TRACK_PROPAGATE, new AbstractAction("Manual Track (propagate)") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
-                ManualEdition.manualTracking(db, null, true);
+                ManualEdition.manualTracking(db, null, true, true);
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.MANUAL_TRACK_POST_FILTER, new AbstractAction("Manual Track-Post-Filter") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                ManualEdition.applyTrackPostFilters(db, null, getManualEditionRelabel(), true);
             }
         });
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_OBJECTS, new AbstractAction("Select All Objects") {
@@ -5327,7 +5341,14 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         if (!checkConnection()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to apply post-filters on!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, relabel.getSelected(), true);
+        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, false, relabel.getSelected(), true);
+    }//GEN-LAST:event_postFilterActionPerformed
+
+    private void secondaryPostFilterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_postFilterActionPerformed
+        if (!checkConnection()) return;
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
+        if (selList.isEmpty()) logger.warn("Select at least one object to apply post-filters on!");
+        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, true, relabel.getSelected(), true);
     }//GEN-LAST:event_postFilterActionPerformed
 
     private void navigateNextButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed
