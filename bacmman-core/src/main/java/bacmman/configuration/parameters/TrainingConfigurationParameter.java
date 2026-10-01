@@ -755,14 +755,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public static class CategoryLossParameter extends GroupParameterAbstract<CategoryLossParameter> implements PythonConfiguration {
         FloatParameter weightPowerLaw = new FloatParameter("Weight Power Law", 1).setLowerBound(0).setUpperBound(1).setHint("Class imbalance correction is corrected by applying inverse class frequency weights. This power law is applied to those weights to limit them. Value=1 means weights are inverse frequency. Value below 1: Power law applied to inverse class frequency weight, in order to limits them");
         FloatParameter maxWeight = new FloatParameter("Max Weight", 0).setLowerBound(0).setHint("Limits the weights that correct class imbalance. 0 = no limit");
-        FloatParameter focalWeight = new FloatParameter("Focal Weight", 1).setLowerBound(0).setUpperBound(5).setHint("<strong>focal_weight (γ):</strong> Focusing parameter (γ ≥ 0). Controls hard example emphasis.<br>" +
+        FloatParameter focalWeight = new FloatParameter("Focal Weight", 0).setLowerBound(0).setUpperBound(5).setHint("<strong>focal_weight (γ):</strong> Focusing parameter (γ ≥ 0). Controls hard example emphasis.<br>" +
                 "<ul>" +
                 "    <li><strong>γ=0.0</strong> → standard cross entropy (no focal effect)</li>" +
                 "    <li><strong>γ=1.0</strong> → mild focus on hard examples</li>" +
                 "    <li><strong>γ=2.0</strong> → standard focal</li>" +
                 "    <li><strong>γ=5.0</strong> → extreme focus (for very imbalanced data)</li>" +
                 "</ul>");
-        FloatParameter temperature = new FloatParameter("Temperature", 0).setLowerBound(0).setUpperBound(0.5).setHint(
+        FloatParameter temperature = new FloatParameter("Temperature", 0).setLowerBound(0).setUpperBound(0.999).setHint(
                 "<strong>Temperature (t):</strong> Tempering parameter (t &ge; 1). Replaces log(p) with " +
                 "a tempered logarithm whose gradient is p<sup>t-1</sup> instead of 1/p, bounding the " +
                 "loss and gradient on confident-wrong / hard pixels (loss &rarr; 1/t as p&rarr;0). " +
