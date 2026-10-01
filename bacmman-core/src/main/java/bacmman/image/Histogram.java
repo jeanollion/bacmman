@@ -48,7 +48,7 @@ public class Histogram implements JSONSerializable  {
     public Histogram(long[] data, double[] minAndMax) {
         this.data = data;
         this.min = minAndMax[0];
-        binSize = ( minAndMax[1] - minAndMax[0]) / (double)data.length;
+        binSize = data.length > 1 ? ( minAndMax[1] - minAndMax[0]) / (double)(data.length - 1) : minAndMax[1] - minAndMax[0]; // max is included in last bin, consistent with HistogramFactory
     }
     public Histogram(long[] data, double binSize, double min) {
         this.data = data;
@@ -74,17 +74,33 @@ public class Histogram implements JSONSerializable  {
     public Histogram duplicate() {
         return duplicate(0, data.length);
     }
+    /**
+     * @return center of the last non-empty bin (for integer histograms built by {@link HistogramFactory}, the maximal value)
+     */
     public double getMaxValue() {
-        return getValueFromIdx(getMaxNonNullIdx()+1);
+        return getBinCenter(getMaxNonNullIdx());
     }
+
+    /**
+     * @return center of the first non-empty bin (for integer histograms built by {@link HistogramFactory}, the minimal value)
+     */
     public double getMinValue() {
-        return getValueFromIdx(getMinNonNullIdx());
+        return getBinCenter(getMinNonNullIdx());
     }
 
     public Histogram duplicate(int fromIdxIncluded, int toIdxExcluded) {
         long[] dup = new long[data.length];
         System.arraycopy(data, fromIdxIncluded, dup, fromIdxIncluded, toIdxExcluded-fromIdxIncluded);
-        return new Histogram(dup, binSize, min);
+        return newInstance(dup, binSize, min);
+    }
+
+    /**
+     * Creates a histogram of the same type (e.g. same transform for subclasses) with other data and binning
+     * @param binSize bin size, in the same unit as {@link #getBinSize()}
+     * @param min lower edge of the first bin, in the same unit as {@link #getMin()}
+     */
+    protected Histogram newInstance(long[] data, double binSize, double min) {
+        return new Histogram(data, binSize, min);
     }
     
     public void add(Histogram other) {
@@ -94,12 +110,16 @@ public class Histogram implements JSONSerializable  {
         for (int i = 0; i < data.length; ++i) data[i]-=other.data[i];
     }
     
+    /**
+     * @param idx bin index, can be fractional
+     * @return value at position idx: integer idx corresponds to the lower edge of the bin (use {@link #getBinCenter(int)} for the value represented by a bin)
+     */
     public double getValueFromIdx(double idx) {
         return idx * binSize + min;
     }
     public double getIdxFromValue(double value) {
         if (value<=min) return 0;
-        int idx = (int) Math.round((value - min) / binSize );
+        int idx = (int) Math.floor((value - min) / binSize + 1e-9); // bin containing value, consistent with HistogramFactory
         if (idx>=data.length) return data.length-1;
         return idx;
     }
@@ -111,6 +131,12 @@ public class Histogram implements JSONSerializable  {
             count+=data[i];
         }
         return meanIdx/count;
+    }
+    /**
+     * @return mean of the values of bins [fromIncluded; toExcluded), each bin being represented by its center
+     */
+    public double getMean(int fromIncluded, int toExcluded) {
+        return getValueFromIdx(getMeanIdx(fromIncluded, toExcluded) + 0.5);
     }
     public long count(int fromIncluded, int toExcluded) {
         long count = 0;
@@ -142,7 +168,7 @@ public class Histogram implements JSONSerializable  {
         int minIdx = getMinNonNullIdx();
         int maxIdx = getMaxNonNullIdx();
         if (minIdx>0 || maxIdx<data.length-1) {
-            return new Histogram(Arrays.copyOfRange(data, minIdx, maxIdx+1), binSize, getValueFromIdx(minIdx));
+            return newInstance(Arrays.copyOfRange(data, minIdx, maxIdx+1), binSize, min + minIdx * binSize);
         } else return this;
     }
     public void removeSaturatingValue(double countThlFactor, boolean highValues) {
@@ -171,7 +197,7 @@ public class Histogram implements JSONSerializable  {
                 long count = gcount;
                 double limit = count * (1 - quantile[i]); // 1- ?
                 if (limit >= count) {
-                    res[i] = min;
+                    res[i] = getValueFromIdx(0);
                     continue;
                 }
                 count = data[data.length - 1];
@@ -187,16 +213,37 @@ public class Histogram implements JSONSerializable  {
         return res;
     }
 
+    public double getBinCenter(int idx) {
+        return min + (idx + 0.5) * binSize;
+    }
+
+    /**
+     * Quantile of the values contained in bins [fromIncluded; toExcluded), with linear interpolation within bins
+     * @return quantile value, NaN if the range is empty
+     */
+    public double getQuantile(double quantile, int fromIncluded, int toExcluded) {
+        long total = count(fromIncluded, toExcluded);
+        if (total == 0) return Double.NaN;
+        double target = quantile * total;
+        long cum = 0;
+        for (int i = fromIncluded; i<toExcluded; ++i) {
+            if (data[i] == 0) continue;
+            if (cum + data[i] >= target) return getValueFromIdx(i + (target - cum) / data[i]);
+            cum += data[i];
+        }
+        return getValueFromIdx(toExcluded);
+    }
+
     public double getMode() {
         int maxbin = ArrayUtil.max(data);
-        return getValueFromIdx(maxbin);
+        return getBinCenter(maxbin);
     }
 
     public double getModeExcludingTailEnds(int excludeLeft, int excludeRight) {
         if (excludeLeft<0) excludeLeft = 0;
         if (excludeRight<0) excludeRight = 0;
         int maxbin = ArrayUtil.max(data, excludeLeft, data.length-excludeRight);
-        return getValueFromIdx(maxbin);
+        return getBinCenter(maxbin);
     }
 
     public double getCountLinearApprox(double histoIdx) {
@@ -218,7 +265,7 @@ public class Histogram implements JSONSerializable  {
         float[] x = new float[values.length];
         for (int i = 0; i<values.length; ++i) {
             values[i] = data[i];
-            x[i] = xValues ? (float)getValueFromIdx(i) : i;
+            x[i] = xValues ? (float)getBinCenter(i) : i;
         }
         new Plot(title, "value", "count", x, values).show();
     }

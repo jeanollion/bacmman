@@ -44,7 +44,7 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
             default:
                 return histogram.getModeExcludingTailEnds(excludeEdgeLeft.getIntValue(), excludeEdgeRight.getIntValue());
             case MEAN:
-                return histogram.getMeanIdx(excludeEdgeLeft.getIntValue(), histogram.getData().length - excludeEdgeRight.getIntValue());
+                return histogram.getMean(excludeEdgeLeft.getIntValue(), histogram.getData().length - excludeEdgeRight.getIntValue());
             case MEDIAN:
                 if (excludeEdgeLeft.getIntValue()>0 || excludeEdgeRight.getIntValue()>0) {
                     histogram = histogram.duplicate(excludeEdgeLeft.getIntValue(), histogram.getData().length - excludeEdgeRight.getIntValue());

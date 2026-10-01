@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.thresholders;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.HistogramSource;
 import bacmman.image.Histogram;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
@@ -54,6 +55,11 @@ public class ConstantValue implements SimpleThresholder, Thresholder, Thresholde
     }
     @Override
     public double runSimpleThresholder(Image input, ImageMask mask) {
+        return value.getValue().doubleValue();
+    }
+
+    @Override
+    public double runThresholderHisto(HistogramSource source) { // no histogram computation
         return value.getValue().doubleValue();
     }
 

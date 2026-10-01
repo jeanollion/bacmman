@@ -24,6 +24,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.plugins.HintSimple;
 import ij.process.AutoThresholder;
 import ij.process.AutoThresholder.Method;
+import bacmman.image.HistogramBinning;
 import bacmman.image.BlankMask;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Histogram;
@@ -53,7 +54,9 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, H
     
     @Override 
     public double runSimpleThresholder(Image input, ImageMask mask) {
-        return runThresholder(input, mask, Method.valueOf(method.getSelectedItem()));
+        Histogram histo = HistogramFactory.getHistogram(()->mask==null ? input.stream(): input.stream(mask, true), getHistogramBinning().getMethod());
+        histo.removeSaturatingValue(4, true);
+        return runThresholder(Method.valueOf(method.getSelectedItem()), histo);
     }
     
     public static double runThresholder(Image input, ImageMask mask, Method method) {
@@ -77,7 +80,7 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, H
         else {
             AutoThresholder at = new AutoThresholder();
             double thld = at.getThreshold(method, Arrays.stream(histo.getData()).mapToInt(i->(int)i).toArray());
-            return histo.getValueFromIdx(thld);
+            return histo.getValueFromIdx(thld + 1); // ImageJ convention: bins <= thld are background. returns upper edge of the bin so that foreground is value > threshold
         }
         
     }
@@ -154,6 +157,14 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, H
         return res.getRealDouble();
     }
     
+
+    /**
+     * ImageJ's methods are designed for 256-bin histograms
+     */
+    @Override
+    public HistogramBinning getHistogramBinning() {
+        return HistogramBinning.linear(HistogramFactory.BIN_SIZE_METHOD.NBINS_256);
+    }
     @Override    
     public Parameter[] getParameters() {
         return new Parameter[]{method};

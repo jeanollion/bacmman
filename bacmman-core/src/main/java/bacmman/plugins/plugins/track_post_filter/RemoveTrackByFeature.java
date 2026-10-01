@@ -156,13 +156,13 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
             case Feature: {
                 Supplier<DoubleStream> streamSupplier = () -> valueMap.values().stream().mapToDouble(d->d);
                 ThresholderHisto thdler = this.thldDistribution.instantiatePlugin();
-                threshold = thdler.runThresholderHisto(HistogramFactory.getHistogram(streamSupplier));
+                threshold = thdler.runThresholderHisto(HistogramSource.of(streamSupplier));
                 break;
             }
             case Image: {
                 Supplier<DoubleStream> streamSupplier = () -> Image.stream(allImages);
                 ThresholderHisto thdler = this.thldImage.instantiatePlugin();
-                threshold = thdler.runThresholderHisto(HistogramFactory.getHistogram(streamSupplier));
+                threshold = thdler.runThresholderHisto(HistogramSource.of(streamSupplier));
                 if (needDiskBackedImage) dbim.clear(true);
                 allImages.clear();
                 break;

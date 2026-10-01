@@ -356,7 +356,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         int maxIdx = ArrayUtil.max(histo.getData());
         int[] candidate=null;
         if (histo.getData()[maxIdx]>=total/2.0) {
-            int cand = (int)histo.getValueFromIdx(maxIdx);
+            int cand = (int)Math.round(histo.getBinCenter(maxIdx));
             if (div<=1) return cand;
             int divisible = closestNumber(cand, div, false);
             if (divisible==cand) return cand;

@@ -49,7 +49,7 @@ public class ImgLib2HistogramWrapper {
         return res;
     }
     private static <T extends RealType< T >> BinMapper1d<T> binMapperfromHisto(Histogram histo) {
-        return new Real1dBinMapper(histo.getMinValue(), histo.getMaxValue(), histo.getMaxNonNullIdx() - histo.getMinNonNullIdx() + 1, false);
+        return new Real1dBinMapper(histo.getValueFromIdx(histo.getMinNonNullIdx()), histo.getValueFromIdx(histo.getMaxNonNullIdx() + 1), histo.getMaxNonNullIdx() - histo.getMinNonNullIdx() + 1, false); // bin edges
     }
     public static <T extends RealType<T>> Histogram1d<T> wrap(Histogram histo) {
         try {
@@ -59,7 +59,7 @@ public class ImgLib2HistogramWrapper {
             dfdF.set(res, DFDfromHisto(histo));
             Field fv = Histogram1d.class.getDeclaredField("firstValue");
             fv.setAccessible(true);
-            fv.set(res, new FloatType((float)histo.getMinValue()));
+            fv.set(res, new FloatType((float)histo.getValueFromIdx(histo.getMinNonNullIdx())));
             return res;
         } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex) {
             logger.debug("Error while converting histogram", ex);

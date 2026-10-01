@@ -32,8 +32,8 @@ public class MeanSdScaler implements HistogramScaler, Hint {
     }
     public static double[] getMeanSd(Histogram histogram) {
         double total = histogram.count();
-        double mean = IntStream.range(0, histogram.getData().length).mapToDouble(i->histogram.getValueFromIdx(i) * histogram.getData()[i]).sum() / total;
-        double sd = IntStream.range(0, histogram.getData().length).mapToDouble(i-> Math.pow(histogram.getValueFromIdx(i) - mean, 2) * histogram.getData()[i]).sum() / total;
+        double mean = IntStream.range(0, histogram.getData().length).mapToDouble(i->histogram.getBinCenter(i) * histogram.getData()[i]).sum() / total;
+        double sd = IntStream.range(0, histogram.getData().length).mapToDouble(i-> Math.pow(histogram.getBinCenter(i) - mean, 2) * histogram.getData()[i]).sum() / total;
         return new double[] {mean, Math.sqrt(sd)};
     }
     @Override

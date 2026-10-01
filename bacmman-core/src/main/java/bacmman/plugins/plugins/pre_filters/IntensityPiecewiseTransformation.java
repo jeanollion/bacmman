@@ -87,30 +87,16 @@ public class IntensityPiecewiseTransformation implements PreFilter, TrackPreFilt
     }
 
     private Pair<Double, double[]> getBreaks(Supplier<DoubleStream> values) {
-        double min;
-        Histogram histogram;
-        if (breaks.getAll().stream().allMatch( h -> h.getClass().equals(ConstantValue.class) )) { // special case: no need to compute histogram
-            min = values.get().min().orElse(0);
-            histogram = null;
-        } else {
-            histogram = HistogramFactory.getHistogram(values);
-            min = histogram.getMin();
-        }
-        double[] breakPoints = breaks.getAll().stream().mapToDouble( th -> th.runThresholderHisto(histogram) ).toArray();
+        double min = values.get().min().orElse(0);
+        HistogramSource histograms = HistogramSource.of(values); // histograms are computed only if required by a break, once per binning method
+        double[] breakPoints = breaks.getAll().stream().mapToDouble( th -> th.runThresholderHisto(histograms) ).toArray();
         return new Pair<>(min, breakPoints);
     }
 
     private Pair<Double, double[]> getBreaksImageStream(Supplier<Stream<Image>> images) {
-        double min;
-        Histogram histogram;
-        if (breaks.getAll().stream().allMatch( h -> h.getClass().equals(ConstantValue.class) )) { // special case: no need to compute histogram
-            min = images.get().mapToDouble(im -> im.getMinAndMax(null)[0]).min().orElse(0);
-            histogram = null;
-        } else {
-            histogram = HistogramFactory.getHistogramImageStream(images);
-            min = histogram.getMin();
-        }
-        double[] breakPoints = breaks.getAll().stream().mapToDouble( th -> th.runThresholderHisto(histogram) ).toArray();
+        double min = images.get().mapToDouble(im -> im.getMinAndMax(null)[0]).min().orElse(0);
+        HistogramSource histograms = HistogramSource.of(() -> images.get().flatMapToDouble(Image::stream)); // histograms are computed only if required by a break, once per binning method
+        double[] breakPoints = breaks.getAll().stream().mapToDouble( th -> th.runThresholderHisto(histograms) ).toArray();
         return new Pair<>(min, breakPoints);
     }
 

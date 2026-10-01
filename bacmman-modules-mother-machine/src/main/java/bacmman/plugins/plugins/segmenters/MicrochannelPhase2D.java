@@ -329,7 +329,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
         double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
         int thldIdx = (int)histo.getIdxFromValue(thld);
         double foreground = histo.duplicate(thldIdx, histo.getData().length).getQuantiles(0.5)[0];
-        double background = histo.getValueFromIdx(histo.getMeanIdx(0, thldIdx-1));
+        double background = histo.getMean(0, thldIdx-1);
         double range = foreground - background;
         //logger.debug("histo computed on {}/{} images foreground={} background={} range={}", parentTrack_.size(), parentTrack.size(), foreground, background, range);
         return range / this.relativeDerThld.getValue().doubleValue();

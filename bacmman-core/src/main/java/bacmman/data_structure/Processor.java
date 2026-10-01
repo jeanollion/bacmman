@@ -399,11 +399,11 @@ public class Processor {
             nBins = 1000;
             binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], nBins);
         } else if (refImage.byteCount()==1) {
-            min = 0;
+            min = -0.5; // bins centered on integer values
             binSize = 1;
             nBins = 256;
         } else if (refImage.byteCount() == 2) {
-            min = 0;
+            min = -0.5; // bins centered on integer values
             binSize = 1;
             nBins = 65536;
         } else throw new RuntimeException("Unsupported image type: "+ refImage.getClass());
