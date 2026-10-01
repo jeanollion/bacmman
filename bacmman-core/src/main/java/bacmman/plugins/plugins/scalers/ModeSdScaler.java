@@ -1,5 +1,8 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramSource;
+import bacmman.image.HistogramBinning;
+import bacmman.configuration.parameters.HistogramBinningParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -15,9 +18,10 @@ import java.util.stream.IntStream;
 public class ModeSdScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double mode, sd;
-    BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge");
-    BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
+    BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge (bins of the histogram defined by <em>Histogram binning</em>)");
+    BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge (bins of the histogram defined by <em>Histogram binning</em>)");
 
+    HistogramBinningParameter binning = new HistogramBinningParameter();
     boolean transformInputImage = false;
     Consumer<String> scaleLogger;
     @Override
@@ -68,8 +72,13 @@ public class ModeSdScaler implements HistogramScaler, Hint {
     }
 
     @Override
+    public HistogramBinning getHistogramBinning() {
+        return binning.getBinning();
+    }
+
+    @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modeExcludeEdgeLeft, modeExcludeEdgeRight};
+        return new Parameter[]{modeExcludeEdgeLeft, modeExcludeEdgeRight, binning};
     }
 
     @Override

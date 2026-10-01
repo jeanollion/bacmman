@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramFactory;
+import bacmman.image.HistogramSource;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
 import bacmman.image.Image;
@@ -21,6 +23,14 @@ public class MeanSdScaler implements HistogramScaler, Hint {
     protected void log(double[] meanSd) {
         if (scaleLogger!=null) scaleLogger.accept("MeanSd Scaler : center="+meanSd[0]+", sd="+meanSd[1]);
     }
+    /**
+     * Uses the fine histogram of the source (one bin per value for integer values): statistics do not depend on binning
+     */
+    @Override
+    public void setHistogram(HistogramSource source) {
+        setHistogram(source.getFineHistogram());
+    }
+
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;

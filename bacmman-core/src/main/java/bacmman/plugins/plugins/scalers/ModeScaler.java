@@ -1,5 +1,8 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramSource;
+import bacmman.image.HistogramBinning;
+import bacmman.configuration.parameters.HistogramBinningParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -16,9 +19,10 @@ public class ModeScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center;
     BoundedNumberParameter range = new BoundedNumberParameter("Range", 3,  0, 0.001, null).setEmphasized(true).setHint("Values will be transformed: I -> ( I - mode ) / range");
-    BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge");
-    BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
+    BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge (bins of the histogram defined by <em>Histogram binning</em>)");
+    BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge (bins of the histogram defined by <em>Histogram binning</em>)");
 
+    HistogramBinningParameter binning = new HistogramBinningParameter();
     boolean transformInputImage = false;
     Consumer<String> scaleLogger;
     @Override
@@ -38,7 +42,7 @@ public class ModeScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
         else { // perform on single image
-            double center = HistogramFactory.getHistogram(image::stream).getMode(); // TODO smooth ?
+            double center = HistogramSource.of(image::stream).getHistogram(getHistogramBinning()).getModeExcludingTailEnds(modeExcludeEdgeLeft.getIntValue(), modeExcludeEdgeRight.getIntValue());
             log(center);
             return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
         }
@@ -61,8 +65,13 @@ public class ModeScaler implements HistogramScaler, Hint {
     }
 
     @Override
+    public HistogramBinning getHistogramBinning() {
+        return binning.getBinning();
+    }
+
+    @Override
     public Parameter[] getParameters() {
-        return new Parameter[] {range, modeExcludeEdgeLeft, modeExcludeEdgeRight};
+        return new Parameter[] {range, modeExcludeEdgeLeft, modeExcludeEdgeRight, binning};
     }
 
     @Override

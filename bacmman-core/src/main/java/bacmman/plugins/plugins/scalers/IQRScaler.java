@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramSource;
 import bacmman.configuration.parameters.IntervalParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -23,6 +24,14 @@ public class IQRScaler implements HistogramScaler, Hint {
     protected void log(double[] IQR_scale_center) {
         if (scaleLogger!=null) scaleLogger.accept("IQR Scaler : center="+IQR_scale_center[2]+", scale="+IQR_scale_center[1]+", IQR="+IQR_scale_center[0]);
     }
+    /**
+     * Uses the fine histogram of the source (one bin per value for integer values): statistics do not depend on binning
+     */
+    @Override
+    public void setHistogram(HistogramSource source) {
+        setHistogram(source.getFineHistogram());
+    }
+
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
@@ -44,7 +53,7 @@ public class IQRScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, -center);
         else { // perform on single image
-            double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(image::stream));
+            double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getFineHistogram(image::stream));
             log(IQR_scale_center);
             return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, IQR_scale_center[1], -IQR_scale_center[2]);
         }

@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramSource;
 import bacmman.configuration.parameters.*;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
@@ -49,6 +50,14 @@ public class PercentileScaler implements HistogramScaler, Hint {
         return this;
     }
 
+    /**
+     * Uses the fine histogram of the source (one bin per value for integer values): statistics do not depend on binning
+     */
+    @Override
+    public void setHistogram(HistogramSource source) {
+        setHistogram(source.getFineHistogram());
+    }
+
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
@@ -69,7 +78,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
         boolean isFloatingPoint = image.floatingPoint();
         if (isConfigured()) image = ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else { // perform on single image
-            double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream));
+            double[] scaleOff = getScaleOffset(HistogramFactory.getFineHistogram(image::stream));
             log(scaleOff);
             image = ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }

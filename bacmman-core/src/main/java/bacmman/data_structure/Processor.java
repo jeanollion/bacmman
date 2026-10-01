@@ -385,7 +385,7 @@ public class Processor {
             root.setAttribute(histoKey, histogram.toJSONEntry());
             dao.store(root);
         }
-        scaler.setHistogram(histogram);
+        scaler.setHistogram(HistogramSource.of(histogram)); // stored histogram is fine (one bin per value for 8 and 16-bit images): each scaler derives its binning from it
     }
     public static Histogram createHistogramForPosition(ObjectDAO dao, int objectClassIdx) {
         int parentClassIdx = dao.getExperiment().experimentStructure.getParentObjectClassIdx(objectClassIdx);

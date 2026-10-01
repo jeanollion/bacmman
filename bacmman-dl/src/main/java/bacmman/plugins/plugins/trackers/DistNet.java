@@ -623,8 +623,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape, HistogramScaler scaler) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         if ( !(scaler instanceof MinMaxScaler) && !scaler.isConfigured()) {
-            Histogram histo = HistogramFactory.getHistogram(() -> Image.stream(Arrays.asList(in)));
-            scaler.setHistogram(histo);
+            scaler.setHistogram(HistogramSource.of(() -> Image.stream(Arrays.asList(in))));
         }
 
         int[][] dimensions = ResizeUtils.getDimensions(in);
