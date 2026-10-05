@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DLFilterSimple implements TrackPreFilter, Transformation, Transformation.ConfigurableTransformation, Transformation.Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
     static Logger logger = LoggerFactory.getLogger(DLFilterSimple.class);
@@ -95,7 +96,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
         logger.debug("segments: {}",Utils.toStringList(segments, s -> "["+s[0]+"; "+s[1]+")"));
         // intensity scaling computed once on the whole movie (all segments) so that all batches are scaled identically
         int[] frames = parentTrack.keySet().stream().mapToInt(i->i).sorted().toArray();
-        DLResizeAndScale dl = dlResample.withGlobalScaling(frames.length, (inputIdx, f) -> new Image[]{preFilteredImages.getImage(parentTrack.get(frames[f]))});
+        DLResizeAndScale dl = dlResample.withGlobalScaling(frames.length, parentTrack.get(frames[0]).getBounds(), (inputIdx, subset) -> IntStream.of(subset).mapToObj(f -> preFilteredImages.getImage(parentTrack.get(frames[f]))));
         for (int[] segment : segments) {
             try {
                 predict(imageIO, segment[0], segment[1], dLengine, dl);
@@ -147,13 +148,14 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
             }
         };
         // intensity scaling computed once on the whole movie so that all batches are scaled identically
-        DLResizeAndScale dl = dlResample.withGlobalScaling(nFrames, (inputIdx, f) -> {
+        // no image dimension accessor: dimensions are read from the first frame (all frames are read for prediction anyway)
+        DLResizeAndScale dl = dlResample.withGlobalScaling(nFrames, imageIO.get(minFrame), (inputIdx, subset) -> IntStream.of(subset).mapToObj(f -> {
             try {
-                return new Image[]{imageIO.get(minFrame + f)};
+                return imageIO.get(minFrame + f);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        });
+        }));
         predict(imageIO, minFrame, minFrame+nFrames, getDLengine(), dl);
     }
 

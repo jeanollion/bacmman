@@ -223,6 +223,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.dbim = dbim;
         }
 
+        /**
+         * @return dimensions of the input images at this frame, without reading images
+         */
+        public BoundingBox getImageDimensions(int frame) {
+            return bds != null ? bds : parentTrack.get(frame).getBounds();
+        }
+
         public int nInputs() {
             return 1 + additionalInputChannels.length + additionalInputLabels.length * 2;
         }
@@ -2244,10 +2251,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     /**
      * @param allFrames all frames of the track of inputImages
-     * @return DLResizeAndScale with intensity scaling computed once on the whole track (see {@link DLResizeAndScale#withGlobalScaling(int, java.util.function.BiFunction)}), so that all batches are scaled identically
+     * @return DLResizeAndScale with intensity scaling computed once on the whole track (see {@link DLResizeAndScale#withGlobalScaling(int, BoundingBox, java.util.function.BiFunction)}), so that all batches are scaled identically
      */
     protected DLResizeAndScale getGlobalDlResizeAndScale(boolean frameAware, InputImages inputImages, int[] allFrames) {
-        return inputImages.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(allFrames.length, (inputIdx, f) -> new Image[]{inputImages.getImage(allFrames[f], inputIdx)}));
+        return inputImages.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(allFrames.length, inputImages.getImageDimensions(allFrames[0]), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> inputImages.getImage(allFrames[f], inputIdx))));
     }
 
     protected DLResizeAndScale getDlResizeAndScale(boolean frameAware) {

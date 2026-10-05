@@ -13,9 +13,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     static Logger logger = LoggerFactory.getLogger(DLFilter.class);
@@ -58,7 +60,7 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
         for (int i = 0; i<inputs.getChildCount(); ++i) extractors.add(getExtractor(inputs.getChildAt(i)));
         DLEngine engine = getEngine(extractors.size());
         // intensity scaling computed once on the whole movie so that all batches are scaled identically
-        DLResizeAndScale dl = dlResample.withGlobalScaling(track.size(), (inputIdx, f) -> extractors.get(inputIdx).apply(track.get(f)));
+        DLResizeAndScale dl = dlResample.withGlobalScaling(track.size(), track.get(0).getBounds(), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> extractors.get(inputIdx).apply(track.get(f))).flatMap(Arrays::stream));
         int n = track.size();
         int increment = batchSize.getIntValue() == 0 ? n : (int)Math.ceil( (double)n / Math.ceil( (double)n / batchSize.getIntValue()) );
         for (int i = 0; i < n; i += increment) {

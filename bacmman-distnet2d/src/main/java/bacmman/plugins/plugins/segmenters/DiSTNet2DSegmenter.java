@@ -297,7 +297,7 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             long t2 = System.currentTimeMillis();
             DiSTNet2D.InputImages ii = inputImages;
             // intensity scaling computed once on the whole track so that all batches are scaled identically
-            Image[][][] predictionONC = ii.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(sortedFrames.length, (inputIdx, f) -> new Image[]{ii.getImage(sortedFrames[f], inputIdx)})).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
+            Image[][][] predictionONC = ii.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(sortedFrames.length, ii.getImageDimensions(sortedFrames[0]), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> ii.getImage(sortedFrames[f], inputIdx)))).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
             long t3 = System.currentTimeMillis();
             logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms) (effective frame range: [{}; {}] idx=[{}; {}])", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2, effectiveMinFrame, effectiveMaxFrameIncl, effectiveMinIdx, effectiveMaxIdxIncl);
 

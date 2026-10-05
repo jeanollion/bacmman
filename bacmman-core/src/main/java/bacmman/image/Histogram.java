@@ -148,14 +148,21 @@ public class Histogram implements JSONSerializable  {
         for (long i : data) sum+=i;
         return sum;
     }
+    /**
+     * @return index of the last non-empty bin (0 if all bins are empty)
+     */
     public int getMaxNonNullIdx() {
         int i = data.length-1;
-        if (data[i]==0) while(i>0 && data[i-1]==0) --i;
+        while(i>0 && data[i]==0) --i;
         return i;
     }
+
+    /**
+     * @return index of the first non-empty bin (last index if all bins are empty)
+     */
     public int getMinNonNullIdx() {
         int i = 0;
-        if (data[i]==0) while(i<data.length-1 && data[i+1]==0) ++i;
+        while(i<data.length-1 && data[i]==0) ++i;
         return i;
     }
     // removed leading and trailing zeros if any

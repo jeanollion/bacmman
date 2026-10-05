@@ -110,6 +110,40 @@ public class HistogramFactory {
         return streamSupplier.get().collect(supplier ,cons, combiner);
     }
 
+    /**
+     * Maximal number of values of the frames selected by {@link #getFrameSubset(int, long)}
+     */
+    public static long FRAME_SUBSET_MAX_VALUES = 1L << 30;
+    /**
+     * Maximal frame step of {@link #getFrameSubset(int, long)}: at least 1 frame out of FRAME_SUBSET_MAX_FRAME_STEP is selected
+     */
+    public static int FRAME_SUBSET_MAX_FRAME_STEP = 20;
+
+    /**
+     * Subset of frames used to compute the histogram of a whole movie, so that the number of values is limited and only the selected frames need to be read
+     * @param nFrames number of frames of the movie
+     * @param frameDimensions dimensions of the image of one frame
+     * @return indices in [0; nFrames) of the selected frames, see {@link #getFrameSubset(int, long)}
+     */
+    public static int[] getFrameSubset(int nFrames, BoundingBox frameDimensions) {
+        return getFrameSubset(nFrames, (long)frameDimensions.sizeX() * frameDimensions.sizeY() * frameDimensions.sizeZ());
+    }
+
+    /**
+     * Subset of frames used to compute the histogram of a whole movie, so that the number of values is limited and only the selected frames need to be read: one frame out of X, with X = min(ceil(nFrames x valuesPerFrame / {@link #FRAME_SUBSET_MAX_VALUES}), {@link #FRAME_SUBSET_MAX_FRAME_STEP}), frames being evenly distributed along the movie (centered).
+     * At least 3 frames are selected (or all frames if nFrames &lt;= 3): if the step gives less than 3 frames, the first, central and last frames are selected
+     * @param nFrames number of frames of the movie
+     * @param valuesPerFrame number of values of one frame
+     * @return indices in [0; nFrames) of the selected frames, in ascending order. Empty if nFrames &lt;= 0
+     */
+    public static int[] getFrameSubset(int nFrames, long valuesPerFrame) {
+        if (nFrames <= 0) return new int[0];
+        if (nFrames <= 3) return IntStream.range(0, nFrames).toArray();
+        int step = (int)Math.max(1, Math.min(FRAME_SUBSET_MAX_FRAME_STEP, Math.ceil((double)nFrames * valuesPerFrame / FRAME_SUBSET_MAX_VALUES)));
+        int[] frames = IntStream.range(0, nFrames).filter(f -> f % step == step / 2).toArray();
+        return frames.length < 3 ? new int[]{0, nFrames / 2, nFrames - 1} : frames; // too few frames for the step: first, central and last frames
+    }
+
     public static int QUANTILE_N_BUCKETS = 4096;
     public static int QUANTILE_MAX_REFINE_PASSES = 3;
     public static double QUANTILE_RELATIVE_PRECISION = 1e-2;
@@ -367,7 +401,7 @@ public class HistogramFactory {
      * @param streamSupplier value distribution used for the histogram
      * @param method binning method:
      * <ul>
-     *   <li><b>NBINS_256</b>: Forces number of bins to 256, regardless of data characteristics</li>
+     *   <li><b>NBINS_256</b>: 256 bins of equal size covering the range of values, regardless of data characteristics. For integer data, the bin size is the smallest integer such that 256 bins cover all values, and bins after the maximal value can be empty</li>
      *   <li><b>SCOTT</b>: Uses Scott's rule (Scott, D. 1979) for optimal bin size:
      *       binSize = 3.49 × σ × N^(-1/3), where σ is standard deviation and N is sample count.
      *       For integer data (no decimal places), bin size is at least 1.
@@ -383,7 +417,7 @@ public class HistogramFactory {
      *   <li><b>KNUTH</b>: number of bins maximizing the posterior probability of a piecewise-constant density model (Knuth, arXiv:physics/0605197, 2006). Data-driven: adapts to multimodal distributions.</li>
      * </ul>
      * The three last methods build a fine base histogram (bin size 1 for integer data if possible, otherwise range / {@value #MAX_N_BINS}, see {@link #getBaseHistogram(Supplier, double[])}) and select an integer merge factor of its bins. With {@link #getHistogram(Supplier, BIN_SIZE_METHOD)} the merged histogram is returned directly, without additional pass over the data.
-     * For integer data, bin size is an integer &gt;= 1 so that all bins contain the same number of integer values (the number of bins can then be lower than {@value #MIN_N_BINS}, or than 256 for NBINS_256).
+     * For integer data, bin size is an integer &gt;= 1 so that all bins contain the same number of integer values (with SCOTT and FREEDMAN_DIACONIS_IQR the number of bins can then be lower than {@value #MIN_N_BINS}).
      * For integer data, the histogram starts at min - 0.5 so that bins are centered on integer values (with bin size 1, bin centers are the integer values, and bin edges are at half-integers).
      * Non-finite values are ignored.
      *
@@ -412,8 +446,8 @@ public class HistogramFactory {
         double binSize;
         switch(method) {
             case NBINS_256: {
-                binSize = getBinSize(stats[5], stats[6], 256);
-                if (integer) binSize = Math.max(1, Math.ceil(binSize - 1e-9)); // same number of integer values in each bin: avoids aliasing
+                if (integer) binSize = Math.max(1, Math.ceil((stats[6] - stats[5] + 1) / 256 - 1e-9)); // bins centered on integers: 256 bins must cover max - min + 1 integer values. Same number of integer values in each bin: avoids aliasing
+                else binSize = getBinSize(stats[5], stats[6], 256);
                 break;
             } case SCOTT: {
                 binSize = 3.49 * std * Math.pow(stats[3], -1/3d);
