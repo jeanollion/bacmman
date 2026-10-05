@@ -104,6 +104,12 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(center, 1 / scale).setSaturation(new double[]{1, powerLaw.getDoubleValue()}); // saturation of higher tail only
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

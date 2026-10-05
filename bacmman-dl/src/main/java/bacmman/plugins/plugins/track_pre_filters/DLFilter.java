@@ -12,7 +12,10 @@ import bacmman.processing.ResizeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     static Logger logger = LoggerFactory.getLogger(DLFilter.class);
@@ -24,6 +27,7 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     SimpleListParameter<GroupParameter> inputs = new SimpleListParameter<>("Additional Inputs", grp).setHint("Total input number must correspond to model inputs");//.addValidationFunction(list -> list.getChildCount()+1 == engineNumIn());
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).addInputNumberValidation(()->1+inputs.getChildCount()).setEmphasized(true);
     BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Frame Batch Size", 0, 200, 0, null).setEmphasized(true).setHint("For time-lapse dataset: defines how many frames are processed at the same time (0=all frames). Limits memory usage for large movies");
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
@@ -34,29 +38,39 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
         if (in==null) return 0;
         else return in.getNumInputArrays();
     }
-    private Image[] predict(Image[][][] inputINC) {
+    private DLEngine getEngine(int nInputs) {
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int numInputs = engine.getNumInputArrays();
         int numOutputs = engine.getNumOutputArrays();
         if (numOutputs!=1) throw new IllegalArgumentException("Model predicts "+numOutputs+ " when 1 output is expected");
-        if (inputINC.length!=numInputs) throw new IllegalArgumentException("Model expects: "+numInputs+" inputs but were "+inputINC.length+" were given");
-
-        Image[][][] predictionONC =dlResample.predict(engine, inputINC);
-        return ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
+        if (nInputs!=numInputs) throw new IllegalArgumentException("Model expects: "+numInputs+" inputs but were "+nInputs+" were given");
+        return engine;
     }
 
     @Override
     public void filter(int structureIdx, SegmentedObjectImageMap preFilteredImages) {
-        Image[][][] in = new Image[1+inputs.getChildCount()][][];
-        in[0] = preFilteredImages.streamImages().map(im->new Image[]{im}).toArray(Image[][]::new);
-        for (int i = 1; i<in.length; ++i) in[i] = extractInput(preFilteredImages, inputs.getChildAt(i-1));
-        Image[] out = predict(in);
-        int[] idx = new int[1];
-        preFilteredImages.streamKeys().sequential().forEach(o -> preFilteredImages.set(o, out[idx[0]++]));
+        List<SegmentedObject> track = preFilteredImages.streamKeys().collect(Collectors.toList());
+        if (track.isEmpty()) return;
+        // input extractors: main input = pre-filtered images, then additional inputs
+        List<Function<SegmentedObject, Image[]>> extractors = new ArrayList<>();
+        extractors.add(o -> new Image[]{preFilteredImages.getImage(o)});
+        for (int i = 0; i<inputs.getChildCount(); ++i) extractors.add(getExtractor(inputs.getChildAt(i)));
+        DLEngine engine = getEngine(extractors.size());
+        // intensity scaling computed once on the whole movie so that all batches are scaled identically
+        DLResizeAndScale dl = dlResample.withGlobalScaling(track.size(), (inputIdx, f) -> extractors.get(inputIdx).apply(track.get(f)));
+        int n = track.size();
+        int increment = batchSize.getIntValue() == 0 ? n : (int)Math.ceil( (double)n / Math.ceil( (double)n / batchSize.getIntValue()) );
+        for (int i = 0; i < n; i += increment) {
+            List<SegmentedObject> subTrack = track.subList(i, Math.min(n, i + increment));
+            Image[][][] inputINC = extractors.stream().map(e -> subTrack.stream().map(e).toArray(Image[][]::new)).toArray(Image[][][]::new);
+            Image[][][] predictionONC = dl.predict(engine, inputINC);
+            Image[] out = ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
+            for (int j = 0; j<subTrack.size(); ++j) preFilteredImages.set(subTrack.get(j), out[j]);
+        }
     }
 
-    private static Image[][] extractInput(SegmentedObjectImageMap preFilteredImages, GroupParameter params) {
+    private static Function<SegmentedObject, Image[]> getExtractor(GroupParameter params) {
         ObjectClassParameterAbstract oc = (ObjectClassParameterAbstract) params.getChildAt(0);
         int ocIdx = oc.getSelectedClassIdx();
         logger.debug("Object class IDX: {}", ocIdx);
@@ -76,12 +90,12 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
                 break;
             }
         }
-        return preFilteredImages.streamKeys().map(extractor).toArray(Image[][]::new);
+        return extractor;
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{dlEngine, inputs, dlResample, channel};
+        return new Parameter[]{dlEngine, inputs, dlResample, channel, batchSize};
     }
 
     @Override

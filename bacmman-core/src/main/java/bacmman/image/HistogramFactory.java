@@ -187,6 +187,17 @@ public class HistogramFactory {
             return stats.clone();
         }
         /**
+         * @return center of the most populated bucket of the coarse histogram (relative precision ~ 1/16 of the value), without additional pass over the values
+         */
+        public double getApproximateMode() {
+            int b = 0;
+            for (int i = 1; i<FB_N; ++i) if (coarse[i] > coarse[b]) b = i;
+            double[] bounds = floatBitBucketBounds(b);
+            double lo = Math.max(getMin(), bounds[0]), hi = Math.min(getMax(), bounds[1]);
+            return (lo + hi) / 2;
+        }
+
+        /**
          * @return quantile estimated from the coarse histogram (relative precision ~ 1/16 of the value, linear interpolation within buckets), without additional pass over the values
          */
         public double getApproximateQuantile(double quantile) {

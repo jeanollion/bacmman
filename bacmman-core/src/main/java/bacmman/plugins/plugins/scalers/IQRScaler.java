@@ -71,6 +71,12 @@ public class IQRScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(center, 1 / scale);
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

@@ -60,6 +60,12 @@ public class ModeScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(center, range.getDoubleValue());
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

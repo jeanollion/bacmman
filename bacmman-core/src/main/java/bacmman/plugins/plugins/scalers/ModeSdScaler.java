@@ -67,6 +67,12 @@ public class ModeSdScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(mode, sd);
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

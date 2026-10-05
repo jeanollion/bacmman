@@ -106,9 +106,9 @@ public class HistogramSource {
                     double offset = b.getOffset(fine.getMinValue(), fine.getMaxValue(), false);
                     double[] y = fine.getBinCenters();
                     for (int i = 0; i<y.length; ++i) y[i] = TransformedHistogram.transform(Math.max(y[i], fine.getMinValue()), t, exponent, offset);
-                    // bins narrower than the transformed width of one bin of the source histogram would be artificially empty: width computed at the 1st percentile
-                    double q01 = fine.getQuantiles(0.01)[0];
-                    double minBinSize = TransformedHistogram.transform(q01 + fine.getBinSize(), t, exponent, offset) - TransformedHistogram.transform(q01, t, exponent, offset);
+                    // bins narrower than the transformed width of one bin of the source histogram would be artificially empty: width computed at the mode (main peak, e.g. background), where resolution matters most. Not influenced by the lower tail (e.g. a few very low values close to the offset)
+                    double mode = fine.getMode();
+                    double minBinSize = TransformedHistogram.transform(mode + fine.getBinSize(), t, exponent, offset) - TransformedHistogram.transform(mode, t, exponent, offset);
                     Histogram th = HistogramFactory.getHistogram(y, fine.getData(), b.getMethod(), minBinSize);
                     h = new TransformedHistogram(th.getData(), th.getBinSize(), th.getMin(), t, exponent, offset);
                 }
@@ -118,11 +118,11 @@ public class HistogramSource {
                 double exponent = b.getExponent();
                 double offset = b.getOffset(st.getMin(), st.getMax(), st.isInteger());
                 Supplier<DoubleStream> transformedValues = () -> values.get().map(v -> TransformedHistogram.transform(v, t, exponent, offset));
-                // integer values are discrete in transformed space: bins narrower than the spacing of consecutive integers would be artificially empty. As the transform is concave, the spacing decreases with the value: it is computed at the 1st percentile (approximation from the coarse histogram is sufficient), ignoring the extreme lower tail
+                // integer values are discrete in transformed space: bins narrower than the spacing of consecutive integers would be artificially empty. The spacing is computed at the mode (main peak, e.g. background), where resolution matters most (approximation from the coarse histogram is sufficient). Not influenced by the lower tail (e.g. a few very low values close to the offset, where the spacing is very large); below the mode, the distribution is sparse
                 double minBinSize = 0;
                 if (st.isInteger()) {
-                    double q01 = Math.rint(st.getApproximateQuantile(0.01));
-                    minBinSize = TransformedHistogram.transform(q01 + 1, t, exponent, offset) - TransformedHistogram.transform(q01, t, exponent, offset);
+                    double mode = Math.rint(st.getApproximateMode());
+                    minBinSize = TransformedHistogram.transform(mode + 1, t, exponent, offset) - TransformedHistogram.transform(mode, t, exponent, offset);
                 }
                 Histogram th;
                 if (st.isInteger() && st.getMax() - st.getMin() + 1 <= HistogramFactory.MAX_N_BINS) {

@@ -60,7 +60,7 @@ public class HistogramBinningParameter extends ConditionalParameterAbstract<BIN_
      * @param allowTransform if false, the function is LINEAR and the parameter is equivalent to the choice of the bin size method (for thresholders that require constant bin width in value space). If true, the function is a sub-parameter of the bin size method
      */
     public HistogramBinningParameter(BIN_SIZE_METHOD defaultMethod, FUNCTION defaultFunction, boolean allowTransform) {
-        super(new EnumChoiceParameter<>("Histogram binning", BIN_SIZE_METHOD.values(), defaultMethod).setHint(allowTransform ? HINT + TRANSFORM_HINT : HINT));
+        super(new EnumChoiceParameter<>("Histogram binning", BIN_SIZE_METHOD.values(), defaultMethod));
         this.allowTransform = allowTransform;
         function = new EnumChoiceParameter<>("Function", FUNCTION.values(), allowTransform ? defaultFunction : FUNCTION.LINEAR).setHint(FUNCTION_HINT);
         functionCond = new ConditionalParameter<>(function).setActionParameters(FUNCTION.POWER, exponent);

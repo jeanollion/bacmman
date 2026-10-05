@@ -62,6 +62,12 @@ public class MinMaxScaler implements HistogramScaler, Hint {
     }
 
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(-offset, 1 / scale);
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

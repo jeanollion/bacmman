@@ -79,6 +79,12 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(0, center); // I / center
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

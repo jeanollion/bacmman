@@ -8,7 +8,7 @@ import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.plugins.plugins.thresholders.HistogramThresholdUtils;
 import bacmman.plugins.plugins.thresholders.TrimmedOtsu;
 import bacmman.plugins.plugins.thresholders.MinimumError;
-import bacmman.plugins.plugins.thresholders.PeakFit;
+import bacmman.plugins.plugins.thresholders.ModeFit;
 import org.junit.Test;
 
 import java.util.*;
@@ -88,10 +88,10 @@ public class RobustOtsuBenchmark {
         m.put("Otsu", h -> h.getValueFromIdx(HistogramThresholdUtils.otsuIdx(h, null, h.getMinNonNullIdx(), h.getMaxNonNullIdx() + 1, 0) + 1));
         m.put("BckFit5", h -> BackgroundFit.backgroundFit(h, 5));
         m.put("BckThld", h -> new BackgroundThresholder(2.5, 4, 2).runThresholderHisto(h));
-        m.put("PeakFit5", h -> new PeakFit(5).runThresholderHisto(h));
-        m.put("Trim1.5", h -> TrimmedOtsu.trimmedOtsu(h, new PeakFit(5).runThresholderHisto(h), 1.5, 3));
-        m.put("Trim2", h -> TrimmedOtsu.trimmedOtsu(h, new PeakFit(5).runThresholderHisto(h), 2, 3));
-        m.put("Trim3", h -> TrimmedOtsu.trimmedOtsu(h, new PeakFit(5).runThresholderHisto(h), 3, 3));
+        m.put("ModeFit5", h -> new ModeFit(5).runThresholderHisto(h));
+        m.put("Trim1.5", h -> TrimmedOtsu.trimmedOtsu(h, new ModeFit(5).runThresholderHisto(h), 1.5, 3));
+        m.put("Trim2", h -> TrimmedOtsu.trimmedOtsu(h, new ModeFit(5).runThresholderHisto(h), 2, 3));
+        m.put("Trim3", h -> TrimmedOtsu.trimmedOtsu(h, new ModeFit(5).runThresholderHisto(h), 3, 3));
         m.put("MinErrLOG", h -> new MinimumError(3, true).runThresholderHisto(HistogramSource.of(h))); // LOG binning (default) computed from the histogram
         return m;
     }

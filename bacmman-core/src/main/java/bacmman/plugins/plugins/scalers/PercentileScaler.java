@@ -145,6 +145,12 @@ public class PercentileScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(-offset, 1 / scale).setSaturation(saturate.getArrayDouble()); // (I + offset) * scale = (I - (-offset)) / (1/scale)
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

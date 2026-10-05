@@ -10,6 +10,7 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.plugins.Plugin;
+import bacmman.plugins.plugins.scalers.ConstantScaler;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -21,6 +22,11 @@ public interface HistogramScaler extends Plugin {
      * Configures the scaler with the histogram provided by the caller, used as is
      */
     void setHistogram(Histogram histogram);
+
+    /**
+     * @return a constant scaler performing the same transformation (affine transformation and saturation) as this configured scaler, or null if this scaler is not configured. The constant scale is not necessarily an instance of ConstantScaler but must perform scaling independently of the image data
+     */
+    HistogramScaler toConstantScaler();
 
     /**
      * @return binning of the histogram used to configure this scaler, when the histogram is computed by the scaler or obtained from a {@link HistogramSource}
@@ -45,6 +51,11 @@ public interface HistogramScaler extends Plugin {
 
         @Override
         public void setHistogram(Histogram histogram) { }
+
+        @Override
+        public HistogramScaler toConstantScaler() {
+            return new ConstantScaler();
+        }
 
         @Override
         public void setScaleLogger(Consumer<String> logger) {}

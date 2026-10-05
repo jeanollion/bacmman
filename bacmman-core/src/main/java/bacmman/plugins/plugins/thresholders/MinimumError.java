@@ -39,8 +39,10 @@ import java.util.Arrays;
 public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiThreaded, Hint {
     public static boolean debug = false;
     public static int MAX_BINS = 1024; // for 3 classes, the complexity is quadratic with the number of bins: bins are aggregated above this number
-    BoundedNumberParameter nClasses = new BoundedNumberParameter("Number of classes", 0, 3, 2, 3).setEmphasized(true).setHint("2: background and foreground. <br/>3: background, foreground and very bright foreground (e.g. hyper-fluorescent objects). The lowest threshold is returned, thus very bright objects are not required to be present: when they are absent, the third class models another part of the distribution");
+    BoundedNumberParameter nClasses = new BoundedNumberParameter("Number of classes", 0, 2, 2, 3).setEmphasized(true).setHint("2: background and foreground. <br/>3: background, foreground and very bright foreground (e.g. hyper-fluorescent objects). The lowest threshold is returned, thus very bright objects are not required to be present: when they are absent, the third class models another part of the distribution");
     BooleanParameter backgroundLargest = new BooleanParameter("Background is largest class", true).setHint("If true, the lowest class (background) is constrained to contain more values than each other class. Prevents the background from being split when the foreground has no very bright objects");
+    BoundedNumberParameter lowGuard = new BoundedNumberParameter("Low Guard Quantile (%)", 3, 0, 0, 100).setHint("Values below this quantile (in %) are set to the quantile value before computing the classes (winsorizing). Prevents a small group of very low values (e.g. dark pixels or borders, values close to the offset of the LOG function, which are strongly stretched by the log) from forming a class. 0: no guard");
+    BoundedNumberParameter highGuard = new BoundedNumberParameter("High Guard Quantile (%)", 3, 100, 0, 100).setHint("Values above this quantile (in %) are set to the quantile value before computing the classes (winsorizing). Limits the influence of a small group of very high values (e.g. saturated pixels). 100: no guard");
     HistogramBinningParameter binning = new HistogramBinningParameter(HistogramFactory.BIN_SIZE_METHOD.DEFAULT, FUNCTION.LOG, true);
 
     public MinimumError() {}
@@ -48,6 +50,16 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
     public MinimumError(int nClasses, boolean backgroundLargest) {
         this.nClasses.setValue(nClasses);
         this.backgroundLargest.setSelected(backgroundLargest);
+    }
+
+    /**
+     * @param lowQuantile low guard quantile in %, 0 = no guard
+     * @param highQuantile high guard quantile in %, 100 = no guard
+     */
+    public MinimumError setGuards(double lowQuantile, double highQuantile) {
+        this.lowGuard.setValue(lowQuantile);
+        this.highGuard.setValue(highQuantile);
+        return this;
     }
 
     public MinimumError setBinning(HistogramBinning binning) {
@@ -84,7 +96,7 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
      */
     @Override
     public double runThresholderHisto(Histogram histogram) {
-        return minimumError(histogram, nClasses.getIntValue(), backgroundLargest.getSelected());
+        return minimumError(histogram, nClasses.getIntValue(), backgroundLargest.getSelected(), lowGuard.getDoubleValue(), highGuard.getDoubleValue());
     }
 
     /**
@@ -92,7 +104,21 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
      * @return threshold value: values above it belong to the foreground
      */
     public static double minimumError(Histogram histogram, int nClasses, boolean backgroundLargest) {
+        return minimumError(histogram, nClasses, backgroundLargest, 0, 100);
+    }
+
+    /**
+     * @param lowGuard values below this quantile (in %) are set to the quantile value (in the space in which statistics are computed), 0 = no guard
+     * @param highGuard values above this quantile (in %) are set to the quantile value, 100 = no guard
+     */
+    public static double minimumError(Histogram histogram, int nClasses, boolean backgroundLargest, double lowGuard, double highGuard) {
         double[] y = histogram instanceof TransformedHistogram ? ((TransformedHistogram)histogram).getTransformedBinCenters() : histogram.getBinCenters();
+        if (lowGuard > 0 || highGuard < 100) { // winsorizing. quantiles are invariant by monotonous transformation
+            int start = histogram.getMinNonNullIdx(), end = histogram.getMaxNonNullIdx() + 1;
+            double lo = lowGuard > 0 ? quantileInSpace(histogram, lowGuard / 100, start, end) : Double.NEGATIVE_INFINITY;
+            double hi = highGuard < 100 ? quantileInSpace(histogram, highGuard / 100, start, end) : Double.POSITIVE_INFINITY;
+            for (int i = 0; i<y.length; ++i) y[i] = Math.min(hi, Math.max(lo, y[i]));
+        }
         int idx = minimumErrorIdx(histogram, y, nClasses, backgroundLargest, Math.min(MAX_BINS, histogram.getData().length));
         if (idx < 0) return histogram.getValueFromIdx(histogram.getMaxNonNullIdx() + 1);
         return histogram.getValueFromIdx(idx + 1);
@@ -106,10 +132,19 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
      * @return index of the last original bin of the lowest class, -1 if no valid partition exists
      */
     public static int minimumErrorIdx(Histogram histo, double[] y, int nClasses, boolean backgroundLargest, int nAggBins) {
+        int[] idx = minimumErrorIndices(histo, y, nClasses, backgroundLargest, nAggBins);
+        return idx == null ? -1 : idx[0];
+    }
+
+    /**
+     * Same as {@link #minimumErrorIdx(Histogram, double[], int, boolean, int)}, returning all thresholds
+     * @return index of the last original bin of each class except the highest one (length nClasses - 1), null if no valid partition exists
+     */
+    public static int[] minimumErrorIndices(Histogram histo, double[] y, int nClasses, boolean backgroundLargest, int nAggBins) {
         long[] n = histo.getData();
         int start = histo.getMinNonNullIdx(), end = histo.getMaxNonNullIdx() + 1;
         double ymin = y[start], ymax = y[end - 1];
-        if (!(ymax > ymin)) return -1;
+        if (!(ymax > ymin)) return null;
         int K = nAggBins;
         double[] count = new double[K], s1 = new double[K], s2 = new double[K];
         int[] lastIdx = new int[K];
@@ -130,7 +165,7 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
         double N = C[K], w = (ymax - ymin) / K;
         double vFloor = w * w / 12, minCount = Math.max(1, 1e-3 * N);
         double best = Double.POSITIVE_INFINITY;
-        int bestT = -1;
+        int bestT = -1, bestT2 = -1;
         for (int t1 = 1; t1 < K; ++t1) {
             if (count[t1 - 1] == 0) continue; // same partition as t1 - 1
             double c0 = classCost(C, S1, S2, 0, t1, N, vFloor, minCount);
@@ -152,15 +187,27 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
                     if (!Double.isNaN(c2) && c0 + c1 + c2 < best) {
                         best = c0 + c1 + c2;
                         bestT = t1;
+                        bestT2 = t2;
                     }
                 }
             }
         }
         if (debug) logger.debug("minimum error: classes: {}, best criterion: {}, lowest threshold aggregated bin: {}/{}", nClasses, best, bestT, K);
-        if (bestT < 0) return -1;
-        int k = bestT - 1;
+        if (bestT < 0) return null;
+        return nClasses == 2 ? new int[]{lastOriginalIdx(lastIdx, bestT)} : new int[]{lastOriginalIdx(lastIdx, bestT), lastOriginalIdx(lastIdx, bestT2)};
+    }
+
+    // index of the last original bin of aggregated bins [0, t)
+    private static int lastOriginalIdx(int[] lastIdx, int t) {
+        int k = t - 1;
         while (k > 0 && lastIdx[k] < 0) --k;
         return lastIdx[k];
+    }
+
+    // quantile in the space in which statistics are computed (transformed space for a TransformedHistogram)
+    private static double quantileInSpace(Histogram histogram, double quantile, int start, int end) {
+        double q = histogram.getQuantile(quantile, start, end);
+        return histogram instanceof TransformedHistogram ? ((TransformedHistogram)histogram).transform(q) : q;
     }
 
     // p ln(v) - 2 p ln(p) for class [a, b) of aggregated bins, NaN if the class contains less than minCount values
@@ -175,6 +222,6 @@ public class MinimumError implements ThresholderHisto, SimpleThresholder, MultiT
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{nClasses, backgroundLargest, binning};
+        return new Parameter[]{nClasses, backgroundLargest, lowGuard, highGuard, binning};
     }
 }

@@ -24,7 +24,6 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.image.HistogramBinning;
 import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
 import bacmman.image.HistogramSource;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
@@ -40,9 +39,9 @@ import bacmman.utils.Utils;
  */
 public class TrimmedOtsu implements ThresholderHisto, SimpleThresholder, MultiThreaded, Hint {
     public static boolean debug = false;
-    PluginParameter<ThresholderHisto> foregroundEstimate = new PluginParameter<>("Foreground estimate", ThresholderHisto.class, new PeakFit(5), false).setEmphasized(true).setHint("Thresholder defining a rough foreground estimate (values above its threshold), used to compute the upper fence. It should not depend on the intensity distribution of the foreground, e.g. a threshold computed from background statistics");
+    PluginParameter<ThresholderHisto> foregroundEstimate = new PluginParameter<>("Foreground estimate", ThresholderHisto.class, new ModeFit(5), false).setEmphasized(true).setHint("Thresholder defining a rough foreground estimate (values above its threshold), used to compute the upper fence. It should not depend on the intensity distribution of the foreground, e.g. a threshold computed from background statistics");
     BoundedNumberParameter fenceFactor = new BoundedNumberParameter("Fence factor", 2, 1.5, 0, null).setEmphasized(true).setHint("Upper fence U = M + <em>Fence factor</em> x S, where M is the median of the foreground estimate and S = (M - Q1) / 0.6745 is a standard deviation estimated on its lower half (Q1 = first quartile), so that it is not influenced by very bright objects. <br/>Lower values increase robustness to hyper-fluorescent objects");
-    BoundedNumberParameter minSigmaFactor = new BoundedNumberParameter("Min sigma factor", 2, 3, 0, null).setHint("Threshold is constrained to be higher than µ + <em>Min sigma factor</em> x σ, where µ and σ are the mean and standard deviation of background, estimated by fitting the histogram's main peak (see <em>PeakFit</em>). Prevents Otsu from splitting the background when the foreground is sparse or absent. Set 0 to disable");
+    BoundedNumberParameter minSigmaFactor = new BoundedNumberParameter("Min sigma factor", 2, 3, 0, null).setHint("Threshold is constrained to be higher than µ + <em>Min sigma factor</em> x σ, where µ and σ are the mean and standard deviation of background, estimated by fitting the histogram's main peak (see <em>ModeFit</em>). Prevents Otsu from splitting the background when the foreground is sparse or absent. Set 0 to disable");
     HistogramBinningParameter binning = new HistogramBinningParameter();
 
     public TrimmedOtsu() {}

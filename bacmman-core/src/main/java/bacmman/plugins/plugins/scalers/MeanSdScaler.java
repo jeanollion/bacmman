@@ -68,6 +68,12 @@ public class MeanSdScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(mean, sd);
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }

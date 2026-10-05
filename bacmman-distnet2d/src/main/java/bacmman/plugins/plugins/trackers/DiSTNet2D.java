@@ -199,6 +199,19 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         int[] additionalInputChannels, additionalInputLabels;
         int objectClassIdx;
         DiskBackedImageManager dbim;
+        final Map<Boolean, DLResizeAndScale> globalScaling = new HashMap<>(); // intensity scaling computed on the whole track, per frame-aware mode
+
+        /**
+         * @return the DLResizeAndScale with intensity scaling computed on the whole track of this instance (computed once and cached)
+         */
+        public synchronized DLResizeAndScale getGlobalScaling(boolean frameAware, java.util.function.Supplier<DLResizeAndScale> supplier) {
+            DLResizeAndScale res = globalScaling.get(frameAware);
+            if (res == null) {
+                res = supplier.get();
+                globalScaling.put(frameAware, res);
+            }
+            return res;
+        }
         public InputImages(int objectClassIdx, int[] additionalInputChannels, int[] additionalInputLabels, List<SegmentedObject> parentTrack, BoundingBox bds, DiskBackedImageManager dbim) {
             this.objectClassIdx = objectClassIdx;
             this.additionalInputChannels = additionalInputChannels;
@@ -2229,6 +2242,14 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
+    /**
+     * @param allFrames all frames of the track of inputImages
+     * @return DLResizeAndScale with intensity scaling computed once on the whole track (see {@link DLResizeAndScale#withGlobalScaling(int, java.util.function.BiFunction)}), so that all batches are scaled identically
+     */
+    protected DLResizeAndScale getGlobalDlResizeAndScale(boolean frameAware, InputImages inputImages, int[] allFrames) {
+        return inputImages.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(allFrames.length, (inputIdx, f) -> new Image[]{inputImages.getImage(allFrames[f], inputIdx)}));
+    }
+
     protected DLResizeAndScale getDlResizeAndScale(boolean frameAware) {
         int nchannels = 1 + getAdditionalChannels().length;
         int nlabels = getAdditionalLabels().length;
@@ -2302,7 +2323,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 int idxMax = Math.min(i + increment, framesToPredict.length);
                 Image[][][] input = getInputs(inputImages, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval, nGaps, frameAware, faMode.getSelectedEnum());
                 logger.debug("input: [{}; {}] / [{}; {}] is3D: {}", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1], is3D);
-                Image[][][] predictions = getDlResizeAndScale(frameAware).predict(engine, input); // 2D output: 0=edm, 1=gcdm, 2=dy, 3=dx, 4=linkMul, 5=cat ; 3D output: 0=edm, 1=gcdm, 2=dz, 3=dy, 4=dx, 5=linkMul, 6=cat
+                Image[][][] predictions = getGlobalDlResizeAndScale(frameAware, inputImages, allFrames).predict(engine, input); // 2D output: 0=edm, 1=gcdm, 2=dy, 3=dx, 4=linkMul, 5=cat ; 3D output: 0=edm, 1=gcdm, 2=dz, 3=dy, 4=dx, 5=linkMul, 6=cat
                 appendPrediction(predictions, i);
             }
         }

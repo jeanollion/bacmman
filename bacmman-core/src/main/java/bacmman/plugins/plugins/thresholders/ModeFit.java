@@ -33,19 +33,19 @@ import bacmman.plugins.ThresholderHisto;
 import bacmman.utils.Utils;
 
 /**
- * Estimates mean and standard deviation of the main peak of the histogram (assumed to be the background) by fitting a gaussian on the core of the peak, and returns µ + k x σ.
+ * Estimates mean and standard deviation of the mode peak of the histogram (assumed to be the background) by fitting a gaussian on the core of the peak, and returns µ + k x σ.
  * @author Jean Ollion
  */
-public class PeakFit implements ThresholderHisto, SimpleThresholder, MultiThreaded, Hint {
+public class ModeFit implements ThresholderHisto, SimpleThresholder, MultiThreaded, Hint {
     public static boolean debug = false;
     BoundedNumberParameter sigmaFactor = new BoundedNumberParameter("Sigma factor", 2, 5, 0, null).setEmphasized(true).setHint("Threshold = µ + <em>Sigma factor</em> x σ, where µ and σ are the mean and standard deviation of the main peak of the histogram");
     HistogramBinningParameter binning = new HistogramBinningParameter();
     public static double LOWER_EXTENT = 2, UPPER_EXTENT = 1;
     public static int MAX_ITERATIONS = 20;
 
-    public PeakFit() {}
+    public ModeFit() {}
 
-    public PeakFit(double sigmaFactor) {
+    public ModeFit(double sigmaFactor) {
         this.sigmaFactor.setValue(sigmaFactor);
     }
 

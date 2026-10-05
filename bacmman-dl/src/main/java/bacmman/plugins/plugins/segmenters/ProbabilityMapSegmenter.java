@@ -136,6 +136,10 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
     }
 
     private Image[] predict(Image[]... inputImagesNI) {
+        return predict(dlResample, inputImagesNI);
+    }
+
+    private Image[] predict(DLResizeAndScale dlResizeAndScale, Image[]... inputImagesNI) {
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int nI = Math.max(inputChannels.getChildCount(), 1);
@@ -145,7 +149,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
                 inputINC[i][n][0] = inputImagesNI[n][i];
             }
         }
-        Image[][][] predictionONC = dlResample.predict(engine, inputINC);
+        Image[][][] predictionONC = dlResizeAndScale.predict(engine, inputINC);
         return ResizeUtils.getChannel(predictionONC[0], outputChannel.getIntValue());
     }
 
@@ -158,13 +162,15 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
         Map<SegmentedObject, Image> segM = new HashMap<>(singleFrame ? 1 : parentTrack.size());
         int increment = frameWindow.getIntValue ()<=1 || frameWindow.getIntValue()>parentTrack.size() ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / frameWindow.getIntValue()) );
+        // intensity scaling computed once on the whole movie so that all frame windows are scaled identically
+        DLResizeAndScale dl = dlResample.withGlobalScaling(singleFrame ? 1 : parentTrack.size(), (inputIdx, f) -> new Image[]{getInputImages(null, structureIdx, parentTrack.get(f))[inputIdx]});
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             Image[][] inputNI = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> getInputImages(null, structureIdx, p)).toArray(Image[][]::new);
             Image[] out;
-            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(inputNI);
-            else out = Arrays.stream(inputNI).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
+            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(dl, inputNI);
+            else out = Arrays.stream(inputNI).map(in -> predict(dl, in)).map(ii -> ii[0]).toArray(Image[]::new);
             for (int ii = 0; ii<subParentTrack.size(); ++ii) {
                 //logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
                 segM.put(subParentTrack.get(ii), imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false));

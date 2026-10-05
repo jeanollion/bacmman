@@ -66,12 +66,12 @@ public class HistogramThresholdUtils {
     }
 
     /**
-     * Index of the last background bin such that the threshold (upper edge of the bin) is not lower than µ + {@param sigmaFactor} x σ, with µ and σ the mean and standard deviation of the main peak estimated by {@link PeakFit#fit(Histogram)}
+     * Index of the last background bin such that the threshold (upper edge of the bin) is not lower than µ + {@param sigmaFactor} x σ, with µ and σ the mean and standard deviation of the main peak estimated by {@link ModeFit#fit(Histogram)}
      * @return minimal index, or 0 if sigmaFactor <= 0
      */
     public static int minThresholdIdx(Histogram histo, double sigmaFactor) {
         if (sigmaFactor <= 0) return 0;
-        double[] ms = PeakFit.fit(histo);
+        double[] ms = ModeFit.fit(histo);
         return binIdx(histo, ms[0] + sigmaFactor * ms[1]);
     }
 }

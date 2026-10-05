@@ -5,6 +5,7 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
 import bacmman.plugins.DLEngine;
 import bacmman.plugins.HistogramScaler;
+import bacmman.plugins.plugins.scalers.ConstantScaler;
 import bacmman.plugins.plugins.scalers.PercentileScaler;
 import bacmman.processing.Resize;
 import bacmman.processing.ResizeUtils;
@@ -41,7 +42,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> grp = new PairParameter<>("Input", interpolation, scaler).setEmphasized(true);
     SimpleListParameter<PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>>> inputInterpAndScaling = new SimpleListParameter<>("Input Interpolation/Scaling", grp).setNewInstanceNameFunction((s, i)->"Input #"+i).setEmphasized(true).setHint("Define here Interpolation mode and scaling mode for each input. All channels of each input will be processed together");
     SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new PercentileScaler(), true).setNewInstanceNameFunction((s, i)->"Scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
-    BooleanParameter scaleImageByImage = new BooleanParameter("Scale Image by Image", false).setHint("If true, scaling factors are computed on the histogram of the whole batch, if false scale is computed for each image. If image has several channels (sometimes corresponding to different frames) they will be scaled together");
+    BooleanParameter scaleImageByImage = new BooleanParameter("Scale Image by Image", false).setHint("If true, scaling factors are computed for each image. If false, scaling factors are computed once on the histogram of the whole movie (whole track processed by the module), so that all images are scaled identically (for very large movies, the histogram is computed on a subset of frames, see <em>DLResizeAndScale.GLOBAL_SCALING_MAX_VALUES</em>). <br/>If image has several channels (sometimes corresponding to different frames) they are scaled together");
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. -1 no reverse scaling");
     BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true).setEmphasized(true).setHint("Whether scale the output using the scaling parameters of the corresponding input");
@@ -228,6 +229,57 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         if (inputInterpAndScaling.getChildCount()<=inputIdx) inputInterpAndScaling.setChildrenNumber(inputIdx+1);
         inputInterpAndScaling.getChildAt(inputIdx).getParam2().setPlugin(scaler);
         return this;
+    }
+
+    /**
+     * Maximal number of values read per input to compute the histogram of the whole movie, see {@link #withGlobalScaling(int, java.util.function.BiFunction)}
+     */
+    public static long GLOBAL_SCALING_MAX_VALUES = 1L << 30;
+    /**
+     * Maximal frame step when sampling frames for the histogram of the whole movie: at least 1 frame out of GLOBAL_SCALING_MAX_FRAME_STEP is read
+     */
+    public static int GLOBAL_SCALING_MAX_FRAME_STEP = 20;
+
+    /**
+     * Computes the intensity scaling of each input on the whole movie, so that all images are scaled identically, when predictions are performed by batches of frames.
+     * If <em>Scale Image by Image</em> is selected, returns this instance.
+     * Otherwise, for each input, the scaler is configured on the histogram of the images of this input over the whole movie, and replaced by an equivalent {@link ConstantScaler} (see {@link HistogramScaler#toConstantScaler()}). Inputs with no scaler, with a {@link ConstantScaler} or with a scaler that cannot be converted are not modified.
+     * For large movies, frames are sampled: one frame out of X is read, with X = min(ceil(nFrames x values per frame / {@link #GLOBAL_SCALING_MAX_VALUES}), {@link #GLOBAL_SCALING_MAX_FRAME_STEP}), frames being evenly distributed along the movie. The number of values per frame is estimated from the first frame.
+     * @param nFrames number of frames of the movie
+     * @param imagesByInputAndFrame function (input index, frame index in [0; nFrames)) -> images (channels) of this input at this frame, as fed to the network
+     * @return a copy of this instance with constant scalers, or this instance
+     */
+    public DLResizeAndScale withGlobalScaling(int nFrames, java.util.function.BiFunction<Integer, Integer, Image[]> imagesByInputAndFrame) {
+        if (scaleImageByImage.getSelected() || nFrames <= 0) return this;
+        int nInputs = MODE.RESAMPLE.equals(getMode()) ? inputInterpAndScaling.getActivatedChildCount() : inputScaling.getActivatedChildCount();
+        DLResizeAndScale res = null;
+        for (int i = 0; i < nInputs; ++i) {
+            HistogramScaler scaler = getScaler(i);
+            if (scaler == null || scaler instanceof ConstantScaler) continue;
+            int inputIdx = i;
+            Image[] first = imagesByInputAndFrame.apply(inputIdx, 0);
+            long valuesPerFrame = Arrays.stream(first).mapToLong(im -> (long)im.sizeX() * im.sizeY() * im.sizeZ()).sum();
+            int step = (int)Math.max(1, Math.min(GLOBAL_SCALING_MAX_FRAME_STEP, Math.ceil((double)nFrames * valuesPerFrame / GLOBAL_SCALING_MAX_VALUES)));
+            int[] frames = IntStream.range(0, nFrames).filter(f -> f % step == step / 2 || (step / 2 >= nFrames && f == 0)).toArray(); // evenly distributed, centered
+            if (frames.length == 0) frames = new int[]{0};
+            int[] framesF = frames;
+            if (scaleLogger != null) scaler.setScaleLogger(scaleLogger);
+            scaler.setHistogram(HistogramSource.of(() -> IntStream.of(framesF).mapToObj(f -> imagesByInputAndFrame.apply(inputIdx, f)).flatMap(Arrays::stream).flatMapToDouble(Image::stream)));
+            HistogramScaler constant = scaler.toConstantScaler();
+            if (constant == null) {
+                logger.warn("Scaler {} of input #{} cannot be converted to a constant scaler: scaling will be computed on each batch", scaler.getClass().getSimpleName(), i);
+                continue;
+            }
+            if (res == null) {
+                res = duplicate().setScaleLogger(scaleLogger);
+                res.noResize.addAll(noResize);
+            }
+            res.setScaler(i, constant);
+            String message = "Global scaling of input #" + i + " computed on " + frames.length + "/" + nFrames + " frames (1 frame out of " + step + ") with " + scaler.getClass().getSimpleName();
+            logger.debug(message);
+            if (scaleLogger != null) scaleLogger.accept(message);
+        }
+        return res == null ? this : res;
     }
 
     public HistogramScaler getScaler(int inputIdx) {
