@@ -54,6 +54,7 @@ public class SplitMergeFilter implements TrackPostFilter {
     BooleanParameter solveMergeParam = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
     IntegerParameter maxTrackLengthParam = new IntegerParameter("Max Track Length", 0).setLowerBound(0).setEmphasized(true).setHint("Limit correction to small tracks under this limit. Set 0 for no limit.");
     BooleanParameter mergeContactParam = new BooleanParameter("Merge tracks in contact", false).setEmphasized(false).setHint("If true: merge tracks whose objects are in contact from one end of the movie to the end of both tracks");
+    BooleanParameter decreasingPropagationParam = new BooleanParameter("Decreasing propagation", false).setEmphasized(false).setHint("If true: watershed propogation follows decreasing intensity values (ideal if objects are brighter than the background)");
 
             // track post-processing
 //    static class TrackPostProcessing extends ConditionalParameterAbstract<TrackPostProcessing.TRACK_POST_PROCESSING, TrackPostProcessing> implements Deactivable {
@@ -105,7 +106,7 @@ public class SplitMergeFilter implements TrackPostFilter {
     enum TRACK_POST_PROCESSING_WINDOW_MODE {WHOLE, INCREMENTAL, PER_SEGMENT}
     // EnumChoiceParameter<TRACK_POST_PROCESSING_WINDOW_MODE> trackPPRange = new EnumChoiceParameter<>("Post-processing Range", TRACK_POST_PROCESSING_WINDOW_MODE.values(), TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE).setEmphasized(true).setHint("WHOLE: post-processing is performed on the whole video (more precise, more time consuming). <br/>INCREMENTAL: post-processing is performed after each frame segment is processed, from the first processed frame to the last processed frame. <br/>PER_SEGMENT: post-processing is performed per window (less time consuming but less precise at segment edges)");
     GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, growthRateRange).setEmphasized(true).setHint("Link assignment parameters");
-    GroupParameter splitMergeGroup = new GroupParameter("Split Merge", solveSplitParam, solveMergeParam, maxTrackLengthParam,mergeContactParam, tracking).setEmphasized(true);
+    GroupParameter splitMergeGroup = new GroupParameter("Split Merge", solveSplitParam, solveMergeParam, maxTrackLengthParam, mergeContactParam, decreasingPropagationParam, tracking).setEmphasized(true);
 
     Parameter[] parameters = new Parameter[]{splitMergeGroup};
 
@@ -190,7 +191,8 @@ public class SplitMergeFilter implements TrackPostFilter {
 
     protected Function<SegmentedObject, List<Region>> getPostProcessingSplitter() {
 
-        WatershedObjectSplitter ws =  new WatershedObjectSplitter(1, false); // TODO decreasingPropagation should be True for fluo
+        boolean decreasingPropagation = decreasingPropagationParam.getValue();
+        WatershedObjectSplitter ws =  new WatershedObjectSplitter(1, decreasingPropagation);
         return toSplit -> {
             List<Region> res = new ArrayList<>();
             SegmentedObject parent = toSplit.getParent();
