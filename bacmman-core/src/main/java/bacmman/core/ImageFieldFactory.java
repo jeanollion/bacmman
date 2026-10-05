@@ -131,46 +131,54 @@ public class ImageFieldFactory {
         int s = 0;
         String positionName = "";
         int digits=Utils.nDigits(stc.length);
+        int nSceneValid=0;
         for (int[] tc : stc) {
-            if (stc.length>1) {
-                if (sep == null) positionName = "xy";
-                else if (sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
-                else positionName = Utils.removeExtension(image.getName()).replace(sep, "");
-                if (sep != null) positionName += "_";
-                positionName += Utils.formatInteger(digits, s);
-            } else {
-                if (sep == null || sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
-                else positionName = Utils.removeExtension(image.getName()).replace(sep, "");
-            }
-            if (tc[1]==xp.getChannelImageCount(false)) {
-                double[] scaleXYZ = reader.getScaleXYZ(1);
-                boolean invertTZ;
-                if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && tc[4]>1 && tc[0]==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && tc[4]==1 && tc[0]>1) ) {
-                    invertTZ = true;
-                    int t = tc[0];
-                    tc[0] = tc[4];
-                    tc[4] = t;
+            if (tc[1]==xp.getChannelImageCount(false)) ++nSceneValid;;
+        }
+        if (nSceneValid > 0) {
+            for (int[] tc : stc) {
+                if (stc.length > 1) {
+                    if (sep == null) positionName = "xy";
+                    else if (sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
+                    else positionName = Utils.removeExtension(image.getName()).replace(sep, "");
+                    if (sep != null) positionName += "_";
+                    positionName += Utils.formatInteger(digits, s);
                 } else {
-                    invertTZ = axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ();
-                    // no need to swap as it was already done when reader was invertTZ was set to reader
+                    if (sep == null || sep.isEmpty()) positionName = Utils.removeExtension(image.getName());
+                    else positionName = Utils.removeExtension(image.getName()).replace(sep, "");
                 }
-                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(positionName, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], invertTZ);
-                containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
-                if (importMetadata) {
-                    Map<String, Object> metadata = reader.getSeriesMetadata(s);
-                    JSONObject metaJSON = new JSONObject();
-                    appendMetadata(metaJSON, metadata);
-                    File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
-                    if (!dir.exists()) dir.mkdirs();
-                    String path = Paths.get(dir.getAbsolutePath()).resolve(c.getName()+".json").toAbsolutePath().toString();
-                    FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
+                if (tc[1] == xp.getChannelImageCount(false)) {
+                    double[] scaleXYZ = reader.getScaleXYZ(1);
+                    boolean invertTZ;
+                    if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && tc[4] > 1 && tc[0] == 1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && tc[4] == 1 && tc[0] > 1)) {
+                        invertTZ = true;
+                        int t = tc[0];
+                        tc[0] = tc[4];
+                        tc[4] = t;
+                    } else {
+                        invertTZ = axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ();
+                        // no need to swap as it was already done when reader was invertTZ was set to reader
+                    }
+                    MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(positionName, image.getAbsolutePath(), s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], invertTZ);
+                    containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
+                    if (importMetadata) {
+                        Map<String, Object> metadata = reader.getSeriesMetadata(s);
+                        JSONObject metaJSON = new JSONObject();
+                        appendMetadata(metaJSON, metadata);
+                        File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                        if (!dir.exists()) dir.mkdirs();
+                        String path = Paths.get(dir.getAbsolutePath()).resolve(c.getName() + ".json").toAbsolutePath().toString();
+                        FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
+                    }
+                    logger.info("image {} imported successfully", image.getAbsolutePath());
+                } else {
+                    String sceneString = stc.length > 1 ? " @ scene" + s : "";
+                    logger.warn("Invalid Image: {}{} has: {} channels instead of: {}", image.getAbsolutePath(), sceneString, tc[1], xp.getChannelImageCount(false));
                 }
-                logger.info("image {} imported successfully", image.getAbsolutePath());
-            } else {
-                if (pcb!=null) pcb.log("WARNING: Invalid Image: "+image.getAbsolutePath()+" has: "+tc[1]+" channels instead of: "+xp.getChannelImageCount(false));
-                logger.warn("Invalid Image: {} has: {} channels instead of: {}", image.getAbsolutePath(), tc[1], xp.getChannelImageCount(false));
+                ++s;
             }
-            ++s;
+        } else {
+            if (pcb != null) pcb.log("WARNING: Invalid Image: " + image.getAbsolutePath() + " has: " + stc[0][1] + " channels instead of: " + xp.getChannelImageCount(false));
         }
         if (importMetadata) {
             Map<String, Object> metadata = reader.getMetadata();
