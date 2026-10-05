@@ -1,9 +1,7 @@
 package bacmman.plugins.plugins.track_post_filter;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.*;
-import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.Offset;
@@ -23,7 +21,6 @@ import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import net.imglib2.RealLocalizable;
-import org.json.simple.JSONObject;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -56,55 +53,6 @@ public class SplitMergeFilter implements TrackPostFilter {
     BooleanParameter mergeContactParam = new BooleanParameter("Merge tracks in contact", false).setEmphasized(false).setHint("If true: merge tracks whose objects are in contact from one end of the movie to the end of both tracks");
     BooleanParameter decreasingPropagationParam = new BooleanParameter("Decreasing propagation", false).setEmphasized(false).setHint("If true: watershed propogation follows decreasing intensity values (ideal if objects are brighter than the background)");
 
-            // track post-processing
-//    static class TrackPostProcessing extends ConditionalParameterAbstract<TrackPostProcessing.TRACK_POST_PROCESSING, TrackPostProcessing> implements Deactivable {
-//        enum TRACK_POST_PROCESSING {SOLVE_SPLIT_MERGE, SOLVE_SUCCESSIVE_DIVISIONS}
-//        BooleanParameter solveSplit = new BooleanParameter("Solve Split events", true).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
-//        BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
-//        IntegerParameter maxTrackLength = new IntegerParameter("Max Track Length", 0).setLowerBound(0).setEmphasized(true).setHint("Limit correction to small tracks under this limit. Set 0 for no limit.");
-//        BooleanParameter mergeContact = new BooleanParameter("Merge tracks in contact", false).setEmphasized(false).setHint("If true: merge tracks whose objects are in contact from one end of the movie to the end of both tracks");
-//
-//        enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
-//        EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setEmphasized(false).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
-//        enum SPLIT_MODE {FRAGMENT, SPLIT_IN_TWO}
-//        EnumChoiceParameter<SPLIT_MODE> splitMode= new EnumChoiceParameter<>("Split Mode", SPLIT_MODE.values(), SPLIT_MODE.FRAGMENT).setHint("FRAGMENT: apply a seeded watershed on EDM using local maxima as seeds <br/> SPLIT_IN_TWO: same as fragment but merges fragments so that only two remain. Order of merging depend on the edm median value at the interface between fragment so that the interface with the lowest value remains last");
-//        GroupParameter splitParameters = new GroupParameter("Split Parameters", splitMode).setHint("Parameters related to object splitting. ");
-//        public TrackPostProcessing() {
-//            super(new EnumChoiceParameter<>("Method", TRACK_POST_PROCESSING.values(), TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE).setEmphasized(true));
-//            setActionParameters(TRACK_POST_PROCESSING.SOLVE_SPLIT_MERGE, solveMerge, solveSplit, maxTrackLength, mergeContact, splitParameters);
-//        }
-//        // Deactivable interface
-//        boolean activated = true;
-//        @Override
-//        public boolean isActivated() { return activated; }
-//        @Override
-//        public void setActivated(boolean activated) { this.activated = activated; }
-//        @Override
-//        public JSONObject toJSONEntry() {
-//            JSONObject res= (JSONObject)super.toJSONEntry();
-//            if (!activated) Deactivable.appendActivated(res, activated);
-//            return res;
-//        }
-//        @Override
-//        public void initFromJSONEntry(Object jsonEntry) {
-//            activated = Deactivable.getActivated(jsonEntry);
-//            super.initFromJSONEntry(jsonEntry);
-//        }
-//        // ConditionalParameterAbstract
-//        @Override
-//        public TrackPostProcessing duplicate() {
-//            TrackPostProcessing res = new TrackPostProcessing();
-//            res.getActionableParameter().setContentFrom(getActionableParameter());
-//            res.parameters.forEach((v, p) -> res.setActionParameters(v, p.stream().map(Parameter::duplicate).toArray(Parameter[]::new)));
-//            res.setContentFrom(this);
-//            transferStateArguments(this, res);
-//            return res;
-//        }
-//    }
-
-    // SimpleListParameter<TrackPostProcessing> trackPostProcessingList = new SimpleListParameter<>("Post-processing", new TrackPostProcessing()).setEmphasized(true);
-    enum TRACK_POST_PROCESSING_WINDOW_MODE {WHOLE, INCREMENTAL, PER_SEGMENT}
-    // EnumChoiceParameter<TRACK_POST_PROCESSING_WINDOW_MODE> trackPPRange = new EnumChoiceParameter<>("Post-processing Range", TRACK_POST_PROCESSING_WINDOW_MODE.values(), TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE).setEmphasized(true).setHint("WHOLE: post-processing is performed on the whole video (more precise, more time consuming). <br/>INCREMENTAL: post-processing is performed after each frame segment is processed, from the first processed frame to the last processed frame. <br/>PER_SEGMENT: post-processing is performed per window (less time consuming but less precise at segment edges)");
     GroupParameter tracking = new GroupParameter("Tracking", linkDistanceTolerance, contactCriterionCond, growthRateRange).setEmphasized(true).setHint("Link assignment parameters");
     GroupParameter splitMergeGroup = new GroupParameter("Split Merge", solveSplitParam, solveMergeParam, maxTrackLengthParam, mergeContactParam, decreasingPropagationParam, tracking).setEmphasized(true);
 
@@ -167,8 +115,6 @@ public class SplitMergeFilter implements TrackPostFilter {
             trackPop.solveMergeEvents(gap, forbidSplit, merging, false, splitter, assigner, factory, editor);
         if (solveSplit)
             trackPop.solveSplitEvents(gap, forbidSplit, dividing, false, splitter, assigner, factory, editor);
-        //trackPop.solveSupernumeraryMergeEvents(gap, false, splitter, assigner, factory, editor);
-        //trackPop.solveSupernumerarySplitEvents(gap, false, splitter, assigner, factory, editor);
         if (fullParentTrack && mergeContact) {
             int startFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
             int endFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
@@ -182,11 +128,7 @@ public class SplitMergeFilter implements TrackPostFilter {
                 if (!trackPop.isComplexLink(l)) it.remove();
             }
         }
-//                    parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
-//                        if (o.getRegion().getCenter() == null) o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
-//                        if (predictCategory.getSelected() && o.getAttribute("Category")==null) setCategory(o, prediction);
-//                        o.getRegion().freeMemory();
-//                    }));
+
     }
 
     protected Function<SegmentedObject, List<Region>> getPostProcessingSplitter() {
