@@ -22,6 +22,7 @@ import bacmman.image.HistogramFactory.BIN_SIZE_METHOD;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.DoublePredicate;
 import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 
@@ -66,6 +67,18 @@ public class HistogramSource {
         HistogramSource res = new HistogramSource(null, histogram);
         res.histograms.put(binning.resolve(), histogram);
         return res;
+    }
+
+    /**
+     * @param predicate values to keep (e.g. v -> v != 0 to exclude zeros)
+     * @return a new source of the values of this source satisfying the predicate. If this source has no values (created from a histogram), bins whose center does not satisfy the predicate are emptied (exact when each bin contains a single value, e.g. integer values with bin size 1)
+     */
+    public HistogramSource filter(DoublePredicate predicate) {
+        if (values != null) return of(() -> values.get().filter(predicate));
+        Histogram h = getFineHistogram().duplicate();
+        long[] data = h.getData();
+        for (int i = 0; i<data.length; ++i) if (data[i] > 0 && !predicate.test(h.getBinCenter(i))) data[i] = 0;
+        return of(h);
     }
 
     private synchronized HistogramFactory.StatsAndCoarseHistogram getStats() {
