@@ -98,7 +98,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(false).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter linkDistanceTolerance = new BoundedNumberParameter("Link Distance Tolerance", 0, 3, 0, null).setEmphasized(true).setHint("Two objects are linked if the center of one object translated by the predicted displacement falls into an object at the previous frame. This parameter allows a tolerance (in pixel units) in case the center do not fall into any object at the previous frame");
 
-    enum CONTACT_CRITERION {BACTERIA_POLE, CONTOUR_DISTANCE, NO_CONTACT}
+    public enum CONTACT_CRITERION {BACTERIA_POLE, CONTOUR_DISTANCE, NO_CONTACT}
     EnumChoiceParameter<CONTACT_CRITERION> contactCriterion = new EnumChoiceParameter<>("Contact Criterion", CONTACT_CRITERION.values(), CONTACT_CRITERION.BACTERIA_POLE).setHint("Criterion for contact between two cells. Contact is used to solve over/under segmentation events, and can be use to handle cell division.<ul><li>CONTOUR_DISTANCE: edge-edges distance</li><li>BACTERIA_POLE: pole-pole distance</li></ul>");
     BoundedNumberParameter lengthThld = new BoundedNumberParameter("Length Threshold", 1, 15, 1, null).setEmphasized(true).setHint("If length (estimated by Feret diameter) of object is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on circular objects such as small over-segmented objects<br/>Ellipse is fitted using the normalized second central moments");
 
@@ -1531,7 +1531,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     // fix links that are only in one way. they come from complex links unsupported by bacmman data structure.
-    public void fixLinks(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
+    public static void fixLinks(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         parentTrack.stream().sorted().forEach(p -> {
             p.getChildren(objectClassIdx).forEach(c -> {
                 SegmentedObject prev = c.getPrevious();
@@ -1545,7 +1545,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             });
         });
     }
-    protected boolean linkMultiplicityValid(LINK_MULTIPLICITY lm, int nConnected) {
+    protected static boolean linkMultiplicityValid(LINK_MULTIPLICITY lm, int nConnected) {
         switch (lm) {
             case SINGLE:
             default:
@@ -1558,22 +1558,31 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     public void setTrackingAttributes(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, LinkMultiplicity> lmFW, Map<SegmentedObject, LinkMultiplicity> lmBW) {
+        setTrackingAttributes(objectClassIdx, parentTrack, growthRateRange.getValuesAsDouble(), lmFW, lmBW);
+    }
+
+    /**
+     * Sets track error attributes (link multiplicity not allowed by the object class, growth rate out of range, link multiplicity different from the predicted one) and growth rate attributes
+     * @param growthRateRange allowed range of growth rate (size of next objects / size of previous objects)
+     * @param lmFW predicted forward link multiplicity, null if not available
+     * @param lmBW predicted backward link multiplicity, null if not available
+     */
+    public static void setTrackingAttributes(int objectClassIdx, List<SegmentedObject> parentTrack, double[] growthRateRange, Map<SegmentedObject, LinkMultiplicity> lmFW, Map<SegmentedObject, LinkMultiplicity> lmBW) {
         boolean allowMerge = parentTrack.get(0).getExperimentStructure().allowMerge(objectClassIdx);
         boolean allowSplit = parentTrack.get(0).getExperimentStructure().allowSplit(objectClassIdx);
         Map<SegmentedObject, Double> sizeMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().size());
         final Predicate<SegmentedObject> touchBorder = o -> o.getBounds().yMin() == o.getParent().getBounds().yMin() || o.getBounds().yMax() == o.getParent().getBounds().yMax() || o.getBounds().xMin() == o.getParent().getBounds().xMin() || o.getBounds().xMax() == o.getParent().getBounds().xMax();
-        double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
 
         parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).forEach(o -> {
             List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o).collect(Collectors.toList());
             boolean linkErrorPrev = !allowMerge && prevs.size()>1;
-            if (linkErrorPrev || (!linkMultiplicityValid(lmBW.get(o).lm, prevs.size()))) {
+            if (linkErrorPrev || (lmBW != null && !linkMultiplicityValid(lmBW.get(o).lm, prevs.size()))) {
                 o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
                 if (linkErrorPrev) prevs.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
             }
             List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o).collect(Collectors.toList());
             boolean linkErrorNext = (!allowSplit && nexts.size()>1) || (allowSplit && nexts.size()>2);
-            if ( linkErrorNext || (!linkMultiplicityValid(lmFW.get(o).lm, nexts.size()))) {
+            if ( linkErrorNext || (lmFW != null && !linkMultiplicityValid(lmFW.get(o).lm, nexts.size()))) {
                 o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
                 if (linkErrorNext) nexts.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
             }
@@ -1946,8 +1955,17 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     protected ToDoubleBiFunction<Region, Region> contact(double gapMaxDist, Map<Region, Object>[] contourMap, boolean returnDistance) {
+        return contact(contactCriterion.getSelectedEnum(), gapMaxDist, lengthThld.getDoubleValue(), eccentricityThld.getDoubleValue(), alignmentThld.getDoubleValue(), poleAngle.getDoubleValue(), contourMap, returnDistance);
+    }
+
+    /**
+     * Contact between two regions, see <em>Contact Criterion</em> parameter
+     * @param lengthThld, eccentricityThld, alignmentThld, poleAngle: parameters of the BACTERIA_POLE criterion
+     * @return function returning 0 if the regions are in contact and +infinity otherwise, or the distance if returnDistance is true
+     */
+    public static ToDoubleBiFunction<Region, Region> contact(CONTACT_CRITERION criterion, double gapMaxDist, double lengthThld, double eccentricityThld, double alignmentThld, double poleAngle, Map<Region, Object>[] contourMap, boolean returnDistance) {
         double d2Thld = Math.pow(gapMaxDist, 2);
-        switch (contactCriterion.getSelectedEnum()) {
+        switch (criterion) {
             case CONTOUR_DISTANCE:
             default: {
                 if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(Region::getContour);
@@ -1960,10 +1978,6 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 };
             }
             case BACTERIA_POLE: {
-                double lengthThld = this.lengthThld.getDoubleValue();
-                double eccentricityThld = this.eccentricityThld.getDoubleValue();
-                double alignmentThld= this.alignmentThld.getDoubleValue();
-                double poleAngle = this.poleAngle.getDoubleValue();
                 Function<Region, Pair<FitEllipseShape.Ellipse, Set<? extends RealLocalizable>> > getPole = r -> {
                     double feret = GeometricalMeasurements.getFeretMax(r);
                     if (feret < lengthThld) return new Pair<>(null, r.getContour());
@@ -2024,7 +2038,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     protected BiPredicate<Track, Track> gapBetweenTracks() {
-        BiPredicate<Region, Region> contact = (r1, r2) -> contact(contactDistThld.getDoubleValue(), null, false).applyAsDouble(r1, r2) == 0;
+        return gapBetweenTracks((r1, r2) -> contact(contactDistThld.getDoubleValue(), null, false).applyAsDouble(r1, r2) == 0);
+    }
+
+    /**
+     * @return true if the two tracks are not in contact at one of their common frames
+     */
+    public static BiPredicate<Track, Track> gapBetweenTracks(BiPredicate<Region, Region> contact) {
         return (t1, t2) -> {
             for (int f = Math.max(t1.getFirstFrame(), t2.getFirstFrame()); f <= Math.min(t1.getLastFrame(), t2.getLastFrame()); ++f) {
                 if (!contact.test(t1.getObject(f).getRegion(), t2.getObject(f).getRegion())) {
@@ -2036,7 +2056,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     protected BiPredicate<Track, Track> tracksInContact() {
-        BiPredicate<Region, Region> contact = (r1, r2) -> contact(contactDistThld.getDoubleValue(), null, false).applyAsDouble(r1, r2) == 0;
+        return tracksInContact((r1, r2) -> contact(contactDistThld.getDoubleValue(), null, false).applyAsDouble(r1, r2) == 0);
+    }
+
+    /**
+     * @return true if the two tracks span the same frames and are in contact at all frames
+     */
+    public static BiPredicate<Track, Track> tracksInContact(BiPredicate<Region, Region> contact) {
         return (t1, t2) -> {
             if (t1.getFirstFrame()!=t2.getFirstFrame() || t1.getLastFrame()!=t2.getLastFrame()) return false;
             for (int f = t1.getFirstFrame(); f <= t1.getLastFrame(); ++f) {
