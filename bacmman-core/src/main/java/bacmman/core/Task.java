@@ -1090,6 +1090,13 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 incrementProgress();
                 //db.getDao(position).applyOnAllOpenedObjects(o->{if (o.hasRegion()) o.getRegion().clearVoxels();}); // possible memory leak at this stage : list of voxels of big objects -> no necessary for further processing.
                 // TODO : when no more processing with direct parent as root: get all images of direct root children & remove images from root
+                // free memory of disk-backed images (raw images, predictions...) after each object class, so that the next object class starts with the memory used by objects only. Images are re-opened if they are needed again
+                try {
+                    Core.freeDiskManagersMemory();
+                } catch (IOException e) {
+                    this.errors.addExceptions(new Pair<>("Task level", e));
+                    ok = false;
+                }
                 System.gc();
                 publishMemoryUsage("After Processing structure:"+s);
                 if (Utils.getMemoryUsageProportion() > cleanMemoryProportionThld) { // for heavy tasks: intermediate free memory

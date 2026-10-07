@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -116,6 +117,21 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
         return this;
     }
     
+    /**
+     * Releases the memory of the intensity map of the feature once the objects of the parent are measured, to limit memory usage when all parents of a long track are processed in parallel: the raw image is re-opened if it is needed again. The pre-filtered intensity map is only referenced by the feature
+     */
+    private static void releaseIntensityMap(SegmentedObject parent, ObjectFeature f) {
+        if (!(f instanceof ObjectFeatureWithCore)) return;
+        Image raw = ((ObjectFeatureWithCore)f).getIntensityMap(false);
+        if (raw instanceof DiskBackedImage) { // raw image of a root object: managed by the image DAO
+            try {
+                ((DiskBackedImage)raw).freeMemory(false); // raw images are not modified
+            } catch (IOException e) {
+                logger.debug("could not free memory of raw image of {}", parent, e);
+            }
+        } else parent.flushImages(true, false); // raw image cropped from the root image: release the reference held by the parent
+    }
+
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) throws MultipleException {
         if (!feature.isOnePluginSet() || parentTrack.isEmpty()) return;
@@ -152,6 +168,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
                 }
             }
             valueMap.putAll(locValueMap);
+            releaseIntensityMap(parent, f);
         };
         ThreadRunner.executeAndThrowErrors(Utils.parallel(parentTrack.stream(), true), exe);
         double threshold;
