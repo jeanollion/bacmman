@@ -1,5 +1,6 @@
 package bacmman.image;
 
+import bacmman.data_structure.dao.DiskBackedImageMemoryGuard;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.utils.StreamConcatenation;
 
@@ -98,9 +99,19 @@ public class TiledDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I>
     }
 
     @Override
-    public synchronized I getImage() {
+    public I getImage() {
+        if (image == null) DiskBackedImageMemoryGuard.beforeLoading(manager, heapMemory()); // before acquiring the lock of this image (avoids deadlocks with eviction). covers the loading of all tiles
+        return getImageSync();
+    }
+
+    private synchronized I getImageSync() {
         if (image == null ) {
-            stitchImage();
+            DiskBackedImageMemoryGuard.enter(); // lock of this image is held: no guard for the loading of tiles
+            try {
+                stitchImage();
+            } finally {
+                DiskBackedImageMemoryGuard.exit();
+            }
         } else { // case calibration / offset have been modified on this object
             if (!image.getOffset().sameOffset(this)) image.resetOffset().translate(this);
             image.setCalibration(scaleXY, scaleZ);

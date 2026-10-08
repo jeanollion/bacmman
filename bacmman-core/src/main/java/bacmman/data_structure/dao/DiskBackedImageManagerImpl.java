@@ -39,6 +39,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         this.directory = directory;
         shutdownHook = new Thread(this::close, "DiskBackedImageManagerImplCleanup@" + directory);
         Runtime.getRuntime().addShutdownHook(shutdownHook); // best-effort: only reached on normal JVM exit, not on kill -9 / power loss
+        DiskBackedImageMemoryGuard.register(this);
     }
 
     @Override
@@ -84,6 +85,38 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
     }
 
     @Override
+    public double getMemoryFraction() {
+        return memoryFraction;
+    }
+
+    @Override
+    public long freeLeastRecentlyUsedImage() throws IOException {
+        if (clearRequested) return 0;
+        int n;
+        synchronized (queue) { n = queue.size(); }
+        DiskBackedImageMemoryGuard.enter(); // no guard for loadings that occur during eviction
+        try {
+            for (int i = 0; i < n; ++i) {
+                DiskBackedImage im;
+                synchronized (queue) { im = queue.poll(); if (im != null) queue.add(im); } // rotate: concurrent callers free different images
+                if (im == null) return 0;
+                if (!im.isOpen()) continue;
+                long before = im.usedHeapMemory();
+                try {
+                    im.freeMemory(true);
+                } catch (DiskBackedImageManager.ClearRequestedException e) {
+                    return 0;
+                }
+                long freed = before - im.usedHeapMemory();
+                if (freed > 0) return freed;
+            }
+            return 0;
+        } finally {
+            DiskBackedImageMemoryGuard.exit();
+        }
+    }
+
+    @Override
     public boolean isFreeingMemory() { return freeing.get(); }
 
     public void freeMemory(double memoryFraction) throws IOException {
@@ -93,6 +126,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed || !freeing.compareAndSet(false, true)) return;
+        DiskBackedImageMemoryGuard.enter(); // no guard for loadings that occur during eviction
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
         long freed = 0;
         int loopCount = 0;
@@ -104,8 +138,9 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
                 if (im.isOpen()) {
                     if (Thread.currentThread().isInterrupted()) break;
                     try {
+                        long before = im.usedHeapMemory();
                         im.freeMemory(true);
-                        long usedHM = im.usedHeapMemory();
+                        long usedHM = before - im.usedHeapMemory(); // memory freed (usedHeapMemory is 0 once the image is freed)
                         used -= usedHM;
                         freed += usedHM;
                     } catch (DiskBackedImageManager.ClearRequestedException e) {
@@ -116,6 +151,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
             }
         } finally {
             freeing.set(false);
+            DiskBackedImageMemoryGuard.exit();
         }
         if (freed > 1024 * 1024 * 1024) {
             double total;
@@ -247,6 +283,7 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
 
     @Override
     public void close() {
+        DiskBackedImageMemoryGuard.unregister(this);
         stopDaemon();
         clear(true);
         try { Runtime.getRuntime().removeShutdownHook(shutdownHook); } catch (IllegalStateException ignored) { } // already shutting down

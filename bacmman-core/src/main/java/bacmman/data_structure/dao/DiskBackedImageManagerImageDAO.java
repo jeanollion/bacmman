@@ -19,7 +19,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
     final ImageDAO imageDAO;
     final String position;
     Thread daemon;
-    double memoryFraction;
+    double memoryFraction = DiskBackedImageManager.memoryFraction;
     long daemonTimeInterval;
     volatile boolean stopDaemon = false;
     volatile boolean clearRequested = false;
@@ -37,6 +37,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         this.directory=directory;
         shutdownHook = new Thread(this::close, "DiskBackedImageManagerImageDAOCleanup@" + directory);
         Runtime.getRuntime().addShutdownHook(shutdownHook); // best-effort: only reached on normal JVM exit, not on kill -9 / power loss
+        DiskBackedImageMemoryGuard.register(this);
     }
 
     public ImageDAO getSourceImageDAO() {
@@ -85,6 +86,38 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             daemon = null;
             return true;
         } else return false;
+    }
+
+    @Override
+    public double getMemoryFraction() {
+        return memoryFraction;
+    }
+
+    @Override
+    public long freeLeastRecentlyUsedImage() throws IOException {
+        if (clearRequested) return 0;
+        int n;
+        synchronized (queue) { n = queue.size(); }
+        DiskBackedImageMemoryGuard.enter(); // no guard for loadings that occur during eviction
+        try {
+            for (int i = 0; i < n; ++i) {
+                DiskBackedImage im;
+                synchronized (queue) { im = queue.poll(); if (im != null) queue.add(im); } // rotate: concurrent callers free different images
+                if (im == null) return 0;
+                if (!im.isOpen()) continue;
+                long before = im.usedHeapMemory();
+                try {
+                    im.freeMemory(true);
+                } catch (DiskBackedImageManager.ClearRequestedException e) {
+                    return 0;
+                }
+                long freed = before - im.usedHeapMemory();
+                if (freed > 0) return freed;
+            }
+            return 0;
+        } finally {
+            DiskBackedImageMemoryGuard.exit();
+        }
     }
 
     @Override
@@ -215,6 +248,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
 
     @Override
     public void close() {
+        DiskBackedImageMemoryGuard.unregister(this);
         stopDaemon();
         clear(true);
         try { Runtime.getRuntime().removeShutdownHook(shutdownHook); } catch (IllegalStateException ignored) { } // already shutting down
@@ -229,6 +263,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         long maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction);
         if (used <= maxUsed || !freeing.compareAndSet(false, true)) return;
+        DiskBackedImageMemoryGuard.enter(); // no guard for loadings that occur during eviction
         maxUsed = (long)(Runtime.getRuntime().maxMemory() * memoryFraction * 0.9); // hysteresis
         long freed = 0;
         int loopCount = 0;
@@ -240,8 +275,9 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 if (im.isOpen()) {
                     if (Thread.currentThread().isInterrupted()) break;
                     try {
+                        long before = im.usedHeapMemory();
                         im.freeMemory(true);
-                        long usedHM = im.usedHeapMemory();
+                        long usedHM = before - im.usedHeapMemory(); // memory freed (usedHeapMemory is 0 once the image is freed)
                         used -= usedHM;
                         freed += usedHM;
                     } catch (DiskBackedImageManager.ClearRequestedException e) {
@@ -252,6 +288,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
             }
         } finally {
             freeing.set(false);
+            DiskBackedImageMemoryGuard.exit();
         }
         if (freed > 1024 * 1024 * 1024) {
             double total;
@@ -293,6 +330,7 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
         UnaryPair<Integer> key = getKey(channelImageIdx, timePoint);
         DiskBackedImage im = openImages.get(key);
         if (im == null) {
+            DiskBackedImageMemoryGuard.beforeLoading(this, -1); // before acquiring the lock. size of the image is unknown: at least one image is freed if memory usage is above threshold
             synchronized (openImages) {
                 im = openImages.get(key);
                 if (im == null) {

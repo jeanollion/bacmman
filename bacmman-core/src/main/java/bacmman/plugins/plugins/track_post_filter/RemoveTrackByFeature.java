@@ -22,7 +22,6 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -118,18 +117,12 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
     }
     
     /**
-     * Releases the memory of the intensity map of the feature once the objects of the parent are measured, to limit memory usage when all parents of a long track are processed in parallel: the raw image is re-opened if it is needed again. The pre-filtered intensity map is only referenced by the feature
+     * Releases the raw image of the parent once its objects are measured, when it is a copy cropped from the root image: such copies are not disk-backed and are cached by the parent, so they cannot be freed by the memory daemon of the disk-backed image managers. Raw images of root objects are disk-backed: their memory is managed by the image manager (see {@link bacmman.data_structure.dao.DiskBackedImageMemoryGuard})
      */
     private static void releaseIntensityMap(SegmentedObject parent, ObjectFeature f) {
         if (!(f instanceof ObjectFeatureWithCore)) return;
         Image raw = ((ObjectFeatureWithCore)f).getIntensityMap(false);
-        if (raw instanceof DiskBackedImage) { // raw image of a root object: managed by the image DAO
-            try {
-                ((DiskBackedImage)raw).freeMemory(false); // raw images are not modified
-            } catch (IOException e) {
-                logger.debug("could not free memory of raw image of {}", parent, e);
-            }
-        } else parent.flushImages(true, false); // raw image cropped from the root image: release the reference held by the parent
+        if (raw != null && !(raw instanceof DiskBackedImage)) parent.flushImages(true, false);
     }
 
     @Override

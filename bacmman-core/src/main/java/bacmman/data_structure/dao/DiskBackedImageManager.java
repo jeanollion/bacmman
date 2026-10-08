@@ -14,6 +14,15 @@ public interface DiskBackedImageManager {
     boolean stopDaemon();
     void freeMemory(double memoryFraction) throws IOException;
     boolean isFreeingMemory();
+    /**
+     * @return fraction of the maximal heap memory above which images are freed
+     */
+    double getMemoryFraction();
+    /**
+     * Frees the memory of the least recently used open image of this manager (stored before if modified)
+     * @return heap memory freed, 0 if no image could be freed
+     */
+    long freeLeastRecentlyUsedImage() throws IOException;
     boolean isClearRequested();
     <I extends Image<I>> I openImageContent(DiskBackedImage<I> fmi) throws IOException;
     <I extends Image<I>> void storeDiskBackedImage(DiskBackedImage<I> fmi) throws IOException;
