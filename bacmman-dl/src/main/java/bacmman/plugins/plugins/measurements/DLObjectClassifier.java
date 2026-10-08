@@ -22,6 +22,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class DLObjectClassifier implements Measurement.TrackMeasurement, Hint, MultiThreaded {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
@@ -97,7 +98,9 @@ public class DLObjectClassifier implements Measurement.TrackMeasurement, Hint, M
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         //dlResizeAndScale.setScaleLogger(Core::userLog);
-        Image[][] predNC = getDlResizeAndScale(channels.length, legacyMode).predict(engine, chans)[0];
+        // intensity scaling computed once on the whole parent track (including frames without objects), so that it does not depend on the frames that contain objects
+        DLResizeAndScale dl = getDlResizeAndScale(channels.length, legacyMode).withGlobalScaling(parentTrack.size(), parentTrack.get(0).getBounds(), (inputIdx, frames) -> inputIdx < channels.length ? IntStream.of(frames).mapToObj(f -> parentTrack.get(f).getRawImageByChannel(channels[inputIdx])) : Stream.empty());
+        Image[][] predNC = dl.predict(engine, chans)[0];
         boolean allProba = this.proba.getSelected();
         if (allProba && predNC[0].length!=classNumber.getIntValue()) throw new RuntimeException("ClassNumber parameter differs from number of predicted classes: "+predNC[0].length);
         BiFunction<Region, Image[], double[]> reduction;
