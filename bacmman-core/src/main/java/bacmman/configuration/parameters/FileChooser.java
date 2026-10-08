@@ -36,6 +36,7 @@ import javax.swing.filechooser.FileFilter;
 import bacmman.configuration.experiment.Experiment;
 import net.imagej.ops.Ops;
 import org.json.simple.JSONArray;
+import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
 
@@ -178,7 +179,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public FileChooser setSelectedFilePath(String... filePath) {
         String[] currentPath = getSelectedFilePath();
         if (filePath==null) selectedFiles = new String[0];
-        else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).toArray(String[]::new);
+        else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).map(FileIO::fromPortablePath).toArray(String[]::new); // separators of the current system
         Path refPath = getRefPath();
         if (refPath!=null) {
             for (int i = 0; i < selectedFiles.length; ++i) {
@@ -286,7 +287,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override
     public Object toJSONEntry() {
         if (selectedFiles==null) selectedFiles=new String[0];
-        return JSONUtils.toJSONArray(selectedFiles);
+        return JSONUtils.toJSONArray(Arrays.stream(selectedFiles).map(FileIO::toPortablePath).toArray(String[]::new)); // paths are stored with '/' separator, independently of the system
     }
 
     @Override
@@ -296,7 +297,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         } else if (jsonEntry instanceof JSONArray) {
             selectedFiles = JSONUtils.fromStringArray((JSONArray) jsonEntry);
         } else selectedFiles = new String[0];
-        Utils.transformInPlace(selectedFiles, FileChooser::fixWindowsPath);
+        Utils.transformInPlace(selectedFiles, FileIO::fromPortablePath); // stored with '/' separator, or '\\' separator for configurations saved on Windows by previous versions
         // check absolute...
         if (selectedFiles.length>0) {
             boolean rel = !currentPathsAreAbsolute();
@@ -320,13 +321,6 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             throw e;
         }
 
-    }
-    protected static String fixWindowsPath(String path) {
-        if (File.separatorChar=='\\') { // current system is windows convert path from Unix to windows
-            return path.replace('/', File.separatorChar);
-        } else { // current system is Unix: convert path from Windows to Unix
-            return path.replace('\\', File.separatorChar);
-        }
     }
     protected  static String toAbsolutePath(Path ref, String toConvert) {
         return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();

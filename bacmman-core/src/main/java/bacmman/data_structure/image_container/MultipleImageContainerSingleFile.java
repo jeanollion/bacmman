@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.utils.FileIO;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
@@ -128,7 +129,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         super(scaleXY, scaleZ);
         this.name = name;
         this.seriesIdx=series;
-        filePath = imagePath;
+        filePath = FileIO.checkNoBackslash(imagePath);
         this.timePointNumber = timePointNumber;
         this.channelNumber=channelNumber;
         this.sizeZ=sizeZ;
@@ -206,7 +207,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     }
     
     public void setImagePath(String path) {
-        this.filePath=path;
+        this.filePath=FileIO.checkNoBackslash(path);
     }
     
     public String getFilePath(){return filePath;}

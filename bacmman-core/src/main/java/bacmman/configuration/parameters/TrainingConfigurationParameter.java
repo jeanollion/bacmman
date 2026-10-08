@@ -1,5 +1,6 @@
 package bacmman.configuration.parameters;
 
+import bacmman.utils.FileIO;
 import bacmman.core.DockerGateway;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -527,7 +528,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         @Override
         public JSONObject getPythonConfiguration() {
             JSONObject res = new JSONObject();
-            if (path.selectedFiles.length>0) res.put("path", path.selectedFiles[0]); // relative path if possible
+            if (path.selectedFiles.length>0) res.put("path", FileIO.toPortablePath(path.selectedFiles[0])); // relative path if possible, '/' separator
             if (multipleChannel) {
                 if (channels.getChildCount()>1) res.put("channel_name", channels.toJSONEntry());
                 else res.put("channel_name", channels.getChildAt(0).toJSONEntry()); // retro compatibility

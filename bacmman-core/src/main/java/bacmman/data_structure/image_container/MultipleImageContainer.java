@@ -22,6 +22,7 @@ import bacmman.core.OmeroGateway;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import org.json.simple.JSONObject;
+import bacmman.utils.FileIO;
 import bacmman.utils.JSONSerializable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,15 +91,23 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public static String getKeyCT(int c, int t) {
         return new StringBuilder(7).append(c).append(";").append(t).toString();
     }
+    /**
+     * @return path relative to the dataset path, with '/' as separator (independent of the system) to be stored
+     */
     protected String relativePath(String absolutePath) {
         try {
-            return path.relativize(Paths.get(absolutePath)).toString();
+            return FileIO.toPortablePath(path.relativize(Paths.get(absolutePath)).toString());
         } catch(IllegalArgumentException e) { // under windows, some path have different roots and cannot be relativized
-            return absolutePath;
+            return FileIO.toPortablePath(absolutePath);
         }
     }
+
+    /**
+     * @param relativePath stored path, relative to the dataset path (or absolute), with '/' as separator or '\\' (saved on Windows by previous versions)
+     * @return absolute path with separators of the current system
+     */
     protected String absolutePath(String relativePath) {
-        Path p = path.resolve(relativePath);
+        Path p = path.resolve(FileIO.fromPortablePath(relativePath));
         if (p.isAbsolute()) return p.toFile().getAbsolutePath();
         return p.normalize().toFile().getAbsolutePath();
 

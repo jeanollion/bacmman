@@ -163,7 +163,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     protected MultipleImageContainerPositionChannelFrame() {super(1, 1);} // JSON init
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int[] sizeZC, int frameNumber, double scaleXY, double scaleZ, String positionName) throws IOException {
         super(scaleXY, scaleZ);
-        this.inputDir = inputDir;
+        this.inputDir = FileIO.checkNoBackslash(inputDir);
         this.extension = extension;
         this.positionKey = positionKey;
         this.positionName = positionName == null ? positionKey : positionName;
