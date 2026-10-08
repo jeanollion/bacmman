@@ -54,24 +54,24 @@ public class DiSTNet2DCatTraining extends DiSTNet2DSegTraining {
             inputs[0] = new DLModelMetadata.DLModelInputParameter("Input").setChannelNumber(nframes);
         } else {
             int nchan = p.getChannelNumber();
-            int nlab = p.getLabelNumber();
-            inputs = new DLModelMetadata.DLModelInputParameter[nchan + nlab * 2];
+            //int nlab = p.getLabelNumber();
+            inputs = new DLModelMetadata.DLModelInputParameter[nchan ]; // + nlab * 2
             for (int i = 0; i<nchan; ++i) {
                 inputs[i] = new DLModelMetadata.DLModelInputParameter("Input"+i)
                     .setChannelNumber(nframes)
                     .setScaling(p.getScalingParameter(i).getScaler());
             }
-            for (int i = 0; i<nlab * 2; ++i) {
+            /*for (int i = 0; i<nlab * 2; ++i) {
                 inputs[i+nchan] = new DLModelMetadata.DLModelInputParameter("Input"+(i+nchan)+ (i%2==0 ? "_EDM" : "_CDM" ) )
                     .setChannelNumber(nframes);
-            }
+            }*/
         }
         for (int i = 0;i<inputs.length; ++i) {
             if (fixedShape) inputs[i].setShape(getConfiguration().getGlobalDatasetParameters().getInputShape());
             else inputs[i].setShape();
         }
         DLModelMetadata.DLModelOutputParameter[] outputs = new DLModelMetadata.DLModelOutputParameter[1];
-        outputs[1] = new DLModelMetadata.DLModelOutputParameter("Output0_Category");
+        outputs[0] = new DLModelMetadata.DLModelOutputParameter("Output0_Category");
         return new DLModelMetadata()
                 .setInputs(inputs)
                 .setOutputs(outputs)
