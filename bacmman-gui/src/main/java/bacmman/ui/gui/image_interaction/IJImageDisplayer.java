@@ -38,7 +38,6 @@ import java.awt.event.WindowListener;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.IntFunction;
-import java.util.function.ToIntBiFunction;
 
 /**
  *
@@ -86,7 +85,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             logger.debug("im shown. interactive image is null? {}", im==null);
             if (im != null) {
                 TimeLapseInteractiveImageFactory.DIRECTION dir = getDirection(im);
-                ToIntBiFunction<Integer, Boolean> nextPos = getNextPosFunction(im);
+                NeighborSlicePosition nextPos = getNextPosFunction(im);
                 addMouseWheelListener(ip, dir, nextPos);
             } else addMouseWheelListener(ip, TimeLapseInteractiveImageFactory.DIRECTION.T, null);
             ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
@@ -94,50 +93,40 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         return ip;
     }
 
-    protected ToIntBiFunction<Integer, Boolean> getNextPosFunction(InteractiveImage im) {
-        if (im instanceof KymographX) {
-            KymographX k = (KymographX)im;
-            return (nextSlice, next) -> {
-                if (next) {
-                    int currentSlice = nextSlice - 1;
-                    if (nextSlice == k.data.nSlices - 1) {
-                        int lastParentIdx = k.getStartParentIdx(currentSlice) + k.data.nFramePerSlice - 1;
-                        int frame = k.getParents().get(lastParentIdx).getFrame();
-                        return k.getOffsetForFrame(frame, nextSlice).xMin();
-                    } else return 0;
-                } else {
-                    int currentSlice = nextSlice + 1;
-                    int lastParentIdx = k.getStartParentIdx(currentSlice);
-                    int frame = k.getParents().get(lastParentIdx).getFrame();
-                    //logger.debug("prev: lastParent {} frame: {} next slice {}, offset: {}", lastParentIdx, frame, nextSlice, k.getOffsetForFrame(frame, nextSlice));
-                    return k.getOffsetForFrame(frame, nextSlice).xMin();// + k.getParents().get(lastParentIdx).getBounds().sizeX();
-                }
-            };
-        }
-        else if (im instanceof KymographY) {
-            KymographY k = (KymographY)im;
-            return (nextSlice, next) -> {
-                if (next) {
-                    int currentSlice = nextSlice - 1;
-                    if (nextSlice == k.data.nSlices - 1) {
-                        int lastParentIdx = k.getStartParentIdx(currentSlice) + k.data.nFramePerSlice - 1;
-                        int frame = k.getParents().get(lastParentIdx).getFrame();
-                        return k.getOffsetForFrame(frame, nextSlice).yMin();
-                    } else return 0;
-                } else {
-                    int currentSlice = nextSlice + 1;
-                    int lastParentIdx = k.getStartParentIdx(currentSlice);
-                    int frame = k.getParents().get(lastParentIdx).getFrame();
-                    return k.getOffsetForFrame(frame, nextSlice).yMin();// + k.getParents().get(lastParentIdx).getBounds().sizeY();
-                }
-            };
-        }
-        else if (im instanceof HyperStack) {
-            return null;
-        }
-        else {
-            return null;
-        }
+    /**
+     * Position of the view when the display switches to a neighbor slice of a kymograph
+     */
+    @FunctionalInterface
+    public interface NeighborSlicePosition {
+        /**
+         * @param currentSlice index of the displayed slice
+         * @param neighborSlice index of the slice to display (currentSlice + 1 or currentSlice - 1)
+         * @param viewStart position of the view in the current slice, along the time axis of the kymograph
+         * @param viewSize size of the view along the time axis
+         * @param imageSize size of the slices along the time axis
+         * @return position of the view in the neighbor slice
+         */
+        int get(int currentSlice, int neighborSlice, int viewStart, int viewSize, int imageSize);
+    }
+
+    /**
+     * Slices of a kymograph overlap: when the display switches to the neighbor slice, the view is translated so that the frames that are displayed remain at the same location on the screen, independently of the zoom.
+     * The translation is computed from a frame displayed in the view that is also contained in the neighbor slice: the frame at the start of the view when moving forward, at the end of the view when moving backward. If the view is larger than the overlap between slices (no such frame), the view is moved to the start (forward) or the end (backward) of the neighbor slice.
+     */
+    protected NeighborSlicePosition getNextPosFunction(InteractiveImage im) {
+        if (!(im instanceof KymographX) && !(im instanceof KymographY)) return null;
+        Kymograph k = (Kymograph)im;
+        boolean alongX = im instanceof KymographX;
+        return (currentSlice, neighborSlice, viewStart, viewSize, imageSize) -> {
+            boolean next = neighborSlice > currentSlice;
+            int anchor = Math.max(0, Math.min(imageSize - 1, next ? viewStart : viewStart + viewSize - 1));
+            int frame = alongX ? k.getClosestFrame(anchor, 0, currentSlice) : k.getClosestFrame(0, anchor, currentSlice);
+            Offset current = k.getOffsetForFrame(frame, currentSlice);
+            Offset neighbor = k.getOffsetForFrame(frame, neighborSlice);
+            if (current == null || neighbor == null) return next ? 0 : imageSize - viewSize;
+            int translation = alongX ? neighbor.xMin() - current.xMin() : neighbor.yMin() - current.yMin(); // frames have the same relative positions in all slices
+            return viewStart + translation;
+        };
     }
 
     protected TimeLapseInteractiveImageFactory.DIRECTION getDirection(InteractiveImage im) {
@@ -189,7 +178,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         return displayedImages.get(image)!=null && displayedImages.get(image).getCanvas()==null;
     }
     
-    protected void addMouseWheelListener(final ImagePlus imp, TimeLapseInteractiveImageFactory.DIRECTION direction, ToIntBiFunction<Integer, Boolean> getKymographPositionAtNeighborSlice) {
+    protected void addMouseWheelListener(final ImagePlus imp, TimeLapseInteractiveImageFactory.DIRECTION direction, NeighborSlicePosition getKymographPositionAtNeighborSlice) {
         if (imp==null) return;
         final ImageWindow iw = imp.getWindow();
         final ImageCanvas ic = imp.getCanvas();
@@ -279,8 +268,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                         if (scrollXamount>0 && srcRect.x + srcRect.width == width) {
                             int nextSlice = imp.getFrame() + 1;
                             if (nextSlice<=imp.getNFrames()) {
-                                srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(nextSlice-1, true));
-                                //srcRect.x = 0;
+                                srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.get(imp.getFrame()-1, nextSlice-1, srcRect.x, srcRect.width, width) + scrollXamount); // same frames at the same location, then scroll
                                 imp.setT(nextSlice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(iw, nextSlice);
@@ -288,8 +276,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                         } else if (scrollXamount<0 && srcRect.x == 0) {
                             int nextSlice = imp.getFrame() - 1;
                             if (nextSlice>0) {
-                                srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(nextSlice-1, false));
-                                //srcRect.x = width - srcRect.width;
+                                srcRect.x = ensureBounds.apply(getKymographPositionAtNeighborSlice.get(imp.getFrame()-1, nextSlice-1, srcRect.x, srcRect.width, width) + scrollXamount); // same frames at the same location, then scroll
                                 imp.setT(nextSlice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(iw, nextSlice);
@@ -303,7 +290,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                         if (scrollYamount>0 && srcRect.y + srcRect.height == height) {
                             int slice = imp.getFrame() + 1;
                             if (slice<=imp.getNFrames()) {
-                                srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, true));
+                                srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.get(imp.getFrame()-1, slice-1, srcRect.y, srcRect.height, height) + scrollYamount); // same frames at the same location, then scroll
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(iw, slice);
@@ -311,7 +298,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                         } else if (scrollYamount<0 && srcRect.y == 0) {
                             int slice = imp.getFrame() - 1;
                             if (slice>0) {
-                                srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.applyAsInt(slice-1, false));
+                                srcRect.y = ensureBounds.apply(getKymographPositionAtNeighborSlice.get(imp.getFrame()-1, slice-1, srcRect.y, srcRect.height, height) + scrollYamount); // same frames at the same location, then scroll
                                 imp.setT(slice);
                                 imp.updateStatusbarValue();
                                 SyncWindows.setT(iw, slice);
