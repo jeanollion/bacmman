@@ -51,7 +51,8 @@ public class DiskBackedImageManagerImpl implements DiskBackedImageManager {
                 try {
                     freeMemory(memoryFraction, true);
                 } catch (Throwable t) {
-                    logger.error("Error freeing memory", t);
+                    if (stopDaemon) logger.debug("Freeing memory interrupted: daemon is stopping", t); // e.g. write interrupted by stopDaemon (ClosedByInterruptException) before images are cleared
+                    else logger.error("Error freeing memory", t);
                 }
                 try {
                     Thread.sleep(timeInterval);

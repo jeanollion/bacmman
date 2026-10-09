@@ -53,7 +53,8 @@ public class DiskBackedImageManagerImageDAO implements ImageDAO, DiskBackedImage
                 try {
                     freeMemory(memoryFraction, true);
                 } catch (Throwable e) {
-                    logger.error("Error freeing memory from daemon", e);
+                    if (stopDaemon) logger.debug("Freeing memory interrupted: daemon is stopping", e); // e.g. write interrupted by stopDaemon (ClosedByInterruptException)
+                    else logger.error("Error freeing memory from daemon", e);
                 }
                 try {
                     Thread.sleep(timeInterval);
