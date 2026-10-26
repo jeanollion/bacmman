@@ -260,6 +260,20 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             return crop.apply(res);
         }
 
+        public int getChannel(int inputIdx) {
+            if (inputIdx == 0) return parentTrack.get(0).getExperimentStructure().getChannelIdx(objectClassIdx);
+            else if (inputIdx <= additionalInputChannels.length) return additionalInputChannels[inputIdx-1];
+            else return -1;
+        }
+
+        public <T> IntFunction<T> getChannelToInputIndexFunction(IntFunction<T> channelFunction) {
+            return inputIdx -> {
+                int channel = getChannel(inputIdx);
+                if (channel < 0) return null;
+                else return channelFunction.apply(channel);
+            };
+        }
+
         protected void computeLabel(int frame, int labelIdx) {
             int l = this.additionalInputLabels[labelIdx];
             Map<Integer, Image> edmMap = distanceMaps.get(labelIdx * 2);

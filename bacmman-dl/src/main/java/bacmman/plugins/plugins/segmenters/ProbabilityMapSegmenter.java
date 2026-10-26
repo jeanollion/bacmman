@@ -26,12 +26,13 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
+public class ProbabilityMapSegmenter implements Segmenter, GlobalHistogramConfigurable, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
     public final static Logger logger = LoggerFactory.getLogger(ProbabilityMapSegmenter.class);
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, "DefaultEngine", false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Limit the number of frames predicted at once");
@@ -55,6 +56,15 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         inputChannels.addValidationFunction(cp -> Math.max(cp.getChildCount(), 1) == dlResample.getInputNumber());
         dlResample.addRankValidation( DLEngine.getRankSupplier(dlEngine, -1) );
         DLEngine.setZAxisValidation( dlEngine, dlResample.getRankFunction() );
+    }
+
+    IntFunction<HistogramSource> globalHistograms;
+    /**
+     * Global distributions of values of the input channels, used for intensity scaling of the corresponding inputs instead of the distribution computed on the processed track (see {@link GlobalHistogramConfigurable})
+     */
+    @Override
+    public void setGlobalHistograms(IntFunction<HistogramSource> histogramSourcePerChannel) {
+        this.globalHistograms = histogramSourcePerChannel;
     }
 
     @Override
@@ -193,7 +203,9 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         int increment = frameWindow.getIntValue ()<=1 || frameWindow.getIntValue()>parentTrack.size() ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / frameWindow.getIntValue()) );
         // intensity scaling computed once on the whole movie so that all frame windows are scaled identically
         int[] inputSources = getInputSources(structureIdx, parentTrack.get(0).getExperimentStructure());
-        DLResizeAndScale dl = dlResample.withGlobalScaling(singleFrame ? 1 : parentTrack.size(), parentTrack.get(0).getBounds(), (inputIdx, frames) -> IntStream.of(frames).mapToObj(parentTrack::get).map(p -> getInputImage(p, inputSources[inputIdx], () -> p.getPreFilteredImage(structureIdx))));
+        int currentChannel = parentTrack.get(0).getExperimentStructure().getChannelIdx(structureIdx);
+        IntFunction<HistogramSource> globalHistogramPerInput = globalHistograms == null ? null : inputIdx -> globalHistograms.apply(inputSources[inputIdx] < 0 ? currentChannel : inputSources[inputIdx]);
+        DLResizeAndScale dl = dlResample.withGlobalScaling(singleFrame ? 1 : parentTrack.size(), parentTrack.get(0).getBounds(), (inputIdx, frames) -> IntStream.of(frames).mapToObj(parentTrack::get).map(p -> getInputImage(p, inputSources[inputIdx], () -> p.getPreFilteredImage(structureIdx))), globalHistogramPerInput);
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);

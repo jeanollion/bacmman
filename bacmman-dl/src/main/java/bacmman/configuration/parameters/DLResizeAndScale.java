@@ -16,10 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.IntSupplier;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -244,6 +241,14 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
      * @return a copy of this instance with constant scalers, or this instance
      */
     public DLResizeAndScale withGlobalScaling(int nFrames, BoundingBox frameDimensions, BiFunction<Integer, int[], Stream<Image>> imagesByInput) {
+        return withGlobalScaling(nFrames, frameDimensions, imagesByInput, null);
+    }
+
+    /**
+     * Same as {@link #withGlobalScaling(int, BoundingBox, BiFunction)}, the distribution of values of some inputs being provided by the caller (e.g. computed on a wider context than the images fed to the network)
+     * @param histogramSourcePerInput function: input index -> source of the distribution of values of this input, or null to compute it from {@param imagesByInput}. Can be null
+     */
+    public DLResizeAndScale withGlobalScaling(int nFrames, BoundingBox frameDimensions, BiFunction<Integer, int[], Stream<Image>> imagesByInput, IntFunction<HistogramSource> histogramSourcePerInput) {
         if (scaleImageByImage.getSelected() || nFrames <= 0) return this;
         int nInputs = MODE.RESAMPLE.equals(getMode()) ? inputInterpAndScaling.getActivatedChildCount() : inputScaling.getActivatedChildCount();
         int[] frames = HistogramFactory.getFrameSubset(nFrames, frameDimensions);
@@ -253,7 +258,8 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             if (scaler == null || scaler instanceof ConstantScaler) continue;
             int inputIdx = i;
             if (scaleLogger != null) scaler.setScaleLogger(scaleLogger);
-            scaler.setHistogram(HistogramSource.of(() -> imagesByInput.apply(inputIdx, frames).flatMapToDouble(Image::stream)));
+            HistogramSource provided = histogramSourcePerInput == null ? null : histogramSourcePerInput.apply(inputIdx);
+            scaler.setHistogram(provided != null ? provided : HistogramSource.of(() -> imagesByInput.apply(inputIdx, frames).flatMapToDouble(Image::stream)));
             HistogramScaler constant = scaler.toConstantScaler();
             if (constant == null) {
                 logger.warn("Scaler {} of input #{} cannot be converted to a constant scaler: scaling will be computed on each batch", scaler.getClass().getSimpleName(), i);
@@ -264,7 +270,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 res.noResize.addAll(noResize);
             }
             res.setScaler(i, constant);
-            String message = "Global scaling of input #" + i + " computed on " + frames.length + "/" + nFrames + " frames with " + scaler.getClass().getSimpleName();
+            String message = "Global scaling of input #" + i + (provided != null ? " computed on the provided distribution" : " computed on " + frames.length + "/" + nFrames + " frames") + " with " + scaler.getClass().getSimpleName();
             logger.debug(message);
             if (scaleLogger != null) scaleLogger.accept(message);
         }

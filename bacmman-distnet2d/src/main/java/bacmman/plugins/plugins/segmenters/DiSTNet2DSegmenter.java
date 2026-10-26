@@ -22,10 +22,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProcessingPlugin, TrackConfigurable<DiSTNet2DSegmenter>, DLMetadataConfigurable, ObjectSplitter, ManualSegmenter, Hint {
+public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, SegmenterSplitAndMerge, TestableProcessingPlugin, TrackConfigurable<DiSTNet2DSegmenter>, DLMetadataConfigurable, ObjectSplitter, ManualSegmenter, Hint {
     public final static Logger logger = LoggerFactory.getLogger(DiSTNet2DSegmenter.class);
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("DL Model", DLEngine.class, "DefaultEngine", false)
             .setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: EDM and GCDM");
@@ -68,6 +69,15 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
     @Override
     public String getHintText() {
         return "Segmentation part of Distnet2D<br/> If you use this method please cite: Ollion, J., Maliet, M., Giuglaris, C., Vacher, E., & Deforet, M. (2023). DistNet2D: Leveraging long-range temporal information for efficient segmentation and tracking. PRXLife";
+    }
+
+    IntFunction<HistogramSource> globalHistograms;
+    /**
+     * Global distributions of values of the input channels, used for intensity scaling of the corresponding inputs instead of the distribution computed on the processed track (see {@link GlobalHistogramConfigurable})
+     */
+    @Override
+    public void setGlobalHistograms(IntFunction<HistogramSource> histogramSourcePerChannel) {
+        this.globalHistograms = histogramSourcePerChannel;
     }
 
     @Override
@@ -297,7 +307,9 @@ public class DiSTNet2DSegmenter implements SegmenterSplitAndMerge, TestableProce
             long t2 = System.currentTimeMillis();
             DiSTNet2D.InputImages ii = inputImages;
             // intensity scaling computed once on the whole track so that all batches are scaled identically
-            Image[][][] predictionONC = ii.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(sortedFrames.length, ii.getImageDimensions(sortedFrames[0]), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> ii.getImage(sortedFrames[f], inputIdx)))).predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
+            IntFunction<HistogramSource> globalHistogramPerInput = globalHistograms == null ? null : ii.getChannelToInputIndexFunction(globalHistograms);
+            DLResizeAndScale dlRS = ii.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(sortedFrames.length, ii.getImageDimensions(sortedFrames[0]), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> ii.getImage(sortedFrames[f], inputIdx)), globalHistogramPerInput));
+            Image[][][] predictionONC = dlRS.predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
             long t3 = System.currentTimeMillis();
             logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms) (effective frame range: [{}; {}] idx=[{}; {}])", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2, effectiveMinFrame, effectiveMaxFrameIncl, effectiveMinIdx, effectiveMaxIdxIncl);
 

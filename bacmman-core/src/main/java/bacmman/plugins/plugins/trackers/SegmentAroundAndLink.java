@@ -10,6 +10,7 @@ import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
@@ -17,16 +18,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.IntFunction;
+import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessingPlugin, Hint {
     static Logger logger = LoggerFactory.getLogger(SegmentAroundAndLink.class);
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, false).setEmphasized(true);
+    BooleanParameter globalScaling = new BooleanParameter("Global Scaling", true).setHint("The segmentation algorithm is run in a box around each object: the spatial context of the box can be too small to compute a relevant intensity scaling (e.g. a box mostly covered by the object). <br>If true, the distribution of the values of each channel is computed on the whole parent track (raw images of the parent objects, on a subset of frames for long tracks), and provided to the segmentation algorithm for its intensity scaling. " +
+            "<br>Only segmentation algorithms that support it use this distribution (e.g. DiSTNet2DSegmenter, ProbabilityMapSegmenter, with <em>Scale Image by Image</em> unchecked): other algorithms are not affected and compute their scaling on the boxes. " +
+            "<br>The distribution is computed on raw images: if track pre-filters are set, the scaling is computed on raw values while the algorithm is applied to pre-filtered images");
     FloatParameter minOverlap = new FloatParameter("Min Overlap", 0.5).setLowerBound(0).setUpperBound(1).setHint("Segmented objects with overlap fraction to reference object lower than this value are discarded");
     ArrayNumberParameter box = new ArrayNumberParameter("Box", 1, new BoundedNumberParameter("Axis", 0, 0, 1, null)).setMaxChildCount(3).setMinChildCount(2)
             .setNewInstanceNameFunction((a,i)->"XYZ".charAt(i) + " axis").setHint("Bounds around the reference object class");
-    Parameter[] parameters = new Parameter[] {segmenter, box, minOverlap};
+    Parameter[] parameters = new Parameter[] {segmenter, globalScaling, box, minOverlap};
 
 
     protected ConvertToBoundingBox getBoxConverter() {
@@ -52,6 +58,12 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
         Map<SegmentedObject, List<SegmentedObject>> refTracks = new TreeMap<>(SegmentedObjectUtils.getAllTracks(parentTrack, referenceObjectClass));
         SegmentOnly ps = new SegmentOnly(segmenter).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
+        if (globalScaling.getSelected()) { // distribution of values of each channel over the whole parent track, shared by all boxes
+            IntFunction<HistogramSource> globalHistograms = getGlobalHistograms(parentTrack);
+            ps.setSegmenterConfiguration(seg -> {
+                if (seg instanceof GlobalHistogramConfigurable) ((GlobalHistogramConfigurable)seg).setGlobalHistograms(globalHistograms);
+            });
+        }
         ps.setTestDataStore(stores);
         Map<SegmentedObject, SegmentedObject> refMapSegmentedObject = new HashMap<>();
         ConvertToBoundingBox boxConverter = getBoxConverter();
@@ -122,6 +134,15 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
                 }
             }
         }
+    }
+
+    /**
+     * @return function: channel image index -> source of the distribution of the raw values of this channel within the parent objects of {@param parentTrack}, on a subset of frames for long tracks (see {@link HistogramFactory#getFrameSubset(int, BoundingBox)}). Sources are created lazily and cache their histograms: each channel is read at most once
+     */
+    protected static IntFunction<HistogramSource> getGlobalHistograms(List<SegmentedObject> parentTrack) {
+        List<SegmentedObject> subset = IntStream.of(HistogramFactory.getFrameSubset(parentTrack.size(), parentTrack.get(0).getBounds())).mapToObj(parentTrack::get).collect(Collectors.toList());
+        Map<Integer, HistogramSource> sources = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(c -> HistogramSource.of(() -> subset.stream().flatMapToDouble(p -> p.getRawImageByChannel(c).stream(p.getMask(), true))));
+        return sources::get;
     }
 
     protected List<SegmentedObject> getChildren(List<SegmentedObject> ref, int parentOC, int refOC, int objectClassIdx) {
@@ -303,7 +324,7 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
 
     @Override
     public String getHintText() {
-        return "This plugin takes a previously processed (segmented + tracked) object class (e.g., cell nuclei) which is defined as the <em>Segmentation Parent</em> object class and a segmenter module. <br>For each track, it defines a box around the objects, runs the segmentation algorithm, selects the most overlapping object in each frame, and copies the tracking links from the original objects to the newly segmented ones. Its typical use case is to segment and track cytoplasms based on previously processed nuclei.";
+        return "This plugin takes a previously processed (segmented + tracked) object class (e.g., cell nuclei) which is defined as the <em>Segmentation Parent</em> object class and a segmenter module. <br>For each track, it defines a box around the objects, runs the segmentation algorithm, selects the most overlapping object in each frame, and copies the tracking links from the original objects to the newly segmented ones. Its typical use case is to segment and track cytoplasms based on previously processed nuclei. <br>See <em>Global Scaling</em> for the intensity scaling of the segmentation algorithm.";
     }
 
     // test

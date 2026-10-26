@@ -36,6 +36,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.DisableParallelExecution;
 import bacmman.utils.HashMapGetCreate;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
@@ -57,6 +58,7 @@ import static bacmman.utils.ThreadRunner.safeMap;
 public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> implements ProcessingPipelineWithSegmenter, Hint {
     final static Logger logger = LoggerFactory.getLogger(SegmentOnly.class);
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, false);
+    Consumer<Segmenter> segmenterConfiguration;
     Parameter[] parameters = new Parameter[]{preFilters, trackPreFilters, segmenter, postFilters};
     
     public SegmentOnly() {}
@@ -81,12 +83,26 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     public String getHintText() {
         return "Performs only the segmentation (no tracking)";
     }
+
+    /**
+     * @param segmenterConfiguration applied to each segmenter instance created by this processing pipeline (including the instance used for track configuration, see {@link TrackConfigurable}), before it is used. Used by plugins that run this processing pipeline to configure the segmenter (e.g. {@link bacmman.plugins.GlobalHistogramConfigurable})
+     */
+    public SegmentOnly setSegmenterConfiguration(Consumer<Segmenter> segmenterConfiguration) {
+        this.segmenterConfiguration = segmenterConfiguration;
+        return this;
+    }
+
+    protected Segmenter instantiateSegmenter() {
+        Segmenter seg = segmenter.instantiatePlugin();
+        if (seg != null && segmenterConfiguration != null) segmenterConfiguration.accept(seg);
+        return seg;
+    }
     
     @Override public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         long t0 = System.currentTimeMillis();
         getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
         long t1 = System.currentTimeMillis();
-        TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
+        TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, instantiateSegmenter());
         long t2 = System.currentTimeMillis();
         //logger.debug("segmenter with track configuration: {}", apply!=null);
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
@@ -128,7 +144,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
             boolean multithreadF = multithread;
             pops = safeMap(Utils.parallel(allParents.stream(), parallel), subParent -> {
                 SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
-                Segmenter seg = segmenter.instantiatePlugin();
+                Segmenter seg = instantiateSegmenter();
                 if (multithreadF) ((MultiThreaded)seg).setMultiThread(true);
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
                 if (stores != null && seg instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)seg).setTestDataStore(stores);
@@ -205,7 +221,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         return parameters;
     }
     @Override
-    public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
+    public Segmenter getSegmenter() {return instantiateSegmenter();}
 
     public ObjectSplitter getObjectSplitter() {
         Segmenter seg = getSegmenter();
