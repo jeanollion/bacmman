@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.utils.Utils;
@@ -88,8 +88,8 @@ public interface MasterDAO<ID, T extends ObjectDAO<ID>> {
         String p = pos.getName();
         return db.getDao(p);
     }
-    MasterDAO setLogger(ProgressLogger logger);
-    ProgressLogger getLogger();
+    MasterDAO setLogger(ProgressDisplay logger);
+    ProgressDisplay getLogger();
     
     static boolean compareDAOContent(MasterDAO dao1, MasterDAO dao2, boolean config, boolean positions, boolean selections, ProgressCallback pcb) {
         boolean sameContent = true;

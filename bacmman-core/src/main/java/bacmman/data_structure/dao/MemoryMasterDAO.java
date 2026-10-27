@@ -20,11 +20,9 @@ package bacmman.data_structure.dao;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -171,15 +169,15 @@ public class MemoryMasterDAO<ID, T extends ObjectDAO<ID>> implements MasterDAO<I
         this.DAOs.values().forEach(ObjectDAO::rollback);
     }
 
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     @Override
-    public MemoryMasterDAO setLogger(ProgressLogger logger) {
+    public MemoryMasterDAO setLogger(ProgressDisplay logger) {
         bacmmanLogger = logger;
         return this;
     }
 
     @Override
-    public ProgressLogger getLogger() {
+    public ProgressDisplay getLogger() {
         return bacmmanLogger;
     }
 }

@@ -6,7 +6,7 @@ import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -53,7 +53,7 @@ public class SaveDLModelGist {
     private ConfigurationTreeGenerator metadataTG;
     private UserAuth auth;
     private String defaultDirectory;
-    private ProgressLogger pcb;
+    private ProgressDisplay pcb;
     Pair<String, DefaultWorker> uploader;
     GithubGateway gateway;
     JDialog dia;
@@ -339,7 +339,7 @@ public class SaveDLModelGist {
         deleteFromServer.setEnabled(!url.getText().isEmpty());
     }
 
-    public SaveDLModelGist setAuthAndDefaultDirectory(UserAuth auth, String defaultDir, ProgressLogger pcb) {
+    public SaveDLModelGist setAuthAndDefaultDirectory(UserAuth auth, String defaultDir, ProgressDisplay pcb) {
         this.auth = auth;
         this.defaultDirectory = defaultDir;
         this.pcb = pcb;

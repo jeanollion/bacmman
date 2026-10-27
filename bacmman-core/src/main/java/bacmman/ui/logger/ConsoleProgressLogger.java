@@ -22,7 +22,7 @@ package bacmman.ui.logger;
  *
  * @author Jean Ollion
  */
-public class ConsoleProgressLogger implements ProgressLogger {
+public class ConsoleProgressLogger implements ProgressDisplay {
     
     @Override
     public void setProgress(int i) {

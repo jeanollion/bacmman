@@ -27,12 +27,12 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class MultiProgressLogger  implements ProgressLogger {
-    List<ProgressLogger> uis = new ArrayList<>();
-    public MultiProgressLogger(ProgressLogger... uis) {
+public class MultiProgressDisplay implements ProgressDisplay {
+    List<ProgressDisplay> uis = new ArrayList<>();
+    public MultiProgressDisplay(ProgressDisplay... uis) {
         this.uis.addAll(Arrays.asList(uis));
     }
-    public MultiProgressLogger addUIs(ProgressLogger... uis) {
+    public MultiProgressDisplay addUIs(ProgressDisplay... uis) {
         this.uis.addAll(Arrays.asList(uis));
         return this;
     }
@@ -68,7 +68,7 @@ public class MultiProgressLogger  implements ProgressLogger {
 
     @Override
     public boolean isGUI() {
-        return uis.stream().anyMatch(ProgressLogger::isGUI);
+        return uis.stream().anyMatch(ProgressDisplay::isGUI);
     }
 
     public void applyToLogUserInterfaces(Consumer<FileProgressLogger> function) {

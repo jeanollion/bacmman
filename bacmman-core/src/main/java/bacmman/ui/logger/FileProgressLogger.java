@@ -31,7 +31,7 @@ import bacmman.utils.Utils;
  *
  * @author Jean Ollion
  */
-public class FileProgressLogger implements ProgressLogger {
+public class FileProgressLogger implements ProgressDisplay {
     File logFile;
     FileLock xpFileLock;
     RandomAccessFile logFileWriter;

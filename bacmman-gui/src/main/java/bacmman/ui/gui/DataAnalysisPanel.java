@@ -12,7 +12,7 @@ import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.gui.objects.JupyterNotebookViewer;
 import bacmman.ui.gui.objects.NotebookTree;
 import bacmman.ui.gui.objects.NotebookGistTree;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.UnaryPair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -51,7 +51,7 @@ public class DataAnalysisPanel {
     static String WD_ID = "data_analysis_working_dir";
     private final DockerGateway dockerGateway;
     private final GithubGateway githubGateway;
-    private final ProgressLogger bacmmanLogger;
+    private final ProgressDisplay bacmmanLogger;
     private final String jupyterToken;
 
     private WorkingDirPanel workingDirPanel;
@@ -61,7 +61,7 @@ public class DataAnalysisPanel {
     private NotebookGistTree remoteNotebooks;
     private JupyterNotebookViewer localViewer, remoteViewer;
 
-    public DataAnalysisPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressLogger bacmmanLogger) {
+    public DataAnalysisPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressDisplay bacmmanLogger) {
         this.dockerGateway = dockerGateway;
         this.githubGateway = githubGateway;
         this.bacmmanLogger = bacmmanLogger;

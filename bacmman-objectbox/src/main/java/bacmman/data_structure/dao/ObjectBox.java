@@ -18,26 +18,12 @@
  */
 package bacmman.data_structure.dao;
 
-import bacmman.configuration.experiment.Experiment;
-import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.FileIO;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.channels.FileChannel;
-import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 

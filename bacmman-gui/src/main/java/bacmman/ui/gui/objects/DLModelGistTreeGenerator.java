@@ -28,7 +28,7 @@ import bacmman.ui.GUI;
 import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,9 +77,9 @@ public class DLModelGistTreeGenerator {
     Supplier<Icon> currentThumbnail;
     Icon dlModelDefaultIcon, urlIcon, metadataIcon, folderIcon;
     String defaultDirectory;
-    ProgressLogger pcb;
+    ProgressDisplay pcb;
     Supplier<UserAuth> authSupplier;
-    public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged, String defaultDirectory, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+    public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged, String defaultDirectory, Supplier<UserAuth> authSupplier, ProgressDisplay pcb) {
         this.gists=gists;
         this.selectionChanged=selectionChanged;
         this.pcb = pcb;

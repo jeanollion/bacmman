@@ -22,7 +22,7 @@ import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
 import bacmman.ui.gui.objects.CollapsiblePanel;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Reader;
@@ -67,7 +67,7 @@ import static bacmman.plugins.plugins.trackers.ObjectOrderTracker.IndexingOrder.
 import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
-public class DockerTrainingWindow implements ProgressLogger {
+public class DockerTrainingWindow implements ProgressDisplay {
     private Frame parent;
     private JPanel mainPanel;
     private JPanel configurationPanel;

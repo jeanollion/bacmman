@@ -3,7 +3,7 @@ package bacmman.data_structure.dao;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
@@ -557,15 +557,15 @@ public abstract class PersistentMasterDAOImpl<ID, T extends ObjectDAO<ID>, S ext
         return safeMode;
     }
 
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     @Override
-    public PersistentMasterDAOImpl<ID, T, S> setLogger(ProgressLogger logger) {
+    public PersistentMasterDAOImpl<ID, T, S> setLogger(ProgressDisplay logger) {
         bacmmanLogger = logger;
         return this;
     }
 
     @Override
-    public ProgressLogger getLogger() {
+    public ProgressDisplay getLogger() {
         return bacmmanLogger;
     }
 }

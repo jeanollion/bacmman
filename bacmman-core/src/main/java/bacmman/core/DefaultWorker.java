@@ -18,7 +18,7 @@
  */
 package bacmman.core;
 
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -37,7 +37,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected Runnable endOfWork;
     protected Runnable cancel;
     protected int[] taskIdx;
-    protected ProgressLogger progressor;
+    protected ProgressDisplay progressor;
     protected ProgressCallback pcb;
     protected volatile boolean forwardProgress = true;
     long tStart;
@@ -45,7 +45,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         this.pcb = pcb;
         return this;
     }
-    public static DefaultWorker executeSingleTask(Runnable task, ProgressLogger gui) {
+    public static DefaultWorker executeSingleTask(Runnable task, ProgressDisplay gui) {
         return execute(t  -> {
             task.run();
             return null;
@@ -54,14 +54,14 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     public static DefaultWorker execute(WorkerTask t, int maxTaskIdx) {
         return execute(t, maxTaskIdx, Core.getProgressLogger());
     }
-    public static DefaultWorker execute(WorkerTask t, int maxTaskIdx, ProgressLogger gui) {
+    public static DefaultWorker execute(WorkerTask t, int maxTaskIdx, ProgressDisplay gui) {
         return execute(t, maxTaskIdx, gui, true);
     }
 
     /**
      * @param forwardProgress if false, the worker does not display its own progress (index of the task over the number of tasks), e.g. because the tasks report a finer progress themselves
      */
-    public static DefaultWorker execute(WorkerTask t, int maxTaskIdx, ProgressLogger gui, boolean forwardProgress) {
+    public static DefaultWorker execute(WorkerTask t, int maxTaskIdx, ProgressDisplay gui, boolean forwardProgress) {
         DefaultWorker res = new DefaultWorker(t, maxTaskIdx, gui);
         res.forwardProgress = forwardProgress;
         res.execute();
@@ -77,7 +77,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             }
         }
     }
-    public DefaultWorker(WorkerTask task, int maxTaskIdx, ProgressLogger progressor) {
+    public DefaultWorker(WorkerTask task, int maxTaskIdx, ProgressDisplay progressor) {
         this.task=task;
         this.progressor = progressor;
         taskIdx = ArrayUtil.generateIntegerArray(0, maxTaskIdx);

@@ -6,8 +6,7 @@ import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.plugins.Hint;
-import bacmman.plugins.Transformation;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.IconUtils;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
@@ -511,7 +510,7 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
         return answer!=null;
     }
 
-    public static List<GistConfiguration> getPublicConfigurations(String account, ProgressLogger pcb) {
+    public static List<GistConfiguration> getPublicConfigurations(String account, ProgressDisplay pcb) {
         try {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL + "/users/" + account + "/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET));
             return gists.stream().map(c -> new GistConfiguration(c, new NoAuth(account))).filter(gc -> gc.type != null).collect(Collectors.toList());
@@ -522,7 +521,7 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
         }
     }
 
-    public static List<GistConfiguration> getConfigurations(UserAuth auth, ProgressLogger pcb) {
+    public static List<GistConfiguration> getConfigurations(UserAuth auth, ProgressDisplay pcb) {
         String url = auth.getAccount() == null ? BASE_URL+"/gists" : BASE_URL + "/users/" + auth.getAccount() + "/gists";
         try {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(url, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));

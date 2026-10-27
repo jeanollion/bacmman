@@ -13,7 +13,7 @@ import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.gui.objects.ConfigurationGistTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -71,10 +71,10 @@ public class ConfigurationLibrary {
     boolean loggedIn = false;
     GithubGateway gateway;
     Runnable onClose, configurationChanged;
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     JDialog dia;
 
-    public ConfigurationLibrary(MasterDAO mDAO, GithubGateway gateway, Runnable onClose, Runnable configurationChanged, ProgressLogger bacmmanLogger) {
+    public ConfigurationLibrary(MasterDAO mDAO, GithubGateway gateway, Runnable onClose, Runnable configurationChanged, ProgressDisplay bacmmanLogger) {
         this.db = mDAO;
         this.bacmmanLogger = bacmmanLogger;
         this.xp = mDAO == null ? null : mDAO.getExperiment();

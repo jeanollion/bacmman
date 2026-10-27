@@ -34,8 +34,8 @@ import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.Transformation;
 import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.ui.logger.FileProgressLogger;
-import bacmman.ui.logger.MultiProgressLogger;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.MultiProgressDisplay;
+import bacmman.ui.logger.ProgressDisplay;
 
 import bacmman.data_structure.Processor.MEASUREMENT_MODE;
 import static bacmman.data_structure.Processor.deleteObjects;
@@ -82,7 +82,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         ProgressTracker progress; // shared by all tasks run together
         double preProcessingMemoryThreshold = 0.5;
         double cleanMemoryProportionThld = 0.25; // if memory is over this thld after a task item is performed, cleans memory
-        ProgressLogger ui;
+        ProgressDisplay ui;
         String selectionName;
 
 
@@ -365,7 +365,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     @Override
-    public void setUI(ProgressLogger ui) {
+    public void setUI(ProgressDisplay ui) {
         if (ui==null) this.ui=null;
         else {
             if (ui.equals(this.ui)) return;
@@ -837,7 +837,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (!errors.isEmpty()) logger.error("Errors for Task: {}", toString());
         for (Pair<String, ? extends Throwable> e : errors.getExceptions()) logger.error(e.key, e.value);
     }
-    public void printErrorsTo(ProgressLogger ui) {
+    public void printErrorsTo(ProgressDisplay ui) {
         if (!errors.isEmpty()) ui.setMessage("Errors for Task: " + this);
         for (Pair<String, ? extends Throwable> e : errors.getExceptions()) ui.setMessage(e.key + ": " + e.value);
     }
@@ -1516,7 +1516,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         if (ui!=null) ui.setRunning(running);
     }
 
-    public static void executeTasksInForeground(List<TaskI> tasks, ProgressLogger ui, double preProcessingMemoryThreshold) {
+    public static void executeTasksInForeground(List<TaskI> tasks, ProgressDisplay ui, double preProcessingMemoryThreshold) {
         int totalSubtasks = 0;
         for (TaskI t : tasks) {
             logger.debug("checking task: {}", t);
@@ -1540,12 +1540,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
             final int ii = i;
             Consumer<FileProgressLogger> setLF = l->{if (l.getLogFile()==null) l.setLogFile(Paths.get(tasks.get(ii).getDir(),"Log.txt").toString());};
             Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
-            if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
+            if (ui instanceof MultiProgressDisplay) ((MultiProgressDisplay)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
             tasks.get(i).setPreprocessingMemoryThreshold(preProcessingMemoryThreshold);
             tasks.get(i).runTask(); // clears cache +  unlock if !keepdb
             tasks.get(i).done();
-            if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(unsetLF);
+            if (ui instanceof MultiProgressDisplay) ((MultiProgressDisplay)ui).applyToLogUserInterfaces(unsetLF);
             else if (ui instanceof FileProgressLogger) unsetLF.accept((FileProgressLogger)ui);
 
             if (ui!=null && i==tasks.size()-1) {
@@ -1555,7 +1555,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             }
         }
     }
-    public static void executeTasks(List<TaskI> tasks, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
+    public static void executeTasks(List<TaskI> tasks, ProgressDisplay ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
         int totalSubtasks = 0;
         for (TaskI t : tasks) {
             logger.debug("checking task: {}", t);
@@ -1580,12 +1580,12 @@ public class Task implements TaskI<Task>, ProgressCallback {
             tasks.get(i).initDB();
             Consumer<FileProgressLogger> setLF = l->{if (l.getLogFile()==null) l.setLogFile(Paths.get(tasks.get(i).getDir(),"Log.txt").toString());};
             Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
-            if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
+            if (ui instanceof MultiProgressDisplay) ((MultiProgressDisplay)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
             tasks.get(i).setPreprocessingMemoryThreshold(preProcessingMemoryThreshold);
             tasks.get(i).runTask(); // clears cache +  unlock if !keepdb
             tasks.get(i).done();
-            if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(unsetLF);
+            if (ui instanceof MultiProgressDisplay) ((MultiProgressDisplay)ui).applyToLogUserInterfaces(unsetLF);
             else if (ui instanceof FileProgressLogger) unsetLF.accept((FileProgressLogger)ui);
             
             if (ui!=null && i==tasks.size()-1) {
@@ -1598,10 +1598,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
         }, tasks.size(), Core.getProgressLogger(), false).setEndOfWork(
                 ()->{for (Runnable r : endOfWork) r.run();});
     }
-    public static void executeTaskInForeground(TaskI t, ProgressLogger ui, double preProcessingMemoryThreshold) {
+    public static void executeTaskInForeground(TaskI t, ProgressDisplay ui, double preProcessingMemoryThreshold) {
         executeTasksInForeground(new ArrayList<TaskI>(1){{add(t);}}, ui, preProcessingMemoryThreshold);
     }
-    public static void executeTask(TaskI t, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
+    public static void executeTask(TaskI t, ProgressDisplay ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
         executeTasks(new ArrayList<TaskI>(1){{add(t);}}, ui, preProcessingMemoryThreshold, endOfWork);
     }
     public Stream<Task> splitByPosition() {

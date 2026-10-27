@@ -19,7 +19,7 @@
 package bacmman.core;
 
 import bacmman.ui.logger.FileProgressLogger;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import com.google.common.io.Files;
 import bacmman.core.DefaultWorker.WorkerTask;
 import java.io.File;
@@ -45,7 +45,7 @@ import org.json.simple.parser.ParseException;
  * @author Jean Ollion
  */
 public class Daemon {
-    ProgressLogger ui;
+    ProgressDisplay ui;
     FileProgressLogger logUI;
     String watchDir;
     File parsedJobDir, errorDir, logDir;
@@ -56,7 +56,7 @@ public class Daemon {
     final Map<Task, File> taskFileNameMap = new HashMap<>();
     final Map<File, Boolean> fileNameErrorMap = new HashMap<>();
     final Set<File> oneJobHasBeenRun = new HashSet<>();
-    public Daemon(ProgressLogger ui) {
+    public Daemon(ProgressDisplay ui) {
         this.ui=ui;
     }
 

@@ -1,14 +1,14 @@
 package bacmman.core;
 
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import org.json.simple.JSONObject;
 
 import java.lang.reflect.InvocationTargetException;
 
 public interface TaskI<T extends TaskI<T>> {
     boolean isValid();
-    void printErrorsTo(ProgressLogger ui);
-    void setUI(ProgressLogger ui);
+    void printErrorsTo(ProgressDisplay ui);
+    void setUI(ProgressDisplay ui);
     int countSubtasks();
     /**
      * @param progress progress tracker shared by all tasks run together

@@ -23,8 +23,8 @@ import bacmman.core.ProgressTracker;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.core.Task;
 import bacmman.ui.logger.FileProgressLogger;
-import bacmman.ui.logger.MultiProgressLogger;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.MultiProgressDisplay;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import ch.qos.logback.classic.Level;
@@ -48,7 +48,7 @@ public class ProcessTasks {
         root.setLevel(Level.INFO);
         ConsoleProgressLogger consoleUI = new ConsoleProgressLogger();
         //consoleUI.setMessage("ARGS #"+args.length+" "+Utils.toStringArray(args));
-        final ProgressLogger ui;
+        final ProgressDisplay ui;
         if (args.length==0) {
             consoleUI.setMessage("Missing argument: job list file and optionally a log file as second argument");
             return;
@@ -58,7 +58,7 @@ public class ProcessTasks {
             FileProgressLogger logUI = new FileProgressLogger(true);
             logUI.setLogFile(args[1]);
             consoleUI.setMessage("Setting log file: "+args[1]);
-            ui = new MultiProgressLogger(consoleUI, logUI);
+            ui = new MultiProgressDisplay(consoleUI, logUI);
         } else {
             consoleUI.setMessage("Too many arguments. Expect only path of job list file and optionally a log file as second argument");
             return;

@@ -18,10 +18,10 @@
  */
 package bacmman.core;
 
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 
 /**
- * Handle given to code that performs work, to report its progress. Counting is done by {@link ProgressTracker}, which forwards percentages and messages to a {@link ProgressLogger}.
+ * Handle given to code that performs work, to report its progress. Counting is done by {@link ProgressTracker}, which forwards percentages and messages to a {@link ProgressDisplay}.
  * <ul>
  *     <li>Task level: a fixed number of tasks ({@link #incrementTaskNumber(int)}, {@link #incrementProgress()}). Displayed as overall progress.</li>
  *     <li>Sub-task level: the current task is divided into sub-tasks ({@link #setSubtaskNumber(int)}, {@link #incrementSubTask()}). Displayed as the progress of the current task.</li>
@@ -82,13 +82,13 @@ public interface ProgressCallback {
         };
     }
 
-    static ProgressCallback get(ProgressLogger ui, int taskNumber) {
+    static ProgressCallback get(ProgressDisplay ui, int taskNumber) {
         ProgressCallback pcb = get(ui);
         pcb.incrementTaskNumber(taskNumber);
         return pcb;
     }
 
-    static ProgressCallback get(ProgressLogger ui) {
+    static ProgressCallback get(ProgressDisplay ui) {
         return new ProgressTracker(ui);
     }
 }

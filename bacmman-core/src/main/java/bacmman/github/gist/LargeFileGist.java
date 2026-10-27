@@ -1,7 +1,7 @@
 package bacmman.github.gist;
 
 import bacmman.core.DefaultWorker;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -251,7 +251,7 @@ public class LargeFileGist {
         }
     }
 
-    public File retrieveFile(File outputFile, boolean background, boolean unzipIfPossible, UserAuth auth, Consumer<File> callback, ProgressLogger pcb) throws IOException {
+    public File retrieveFile(File outputFile, boolean background, boolean unzipIfPossible, UserAuth auth, Consumer<File> callback, ProgressDisplay pcb) throws IOException {
         if (outputFile == null) throw new RuntimeException("OutputFile cannot be null");
         boolean willUnzip = unzipIfPossible && ( wasZipped || (fullFileName.endsWith(".zip") && !outputFile.getName().endsWith(".zip")) );
         ensureChunkRetrieved.run();
@@ -298,13 +298,13 @@ public class LargeFileGist {
         return actualOutputFile;
     }
 
-    public String retrieveString(UserAuth auth, ProgressLogger pcb) throws IOException {
+    public String retrieveString(UserAuth auth, ProgressDisplay pcb) throws IOException {
         String[] result = new String[1];
         retrieveString(s -> result[0] = s, false, auth, pcb);
         return result[0];
     }
 
-    public void retrieveStringBackground(Consumer<String> getResult, UserAuth auth, ProgressLogger pcb) throws IOException {
+    public void retrieveStringBackground(Consumer<String> getResult, UserAuth auth, ProgressDisplay pcb) throws IOException {
         retrieveString(getResult, true, auth, pcb);
     }
 
@@ -317,7 +317,7 @@ public class LargeFileGist {
         return stringContent;
     }
 
-    protected void retrieveString(Consumer<String> getResult, boolean background, UserAuth auth, ProgressLogger pcb) throws IOException {
+    protected void retrieveString(Consumer<String> getResult, boolean background, UserAuth auth, ProgressDisplay pcb) throws IOException {
         logger.debug("retrieve string: n chunks: {} content non null: {}", nChunks, stringContent!=null);
         getStringContent(auth);
         if (stringContent != null) {
@@ -396,7 +396,7 @@ public class LargeFileGist {
         return Arrays.equals(dataCS, checksumMD5);
     }
 
-    public static Pair<String, DefaultWorker> storeFile(File file, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
+    public static Pair<String, DefaultWorker> storeFile(File file, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressDisplay pcb) throws IOException{
         if (file==null || !file.exists()) return null;
         InputStream is;
         boolean wasZipped = false;
@@ -408,7 +408,7 @@ public class LargeFileGist {
         return storeInputStream(is, file.getName(), wasZipped, visible, description, fileType, auth, background, callback, pcb);
     }
 
-    public Pair<String, DefaultWorker> updateFile(File file, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
+    public Pair<String, DefaultWorker> updateFile(File file, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressDisplay pcb) throws IOException{
         if (file==null || !file.exists()) return null;
         InputStream is;
         boolean wasZipped = false;
@@ -431,7 +431,7 @@ public class LargeFileGist {
         return gist;
     }
 
-    public static Pair<String, DefaultWorker> storeString(String name, String content, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
+    public static Pair<String, DefaultWorker> storeString(String name, String content, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressDisplay pcb) throws IOException{
         int sizeOfChunk = (int) (1024 * 1024 * MAX_CHUNK_SIZE_MB);
         if (content.length() < sizeOfChunk) { // store string as single file
             JSONObject gist = getQueryObjectString(name, content, description);
@@ -460,7 +460,7 @@ public class LargeFileGist {
         String res = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
     }
 
-    public Pair<String, DefaultWorker> updateString(String content, String description, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException {
+    public Pair<String, DefaultWorker> updateString(String content, String description, UserAuth auth, boolean background, Consumer<String> callback, ProgressDisplay pcb) throws IOException {
         int sizeOfChunk = (int) (1024 * 1024 * MAX_CHUNK_SIZE_MB);
         if (content.length() < sizeOfChunk) { // store string as single file
             JSONObject gist = getQueryObjectString(fullFileName, content, description);
@@ -472,7 +472,7 @@ public class LargeFileGist {
         }
     }
 
-    public Pair<String, DefaultWorker> updateInputStream(InputStream is, boolean wasZipped, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException {
+    public Pair<String, DefaultWorker> updateInputStream(InputStream is, boolean wasZipped, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressDisplay pcb) throws IOException {
         Map<String, byte[]> chunks = nameChunks(splitFile(is, MAX_CHUNK_SIZE_MB));
         if (chunks==null) return new Pair<>(id, null);
         List<String> md5 = getMD5(chunks.values());
@@ -548,7 +548,7 @@ public class LargeFileGist {
         } else throw new IOException("Error storing LargeFileGist");
     }
 
-    public static Pair<String, DefaultWorker> storeInputStream(InputStream is, String fileName, boolean wasZipped, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressLogger pcb) throws IOException{
+    public static Pair<String, DefaultWorker> storeInputStream(InputStream is, String fileName, boolean wasZipped, boolean visible, String description, String fileType, UserAuth auth, boolean background, Consumer<String> callback, ProgressDisplay pcb) throws IOException{
         Map<String, byte[]> chunks = nameChunks(splitFile(is, MAX_CHUNK_SIZE_MB));
         if (chunks==null) return null;
         List<String> md5 = getMD5(chunks.values());
@@ -690,7 +690,7 @@ public class LargeFileGist {
         return JSONQuery.delete(url, auth);
     }
 
-    public static Stream<LargeFileGist> fetch(UserAuth auth, Predicate<String> filenameFiler, ProgressLogger pcb) {
+    public static Stream<LargeFileGist> fetch(UserAuth auth, Predicate<String> filenameFiler, ProgressDisplay pcb) {
         try {
             if (auth.getAccount() == null) {
                 logger.error("Cannot fetch gists: no account set");

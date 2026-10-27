@@ -22,7 +22,7 @@ import bacmman.configuration.parameters.TextParameter;
 import bacmman.core.DefaultWorker;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.UserAuth;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
@@ -65,14 +65,14 @@ public class NotebookGistTree {
     List<LargeFileGist> gists;
 
     final Function<GistTreeNode, Supplier<JSONObject>> displayNotebook;
-    final ProgressLogger pcb;
+    final ProgressDisplay pcb;
     final Supplier<UserAuth> authSupplier;
     final Supplier<File> selectedLocalFileSupplier;
     final Consumer<File> localFileUpdated;
 
     GistTreeNode displayingNode;
 
-    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressDisplay pcb) {
         this.displayNotebook =displayNotebook;
         this.pcb = pcb;
         this.authSupplier = authSupplier;

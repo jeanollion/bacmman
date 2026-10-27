@@ -1,13 +1,13 @@
 package bacmman.core;
 
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
 public class ProgressTrackerTest {
 
-    static class RecordingLogger implements ProgressLogger {
+    static class RecordingDisplay implements ProgressDisplay {
         int progress = -1, subProgress = -1;
         String progressMessage, subMessage;
         int progressCalls;
@@ -22,7 +22,7 @@ public class ProgressTrackerTest {
 
     @Test
     public void tasksAndSubTasks() {
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(4);
         assertEquals(0, ui.progress);
@@ -41,7 +41,7 @@ public class ProgressTrackerTest {
 
     @Test
     public void subProgressWithinSubTask() {
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(1);
         t.setSubtaskNumber(2);
@@ -61,7 +61,7 @@ public class ProgressTrackerTest {
 
     @Test
     public void fractionalSubProgress() { // e.g. an engine reporting a prediction of 2 frames (steps) divided into 7 batches of samples
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(1);
         ProgressCallback.SubProgress sp = t.subProgress(4);
@@ -73,7 +73,7 @@ public class ProgressTrackerTest {
 
     @Test
     public void subProgressWithoutSubTasks() {
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(2);
         ProgressCallback.SubProgress sp = t.subProgress(10);
@@ -84,7 +84,7 @@ public class ProgressTrackerTest {
 
     @Test
     public void messages() {
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(3);
         t.setProgressMessage("Pre-Processing");
@@ -101,7 +101,7 @@ public class ProgressTrackerTest {
 
     @Test
     public void updatesOnlyWhenPercentageChanges() {
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(1);
         int calls = ui.progressCalls;
@@ -114,7 +114,7 @@ public class ProgressTrackerTest {
     public void context() {
         assertNull(ProgressContext.get());
         assertSame(ProgressCallback.SubProgress.NO_OP, ProgressContext.subProgress(10));
-        RecordingLogger ui = new RecordingLogger();
+        RecordingDisplay ui = new RecordingDisplay();
         ProgressTracker t = new ProgressTracker(ui);
         t.setTaskNumber(1);
         ProgressContext.run(t, () -> {

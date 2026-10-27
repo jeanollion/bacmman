@@ -20,7 +20,7 @@ package bacmman.ui.gui.objects;
 
 import bacmman.plugins.Hint;
 import bacmman.ui.gui.configuration.TransparentTreeCellRenderer;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -63,12 +63,12 @@ public class NotebookTree {
     final BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update;
     final Function<NotebookTreeNode, Supplier<JSONObject>> displayNotebook;
     final Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier;
-    final ProgressLogger bacmmanLogger;
+    final ProgressDisplay bacmmanLogger;
     DefaultTreeModel treeModel;
     boolean expanding=false;
     NotebookTreeNode displayingNode;
 
-    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update, ProgressLogger bacmmanLogger) {
+    public NotebookTree(Function<NotebookTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<NotebookGistTree.GistTreeNode> selectedRemoteSupplier, Consumer<NotebookTreeNode> doubleClickCallback, BiConsumer<String, JSONObject> upload, BiConsumer<NotebookGistTree.GistTreeNode, JSONObject> update, ProgressDisplay bacmmanLogger) {
         this.bacmmanLogger = bacmmanLogger;
         this.tree = new JTree();
         this.doubleClickCallback = doubleClickCallback;

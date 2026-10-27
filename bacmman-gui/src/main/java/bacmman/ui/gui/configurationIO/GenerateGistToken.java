@@ -3,7 +3,7 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.TokenAuth;
 import bacmman.ui.PropertyUtils;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -11,9 +11,6 @@ import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
@@ -39,13 +36,13 @@ public class GenerateGistToken extends JDialog {
     private JButton authorizeInGithubButton;
     private JButton requestTokenButton;
     private JEditorPane stepEditorPane;
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     String deviceCode = "";
     String userCode = "";
     String verificationURI = "https://github.com/login/device";
     Pair<String, char[]> result;
 
-    public GenerateGistToken(String username, char[] password, ProgressLogger bacmmanLogger) {
+    public GenerateGistToken(String username, char[] password, ProgressDisplay bacmmanLogger) {
         setTitle("Steps To Generate and Store a Github Authorization Token");
         this.bacmmanLogger = bacmmanLogger;
         setContentPane(contentPane);
@@ -168,7 +165,7 @@ public class GenerateGistToken extends JDialog {
         dispose();
     }
 
-    public static Pair<String, char[]> generateAndStoreToken(String currentUserName, char[] currentPassword, ProgressLogger logger) {
+    public static Pair<String, char[]> generateAndStoreToken(String currentUserName, char[] currentPassword, ProgressDisplay logger) {
         GenerateGistToken dialog = new GenerateGistToken(currentUserName, currentPassword, logger);
         dialog.pack();
         dialog.setVisible(true);

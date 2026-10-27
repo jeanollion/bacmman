@@ -7,7 +7,7 @@ import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.gui.objects.DLModelGistTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -53,13 +53,13 @@ public class DLModelsLibrary {
     DLModelGistTreeGenerator tree;
     private static final Logger logger = LoggerFactory.getLogger(DLModelsLibrary.class);
     String workingDirectory;
-    ProgressLogger pcb;
+    ProgressDisplay pcb;
     BiConsumer<String, DLModelMetadata> configureParameterCallback;
     JDialog dia;
     Runnable onClose;
     GitCredentialPanel gitCredentialPanel;
 
-    public DLModelsLibrary(GithubGateway gateway, String workingDirectory, Runnable onClose, ProgressLogger pcb) {
+    public DLModelsLibrary(GithubGateway gateway, String workingDirectory, Runnable onClose, ProgressDisplay pcb) {
         this.gateway = gateway;
         this.workingDirectory = workingDirectory;
         this.pcb = pcb;
@@ -326,8 +326,8 @@ public class DLModelsLibrary {
         return false;
     }
 
-    public DLModelsLibrary setProgressLogger(ProgressLogger progressLogger) {
-        this.pcb = progressLogger;
+    public DLModelsLibrary setProgressLogger(ProgressDisplay progressDisplay) {
+        this.pcb = progressDisplay;
         return this;
     }
 

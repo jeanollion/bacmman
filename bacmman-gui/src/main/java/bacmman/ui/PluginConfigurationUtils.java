@@ -59,7 +59,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -359,7 +359,7 @@ public class PluginConfigurationUtils {
             GUI.log("A test is already running");
             return;
         }
-        ProgressLogger ui = GUI.hasInstance() ? GUI.getInstance() : Core.getProgressLogger();
+        ProgressDisplay ui = GUI.hasInstance() ? GUI.getInstance() : Core.getProgressLogger();
         ProgressTracker pcb = new ProgressTracker(ui);
         try {
             pcb.setRunning(true);

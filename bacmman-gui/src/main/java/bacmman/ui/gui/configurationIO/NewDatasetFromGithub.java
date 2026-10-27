@@ -6,7 +6,7 @@ import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.objects.ConfigurationGistTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -44,9 +44,9 @@ public class NewDatasetFromGithub extends JDialog {
     boolean loggedIn;
     ConfigurationGistTreeGenerator remoteSelector;
     private static final Logger logger = LoggerFactory.getLogger(NewDatasetFromGithub.class);
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
 
-    public NewDatasetFromGithub(GithubGateway gateway, ProgressLogger bacmmanLogger) {
+    public NewDatasetFromGithub(GithubGateway gateway, ProgressDisplay bacmmanLogger) {
         this.bacmmanLogger = bacmmanLogger;
         setContentPane(contentPane);
         setModal(true);
@@ -147,7 +147,7 @@ public class NewDatasetFromGithub extends JDialog {
         dispose();
     }
 
-    public static JSONObject promptExperiment(GithubGateway gateway, ProgressLogger logger) {
+    public static JSONObject promptExperiment(GithubGateway gateway, ProgressDisplay logger) {
         NewDatasetFromGithub dialog = new NewDatasetFromGithub(gateway, logger);
         dialog.setTitle("Select a configuration file");
         dialog.pack();

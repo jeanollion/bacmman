@@ -10,7 +10,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
@@ -249,7 +249,7 @@ public class Optimization {
         String dir, dbName;
         Optimization optimization;
         MultipleException errors = new MultipleException();
-        ProgressLogger ui;
+        ProgressDisplay ui;
         ProgressTracker progress;
         String selectionName;
         String[] runA;
@@ -330,13 +330,13 @@ public class Optimization {
         }
 
         @Override
-        public void printErrorsTo(ProgressLogger ui) {
+        public void printErrorsTo(ProgressDisplay ui) {
             if (!errors.isEmpty()) ui.setMessage("Errors for Task: " + this);
             for (Pair<String, ? extends Throwable> e : errors.getExceptions()) ui.setMessage(e.key + ": " + e.value);
         }
 
         @Override
-        public void setUI(ProgressLogger ui) {
+        public void setUI(ProgressDisplay ui) {
             this.ui = ui;
         }
 

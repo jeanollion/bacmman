@@ -1,21 +1,21 @@
 package bacmman.omero;
 
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import omero.log.LogMessage;
 import omero.log.Logger;
 
 public class BACMMANLogger implements Logger {
     private final org.slf4j.Logger logger;
-    private ProgressLogger bacmmanLogger;
+    private ProgressDisplay bacmmanLogger;
 
     public BACMMANLogger(org.slf4j.Logger logger) {
         this(logger, null);
     }
-    public BACMMANLogger(org.slf4j.Logger logger, ProgressLogger bacmmanLogger) {
+    public BACMMANLogger(org.slf4j.Logger logger, ProgressDisplay bacmmanLogger) {
         this.logger=logger;
         this.bacmmanLogger=bacmmanLogger;
     }
-    public BACMMANLogger setBacmmanLogger(ProgressLogger logger) {
+    public BACMMANLogger setBacmmanLogger(ProgressDisplay logger) {
         this.bacmmanLogger = logger;
         return this;
     }

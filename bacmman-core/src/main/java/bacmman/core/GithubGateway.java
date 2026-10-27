@@ -4,7 +4,7 @@ import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.TokenAuth;
 import bacmman.github.gist.UserAuth;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.Pair;
 
 import java.io.File;
@@ -22,10 +22,10 @@ public class GithubGateway {
     final protected Map<String, char[]> passwords = new HashMap<>();
     protected char[] password;
     protected String username;
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     private BiFunction<GithubGateway, String, Pair<String, char[]>> promptCredientialFunction;
 
-    public GithubGateway setLogger(ProgressLogger logger) {
+    public GithubGateway setLogger(ProgressDisplay logger) {
         bacmmanLogger = logger;
         return this;
     }

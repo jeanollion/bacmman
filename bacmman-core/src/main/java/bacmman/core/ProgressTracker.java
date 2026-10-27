@@ -1,9 +1,9 @@
 package bacmman.core;
 
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 
 /**
- * Counts tasks and sub-tasks and forwards progress to a {@link ProgressLogger}:
+ * Counts tasks and sub-tasks and forwards progress to a {@link ProgressDisplay}:
  * <ul>
  *     <li>overall progress = (finished tasks + fraction of the current task) / number of tasks</li>
  *     <li>progress of the current task = (finished sub-tasks + fraction of the current sub-task) / number of sub-tasks</li>
@@ -12,7 +12,7 @@ import bacmman.ui.logger.ProgressLogger;
  * Values are only forwarded when the displayed percentage or message changes.
  */
 public class ProgressTracker implements ProgressCallback {
-    private final ProgressLogger ui;
+    private final ProgressDisplay ui;
     private int taskNumber, taskCounter;
     private int subTaskNumber, subTaskCounter;
     private double subTaskFraction; // progress within the current sub-task, in [0, 1]
@@ -21,11 +21,11 @@ public class ProgressTracker implements ProgressCallback {
     private int lastProgress = -1, lastSubProgress = -1;
     private String lastProgressText, lastSubText;
 
-    public ProgressTracker(ProgressLogger ui) {
+    public ProgressTracker(ProgressDisplay ui) {
         this.ui = ui;
     }
 
-    public ProgressLogger getUI() {
+    public ProgressDisplay getUI() {
         return ui;
     }
 

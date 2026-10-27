@@ -5,7 +5,7 @@ import bacmman.core.Core;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
@@ -158,7 +158,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         return lf;
     }
 
-    public File downloadModel(File destFile, boolean allowRetrieve, boolean background, Consumer<File> callback, ProgressLogger bacmmanLogger) throws IOException {
+    public File downloadModel(File destFile, boolean allowRetrieve, boolean background, Consumer<File> callback, ProgressDisplay bacmmanLogger) throws IOException {
         boolean appendModelName = destFile.exists() && destFile.isDirectory();
         if (!appendModelName) {
             File parent = destFile.getParentFile();

@@ -21,7 +21,7 @@ package bacmman.utils;
 import bacmman.data_structure.Processor;
 import bacmman.core.ProgressCallback;
 import bacmman.core.ProgressTracker;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -338,7 +338,7 @@ public class ThreadRunner<T> {
     }
     
     public static ProgressCallback loggerProgressCallback(final org.slf4j.Logger logger) {
-        return new ProgressTracker(new ProgressLogger() {
+        return new ProgressTracker(new ProgressDisplay() {
             @Override public void setProgress(int i) {logger.debug("Progress: {}%", i);}
             @Override public void setSubProgress(int i) {logger.debug("Current task progress: {}%", i);}
             @Override public void setMessage(String message) {logger.debug(message);}

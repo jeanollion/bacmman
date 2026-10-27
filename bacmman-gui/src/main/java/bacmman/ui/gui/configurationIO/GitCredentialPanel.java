@@ -3,7 +3,7 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.core.GithubGateway;
 import bacmman.github.gist.UserAuth;
 import bacmman.ui.PropertyUtils;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -24,9 +24,9 @@ public class GitCredentialPanel {
     private GithubGateway gateway;
     private final String itemName;
     Runnable updateCredentialsCallback;
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
 
-    public GitCredentialPanel(GithubGateway gateway, Runnable updateCredentialsCallback, String itemName, ProgressLogger bacmmanLogger) {
+    public GitCredentialPanel(GithubGateway gateway, Runnable updateCredentialsCallback, String itemName, ProgressDisplay bacmmanLogger) {
         this.gateway = gateway;
         this.itemName = itemName;
         this.bacmmanLogger = bacmmanLogger;

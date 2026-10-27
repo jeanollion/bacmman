@@ -1,8 +1,7 @@
 package bacmman.github.gist;
 
-import bacmman.core.ProgressCallback;
 import bacmman.plugins.Hint;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.IconUtils;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONArray;
@@ -19,7 +18,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 
@@ -281,7 +279,7 @@ public class GistDLModel implements Hint {
         return answer!=null;
     }
 
-    public void storeFile(File file, String fileType, UserAuth auth, boolean background, ProgressLogger pcb) throws IOException {
+    public void storeFile(File file, String fileType, UserAuth auth, boolean background, ProgressDisplay pcb) throws IOException {
         LargeFileGist.storeFile(file, isVisible(), getDescription(), fileType, auth, background, id -> {
             setContent(GIST_BASE_URL+id, null);
             logger.debug("sucessfully added file : {}", GIST_BASE_URL+id);
@@ -307,7 +305,7 @@ public class GistDLModel implements Hint {
         }
     }
 
-    public static List<GistDLModel> getPublic(String account, ProgressLogger pcb) {
+    public static List<GistDLModel> getPublic(String account, ProgressDisplay pcb) {
         try {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL + "/users/" + account + "/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET));
             return gists.stream().map(GistDLModel::new).filter(gc -> gc.folder != null).collect(Collectors.toList());
@@ -318,7 +316,7 @@ public class GistDLModel implements Hint {
         }
     }
 
-    public static List<GistDLModel> get(UserAuth auth, ProgressLogger pcb) {
+    public static List<GistDLModel> get(UserAuth auth, ProgressDisplay pcb) {
         try {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
             return gists.stream().map(GistDLModel::new).filter(gc -> gc.folder != null).collect(Collectors.toList());

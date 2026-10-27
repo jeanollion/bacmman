@@ -29,7 +29,7 @@ import bacmman.image.LazyImage5DStack;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.OverlayDisplayer;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
 import org.slf4j.Logger;
@@ -59,7 +59,7 @@ public class Core {
     private static OpService opService;
     private static volatile Core core;
     private static final Object lock = new Object();
-    private static ProgressLogger progressLogger;
+    private static ProgressDisplay progressDisplay;
     private static Consumer<Image> imageDisplayer;
     private static OverlayDisplayer overlayDisplayer;
     private static Consumer<Image> image5D_Displayer;
@@ -155,13 +155,13 @@ public class Core {
         System.gc();
     }
 
-    public static void setUserLogger(ProgressLogger plogger) {
-        progressLogger = plogger;
+    public static void setUserLogger(ProgressDisplay plogger) {
+        progressDisplay = plogger;
         if (omeroGateway!=null) omeroGateway.setLogger(plogger);
     }
-    public static ProgressLogger getProgressLogger() {return progressLogger;};
+    public static ProgressDisplay getProgressLogger() {return progressDisplay;};
     public static void userLog(String message) {
-        if (progressLogger !=null) progressLogger.setMessage(message);
+        if (progressDisplay !=null) progressDisplay.setMessage(message);
     }
 
     public void setUserPrompt(Function<String, Boolean> userPrompt) {

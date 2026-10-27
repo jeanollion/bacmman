@@ -88,7 +88,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.ui.logger.FileProgressLogger;
-import bacmman.ui.logger.MultiProgressLogger;
+import bacmman.ui.logger.MultiProgressDisplay;
 
 import static bacmman.plugins.Hint.formatHint;
 
@@ -96,14 +96,14 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.swing.tree.TreeSelectionModel;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 
 
 /**
  *
  * @author Jean Ollion
  */
-public class GUI extends javax.swing.JFrame implements ProgressLogger {
+public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     public static final Logger logger = LoggerFactory.getLogger(GUI.class);
     public static final String DBprefix = "";
     public String currentDBPrefix = "";
@@ -4989,11 +4989,11 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
             menu.show(this.actionPoolList, evt.getX(), evt.getY());
         }
     }//GEN-LAST:event_actionPoolListMousePressed
-    private ProgressLogger getUserInterface() {
+    private ProgressDisplay getUserInterface() {
         if (activateLoggingMenuItem.isSelected()) {
             FileProgressLogger logUI = new FileProgressLogger(appendToFileMenuItem.isSelected());
             if (logFile!=null) logUI.setLogFile(logFile);
-            return new MultiProgressLogger(this, logUI);
+            return new MultiProgressDisplay(this, logUI);
         } else return this;
     }
     private void workingDirectoryActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_workingDirectoryActionPerformed

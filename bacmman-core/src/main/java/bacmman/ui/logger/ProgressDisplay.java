@@ -24,7 +24,7 @@ package bacmman.ui.logger;
  * Progress has two levels: the overall progress of all tasks, and the progress of the current task (sub-progress).
  * @author Jean Ollion
  */
-public interface ProgressLogger {
+public interface ProgressDisplay {
     /**
      * @param i overall progress in percent
      */
