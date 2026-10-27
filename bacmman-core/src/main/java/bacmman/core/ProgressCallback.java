@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2018 Jean Ollion
  *
  * This File is part of BACMMAN
@@ -21,7 +21,12 @@ package bacmman.core;
 import bacmman.ui.logger.ProgressLogger;
 
 /**
- *
+ * Handle given to code that performs work, to report its progress. Counting is done by {@link ProgressTracker}, which forwards percentages and messages to a {@link ProgressLogger}.
+ * <ul>
+ *     <li>Task level: a fixed number of tasks ({@link #incrementTaskNumber(int)}, {@link #incrementProgress()}). Displayed as overall progress.</li>
+ *     <li>Sub-task level: the current task is divided into sub-tasks ({@link #setSubtaskNumber(int)}, {@link #incrementSubTask()}). Displayed as the progress of the current task.</li>
+ *     <li>Inside a sub-task, a plugin can report finer progress with {@link #subProgress(int)}. Plugins that do not receive a callback get it from {@link ProgressContext#subProgress(int)}.</li>
+ * </ul>
  * @author Jean Ollion
  */
 public interface ProgressCallback {
@@ -35,72 +40,55 @@ public interface ProgressCallback {
     int getTaskNumber();
     void setRunning(boolean running);
 
+    /**
+     * @param message short description of the current task, displayed next to the overall progress
+     */
+    default void setProgressMessage(String message) {}
+
+    /**
+     * @param message short description of the current sub-task, displayed next to the progress of the current task
+     */
+    default void setSubTaskMessage(String message) {}
+
+    /**
+     * Progress inside the current sub-task (or inside the current task if no sub-task number is set).
+     * The handle is only valid until the next call to {@link #incrementSubTask()}, {@link #setSubtaskNumber(int)} or {@link #incrementProgress()}; afterwards it has no effect.
+     * @param steps number of steps the current sub-task is divided into
+     * @return handle to report the steps
+     */
+    default SubProgress subProgress(int steps) {
+        return SubProgress.NO_OP;
+    }
+
+    interface SubProgress {
+        /**
+         * @param steps number of steps performed since last call. Can be fractional, e.g. when a step is divided into batches
+         */
+        void increment(double steps);
+        default void increment(int steps) {
+            increment((double)steps);
+        }
+        default void increment() {
+            increment(1);
+        }
+        /**
+         * @param message short description of what is being done, displayed next to the progress of the current task
+         */
+        void setMessage(String message);
+
+        SubProgress NO_OP = new SubProgress() {
+            @Override public void increment(double steps) {}
+            @Override public void setMessage(String message) {}
+        };
+    }
+
     static ProgressCallback get(ProgressLogger ui, int taskNumber) {
         ProgressCallback pcb = get(ui);
         pcb.incrementTaskNumber(taskNumber);
         return pcb;
     }
+
     static ProgressCallback get(ProgressLogger ui) {
-        ProgressCallback pcb = new ProgressCallback(){
-            double taskCounter = 0;
-            double taskNumber = 0;
-            double subTaskNumber = 0;
-            double subTaskCounter = 0;
-
-            @Override
-            public void setRunning(boolean running) {
-                ui.setRunning(running);
-            }
-
-            @Override
-            public void incrementTaskNumber(int subtask) {
-                taskNumber +=subtask;
-            }
-
-            @Override
-            public int getTaskNumber() {return (int) taskNumber;}
-
-            @Override
-            public void setSubtaskNumber(int number) {
-                subTaskNumber = number;
-                subTaskCounter = 0;
-            }
-
-            @Override
-            public void setTaskNumber(int number) {
-                taskNumber = number;
-                taskCounter = 0;
-                subTaskCounter = 0;
-                subTaskNumber = 0;
-            }
-
-            @Override
-            public synchronized void incrementSubTask() {
-                ++subTaskCounter;
-                if (taskNumber >0 && subTaskNumber>0) ui.setProgress((int)(100 * ((taskCounter + subTaskCounter /subTaskNumber)/ taskNumber)));
-            }
-
-            @Override
-            public synchronized void incrementProgress() {
-                taskCounter++;
-                subTaskCounter = 0;
-                subTaskNumber = 0;
-                if (taskNumber >0) ui.setProgress((int)(100 * (taskCounter / taskNumber)));
-            }
-            @Override
-            public synchronized void setProgress(int i) {
-                if (taskCounter != i) {
-                    taskCounter = i;
-                    subTaskCounter = 0;
-                    subTaskNumber = 0;
-                    if (taskNumber >0) ui.setProgress((int)(100 * (taskCounter / taskNumber)));
-                }
-            }
-            @Override
-            public void log(String message) {
-                ui.setMessage(message);
-            }
-        };
-        return pcb;
+        return new ProgressTracker(ui);
     }
 }

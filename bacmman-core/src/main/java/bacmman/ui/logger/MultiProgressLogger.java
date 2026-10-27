@@ -47,6 +47,21 @@ public class MultiProgressLogger  implements ProgressLogger {
     }
 
     @Override
+    public void setProgressMessage(String text) {
+        uis.forEach(ui -> ui.setProgressMessage(text));
+    }
+
+    @Override
+    public void setSubProgress(int i) {
+        uis.forEach(ui -> ui.setSubProgress(i));
+    }
+
+    @Override
+    public void setSubMessage(String text) {
+        uis.forEach(ui -> ui.setSubMessage(text));
+    }
+
+    @Override
     public void setRunning(boolean running) {
         uis.stream().forEach((ui) -> ui.setRunning(running));
     }

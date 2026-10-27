@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -157,11 +159,18 @@ public class SpotProbabilityMapSegmenter implements DevPlugin, Segmenter, TrackC
     }
 
     private Image[] predict(Image[] inputImages, Image[] bactMask) {
+        return predict(inputImages, bactMask, null);
+    }
+
+    /**
+     * @param progress incremented by the number of images in total during prediction (can be null)
+     */
+    private Image[] predict(Image[] inputImages, Image[] bactMask, ProgressCallback.SubProgress progress) {
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
         Pair<Image[][][], int[][]> input = getInput(inputImages, bactMask, imageShape);
-        Image[][][] predictions = engine.process(input.key);
+        Image[][][] predictions = engine.process(progress, inputImages.length, input.key);
         Image[] seg = predictions.length>1 ? ResizeUtils.averageChannelOnOutputs(predictions, -1) :  //average on predictions. get last channel : if softmax -> class is last channel.
                 ResizeUtils.getChannel(predictions[predictions.length-1], -1);
 
@@ -179,7 +188,9 @@ public class SpotProbabilityMapSegmenter implements DevPlugin, Segmenter, TrackC
     public TrackConfigurer<SpotProbabilityMapSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
         Image[] bactMask = parentTrack.stream().map(p->getBactMask(p, bacteriaObjectClass.getSelectedClassIdx())).toArray(Image[]::new);
-        Image[] out = predict(in, bactMask);
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(in.length); // progress in predicted frames
+        progress.setMessage("SpotProbabilityMapSegmenter: predicting");
+        Image[] out = predict(in, bactMask, progress);
         Map<SegmentedObject, Image> segM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> out[i]));
         return (p, unetSegmenter) -> unetSegmenter.segmentedImageMap = segM;
     }

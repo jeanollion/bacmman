@@ -23,6 +23,8 @@ import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
+import bacmman.core.ProgressTracker;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.DuplicateMasterDAO;
@@ -50,12 +52,18 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
+import javax.swing.SwingWorker;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
+import bacmman.ui.logger.ProgressLogger;
+
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,6 +93,13 @@ public class PluginConfigurationUtils {
     }
     public enum STEP {PRE_FILTER, TRACK_PRE_FILTER, SEGMENTATION_TRACKING, POST_FILTER, TRACK_POST_FILTER}
     public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, STEP step, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode) {
+        return testImageProcessingPlugin(plugin, pluginIdx, step, xp, structureIdx, parentSelection, usePresentSegmentedObjects, expertMode, null);
+    }
+
+    /**
+     * @param pcb receives the stages of the test as sub-tasks (can be null). Plugins report finer progress through {@link ProgressContext}, which should be set by the caller
+     */
+    public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, STEP step, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode, ProgressCallback pcb) {
         Core.clearDiskBackedImageManagers();
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
         SegmentedObjectAccessor accessor = getAccessor();
@@ -108,7 +123,7 @@ public class PluginConfigurationUtils {
         List<SegmentedObject> parentTrackDup = dupDAO.getDuplicated(parentSelection.stream().map(getParent).distinct().collect(Collectors.toList())).collect(Collectors.toList());
 
         // generate data store for test images
-        Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, PluginConfigurationUtils::showImageOnEDT, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
         List<Map<SegmentedObject, TestDataStore>> storeList = new ArrayList<>(2);
         storeList.add(stores);
@@ -128,6 +143,7 @@ public class PluginConfigurationUtils {
                 segmenter = (Segmenter)plugin;
             }
 
+            startStages(pcb, step.equals(STEP.POST_FILTER) ? 4 : 2, "Pre-filters");
             boolean runPreFiltersOnWholeTrack = (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) || (plugin instanceof TrackConfigurable && !((TrackConfigurable)plugin).parentTrackMode().allowIntervals());
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
@@ -152,9 +168,11 @@ public class PluginConfigurationUtils {
                     applyToSeg.close();
                 }
             };
+            nextStage(pcb, "Segmentation");
             so.segmentAndTrack(structureIdx, parentTrackDup, apply, getFactory(structureIdx)); // won't run pre-filters
 
             if (step.equals(STEP.POST_FILTER)) { // perform test of post-filters
+                nextStage(pcb, "Post-filters before selected");
 
                 // converting post-filters in track post filters
                 Function<PostFilter, bacmman.plugins.plugins.track_post_filter.PostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
@@ -167,7 +185,7 @@ public class PluginConfigurationUtils {
                     DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                     DuplicateObjectDAO<String, ?> dupDAO1 = mDAOdup1.getDao(o.getPositionName());
                     List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
-                    Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                    Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, PluginConfigurationUtils::showImageOnEDT, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                     parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected post-filter", p.getRawImage(structureIdx))); // add input image
                     storeList.add(stores1);
 
@@ -182,11 +200,12 @@ public class PluginConfigurationUtils {
                 DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                 DuplicateObjectDAO<String, String> dupDAO2 = mDAOdup2.getDao(o.getPositionName());
                 List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
-                Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, PluginConfigurationUtils::showImageOnEDT, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores2);
                 bacmman.plugins.plugins.track_post_filter.PostFilter tpf = pfTotpfMapper.apply((PostFilter)plugin);
                 tpf.setTestDataStore(stores2);
+                nextStage(pcb, "Selected post-filter");
                 logger.debug("executing TEST post-filter: {}", tpf.toString());
                 tpf.filter(structureIdx, parentTrackDup2, factory, editor);
             }
@@ -201,6 +220,7 @@ public class PluginConfigurationUtils {
             if (psc instanceof ProcessingPipelineWithTracking) ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll(); // do not perform post-filters
 
             // run testing
+            startStages(pcb, 2, "Pre-filters");
             if (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) { // run pre-filters on whole track
                 psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
                 psc.getTrackPreFilters(false).removeAll();
@@ -210,6 +230,7 @@ public class PluginConfigurationUtils {
             }
             if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("Input after prefilters", p.getPreFilteredImage(structureIdx)));
             psc.getPreFilters().removeAll();
+            nextStage(pcb, usePresentSegmentedObjects ? "Tracking" : "Processing");
             if (!usePresentSegmentedObjects) {
                 // need to be able to run track-parametrizable on whole parentTrack....
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
@@ -233,6 +254,7 @@ public class PluginConfigurationUtils {
             SegmentedObjectFactory factory = getFactory(structureIdx);
             TrackLinkEditor editor = getEditor(structureIdx);
 
+            startStages(pcb, 3, "Processing");
             if (!usePresentSegmentedObjects) { // perform segmentation and tracking
                 ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll();
                 if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ?
@@ -245,12 +267,13 @@ public class PluginConfigurationUtils {
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after segmentation and post-filters", p.getRawImage(structureIdx))); // add input image
 
 
+            nextStage(pcb, "Track post-filters before selected");
             if (!tpfBefore.isEmpty()) {
                 // at this point, need to duplicate another time the parent track to get an independent point
                 DuplicateMasterDAO<String, String> mDAOdup1 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
                 DuplicateObjectDAO<String, String> dupDAO1 = mDAOdup1.getDao(o.getPositionName());
                 List<SegmentedObject> parentTrackDup1 = dupDAO1.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
-                Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, PluginConfigurationUtils::showImageOnEDT, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected track post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores1);
 
@@ -265,12 +288,13 @@ public class PluginConfigurationUtils {
             DuplicateMasterDAO<String, String> mDAOdup2 = new DuplicateMasterDAO<>(mDAOdup, UUID.generator(), childOC);
             DuplicateObjectDAO<String, String> dupDAO2 = mDAOdup2.getDao(o.getPositionName());
             List<SegmentedObject> parentTrackDup2 = dupDAO2.getDuplicated(parentTrackDup).sorted().collect(Collectors.toList());
-            Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, ImageWindowManagerFactory::showImage, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+            Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, PluginConfigurationUtils::showImageOnEDT, Core.getOverlayDisplayer(), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
             parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected track post-filter", p.getRawImage(structureIdx))); // add input image
             storeList.add(stores2);
 
             TrackPostFilter tpf = (TrackPostFilter)plugin;
             if (tpf instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)tpf).setTestDataStore(stores2);
+            nextStage(pcb, "Selected track post-filter");
             logger.debug("executing TEST track post-filter");
             tpf.filter(structureIdx, parentTrackDup2, factory, editor);
 
@@ -286,9 +310,11 @@ public class PluginConfigurationUtils {
             TrackPreFilterSequence seq = psc.getTrackPreFilters(true);
             List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(PluginParameter::isActivated).map(PluginParameter::instantiatePlugin).collect(Collectors.toList());
             logger.debug("step: {} idx: {} total transfo: {}, transfo before: {}", step, pluginIdx, seq.getActivatedChildCount(), before.size());
+            startStages(pcb, 2, "Pre-filters before selected");
             TrackPreFilterSequence seqBefore = new TrackPreFilterSequence("Track Pre-filter before").add(before);
             SegmentedObjectImageMap filteredImages = seqBefore.filterImages(structureIdx, parentTrack);
             if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", filteredImages.getImage(p).duplicate())); // add images before processing
+            nextStage(pcb, "Selected pre-filter");
             TrackPreFilter current = seq.getChildAt(pluginIdx).instantiatePlugin();
             if (current instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)current).setTestDataStore(stores);
             current.filter(structureIdx, filteredImages);
@@ -302,6 +328,80 @@ public class PluginConfigurationUtils {
         }
         return storeList;
     }
+    // tests run in a background thread: plugins can display images during computation
+    private static void showImageOnEDT(Image image) {
+        Utils.runOnEDTAndWait(() -> ImageWindowManagerFactory.showImage(image));
+    }
+
+    private static void startStages(ProgressCallback pcb, int stageNumber, String message) {
+        if (pcb == null) return;
+        pcb.setSubtaskNumber(stageNumber);
+        pcb.setSubTaskMessage(message);
+    }
+
+    private static void nextStage(ProgressCallback pcb, String message) {
+        if (pcb == null) return;
+        pcb.incrementSubTask();
+        pcb.setSubTaskMessage(message);
+    }
+
+    private static final AtomicBoolean TEST_RUNNING = new AtomicBoolean(false);
+
+    /**
+     * Runs a test in a background thread so that the GUI stays responsive, and displays its progress. The GUI is set in running mode during the test (configuration cannot be edited), and only one test runs at a time.
+     * Should be called from the event dispatch thread.
+     * @param title displayed next to the overall progress
+     * @param compute performed in the background thread. It receives the progress callback, which is also set as {@link ProgressContext} so that plugins can report their progress
+     * @param display performed on the event dispatch thread with the result of compute, if compute completed without error (can be null)
+     */
+    public static <T> void runTestInBackground(String title, Function<ProgressCallback, T> compute, Consumer<T> display) {
+        if (!TEST_RUNNING.compareAndSet(false, true)) {
+            GUI.log("A test is already running");
+            return;
+        }
+        ProgressLogger ui = GUI.hasInstance() ? GUI.getInstance() : Core.getProgressLogger();
+        ProgressTracker pcb = new ProgressTracker(ui);
+        try {
+            pcb.setRunning(true);
+            pcb.setTaskNumber(1);
+            pcb.setProgressMessage(title);
+            new SwingWorker<T, Void>() {
+                @Override
+                protected T doInBackground() {
+                    ProgressCallback previous = ProgressContext.set(pcb);
+                    try {
+                        return compute.apply(pcb);
+                    } finally {
+                        ProgressContext.set(previous);
+                    }
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        T result = get();
+                        if (display != null) display.accept(result);
+                    } catch (ExecutionException e) {
+                        GUI.log("An error occurred while testing...");
+                        publishError(e.getCause() != null ? e.getCause() : e);
+                    } catch (InterruptedException | CancellationException e) {
+                        GUI.log("Test interrupted");
+                    } catch (Throwable t) {
+                        GUI.log("An error occurred while displaying test results...");
+                        publishError(t);
+                    } finally {
+                        pcb.setRunning(false);
+                        TEST_RUNNING.set(false);
+                    }
+                }
+            }.execute();
+        } catch (Throwable t) { // worker could not be started
+            pcb.setRunning(false);
+            TEST_RUNNING.set(false);
+            throw t;
+        }
+    }
+
     public static void publishError(Throwable t) {
         if (t instanceof MultipleException) {
             GUI.log(t.toString());
@@ -344,8 +444,10 @@ public class PluginConfigurationUtils {
             //if (sel==null) sel = new ArrayList<>(1);
             //if (sel.isEmpty()) sel.add(GUI.getDBConnection().getDao(pos).getRoot(0));
 
-            List<Map<SegmentedObject, TestDataStore>> stores = testImageProcessingPlugin(plugin, pluginIdx, step, xp, objectClassIdx, sel, b, expertMode);
-            if (stores!=null) stores.forEach(s -> displayIntermediateImages(s, objectClassIdx, step.equals(STEP.PRE_FILTER) || step.equals(STEP.TRACK_PRE_FILTER)));
+            List<SegmentedObject> parents = sel;
+            runTestInBackground("Test: "+plugin.getClass().getSimpleName(),
+                    pcb -> testImageProcessingPlugin(plugin, pluginIdx, step, xp, objectClassIdx, parents, b, expertMode, pcb),
+                    stores -> {if (stores!=null) stores.forEach(s -> displayIntermediateImages(s, objectClassIdx, step.equals(STEP.PRE_FILTER) || step.equals(STEP.TRACK_PRE_FILTER)));});
         };
         List<JMenuItem> res = new ArrayList<>();
         if (step.equals(STEP.SEGMENTATION_TRACKING) && plugin instanceof Tracker) {
@@ -491,68 +593,78 @@ public class PluginConfigurationUtils {
             public void actionPerformed(ActionEvent ae) {
                 TestableOperation.TEST_MODE testMode = expertMode ? TestableOperation.TEST_MODE.TEST_EXPERT : TestableOperation.TEST_MODE.TEST_SIMPLE;
                 int[] frames = GUI.hasInstance() && GUI.getInstance().isTestTabSelected() ? GUI.getInstance().getTestFrameRange() : new int[]{0, position.getFrameNumber(false)};
-                InputImagesImpl images = position.getInputImages().duplicate(frames[0], frames[1], position.getTempImageDAO(), position.getTempImageDAO());
-                PreProcessingChain ppc = position.getPreProcessingChain();
-                List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
-                for (int i = 0; i<=transfoIdx; ++i) {
-                    TransformationPluginParameter<Transformation> tpp = transList.get(i);
-                    if (tpp.isActivated() || i==transfoIdx) {
-                        if ((i==0 && showAllSteps) || (i==transfoIdx && !showAllSteps)) { // show before
-                            int[] channels =null;
-                            if (!showAllSteps) {
-                                channels = tpp.getOutputChannels();
-                                if (channels==null) {
-                                    if (tpp.getInputChannel()>=0) channels = new int[]{tpp.getInputChannel()};
-                                    else channels = null;
-                                }
+                runTestInBackground("Test Transformation", progress -> {
+                    try {
+                        InputImagesImpl images = position.getInputImages().duplicate(frames[0], frames[1], position.getTempImageDAO(), position.getTempImageDAO());
+                        PreProcessingChain ppc = position.getPreProcessingChain();
+                        List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
+                        for (int i = 0; i<=transfoIdx; ++i) {
+                            TransformationPluginParameter<Transformation> tpp = transList.get(i);
+                            if (i==0) startStages(progress, transfoIdx+1, tpp.getPluginName());
+                            else nextStage(progress, tpp.getPluginName());
+                            if (tpp.isActivated() || i==transfoIdx) {
+                                if ((i==0 && showAllSteps) || (i==transfoIdx && !showAllSteps)) { // show before
+                                    int[] channels =null;
+                                    if (!showAllSteps) {
+                                        channels = tpp.getOutputChannels();
+                                        if (channels==null) {
+                                            if (tpp.getInputChannel()>=0) channels = new int[]{tpp.getInputChannel()};
+                                            else channels = null;
+                                        }
 
-                            }
-                            Image[][] imagesTC = new Image[0][];
-                            try {
-                                imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                            ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate)); // duplicate all images so that further transformations are not shown
-                            getImageManager().getDisplayer().displayImage(new LazyImage5DStack("before: "+tpp.getPluginName(), imagesTC));
-                        }
-                        Transformation transfo = tpp.instantiatePlugin();
-                        logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
-                        if (transfo instanceof TestableOperation && i==transfoIdx) {
-                            ((TestableOperation)transfo).setTestMode(testMode);
-                            logger.debug("set test mode: {} to transformation", testMode);
-                        }
-                        try{
-                            if (transfo instanceof Transformation.ConfigurableTransformation) ((Transformation.ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
-                        } catch (Throwable t) {
-                            logger.error("error while configuring transformation:", t);
-                            if (pcb!=null) pcb.log("Error while configuring transformation: "+t.toString());
-                        }
-                        images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
-                        if (i<transfoIdx &&  transfo instanceof TransformationApplyDirectly) { // copyTo
-                            images.applyTransformationsAndSave(false, false);
-                        }
-                        if (showAllSteps || i==transfoIdx) {
-                            int[] outputChannels =null;
-                            if (!showAllSteps) {
-                                outputChannels = tpp.getOutputChannels();
-                                if (outputChannels==null) {
-                                    if (transfo instanceof MultichannelTransformation && ((MultichannelTransformation)transfo).getOutputChannelSelectionMode()==MultichannelTransformation.OUTPUT_SELECTION_MODE.ALL) outputChannels = ArrayUtil.generateIntegerArray(images.getChannelNumber());
-                                    else outputChannels = new int[]{tpp.getInputChannel()}; 
+                                    }
+                                    Image[][] imagesTC = new Image[0][];
+                                    try {
+                                        imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate)); // duplicate all images so that further transformations are not shown
+                                    LazyImage5DStack before = new LazyImage5DStack("before: "+tpp.getPluginName(), imagesTC);
+                                    Utils.runOnEDTAndWait(() -> getImageManager().getDisplayer().displayImage(before));
+                                }
+                                Transformation transfo = tpp.instantiatePlugin();
+                                logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
+                                if (transfo instanceof TestableOperation && i==transfoIdx) {
+                                    ((TestableOperation)transfo).setTestMode(testMode);
+                                    logger.debug("set test mode: {} to transformation", testMode);
+                                }
+                                try{
+                                    if (transfo instanceof Transformation.ConfigurableTransformation) ((Transformation.ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
+                                } catch (Throwable t) {
+                                    logger.error("error while configuring transformation:", t);
+                                    if (pcb!=null) pcb.log("Error while configuring transformation: "+t.toString());
+                                }
+                                images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
+                                if (i<transfoIdx &&  transfo instanceof TransformationApplyDirectly) { // copyTo
+                                    images.applyTransformationsAndSave(false, false);
+                                }
+                                if (showAllSteps || i==transfoIdx) {
+                                    int[] outputChannels =null;
+                                    if (!showAllSteps) {
+                                        outputChannels = tpp.getOutputChannels();
+                                        if (outputChannels==null) {
+                                            if (transfo instanceof MultichannelTransformation && ((MultichannelTransformation)transfo).getOutputChannelSelectionMode()==MultichannelTransformation.OUTPUT_SELECTION_MODE.ALL) outputChannels = ArrayUtil.generateIntegerArray(images.getChannelNumber());
+                                            else outputChannels = new int[]{tpp.getInputChannel()}; 
+                                        }
+                                    }
+                                    Image[][] imagesTC = new Image[0][];
+                                    try {
+                                        imagesTC = images.getImagesTC(0, images.getFrameNumber(), outputChannels);
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate));
+                                    LazyImage5DStack after = new LazyImage5DStack("after: "+tpp.getPluginName(), imagesTC);
+                                    Utils.runOnEDTAndWait(() -> getImageManager().getDisplayer().displayImage(after)); // displayed before temporary images are erased
                                 }
                             }
-                            Image[][] imagesTC = new Image[0][];
-                            try {
-                                imagesTC = images.getImagesTC(0, images.getFrameNumber(), outputChannels);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                            if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate));
-                            getImageManager().getDisplayer().displayImage(new LazyImage5DStack("after: "+tpp.getPluginName(), imagesTC));
                         }
+                    } finally {
+                        position.getTempImageDAO().eraseAll();
                     }
-                }
-                position.getTempImageDAO().eraseAll();
+                    return null;
+                }, null);
             }
         });
         return item;

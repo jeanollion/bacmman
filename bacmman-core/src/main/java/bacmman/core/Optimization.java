@@ -194,7 +194,7 @@ public class Optimization {
                 String file = dir.resolve(db.getDBName() + Utils.toStringArray(ocA, "_", "", "_") + ".csv").toString();
                 MeasurementExtractor.extractMeasurementObjects(db, file, positions, selection, keys);
             }
-            pcb.incrementProgress();
+            if (pcb!=null) pcb.incrementProgress();
             if (!errors.isEmpty()) throw errors;
         }
 
@@ -214,21 +214,21 @@ public class Optimization {
             for (int oc : ocA) {
                 try {
                     if (pcb!=null) pcb.log("Object Class: " + oc);
+                    if (pcb!=null) pcb.setProgressMessage("Run: " + name() + " · Position #" + dao.getExperiment().getPositionIdx(dao.getPositionName()) + " · Object Class: " + dao.getExperiment().getStructure(oc).getName());
                     executeProcessingScheme(root, oc, false, selection != null, selection, pcb);
-                    pcb.incrementProgress();
                 } catch (MultipleException e) {
                     errors.addExceptions(e.getExceptions());
                 } catch (Throwable e) {
                     errors.addExceptions(new Pair<>("Error while processing: pos: " + dao.getPositionName() + " oc: " + oc, e));
                 } finally {
+                    if (pcb!=null) pcb.incrementProgress(); // also on error, so that the count matches the number of tasks
                     dao.getExperiment().getPosition(dao.getPositionName()).freeMemoryImages(true, true);
                     dao.getExperiment().getDLengineProvider().closeAllEngines();
                     Core.clearDiskBackedImageManagers();
                 }
             }
             if (pcb!=null) pcb.log("Measurements...");
-            Processor.performMeasurements(dao, MEASUREMENT_MODE.ERASE_ALL, selection, pcb);
-            pcb.incrementProgress();
+            Processor.performMeasurements(dao, MEASUREMENT_MODE.ERASE_ALL, selection, pcb); // increments progress once per call object class + once for storing
         }
 
         public boolean performed() {
@@ -250,7 +250,7 @@ public class Optimization {
         Optimization optimization;
         MultipleException errors = new MultipleException();
         ProgressLogger ui;
-        int[] taskCounter;
+        ProgressTracker progress;
         String selectionName;
         String[] runA;
 
@@ -316,11 +316,12 @@ public class Optimization {
             String[] rA = runA == null ? optimization.steamRuns().map(Run::name).toArray(String[]::new) : runA;
             int nPos = selectionName == null ? db.getExperiment().getPositionCount() : db.getSelectionDAO().getOrCreate(selectionName, false).getAllPositions().size();
             int count = rA.length; // extract measurements
+            int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
             for (String runN : rA) {
                 try {
                     Run r = optimization.getRun(runN);
                     count += r.objectClasses().count()  * nPos; // each object class
-                    count += nPos; // measurements
+                    count += nPos * (nCallOC + 1); // measurements: one per call object class + storing
                 } catch (IOException e) {
                     throw new RuntimeException();
                 }
@@ -340,8 +341,8 @@ public class Optimization {
         }
 
         @Override
-        public void setTaskCounter(int[] taskCounter) {
-            this.taskCounter=taskCounter;
+        public void setProgressTracker(ProgressTracker progress) {
+            this.progress = progress;
         }
 
         @Override
@@ -380,8 +381,11 @@ public class Optimization {
         @Override
         public void runTask() {
             initDB();
-            ProgressCallback pcb = ProgressCallback.get(ui);
-            pcb.setTaskNumber(taskCounter[1]);
+            if (progress == null) {
+                progress = new ProgressTracker(ui);
+                progress.setTaskNumber(countSubtasks());
+            }
+            ProgressCallback pcb = progress;
             try {
                 optimization.run(db, selectionName!=null?db.getSelectionDAO().getOrCreate(selectionName, false):null, pcb, runA);
             } catch (MultipleException e) {

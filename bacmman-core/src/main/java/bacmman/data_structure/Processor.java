@@ -26,6 +26,7 @@ import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
@@ -38,6 +39,7 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -140,6 +142,7 @@ public class Processor {
         PreProcessingChain ppc = position.getPreProcessingChain();
         logger.info("pre-processing position: {}", position.getName());
         Runnable clearMem = setTransformations(images, ppc.getTransformations(true), memoryLimit, pcb);
+        if (pcb!=null) pcb.setSubTaskMessage("Applying transformations and saving");
         logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
         images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
         clearMem.run();
@@ -158,8 +161,19 @@ public class Processor {
             logger.info("adding transformation: {} of class: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), tpp.getInputChannel(), tpp.getOutputChannels());
             if (transfo instanceof Transformation.ConfigurableTransformation) {
                 Transformation.ConfigurableTransformation ct = (Transformation.ConfigurableTransformation)transfo;
+                if (pcb!=null) pcb.setSubTaskMessage("Configuring: "+transfo.getClass().getSimpleName());
                 logger.debug("before configuring: {}", Utils.getMemoryUsage());
-                ct.computeConfigurationData(tpp.getInputChannel(), images);
+                try {
+                    ProgressContext.run(pcb, () -> { // transformations that predict report their progress through the context
+                        try {
+                            ct.computeConfigurationData(tpp.getInputChannel(), images);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    });
+                } catch (UncheckedIOException e) {
+                    throw e.getCause();
+                }
                 logger.debug("after configuring: {}", Utils.getMemoryUsage());
                 if (pcb!=null) pcb.incrementSubTask();
                 configurableTransformations.add((Transformation.ConfigurableTransformation)transfo);
@@ -316,8 +330,9 @@ public class Processor {
             int totalFrame = allParentTracks.values().stream().mapToInt(List::size).sum();
             int[] count = new int[2];
             long t0 = System.currentTimeMillis();
-            ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
-                execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
+            ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> { // sequential: a single parent track is processed at a time
+                if (pcb !=null) pcb.setSubTaskMessage(total>1 ? "Parent track "+(count[0]+1)+"/"+total : "Frames: "+pt.size());
+                ProgressContext.run(pcb, () -> execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao));
                 if (pcb !=null) pcb.incrementSubTask();
                 count[0]+=1;
                 count[1]+=pt.size();
@@ -339,6 +354,7 @@ public class Processor {
             else return s;
         }).forEachOrdered(children::add);
         logger.debug("total objects to store: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
+        if (pcb!=null) pcb.setSubTaskMessage("Storing objects");
         dao.store(children);
         if (pcb!=null) {
             pcb.incrementSubTask();
@@ -464,7 +480,10 @@ public class Processor {
         List<SegmentedObject> roots = dao.getRoots();
         logger.debug("Measurements : {} number of roots: {}, mode: {}", dao.getPositionName(), roots.size(), mode);
         final Map<Integer, List<Measurement>> measurements = dao.getExperiment().getMeasurementsByCallStructureIdx();
-        if (roots.isEmpty()) return;
+        if (roots.isEmpty()) {
+            if (pcb!=null) for (int i = 0; i<=measurements.size(); ++i) pcb.incrementProgress(); // keep progress consistent with the expected number of tasks
+            return;
+        }
         Map<SegmentedObject, List<SegmentedObject>> rootTrack = new HashMap<>(1); rootTrack.put(roots.get(0), roots);
         boolean containsObjects=false;
         BiPredicate<SegmentedObject, Measurement> measurementMissing = (SegmentedObject callObject, Measurement m) -> {
@@ -559,6 +578,7 @@ public class Processor {
                     .filter(m->m instanceof Measurement.ObjectMeasurement).map(m -> (Measurement.ObjectMeasurement)m).collect(Collectors.toList());
             if (!measObj.isEmpty()) subTaskNumber+=measObj.size();
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
+            if (pcb!=null) pcb.setSubTaskMessage("Measurements on: "+(e.getKey()<0 ? "Viewfield" : dao.getExperiment().getStructure(e.getKey()).getName()));
             if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
             if (!nonParallelTrackMeasurements.isEmpty()) {
                 Function<Measurement, Set<Integer>> modifiedOC = m -> m.getMeasurementKeys().stream().map(MeasurementKey::getStoreStructureIdx).collect(Collectors.toSet());
@@ -605,11 +625,12 @@ public class Processor {
                         dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
                                 .filter(m -> m instanceof Measurement.TrackMeasurement && (m instanceof MultiThreaded))
                                 .map(m -> (Measurement.TrackMeasurement)m)
-                                .filter(m -> measurementMissing.test(pt, m)) // only test on trackhead object
                                 .forEach(m -> {
-                                    ((MultiThreaded) m).setMultiThread(true);
-                                    m.performMeasurement(getTrackArg.apply(m, pt));
-                                    if (pcb != null) pcb.incrementSubTask();
+                                    if (measurementMissing.test(pt, m)) { // only test on trackhead object
+                                        ((MultiThreaded) m).setMultiThread(true);
+                                        ProgressContext.run(pcb, () -> m.performMeasurement(getTrackArg.apply(m, pt))); // run on this thread: measurements that predict report their progress through the context
+                                    }
+                                    if (pcb != null) pcb.incrementSubTask(); // also when skipped, so that the count matches the sub-task number
                                 });
                     });
                 } catch (MultipleException me) {
@@ -633,7 +654,7 @@ public class Processor {
                     if (pcb!=null) pcb.incrementSubTask();
                 }
             });
-            //f (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
+            if (pcb!=null) pcb.incrementProgress();
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->m instanceof Measurement.ObjectMeasurement).findAny().orElse(null)!=null;
         }
         long t1 = System.currentTimeMillis();
@@ -646,7 +667,7 @@ public class Processor {
             }
         }
         logger.debug("measurements on field: {}: computation time: {}, #modified objects: {}", dao.getPositionName(), t1-t0, allModifiedObjects.size());
-        //if (pcb!=null) pcb.log("Measurements performed, saving "+allModifiedObjects.size()+" objects...");
+        if (pcb!=null) pcb.setSubTaskMessage("Storing measurements");
         dao.upsertMeasurements(allModifiedObjects);
         if (pcb!=null) pcb.incrementProgress();
         if (!globE.isEmpty()) throw globE;

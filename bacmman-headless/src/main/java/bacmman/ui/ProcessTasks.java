@@ -19,6 +19,7 @@
 package bacmman.ui;
 
 import bacmman.core.Core;
+import bacmman.core.ProgressTracker;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.core.Task;
 import bacmman.ui.logger.FileProgressLogger;
@@ -99,9 +100,10 @@ public class ProcessTasks {
             t.clearDB();
         }
         ui.setMessage(">Will execute: "+jobs.size()+" jobs");
-        int[] counter = new int[]{0, subTaskCount};
+        ProgressTracker progress = new ProgressTracker(ui);
+        progress.setTaskNumber(subTaskCount);
         for (Task t : jobs) {
-            t.setTaskCounter(counter);
+            t.setProgressTracker(progress);
             try {
                 t.setPreprocessingMemoryThreshold(0.5);
                 t.runTask();

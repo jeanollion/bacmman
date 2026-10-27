@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
@@ -55,10 +57,12 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         Map<Integer, List<SegmentedObject>> segObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> parentTrack.get(i).getChildren(structureIdx).collect(Collectors.toList()));
         // make predictions
         int stepSize = Math.min(maxStepSize.getValue().intValue(), input.length()); // in case there are lots of objects, many images could be created -> process by chunks
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(input.length()); // progress in predicted regions
+        progress.setMessage("DeltaTracker: predicting links");
         for (int idx = 0; idx < input.length(); idx += stepSize) {
             logger.debug("processing batch-group {} / {}", (int)Math.ceil(idx/(double)stepSize)+1, (int)Math.ceil((input.length()-2)/(double)stepSize));
             Image[][][] inputs = input.getInput(idx, idx + stepSize, separateInputChannels);
-            Image[][] outputNC = engine.process(inputs)[0];
+            Image[][] outputNC = engine.process(progress, Math.min(stepSize, input.length() - idx), inputs)[0];
 
             for (int i = 0; i < outputNC.length; ++i) { // set track links to graph
                 int rIdx = idx + i;

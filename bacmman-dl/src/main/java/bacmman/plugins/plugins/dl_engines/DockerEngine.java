@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.dl_engines;
 
+import bacmman.core.ProgressCallback;
+
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
@@ -133,7 +135,12 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public synchronized Image[][][] process(Image[][]... inputNC) {
+    public Image[][][] process(Image[][]... inputNC) {
+        return process(null, 0, inputNC);
+    }
+
+    @Override
+    public synchronized Image[][][] process(ProgressCallback.SubProgress progress, double steps, Image[][]... inputNC) {
         if (containerID == null) throw new RuntimeException("Engine not initialized (no container)");
         if (!dockerGateway.isContainerRunning(containerID)) { // restart container
             containerID = null;
@@ -194,6 +201,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
                 }
                 ++curIdx;
             }
+            if (progress!=null) progress.increment(steps * (idxMax - idx) / nSamples);
         }
         switch (zAxis.getSelectedEnum()) {
             case Z:

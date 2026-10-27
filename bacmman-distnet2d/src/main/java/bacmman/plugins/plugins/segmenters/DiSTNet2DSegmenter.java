@@ -2,6 +2,8 @@ package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -267,11 +269,21 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
         }
     }
 
+    /**
+     * Prediction on the whole parent track. Progress of the current sub-task (if any, see {@link ProgressContext}) is reported per batch
+     */
     protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx) {
-        return predict(parentTrack, objectClassIdx, null, null);
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(parentTrack.size());
+        Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> res = predict(parentTrack, objectClassIdx, null, null, progress);
+        progress.setMessage("DiSTNet2DSegmenter: segmenting");
+        return res;
     }
 
     protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx, DiSTNet2D.InputImages inputImages, BoundingBox minimalBounds) {
+        return predict(parentTrack, objectClassIdx, inputImages, minimalBounds, ProgressCallback.SubProgress.NO_OP);
+    }
+
+    protected Triplet<Map<SegmentedObject, Image>, Map<SegmentedObject, Image>, Map<SegmentedObject, Image[]>> predict(List<SegmentedObject> parentTrack, int objectClassIdx, DiSTNet2D.InputImages inputImages, BoundingBox minimalBounds, ProgressCallback.SubProgress progress) {
         DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
         Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p));
         Map<SegmentedObject, Image> edmMap = new HashMap<>();
@@ -288,6 +300,7 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
             int effectiveMaxIdxIncl = DiSTNet2D.search(sortedFrames, maxIdx-1, effectiveMaxFrameIncl, 0);
             int effectiveMinFrame = DiSTNet2D.getNeighborhood(sortedFrames, sortedFrames[i], inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0).stream().mapToInt(ii->ii).min().getAsInt();
             int effectiveMinIdx = DiSTNet2D.search(sortedFrames, 0, effectiveMinFrame, 0);
+            progress.setMessage("DiSTNet2DSegmenter: predicting frames " + sortedFrames[i] + "-" + sortedFrames[maxIdx-1]);
             if (inputImages == null) inputImages =  new DiSTNet2D.InputImages(objectClassIdx, getAdditionalChannels(), getAdditionalLabels(), parentTrack, minimalBounds, imageManager);
             long t0 = System.currentTimeMillis();
             if (stores == null) inputImages.cleanBeforeFrame(effectiveMinFrame-1);
@@ -309,7 +322,7 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
             // intensity scaling computed once on the whole track so that all batches are scaled identically
             IntFunction<HistogramSource> globalHistogramPerInput = globalHistograms == null ? null : ii.getChannelToInputIndexFunction(globalHistograms);
             DLResizeAndScale dlRS = ii.getGlobalScaling(frameAware, () -> getDlResizeAndScale(frameAware).withGlobalScaling(sortedFrames.length, ii.getImageDimensions(sortedFrames[0]), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> ii.getImage(sortedFrames[f], inputIdx)), globalHistogramPerInput));
-            Image[][][] predictionONC = dlRS.predict(engine, input); // output -> 0=edm, 1=gcdm, 2 = cat
+            Image[][][] predictionONC = dlRS.predict(engine, progress, maxIdx - i, input); // progress incremented by maxIdx - i in total. output -> 0=edm, 1=gcdm, 2 = cat
             long t3 = System.currentTimeMillis();
             logger.debug("input: [{}; {}) / [{}; {}] total time: {}ms (compute EDM/CGDM: {}ms get input: {}ms predict: {}ms) (effective frame range: [{}; {}] idx=[{}; {}])", sortedFrames[i], sortedFrames[maxIdx-1], sortedFrames[0], sortedFrames[sortedFrames.length-1], t3-t0, t1-t0, t2-t1, t3-t2, effectiveMinFrame, effectiveMaxFrameIncl, effectiveMinIdx, effectiveMaxIdxIncl);
 

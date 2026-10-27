@@ -1406,8 +1406,12 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     public void setRunning(boolean running) {
         this.running=running;
         logger.debug("set running: {}", running);
-        progressBar.setValue(progressBar.getMinimum());
-        progressBar.setIndeterminate(running);
+        onEDT(() -> {
+            progressText = "";
+            subProgressText = "";
+            resetProgressBar(progressBar, running);
+            resetProgressBar(subProgressBar, running);
+        });
         this.experimentMenu.setEnabled(!running); // TODO somehow this call lock experiment when an experiment is open and run task is performed
         this.runMenu.setEnabled(!running);
         this.optionMenu.setEnabled(!running);
@@ -1441,11 +1445,50 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         return true;
     }
 
-    // gui interface method
+    // gui interface method. Progress may be reported from any thread: display is updated on the event dispatch thread
+    private String progressText = "", subProgressText = "";
+
+    private static void onEDT(Runnable r) {
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
+    }
+
+    private static void resetProgressBar(JProgressBar bar, boolean running) {
+        bar.setValue(bar.getMinimum());
+        bar.setIndeterminate(running);
+        bar.setString(running ? "" : null); // null: default percentage string
+    }
+
+    private static void setProgressBar(JProgressBar bar, int value, String text) {
+        if (value>0 && bar.isIndeterminate()) bar.setIndeterminate(false);
+        bar.setValue(value);
+        bar.setString(text==null || text.isEmpty() ? (bar.isIndeterminate() ? "" : value+"%") : (bar.isIndeterminate() ? text : text + " (" + value + "%)"));
+    }
+
     @Override
     public void setProgress(int i) {
-        if (i>0 && this.progressBar.isIndeterminate()) this.progressBar.setIndeterminate(false);
-        this.progressBar.setValue(i);
+        onEDT(() -> setProgressBar(progressBar, i, progressText));
+    }
+
+    @Override
+    public void setProgressMessage(String text) {
+        onEDT(() -> {
+            progressText = text;
+            setProgressBar(progressBar, progressBar.getValue(), progressText);
+        });
+    }
+
+    @Override
+    public void setSubProgress(int i) {
+        onEDT(() -> setProgressBar(subProgressBar, i, subProgressText));
+    }
+
+    @Override
+    public void setSubMessage(String text) {
+        onEDT(() -> {
+            subProgressText = text;
+            setProgressBar(subProgressBar, subProgressBar.getValue(), subProgressText);
+        });
     }
     
     @Override
@@ -2238,6 +2281,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         consoleJSP = new javax.swing.JScrollPane();
         console = new javax.swing.JTextPane();
         progressBar = new javax.swing.JProgressBar(0, 100);
+        subProgressBar = new javax.swing.JProgressBar(0, 100);
         mainMenu = new javax.swing.JMenuBar();
         experimentMenu = new javax.swing.JMenu();
         refreshExperimentListMenuItem = new javax.swing.JMenuItem();
@@ -3067,23 +3111,23 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
         progressBar.setStringPainted(true);
         progressBar.setBorder(javax.swing.BorderFactory.createEmptyBorder(1, 1, 1, 1));
 
+        subProgressBar.setStringPainted(true);
+        subProgressBar.setBorder(javax.swing.BorderFactory.createEmptyBorder(1, 1, 1, 1));
+
         javax.swing.GroupLayout progressAndConsolPanelLayout = new javax.swing.GroupLayout(progressAndConsolPanel);
         progressAndConsolPanel.setLayout(progressAndConsolPanelLayout);
         progressAndConsolPanelLayout.setHorizontalGroup(
             progressAndConsolPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addComponent(consoleJSP, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, 826, Short.MAX_VALUE)
-            .addGroup(progressAndConsolPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addComponent(progressBar, javax.swing.GroupLayout.DEFAULT_SIZE, 826, Short.MAX_VALUE))
+            .addComponent(progressBar, javax.swing.GroupLayout.DEFAULT_SIZE, 826, Short.MAX_VALUE)
+            .addComponent(subProgressBar, javax.swing.GroupLayout.DEFAULT_SIZE, 826, Short.MAX_VALUE)
         );
         progressAndConsolPanelLayout.setVerticalGroup(
             progressAndConsolPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, progressAndConsolPanelLayout.createSequentialGroup()
-                .addGap(24, 24, 24)
+            .addGroup(progressAndConsolPanelLayout.createSequentialGroup()
+                .addComponent(progressBar, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addComponent(subProgressBar, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addComponent(consoleJSP, javax.swing.GroupLayout.DEFAULT_SIZE, 184, Short.MAX_VALUE))
-            .addGroup(progressAndConsolPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addGroup(progressAndConsolPanelLayout.createSequentialGroup()
-                    .addComponent(progressBar, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addGap(0, 186, Short.MAX_VALUE)))
         );
 
         homeSplitPane.setBottomComponent(progressAndConsolPanel);
@@ -5920,6 +5964,7 @@ public class GUI extends javax.swing.JFrame implements ProgressLogger {
     private javax.swing.JMenuItem printShortcutMenuItem;
     private javax.swing.JPanel progressAndConsolPanel;
     private javax.swing.JProgressBar progressBar;
+    private javax.swing.JProgressBar subProgressBar;
     private javax.swing.JButton pruneTrackButton;
     private javax.swing.JMenuItem refreshExperimentListMenuItem;
     private javax.swing.JButton reloadSelectionsButton;

@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.track_pre_filters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectImageMap;
@@ -63,10 +65,12 @@ public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
         DLResizeAndScale dl = dlResample.withGlobalScaling(track.size(), track.get(0).getBounds(), (inputIdx, frames) -> IntStream.of(frames).mapToObj(f -> extractors.get(inputIdx).apply(track.get(f))).flatMap(Arrays::stream));
         int n = track.size();
         int increment = batchSize.getIntValue() == 0 ? n : (int)Math.ceil( (double)n / Math.ceil( (double)n / batchSize.getIntValue()) );
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(n); // progress in predicted frames
         for (int i = 0; i < n; i += increment) {
             List<SegmentedObject> subTrack = track.subList(i, Math.min(n, i + increment));
+            progress.setMessage("DLFilter: predicting frames " + subTrack.get(0).getFrame() + "-" + subTrack.get(subTrack.size()-1).getFrame());
             Image[][][] inputINC = extractors.stream().map(e -> subTrack.stream().map(e).toArray(Image[][]::new)).toArray(Image[][][]::new);
-            Image[][][] predictionONC = dl.predict(engine, inputINC);
+            Image[][][] predictionONC = dl.predict(engine, progress, subTrack.size(), inputINC);
             Image[] out = ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
             for (int j = 0; j<subTrack.size(); ++j) preFilteredImages.set(subTrack.get(j), out[j]);
         }

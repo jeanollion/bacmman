@@ -2,6 +2,8 @@ package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.*;
 import bacmman.github.gist.DLModelMetadata;
@@ -363,6 +365,9 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (factory==null) factory = getFactory(objectClassIdx); // in case called from track only method -> for post-processing
         PredictionResults predictions = null;
         TRACK_POST_PROCESSING_WINDOW_MODE ppMode = trackPPRange.getSelectedEnum();
+        // progress in frames: prediction + segmentation + tracking of each frame, + post-processing of the whole track
+        int nFrames = parentTrack.size();
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(3 * nFrames + (TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE.equals(ppMode) ? nFrames : 0));
         Set<UnaryPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
         Map<SegmentedObject, LinkMultiplicity> lwFW=null, lmBW=null;
         Map<SegmentedObject, LinkMultiplicity>[] linkMultiplicityMapContainer = new Map[2];
@@ -392,13 +397,19 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int maxFrame = getNeighborhood(sortedFrames, subParentTrack.get(subParentTrack.size()-1).getFrame(), inputWindow.getIntValue(), true, frameSubsampling.getIntValue(), nGaps.getIntValue()).stream().mapToInt(f->f).max().orElse(subParentTrack.get(subParentTrack.size()-1).getFrame());
             int maxFrameIdx = maxIdx == parentTrack.size() ? maxIdx : Math.min(parentTrack.size(), search(sortedFrames, maxIdx, maxFrame, 0) + 1);
             //logger.debug("frame: [{}; {}] idx: [{}; {}]", minFrame, maxFrame, minFrameIdx, maxFrameIdx);
+            String windowFrames = "frames " + sortedFrames[i] + "-" + sortedFrames[maxIdx-1];
+            int windowSize = maxIdx - i;
+            progress.setMessage("DiSTNet2D: preparing inputs for " + windowFrames);
             inputImages.ensureSubTrack(parentTrack.subList(i, effectiveMaxIdxIncl+1)); // computes all needed EDM / GCDM input maps in parallel if any
-            predictions = predict(inputImages, sortedFrames, subParentTrack, predictions, null); // actually appends to prevPrediction
+            predictions = predict(inputImages, sortedFrames, subParentTrack, predictions, null, progress); // actually appends to prevPrediction
             assigner.setPrediction(predictions);
             if (segment) {
+                progress.setMessage("DiSTNet2D: segmenting " + windowFrames);
                 logger.debug("Segmentation window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size() - 1).getFrame());
                 segment(objectClassIdx, subParentTrack, predictions, postFilters, factory);
             }
+            progress.increment(windowSize);
+            progress.setMessage("DiSTNet2D: tracking " + windowFrames);
             int nGaps = this.nGaps.getIntValue();
             if (i>0) subParentTrack = parentTrack.subList(i-1, maxIdx); // add last frame of previous window for tracking (in order to have overlap)
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
@@ -412,6 +423,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             for (int gap = 1; gap<=nGaps; ++gap) {
                 track(objectClassIdx, subParentTrack, predictions, gap, editor, linkMultiplicityMapContainer, additionalLinks);
             }
+            progress.increment(windowSize);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction
             int maxF = subParentTrack.get(0).getFrame();
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1 + nGaps));
@@ -429,6 +441,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.gc();
             switch (ppMode) {
                 case PER_SEGMENT: {
+                    progress.setMessage("DiSTNet2D: post-processing tracks of " + windowFrames);
                     postFilterTracking(objectClassIdx, subParentTrack, false, allAdditionalLinks, predictions, lwFW, lmBW, assigner, editor, factory);
                     for (int j = 0; j < subParentTrack.size() - (last ? 0 : 1 + nGaps); ++j) { // free memory
                         SegmentedObject p = subParentTrack.get(j);
@@ -449,13 +462,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     }
                     break;
                 } case INCREMENTAL: {
+                    progress.setMessage("DiSTNet2D: post-processing tracks up to frame " + sortedFrames[maxIdx-1]);
                     postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), maxIdx == parentTrack.size(), allAdditionalLinks, predictions, lwFW, lmBW, assigner, editor, factory);
                     break;
                 }
             }
         }
         if (TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE.equals(ppMode)) {
+            progress.setMessage("DiSTNet2D: post-processing tracks");
             postFilterTracking(objectClassIdx, parentTrack, true, allAdditionalLinks, predictions, lwFW, lmBW, assigner, editor, factory);
+            progress.increment(nFrames);
         }
         if (predictions != null && stores == null) { // force free memory
             for (SegmentedObject p : parentTrack) {
@@ -475,6 +491,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 for (int g = 0; g < predictions.noLinkFW.length; ++g) detach.accept(predictions.noLinkFW[g].remove(p));
             }
         }
+        progress.setMessage("DiSTNet2D: finalizing links");
         fixLinks(objectClassIdx, parentTrack, editor);
         if (!testMode) parentTrack.forEach(factory::relabelChildren);
         setTrackingAttributes(objectClassIdx, parentTrack, lwFW, lmBW);
@@ -2358,7 +2375,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
 
-        void predict(DLEngine engine, InputImages inputImages, int[] allFrames, int[] framesToPredict, int frameInterval) {
+        void predict(DLEngine engine, InputImages inputImages, int[] allFrames, int[] framesToPredict, int frameInterval, ProgressCallback.SubProgress progress) {
             // detect 3D from input image
             Image firstImage = inputImages.getImage(framesToPredict[0], 0);
             is3D = firstImage != null && firstImage.sizeZ() > 1;
@@ -2368,9 +2385,10 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = 0; i < framesToPredict.length; i += increment ) {
                 int idxMax = Math.min(i + increment, framesToPredict.length);
+                progress.setMessage("DiSTNet2D: predicting frames " + framesToPredict[i] + "-" + framesToPredict[idxMax-1]);
                 Image[][][] input = getInputs(inputImages, allFrames, Arrays.copyOfRange(framesToPredict, i, idxMax), inputWindow, next, frameInterval, nGaps, frameAware, faMode.getSelectedEnum());
                 logger.debug("input: [{}; {}] / [{}; {}] is3D: {}", framesToPredict[i], framesToPredict[idxMax-1], framesToPredict[0], framesToPredict[framesToPredict.length-1], is3D);
-                Image[][][] predictions = getGlobalDlResizeAndScale(frameAware, inputImages, allFrames).predict(engine, input); // 2D output: 0=edm, 1=gcdm, 2=dy, 3=dx, 4=linkMul, 5=cat ; 3D output: 0=edm, 1=gcdm, 2=dz, 3=dy, 4=dx, 5=linkMul, 6=cat
+                Image[][][] predictions = getGlobalDlResizeAndScale(frameAware, inputImages, allFrames).predict(engine, progress, idxMax - i, input); // progress incremented by idxMax - i in total. 2D output: 0=edm, 1=gcdm, 2=dy, 3=dx, 4=linkMul, 5=cat ; 3D output: 0=edm, 1=gcdm, 2=dz, 3=dy, 4=dx, 5=linkMul, 6=cat
                 appendPrediction(predictions, i);
             }
         }
@@ -2415,6 +2433,13 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     private PredictionResults predict(InputImages inputImages, int[] sortedFrames, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, Offset offset) {
+        return predict(inputImages, sortedFrames, parentTrack, previousPredictions, offset, ProgressCallback.SubProgress.NO_OP);
+    }
+
+    /**
+     * @param progress incremented by the number of predicted frames after each batch
+     */
+    private PredictionResults predict(InputImages inputImages, int[] sortedFrames, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, Offset offset, ProgressCallback.SubProgress progress) {
         long t0 = System.currentTimeMillis();
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
@@ -2428,7 +2453,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         boolean firstSegment = parentTrack.get(0).getFrame() == sortedFrames[0];
         boolean lastSegment = parentTrack.get(parentTrack.size()-1).getFrame() == sortedFrames[sortedFrames.length-1];
         PredictedChannels pred = new PredictedChannels(this.inputWindow.getIntValue(), this.next.getSelected(), this.nGaps.getIntValue());
-        pred.predict(engine, inputImages, sortedFrames, parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray(), frameSubsampling.getIntValue());
+        pred.predict(engine, inputImages, sortedFrames, parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray(), frameSubsampling.getIntValue(), progress);
         long t3 = System.currentTimeMillis();
         logger.info("{} predictions made in {}s", parentTrack.size(), Utils.format((t3 - t2)/1000d, 5));
 

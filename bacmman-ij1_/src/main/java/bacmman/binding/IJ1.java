@@ -69,9 +69,10 @@ public class IJ1 implements PlugIn {
         ImageWindowManagerFactory.setImageDisplayer(disp, man);
         Core.getCore();
         Core.setFreeDisplayerMemory(man::flush);
-        Core.setImageDisplayer(disp::displayImage);
+        // images can be displayed by plugins running in a background thread (e.g. during tests): display on the event dispatch thread
+        Core.setImageDisplayer(image -> Utils.runOnEDTAndWait(() -> disp.displayImage(image)));
         Core.setOverlayDisplayer(disp);
-        Core.setImage5dDisplayer(disp::displayImage);
+        Core.setImage5dDisplayer(image -> Utils.runOnEDTAndWait(() -> disp.displayImage(image)));
         Core.getCore().getGithubGateway().setPromptGithubCredientials(PromptGithubCredentials::promptCredentials);
     }
 

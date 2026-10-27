@@ -79,8 +79,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         MultipleException errors = new MultipleException();
         volatile MasterDAO db;
         boolean ownDB;
-        int[] taskCounter;
-        double subtaskNumber=0, subtaskCounter =0;
+        ProgressTracker progress; // shared by all tasks run together
         double preProcessingMemoryThreshold = 0.5;
         double cleanMemoryProportionThld = 0.25; // if memory is over this thld after a task item is performed, cleans memory
         ProgressLogger ui;
@@ -856,7 +855,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
         int count=0;
         // preProcess:
         if (preProcess) count += positionsToProcess;
-        if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length + 1; // +1 for storing objects
+        if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length;
         if (this.measurements) {
             int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
             count += positionsToProcess * (nCallOC+1); // +1 for upsert
@@ -884,8 +883,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
         }
         return count;
     }
-    public void setTaskCounter(int[] taskCounter) {
-        this.taskCounter=taskCounter;
+    @Override
+    public void setProgressTracker(ProgressTracker progress) {
+        this.progress = progress;
     }
 
     public void setPreprocessingMemoryThreshold(double preProcessingMemoryThreshold) {
@@ -928,7 +928,10 @@ public class Task implements TaskI<Task>, ProgressCallback {
         }
         boolean deleteAllPosition = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll && canDeleteAll;
         logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", getDBName(), preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllPosition);
-        if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
+        if (this.progress==null) {
+            this.progress = new ProgressTracker(ui);
+            this.progress.setTaskNumber(this.countSubtasks());
+        }
         publish("number of subtasks: "+countSubtasks());
         if (processing) {
             try {
@@ -1042,11 +1045,13 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     private void process(String position, boolean deleteAllPosition, Selection selection, double preProcessingMemoryThreshold) {
         publish("Dataset" + getDBName()+ " Position: "+position);
+        String positionLabel = "Position #"+db.getExperiment().getPositionIdx(position); // progress messages: index is shorter than name
         logger.debug("position: {} delete all position: {}", position, deleteAllPosition);
         if (deleteAllPosition) db.getDao(position).erase();
         boolean ok = true;
         if (preProcess) {
             publish("Pre-Processing...");
+            setProgressMessage(positionLabel+" · Pre-Processing");
             logger.info("Pre-Processing: DB: {}, Position: {}", getDBName(), position);
             try {
                 Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllPosition, preProcessingMemoryThreshold, this);
@@ -1078,6 +1083,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
             }
             for (int s : structures) { // TODO take code from processor
                 publish("Processing object class: "+s);
+                setProgressMessage(positionLabel+" · "+(trackOnly ? "Tracking" : "Processing")+" of: "+db.getExperiment().getStructure(s).getName());
                 try {
                     executeProcessingScheme(root, s, trackOnly, selection!=null, selection, this);
                 } catch (MultipleException e) {
@@ -1130,9 +1136,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
         
         if (ok && measurements) {
             publish("Measurements...");
+            setProgressMessage(positionLabel+" · Measurements");
             logger.info("Measurements: DB: {}, Position: {}", getDBName(), position);
-            Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);
-            incrementProgress();
+            Processor.performMeasurements(db.getDao(position), measurementMode, selection, this); // increments progress once per call object class + once for storing
             //publishMemoryUsage("After Measurements");
         }
     }
@@ -1141,6 +1147,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
     public void exportMeasurements(String dir, int[] objectClasses, List<String > positions) {
         publish("exporting measurements from object class: "+Utils.toStringArray(objectClasses));
+        setProgressMessage("Export Measurements");
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, objectClasses);
         logger.debug("keys: {}", Utils.toStringList(keys.entrySet(), e -> e.getKey()+"="+ Arrays.toString(e.getValue())));
         Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
@@ -1160,7 +1167,8 @@ public class Task implements TaskI<Task>, ProgressCallback {
     }
 
     public void exportMasks(String dir, int objectClass, List<String > positions) {
-        publish("exporting measurements from object class: "+objectClass);
+        publish("exporting masks from object class: "+objectClass);
+        setProgressMessage("Export Masks");
         Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         String ocName = db.getExperiment().getStructure(objectClass).getName();
         if (exportByPosition) {
@@ -1197,6 +1205,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
 
     public void exportContours(String dir, int objectClass, List<String > positions) {
         publish("exporting contours from object class: "+objectClass);
+        setProgressMessage("Export Contours");
         Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
         String ocName = db.getExperiment().getStructure(objectClass).getName();
         if (exportByPosition) {
@@ -1441,49 +1450,60 @@ public class Task implements TaskI<Task>, ProgressCallback {
         }
     }
 
-    // Progress Callback
-    @Override
-    public void incrementTaskNumber(int subtask) {
-        if (taskCounter!=null) this.taskCounter[1]+=subtask;
+    // Progress Callback: delegates to the tracker shared by all tasks run together
+    private ProgressTracker getProgress() {
+        if (progress==null) progress = new ProgressTracker(ui);
+        return progress;
     }
 
     @Override
-    public synchronized void incrementProgress() {
-        ++taskCounter[0];
-        subtaskCounter = 0;
-        subtaskNumber = 0;
-        //logger.debug("Progress: {}/{}", taskCounter[0], taskCounter[1]);
-        if (ui!=null) ui.setProgress(100*taskCounter[0]/taskCounter[1]);
+    public void incrementTaskNumber(int subtask) {
+        getProgress().incrementTaskNumber(subtask);
+    }
+
+    @Override
+    public void incrementProgress() {
+        getProgress().incrementProgress();
     }
 
     @Override
     public void setSubtaskNumber(int number) {
-        subtaskNumber = number;
-        subtaskCounter = 0;
+        getProgress().setSubtaskNumber(number);
     }
 
+    @Override
     public void setTaskNumber(int taskNumber) {
-        if (taskCounter!=null) this.taskCounter[1]=taskNumber;
-        subtaskCounter = 0;
-        subtaskNumber = 0;
+        getProgress().setTaskNumber(taskNumber);
     }
 
     @Override
-    public synchronized void incrementSubTask() {
-        ++subtaskCounter;
-        //logger.debug("Progress: {}/{}, subtask: {}/{}", taskCounter[0], taskCounter[1], subtaskCount, subtaskNumber);
-        if (ui!=null && subtaskNumber>0) ui.setProgress((int)(100*(taskCounter[0] + subtaskCounter / subtaskNumber)/taskCounter[1] + 0.5));
+    public void incrementSubTask() {
+        getProgress().incrementSubTask();
     }
 
     @Override
-    public synchronized void setProgress(int i) {
-        taskCounter[0] = i -1;
-        incrementProgress();
+    public void setProgress(int i) {
+        getProgress().setProgress(i);
     }
 
     @Override
     public int getTaskNumber() {
-        return taskCounter[1];
+        return getProgress().getTaskNumber();
+    }
+
+    @Override
+    public void setProgressMessage(String message) {
+        getProgress().setProgressMessage(message);
+    }
+
+    @Override
+    public void setSubTaskMessage(String message) {
+        getProgress().setSubTaskMessage(message);
+    }
+
+    @Override
+    public SubProgress subProgress(int steps) {
+        return getProgress().subProgress(steps);
     }
 
     @Override
@@ -1511,8 +1531,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
             t.clearDB();
         }
         if (ui!=null) ui.setMessage("Total subTasks: "+totalSubtasks);
-        int[] taskCounter = new int[]{0, totalSubtasks};
-        for (TaskI t : tasks) t.setTaskCounter(taskCounter);
+        ProgressTracker progress = new ProgressTracker(ui);
+        progress.setTaskNumber(totalSubtasks);
+        for (TaskI t : tasks) t.setProgressTracker(progress);
         for (int i = 0; i<tasks.size(); ++i) {
             //if (ui!=null && i==0) ui.setRunning(true);
             tasks.get(i).initDB();
@@ -1551,8 +1572,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
         }
         logger.debug("all tasks are valid");
         if (ui!=null) ui.setMessage("Total subTasks: "+totalSubtasks);
-        int[] taskCounter = new int[]{0, totalSubtasks};
-        for (TaskI t : tasks) t.setTaskCounter(taskCounter);
+        ProgressTracker progress = new ProgressTracker(ui);
+        progress.setTaskNumber(totalSubtasks);
+        for (TaskI t : tasks) t.setProgressTracker(progress);
         DefaultWorker.execute(i -> {
             //if (ui!=null && i==0) ui.setRunning(true);
             tasks.get(i).initDB();
@@ -1573,7 +1595,7 @@ public class Task implements TaskI<Task>, ProgressCallback {
                 }
             }
             return "";
-        }, tasks.size()).setEndOfWork(
+        }, tasks.size(), Core.getProgressLogger(), false).setEndOfWork(
                 ()->{for (Runnable r : endOfWork) r.run();});
     }
     public static void executeTaskInForeground(TaskI t, ProgressLogger ui, double preProcessingMemoryThreshold) {

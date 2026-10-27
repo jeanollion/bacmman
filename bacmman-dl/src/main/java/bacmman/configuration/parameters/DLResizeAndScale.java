@@ -1,5 +1,7 @@
 package bacmman.configuration.parameters;
 
+import bacmman.core.ProgressCallback;
+
 import bacmman.image.TileUtils;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
@@ -445,8 +447,16 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         return dims;
     }
     public Image[][][] predict(DLEngine engine, Image[][]... inputINC) {
+        return predict(engine, null, 0, inputINC);
+    }
+
+    /**
+     * @param progress incremented by {@code steps} in total, after each batch of the engine (see {@link DLEngine#process(ProgressCallback.SubProgress, double, Image[][]...)}). Can be null
+     * @param steps number of steps of {@code progress} corresponding to this prediction
+     */
+    public Image[][][] predict(DLEngine engine, ProgressCallback.SubProgress progress, double steps, Image[][]... inputINC) {
         Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> in = getNetworkInput(inputINC);
-        Image[][][] out = engine.process(in.v1);
+        Image[][][] out = engine.process(progress, steps, in.v1);
         return processPrediction(out, in);
     }
     private Supplier<HistogramScaler> setScaleLogger(Supplier<HistogramScaler> supplier) {

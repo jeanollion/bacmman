@@ -10,7 +10,10 @@ public interface TaskI<T extends TaskI<T>> {
     void printErrorsTo(ProgressLogger ui);
     void setUI(ProgressLogger ui);
     int countSubtasks();
-    void setTaskCounter(int[] counter);
+    /**
+     * @param progress progress tracker shared by all tasks run together
+     */
+    void setProgressTracker(ProgressTracker progress);
     void initDB();
     void clearDB();
     String getDir();

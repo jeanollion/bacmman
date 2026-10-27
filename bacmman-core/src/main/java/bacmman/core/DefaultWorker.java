@@ -39,6 +39,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected int[] taskIdx;
     protected ProgressLogger progressor;
     protected ProgressCallback pcb;
+    protected volatile boolean forwardProgress = true;
     long tStart;
     public DefaultWorker setProgressCallBack(ProgressCallback pcb) {
         this.pcb = pcb;
@@ -54,7 +55,15 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         return execute(t, maxTaskIdx, Core.getProgressLogger());
     }
     public static DefaultWorker execute(WorkerTask t, int maxTaskIdx, ProgressLogger gui) {
+        return execute(t, maxTaskIdx, gui, true);
+    }
+
+    /**
+     * @param forwardProgress if false, the worker does not display its own progress (index of the task over the number of tasks), e.g. because the tasks report a finer progress themselves
+     */
+    public static DefaultWorker execute(WorkerTask t, int maxTaskIdx, ProgressLogger gui, boolean forwardProgress) {
         DefaultWorker res = new DefaultWorker(t, maxTaskIdx, gui);
+        res.forwardProgress = forwardProgress;
         res.execute();
         return res;
     }
@@ -74,7 +83,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         taskIdx = ArrayUtil.generateIntegerArray(0, maxTaskIdx);
         if (progressor !=null) {
             addPropertyChangeListener(evt -> {
-                if ("progress".equals(evt.getPropertyName())) {
+                if (forwardProgress && "progress".equals(evt.getPropertyName())) {
                     int progress = (Integer) evt.getNewValue();
                     progressor.setProgress(progress);
                 }

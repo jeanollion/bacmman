@@ -2,6 +2,8 @@ package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -179,6 +181,13 @@ public class ProbabilityMapSegmenter implements Segmenter, GlobalHistogramConfig
     }
 
     private Image[] predict(DLResizeAndScale dlResizeAndScale, Image[]... inputImagesNI) {
+        return predict(dlResizeAndScale, null, 0, inputImagesNI);
+    }
+
+    /**
+     * @param progress incremented by {@code steps} in total during prediction (can be null)
+     */
+    private Image[] predict(DLResizeAndScale dlResizeAndScale, ProgressCallback.SubProgress progress, double steps, Image[]... inputImagesNI) {
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int nI = Math.max(inputChannels.getChildCount(), 1);
@@ -188,7 +197,7 @@ public class ProbabilityMapSegmenter implements Segmenter, GlobalHistogramConfig
                 inputINC[i][n][0] = inputImagesNI[n][i];
             }
         }
-        Image[][][] predictionONC = dlResizeAndScale.predict(engine, inputINC);
+        Image[][][] predictionONC = dlResizeAndScale.predict(engine, progress, steps, inputINC);
         return ResizeUtils.getChannel(predictionONC[0], outputChannel.getIntValue());
     }
 
@@ -206,13 +215,16 @@ public class ProbabilityMapSegmenter implements Segmenter, GlobalHistogramConfig
         int currentChannel = parentTrack.get(0).getExperimentStructure().getChannelIdx(structureIdx);
         IntFunction<HistogramSource> globalHistogramPerInput = globalHistograms == null ? null : inputIdx -> globalHistograms.apply(inputSources[inputIdx] < 0 ? currentChannel : inputSources[inputIdx]);
         DLResizeAndScale dl = dlResample.withGlobalScaling(singleFrame ? 1 : parentTrack.size(), parentTrack.get(0).getBounds(), (inputIdx, frames) -> IntStream.of(frames).mapToObj(parentTrack::get).map(p -> getInputImage(p, inputSources[inputIdx], () -> p.getPreFilteredImage(structureIdx))), globalHistogramPerInput);
+        // progress in predicted frames (prediction is performed on the calling thread)
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(singleFrame ? 1 : parentTrack.size());
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             Image[][] inputNI = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> getInputImages(p, structureIdx)).toArray(Image[][]::new);
+            progress.setMessage("ProbabilityMapSegmenter: predicting frames " + subParentTrack.get(0).getFrame() + "-" + subParentTrack.get(inputNI.length-1).getFrame());
             Image[] out;
-            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(dl, inputNI);
-            else out = Arrays.stream(inputNI).map(in -> predict(dl, in)).map(ii -> ii[0]).toArray(Image[]::new);
+            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(dl, progress, inputNI.length, inputNI);
+            else out = Arrays.stream(inputNI).map(in -> predict(dl, progress, 1, in)).map(ii -> ii[0]).toArray(Image[]::new);
             for (int ii = 0; ii<subParentTrack.size(); ++ii) {
                 //logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
                 segM.put(subParentTrack.get(ii), imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false));

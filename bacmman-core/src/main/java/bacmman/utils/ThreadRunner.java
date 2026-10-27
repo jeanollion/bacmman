@@ -20,6 +20,8 @@ package bacmman.utils;
 
 import bacmman.data_structure.Processor;
 import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressTracker;
+import bacmman.ui.logger.ProgressLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -336,62 +338,13 @@ public class ThreadRunner<T> {
     }
     
     public static ProgressCallback loggerProgressCallback(final org.slf4j.Logger logger) {
-        return new ProgressCallback() {
-            int subTask = 0;
-            int taskCount = 0;
-            double subTaskNumber = 0;
-            double subTaskCount = 0;
-            @Override
-            public synchronized void incrementTaskNumber(int subtask) {
-                this.subTask+=subtask;
-            }
-
-            @Override
-            public void setSubtaskNumber(int number) {
-                subTaskNumber = number;
-                subTaskCount = 0;
-            }
-
-            @Override
-            public void setTaskNumber(int number) {
-                taskCount = number;
-                subTaskCount = 0;
-                subTaskNumber = 0;
-            }
-
-            @Override
-            public synchronized void incrementSubTask() {
-                ++subTaskCount;
-                logger.debug("Current: {}/{}, subtask: {}/{}", taskCount, subTask, subTaskCount, subTaskNumber);
-            }
-
-            @Override
-            public void incrementProgress() {
-                subTaskCount = 0;
-                logger.debug("Current: {}/{}", ++taskCount, subTask);
-            }
-
-            @Override
-            public void log(String message) {
-                logger.debug(message);
-            }
-
-            @Override
-            public void setProgress(int i) {
-                taskCount = i - 1;
-                incrementProgress();
-            }
-
-            @Override
-            public int getTaskNumber() {
-                return taskCount;
-            }
-
-            @Override
-            public void setRunning(boolean running) {
-
-            }
-        };
+        return new ProgressTracker(new ProgressLogger() {
+            @Override public void setProgress(int i) {logger.debug("Progress: {}%", i);}
+            @Override public void setSubProgress(int i) {logger.debug("Current task progress: {}%", i);}
+            @Override public void setMessage(String message) {logger.debug(message);}
+            @Override public void setRunning(boolean running) {}
+            @Override public boolean isGUI() {return false;}
+        });
     }
     public static PriorityThreadFactory priorityThreadFactory(int priority) {return new PriorityThreadFactory(priority);}
     public static class PriorityThreadFactory implements ThreadFactory {
