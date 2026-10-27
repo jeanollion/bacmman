@@ -349,7 +349,8 @@ public class DatasetTree {
         }
 
         public String getName() {
-            return dir.getFileName().toString();
+            Path name = dir.getFileName();
+            return name == null ? dir.toString() : name.toString(); // null for a file system root (e.g. "/" or "C:\\")
         }
 
         public boolean isFolder() {

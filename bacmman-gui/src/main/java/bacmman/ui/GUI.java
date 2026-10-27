@@ -418,7 +418,10 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
 
         String path = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH);
         if (path!=null) workingDirectory.setText(path);
-        else workingDirectory.setText(System.getProperty("user.dir"));
+        else { // no saved working directory: use the current directory, unless it is a file system root (e.g. "/" for macOS applications launched from Finder), then the home directory
+            Path wd = Paths.get(System.getProperty("user.dir"));
+            workingDirectory.setText((wd.getParent() == null ? Paths.get(System.getProperty("user.home")) : wd).toString());
+        }
 
         // import / export options
         PropertyUtils.setPersistent(importConfigMenuItem, "import_config", true);
