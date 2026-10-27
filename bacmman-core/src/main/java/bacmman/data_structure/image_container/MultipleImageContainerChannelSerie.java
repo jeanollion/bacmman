@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     private volatile Image[] singleFrameImages;
     boolean[] singleFrameC;
     volatile Map<String, Double> timePointCZT;
+    transient boolean timePointInitTried; // an empty time point map may come from a version that could not read time points: try once again per session
     private boolean invertTZ;
     private int[] channelIndices, channelModulo;
     boolean[] invertTZbyC;
@@ -153,11 +156,11 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         this.invertTZ=invertTZ;
         this.invertTZbyC = invertTZbyC;
         this.sizeZC= sizeZC;
-        if (timePointCZT!=null && !timePointCZT.isEmpty()) this.timePointCZT = new HashMap<>(timePointCZT);
-        else initTimePointMap();
         this.channelIndices = channelIndices;
         this.channelModulo = channelModulo;
         this.rgbC = rgbC;
+        if (timePointCZT!=null && !timePointCZT.isEmpty()) this.timePointCZT = new HashMap<>(timePointCZT);
+        else initTimePointMap(); // after channel indices are set: needed to locate planes in files
     }
 
     public boolean fromOmero() {
@@ -167,24 +170,55 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         return Long.parseLong(filePathC[channelIdx].substring(8));
     }
 
-    private void initTimePointMap() {
-        timePointCZT = new HashMap<>();
-        for (int c = 0; c<filePathC.length; ++c) {
-            ImageReader r = null;
-            try {
-                r = this.getReader(c);
-            } catch (IOException e) {
-                continue;
-            }
-            if (r==null) continue;
-            for (int z = 0; z<sizeZC[c]; ++z) {
-                for (int t = 0; t<timePointNumber; ++t) {
-                    double tp = r.getTimePoint(0, t, z);
-                    if (!Double.isNaN(tp)) timePointCZT.put(getKey(c, z, t), tp);
+    /**
+     * Time points of all planes of each channel file, from the first available source (see {@link ImageReaderFile.TIME_SOURCE}), in seconds.
+     * The source of the first channel is used for all channels; absolute times are converted to times relative to the first plane among all channels.
+     * Left empty if not found for one channel.
+     */
+    private synchronized void initTimePointMap() {
+        timePointInitTried = true;
+        Map<String, Double> timePoints = new HashMap<>();
+        try {
+            if (fromOmero()) return;
+            ImageReaderFile.TIME_SOURCE source = null;
+            for (int c = 0; c < filePathC.length; ++c) {
+                ImageReader r;
+                try {
+                    r = this.getReader(c);
+                } catch (IOException e) {
+                    timePoints.clear();
+                    return;
                 }
+                if (!(r instanceof ImageReaderFile)) {
+                    timePoints.clear();
+                    return;
+                }
+                int nFrames = singleFrame(c) ? 1 : timePointNumber;
+                List<int[]> planes = new ArrayList<>(); // container coordinates: frame, z
+                List<int[]> filePlanes = new ArrayList<>(); // file coordinates: channel, frame, z
+                for (int t = 0; t < nFrames; ++t) {
+                    ImageIOCoordinates io = getImageIOCoordinates(t, c);
+                    for (int z = 0; z < sizeZC[c]; ++z) {
+                        planes.add(new int[]{t, z});
+                        filePlanes.add(new int[]{io.getChannel(), io.getTimePoint(), z});
+                    }
+                }
+                ImageReaderFile.TimePoints tp = ((ImageReaderFile) r).getTimePoints(0, filePlanes.toArray(new int[0][]), source == null ? EnumSet.allOf(ImageReaderFile.TIME_SOURCE.class) : EnumSet.of(source));
+                if (tp == null) {
+                    timePoints.clear();
+                    logger.info("time point information not found in file: {}{}", filePathC[c], source == null ? "" : " (source of other channels: " + source + ")");
+                    return;
+                }
+                if (source == null) {
+                    source = tp.source;
+                    logger.debug("time points read from: {}", source);
+                }
+                for (int i = 0; i < planes.size(); ++i) timePoints.put(getKey(c, planes.get(i)[1], planes.get(i)[0]), tp.times[i]);
             }
+            if (source != null && source.absolute) toRelativeTime(timePoints);
+        } finally {
+            timePointCZT = timePoints;
         }
-        //logger.debug("tpMap: {}", timePointCZT);
     }
 
     public MultipleImageContainerChannelSerie setTimePoints(int channel, List<Long> timePoint) {
@@ -204,9 +238,9 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     }
     
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
-        if (timePointCZT==null) {
+        if (timePointCZT==null || (timePointCZT.isEmpty() && !timePointInitTried)) {
             synchronized(this) {
-                if (timePointCZT==null) initTimePointMap();
+                if (timePointCZT==null || (timePointCZT.isEmpty() && !timePointInitTried)) initTimePointMap();
             }
         }
         if (timePointCZT.isEmpty()) return Double.NaN;

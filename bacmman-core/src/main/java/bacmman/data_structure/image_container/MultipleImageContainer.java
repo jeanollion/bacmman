@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Map;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -51,6 +52,15 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public float getScaleXY() {return (float)scaleXY;}
     public float getScaleZ() {return (float)scaleZ;}
     public abstract double getCalibratedTimePoint(int t, int c, int z);
+
+    /**
+     * Converts absolute time points (in seconds) to times relative to the first time point, rounded to the microsecond (removes floating point errors due to large absolute values)
+     */
+    protected static void toRelativeTime(Map<String, Double> timePoints) {
+        if (timePoints.isEmpty()) return;
+        double ref = timePoints.values().stream().mapToDouble(d -> d).min().getAsDouble();
+        timePoints.replaceAll((k, v) -> Math.round((v - ref) * 1e6) / 1e6);
+    }
     public abstract MultipleImageContainer duplicate();
     public abstract boolean singleFrame(int channel);
     public abstract boolean isEmpty();

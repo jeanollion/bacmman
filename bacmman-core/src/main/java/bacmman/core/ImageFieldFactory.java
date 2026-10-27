@@ -160,6 +160,7 @@ public class ImageFieldFactory {
                         // no need to swap as it was already done when reader was invertTZ was set to reader
                     }
                     MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(positionName, image.getAbsolutePath(), s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], invertTZ);
+                    c.initTimePoints(reader); // the file is already opened: fast. Time points are stored with the configuration
                     containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
                     if (importMetadata) {
                         Map<String, Object> metadata = reader.getSeriesMetadata(s);
