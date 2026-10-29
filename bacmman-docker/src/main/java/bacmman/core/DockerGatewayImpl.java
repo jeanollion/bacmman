@@ -22,6 +22,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
@@ -83,9 +90,7 @@ public class DockerGatewayImpl implements DockerGateway {
                     String path = dockerHost.getPath();
                     if (path == null) return true;
                     String pipeName = path.substring(path.lastIndexOf('/') + 1);
-                    String[] pipes = new File("\\\\.\\pipe\\").list(); // lists existing named pipes, without connecting
-                    if (pipes == null) return true;
-                    return Arrays.asList(pipes).contains(pipeName);
+                    return namedPipeExists(pipeName);
                 }
                 case "unix": {
                     String path = dockerHost.getPath();
@@ -96,6 +101,30 @@ public class DockerGatewayImpl implements DockerGateway {
             }
         } catch (RuntimeException e) {
             logger.debug("could not check docker endpoint: {}", dockerHost, e);
+            return true;
+        }
+    }
+
+    /**
+     * Windows named pipe. File.list() returns null for the pipe directory, but NIO can list it (without connecting).
+     * If listing fails, a single connection attempt is made: unlike docker-java, it does not retry when the pipe is missing.
+     */
+    static boolean namedPipeExists(String pipeName) {
+        try (DirectoryStream<Path> pipes = Files.newDirectoryStream(Paths.get("\\\\.\\pipe\\"))) {
+            for (Path p : pipes) {
+                Path name = p.getFileName();
+                if (pipeName.equalsIgnoreCase(name != null ? name.toString() : p.toString())) return true;
+            }
+            return false;
+        } catch (IOException | RuntimeException e) {
+            logger.debug("could not list named pipes: {}", e.toString());
+        }
+        try (RandomAccessFile pipe = new RandomAccessFile("\\\\.\\pipe\\" + pipeName, "rw")) {
+            return true;
+        } catch (FileNotFoundException e) {
+            logger.debug("named pipe {} not found: {}", pipeName, e.toString());
+            return false;
+        } catch (IOException | RuntimeException e) {
             return true;
         }
     }
