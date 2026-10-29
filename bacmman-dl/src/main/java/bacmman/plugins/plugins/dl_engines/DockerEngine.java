@@ -72,6 +72,14 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         if (dc != null) dockerImage.setImageRequirement(dc.getDockerImageName(), dc.getVersionPrefix(), dc.minimalVersion(), dc.maximalVersion());
         else dockerImage.setImageRequirement("predict_dnn", null, null, null);
+        // docker is not contacted here: the engine is instantiated in many contexts (e.g. at startup as default engine) and contacting docker can be slow when it is not started. Image is selected when the engine is used (see ensureImage)
+    }
+
+    /**
+     * Selects an installed image (or an image that can be built) if no image is selected
+     */
+    protected void selectDefaultImageIfNecessary() {
+        if (dockerImage.getValue() != null) return;
         DockerGateway.DockerImage im = dockerImage.getAllImages()
                 .filter(DockerGateway.DockerImage::isInstalled).sorted().findFirst()
                 .orElse(dockerImage.getAllImages().sorted().findFirst().orElse(null));
@@ -417,7 +425,9 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     protected String ensureImage() {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         dockerImage.refreshImageList();
+        selectDefaultImageIfNecessary();
         DockerGateway.DockerImage currentImage = dockerImage.getValue();
+        if (currentImage == null) throw new RuntimeException("No docker image available" + (dockerGateway.dockerStarted() ? "" : ": is Docker started ?"));
         if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;
             Path dockerDir = null;

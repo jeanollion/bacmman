@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +43,7 @@ public class DockerGatewayImpl implements DockerGateway {
     static String defaultHostUnix = "unix:///var/run/docker.sock";
     static String defaultHostWindows = "docker.for.unix.localhost";
     DockerClient dockerClient;
+    URI dockerHost;
     DockerGatewayImpl() {
         initClient(null, null);
     }
@@ -57,6 +59,7 @@ public class DockerGatewayImpl implements DockerGateway {
             configBuilder = configBuilder.withRegistryUsername(user).withRegistryPassword(token);
         }
         DockerClientConfig config = configBuilder.build();
+        dockerHost = config.getDockerHost();
         //DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
         DockerHttpClient httpClient = new ZerodepDockerHttpClient.Builder()
                 .dockerHost(config.getDockerHost())
@@ -68,8 +71,42 @@ public class DockerGatewayImpl implements DockerGateway {
         dockerClient = DockerClientImpl.getInstance(config, httpClient);
     }
 
+    /**
+     * Fast check that the docker daemon endpoint exists, to avoid connection attempts that are slow to fail: on Windows, connecting to a named pipe that does not exist is retried until timeout (at least 10s).
+     * @return false if the endpoint is a named pipe or unix socket that does not exist. true otherwise (other endpoints, or if the check could not be performed)
+     */
+    protected boolean endpointExists() {
+        if (dockerHost == null || dockerHost.getScheme() == null) return true;
+        try {
+            switch (dockerHost.getScheme()) {
+                case "npipe": { // e.g. npipe:////./pipe/docker_engine
+                    String path = dockerHost.getPath();
+                    if (path == null) return true;
+                    String pipeName = path.substring(path.lastIndexOf('/') + 1);
+                    String[] pipes = new File("\\\\.\\pipe\\").list(); // lists existing named pipes, without connecting
+                    if (pipes == null) return true;
+                    return Arrays.asList(pipes).contains(pipeName);
+                }
+                case "unix": {
+                    String path = dockerHost.getPath();
+                    return path == null || new File(path).exists();
+                }
+                default:
+                    return true;
+            }
+        } catch (RuntimeException e) {
+            logger.debug("could not check docker endpoint: {}", dockerHost, e);
+            return true;
+        }
+    }
+
+    protected void ensureEndpointExists() {
+        if (!endpointExists()) throw new RuntimeException("Could not connect with Docker (" + dockerHost + " not found). " + (Utils.isWindows() ? "Is Docker started ?" : "Is Docker installed and started ?"));
+    }
+
     @Override
     public boolean dockerStarted() {
+        if (!endpointExists()) return false;
         try {
             dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> new String[]{i.getRepoTags()[0], i.getId()});
             return true;
@@ -80,6 +117,10 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @Override
     public Stream<String[]> listImages() {
+        if (!endpointExists()) {
+            logger.error("Could not connect with Docker ({} not found). {}", dockerHost, Utils.isWindows() ? "Is Docker started ?" : "Is Docker installed and started ?");
+            return Stream.empty();
+        }
         try {
             return dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> new String[]{i.getRepoTags()[0], i.getId()});
         } catch (RuntimeException e ) {
@@ -93,6 +134,7 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @Override
     public String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress) {
+        ensureEndpointExists();
         bacmman.docker.BuildImageResultCallback buildCb = dockerClient.buildImageCmd(dockerFile)
                 .withTags(Collections.singleton(tag)).withPull(true)
                 .exec(new bacmman.docker.BuildImageResultCallback(filterOutANSIEscapeSequences(applyToSplit(stdOut)), stdErr, stepProgress));
@@ -101,6 +143,7 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @Override
     public boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr, BiConsumer<Integer, Integer> stepProgress) {
+        ensureEndpointExists();
         try {
             if (image.contains("--")) {
                 String[] split = image.split("--");
@@ -156,6 +199,7 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @Override
     public Stream<DockerContainer> listContainers() {
+        ensureEndpointExists();
         return dockerClient.listContainersCmd().exec().stream()
             .map(c -> new DockerContainer(c.getId(), c.getImageId(), c.getImage(), c.getState(),
                     c.getMounts().stream().map(m -> new UnaryPair<>(m.getSource(), m.getDestination())).collect(Collectors.toList()),
@@ -166,6 +210,7 @@ public class DockerGatewayImpl implements DockerGateway {
     @SafeVarargs
     @Override
     public final String createContainer(String image, double shmSizeGb, int[] gpuIds, List<UnaryPair<Integer>> portBindingHostToContainer, List<UnaryPair<String>> environmentVariables, UnaryPair<String>... mountDirs) {
+        ensureEndpointExists();
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withAutoRemove(true)
                 .withUlimits(new Ulimit[]{new Ulimit("nofile", 65535L, 65535L)});
