@@ -872,15 +872,9 @@ public class Task implements TaskI<Task>, ProgressCallback {
             else count += nExpFiles * nExport;
         }
         if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
-        if (extractDSFile!=null && extractDSFeatures!=null && extractDSSelectionNames !=null) {
-            for (Selection sel : getExtractDSSelections()) {
-                int c = sel.getAllPositions().size();
-                count += extractDSFeatures.size() * c;
-            }
-        }
-        if (extractRawDSFile!=null) {
-            count += extractDSRawPositionMapFrames.size();
-        }
+        // each dataset extraction is one task: its steps are reported as sub-tasks
+        if (extractDSFile!=null && extractDSFeatures!=null && extractDSSelectionNames !=null) ++count;
+        if (extractRawDSFile!=null) ++count;
         return count;
     }
     @Override

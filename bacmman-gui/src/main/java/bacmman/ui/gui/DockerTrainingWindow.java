@@ -86,7 +86,6 @@ public class DockerTrainingWindow implements ProgressDisplay {
     private JTextField datasetNameTextField;
     private JButton uploadModelButton;
     private JScrollPane extractDatasetConfigurationJSP;
-    private JProgressBar extractProgressBar;
     private JProgressBar stepProgressBar;
     private JLabel epochLabel;
     private JLabel stepLabel;
@@ -337,7 +336,6 @@ public class DockerTrainingWindow implements ProgressDisplay {
             dataset.setFilePath(tempDatasetFile.getAbsolutePath());
             Map<String, String> mounts = fixDirectories(trainer);
             pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false); // dataset has been replaced so manually save configuration
-            currentProgressBar = extractProgressBar;
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 List<String> selections = new ArrayList<>();
@@ -801,12 +799,20 @@ public class DockerTrainingWindow implements ProgressDisplay {
     }
 
     protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel, boolean[] timelapseDatasetBucket) {
-        currentProgressBar = extractProgressBar;
         if (sel == null) sel = new ArrayList<>();
         Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
         timelapseDatasetBucket[0] = t.getExtractDSTimelapse();
-        if (background) Task.executeTask(t, this, 1);
-        else Task.executeTaskInForeground(t, this, 1);
+        // progress is displayed on the main progress bars of the GUI, like other tasks
+        ProgressDisplay display = GUI.hasInstance() ? GUI.getInstance() : this;
+        if (background) Task.executeTask(t, display, 1); // running state is handled by the worker, as for other tasks
+        else {
+            display.setRunning(true);
+            try {
+                Task.executeTaskInForeground(t, display, 1);
+            } finally {
+                display.setRunning(false);
+            }
+        }
         if (!t.getErrors().isEmpty()) {
             t.publishErrors();
             return false;
@@ -1643,7 +1649,7 @@ public class DockerTrainingWindow implements ProgressDisplay {
         splitPane1.setRightComponent(actionPanel);
         actionPanel.add(directoryPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
         datasetPanel = new JPanel();
-        datasetPanel.setLayout(new GridLayoutManager(3, 3, new Insets(0, 0, 0, 0), -1, -1));
+        datasetPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(datasetPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         datasetPanel.setBorder(BorderFactory.createTitledBorder(null, "Extract Dataset", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         extractDSNamePanel = new JPanel();
@@ -1655,9 +1661,6 @@ public class DockerTrainingWindow implements ProgressDisplay {
         extractDSNamePanel.add(datasetNameTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         extractDatasetConfigurationJSP = new JScrollPane();
         datasetPanel.add(extractDatasetConfigurationJSP, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 70), new Dimension(-1, 90), null, 0, false));
-        extractProgressBar = new JProgressBar();
-        extractProgressBar.setStringPainted(true);
-        datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel1 = new JPanel();
         panel1.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
         datasetPanel.add(panel1, new GridConstraints(1, 1, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));

@@ -68,8 +68,9 @@ public class ExtractDatasetUtil {
         boolean trackingDataset = t.isExtractDSTimelapse();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
         String ds = mDAO.getDBName();
+        // one sub-task per selection, position and feature
+        Map<Selection, List<Selection>> trackSelsMap = new LinkedHashMap<>();
         for (Selection mainSel : selections) {
-            logger.debug("Selection: {}", mainSel.getName());
             List<Selection> trackSels;
             if (trackingDataset) { // split selection by contiguous track segment
                 trackSels = new ArrayList<>();
@@ -81,8 +82,14 @@ public class ExtractDatasetUtil {
                         trackSels.add(subSel);
                     } );
                 }
-                if (trackSels.size() > 1) t.incrementTaskNumber(trackSels.size() * features.size() - mainSel.getAllPositions().size() * features.size());
             } else trackSels = Collections.singletonList(mainSel);
+            trackSelsMap.put(mainSel, trackSels);
+        }
+        t.setProgressMessage("Extract dataset");
+        t.setSubtaskNumber(trackSelsMap.values().stream().flatMap(List::stream).mapToInt(sel -> test ? 1 : sel.getAllPositions().size()).sum() * features.size());
+        for (Selection mainSel : selections) {
+            logger.debug("Selection: {}", mainSel.getName());
+            List<Selection> trackSels = trackSelsMap.get(mainSel);
             for (Selection sel : trackSels) {
                 if (test) {
                     Selection selT = new Selection("", sel.getObjectClassIdx(), mDAO);
@@ -116,6 +123,7 @@ public class ExtractDatasetUtil {
                     boolean saveLabels = subsamplingFactor==1; // HAS BEEN DISABLED
                     boolean filterParentSelection = Utils.objectsAllHaveSameProperty(features, FeatureExtractor.Feature::getSelectionFilterName);
                     for (FeatureExtractor.Feature feature : features) {
+                        t.setSubTaskMessage((!curSelName.isEmpty() ? curSelName + " · " : "") + position + " · " + feature.getName());
                         boolean oneEntryPerInstance = feature.getFeatureExtractor() instanceof FeatureExtractor.FeatureExtractorOneEntryPerInstance;
                         boolean oneEntryPerTrack = feature.getFeatureExtractor() instanceof FeatureExtractor.FeatureExtractorOneEntryPerTrack;
                         boolean temporal = feature.getFeatureExtractor() instanceof FeatureExtractorTemporal;
@@ -200,12 +208,13 @@ public class ExtractDatasetUtil {
                             }
                             saveLabels = false;
                         }
-                        t.incrementProgress();
+                        t.incrementSubTask();
                     }
                     resizedPops.clear();
                 }
             }
         }
+        t.incrementProgress();
         // write histogram for raw features // DISABLED
         /*features.stream().filter(f->f.getFeatureExtractor() instanceof RawImage).map(FeatureExtractor.Feature::getName).forEach(channelName -> {
             for (int offset : subsamplingOffsets) write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions, subsamplingFactor, offset);
@@ -234,6 +243,8 @@ public class ExtractDatasetUtil {
             }
             return t.getExtractRawZAxis().handleZ(image);
         };
+        t.setProgressMessage("Extract raw dataset");
+        t.setSubtaskNumber(positionMapFrames.size() * channels.length); // one sub-task per position and channel
         for (String position : positionMapFrames.keySet()) {
             //logger.debug("position: {}", position);
             Position pos = mDAO.getExperiment().getPosition(position);
@@ -243,6 +254,7 @@ public class ExtractDatasetUtil {
             List<Integer> frames = positionMapFrames.get(position);
             boolean saveLabels = false;
             for (int channel : channels) {
+                t.setSubTaskMessage(position + " · " + channelNames[channel]);
                 String outputName = ds + "/" + position + "/" + channelNames[channel];
                 List<Image> images= new ArrayList<>(frames.size());
                 for (int fIdx : frames) {
@@ -256,11 +268,12 @@ public class ExtractDatasetUtil {
                 }
                 extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false, false, compression);
                 saveLabels = false;
+                t.incrementSubTask();
             }
             clearMem.run();
             inputImages.freeMemory();
-            t.incrementProgress();
         }
+        t.incrementProgress();
     }
 
     protected static ConvertToBoundingBox boxConverter(int[] dimensions) {
