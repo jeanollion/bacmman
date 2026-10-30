@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.core.ProgressCallback;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
@@ -164,6 +165,13 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     }
     protected MultipleImageContainerPositionChannelFrame() {super(1, 1);} // JSON init
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int[] sizeZC, int frameNumber, double scaleXY, double scaleZ, String positionName) throws IOException {
+        this(inputDir, extension, positionKey, timeKeyword, channelKeywords, rgbC, sizeZC, frameNumber, scaleXY, scaleZ, positionName, ProgressCallback.SubProgress.NO_OP);
+    }
+
+    /**
+     * @param timePointProgress progress of time point reading, which counts as one step
+     */
+    public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int[] sizeZC, int frameNumber, double scaleXY, double scaleZ, String positionName, ProgressCallback.SubProgress timePointProgress) throws IOException {
         super(scaleXY, scaleZ);
         this.inputDir = FileIO.checkNoBackslash(inputDir);
         this.extension = extension;
@@ -207,11 +215,17 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             this.scaleZ = info.value[2];
             logger.debug("scale: xy={} z={}", this.scaleXY, this.scaleZ);
         }
-        initTimePointMap();
-        
+        initTimePointMap(timePointProgress);
     }
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int frameNumber, String positionName) throws IOException {
         this(inputDir, extension, positionKey, timeKeyword, channelKeywords, rgbC, null, frameNumber, -1, -1, positionName);
+    }
+
+    /**
+     * @param timePointProgress progress of time point reading, which counts as one step
+     */
+    public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int frameNumber, String positionName, ProgressCallback.SubProgress timePointProgress) throws IOException {
+        this(inputDir, extension, positionKey, timeKeyword, channelKeywords, rgbC, null, frameNumber, -1, -1, positionName, timePointProgress);
     }
 
     // omero constructor
@@ -244,7 +258,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                     if (fromOmero()) initTimePointMapOmero();
                     else {
                         try {
-                            initTimePointMap();
+                            initTimePointMap(ProgressCallback.SubProgress.NO_OP);
                         } catch (IOException ignored) {}
                     }
                 }
@@ -310,7 +324,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
      * The source of the first file is used for all files. Time points are in seconds, absolute times are converted to times relative to the first acquisition among all channels.
      * If the time point of one plane is missing, the map is left empty.
      */
-    private void initTimePointMap() throws IOException {
+    private void initTimePointMap(ProgressCallback.SubProgress progress) throws IOException {
         if (fromOmero()) return;
         synchronized(this) {
             timePointInitTried = true;
@@ -318,10 +332,12 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             try {
                 if (fileCT == null) getFileMap();
                 TIME_SOURCE source = null;
+                double progressStep = 1d / Math.max(1, IntStream.range(0, nChannels).map(c -> fileCT.get(channelIdx[c]).size()).sum());
                 for (int c = 0; c<this.nChannels; ++c) {
                     logger.debug("init timepoint map for channel: {}", c);
                     double frameInterval = Double.NaN;
                     for (int f = 0; f<fileCT.get(channelIdx[c]).size(); ++f) {
+                        progress.increment(progressStep);
                         if (!Double.isNaN(frameInterval)) { // no need to read the file
                             for (int z = 0; z < sizeZC[c]; ++z) timePoints.put(getKey(c, z, f), f * frameInterval);
                             continue;

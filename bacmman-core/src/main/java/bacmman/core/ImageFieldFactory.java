@@ -64,8 +64,12 @@ public class ImageFieldFactory {
         ArrayList<MultipleImageContainer> res = new ArrayList<>();
         switch (xp.getImportImageMethod()) {
             case SINGLE_FILE:
-                for (String p : path) ImageFieldFactory.importImagesSingleFile(new File(p), xp, res, importMetadata, pcb);
-                break;
+                {
+                    List<File> files = new ArrayList<>();
+                    for (String p : path) ImageFieldFactory.listFilesSingleFile(new File(p), files);
+                    ImageFieldFactory.importImagesSingleFile(files, xp, res, importMetadata, pcb);
+                    break;
+                }
             case ONE_FILE_PER_CHANNEL_POSITION:
                 {
                     // get keywords
@@ -89,24 +93,70 @@ public class ImageFieldFactory {
             default:
                 break;
         }
+        if (pcb!=null) pcb.setProgressMessage(null);
         Collections.sort(res, (MultipleImageContainer arg0, MultipleImageContainer arg1) -> arg0.getName().compareToIgnoreCase(arg1.getName()));
         return res;
+    }
+
+    // progress: one task per imported position (or file), with sub-steps
+
+    /**
+     * Starts a task: its name is displayed next to the overall progress
+     */
+    protected static void startTask(ProgressCallback pcb, String name) {
+        if (pcb != null) pcb.setProgressMessage(name);
+    }
+
+    protected static void endTask(ProgressCallback pcb) {
+        if (pcb == null) return;
+        pcb.setProgressMessage(null); // so that the name is not displayed with the next task
+        pcb.incrementProgress();
+    }
+
+    /**
+     * Starts the sub-steps of the current task, and the first sub-step
+     */
+    protected static void startSteps(ProgressCallback pcb, int stepNumber, String message) {
+        if (pcb == null) return;
+        pcb.setSubtaskNumber(stepNumber);
+        pcb.setSubTaskMessage(message);
+    }
+
+    protected static void nextStep(ProgressCallback pcb, String message) {
+        if (pcb == null) return;
+        pcb.incrementSubTask();
+        pcb.setSubTaskMessage(message);
+    }
+
+    /**
+     * @return handle to report progress within the current sub-step
+     */
+    protected static ProgressCallback.SubProgress stepProgress(ProgressCallback pcb, int steps) {
+        return pcb == null ? ProgressCallback.SubProgress.NO_OP : pcb.subProgress(steps);
     }
 
     private static void appendMetadata(JSONObject jsonObject, Map<String, Object> metadata) {
         if (metadata==null || metadata.isEmpty()) return;
         metadata.forEach((k, v)->jsonObject.put(k, v.toString()));
     }
-    protected static void importImagesSingleFile(File f, Experiment xp, ArrayList<MultipleImageContainer> containersTC, boolean importMetadata, ProgressCallback pcb) {
+    protected static void listFilesSingleFile(File f, List<File> files) {
         if (f.isDirectory()) {
-            File[] files = f.listFiles();
-            if (files!=null) {
-                for (File ff : files) {
-                    ImageFieldFactory.importImagesSingleFile(ff, xp, containersTC, importMetadata, pcb);
-                }
+            File[] sub = f.listFiles();
+            if (sub!=null) {
+                for (File ff : sub) listFilesSingleFile(ff, files);
             }
-        } else if (!isIgnoredFile(f.getName())) {
-            addContainerSingleFile(f, xp, containersTC, importMetadata, pcb);
+        } else if (!isIgnoredFile(f.getName())) files.add(f);
+    }
+
+    protected static void importImagesSingleFile(List<File> files, Experiment xp, ArrayList<MultipleImageContainer> containersTC, boolean importMetadata, ProgressCallback pcb) {
+        if (pcb!=null) pcb.incrementTaskNumber(files.size());
+        for (File f : files) {
+            startTask(pcb, f.getName());
+            try {
+                addContainerSingleFile(f, xp, containersTC, importMetadata, pcb);
+            } finally {
+                endTask(pcb);
+            }
         }
     }
     
@@ -115,6 +165,7 @@ public class ImageFieldFactory {
         ImageReaderFile reader=null;
         long t0 = System.currentTimeMillis();
         Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
+        startSteps(pcb, importMetadata ? 3 : 2, "Opening file");
         try {
             reader = new ImageReaderFile(image.getAbsolutePath());
             if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) {
@@ -128,6 +179,8 @@ public class ImageFieldFactory {
         long t1 = System.currentTimeMillis();
         int[][] stc = reader.getSTCXYZNumbers();
         long t2 = System.currentTimeMillis();
+        nextStep(pcb, "Reading series");
+        ProgressCallback.SubProgress seriesProgress = stepProgress(pcb, stc.length);
         int s = 0;
         String positionName = "";
         int digits=Utils.nDigits(stc.length);
@@ -177,11 +230,13 @@ public class ImageFieldFactory {
                     logger.warn("Invalid Image: {}{} has: {} channels instead of: {}", image.getAbsolutePath(), sceneString, tc[1], xp.getChannelImageCount(false));
                 }
                 ++s;
+                seriesProgress.increment();
             }
         } else {
             if (pcb != null) pcb.log("WARNING: Invalid Image: " + image.getAbsolutePath() + " has: " + stc[0][1] + " channels instead of: " + xp.getChannelImageCount(false));
         }
         if (importMetadata) {
+            nextStep(pcb, "Writing metadata");
             Map<String, Object> metadata = reader.getMetadata();
             if (metadata != null) {
                 JSONObject metaJSON = new JSONObject();
@@ -217,23 +272,26 @@ public class ImageFieldFactory {
         File[] file0 = input.listFiles((File dir, String name) -> name.contains(channelKeywords[0]) && !isIgnoredFile(name));
         if (file0==null) return;
         logger.debug("import images in dir: {} number of candidates: {}", input.getAbsolutePath(), file0.length);
+        if (pcb!=null) pcb.incrementTaskNumber(file0.length);
         for (File f : file0) {
-            String[] allChannels = new String[channelKeywords.length];
-            allChannels[0] = f.getAbsolutePath();
-            boolean allFiles = true;
-            for (int c = 1; c < channelKeywords.length; ++c) {
-                String name = Paths.get(input.getAbsolutePath(), f.getName().replace(channelKeywords[0], channelKeywords[c])).toString();
-                if (!fileExistsExtensionCase(name)) {
-                    logger.warn("missing file: {}", name);
-                    allFiles=false;
-                    break;
-                } else allChannels[c] = name;
+            String positionName = Utils.removeExtension(f.getName().replace(channelKeywords[0], ""));
+            startTask(pcb, positionName);
+            try {
+                String[] allChannels = new String[channelKeywords.length];
+                allChannels[0] = f.getAbsolutePath();
+                boolean allFiles = true;
+                for (int c = 1; c < channelKeywords.length; ++c) {
+                    String name = Paths.get(input.getAbsolutePath(), f.getName().replace(channelKeywords[0], channelKeywords[c])).toString();
+                    if (!fileExistsExtensionCase(name)) {
+                        logger.warn("missing file: {}", name);
+                        allFiles=false;
+                        break;
+                    } else allChannels[c] = name;
+                }
+                if (allFiles) addContainerChannel(allChannels, positionName, xp, containersTC, importMetadata, pcb);
+            } finally {
+                endTask(pcb);
             }
-            if (allFiles) {
-                String name = Utils.removeExtension(f.getName().replace(channelKeywords[0], ""));
-                addContainerChannel(allChannels, name, xp, containersTC, importMetadata, pcb);
-            }
-            
         }
     }
     protected static void addContainerChannel(String[] imageC, String fieldName, Experiment xp, ArrayList<MultipleImageContainer> containersTC, boolean importMetadata, ProgressCallback pcb) {
@@ -254,6 +312,9 @@ public class ImageFieldFactory {
         boolean[] invertZTbyC = new boolean[imageC.length];
         JSONObject metaJSON = new JSONObject();
         for (int c = 0; c< imageC.length; ++c) {
+            String step = "Reading channel "+c+": "+new File(imageC[c]).getName();
+            if (c==0) startSteps(pcb, imageC.length + (importMetadata ? 1 : 0), step);
+            else nextStep(pcb, step);
             Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(c).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(c);
             ImageReaderFile reader = null;
             try {
@@ -326,6 +387,7 @@ public class ImageFieldFactory {
             }
         }
         if (importMetadata) {
+            nextStep(pcb, "Writing metadata");
             File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
             if (!dir.exists()) dir.mkdirs();
             String path = Paths.get(dir.getAbsolutePath()).resolve(fieldName+".json").toAbsolutePath().toString();
@@ -425,106 +487,116 @@ public class ImageFieldFactory {
         Pattern timePattern = !frameSep.isEmpty() ? Pattern.compile(".*"+frameSep+"(\\d+).*") : null;
 
         PosLoop : for (Entry<String, List<File>> positionFiles : filesByPosition.entrySet()) {
-            logger.debug("Pos: {}, grouping {} files by channels... (keywords: {}) ", positionFiles.getKey(), positionFiles.getValue().size(), channelKeywords);
-            String[] sortedChannelKW = Stream.of(channelKeywords).sorted(Comparator.comparingInt(s->-s.length())).toArray(String[]::new); // longer channel kw first, in case some kw have same start
-            Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), sortedChannelKW, "")));
-            logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
-            Map<String, Map<Integer, File>> fileByChannelAndTimePoint = new HashMap<>();
-            int nDistinctChannels = (int)Stream.of(channelKeywords).distinct().count();
-            if (filesByChannel.size()==nDistinctChannels) {
-                Integer frameNumber = null;
-                boolean ok = true;
+            startTask(pcb, positionFiles.getKey());
+            startSteps(pcb, importMetadata ? 3 : 2, "Grouping files by channel and frame");
+            try {
+                logger.debug("Pos: {}, grouping {} files by channels... (keywords: {}) ", positionFiles.getKey(), positionFiles.getValue().size(), channelKeywords);
+                String[] sortedChannelKW = Stream.of(channelKeywords).sorted(Comparator.comparingInt(s->-s.length())).toArray(String[]::new); // longer channel kw first, in case some kw have same start
+                Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), sortedChannelKW, "")));
+                logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
+                Map<String, Map<Integer, File>> fileByChannelAndTimePoint = new HashMap<>();
+                int nDistinctChannels = (int)Stream.of(channelKeywords).distinct().count();
+                if (filesByChannel.size()==nDistinctChannels) {
+                    Integer frameNumber = null;
+                    boolean ok = true;
 
-                for (Entry<String, List<File>> channelFiles : filesByChannel.entrySet()) {
-                    logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
-                    Map<Integer, File> filesByTimePoint;
-                    if (timePattern !=null) filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getName(), timePattern), Function.identity()));
-                    else {
-                        Comparator<File> fileComp = Comparator.comparing(File::getName);
-                        List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
-                        filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, sortedFiles::get));
-                    }
-                    if (filesByTimePoint.isEmpty()) {
-                        ok = false;
-                        break;
-                    }
-                    int minTimePoint = filesByTimePoint.keySet().stream().mapToInt(i->i).min().orElse(0);
-                    if (minTimePoint == 1) { // should be zero-based
-                        filesByTimePoint = filesByTimePoint.entrySet().stream().collect(Collectors.toMap(e -> e.getKey()-1, Entry::getValue));
-                        minTimePoint = 0;
-                    }
-                    fileByChannelAndTimePoint.put(channelFiles.getKey(), filesByTimePoint);
-                    logger.debug("files grouped. checking continuity...");
-                    List<Integer> tpList = filesByTimePoint.keySet().stream().sorted().collect(Collectors.toList());
-                    int maxFrameNumberSuccessive=1;
-                    while(maxFrameNumberSuccessive<tpList.size() && tpList.get(maxFrameNumberSuccessive-1)+1==tpList.get(maxFrameNumberSuccessive)) {++maxFrameNumberSuccessive;}
-                    int maxTimePoint = tpList.get(tpList.size()-1);
-                    int frameNumberCurrentChannel = maxTimePoint-minTimePoint+1;
-                    
-                    if (frameNumberCurrentChannel != maxFrameNumberSuccessive) {
-                        logger.warn("Dir: {} Position: {}, missing time points for channel: {}, 1st: {}, last: {}, count: {}, max successive: {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), minTimePoint, maxTimePoint, filesByTimePoint.size(), maxFrameNumberSuccessive);
-                        //ok = false;
-                        //break;
-                    } 
-                    // check if all channels have same number of Frames
-                    if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
-                    else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
-                    else {
-                        if (maxFrameNumberSuccessive!=1 && frameNumber!=maxFrameNumberSuccessive) {
-                            logger.warn("Dir: {} Position: {}, Channel: {}, {} timepoint found instead of {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);
-                            if (pcb!=null) pcb.log("Dir: "+input.getAbsolutePath()+" Position: "+positionFiles.getKey()+", Channel: "+channelFiles.getKey()+", "+maxFrameNumberSuccessive+" timepoint found instead of "+frameNumber);
+                    for (Entry<String, List<File>> channelFiles : filesByChannel.entrySet()) {
+                        logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
+                        Map<Integer, File> filesByTimePoint;
+                        if (timePattern !=null) filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getName(), timePattern), Function.identity()));
+                        else {
+                            Comparator<File> fileComp = Comparator.comparing(File::getName);
+                            List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
+                            filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, sortedFiles::get));
+                        }
+                        if (filesByTimePoint.isEmpty()) {
                             ok = false;
                             break;
                         }
-                    }
-                    logger.debug("continuity checked");
-                }
-                if (ok) {
-                    logger.debug("creating container...");
-                    try {
-                        containersTC.add(
-                            new MultipleImageContainerPositionChannelFrame(
-                                input.getAbsolutePath(),
-                                extension,
-                                !posSep.isEmpty() ? positionFiles.getKey() : "",
-                                frameSep,
-                                channelKeywords,
-                                xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList()),
-                                frameNumber,
-                                positionFiles.getKey()
-                            ));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    logger.debug("container created");
-                    if (importMetadata) {
-                        JSONObject metaJSON = new JSONObject();
-                        for (int c = 0; c<channelKeywords.length; ++c) {
-                            //int cc = c;
-                            JSONArray metaJSONC = new JSONArray();
-                            metaJSON.put("channel_"+c, metaJSONC);
-                            fileByChannelAndTimePoint.get(channelKeywords[c]).forEach((t, f) -> {
-                                ImageReaderFile reader = new ImageReaderFile(f.getPath());
-                                Map<String, Object> metadata = reader.getMetadata();
-                                if (metadata!=null) {
-                                    JSONObject metaJSONT = new JSONObject();
-                                    metaJSONC.add(metaJSONT);
-                                    appendMetadata(metaJSONT, metadata); //, positionFiles.getKey() + "_c" + cc + "_t"+t
-                                }
-                            });
+                        int minTimePoint = filesByTimePoint.keySet().stream().mapToInt(i->i).min().orElse(0);
+                        if (minTimePoint == 1) { // should be zero-based
+                            filesByTimePoint = filesByTimePoint.entrySet().stream().collect(Collectors.toMap(e -> e.getKey()-1, Entry::getValue));
+                            minTimePoint = 0;
                         }
-                        File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
-                        if (!dir.exists()) dir.mkdirs();
-                        String path = Paths.get(dir.getAbsolutePath()).resolve(positionFiles.getKey()+".json").toAbsolutePath().toString();
-                        FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
+                        fileByChannelAndTimePoint.put(channelFiles.getKey(), filesByTimePoint);
+                        logger.debug("files grouped. checking continuity...");
+                        List<Integer> tpList = filesByTimePoint.keySet().stream().sorted().collect(Collectors.toList());
+                        int maxFrameNumberSuccessive=1;
+                        while(maxFrameNumberSuccessive<tpList.size() && tpList.get(maxFrameNumberSuccessive-1)+1==tpList.get(maxFrameNumberSuccessive)) {++maxFrameNumberSuccessive;}
+                        int maxTimePoint = tpList.get(tpList.size()-1);
+                        int frameNumberCurrentChannel = maxTimePoint-minTimePoint+1;
+                    
+                        if (frameNumberCurrentChannel != maxFrameNumberSuccessive) {
+                            logger.warn("Dir: {} Position: {}, missing time points for channel: {}, 1st: {}, last: {}, count: {}, max successive: {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), minTimePoint, maxTimePoint, filesByTimePoint.size(), maxFrameNumberSuccessive);
+                            //ok = false;
+                            //break;
+                        } 
+                        // check if all channels have same number of Frames
+                        if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
+                        else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
+                        else {
+                            if (maxFrameNumberSuccessive!=1 && frameNumber!=maxFrameNumberSuccessive) {
+                                logger.warn("Dir: {} Position: {}, Channel: {}, {} timepoint found instead of {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);
+                                if (pcb!=null) pcb.log("Dir: "+input.getAbsolutePath()+" Position: "+positionFiles.getKey()+", Channel: "+channelFiles.getKey()+", "+maxFrameNumberSuccessive+" timepoint found instead of "+frameNumber);
+                                ok = false;
+                                break;
+                            }
+                        }
+                        logger.debug("continuity checked");
                     }
-                }
+                    if (ok) {
+                        logger.debug("creating container...");
+                        nextStep(pcb, "Reading time points");
+                        try {
+                            containersTC.add(
+                                new MultipleImageContainerPositionChannelFrame(
+                                    input.getAbsolutePath(),
+                                    extension,
+                                    !posSep.isEmpty() ? positionFiles.getKey() : "",
+                                    frameSep,
+                                    channelKeywords,
+                                    xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList()),
+                                    frameNumber,
+                                    positionFiles.getKey(),
+                                    stepProgress(pcb, 1)
+                                ));
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                        logger.debug("container created");
+                        if (importMetadata) {
+                            nextStep(pcb, "Reading metadata");
+                            ProgressCallback.SubProgress metadataProgress = stepProgress(pcb, Arrays.stream(channelKeywords).mapToInt(c -> fileByChannelAndTimePoint.get(c).size()).sum());
+                            JSONObject metaJSON = new JSONObject();
+                            for (int c = 0; c<channelKeywords.length; ++c) {
+                                //int cc = c;
+                                JSONArray metaJSONC = new JSONArray();
+                                metaJSON.put("channel_"+c, metaJSONC);
+                                fileByChannelAndTimePoint.get(channelKeywords[c]).forEach((t, f) -> {
+                                    ImageReaderFile reader = new ImageReaderFile(f.getPath());
+                                    Map<String, Object> metadata = reader.getMetadata();
+                                    if (metadata!=null) {
+                                        JSONObject metaJSONT = new JSONObject();
+                                        metaJSONC.add(metaJSONT);
+                                        appendMetadata(metaJSONT, metadata); //, positionFiles.getKey() + "_c" + cc + "_t"+t
+                                    }
+                                    metadataProgress.increment();
+                                });
+                            }
+                            File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                            if (!dir.exists()) dir.mkdirs();
+                            String path = Paths.get(dir.getAbsolutePath()).resolve(positionFiles.getKey()+".json").toAbsolutePath().toString();
+                            FileIO.writeToFile(path, Collections.singletonList(metaJSON), JSONAware::toJSONString);
+                        }
+                    }
                 
-            } else {
-                logger.warn("Dir: {} Position: {}, {} channels instead of {}", input.getAbsolutePath(), positionFiles.getKey(), filesByChannel.size(), channelKeywords.length);
-                if (pcb!=null) pcb.log("Dir: "+input.getAbsolutePath()+" Position: "+positionFiles.getKey()+". Wrong channel number: "+filesByChannel.size()+" channels instead of "+channelKeywords.length);
+                } else {
+                    logger.warn("Dir: {} Position: {}, {} channels instead of {}", input.getAbsolutePath(), positionFiles.getKey(), filesByChannel.size(), channelKeywords.length);
+                    if (pcb!=null) pcb.log("Dir: "+input.getAbsolutePath()+" Position: "+positionFiles.getKey()+". Wrong channel number: "+filesByChannel.size()+" channels instead of "+channelKeywords.length);
+                }
+            } finally {
+                endTask(pcb);
             }
-            if (pcb!=null) pcb.incrementProgress();
         }
     }
     public static boolean isIgnoredFile(String s) {
