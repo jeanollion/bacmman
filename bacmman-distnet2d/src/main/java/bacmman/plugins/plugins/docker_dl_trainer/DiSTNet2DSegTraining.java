@@ -10,7 +10,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
-import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.py_dataset.DatasetExportTasks;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
 
@@ -150,9 +150,9 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
-        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resizeMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
+        List<DatasetExportTasks.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new DatasetExportTasks.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
+        labelsAndChannels.add(0, new DatasetExportTasks.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
+        return DatasetExportTasks.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resizeMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

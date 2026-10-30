@@ -1,12 +1,9 @@
-package bacmman.py_dataset;
+package bacmman.core;
 
-import bacmman.core.RawDatasetExportTask;
-import bacmman.core.DatasetExportTask;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.configuration.parameters.TrainingConfigurationParameter;
 import bacmman.configuration.parameters.TransformationPluginParameter;
-import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImagesImpl;
@@ -15,20 +12,18 @@ import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorTemporal;
 import bacmman.plugins.Transformation;
-import bacmman.plugins.plugins.feature_extractor.*;
+import bacmman.plugins.DatasetWriter;
+import bacmman.plugins.plugins.feature_extractor.Labels;
 import bacmman.plugins.plugins.post_filters.ConvertToBoundingBox;
 import bacmman.processing.Resize;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
-import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.*;
@@ -43,10 +38,17 @@ public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
     private final static Logger logger = LoggerFactory.getLogger(ExtractDatasetUtil.class);
 
-    public static void runDatasetExport(DatasetExportTask t) { // invoked by DatasetExportTask with reflection
+    /**
+     * Exports the dataset described by the task. Entries are added to the output file if it exists.
+     */
+    public static void runDatasetExport(DatasetExportTask t) {
+        try (DatasetWriter writer = DatasetWriter.create(Paths.get(t.getOutputFile()), true)) {
+            runDatasetExport(t, writer);
+        }
+    }
+
+    private static void runDatasetExport(DatasetExportTask t, DatasetWriter writer) {
         MasterDAO mDAO = t.getDB();
-        String outputFile = t.getOutputFile();
-        Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getDimensions();
         int spatialDownsamplingFactor = t.getSpatialDownsamplingFactor();
         TrainingConfigurationParameter.RESIZE_MODE resizeMode;
@@ -205,7 +207,7 @@ public class ExtractDatasetUtil {
                                 boolean noResize = feature.getFeatureExtractor().interpolation() == null || TrainingConfigurationParameter.RESIZE_MODE.NONE.equals(resizeMode);
                                 TrainingConfigurationParameter.RESIZE_MODE curResizeMode = noResize ? TrainingConfigurationParameter.RESIZE_MODE.NONE : (isLabel ? TrainingConfigurationParameter.RESIZE_MODE.PAD : resizeMode);
                                 extractFunction = e -> feature.getFeatureExtractor().extractFeature(!noResize && !isLabel?duplicateAsBox.apply(e):e, feature.getObjectClass(), objectFilter, curResizedPops, spatialDownsamplingFactor, dimensions);
-                                extractFeature(outputPath, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, oneEntryPerTrack, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions, curCropStartMap);
+                                extractFeature(writer, outputName + feature.getName(), parentSubSelection, position, extractFunction, isLabel, feature.getFeatureExtractor().getExtractZDim(), SCALE_MODE.NO_SCALE, curResizeMode, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, oneEntryPerTrack, compression, saveLabels, saveLabels, spatialDownsamplingFactor, dimensions, curCropStartMap);
                             }
                             saveLabels = false;
                         }
@@ -216,15 +218,18 @@ public class ExtractDatasetUtil {
             }
         }
         t.incrementProgress();
-        // write histogram for raw features // DISABLED
-        /*features.stream().filter(f->f.getFeatureExtractor() instanceof RawImage).map(FeatureExtractor.Feature::getName).forEach(channelName -> {
-            for (int offset : subsamplingOffsets) write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions, subsamplingFactor, offset);
-        });*/
     }
-    public static void runRawDatasetExport(RawDatasetExportTask t) throws IOException { // invoked by RawDatasetExportTask with reflection
-        logger.debug("extracting raw dataset 2...");
-        String outputFile = t.getOutputFile();
-        Path outputPath = Paths.get(outputFile);
+
+    /**
+     * Exports the raw images described by the task. Entries are added to the output file if it exists.
+     */
+    public static void runRawDatasetExport(RawDatasetExportTask t) throws IOException {
+        try (DatasetWriter writer = DatasetWriter.create(Paths.get(t.getOutputFile()), true)) {
+            runRawDatasetExport(t, writer);
+        }
+    }
+
+    private static void runRawDatasetExport(RawDatasetExportTask t, DatasetWriter writer) throws IOException {
         BoundingBox bounds = t.getBounds();
         Map<String, List<Integer>> positionMapFrames = t.getPositionMapFrames();
         int[] channels = t.getChannels();
@@ -267,7 +272,7 @@ public class ExtractDatasetUtil {
                     images = s.collect(Collectors.toList());
                     logger.debug("after ZToBatch: {}", images.size());
                 }
-                extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false, false, compression);
+                extractFeature(writer, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false, false, compression);
                 saveLabels = false;
                 t.incrementSubTask();
             }
@@ -290,27 +295,6 @@ public class ExtractDatasetUtil {
             res.dao.getMasterDAO().getAccess().setId(res, o.getId());  // copy id so that children are identical
             return res;
         };
-    }
-
-    public static void write_histogram(File outputPath, List<String> selectionNames, String dbName, String channelName, int[] dimensions, int subsamplingFactor, int subsamplingOffset) {
-        PyDatasetReader reader = new PyDatasetReader(outputPath);
-        Map<String, Histogram> histos = new HashMap<>(selectionNames.size());
-        for (String selName : selectionNames) {
-            PyDatasetReader.DatasetAccess dsA = reader.getDatasetAccess(selName, dbName, subsamplingFactor, subsamplingOffset);
-            Supplier<Stream<Image>> imageStream = () -> dsA.extractImagesForPositions(channelName, null, false, false, dimensions);
-            double[] minAndMax = HistogramFactory.getMinAndMax(imageStream.get());
-            double binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], 256);
-            Histogram h = HistogramFactory.getHistogram(imageStream.get(), binSize, 256, minAndMax[0]);
-            histos.put(dsA.dsName(), h);
-        }
-        reader.close();
-        IHDF5Writer writer = HDF5IO.getWriter(outputPath, true);
-        histos.forEach((s, h) -> {
-            writer.int64().setArrayAttr(s, "raw_histogram", h.getData());
-            writer.float64().setAttr(s, "raw_histogram_bin_size", h.getBinSize());
-            writer.float64().setArrayAttr(s, "raw_percentiles", h.getQuantiles(IntStream.range(0, 101).mapToDouble(i -> i / 100d).toArray()));
-        });
-        writer.close();
     }
 
     private static RegionPopulation resizePopulation(RegionPopulation pop, int[] dimensions, int[] cropStart, int downsamplingFactor, boolean eraseTouchingContours, TrainingConfigurationParameter.RESIZE_MODE resizeMode) {
@@ -481,7 +465,7 @@ public class ExtractDatasetUtil {
         return "f" + String.format("%05d", frame);
     }
 
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean isLabel, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions, Map<SegmentedObject, int[]> cropStartMap) {
+    public static void extractFeature(DatasetWriter writer, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean isLabel, ExtractZAxisParameter.ExtractZAxis zAxisMode, SCALE_MODE scaleMode, TrainingConfigurationParameter.RESIZE_MODE resizeMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression, boolean saveLabels, boolean saveDimensions, int downsamplingFactor, int[] dimensions, Map<SegmentedObject, int[]> cropStartMap) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
         logger.debug("extract + resize dataset: {}...", dsName);
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -524,10 +508,10 @@ public class ExtractDatasetUtil {
             }
         }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
-        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance, oneEntryPerTrack, compression);
+        extractFeature(writer, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance, oneEntryPerTrack, compression);
     }
 
-    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression) {
+    public static void extractFeature(DatasetWriter writer, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, boolean oneEntryPerTrack, int compression) {
         Image type = Image.copyType(images.stream().max(PrimitiveType.typeComparator()).get());
         int originalBitDepth = TypeConverter.castToIJ1ImageType(type).byteCount() * 8;
         boolean originalIsFloat = type.floatingPoint();
@@ -620,88 +604,20 @@ public class ExtractDatasetUtil {
             images = images.stream().parallel().map(converter).collect(Collectors.toList());
             logger.debug("converting done.");
         }
-        logger.debug("saving h5 file...");
+        logger.debug("saving dataset...");
         if (oneEntryPerInstance) {
-            for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), compression, saveLabels?"":null, new int[][]{originalDimensions[i]}, metadata );
+            for (int i = 0; i<images.size(); ++i) writer.writeImages(dsName+"/"+images.get(i).getName(), images.subList(i, i+1), compression, saveLabels?"":null, new int[][]{originalDimensions[i]}, metadata );
         } else if (oneEntryPerTrack) {
             // split by track using the label : trackhead indices + frame
             Map<String, List<Image>> tracks = images.stream().collect(Collectors.groupingBy(im -> im.getName().split("_f")[0]));
             for (Map.Entry<String, List<Image>> e : tracks.entrySet()) {
                 List<Image> track = e.getValue();
                 track.sort(Comparator.comparing(Image::getName));
-                HDF5IO.savePyDataset(track, outputPath.toFile(), true, dsName+"/"+e.getKey(), compression, saveLabels?"_"+e.getKey():null, null, metadata );
+                writer.writeImages(dsName+"/"+e.getKey(), track, compression, saveLabels?"_"+e.getKey():null, null, metadata );
             }
-        } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels?"":null, originalDimensions, metadata ); // TODO : compression level as option
+        } else writer.writeImages(dsName, images, compression, saveLabels?"":null, originalDimensions, metadata );
         logger.debug("saving done.");
     }
 
-    public static DatasetExportTask getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, ExtractZAxisParameter.ExtractZAxisConfig extractZ, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
-        if (objectClasses.length!=2 && objectClasses.length!=3) throw new IllegalArgumentException("Select 2 or 3 object classes: background, foreground (and contours)");
-        if (!Utils.objectsAllHaveSameProperty(Arrays.stream(objectClasses).boxed().collect(Collectors.toList()), mDAO.getExperiment().experimentStructure::getParentObjectClassIdx)) {
-            throw new IllegalArgumentException("All selected object classes must have same parent object class");
-        }
-        DatasetExportTask resultingTask = new DatasetExportTask(mDAO);
-        List<FeatureExtractor.Feature> features = new ArrayList<>();
-        ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
-        String[] channelNames = xp.getChannelNames();
-        for (int c : channelIndices) features.add(new FeatureExtractor.Feature( channelNames[c], new RawImage().setExtractZDim(extractZ).setByChannel(true), c));
-        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses).setExtractZ(extractZ), objectClasses[0] ));
-
-        int[] dims = new int[]{0, 0};
-        int[] eraseContoursOC = new int[0];
-        resultingTask.setParameters(outputFile, selections, features, dims, TrainingConfigurationParameter.RESIZE_MODE.NONE, -1, eraseContoursOC, false, 1, 1, 1, compression);
-        return resultingTask;
-    }
-
-    public static class ExtractOCParameters {
-        final int idx;
-        final boolean isLabel;
-        final String name;
-        final ExtractZAxisParameter.ExtractZAxisConfig zAxis;
-
-        public ExtractOCParameters(int idx, boolean isLabel, String name, ExtractZAxisParameter.ExtractZAxisConfig zAxis) {
-            this.idx = idx;
-            this.isLabel = isLabel;
-            this.name = name;
-            this.zAxis = zAxis;
-        }
-
-        public FeatureExtractor.Feature getFeatureExtractor() {
-            if (isLabel) return new FeatureExtractor.Feature(name, new Labels().setExtractZDim(zAxis), idx);
-            else return new FeatureExtractor.Feature(name, new RawImage().setByChannel(true).setExtractZDim(zAxis), idx);
-        }
-    }
-
-    public static DatasetExportTask getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
-        DatasetExportTask resultingTask = new DatasetExportTask(mDAO);
-        List<FeatureExtractor.Feature> features = new ArrayList<>(3 + labelsAndChannels.size());
-        for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
-        features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
-        features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass, selectionFilter ));
-        if (categorySelection != null && !categorySelection.isEmpty()) {
-            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass, selectionFilter));
-        }
-        int[] eraseContoursOC = new int[0];
-        resultingTask.setParameters(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
-        return resultingTask;
-    }
-
-    public static DatasetExportTask getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
-        DatasetExportTask resultingTask = new DatasetExportTask(mDAO);
-        List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
-        for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
-        features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
-        if (categorySelection != null && !categorySelection.isEmpty()) {
-            features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass, selectionFilter));
-        }
-        int[] eraseContoursOC = new int[0];
-        resultingTask.setParameters(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
-        return resultingTask;
-    }
-
     public enum SCALE_MODE {NO_SCALE, MAX_MIN_BYTE_SAFE_FLOAT, MAX_MIN_BYTE, MAX_MIN_SHORT, TO_SHORT, TO_FLOAT}
-
-    // templates
-
-
 }

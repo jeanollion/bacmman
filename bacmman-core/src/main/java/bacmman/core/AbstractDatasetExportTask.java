@@ -1,21 +1,19 @@
 package bacmman.core;
 
+import bacmman.plugins.DatasetWriter;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import org.json.simple.JSONObject;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Collection;
 
 /**
- * Export of a dataset to a HDF5 file, used to train deep learning models.
+ * Export of a dataset to a file, used to train deep learning models.
  * An export is one task, its steps are reported as sub-tasks.
- * Export is performed by bacmman.py_dataset.ExtractDatasetUtil (bacmman-dl module), called by reflection to avoid a dependency.
+ * Export is performed by {@link ExtractDatasetUtil}, file is written by a {@link DatasetWriter} (HDF5 implementation in bacmman-dl module).
  * @param <T> type of the task
  */
 public abstract class AbstractDatasetExportTask<T extends AbstractDatasetExportTask<T>> extends AbstractTask<T> {
-    static final String EXPORT_UTIL_CLASS = "bacmman.py_dataset.ExtractDatasetUtil";
     String outputFile;
 
     protected AbstractDatasetExportTask() {
@@ -47,9 +45,9 @@ public abstract class AbstractDatasetExportTask<T extends AbstractDatasetExportT
     protected abstract String getExportName();
 
     /**
-     * @return name of the method of ExtractDatasetUtil that performs the export. It takes this task as sole argument
+     * Performs the export. Dataset is initialized and exported positions are locked.
      */
-    protected abstract String getExportMethodName();
+    protected abstract void export() throws Exception;
 
     /**
      * @return positions read by the export
@@ -96,15 +94,9 @@ public abstract class AbstractDatasetExportTask<T extends AbstractDatasetExportT
         String[] positions = getExportedPositions().toArray(new String[0]);
         db.lockPositions(positions);
         try {
-            Class<?> clazz = Class.forName(EXPORT_UTIL_CLASS);
-            Method m = clazz.getMethod(getExportMethodName(), getClass());
-            m.invoke(null, this);
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException e) {
-            errors.addExceptions(new Pair<>(getExportName(), new RuntimeException("Could not export dataset: missing bacmman-dl module", e)));
-        } catch (InvocationTargetException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            if (cause instanceof MultipleException) errors.addExceptions(((MultipleException) cause).getExceptions());
-            else errors.addExceptions(new Pair<>(getExportName(), cause));
+            export();
+        } catch (MultipleException e) {
+            errors.addExceptions(e.getExceptions());
         } catch (Throwable e) {
             errors.addExceptions(new Pair<>(getExportName(), e));
         } finally {

@@ -8,7 +8,7 @@ import bacmman.data_structure.SelectionOperations;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
-import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.py_dataset.DatasetExportTasks;
 import bacmman.ui.PropertyUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -119,7 +119,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, extractZAxisParameter.getConfig(), selections, outputFile, compression);
+        return DatasetExportTasks.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, extractZAxisParameter.getConfig(), selections, outputFile, compression);
     }
 
     public String getDockerImageName() {

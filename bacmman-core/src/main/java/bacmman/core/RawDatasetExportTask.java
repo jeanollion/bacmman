@@ -80,8 +80,8 @@ public class RawDatasetExportTask extends AbstractDatasetExportTask<RawDatasetEx
     }
 
     @Override
-    protected String getExportMethodName() {
-        return "runRawDatasetExport";
+    protected void export() throws java.io.IOException {
+        ExtractDatasetUtil.runRawDatasetExport(this);
     }
 
     @Override

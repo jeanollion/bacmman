@@ -9,7 +9,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
-import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.py_dataset.DatasetExportTasks;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
 

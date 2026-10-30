@@ -403,6 +403,19 @@ public class HDF5IO {
 
     public static void savePyDataset(List<Image> images, File outFile, boolean append, String dsName, int compressionLevel, String labelSuffix, int[][] originalDimensions, Map<String, Object> metadata) {
         if (images.isEmpty()) return;
+        IHDF5Writer writer = getWriter(outFile, append);
+        try {
+            savePyDataset(images, writer, dsName, compressionLevel, labelSuffix, originalDimensions, metadata);
+        } finally {
+            writer.close();
+        }
+    }
+
+    /**
+     * Saves images in a single array, with images along the first axis. Writer is not closed.
+     */
+    public static void savePyDataset(List<Image> images, IHDF5Writer writer, String dsName, int compressionLevel, String labelSuffix, int[][] originalDimensions, Map<String, Object> metadata) {
+        if (images.isEmpty()) return;
         if (!Utils.objectsAllHaveSameProperty(images, Image::sameDimensions)) {
             List<Image> distinctImages =  images.stream().filter(Utils.distinctByKey(Image::getBoundingBox)).collect(Collectors.toList());
             logger.error("Dimensions differ: {}", Utils.toStringList(distinctImages, i -> i.getName()+"->"+i.getBoundingBox()));
@@ -413,7 +426,6 @@ public class HDF5IO {
             logger.error("data type differ: {}", Utils.toStringList(distinctImages, i->i.getName()+"->"+i.getClass()+"->"+getType(i)));
             throw new IllegalArgumentException("At least 2 images have different data type");
         }
-        IHDF5Writer writer = getWriter(outFile, append);
         Image sample = images.get(0);
         DTYPE type = getType(sample);
         long[] dims, blockIdx;
@@ -454,8 +466,6 @@ public class HDF5IO {
         //writer.string().setArrayAttr(dsName, "labels", labels); // not compatible with python
         saveMetadata(writer, dsName, metadata);
         if (originalDimensions!=null) writer.int32().writeMatrix(getDimensionsKey(dsName), originalDimensions);
-
-        writer.close();
     }
 
     private static void saveMetadata(IHDF5Writer writer, String s, Map<String, Object> metadata) {

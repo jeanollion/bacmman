@@ -138,8 +138,8 @@ public class DatasetExportTask extends AbstractDatasetExportTask<DatasetExportTa
     }
 
     @Override
-    protected String getExportMethodName() {
-        return "runDatasetExport";
+    protected void export() {
+        ExtractDatasetUtil.runDatasetExport(this);
     }
 
     @Override
