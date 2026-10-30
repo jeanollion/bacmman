@@ -3,7 +3,7 @@ package bacmman.ui;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.dao.MasterDAO;
@@ -62,7 +62,7 @@ public class Run {
         // import images, run and export
         Processor.importFiles(db.getExperiment(), true, false, ProgressCallback.get(ui), imageFolder.getAbsolutePath());
         db.storeExperiment();
-        Task t = new Task(db)
+        ProcessingTask t = new ProcessingTask(db)
                 .setActions(false, true, true, false);
         t.setUI(ui);
         if (!t.isValid()) {

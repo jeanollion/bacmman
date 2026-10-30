@@ -18,6 +18,9 @@
  */
 package bacmman.ui;
 
+import bacmman.core.RawDatasetExportTask;
+import bacmman.core.DatasetExportTask;
+import bacmman.core.AbstractTask;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
@@ -126,7 +129,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private DatasetTree dsTree;
     private DefaultListModel<String> moduleModel = new DefaultListModel<>();
     private DefaultListModel<String> testModuleModel = new DefaultListModel<>();
-    private DefaultListModel<TaskI> actionPoolListModel = new DefaultListModel<>();
+    private DefaultListModel<Task> actionPoolListModel = new DefaultListModel<>();
     private DefaultListModel<String> actionMicroscopyFieldModel;
     private DefaultListModel<Selection> selectionModel;
     StructureSelectorTree trackTreeStructureSelector, actionStructureSelector;
@@ -331,7 +334,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         this.testCopyToTemplateButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to template"));
 
         actionPoolList.setModel(actionPoolListModel);
-        JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, TaskI.class);
+        JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
         relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(extractMeasurementOnSelectionsMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
@@ -4277,8 +4280,11 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
 
     }//GEN-LAST:event_importConfigurationMenuItemActionPerformed
     
-    private Task getCurrentTask(String dir) {
-        
+    /**
+     * @param dir dataset directory. If null, the dataset opened in the GUI is used
+     * @return tasks corresponding to the selected actions: a processing task and/or an export task. Empty if no dataset
+     */
+    private List<Task> getCurrentTasks(String dir) {
         boolean preProcess=false;
         boolean segmentAndTrack = false;
         boolean runMeasurements=false;
@@ -4292,52 +4298,65 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             if (i==3) exportMeasurements=true;
             if (i==4) exportMasks=true;
             if (i==5) exportContours=true;
-            //if (i==6) export=true;
         }
-        Task t;
-        if (dir == null && db!=null) {
+        boolean processing = preProcess || segmentAndTrack || runMeasurements;
+        boolean export = exportMeasurements || exportMasks || exportContours;
+        List<Task> res = new ArrayList<>(2);
+        if (dir == null && db == null) return res;
+        ProcessingTask t = null;
+        ExportTask e = null;
+        if (dir == null) {
             logger.debug("create task with same db as GUI");
-            int[] microscopyFields = this.getSelectedPositionIdx();
+            int[] positions = this.getSelectedPositionIdx();
             int[] selectedStructures = this.getSelectedStructures(true);
-            t = new Task(db);
-            t.setStructures(selectedStructures).setPositions(microscopyFields);
-            if (exportMeasurements||exportMasks||exportContours) {
-                for (int sIdx : selectedStructures) t.addExportDir(db.getDatasetDir().toFile().getAbsolutePath(), sIdx);
-                t.setExportByPosition(extractByPosition.getSelected());
+            if (processing || !export) t = new ProcessingTask(db).setStructures(selectedStructures).setPositions(positions);
+            if (export) {
+                e = new ExportTask(db).setPositions(positions);
+                for (int sIdx : selectedStructures) e.addExportDir(db.getDatasetDir().toFile().getAbsolutePath(), sIdx);
             }
-        } else if (dir!=null) {
-            t = new Task(dir);
-            if ((exportMeasurements||exportMasks||exportContours) && t.getDB()!=null) {
-                int[] selectedStructures = ArrayUtil.generateIntegerArray(t.getDB().getExperiment().getStructureCount());
-                for (int sIdx : selectedStructures) t.addExportDir(t.getDB().getDatasetDir().toFile().getAbsolutePath(), sIdx);
-                t.setExportByPosition(extractByPosition.getSelected());
+        } else {
+            if (processing || !export) {
+                t = new ProcessingTask(dir);
+                t.getDB().clearCache(true, true, true);
             }
-            t.getDB().clearCache(true, true, true);
-        } else return null;
-        t.setActions(preProcess, segmentAndTrack, segmentAndTrack, runMeasurements);
-        t.setExportActions(exportMeasurements, exportMasks, exportContours);
-        t.setExtractDSCompression(getExtractedDSCompressionFactor());
-        t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
-        //if (export) t.setExportData(this.exportPPImagesMenuItem.isSelected(), this.exportTrackImagesMenuItem.isSelected(), this.exportObjectsMenuItem.isSelected(), this.exportConfigMenuItem.isSelected(), this.exportSelectionsMenuItem.isSelected());
-        
-        return t;
+            if (export) {
+                e = new ExportTask(null, dir);
+                e.addExportDir(e.getDB().getDatasetDir().toFile().getAbsolutePath()); // all object classes
+                e.clearDB();
+            }
+        }
+        if (t != null) {
+            t.setActions(preProcess, segmentAndTrack, segmentAndTrack, runMeasurements);
+            t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
+            res.add(t);
+        }
+        if (e != null) {
+            e.setExportActions(exportMeasurements, exportMasks, exportContours);
+            e.setExportByPosition(extractByPosition.getSelected());
+            e.setCompression(getExtractedDSCompressionFactor());
+            res.add(e);
+        }
+        return res;
     }
+
     private void runSelectedActionsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runSelectedActionsMenuItemActionPerformed
         if (!checkConnection()) return;
         logger.debug("will run ... unsaved changes in config: {}", db==null? false : db.experimentChangedFromFile());
         promptSaveUnsavedChanges();
-        Task t = getCurrentTask(null);
-        if (t==null) {
+        List<Task> tasks = getCurrentTasks(null);
+        if (tasks.isEmpty()) {
             log("Could not define task");
             return;
         }
-        if (!t.isValid()) {
-            t.clearDB();
-            log("invalid task");
-            t.printErrorsTo(this);
-            return;
+        for (Task t : tasks) {
+            if (!t.isValid()) {
+                t.clearDB();
+                log("invalid task");
+                t.printErrorsTo(this);
+                return;
+            }
         }
-        Task.executeTask(t, getUserInterface(), getPreProcessingMemoryThreshold(), () -> {
+        Task.executeTasks(tasks, getUserInterface(), getPreProcessingMemoryThreshold(), () -> {
             db.clearCache(true, true, true);
             updateConfigurationTree();
             loadObjectTrees();
@@ -4468,8 +4487,8 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         List<DatasetTree.DatasetTreeNode> xps = dsTree.getSelectedDatasetNames();
         if (xps.isEmpty()) return;
         closeDataset();
-        List<TaskI> tasks = new ArrayList<>(xps.size());
-        for (DatasetTree.DatasetTreeNode xp : xps) tasks.add(getCurrentTask(xp.getDir().toString()));
+        List<Task> tasks = new ArrayList<>(xps.size());
+        for (DatasetTree.DatasetTreeNode xp : xps) tasks.addAll(getCurrentTasks(xp.getDir().toString()));
         Task.executeTasks(tasks, getUserInterface(), getPreProcessingMemoryThreshold());
     }//GEN-LAST:event_runActionAllXPMenuItemActionPerformed
 
@@ -4703,13 +4722,12 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         if (this.running) return;
         if (SwingUtilities.isRightMouseButton(evt)) {
             JPopupMenu menu = new JPopupMenu();
-            List<TaskI> sel = actionPoolList.getSelectedValuesList();
+            List<Task> sel = actionPoolList.getSelectedValuesList();
             Action addCurrentTask = new AbstractAction("Add Current Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = getCurrentTask(null);
-                    if (t!=null) {
-                        if (db!=null) t.setDir(db.getDatasetDir().toFile().getAbsolutePath());
+                    for (Task t : getCurrentTasks(null)) { // processing and export actions are added as separate tasks
+                        if (db!=null && t instanceof AbstractTask) ((AbstractTask<?>)t).setDir(db.getDatasetDir().toFile().getAbsolutePath());
                         actionPoolListModel.addElement(t);
                     }
                 }
@@ -4767,30 +4785,30 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
 
                 }
             }
-            JMenu datasetMenu = new JMenu("Extract Dataset");
+            JMenu datasetMenu = new JMenu("Export Dataset");
             menu.add(datasetMenu);
 
-            Action addExtractDBTask = new AbstractAction("Add new dataset extraction Task to List") {
+            Action addExtractDBTask = new AbstractAction("Add new dataset export Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task ref = actionPoolList.getSelectedValue() == null ? null : (Task)actionPoolList.getSelectedValue();
-                    Task t = ExtractDataset.promptExtractDatasetTask(db, ref);
+                    DatasetExportTask ref = actionPoolList.getSelectedValue() instanceof DatasetExportTask ? (DatasetExportTask)actionPoolList.getSelectedValue() : null; // selected task is used as template
+                    DatasetExportTask t = ExtractDataset.promptExtractDatasetTask(db, ref);
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
             datasetMenu.add(addExtractDBTask);
-            addExtractDBTask.setEnabled(db!=null && (actionPoolList.getSelectedValue()==null || actionPoolList.getSelectedValue() instanceof Task));
+            addExtractDBTask.setEnabled(db!=null);
 
-            Action addExtractRawDBTask = new AbstractAction("Add new raw dataset extraction Task to List") {
+            Action addExtractRawDBTask = new AbstractAction("Add new raw dataset export Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task ref = actionPoolList.getSelectedValue() == null ? null : (Task)actionPoolList.getSelectedValue();
-                    Task t = ExtractRawDataset.promptExtractDatasetTask(db, ref, getSelectedPositions(true));
+                    RawDatasetExportTask ref = actionPoolList.getSelectedValue() instanceof RawDatasetExportTask ? (RawDatasetExportTask)actionPoolList.getSelectedValue() : null; // selected task is used as template
+                    RawDatasetExportTask t = ExtractRawDataset.promptExtractDatasetTask(db, ref, getSelectedPositions(true));
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
             datasetMenu.add(addExtractRawDBTask);
-            addExtractRawDBTask.setEnabled(db!=null && (actionPoolList.getSelectedValue()==null || actionPoolList.getSelectedValue() instanceof Task));
+            addExtractRawDBTask.setEnabled(db!=null);
 
             if (db!=null && db.getExperiment()!=null) {
                 // task on a selection
@@ -4818,10 +4836,9 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                         Action selAction = new AbstractAction(s) {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Task t = getCurrentTask(null);
-                                if (t!=null) {
-                                    t.setDir(db.getDatasetDir().toFile().getAbsolutePath());
-                                    t.setSelection(s);
+                                for (Task t : getCurrentTasks(null)) { // processing and export actions are added as separate tasks
+                                    if (t instanceof ProcessingTask) ((ProcessingTask)t).setDir(db.getDatasetDir().toFile().getAbsolutePath()).setSelection(s);
+                                    else if (t instanceof ExportTask) ((ExportTask)t).setDir(db.getDatasetDir().toFile().getAbsolutePath()).setSelection(s);
                                     actionPoolListModel.addElement(t);
                                 }
                             }
@@ -4833,7 +4850,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             Action deleteSelected = new AbstractAction("Delete Selected Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    for (TaskI s : sel) actionPoolListModel.removeElement(s);
+                    for (Task s : sel) actionPoolListModel.removeElement(s);
                 }
             };
             deleteSelected.setEnabled(!sel.isEmpty());
@@ -4910,12 +4927,20 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                     }
                     PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, out.getParent());
                     String outDir = out.getAbsolutePath();
-                    List<Task> tasks = Collections.list(actionPoolListModel.elements()).stream().filter( t -> t instanceof Task).map(t -> (Task)t).collect(Collectors.toList());
-                    Task.getProcessingTasksByPosition(tasks).entrySet().forEach(en -> {
+                    List<Task> allTasks = Collections.list(actionPoolListModel.elements());
+                    List<ProcessingTask> tasks = allTasks.stream().filter( t -> t instanceof ProcessingTask).map(t -> (ProcessingTask)t).collect(Collectors.toList());
+                    ProcessingTask.getProcessingTasksByPosition(tasks).entrySet().forEach(en -> {
                         String fileName = Paths.get(outDir , en.getKey().getDBName() + "_P"+en.getKey().position+".json").toString();
                         FileIO.writeToFile(fileName, en.getValue(), t->t.toJSONEntry().toJSONString());
                     });
-                    
+                    // other tasks (exports...) cannot be split by position: they are saved in one file per dataset, in list order, to be run after processing
+                    Map<String, List<Task>> otherTasks = allTasks.stream().filter(t -> !(t instanceof ProcessingTask))
+                            .collect(Collectors.groupingBy(t -> t.getDir()==null ? "tasks" : new ProcessingTask.XP(t.getDir()).getDBName(), LinkedHashMap::new, Collectors.toList()));
+                    otherTasks.forEach((dbName, l) -> {
+                        String fileName = Paths.get(outDir , dbName + "_export.json").toString();
+                        FileIO.writeToFile(fileName, l, t->t.toJSONEntry().toJSONString());
+                    });
+
                 }
             };
             menu.add(saveProc);
@@ -4929,17 +4954,17 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                     File f = FileChooser.chooseFile("Choose Task list file", dir, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
                     if (f!=null && f.exists()) {
                         PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, f.getParent());
-                        List<TaskI> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
+                        List<List<Task>> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
                             try {
                                 JSONObject o = JSONUtils.parse(s);
-                                return TaskI.createFromJSONEntry(o);
+                                return Task.createTasksFromJSONEntry(o);
                             } catch (ParseException ex) {
                                 logger.error("Error reading task file: {} content: {}", ex.toString(), s);
                                 throw new RuntimeException(ex);
                             }
 
                         }, s->setMessage("Error while reading task file: "+f));
-                        for (TaskI j : jobs) actionPoolListModel.addElement(j);
+                        for (List<Task> l : jobs) for (Task j : l) actionPoolListModel.addElement(j); // entries of former versions may contain several tasks
                     }
                 }
             };
@@ -4949,11 +4974,11 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                 public void actionPerformed(ActionEvent e) {
                     DatasetTree.DatasetTreeNode xp = dsTree.getSelectedDatasetIfOnlyOneSelected();
                     if (xp==null) return;
-                    Map<Integer, TaskI> indexSelJobMap = actionPoolList.getSelectedValuesList().stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
-                    for (Entry<Integer, TaskI> en : indexSelJobMap.entrySet()) {
-                        TaskI t = en.getValue();
-                        if (t instanceof Task) {
-                            ((Task) t).setDir(xp.getDir().toFile().getAbsolutePath());
+                    Map<Integer, Task> indexSelJobMap = actionPoolList.getSelectedValuesList().stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
+                    for (Entry<Integer, Task> en : indexSelJobMap.entrySet()) {
+                        Task t = en.getValue();
+                        if (t instanceof AbstractTask) {
+                            ((AbstractTask<?>) t).setDir(xp.getDir().toFile().getAbsolutePath());
                         } else log("Set db cannot be applied to tasks of type: "+t.getClass());
                         if (!t.isValid()) {
                             log("Error: task: "+en.getValue()+" is not valid with this experiment");
@@ -4967,7 +4992,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             Action runAll = new AbstractAction("Run All Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    List<TaskI> jobs = Utils.applyWithNullCheck(Collections.list(actionPoolListModel.elements()), TaskI::duplicate);
+                    List<Task> jobs = Utils.applyWithNullCheck(Collections.list(actionPoolListModel.elements()), Task::duplicate);
                     if (!jobs.isEmpty()) {
                         closeDataset(); // avoid lock problems
                         Task.executeTasks(jobs, getUserInterface(), getPreProcessingMemoryThreshold());
@@ -4979,7 +5004,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             Action runSel = new AbstractAction("Run Selected Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    List<TaskI> jobs = Utils.applyWithNullCheck(sel, TaskI::duplicate);
+                    List<Task> jobs = Utils.applyWithNullCheck(sel, Task::duplicate);
                     if (!jobs.isEmpty()) {
                         closeDataset(); // avoid lock problems
                         Task.executeTasks(jobs, getUserInterface(), getPreProcessingMemoryThreshold());
@@ -5860,7 +5885,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private javax.swing.JScrollPane actionJSP;
     private javax.swing.JPanel actionPanel;
     private javax.swing.JScrollPane actionPoolJSP;
-    private javax.swing.JList<TaskI> actionPoolList;
+    private javax.swing.JList<Task> actionPoolList;
     private javax.swing.JScrollPane actionPositionJSP;
     private javax.swing.JScrollPane actionStructureJSP;
     private javax.swing.JCheckBoxMenuItem activateLoggingMenuItem;

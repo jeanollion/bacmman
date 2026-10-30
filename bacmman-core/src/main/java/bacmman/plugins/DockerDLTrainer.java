@@ -2,7 +2,7 @@ package bacmman.plugins;
 
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.TrainingConfigurationParameter;
-import bacmman.core.Task;
+import bacmman.core.AbstractDatasetExportTask;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 
@@ -12,7 +12,11 @@ public interface DockerDLTrainer extends Plugin {
     TrainingConfigurationParameter getConfiguration();
     Parameter[] getDatasetExtractionParameters();
 
-    Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer);
+    /**
+     * @param selectionContainer filled with the names of the exported selections
+     * @return task that exports the training dataset
+     */
+    AbstractDatasetExportTask<?> getDatasetExportTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer);
 
     DLModelMetadata getDLModelMetadata(String workingDirectory);
 

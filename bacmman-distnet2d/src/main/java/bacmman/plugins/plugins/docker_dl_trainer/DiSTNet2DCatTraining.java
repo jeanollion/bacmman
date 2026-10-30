@@ -1,7 +1,7 @@
 package bacmman.plugins.plugins.docker_dl_trainer;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SelectionOperations;

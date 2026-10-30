@@ -25,6 +25,7 @@ import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
 import bacmman.core.ProgressContext;
 import bacmman.core.ProgressTracker;
+import bacmman.core.ProcessingTask;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.DuplicateMasterDAO;

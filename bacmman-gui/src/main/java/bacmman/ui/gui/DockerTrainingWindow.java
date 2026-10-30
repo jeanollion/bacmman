@@ -1,5 +1,6 @@
 package bacmman.ui.gui;
 
+import bacmman.core.AbstractDatasetExportTask;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
@@ -248,7 +249,7 @@ public class DockerTrainingWindow implements ProgressDisplay {
                     Action appendTask = new AbstractAction("Append extraction task") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Task t = getDatasetExtractionTask(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, new ArrayList<>());
+                            AbstractDatasetExportTask<?> t = getDatasetExportTask(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, new ArrayList<>());
                             GUI.getInstance().appendTask(t);
                         }
                     };
@@ -789,19 +790,19 @@ public class DockerTrainingWindow implements ProgressDisplay {
         this.focusGained();
     }
 
-    protected Task getDatasetExtractionTask(Path dir, String fileName, List<String> selectionList) {
+    protected AbstractDatasetExportTask<?> getDatasetExportTask(Path dir, String fileName, List<String> selectionList) {
         MasterDAO mDAO = GUI.getDBConnection();
         DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
         ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
         for (Parameter p : trainer.getDatasetExtractionParameters()) p.setParent(mDAO.getExperiment());
         String extractFileName = fileName == null ? datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5" : fileName;
-        return trainer.getDatasetExtractionTask(mDAO, dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
+        return trainer.getDatasetExportTask(mDAO, dir.resolve(extractFileName).toString(), selectionList).setCompression(GUI.getInstance().getExtractedDSCompressionFactor());
     }
 
     protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel, boolean[] timelapseDatasetBucket) {
         if (sel == null) sel = new ArrayList<>();
-        Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
-        timelapseDatasetBucket[0] = t.getExtractDSTimelapse();
+        AbstractDatasetExportTask<?> t = getDatasetExportTask(dir, fileName, sel).setDB(GUI.getDBConnection());
+        timelapseDatasetBucket[0] = t.isTimelapse();
         // progress is displayed on the main progress bars of the GUI, like other tasks
         ProgressDisplay display = GUI.hasInstance() ? GUI.getInstance() : this;
         if (background) Task.executeTask(t, display, 1); // running state is handled by the worker, as for other tasks

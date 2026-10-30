@@ -28,7 +28,7 @@ import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.data_structure.Processor;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
@@ -366,11 +366,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                     Processor.executeProcessingScheme(n.getTrack(), structureIdx, false, true, null, null);
                                     GUI.log("Segmentation and Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
                                 } catch (MultipleException me) {
-                                    Task t = new Task();
+                                    ProcessingTask t = new ProcessingTask();
                                     t.setUI(GUI.getInstance());
                                     for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
                                 } catch (Throwable tr) {
-                                    Task t = new Task();
+                                    ProcessingTask t = new ProcessingTask();
                                     t.setUI(GUI.getInstance());
                                     t.publishError(n.trackHead.toString(), tr);
                                 }
@@ -413,11 +413,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                     Processor.executeProcessingScheme(n.getTrack(), structureIdx, true, false, null, null);
                                     GUI.log("Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
                                 } catch (MultipleException me) {
-                                    Task t = new Task();
+                                    ProcessingTask t = new ProcessingTask();
                                     t.setUI(GUI.getInstance());
                                     for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
                                 } catch (Throwable tr) {
-                                    Task t = new Task();
+                                    ProcessingTask t = new ProcessingTask();
                                     t.setUI(GUI.getInstance());
                                     t.publishError(n.trackHead.toString(), tr);
                                 }

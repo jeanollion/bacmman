@@ -244,7 +244,7 @@ public class Optimization {
         }
     }
 
-    public static class OptimizationTask implements TaskI<OptimizationTask> {
+    public static class OptimizationTask implements Task<OptimizationTask> {
         MasterDAO db;
         String dir, dbName;
         Optimization optimization;

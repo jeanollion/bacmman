@@ -1,7 +1,8 @@
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.core.RawDatasetExportTask;
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
@@ -87,7 +88,7 @@ public class ExtractRawDataset extends JDialog {
     private final ConfigurationTreeGenerator outputConfigTree;
     private final MasterDAO mDAO;
     private final List<String> selectedPositions;
-    private Task resultingTask;
+    private RawDatasetExportTask resultingTask;
 
     public ExtractRawDataset(MasterDAO mDAO, List<String> selectedPositions) {
         setContentPane(contentPane);
@@ -146,22 +147,22 @@ public class ExtractRawDataset extends JDialog {
     }
 
     private void onOK() {
-        resultingTask = new Task(mDAO.getDBName(), mDAO.getDatasetDir().toFile().getAbsolutePath());
+        resultingTask = new RawDatasetExportTask(mDAO.getDBName(), mDAO.getDatasetDir().toFile().getAbsolutePath());
         int[] channels = channelSelector.getSelectedIndices();
         SimpleBoundingBox bounds = extractParameter.getBounds();
         Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> extractParameter.getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), extractParameter.frameChoiceChannelImage.getSelectedIndex())));
-        resultingTask.setExtractRawDS(extractParameter.outputFile.getFirstSelectedFilePath(), channels, bounds, extractParameter.extractZ.getConfig(), extractParameter.transformations, positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setParameters(extractParameter.outputFile.getFirstSelectedFilePath(), channels, bounds, extractParameter.extractZ.getConfig(), extractParameter.transformations, positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 
-    public static Task promptExtractDatasetTask(MasterDAO mDAO, Task selectedTask, List<String> selectedPositions) {
+    public static RawDatasetExportTask promptExtractDatasetTask(MasterDAO mDAO, RawDatasetExportTask selectedTask, List<String> selectedPositions) {
         ExtractRawDataset dialog = new ExtractRawDataset(mDAO, selectedPositions);
-        dialog.setTitle("Configure Dataset extraction");
+        dialog.setTitle("Configure Raw Dataset export");
         if (selectedTask != null) {
             int nFrames = 0;
-            if (selectedTask.getExtractRawDSFrames() != null && !selectedTask.getExtractRawDSFrames().isEmpty())
-                nFrames = selectedTask.getExtractRawDSFrames().values().iterator().next().size();
-            dialog.setDefaultValues(selectedTask.getExtractRawDSFile(), selectedTask.getExtractRawDSChannels(), selectedTask.getExtractRawDSBounds(), null, nFrames, selectedTask.getExtractRawZAxis());
+            if (selectedTask.getPositionMapFrames() != null && !selectedTask.getPositionMapFrames().isEmpty())
+                nFrames = selectedTask.getPositionMapFrames().values().iterator().next().size();
+            dialog.setDefaultValues(selectedTask.getOutputFile(), selectedTask.getChannels(), selectedTask.getBounds(), null, nFrames, selectedTask.getZAxis());
         }
         dialog.pack();
         dialog.setVisible(true);

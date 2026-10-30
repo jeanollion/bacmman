@@ -1,11 +1,12 @@
 package bacmman.py_dataset;
 
+import bacmman.core.RawDatasetExportTask;
+import bacmman.core.DatasetExportTask;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.parameters.ExtractZAxisParameter;
 import bacmman.configuration.parameters.TrainingConfigurationParameter;
 import bacmman.configuration.parameters.TransformationPluginParameter;
 import bacmman.core.Core;
-import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImagesImpl;
@@ -42,30 +43,30 @@ public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
     private final static Logger logger = LoggerFactory.getLogger(ExtractDatasetUtil.class);
 
-    public static  void runTask(Task t) { // invoked by task with reflection
+    public static void runDatasetExport(DatasetExportTask t) { // invoked by DatasetExportTask with reflection
         MasterDAO mDAO = t.getDB();
-        String outputFile = t.getExtractDSFile();
+        String outputFile = t.getOutputFile();
         Path outputPath = Paths.get(outputFile);
-        int[] dimensions = t.getExtractDSDimensions();
-        int spatialDownsamplingFactor = t.getExtractDSSpatialDownsamplingFactor();
+        int[] dimensions = t.getDimensions();
+        int spatialDownsamplingFactor = t.getSpatialDownsamplingFactor();
         TrainingConfigurationParameter.RESIZE_MODE resizeMode;
-        if (t.getExtractDSResizeMode() == null || t.getExtractDSResizeMode().equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) {
+        if (t.getResizeMode() == null || t.getResizeMode().equals(TrainingConfigurationParameter.RESIZE_MODE.NONE)) {
             if (spatialDownsamplingFactor > 1) {
                 Arrays.fill(dimensions, 0);
                 resizeMode = TrainingConfigurationParameter.RESIZE_MODE.RESAMPLE;
             } else resizeMode = TrainingConfigurationParameter.RESIZE_MODE.NONE;
-        } else resizeMode = t.getExtractDSResizeMode();
+        } else resizeMode = t.getResizeMode();
         ConvertToBoundingBox boxConverter = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.boxConverter(dimensions) : null;
         UnaryOperator<SegmentedObject> duplicateAsBox = resizeMode.equals(TrainingConfigurationParameter.RESIZE_MODE.EXTEND) ? ExtractDatasetUtil.duplicateAsBox(boxConverter) : o->o; // extend parent bounds
-        final int cropRefOC = t.getExtractDSCropRefOC();
-        List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
-        List<Selection> selections = t.getExtractDSSelections();
-        int subsamplingFactor = t.getExtractDSSubsamplingFactor();
-        int subsamplingNumber = t.getExtractDSSubsamplingNumber();
+        final int cropRefOC = t.getCropRefOC();
+        List<FeatureExtractor.Feature> features = t.getFeatures();
+        List<Selection> selections = t.getSelections();
+        int subsamplingFactor = t.getSubsamplingFactor();
+        int subsamplingNumber = t.getSubsamplingNumber();
         int[] subsamplingOffsets = ArrayUtil.generateIntegerArray(0, subsamplingFactor, subsamplingNumber);
-        int compression = t.getExtractDSCompression();
-        int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
-        boolean trackingDataset = t.isExtractDSTimelapse();
+        int compression = t.getCompression();
+        int[] eraseTouchingContoursOC = t.getEraseTouchingContoursOC();
+        boolean trackingDataset = t.isTimelapse();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
         String ds = mDAO.getDBName();
         // one sub-task per selection, position and feature
@@ -220,14 +221,14 @@ public class ExtractDatasetUtil {
             for (int offset : subsamplingOffsets) write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions, subsamplingFactor, offset);
         });*/
     }
-    public static void runTaskRaw(Task t) throws IOException  {
+    public static void runRawDatasetExport(RawDatasetExportTask t) throws IOException { // invoked by RawDatasetExportTask with reflection
         logger.debug("extracting raw dataset 2...");
-        String outputFile = t.getExtractRawDSFile();
+        String outputFile = t.getOutputFile();
         Path outputPath = Paths.get(outputFile);
-        BoundingBox bounds = t.getExtractRawDSBounds();
-        Map<String, List<Integer>> positionMapFrames = t.getExtractRawDSFrames();
-        int[] channels = t.getExtractRawDSChannels();
-        int compression = t.getExtractDSCompression();
+        BoundingBox bounds = t.getBounds();
+        Map<String, List<Integer>> positionMapFrames = t.getPositionMapFrames();
+        int[] channels = t.getChannels();
+        int compression = t.getCompression();
         MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
         String[] channelNames = mDAO.getExperiment().getChannelImagesAsString(false);
@@ -241,7 +242,7 @@ public class ExtractDatasetUtil {
                 image = image.crop(bds);
                 //logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
             }
-            return t.getExtractRawZAxis().handleZ(image);
+            return t.getZAxis().handleZ(image);
         };
         t.setProgressMessage("Extract raw dataset");
         t.setSubtaskNumber(positionMapFrames.size() * channels.length); // one sub-task per position and channel
@@ -249,7 +250,7 @@ public class ExtractDatasetUtil {
             //logger.debug("position: {}", position);
             Position pos = mDAO.getExperiment().getPosition(position);
             InputImagesImpl inputImages = pos.createInputImages(pos.getTempImageDAO(), pos.getTempImageDAO());
-            List<TransformationPluginParameter<Transformation>> transfos = t.getExtractRawDSTransformations().getActivatedChildren();
+            List<TransformationPluginParameter<Transformation>> transfos = t.getTransformations().getActivatedChildren();
             Runnable clearMem = transfos.isEmpty() ? () -> {} : Processor.setTransformations(inputImages, transfos, 0.5, null);
             List<Integer> frames = positionMapFrames.get(position);
             boolean saveLabels = false;
@@ -260,7 +261,7 @@ public class ExtractDatasetUtil {
                 for (int fIdx : frames) {
                     images.add(extract.apply(inputImages.getImage(channel, fIdx).setName(getLabel(fIdx+inputImages.getMinFrame()))));
                 }
-                if (t.getExtractRawZAxis().equals(ExtractZAxisParameter.ExtractZAxis.BATCH)) {
+                if (t.getZAxis().equals(ExtractZAxisParameter.ExtractZAxis.BATCH)) {
                     logger.debug("before ZToBatch: {}", images.size());
                     Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());
                     images = s.collect(Collectors.toList());
@@ -634,12 +635,12 @@ public class ExtractDatasetUtil {
         logger.debug("saving done.");
     }
 
-    public static Task getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, ExtractZAxisParameter.ExtractZAxisConfig extractZ, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
+    public static DatasetExportTask getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, ExtractZAxisParameter.ExtractZAxisConfig extractZ, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
         if (objectClasses.length!=2 && objectClasses.length!=3) throw new IllegalArgumentException("Select 2 or 3 object classes: background, foreground (and contours)");
         if (!Utils.objectsAllHaveSameProperty(Arrays.stream(objectClasses).boxed().collect(Collectors.toList()), mDAO.getExperiment().experimentStructure::getParentObjectClassIdx)) {
             throw new IllegalArgumentException("All selected object classes must have same parent object class");
         }
-        Task resultingTask = new Task(mDAO);
+        DatasetExportTask resultingTask = new DatasetExportTask(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>();
         ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
         String[] channelNames = xp.getChannelNames();
@@ -648,7 +649,7 @@ public class ExtractDatasetUtil {
 
         int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, dims, TrainingConfigurationParameter.RESIZE_MODE.NONE, -1, eraseContoursOC, false, 1, 1, 1, compression);
+        resultingTask.setParameters(outputFile, selections, features, dims, TrainingConfigurationParameter.RESIZE_MODE.NONE, -1, eraseContoursOC, false, 1, 1, 1, compression);
         return resultingTask;
     }
 
@@ -671,8 +672,8 @@ public class ExtractDatasetUtil {
         }
     }
 
-    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
-        Task resultingTask = new Task(mDAO);
+    public static DatasetExportTask getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, int spatialDownSampling, int subSamplingFactor, int subSamplingNumber, int compression) throws IllegalArgumentException {
+        DatasetExportTask resultingTask = new DatasetExportTask(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(3 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
@@ -681,12 +682,12 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass, selectionFilter));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
+        resultingTask.setParameters(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, true, spatialDownSampling, subSamplingFactor, subSamplingNumber, compression);
         return resultingTask;
     }
 
-    public static Task getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
-        Task resultingTask = new Task(mDAO);
+    public static DatasetExportTask getDiSTNetSegDatasetTask(MasterDAO mDAO, int objectClass, List<ExtractOCParameters> labelsAndChannels, List<String> categorySelection, boolean addDefaultCategory, int[] outputDimensions, TrainingConfigurationParameter.RESIZE_MODE resizeMode, List<String> selections, String selectionFilter, String outputFile, boolean timelapse, int spatialDownSampling, int compression) throws IllegalArgumentException {
+        DatasetExportTask resultingTask = new DatasetExportTask(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(2 + labelsAndChannels.size());
         for (ExtractOCParameters oc : labelsAndChannels) features.add(oc.getFeatureExtractor());
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass, selectionFilter ));
@@ -694,7 +695,7 @@ public class ExtractDatasetUtil {
             features.add(new FeatureExtractor.Feature( new Category( categorySelection, addDefaultCategory ), objectClass, selectionFilter));
         }
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
+        resultingTask.setParameters(outputFile, selections, features, outputDimensions, resizeMode, objectClass, eraseContoursOC, timelapse, spatialDownSampling, 1, 1, compression);
         return resultingTask;
     }
 

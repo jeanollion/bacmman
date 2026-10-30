@@ -52,8 +52,8 @@ public class Daemon {
     boolean watching, running;
     long idleTime = 10000;
     DefaultWorker w;
-    final Queue<Task> jobQueue = new LinkedList<>();
-    final Map<Task, File> taskFileNameMap = new HashMap<>();
+    final Queue<AbstractTask<?>> jobQueue = new LinkedList<>();
+    final Map<AbstractTask<?>, File> taskFileNameMap = new HashMap<>();
     final Map<File, Boolean> fileNameErrorMap = new HashMap<>();
     final Set<File> oneJobHasBeenRun = new HashSet<>();
     public Daemon(ProgressDisplay ui) {
@@ -98,7 +98,7 @@ public class Daemon {
             @Override
             public String run(int i) {
                 while(running) {
-                    Task t = jobQueue.poll();
+                    AbstractTask<?> t = jobQueue.poll();
                     if (t!=null) {
                         logUI.setAppend(!oneJobHasBeenRun.contains(taskFileNameMap.get(t)));
                         logUI.setLogFile(Paths.get(logDir.getAbsolutePath(), taskFileNameMap.get(t).getName().replace(".json", ".txt")).toString());
@@ -107,7 +107,7 @@ public class Daemon {
                         t.setPreprocessingMemoryThreshold(0.5);
                         t.runTask();
                         t.publishErrors();
-                        if (!t.errors.isEmpty()) fileNameErrorMap.put(taskFileNameMap.get(t), true);
+                        if (!t.getErrors().isEmpty()) fileNameErrorMap.put(taskFileNameMap.get(t), true);
                         t.flush(true);
                         logUI.setLogFile(null);
                         oneJobHasBeenRun.add(taskFileNameMap.get(t));
@@ -143,18 +143,24 @@ public class Daemon {
                 JSONObject o = null;
                 try {
                     o = JSONUtils.parse(s);
-                    Task t = new Task();
-                    t.initFromJSONEntry(o);
-                    t.setUI(ui);
-                    if (t.isValid()) {
-                        jobQueue.add(t);
-                        taskFileNameMap.put(t, f);
-                    } else {
-                        error=true;
-                        ui.setMessage("Invalid task: "+f);
-                        t.printErrorsTo(ui);
+                    for (Task<?> ti : Task.createTasksFromJSONEntry(o)) { // entries of former versions may contain several tasks
+                        if (!(ti instanceof AbstractTask)) {
+                            ui.setMessage("Task type not supported: "+ti.getClass().getSimpleName()+" in file: "+f);
+                            error = true;
+                            continue;
+                        }
+                        AbstractTask<?> t = (AbstractTask<?>)ti;
+                        t.setUI(ui);
+                        if (t.isValid()) {
+                            jobQueue.add(t);
+                            taskFileNameMap.put(t, f);
+                        } else {
+                            error=true;
+                            ui.setMessage("Invalid task: "+f);
+                            t.printErrorsTo(ui);
+                        }
+                        t.clearDB();
                     }
-                    t.clearDB();
                 } catch (ParseException e) {
                     ui.setMessage("Error: could not parse task: "+ e.toString());
                     error = true;
