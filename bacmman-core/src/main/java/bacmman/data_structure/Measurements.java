@@ -139,6 +139,11 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
             this.isTrackHead=o.isTrackHead();
             modifications=true; // TODO partial update
         }
+        double tp = o.getCalibratedTimePoint(); // time may have been stored with wrong value or frame duration may have changed
+        if (Double.compare(tp, calibratedTimePoint)!=0) {
+            calibratedTimePoint = tp;
+            modifications=true;
+        }
     }
     
     public Object getValue(String name) {
