@@ -29,6 +29,7 @@ import bacmman.configuration.parameters.ui.MultipleChoiceParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.core.*;
+import bacmman.data_structure.image_container.TimePointsJSON;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
@@ -147,6 +148,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private ChoiceParameter hyperstackMode = new ChoiceParameter("Default Hyperstack Mode", new String[]{"HYPERSTACK", "IMAGE5D"}, "HYPERSTACK", false).setHint("If IMAGE5D is chosen, hyperstack will be open using the image 5D plugin, allowing to display color image. Note that with this mode the whole image needs to be loaded in memory");
     private BooleanParameter displayTrackEdges = new BooleanParameter("Hyperstack: display track edges", true);
     private BooleanParameter displayCorrections = new BooleanParameter("Display manual corrections", true);
+    private BooleanParameter readableTimePoints = new BooleanParameter("Readable time points in configuration", false).setHint("Format of time points of positions in configuration files. <br>If false, time points are stored compressed (smaller files). <br>If true they are stored as integer arrays (time x 10^decimals, difference between successive frames, indexed by channel, z, frame) that can be edited by hand. <br>Both formats are read. The selected format is used the next time the configuration is saved");
     private NumberParameter kymographSize = new NumberParameter<>("Size", 0, 1950).setHint("Limit the size per slice (in pixels) of a kymograph (each Kymograph slice contains several frames).");
     private NumberParameter kymographOverlap = new NumberParameter<>("Frame Overlap", 0, 650).setHint("Overlap size (in pixels) between two slices of a Kymograph (each Kymograph slice contains several frames).");
 
@@ -484,6 +486,14 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         setDispTrackEdges.accept(displayCorrections);
         displayCorrections.addListener(setDispCorrections);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(displayCorrections, roiMenu, miscMenu);
+        // time point format in configuration
+        PropertyUtils.setPersistent(readableTimePoints, "readable_time_points");
+        Consumer<BooleanParameter> setReadableTimePoints = b -> TimePointsJSON.READABLE = b.getSelected();
+        setReadableTimePoints.accept(readableTimePoints);
+        readableTimePoints.addListener(setReadableTimePoints);
+        JMenu miscOptionMenu = new JMenu("Misc");
+        optionMenu.add(miscOptionMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(readableTimePoints, miscOptionMenu, optionMenu);
 
 
         // kymograph interval

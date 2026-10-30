@@ -102,7 +102,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         res.put("invertTZ", invertTZ);
         if (bounds!=null) res.put("bounds", bounds.toJSONEntry());
         res.put("singleFrameC", JSONUtils.toJSONArray(singleFrameC));
-        if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
+        TimePointsJSON.write(timePointCZT, res);
         res.put("channelIndices", JSONUtils.toJSONArray(channelIndices));
         res.put("channelModulo", JSONUtils.toJSONArray(channelModulo));
         res.put("invertTZbyC", JSONUtils.toJSONArray(invertTZbyC));
@@ -126,7 +126,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
             bounds.initFromJSONEntry(jsonO.get(("bounds")));
         }
         singleFrameC = JSONUtils.fromBooleanArray((JSONArray)jsonO.get("singleFrameC"));
-        timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
+        timePointCZT = TimePointsJSON.read(jsonO);
         if (jsonO.containsKey("channelIndices")) channelIndices = JSONUtils.fromIntArray((List)jsonO.get("channelIndices"));
         else channelIndices = new int[filePathC.length];
         if (jsonO.containsKey("channelModulo")) channelModulo = JSONUtils.fromIntArray((List)jsonO.get("channelModulo"));

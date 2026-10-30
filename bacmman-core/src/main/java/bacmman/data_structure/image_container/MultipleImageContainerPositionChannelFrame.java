@@ -127,7 +127,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         res.put("frameNumber", frameNumber);
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
         if (rgbC!=null) res.put("rgb", JSONUtils.toJSONArrayEnum(rgbC));
-        if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
+        TimePointsJSON.write(timePointCZT, res);
         if (invertTZ_CT!=null) res.put("invertTZ_CT", JSONUtils.toJSONObject(invertTZ_CT));
         if (singleFrameC!=null) res.put("singleFrameC", JSONUtils.toJSONArray(singleFrameC));
         return res;
@@ -157,7 +157,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         frameNumber = ((Number)jsonO.get("frameNumber")).intValue();
         sizeZC = JSONUtils.fromIntArray((JSONArray)jsonO.get("sizeZC"));
         if (jsonO.containsKey("rgb")) rgbC = JSONUtils.fromEnumArray((List)jsonO.get("rgb"), ImageIOCoordinates.RGB.class);
-        if (jsonO.containsKey("timePointCZT")) timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
+        timePointCZT = TimePointsJSON.read(jsonO);
         if (jsonO.containsKey("invertTZ_CT")) invertTZ_CT = (Map<String, Boolean>)jsonO.get("invertTZ_CT");
         positionName =  jsonO.containsKey("positionName") ?  (String)jsonO.get("positionName") : positionKey;
         if (jsonO.containsKey("singleFrameC")) singleFrameC = JSONUtils.fromBooleanArray((JSONArray)jsonO.get("singleFrameC"));

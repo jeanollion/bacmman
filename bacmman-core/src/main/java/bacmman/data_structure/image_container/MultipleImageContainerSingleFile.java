@@ -100,7 +100,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         res.put("sizeZ", sizeZ);
         res.put("invertTZ", invertTZ);
         if (bounds!=null) res.put("bounds", bounds.toJSONEntry());
-        if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
+        TimePointsJSON.write(timePointCZT, res);
         return res;
     }
 
@@ -121,10 +121,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
             bounds = new MutableBoundingBox();
             bounds.initFromJSONEntry(jsonO.get(("bounds")));
         }
-        if (jsonO.containsKey("timePointCZT")) {
-            timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
-            logger.debug("load tpMap: {}", timePointCZT);
-        }
+        timePointCZT = TimePointsJSON.read(jsonO);
     }
 
     protected MultipleImageContainerSingleFile() {super(1, 1);}
