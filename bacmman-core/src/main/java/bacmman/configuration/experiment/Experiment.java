@@ -426,7 +426,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         for (int i = 0; i<res.length; i++) res[i] = getStructure(i).getChannelImage();
         return res;
     }
-    public HashMap<Integer, List<Integer>> getChannelToStructureCorrespondance() {
+    public Map<Integer, List<Integer>> getChannelToStructureCorrespondance() {
         HashMapGetCreate<Integer, List<Integer>> res = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
         for (int s = 0; s<getStructureCount(); s++) res.getAndCreateIfNecessary(getStructure(s).getChannelImage()).add(s);
         return res;
