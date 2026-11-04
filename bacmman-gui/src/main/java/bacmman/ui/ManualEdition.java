@@ -640,60 +640,10 @@ public class ManualEdition {
     }
 
     public static Map<SegmentedObject, List<SegmentedObject>> getTrackSegments(Stream<SegmentedObject> trackElements, ProcessingPipeline.PARENT_TRACK_MODE mode, final int temporalNeighborhoodExtent) {
-        switch (mode) {
-            case WHOLE_PARENT_TRACK_ONLY:
-            default:
-            {
-                return trackElements.map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toMap(th->th, SegmentedObjectUtils::getTrack));
-            }
-            case SINGLE_INTERVAL: {
-                Map<SegmentedObject, List<SegmentedObject>> pByTh = trackElements.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
-                return pByTh.entrySet().stream().collect(Collectors.toMap(Entry::getKey, e -> {
-                    SegmentedObject first = e.getValue().stream().min(Comparator.comparing(SegmentedObject::getFrame)).get();
-                    SegmentedObject last = e.getValue().stream().max(Comparator.comparing(SegmentedObject::getFrame)).get();
-                    if (temporalNeighborhoodExtent>0) {
-                        first = first.getPreviousAtFrame(first.getFrame() - temporalNeighborhoodExtent, true);
-                        last = last.getNextAtFrame(last.getFrame() + temporalNeighborhoodExtent, true);
-                    }
-                    List<SegmentedObject> res= new ArrayList<>(last.getFrame()-first.getFrame()+1);
-                    res.add(first);
-                    while(!first.equals(last)) {
-                        first = first.getNext();
-                        res.add(first);
-                    }
-                    return res;
-                }));
-            }
-            case MULTIPLE_INTERVALS: {
-                Map<SegmentedObject, List<SegmentedObject>> res = trackElements.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
-                if (temporalNeighborhoodExtent>0) {
-                    res = res.entrySet().stream()
-                            .collect(Collectors.toMap(Entry::getKey, e-> e.getValue().stream()
-                                    .flatMap(so -> IntStream.rangeClosed(so.getFrame() - temporalNeighborhoodExtent, so.getFrame() + temporalNeighborhoodExtent).mapToObj(f -> so.getAtFrame(f, true))).distinct().sorted().collect(Collectors.toList())));
-                } else res.forEach((th, l) -> l.sort(Comparator.comparing(SegmentedObject::getFrame)));
-                return res;
-            }
-        }
+        return bacmman.core.ProcessingTest.getTrackSegments(trackElements, mode, temporalNeighborhoodExtent);
     }
     public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, int temporalNeighborhoodExtent, Experiment xp , ObjectDAO dao) {
-        Processor.ensureScalerConfiguration(dao, structureIdx);
-        ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
-        if (pipeline instanceof SegmentationAndTrackingProcessingPipeline) ((SegmentationAndTrackingProcessingPipeline)pipeline).getTrackPostFilters().removeAllElements(); // we remove track post filter so that they do not inlfuence mode
-        ProcessingPipeline.PARENT_TRACK_MODE mode = ProcessingPipeline.parentTrackMode(pipeline);
-        TrackPreFilterSequence tpfWithPF = pipeline != null ? pipeline.getTrackPreFilters(true) : new TrackPreFilterSequence("");
-        Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(parents, mode, temporalNeighborhoodExtent);
-        //logger.debug("ensure prefilters: temporal neigh: {}, segments: {}", temporalNeighborhoodExtent, Utils.toStringMap(trackSegments, SegmentedObject::toString, l->l.size()+""));
-        if (mode.allowIntervals()) {
-            trackSegments.values().forEach(l -> l.removeIf(p -> p.getPreFilteredImage(structureIdx)!=null));
-            trackSegments.values().removeIf(List::isEmpty);
-        } else trackSegments.entrySet().removeIf(e -> e.getValue().stream().noneMatch(p -> p.getPreFilteredImage(structureIdx)==null));
-        for (List<SegmentedObject> t : trackSegments.values()) {
-            Core.userLog("Computing track pre-filters...");
-            logger.debug("tpf for : {} (length: {}, mode: {}), objectclass: {}, #filters: {}", t.get(0).getTrackHead(), t.size(), mode, structureIdx, tpfWithPF.get().size());
-            tpfWithPF.filter(structureIdx, t);
-            logger.debug("tracks with null pf images: {} : #{}", t, t.stream().filter(o -> o.getPreFilteredImage(structureIdx)==null).count());
-            Core.userLog("Track pre-filters computed!");
-        }
+        bacmman.core.ProcessingTest.ensurePreFilteredImages(parents, structureIdx, temporalNeighborhoodExtent, xp, dao);
     }
     public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean test, boolean updateDisplay) {
         splitObjects(db, objects, relabel, test, null, updateDisplay);

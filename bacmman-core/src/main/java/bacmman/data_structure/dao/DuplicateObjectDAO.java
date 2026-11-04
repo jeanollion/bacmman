@@ -26,6 +26,8 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
     final Set<Integer> excludeFromDuplicate;
     final Function<Integer, ID> idGenerator;
     boolean duplicateMeasurements, duplicateAttributes;
+    int[] frameRange; // if not null: [min; max] frames within which the track links of duplicated objects are followed
+    final Set<SegmentedObject> incompleteDuplicates = new HashSet<>(); // duplicated objects whose own track links have not been assigned (neighbors of duplicated objects, outside the frame range)
     public DuplicateObjectDAO(MasterDAO<ID, DuplicateObjectDAO<sourceID, ID>> masterDAO, ObjectDAO<sourceID> source, Function<Integer, ID> idGenerator, Collection<Integer> excludeOCs) {
         this.masterDAO =masterDAO;
         this.source=source;
@@ -38,6 +40,17 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
 
     public DuplicateObjectDAO<sourceID, ID> setDuplicateMeasurements(boolean duplicateMeasurements) {
         this.duplicateMeasurements = duplicateMeasurements;
+        return this;
+    }
+
+    /**
+     * Within this frame range, the track links (previous / next / track head) of duplicated objects are followed: when an object is duplicated, the objects linked to it within the range are also duplicated (transitively), so that all links of duplicated objects within the range are valid.
+     * Outside the range (or if no range is set), only the direct neighbors of requested objects are duplicated, without their own links.
+     * @param minFrame first frame of the range (inclusive)
+     * @param maxFrame last frame of the range (inclusive)
+     */
+    public DuplicateObjectDAO<sourceID, ID> setFrameRange(int minFrame, int maxFrame) {
+        this.frameRange = new int[]{minFrame, maxFrame};
         return this;
     }
 
@@ -84,6 +97,7 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         rootMap.clear();
         sourceIdMapDupObject.clear();
         newIdMapSourceObject.clear();
+        incompleteDuplicates.clear();
     }
 
     @Override
@@ -223,33 +237,43 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
         }
         return res;
     }
+    /**
+     * Duplicates {@param source} objects. Objects are first copied, then their track links are assigned (IDs of copies differ from source IDs).
+     * Objects linked (previous / next / track head) to duplicated objects are also copied: within the frame range (see {@link #setFrameRange}) this is done transitively and their links are assigned, outside the range only direct neighbors are copied, without their own links.
+     */
     protected void duplicate(Stream<SegmentedObject> source) {
-        Map<SegmentedObject, SegmentedObject> sourceMapDup = source.distinct().collect(Collectors.toMap(s->s, this::makeDuplicate));
-        if (sourceMapDup.isEmpty()) return;
-        // ensure prev / nexts / trackHead are also duplicated
-        List<SegmentedObject> dupAdd = sourceMapDup.keySet().stream().flatMap(s -> {
-            boolean prev = s.getPrevious()!=null && !sourceMapDup.containsKey(s.getPrevious());
-            boolean next = s.getNext()!=null && !sourceMapDup.containsKey(s.getNext());
-            boolean th = !s.isTrackHead() && !sourceMapDup.containsKey(s.getTrackHead());
-            if (th) {
-                if (prev && next) return Stream.of(s.getTrackHead(), s.getPrevious(), s.getNext());
-                else if (prev) return Stream.of(s.getTrackHead(), s.getPrevious());
-                else if (next) return Stream.of(s.getTrackHead(), s.getNext());
-                else return Stream.of(s.getTrackHead());
-            } else {
-                if (prev && next) return Stream.of(s.getPrevious(), s.getNext());
-                else if (prev) return Stream.of(s.getPrevious());
-                else if (next) return Stream.of(s.getNext());
-                else return Stream.empty();
+        List<SegmentedObject> requested = source.distinct().collect(Collectors.toList());
+        if (requested.isEmpty()) return;
+        Map<SegmentedObject, SegmentedObject> sourceMapDup = new LinkedHashMap<>(); // all copied objects
+        Set<SegmentedObject> toLink = new HashSet<>(); // source objects whose copy gets all its track links in this call
+        for (SegmentedObject s : requested) {
+            sourceMapDup.put(s, makeDuplicate(s));
+            toLink.add(s);
+        }
+        // copy linked objects
+        ArrayDeque<SegmentedObject> queue = new ArrayDeque<>(requested);
+        Set<SegmentedObject> expanded = new HashSet<>();
+        while (!queue.isEmpty()) {
+            SegmentedObject s = queue.poll();
+            if (!expanded.add(s)) continue;
+            for (SegmentedObject n : new SegmentedObject[]{s.getPrevious(), s.getNext(), s.isTrackHead() ? null : s.getTrackHead()}) {
+                if (n == null || sourceMapDup.containsKey(n)) continue;
+                boolean existed = sourceIdMapDupObject.get(n.getStructureIdx()).containsKey((sourceID)n.getId());
+                SegmentedObject dn = makeDuplicate(n);
+                sourceMapDup.put(n, dn);
+                if (inFrameRange(n) && (!existed || incompleteDuplicates.contains(dn))) { // follow links within the frame range
+                    toLink.add(n);
+                    queue.add(n);
+                } else if (!existed) incompleteDuplicates.add(dn);
             }
-        }).distinct().collect(Collectors.toList());
-        dupAdd.forEach(this::makeDuplicate);
+        }
         // ensure parents are duplicated
-        duplicate(Stream.concat(sourceMapDup.keySet().stream(), dupAdd.stream()).filter(o -> !o.isRoot()).map(SegmentedObject::getParent));
+        duplicate(sourceMapDup.keySet().stream().filter(o -> !o.isRoot()).map(SegmentedObject::getParent));
         // ensure segmentation parents are also duplicated
-        duplicate(Stream.concat(sourceMapDup.keySet().stream(), dupAdd.stream()).filter(o -> !o.isRoot()).map(SegmentedObject::getSegmentationParent));
-        // set parent, prev, next
+        duplicate(sourceMapDup.keySet().stream().filter(o -> !o.isRoot()).map(SegmentedObject::getSegmentationParent));
+        // set parent, prev, next, trackHead
         sourceMapDup.forEach((s, dup) -> {
+            boolean link = toLink.contains(s);
             if (s.getParent()!=null) {
                 SegmentedObject dupParent = sourceIdMapDupObject.get(s.getParent().getStructureIdx()).get((sourceID)s.getParentId());
                 if (dupParent == null) {
@@ -259,43 +283,28 @@ public class DuplicateObjectDAO<sourceID, ID> implements ObjectDAO<ID> {
                 dup.setParent(dupParent);
             }
             Map<sourceID, SegmentedObject> map = sourceIdMapDupObject.get(s.getStructureIdx());
+            // objects copied without their own links (outside the frame range) only get links to copied objects whose links are assigned
             if (s.getPrevious() != null) {
                 SegmentedObject dupPrevious = map.get((sourceID) s.getPreviousId());
-                dup.setPrevious(dupPrevious);
-                SegmentedObject previous = s.getPrevious();
-                if (previous.getParent() != null) {
-                    SegmentedObject dupPreviousParent = sourceIdMapDupObject.get(s.getParent().getStructureIdx()).get((sourceID)previous.getParentId());
-                    dupPrevious.setParent(dupPreviousParent);
-                }
-                if (previous.getNext() != null) { // set prev's next
-                    SegmentedObject previousNext = map.get((sourceID) previous.getNextId());
-                    dupPrevious.setNext(previousNext);
-                }
+                if (dupPrevious!=null && (link || toLink.contains(s.getPrevious()))) dup.setPrevious(dupPrevious);
             }
             if (s.getNext() != null) {
                 SegmentedObject dupNext = map.get((sourceID) s.getNextId());
-                dup.setNext(dupNext);
-                SegmentedObject next = s.getNext();
-                if (next.getParent() != null) {
-                    SegmentedObject dupNextParent = sourceIdMapDupObject.get(s.getParent().getStructureIdx()).get((sourceID)next.getParentId());
-                    dupNext.setParent(dupNextParent);
-                }
-                if (next.getPrevious() != null) { // set next's prev
-                    SegmentedObject nextPrevious = map.get((sourceID) next.getPreviousId());
-                    dupNext.setPrevious(nextPrevious);
-                }
+                if (dupNext!=null && (link || toLink.contains(s.getNext()))) dup.setNext(dupNext);
             }
-            SegmentedObject dupTH = map.get((sourceID)s.getTrackHeadId());
-            if (dupTH == null) {
-                logger.error("TrackHead not duplicated for {} (th: {})", s, s.getTrackHead());
-                throw new RuntimeException("TrackHead not duplicated");
-            }
-            dup.setTrackHead(dupTH);
-            if (!s.isTrackHead() && s.getTrackHead().getParent()!=null) {
-                SegmentedObject dupTHParent = sourceIdMapDupObject.get(s.getParent().getStructureIdx()).get((sourceID)s.getTrackHead().getParentId());
-                dupTH.setParent(dupTHParent);
+            if (link) {
+                SegmentedObject dupTH = map.get((sourceID)s.getTrackHeadId());
+                if (dupTH == null) {
+                    logger.error("TrackHead not duplicated for {} (th: {})", s, s.getTrackHead());
+                    throw new RuntimeException("TrackHead not duplicated");
+                }
+                dup.setTrackHead(dupTH);
+                incompleteDuplicates.remove(dup);
             }
         });
+    }
+    private boolean inFrameRange(SegmentedObject o) {
+        return frameRange != null && o.getFrame() >= frameRange[0] && o.getFrame() <= frameRange[1];
     }
     protected SegmentedObject duplicate(SegmentedObject source) {
         SegmentedObject res = factory.get(source.getStructureIdx()).duplicate(source, this, source.getStructureIdx(), true, true, duplicateAttributes, duplicateMeasurements);
