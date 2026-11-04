@@ -19,6 +19,8 @@
 package bacmman.plugins.plugins.measurements;
 
 import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.ConditionalParameter;
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.TextParameter;
@@ -57,7 +59,10 @@ public class SpineCoordinates implements Measurement.TrackMeasurement, MultiThre
     protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", false).setHint(SCALED_TT);
     protected BooleanParameter setSpineLengthToParent = new BooleanParameter("Set SpineLength to parent", false);
     protected TextParameter prefix = new TextParameter("Prefix", "", false);
-    protected Parameter[] parameters = new Parameter[]{bacteria, spot, scaled, prefix, setSpineLengthToParent};
+    protected EnumChoiceParameter<BacteriaSpineLocalizer.COORDINATES_3D> coordinates3D = BacteriaSpineLocalizer.getCoordinates3DParameter("3D Coordinate System", false);
+    protected BooleanParameter export3D = new BooleanParameter("3D Coordinates", false).setHint("For 3D images: also export the coordinates that describe the position of the spot around the spine (see the coordinate system below), and choose the coordinate system. If not set, 3D images are processed with the default coordinate system ("+BacteriaSpineLocalizer.defaultCoordinates3D+") and only the 2D-like coordinates are exported.<ul><li><em>SpineRadialCoord2</em>: "+BacteriaSpineLocalizer.COORDINATES_3D.SPINE_3D+": second coordinate in the plane perpendicular to the spine (SpineRadialCoord is the first one); "+BacteriaSpineLocalizer.COORDINATES_3D.PROJECTION_2_5D+": height of the spot relative to the mid-plane of the bacterium</li><li><em>SpineDistance</em>: distance of the spot to the spine</li><li><em>SpineHalfThickness</em> ("+BacteriaSpineLocalizer.COORDINATES_3D.PROJECTION_2_5D+" only): half-thickness of the bacterium along z at the position of the spot</li></ul>"+BacteriaSpineLocalizer.EXPERIMENTAL_3D);
+    protected ConditionalParameter<Boolean> export3DCond = new ConditionalParameter<>(export3D).setActionParameters(true, coordinates3D);
+    protected Parameter[] parameters = new Parameter[]{bacteria, spot, scaled, prefix, setSpineLengthToParent, export3DCond};
     
     public SpineCoordinates() {}
     public SpineCoordinates(int spotIdx, int bacteriaIdx) {
@@ -66,7 +71,7 @@ public class SpineCoordinates implements Measurement.TrackMeasurement, MultiThre
     }
     @Override
     public String getHintText() {
-        return "Computes the spine coordinates (see spine definition below) of a spot (of class defined in the <em>Spot</em> parameter) in a bacteria (of class defined in the <em>Bacteria</em> parameter). <ul><li><em>SpineCurvilinearCoord</em> is the coordinate along the bacteria longitudinal axis</li><li><em>SpineRadialCoord is the coordinate perpendicular to the longitudinal axis (negative on the left side)</em></li><li><em>SpineLength is the total spine length between the two pole</em></li><li><em>SpineRadius is the width of the bacteria at the position of the spot</em></li></ul><br />The center of the Spot object is by default the center defined by the segmenter, if no center was defined, the mass center will used<br />The object class defined in the <em>Bacteria</em> parameter must correspond to regular rod-shaped objects. If objects are not regular (presence of holes, thickness of less than 3 pixels) results are not defined. If needed use regularization such as binary close and fill holes. <br /><br />"+SPINE_DEF;
+        return "Computes the spine coordinates (see spine definition below) of a spot (of class defined in the <em>Spot</em> parameter) in a bacteria (of class defined in the <em>Bacteria</em> parameter). <ul><li><em>SpineCurvilinearCoord</em> is the coordinate along the bacteria longitudinal axis</li><li><em>SpineRadialCoord is the coordinate perpendicular to the longitudinal axis (negative on the left side)</em></li><li><em>SpineLength is the total spine length between the two pole</em></li><li><em>SpineRadius is the width of the bacteria at the position of the spot</em></li></ul>For 3D images, additional coordinates can be exported: see <em>3D Coordinates</em>. Distances are in XY-pixel units (z is converted using the calibration), multiplied by the XY pixel size if <em>Scaled</em> is set.<br />The center of the Spot object is by default the center defined by the segmenter, if no center was defined, the mass center will used<br />The object class defined in the <em>Bacteria</em> parameter must correspond to regular rod-shaped objects. If objects are not regular (presence of holes, thickness of less than 3 pixels) results are not defined. If needed use regularization such as binary close and fill holes. <br /><br />"+SPINE_DEF;
     }
     public SpineCoordinates setScaled(boolean scaled) {
         this.scaled.setSelected(scaled);
@@ -86,6 +91,11 @@ public class SpineCoordinates implements Measurement.TrackMeasurement, MultiThre
         res.add(new MeasurementKeyObject(prefix+"SpineLength", spot.getSelectedClassIdx()));
         if (setSpineLengthToParent.getSelected()) res.add(new MeasurementKeyObject(prefix+"SpineLength", bacteria.getSelectedClassIdx())); // also set to bacteria
         res.add(new MeasurementKeyObject(prefix+"SpineRadius", spot.getSelectedClassIdx()));
+        if (export3D.getSelected()) {
+            res.add(new MeasurementKeyObject(prefix+"SpineRadialCoord2", spot.getSelectedClassIdx()));
+            res.add(new MeasurementKeyObject(prefix+"SpineDistance", spot.getSelectedClassIdx()));
+            if (coordinates3D.getSelectedEnum()==BacteriaSpineLocalizer.COORDINATES_3D.PROJECTION_2_5D) res.add(new MeasurementKeyObject(prefix+"SpineHalfThickness", spot.getSelectedClassIdx()));
+        }
         return res;
     }
 
@@ -101,7 +111,10 @@ public class SpineCoordinates implements Measurement.TrackMeasurement, MultiThre
             if (sMb!=null) spotMapBacteria.putAll(sMb);
         });
         MultipleException me = new MultipleException();
-        Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = Utils.toMapWithNullValues(Utils.parallel(spotMapBacteria.values().stream(), true), b->b, Utils.applyREx(b-> new BacteriaSpineLocalizer(b.getRegion())), true, me);
+        boolean export3D = this.export3D.getSelected();
+        BacteriaSpineLocalizer.COORDINATES_3D cs = export3D ? coordinates3D.getSelectedEnum() : BacteriaSpineLocalizer.defaultCoordinates3D;
+        boolean exportHalfThickness = export3D && cs==BacteriaSpineLocalizer.COORDINATES_3D.PROJECTION_2_5D;
+        Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = Utils.toMapWithNullValues(Utils.parallel(spotMapBacteria.values().stream(), true), b->b, Utils.applyREx(b-> new BacteriaSpineLocalizer(b.getRegion(), cs)), true, me);
         Utils.parallel(spotMapBacteria.entrySet().stream(), parallel).forEach(e-> {
             Point center = e.getKey().getRegion().getCenter();
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
@@ -112,12 +125,22 @@ public class SpineCoordinates implements Measurement.TrackMeasurement, MultiThre
                 e.getKey().getMeasurements().setValue(prefix+"SpineLength", null);
                 if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue(prefix+"SpineLength", null); // also set to bacteria
                 e.getKey().getMeasurements().setValue(prefix+"SpineRadius", null);
+                if (export3D) {
+                    e.getKey().getMeasurements().setValue(prefix+"SpineRadialCoord2", null);
+                    e.getKey().getMeasurements().setValue(prefix+"SpineDistance", null);
+                    if (exportHalfThickness) e.getKey().getMeasurements().setValue(prefix+"SpineHalfThickness", null);
+                }
             } else {
                 e.getKey().getMeasurements().setValue(prefix+"SpineCurvilinearCoord", coord.curvilinearCoord(false)*scale);
                 e.getKey().getMeasurements().setValue(prefix+"SpineRadialCoord", coord.radialCoord(false)*scale);
                 e.getKey().getMeasurements().setValue(prefix+"SpineLength", coord.spineLength()*scale);
                 if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue(prefix+"SpineLength", coord.spineLength()*scale); // also set to bacteria
                 e.getKey().getMeasurements().setValue(prefix+"SpineRadius", coord.spineRadius()*scale); // radius at spot position
+                if (export3D) {
+                    e.getKey().getMeasurements().setValue(prefix+"SpineRadialCoord2", coord.radialCoord2()*scale);
+                    e.getKey().getMeasurements().setValue(prefix+"SpineDistance", coord.distanceToSpine()*scale);
+                    if (exportHalfThickness) e.getKey().getMeasurements().setValue(prefix+"SpineHalfThickness", coord.halfThickness()*scale);
+                }
             }
         });
         if (!me.isEmpty()) throw me; // throw after measurement to indicate that there were errors on some objects, but do not block measurement for valid objects

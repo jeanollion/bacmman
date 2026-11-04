@@ -34,6 +34,7 @@ public class DistanceComputationParameters {
         public int maxFrameDiff = 1;
         boolean projectOnSameSides = true;
         public BacteriaSpineLocalizer.PROJECTION projectionType= BacteriaSpineLocalizer.PROJECTION.PROPORTIONAL;
+        public BacteriaSpineLocalizer.DISTANCE distanceMode = BacteriaSpineLocalizer.DISTANCE.FORWARD;
         public DistanceComputationParameters() {
             
         }
@@ -44,6 +45,13 @@ public class DistanceComputationParameters {
         public DistanceComputationParameters setProjectionType(BacteriaSpineLocalizer.PROJECTION projectionType) {
             this.projectionType = projectionType;
             return this;
+        }
+        public DistanceComputationParameters setDistanceMode(BacteriaSpineLocalizer.DISTANCE distanceMode) {
+            this.distanceMode = distanceMode;
+            return this;
+        }
+        public boolean projectOnSameSides() {
+            return projectOnSameSides;
         }
         public DistanceComputationParameters setAllowGCBetweenLQ(boolean allow) {
             this.allowGapBetweenLQ = allow;

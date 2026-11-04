@@ -68,67 +68,45 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         }
         return v;
     }
-    public V getAndCreateIfNecessarySync(Object key) {
+    /**
+     * Thread-safe get-or-create: all accesses to the map are performed under the lock of the map, and the value is created under this lock (the whole map is blocked during the creation of the value)
+     */
+    public synchronized V getAndCreateIfNecessarySync(Object key) {
         if (allowNull) {
             if (super.containsKey(key)) return super.get(key);
-            synchronized(this) {
-                if (super.containsKey(key)) return super.get(key);
-                else {
-                    V v = factory.apply((K)key);
-                    super.put((K)key, v);
-                    return v;
-                }
-            }
-        }
-        else {
+        } else {
             V v = super.get(key);
-            if (v == null) {
-                synchronized (this) {
-                    v = super.get(key);
-                    if (v == null) {
-                        v = factory.apply((K) key);
-                        super.put((K) key, v);
-                    }
-                }
-            }
-            return v;
+            if (v != null) return v;
         }
-
+        V v = factory.apply((K) key);
+        super.put((K) key, v);
+        return v;
     }
     /**
-     * synchronization is done on key so that if creation of V is long, the whole map is not blocked during creation of V
+     * Thread-safe get-or-create. Synchronization of the creation is done on key so that if creation of V is long, the whole map is not blocked during creation of V: values of different keys can be created in parallel.
+     * All reads and writes of the map are performed under the lock of the map (a HashMap must not be read while it is modified by another thread: a read during a modification, e.g. a resize, can miss a present key, and without lock the value created by another thread is not guaranteed to be visible)
      * @param key
      * @return 
      */
     public V getAndCreateIfNecessarySyncOnKey(Object key) {
         if (key == null) return getAndCreateIfNecessarySync(null);
-        if (allowNull) {
-            if (super.containsKey(key)) return super.get(key);
-            synchronized(key) {
-                if (super.containsKey(key)) return super.get(key);
-                else {
-                    V v = factory.apply((K)key);
-                    synchronized (this) {
-                        super.put((K)key, v);
-                    }
-                    return v;
-                }
-            }
-        } else {
-            V v = super.get(key);
-            if (v == null) {
-                synchronized (key) {
-                    v = super.get(key);
-                    if (v == null) {
-                        v = factory.apply((K) key);
-                        synchronized (this) {
-                            super.put((K) key, v);
-                        }
-                    }
-                }
+        V v = getIfPresentSync(key);
+        if (v != null || (allowNull && containsKeySync(key))) return v;
+        synchronized (key) {
+            v = getIfPresentSync(key);
+            if (v != null || (allowNull && containsKeySync(key))) return v;
+            v = factory.apply((K) key);
+            synchronized (this) {
+                super.put((K) key, v);
             }
             return v;
         }
+    }
+    private synchronized V getIfPresentSync(Object key) {
+        return super.get(key);
+    }
+    private synchronized boolean containsKeySync(Object key) {
+        return super.containsKey(key);
     }
 
 

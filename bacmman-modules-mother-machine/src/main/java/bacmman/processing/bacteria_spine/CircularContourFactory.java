@@ -21,6 +21,7 @@ package bacmman.processing.bacteria_spine;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Voxel;
 import bacmman.image.ImageByte;
+import bacmman.image.ImageMask;
 import bacmman.processing.FillHoles2D;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.utils.MathUtils;
@@ -220,32 +221,90 @@ public class CircularContourFactory {
         return smoother.getSmoothed();
     }
     /**
-     * Shrinkage-free contour smoothing (Taubin λ|μ). A Gaussian/Laplacian low-pass of a closed contour
-     * shrinks it inward (mean-curvature flow), which deflates downstream spine width and length. Taubin
-     * smoothing alternates a shrinking step (+λ·Δ) with an un-shrinking step (+μ·Δ, μ&lt;−λ), removing
-     * high-frequency noise while preserving the overall scale.
+     * Gaussian smoothing of a closed contour along its arc length, followed by a curvature-dependent shrinkage correction (Lowe, 1988).
+     * Gaussian smoothing (scale {@param sigma}) moves each point toward its center of curvature: a circle of radius r becomes a circle of radius r·exp(-σ²/(2r²)).
+     * Each point is then moved back along the normal by r - r', where r' = 1/κ' is the radius of curvature of the smoothed contour and r the radius before smoothing (inverse of the relation above).
+     * Strongly curved parts (poles) are corrected more than flat parts (sides), so that strong smoothing does not shorten the object.
      * Operates in-place on the (mutable) {@link Point} elements (XY only) and returns the same contour.
-     * @param circContour closed contour of mutable Points (e.g. after {@link #resampleContour})
-     * @param sigma smoothing strength (in same unit as coordinates); mapped to a Taubin iteration count
+     * @param circContour closed contour of mutable Points, with approximately regular spacing (e.g. after {@link #resampleContour})
+     * @param sigma smoothing scale, in the unit of coordinates (arc length)
+     * @param correct whether shrinkage correction is applied
      */
-    public static CircularNode<Point> smoothContour2DTaubin(CircularNode<Point> circContour, double sigma) {
+    public static CircularNode<Point> smoothContour2DShrinkCorrected(CircularNode<Point> circContour, double sigma, boolean correct) {
         if (sigma<=0) return circContour;
         List<CircularNode<Point>> nodes = new ArrayList<>();
         CircularNode.apply(circContour, nodes::add, true);
         int n = nodes.size();
-        if (n<5) return circContour; // too small to smooth meaningfully
-        double meanSpacing = 0;
-        for (CircularNode<Point> nd : nodes) meanSpacing += nd.element.distXY(nd.next.element);
-        meanSpacing /= n;
-        if (meanSpacing<=0) return circContour;
-        final double lambda = 0.6307, mu = -0.6732; // Taubin classic pass-band values
-        int iterations = Math.max(1, Math.min(200, (int)Math.round((sigma/meanSpacing)*(sigma/meanSpacing)/(2*lambda))));
-        double[] dx = new double[n], dy = new double[n];
-        for (int it = 0; it<iterations; ++it) {
-            taubinPass(nodes, dx, dy, lambda);
-            taubinPass(nodes, dx, dy, mu);
+        if (n<5) return circContour;
+        double[] x = new double[n], y = new double[n], s = new double[n+1];
+        for (int i = 0; i<n; ++i) { x[i] = nodes.get(i).element.get(0); y[i] = nodes.get(i).element.get(1); }
+        for (int i = 0; i<n; ++i) s[i+1] = s[i] + Math.hypot(x[(i+1)%n]-x[i], y[(i+1)%n]-y[i]);
+        double perimeter = s[n];
+        if (perimeter<=0) return circContour;
+        double[] ds = new double[n]; // arc length associated to each point
+        for (int i = 0; i<n; ++i) ds[i] = (s[i+1] - s[i] + (i>0 ? s[i]-s[i-1] : s[n]-s[n-1])) / 2;
+        // 1) gaussian smoothing along arc length (circular)
+        double lim = Math.min(3*sigma, perimeter/2), s2 = 2*sigma*sigma;
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i<n; ++i) {
+            double sw = 0, sx = 0, sy = 0;
+            for (int dir = -1; dir<=1; dir+=2) {
+                for (int k = (dir<0 ? 1 : 0); k<n; ++k) {
+                    int j = ((i + dir*k) % n + n) % n;
+                    double d = Math.abs(s[i] - s[j]);
+                    d = Math.min(d, perimeter - d);
+                    if (d>lim) break;
+                    double w = Math.exp(-d*d/s2) * ds[j];
+                    sw += w; sx += w*x[j]; sy += w*y[j];
+                }
+            }
+            xs[i] = sx/sw; ys[i] = sy/sw;
+        }
+        if (correct) {
+            // 2) shrinkage correction along the outward normal
+            double area = 0;
+            for (int i = 0; i<n; ++i) area += xs[i]*ys[(i+1)%n] - xs[(i+1)%n]*ys[i];
+            double orient = Math.signum(area); // convex points: cross product has the sign of the area
+            int h = Math.max(1, (int)Math.round(Math.max(1, sigma/2) / (perimeter/n))); // curvature estimated on points at arc distance ~max(1, sigma/2)
+            if (2*h>=n) h = Math.max(1, n/3);
+            double[] dx = new double[n], dy = new double[n];
+            for (int i = 0; i<n; ++i) {
+                int a = (i-h+n)%n, c = (i+h)%n;
+                double abx = xs[i]-xs[a], aby = ys[i]-ys[a], acx = xs[c]-xs[a], acy = ys[c]-ys[a], bcx = xs[c]-xs[i], bcy = ys[c]-ys[i];
+                double cross = abx*acy - aby*acx;
+                double denom = Math.hypot(abx, aby) * Math.hypot(acx, acy) * Math.hypot(bcx, bcy);
+                if (denom==0) continue;
+                double kappa = 2 * cross / denom * orient; // signed curvature of smoothed contour, >0 for convex
+                double tx = acx, ty = acy, tn = Math.hypot(tx, ty);
+                if (tn==0) continue;
+                double nx = orient * ty / tn, ny = -orient * tx / tn; // outward normal
+                double offset = shrinkageOffset(Math.abs(kappa), sigma) * Math.signum(kappa); // convex: outward, concave: inward
+                dx[i] = offset * nx; dy[i] = offset * ny;
+            }
+            for (int i = 0; i<n; ++i) { xs[i] += dx[i]; ys[i] += dy[i]; }
+        }
+        for (int i = 0; i<n; ++i) {
+            nodes.get(i).element.set((float)xs[i], 0);
+            nodes.get(i).element.set((float)ys[i], 1);
         }
         return circContour;
+    }
+    /**
+     * @param kappa curvature (>=0) measured after gaussian smoothing of scale sigma
+     * @return r - r' where r' = 1/kappa and r is the radius before smoothing: r·exp(-σ²/(2r²)) = r' (solved by bisection), bounded by sigma
+     */
+    private static double shrinkageOffset(double kappa, double sigma) {
+        if (kappa<1e-6) return 0;
+        double rp = 1/kappa;
+        if (kappa*sigma < 1e-2) return Math.min(sigma, sigma*sigma*kappa/2); // first order (flat parts)
+        double lo = rp, hi = rp + 2*sigma; // f(r) = r·exp(-σ²/(2r²)) is increasing, f(lo) <= rp
+        double s2 = sigma*sigma/2;
+        if (hi*Math.exp(-s2/(hi*hi)) < rp) return sigma; // out of range: bounded correction
+        for (int it = 0; it<50; ++it) {
+            double mid = (lo+hi)/2;
+            if (mid*Math.exp(-s2/(mid*mid)) < rp) lo = mid; else hi = mid;
+        }
+        return Math.min(sigma, (lo+hi)/2 - rp);
     }
     private static void taubinPass(List<CircularNode<Point>> nodes, double[] dx, double[] dy, double factor) {
         int n = nodes.size();

@@ -22,6 +22,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.Voxel;
 import bacmman.processing.EDT;
 import bacmman.processing.FillHoles2D;
+import bacmman.processing.Filters;
 import bacmman.processing.skeleton.EDTSkeleton;
 import bacmman.image.TypeConverter;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
@@ -65,11 +66,20 @@ public class BacteriaSpineFactory {
     public static final Logger logger = LoggerFactory.getLogger(BacteriaSpineFactory.class);
     public static Consumer<Image> imageDisp = null;
     public static int verboseZoomFactor = 13;
+    public static double centerlineZSmoothFactor = 1.5; // 3D: z of the centerline is smoothed along the curvilinear coordinate at scale max(centerlineSmoothScale, centerlineZSmoothFactor x scaleZ/scaleXY) (XY pixels): removes the staircase due to the coarse sampling in z
     public static double centerlineSmoothScale = 2; // smoothing strength for the final shrinkage-free (Taubin) centerline smoothing
     public static double contourHalfVoxelOffset = 0.5; // outward contour offset (px) compensating that contour voxels are measured at their centers
     public static int ridgeRefineIterations = 6; // 3D: iterations of EDT-ridge refinement of the centerline (saturates ~6)
     public static double centerlineUpsampleStep = 0.5; // 3D: upsample the centerline to this spacing (px) before smoothing
-    public static boolean spine3D2_5D = true; // 3D: measure width & pole from per-slice 2D contours (2.5D) instead of the 3D EDT/mask
+    // 2D lateral (perpendicular) direction accuracy options
+    public static boolean smoothLateralDirections = true; // smooth lateral directions over a window scaled to the bacteria radius (pole extensions included), norms are preserved
+    public static double lateralSmoothScale = 1.5; // smoothing scale of lateral directions, in units of bacteria radius
+    public static boolean lateralDirectionFromCenterline = true; // lateral direction = normal of the smoothed centerline, width measured along that normal
+    public static double contourSmoothScale = 3; // contour smoothing (2D contour and contours of z-slices in 3D): gaussian smoothing of this (default) scale (pixels, along arc length) followed by a curvature-dependent shrinkage correction (Lowe), so that bacteria are not shortened. An explicit smoothing scale given to createSpine overrides this default scale
+    public static double poleContourSigma = 1.5; // if >0 and lower than the contour smoothing scale: the pole caps of the contour are replaced by a contour smoothed at this (lower) scale, so that poles are not pushed outward by the stronger smoothing. The pole tips lie on the final (blended) contour. In 3D: applied to the contour of each z-slice
+    public static boolean contourShrinkCorrection = true; // for comparison purpose only: disable the shrinkage correction
+    public static boolean regularizeMask = true; // 2D: regularize (a copy of) the mask before computing the contour: binary opening then closing (removes spurs, notches and isolated boundary pixels)
+    public static double regularizationOpenRadius = 1, regularizationCloseRadius = 3; // radii (pixels) of the opening and closing neighborhoods
     public static class InvalidObjectException extends Exception {
         public InvalidObjectException(String message) {
             super(message);
@@ -128,10 +138,29 @@ public class BacteriaSpineFactory {
         }
     }
     public static SpineResult createSpine(Region bacteria) throws InvalidObjectException {
-        return createSpine(bacteria, 2);
+        return createSpine(bacteria, Double.NaN);
     }
+    /**
+     * For 3D objects, the 2.5D version is used (see {@link #createSpine(Region, double, boolean)})
+     * @param contourSmoothSigma contour smoothing scale (pixels), see {@link #contourSmoothScale}. NaN: default scale ({@link #contourSmoothScale})
+     */
     public static SpineResult createSpine(Region bacteria, double contourSmoothSigma) throws InvalidObjectException {
-        if (!bacteria.is2D()) return createSpine3D(bacteria);
+        return createSpine(bacteria, contourSmoothSigma, true);
+    }
+    /**
+     * 3D objects, 2.5D version: width and pole extensions are measured on the contours of the z-slices (sub-pixel in XY), see {@link #createSpine(Region, double, boolean)}
+     */
+    public static SpineResult createSpine25D(Region bacteria) throws InvalidObjectException {
+        return createSpine(bacteria, Double.NaN, true);
+    }
+    /**
+     * @param contourSmoothSigma contour smoothing scale (pixels), see {@link #contourSmoothScale}. NaN: default scale ({@link #contourSmoothScale})
+     * @param spine2_5D for 3D objects only: if true, width and pole extensions are measured on the contours of the z-slices (2.5D: sub-pixel precision in XY, the mask is used in slices that have no contour, e.g. caps); if false, they are measured on the 3D mask and Euclidean distance transform
+     */
+    public static SpineResult createSpine(Region bacteria, double contourSmoothSigma, boolean spine2_5D) throws InvalidObjectException {
+        if (regularizeMask) bacteria = regularizeMask(bacteria, regularizationOpenRadius, regularizationCloseRadius);
+        double sigma = Double.isNaN(contourSmoothSigma) ? contourSmoothScale : contourSmoothSigma;
+        if (!bacteria.is2D()) return createSpine3D(bacteria, sigma, spine2_5D);
         SpineResult res = new SpineResult();
         res.bounds = new SimpleBoundingBox(bacteria.getBounds());
         long t0 = System.currentTimeMillis();
@@ -148,11 +177,10 @@ public class BacteriaSpineFactory {
         long t4 = System.currentTimeMillis();
         circContour = (CircularNode)CircularContourFactory.getCircularContour((Set)contour);
         long t5 = System.currentTimeMillis();
-        circContour = (CircularNode)CircularContourFactory.smoothContour2D(circContour,0.5);
         long t6 = System.currentTimeMillis();
-        circContour=CircularContourFactory.resampleContour((CircularNode)circContour,0.5);
-        circContour = (CircularNode)CircularContourFactory.smoothContour2DTaubin((CircularNode)circContour,contourSmoothSigma); // shrinkage-free smoothing (Taubin): avoids deflating spine length & width
-        circContour = (CircularNode)CircularContourFactory.inflateContour((CircularNode)circContour, contourHalfVoxelOffset); // contour voxels are measured at their centers: offset outward by half a voxel to reach the true object edge
+        CircularNode<Point>[] smoothed = smoothContour((CircularNode)circContour, sigma);
+        circContour = (CircularNode)smoothed[0];
+        CircularNode<Localizable> poleContour = (CircularNode)smoothed[1];
         long t7 = System.currentTimeMillis();
         //CircularNode.apply(circContour, c->logger.debug("{} after smooth {}", count[0]++, c.element), true);
         contour = (Set)CircularContourFactory.getSet(circContour);
@@ -161,7 +189,8 @@ public class BacteriaSpineFactory {
         res.contour = contour;
 
         if (circContour!=null) {
-            PointContainer2<Vector, Double>[] spine = createSpineFromSkeleton(bacteria.getMask(), skeleton, (Set)contour, circContour);
+            PointContainer2<Vector, Double>[] spine = createSpineFromSkeleton(bacteria.getMask(), skeleton, (Set)contour, circContour, poleContour);
+            if (poleContour!=null) res.contour = (Set)CircularContourFactory.getSet(circContour); // contour points of the pole caps were moved (blended): rebuild the set (hash depends on coordinates)
                     //createSpineFromCenter(bacteria.getMask(), (Set)contour, circContour);
             res.spine = spine;
         }
@@ -170,13 +199,67 @@ public class BacteriaSpineFactory {
         return res;
     }
 
+    /** @return 2D region: projection (union over z) of the mask of {@param bacteria} in the XY plane (same calibration) */
+    public static Region projectXY(Region bacteria) {
+        ImageMask mask = bacteria.getMask();
+        ImageByte proj = new ImageByte("", mask.sizeX(), mask.sizeY(), 1);
+        ImageMask.loop(mask, (x, y, z) -> proj.setPixel(x, y, 0, 1));
+        proj.translate(new SimpleOffset(mask.xMin(), mask.yMin(), mask.zMin()));
+        proj.setCalibration(bacteria.getScaleXY(), bacteria.getScaleZ());
+        return new Region(proj, bacteria.getLabel(), true);
+    }
     /**
-     * 3D spine: curved length + width only (no curvilinear coordinate system). The centerline is the 3D skeleton's
-     * longest geodesic path, extended to the poles along the local direction; width is taken from the Euclidean
-     * distance transform. All distances are in XY-pixel units; anisotropy is handled via az = scaleZ/scaleXY (z is
-     * scaled by az).
+     * Contour smoothing pipeline, shared by the 2D path and the z-slices of the 3D path: light smoothing (removes the pixel staircase), resampling (0.5 px), gaussian smoothing of scale {@param sigma} with shrinkage correction, and outward offset of half a voxel (contour voxels are measured at their centers: this reaches the true object edge).
+     * @return {contour, pole contour}: the pole contour is smoothed at the lower scale {@link #poleContourSigma}, with the same nodes in the same order as the contour (node-wise correspondence); null if not used
      */
-    private static SpineResult createSpine3D(Region bacteria) throws InvalidObjectException {
+    private static CircularNode<Point>[] smoothContour(CircularNode<Point> circContour, double sigma) {
+        circContour = CircularContourFactory.smoothContour2D(circContour, 0.5);
+        circContour = CircularContourFactory.resampleContour(circContour, 0.5);
+        CircularNode<Point> poleContour = poleContourSigma>0 && poleContourSigma<sigma ? CircularNode.map(circContour, Point::duplicate) : null; // copy: smoothing is performed in place
+        if (poleContour!=null) poleContour = CircularContourFactory.smoothContour2DShrinkCorrected(poleContour, poleContourSigma, contourShrinkCorrection);
+        circContour = CircularContourFactory.smoothContour2DShrinkCorrected(circContour, sigma, contourShrinkCorrection);
+        circContour = CircularContourFactory.inflateContour(circContour, contourHalfVoxelOffset);
+        if (poleContour!=null) poleContour = CircularContourFactory.inflateContour(poleContour, contourHalfVoxelOffset);
+        return new CircularNode[]{circContour, poleContour};
+    }
+    /**
+     * Regularization of a bacteria mask: binary opening (radius {@param openRadius}) then binary closing (radius {@param closeRadius}), using neighborhood-based morphology. The input region is not modified.
+     * In 3D, the neighborhoods are ellipsoids with the same physical size in z as in XY (radius in z = radius x scaleXY / scaleZ): with strong anisotropy they are planar, i.e. the regularization is performed slice by slice.
+     * Parts possibly disconnected by the opening are reconnected by the closing. If the result is empty, the input region is returned.
+     * @return regularized region (same calibration as {@param bacteria})
+     */
+    public static Region regularizeMask(Region bacteria, double openRadius, double closeRadius) {
+        ImageByte mask = TypeConverter.toByteMask(bacteria.getMask(), null, 1); // copy
+        double zRatio = bacteria.is2D() || bacteria.getScaleZ()<=0 ? 0 : bacteria.getScaleXY() / bacteria.getScaleZ();
+        if (openRadius>0) mask = Filters.binaryOpen(mask, new ImageByte("", 0, 0, 0), bacteria.is2D() ? new EllipsoidalNeighborhood(openRadius, true) : new EllipsoidalNeighborhood(openRadius, openRadius * zRatio, true), false);
+        if (closeRadius>0) mask = Filters.binaryCloseExtend(mask, bacteria.is2D() ? new EllipsoidalNeighborhood(closeRadius, true) : new EllipsoidalNeighborhood(closeRadius, closeRadius * zRatio, true), false);
+        boolean[] empty = {true};
+        ImageMask.loop(mask, (x, y, z) -> empty[0] = false);
+        if (empty[0]) return bacteria; // object too thin for the opening
+        if (!bacteria.is2D()) { // z-slices emptied by the opening (e.g. small cap slices at the poles of a bacteria oriented along z) are restored, so that the length is not reduced
+            ImageMask orig = bacteria.getMask();
+            for (int z = 0; z<mask.sizeZ(); ++z) {
+                int zz = z + mask.zMin();
+                boolean emptySlice = true;
+                for (int y = 0; y<mask.sizeY() && emptySlice; ++y) for (int x = 0; x<mask.sizeX() && emptySlice; ++x) if (mask.insideMask(x, y, z)) emptySlice = false;
+                if (!emptySlice) continue;
+                for (int y = 0; y<mask.sizeY(); ++y) for (int x = 0; x<mask.sizeX(); ++x) {
+                    int xx = x + mask.xMin(), yy = y + mask.yMin();
+                    if (orig.containsWithOffset(xx, yy, zz) && orig.insideMaskWithOffset(xx, yy, zz)) mask.setPixel(x, y, z, 1);
+                }
+            }
+        }
+        mask.setCalibration(bacteria.getScaleXY(), bacteria.getScaleZ());
+        return new Region(mask, bacteria.getLabel(), bacteria.is2D());
+    }
+
+    /**
+     * 3D spine. The centerline is the EDT minimal path between the two farthest poles, re-centered on the EDT ridge, its z coordinate is smoothed (coarse sampling in z), and it is extended to the poles along the local direction.
+     * Width is measured on the contours of the z-slices (2.5D, if {@param spine3D2_5D}), or from the Euclidean distance transform.
+     * Each spine point holds a lateral vector N x width, where N is the normal of a rotation-minimizing frame (T, N, B=T x N) along the centerline: this defines the 3D coordinate system (curvilinear coordinate, and the two coordinates along N and B in the plane perpendicular to the centerline), see {@link BacteriaSpineLocalizer}.
+     * All coordinates are in XY-pixel units; anisotropy is handled via az = scaleZ/scaleXY (z is scaled by az).
+     */
+    private static SpineResult createSpine3D(Region bacteria, double contourSmoothSigma, boolean spine3D2_5D) throws InvalidObjectException {
         SpineResult res = new SpineResult();
         res.bounds = new SimpleBoundingBox(bacteria.getBounds());
         double scaleXY = bacteria.getScaleXY(), scaleZ = bacteria.getScaleZ();
@@ -191,14 +274,20 @@ public class BacteriaSpineFactory {
         if (path == null || path.size()<2) throw new InvalidObjectException("3D spine: could not trace centerline");
         // 2.5D representation: per-slice smoothed XY ring contour for interior slices; null = "region" representation
         // (cap / too-small slices) where the boundary is in z and the filled mask is used instead.
-        CircularNode<Point>[] sliceContours = spine3D2_5D ? buildSliceContours(bacteria, mask) : null;
+        SliceContours slices = spine3D2_5D ? buildSliceContours(bacteria, mask, contourSmoothSigma) : null;
         // re-center on the EDT ridge (sub-voxel), then extend the medial endpoints to the object boundary (the
         // EDT ridge stops ~one radius short of the tips, so this adds the pole caps to reach the true length).
         EDTSkeleton.refineToEDTRidge(path, edt, mask, az, ridgeRefineIterations);
-        int k = Math.min(5, path.size()-1);
+        double zSigma = Math.max(centerlineSmoothScale, centerlineZSmoothFactor * az);
+        smoothPathZ(path, az, zSigma); // before the pole extensions, so that their direction is not affected by the z staircase
+        // direction of the pole extensions: mean direction of the last points of the centerline, over the same number of points as in 2D (half the median width + 1, at least 4)
+        double medianWidth = 2 * ArrayUtil.median(path.stream().mapToDouble(p -> sampleEDT(edt, mask, p)).toArray());
+        double radius = Math.max(1, medianWidth/2);
+        int k = Math.min(path.size()-1, Math.min(1+path.size()/2, Math.max(4, (int)medianWidth/2+1)));
         Vector dHead = meanDir3D(path, true, k), dTail = meanDir3D(path, false, k);
-        Point head = spine3D2_5D ? extendPole2_5D(sliceContours, mask, path.get(0), dHead) : extendPole3D(mask, path.get(0), dHead);
-        Point tail = spine3D2_5D ? extendPole2_5D(sliceContours, mask, path.get(path.size()-1), dTail) : extendPole3D(mask, path.get(path.size()-1), dTail);
+        if (slices!=null) blendSlicePoleCaps(slices, path.get(0), dHead, path.get(path.size()-1), dTail, radius, az); // lighter smoothing of the pole caps, as in 2D
+        Point head = spine3D2_5D ? extendPole2_5D(slices, mask, path.get(0), dHead) : extendPole3D(mask, path.get(0), dHead);
+        Point tail = spine3D2_5D ? extendPole2_5D(slices, mask, path.get(path.size()-1), dTail) : extendPole3D(mask, path.get(path.size()-1), dTail);
         path.add(0, head);
         path.add(tail);
         res.skeleton = path.stream().map(p -> new Voxel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2))).collect(Collectors.toList());
@@ -211,8 +300,7 @@ public class BacteriaSpineFactory {
                 Point pa = path.get(Math.max(0, i-1)), pb = path.get(Math.min(path.size()-1, i+1));
                 double tx = pb.get(0)-pa.get(0), ty = pb.get(1)-pa.get(1), tn = Math.sqrt(tx*tx+ty*ty);
                 double perpX = tn<1e-6 ? 1 : -ty/tn, perpY = tn<1e-6 ? 0 : tx/tn;
-                int zr = (int)Math.round(p.get(2))-mask.zMin();
-                CircularNode<Point> c = (zr>=0 && zr<sliceContours.length) ? sliceContours[zr] : null;
+                CircularNode<Point> c = slices.containing(p.get(0), p.get(1), p.get(2), mask);
                 double w = c!=null ? contourWidth(c, p.get(0), p.get(1), perpX, perpY) : -1;
                 width = w>0 ? w : 2*sampleEDT(edt, mask, p); // cap/region slices: fall back to EDT
             } else width = 2*sampleEDT(edt, mask, p);
@@ -220,11 +308,95 @@ public class BacteriaSpineFactory {
         }
         spList = upsampleCenterline(spList, centerlineUpsampleStep); // denser sampling for a stable length integration
         setCumulativeDistance(spList);
+        smoothZ(spList, zSigma); // poles included
         smoothCenterlineTaubin(spList, centerlineSmoothScale);
         setCumulativeDistance(spList);
+        setFrame3D(spList);
         res.spine = spList.toArray(new PointContainer2[spList.size()]);
         return res;
     }
+    /**
+     * Smooths the z coordinate of a centerline (voxel coordinates) along its curvilinear coordinate (physical, z scaled by {@param az}), by local linear regression (gaussian weights of scale {@param sigma}): unbiased on straight or tilted bacteria, including at the ends.
+     */
+    private static void smoothPathZ(List<Point> path, double az, double sigma) {
+        int n = path.size();
+        if (n<3 || sigma<=0) return;
+        double[] s = new double[n], z = new double[n], w = new double[n];
+        for (int i = 1; i<n; ++i) {
+            Point a = path.get(i-1), b = path.get(i);
+            s[i] = s[i-1] + Math.sqrt(Math.pow(b.get(0)-a.get(0), 2) + Math.pow(b.get(1)-a.get(1), 2) + Math.pow((b.get(2)-a.get(2))*az, 2));
+        }
+        for (int i = 0; i<n; ++i) { z[i] = path.get(i).get(2); w[i] = 1; }
+        double[] zs = new double[n];
+        for (int i = 0; i<n; ++i) zs[i] = localLinearRegression(s, z, w, s[i], sigma);
+        for (int i = 0; i<n; ++i) path.get(i).set((float)zs[i], 2);
+    }
+    /**
+     * Smooths the z coordinate (physical) of spine points along the curvilinear coordinate (cumulative distances must be set), by local linear regression (gaussian weights of scale {@param sigma}). Points are modified in place.
+     */
+    private static void smoothZ(List<PointContainer2<Vector, Double>> sp, double sigma) {
+        int n = sp.size();
+        if (n<3 || sigma<=0 || sp.get(0).numDimensions()<3) return;
+        double[] s = new double[n], z = new double[n], w = new double[n];
+        for (int i = 0; i<n; ++i) { s[i] = sp.get(i).getContent2(); z[i] = sp.get(i).get(2); w[i] = 1; }
+        double[] zs = new double[n];
+        for (int i = 0; i<n; ++i) zs[i] = localLinearRegression(s, z, w, s[i], sigma);
+        for (int i = 0; i<n; ++i) sp.get(i).set((float)zs[i], 2);
+    }
+    /**
+     * Rotation-minimizing frame along a 3D centerline (double reflection method, Wang et al. 2008): the lateral vector of each point is set to N x width (width = norm of the current lateral vector).
+     * The first normal is the horizontal direction perpendicular to the tangent (z x T): for bacteria lying in the XY plane, N is the lateral direction in XY and B = T x N points along z. This direction varies continuously with the orientation of the bacteria, except for a tangent exactly along z (see {@link #initialNormal}).
+     * The frame is then transported along the centerline without rotation around the tangent, so that the angle around the centerline is consistent from one pole to the other.
+     */
+    static void setFrame3D(List<PointContainer2<Vector, Double>> sp) {
+        int n = sp.size();
+        if (n<2) return;
+        double[][] x = new double[n][3], t = new double[n][3], r = new double[n][3];
+        for (int i = 0; i<n; ++i) for (int k = 0; k<3; ++k) x[i][k] = sp.get(i).get(k);
+        for (int i = 0; i<n; ++i) {
+            int a = Math.max(0, i-1), b = Math.min(n-1, i+1);
+            double[] d = {x[b][0]-x[a][0], x[b][1]-x[a][1], x[b][2]-x[a][2]};
+            double nd = Math.sqrt(d[0]*d[0]+d[1]*d[1]+d[2]*d[2]);
+            if (nd==0) { if (i>0) t[i] = t[i-1].clone(); else t[i] = new double[]{1, 0, 0}; }
+            else t[i] = new double[]{d[0]/nd, d[1]/nd, d[2]/nd};
+        }
+        r[0] = initialNormal(t[0]);
+        for (int i = 0; i<n-1; ++i) {
+            double[] v1 = sub(x[i+1], x[i]);
+            double c1 = dot(v1, v1);
+            if (c1==0) { r[i+1] = r[i].clone(); continue; }
+            double[] rL = sub(r[i], mul(v1, 2/c1 * dot(v1, r[i])));
+            double[] tL = sub(t[i], mul(v1, 2/c1 * dot(v1, t[i])));
+            double[] v2 = sub(t[i+1], tL);
+            double c2 = dot(v2, v2);
+            double[] ri = c2<1e-12 ? rL : sub(rL, mul(v2, 2/c2 * dot(v2, rL)));
+            // re-orthogonalize (numerical drift)
+            ri = sub(ri, mul(t[i+1], dot(ri, t[i+1])));
+            normalize(ri);
+            r[i+1] = ri;
+        }
+        for (int i = 0; i<n; ++i) {
+            Vector lat = sp.get(i).getContent1();
+            double width = Math.max(2, lat==null ? 0 : lat.norm()); // minimal width (pole tips), as in 2D: the lateral vector also holds the direction of the frame
+            sp.get(i).setContent1(new Vector((float)(r[i][0]*width), (float)(r[i][1]*width), (float)(r[i][2]*width)));
+        }
+    }
+    /**
+     * Normal of the frame at the first point of the spine, for tangent {@param t} (unit vector): z x T (horizontal direction perpendicular to the tangent), which depends only on the azimuth of the tangent and thus varies continuously when the bacteria tilts out of the XY plane. It is undefined only for a tangent exactly along z: x x T is then used.
+     * Note: no choice of normal can be continuous for all orientations of the tangent (hairy ball theorem): this choice puts the discontinuity at the z axis (bacteria exactly oriented along z), where the frame then depends on the azimuth of the tilt.
+     */
+    static double[] initialNormal(double[] t) {
+        double[] n = cross(new double[]{0, 0, 1}, t);
+        if (dot(n, n) < 1e-18) n = cross(new double[]{1, 0, 0}, t);
+        n = sub(n, mul(t, dot(n, t)));
+        normalize(n);
+        return n;
+    }
+    static double[] cross(double[] a, double[] b) { return new double[]{a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]}; }
+    static double dot(double[] a, double[] b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+    static double[] sub(double[] a, double[] b) { return new double[]{a[0]-b[0], a[1]-b[1], a[2]-b[2]}; }
+    static double[] mul(double[] a, double f) { return new double[]{a[0]*f, a[1]*f, a[2]*f}; }
+    static void normalize(double[] a) { double nn = Math.sqrt(dot(a, a)); if (nn>0) { a[0]/=nn; a[1]/=nn; a[2]/=nn; } }
     /** Inserts interpolated points (position + width vector) so consecutive spacing is &le; {@param step}. */
     private static List<PointContainer2<Vector, Double>> upsampleCenterline(List<PointContainer2<Vector, Double>> sp, double step) {
         int n = sp.size();
@@ -259,30 +431,89 @@ public class BacteriaSpineFactory {
         return d;
     }
     /**
-     * Per-slice 2.5D representation: for each z-slice, a smoothed+inflated XY ring contour (same pipeline as the 2D
-     * path). Returns null for a slice that is a cap or too small to form a ring — the "edge case" where the
-     * representation switches to a 2D region (the filled mask is used instead). Indexed by relative z.
+     * Per-slice 2.5D representation: for each z-slice, one smoothed+inflated XY ring contour per connected part of the slice (a z-slice of a curved bacteria tilted out of the XY plane can contain several parts), with the same pipeline as the 2D path, and the corresponding contours with lighter smoothing for the pole caps.
+     * null for a slice that is a cap or too small to form rings — the "edge case" where the representation switches to a 2D region (the filled mask is used instead). Indexed by relative z.
      */
-    @SuppressWarnings("unchecked")
-    private static CircularNode<Point>[] buildSliceContours(Region bacteria, ImageByte mask) {
+    static class SliceContours {
+        final List<CircularNode<Point>>[] body, pole;
+        @SuppressWarnings("unchecked")
+        SliceContours(int sizeZ) { body = new List[sizeZ]; pole = new List[sizeZ]; }
+        /** @return contour of the slice of {@param z} containing (x, y), or null (no contour for this slice, or point outside) */
+        CircularNode<Point> containing(double x, double y, double z, ImageMask mask) {
+            int zr = (int)Math.round(z) - mask.zMin();
+            if (zr<0 || zr>=body.length || body[zr]==null) return null;
+            for (CircularNode<Point> c : body[zr]) if (pointInContour(c, x, y)) return c;
+            return null;
+        }
+    }
+    private static SliceContours buildSliceContours(Region bacteria, ImageByte mask, double sigma) {
         int sizeZ = mask.sizeZ(), zMin = mask.zMin();
-        CircularNode<Point>[] res = new CircularNode[sizeZ];
+        SliceContours res = new SliceContours(sizeZ);
         for (int zr = 0; zr<sizeZ; ++zr) {
             try {
                 Region slice = bacteria.intersectWithZPlanes(zMin+zr, zMin+zr, true, false);
-                if (slice==null) { res[zr] = null; continue; }
-                Set cont = slice.getContour();
-                if (cont.size()<6) { res[zr] = null; continue; } // edge case: cap/tiny slice -> region representation
-                CleanVoxelLine.cleanContour(cont);
-                CircularNode circ = CircularContourFactory.getCircularContour(cont);
-                CircularNode<Point> c = CircularContourFactory.smoothContour2D(circ, 0.5);
-                c = CircularContourFactory.resampleContour(c, 0.5);
-                c = CircularContourFactory.smoothContour2DTaubin(c, 2);
-                c = CircularContourFactory.inflateContour(c, contourHalfVoxelOffset);
-                res[zr] = c;
-            } catch (Throwable t) { res[zr] = null; } // degenerate slice -> region representation
+                if (slice==null) continue;
+                Set<Voxel> cont = slice.getContour();
+                List<Set<Voxel>> parts = connectedParts(cont);
+                List<CircularNode<Point>> body = new ArrayList<>(parts.size()), pole = new ArrayList<>(parts.size());
+                boolean ok = true;
+                for (Set<Voxel> part : parts) {
+                    if (part.size()<6) { ok = false; break; } // edge case: cap/tiny part -> region representation for the whole slice
+                    CleanVoxelLine.cleanContour((Set)part);
+                    CircularNode circ = CircularContourFactory.getCircularContour((Set)part);
+                    CircularNode<Point>[] c = smoothContour(circ, sigma); // same pipeline as the 2D path
+                    body.add(c[0]);
+                    pole.add(c[1]);
+                }
+                if (ok && !body.isEmpty()) { res.body[zr] = body; res.pole[zr] = pole; }
+            } catch (Throwable t) { res.body[zr] = null; res.pole[zr] = null; } // degenerate slice -> region representation
         }
         return res;
+    }
+    /** @return 8-connected (in XY) parts of a set of contour voxels of a slice */
+    private static List<Set<Voxel>> connectedParts(Set<Voxel> voxels) {
+        Map<Long, Voxel> map = new HashMap<>();
+        for (Voxel v : voxels) map.put(((long)v.x<<32) ^ (v.y & 0xffffffffL), v);
+        List<Set<Voxel>> res = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (Map.Entry<Long, Voxel> e : map.entrySet()) {
+            if (!seen.add(e.getKey())) continue;
+            Set<Voxel> part = new HashSet<>();
+            ArrayDeque<Voxel> queue = new ArrayDeque<>();
+            queue.add(e.getValue());
+            while (!queue.isEmpty()) {
+                Voxel v = queue.poll();
+                part.add(v);
+                for (int dy = -1; dy<=1; ++dy) for (int dx = -1; dx<=1; ++dx) {
+                    if (dx==0 && dy==0) continue;
+                    long key = ((long)(v.x+dx)<<32) ^ ((v.y+dy) & 0xffffffffL);
+                    Voxel n = map.get(key);
+                    if (n!=null && seen.add(key)) queue.add(n);
+                }
+            }
+            res.add(part);
+        }
+        return res;
+    }
+    /**
+     * 3D equivalent of the pole cap blending of the 2D path: in each z-slice, the parts of the contours located beyond the ends of the centerline (along the XY component of the pole extension direction) are replaced by the contours with lighter smoothing.
+     * Not applied at an end whose extension direction is mostly along z (the pole is then in a cap slice, which has no contour).
+     */
+    private static void blendSlicePoleCaps(SliceContours slices, Point head, Vector dHead, Point tail, Vector dTail, double radius, double az) {
+        for (int zr = 0; zr<slices.body.length; ++zr) {
+            if (slices.body[zr]==null) continue;
+            for (int j = 0; j<slices.body[zr].size(); ++j) {
+                CircularNode<Point> body = slices.body[zr].get(j), pole = slices.pole[zr].get(j);
+                if (pole==null) continue;
+                for (int e = 0; e<2; ++e) {
+                    Point end = e==0 ? head : tail;
+                    Vector d = e==0 ? dHead : dTail;
+                    double nxy = Math.sqrt(d.get(0)*d.get(0) + d.get(1)*d.get(1)), n3 = Math.sqrt(nxy*nxy + Math.pow(d.get(2)*az, 2)); // physical units (d is in voxel units)
+                    if (n3==0 || nxy < 0.5 * n3) continue; // extension mostly along z
+                    blendPoleCaps(body, pole, new Point(end.get(0), end.get(1)), new Vector((float)(d.get(0)/nxy), (float)(d.get(1)/nxy)), radius);
+                }
+            }
+        }
     }
     /** Even-odd point-in-polygon test for a closed contour (XY). */
     private static boolean pointInContour(CircularNode<Point> c, double x, double y) {
@@ -299,17 +530,16 @@ public class BacteriaSpineFactory {
         } while (cur!=c);
         return in;
     }
-    /** 2.5D inside test: ring contour where available (sub-voxel XY), else the filled mask (cap/region slices). */
-    private static boolean inside2_5D(CircularNode<Point>[] contours, ImageMask mask, double x, double y, double z) {
+    /** 2.5D inside test: ring contours where available (sub-voxel XY), else the filled mask (cap/region slices). */
+    private static boolean inside2_5D(SliceContours contours, ImageMask mask, double x, double y, double z) {
         int zk = (int)Math.round(z), zr = zk-mask.zMin();
-        if (zr<0 || zr>=contours.length) return false;
-        CircularNode<Point> c = contours[zr];
-        if (c!=null) return pointInContour(c, x, y);
+        if (zr<0 || zr>=contours.body.length) return false;
+        if (contours.body[zr]!=null) return contours.containing(x, y, z, mask)!=null;
         int xi = (int)Math.round(x), yi = (int)Math.round(y);
         return mask.containsWithOffset(xi, yi, zk) && mask.insideMaskWithOffset(xi, yi, zk);
     }
     /** Pole extension using the 2.5D representation (sub-voxel lateral boundary via contours, z-cap via region). */
-    private static Point extendPole2_5D(CircularNode<Point>[] contours, ImageMask mask, Point fromInside, Vector dirOutward) {
+    private static Point extendPole2_5D(SliceContours contours, ImageMask mask, Point fromInside, Vector dirOutward) {
         if (dirOutward.norm()==0) return fromInside.duplicate();
         Vector step = dirOutward.duplicate().normalize().multiply(0.1);
         Point p = fromInside.duplicate(), last = fromInside.duplicate();
@@ -323,22 +553,113 @@ public class BacteriaSpineFactory {
     }
     /** Width = distance between the two intersections of the line through (cx,cy) along unit (dx,dy) with the contour. */
     private static double contourWidth(CircularNode<Point> circ, double cx, double cy, double dx, double dy) {
+        double[] t = contourIntersections(circ, cx, cy, dx, dy);
+        return t==null ? -1 : t[1] - t[0];
+    }
+    /**
+     * @return {tNeg, tPos}: parameters of the closest intersections on each side of the line (cx, cy) + t * (dx, dy) with the contour, or null if there is no intersection on one side
+     */
+    private static <T extends RealLocalizable> double[] contourIntersections(CircularNode<T> circ, double cx, double cy, double dx, double dy) {
         double tPos = Double.POSITIVE_INFINITY, tNeg = Double.NEGATIVE_INFINITY;
-        CircularNode<Point> cur = circ;
+        CircularNode<T> cur = circ;
         do {
-            Point a = cur.getElement(), b = cur.next().getElement();
-            double ex = b.get(0)-a.get(0), ey = b.get(1)-a.get(1);
+            T a = cur.getElement(), b = cur.next().getElement();
+            double ax = a.getDoublePosition(0), ay = a.getDoublePosition(1);
+            double ex = b.getDoublePosition(0)-ax, ey = b.getDoublePosition(1)-ay;
             double denom = ex*dy - ey*dx;
             if (Math.abs(denom)>1e-12) {
-                double qx = a.get(0)-cx, qy = a.get(1)-cy;
+                double qx = ax-cx, qy = ay-cy;
                 double t = (ex*qy - ey*qx) / denom;
                 double s = (dx*qy - dy*qx) / denom;
                 if (s>=0 && s<=1) { if (t>0 && t<tPos) tPos = t; if (t<0 && t>tNeg) tNeg = t; }
             }
             cur = cur.next();
         } while (cur!=circ);
-        if (tPos==Double.POSITIVE_INFINITY || tNeg==Double.NEGATIVE_INFINITY) return -1;
-        return tPos - tNeg;
+        if (tPos==Double.POSITIVE_INFINITY || tNeg==Double.NEGATIVE_INFINITY) return null;
+        return new double[]{tNeg, tPos};
+    }
+    /**
+     * Sets lateral vectors as the normal of the centerline, with norm = width measured along this normal.
+     * The tangent angle of the centerline is smoothed by a local linear regression (gaussian weights of scale {@param sigma} along the curvilinear coordinate):
+     * this removes pixel noise without bias on curved bacteria (the tangent angle varies linearly along a circular arc), including at the ends.
+     * Orientation of the lateral vectors (left -> right) is preserved. Cumulative distances must be set.
+     */
+    private static <T extends Localizable> void setLateralFromCenterline(List<PointContainer2<Vector, Double>> sp, CircularNode<T> circ, double sigma) {
+        int n = sp.size();
+        if (n<2 || circ==null) return;
+        List<Double> segS = new ArrayList<>(), segA = new ArrayList<>(), segW = new ArrayList<>();
+        for (int k = 0; k<n-1; ++k) {
+            double dx = sp.get(k+1).get(0)-sp.get(k).get(0), dy = sp.get(k+1).get(1)-sp.get(k).get(1), l = Math.hypot(dx, dy);
+            if (l<1e-6) continue;
+            segS.add((sp.get(k).getContent2() + sp.get(k+1).getContent2())/2);
+            segA.add(Math.atan2(dy, dx));
+            segW.add(l);
+        }
+        if (segS.isEmpty()) return;
+        double[] ss = segS.stream().mapToDouble(d->d).toArray(), aa = unwrap(segA.stream().mapToDouble(d->d).toArray()), ww = segW.stream().mapToDouble(d->d).toArray();
+        double lastWidth = Double.NaN;
+        Vector[] res = new Vector[n];
+        for (int i = 0; i<n; ++i) {
+            double angle = localLinearRegression(ss, aa, ww, sp.get(i).getContent2(), sigma);
+            double nx = -Math.sin(angle), ny = Math.cos(angle); // tangent rotated by 90°
+            Vector old = sp.get(i).getContent1();
+            if (old!=null && !old.isNull() && old.get(0)*nx + old.get(1)*ny < 0) { nx = -nx; ny = -ny; }
+            double[] t = contourIntersections(circ, sp.get(i).get(0), sp.get(i).get(1), nx, ny);
+            double width = t==null ? Double.NaN : t[1] - t[0];
+            if (Double.isNaN(width)) width = Double.isNaN(lastWidth) ? (old==null || old.isNull() ? 2 : old.norm()) : lastWidth; // no intersection: keep previous width
+            else lastWidth = width;
+            width = Math.max(2, width); // minimal width (pole tips), as for pole extension
+            res[i] = new Vector((float)(nx*width), (float)(ny*width));
+        }
+        for (int i = 0; i<n; ++i) if (res[i]!=null) sp.get(i).setContent1(res[i]);
+    }
+    /**
+     * Smoothing of the direction of lateral vectors, preserving their norm: the angle is smoothed by a local linear regression (gaussian weights of scale {@param sigma} along the curvilinear coordinate), which is unbiased on curved bacteria. Cumulative distances must be set.
+     */
+    private static void smoothDirectionsKeepNorm(List<PointContainer2<Vector, Double>> sp, double sigma) {
+        int n = sp.size();
+        List<Integer> idx = new ArrayList<>();
+        for (int i = 0; i<n; ++i) { Vector v = sp.get(i).getContent1(); if (v!=null && !v.isNull()) idx.add(i); }
+        if (idx.size()<2) return;
+        double[] ss = idx.stream().mapToDouble(i->sp.get(i).getContent2()).toArray();
+        double[] aa = unwrap(idx.stream().mapToDouble(i->Math.atan2(sp.get(i).getContent1().get(1), sp.get(i).getContent1().get(0))).toArray());
+        double[] ww = new double[ss.length];
+        Arrays.fill(ww, 1);
+        Vector[] res = new Vector[n];
+        for (int k = 0; k<idx.size(); ++k) {
+            int i = idx.get(k);
+            double angle = localLinearRegression(ss, aa, ww, ss[k], sigma), norm = sp.get(i).getContent1().norm();
+            res[i] = new Vector((float)(Math.cos(angle)*norm), (float)(Math.sin(angle)*norm));
+        }
+        for (int i = 0; i<n; ++i) if (res[i]!=null) sp.get(i).setContent1(res[i]);
+    }
+    private static double[] unwrap(double[] angles) {
+        for (int i = 1; i<angles.length; ++i) {
+            while (angles[i]-angles[i-1]>Math.PI) angles[i]-=2*Math.PI;
+            while (angles[i]-angles[i-1]<-Math.PI) angles[i]+=2*Math.PI;
+        }
+        return angles;
+    }
+    /**
+     * Weighted local linear regression of y(x) evaluated at {@param x0}, with weights w * gaussian(x-x0, sigma) (truncated at 3 sigma). Falls back to the weighted mean if the fit is degenerate.
+     */
+    static double localLinearRegression(double[] x, double[] y, double[] w, double x0, double sigma) {
+        double s2 = 2*sigma*sigma, lim = 3*sigma;
+        double sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (int k = 0; k<x.length; ++k) {
+            double d = x[k]-x0;
+            if (Math.abs(d)>lim) continue;
+            double wk = w[k] * Math.exp(-d*d/s2);
+            sw += wk; sx += wk*d; sy += wk*y[k]; sxx += wk*d*d; sxy += wk*d*y[k];
+        }
+        if (sw==0) { // no point in window: closest point
+            int best = 0;
+            for (int k = 1; k<x.length; ++k) if (Math.abs(x[k]-x0)<Math.abs(x[best]-x0)) best = k;
+            return y[best];
+        }
+        double det = sw*sxx - sx*sx;
+        if (Math.abs(det) < 1e-9 * sw * sw) return sy/sw; // degenerate: weighted mean
+        return (sxx*sy - sx*sxy) / det; // intercept at x0
     }
     private static Point extendPole3D(ImageMask mask, Point fromInside, Vector dirOutward) {
         if (dirOutward.norm()==0) return fromInside.duplicate();
@@ -352,15 +673,6 @@ public class BacteriaSpineFactory {
             last.setData(p.get(0), p.get(1), p.get(2));
         }
         return last.translate(step.multiply(0.5)); // ~ object edge between last-inside and first-outside samples
-    }
-    private Voxel getEdtCenter(ImageMask mask) {
-        Image edt = EDT.transform(mask, true, 1, 1, false);
-        Voxel[] max = new Voxel[1];
-        ImageMask.loopWithOffset(mask, (x, y, z)-> {
-            double edtV = edt.getPixelWithOffset(x, y, z);
-            if (max[0]==null || edtV>max[0].value) max[0] = new Voxel(x, y, z, edtV);
-        });
-        return max[0];
     }
     /**
      * Centerline (medial-axis ridge) of the mask as an ordered list of voxels, from one pole to the other.
@@ -378,6 +690,12 @@ public class BacteriaSpineFactory {
     }
     
     public static <T extends Localizable> PointContainer2<Vector, Double>[] createSpineFromSkeleton(ImageMask mask, List<Voxel> skeleton, Set<T> contour, CircularNode<T> circContour) throws InvalidObjectException {
+        return createSpineFromSkeleton(mask, skeleton, contour, circContour, null);
+    }
+    /**
+     * @param poleContour if not null: contour with lighter smoothing, with the same nodes in the same order as {@param circContour}. Its pole caps are blended into {@param circContour} (in place) before computing the pole extensions
+     */
+    public static <T extends Localizable> PointContainer2<Vector, Double>[] createSpineFromSkeleton(ImageMask mask, List<Voxel> skeleton, Set<T> contour, CircularNode<T> circContour, CircularNode<T> poleContour) throws InvalidObjectException {
         if (imageDisp!=null) imageDisp.accept(new SpineResult().setBounds(mask).setCircContour(circContour).setSkeleton(skeleton).drawSkeleton(verboseZoomFactor, true).setName("skeleton"));
         // 1) getSum contour pair for each skeleton point
         Offset logOff = new SimpleOffset(mask).reverseOffset();
@@ -391,17 +709,24 @@ public class BacteriaSpineFactory {
         // 2) smooth direction vectors in order to limit brutal direction change
         for (int i = 1; i<spListSk.size(); ++i) spListSk.get(i).setContent2((spListSk.get(i-1).getContent2() + spListSk.get(i).dist(spListSk.get(i-1)))); // set distance before smooth
         if (imageDisp!=null) imageDisp.accept(new SpineResult().setBounds(mask).setCircContour((CircularNode<Localizable>)circContour).setSpine(spListSk.toArray(new PointContainer2[spListSk.size()])).drawSpine(verboseZoomFactor, false).setName("skeleton init spine"));
-        smoothSpine( spListSk, true, 2);
+        double radius = Math.max(1, ArrayUtil.median(spListSk.stream().mapToDouble(v->v.getContent1().norm()).toArray())/2);
+        smoothSpine( spListSk, true, smoothLateralDirections ? Math.max(2, lateralSmoothScale * radius) : 2);
         smoothSpine( spListSk, false, 2);
         if (imageDisp!=null) imageDisp.accept(new SpineResult().setBounds(mask).setCircContour((CircularNode<Localizable>)circContour).setSpine(spListSk.toArray(new PointContainer2[spListSk.size()])).drawSpine(verboseZoomFactor, false).setName("skeleton init spine after smooth"));
         
         // 3) start getting the spList in one direction and the other
         int persistanceRadius = Math.min(1+skeleton.size()/2, Math.max(4,(int)ArrayUtil.median(spListSk.stream().mapToDouble(v->v.getContent1().norm()).toArray())/2+1)); // persistence of skeleton direction
         if (imageDisp!=null) logger.debug("persistence radius: {}", persistanceRadius);
-        List<PointContainer2<Vector, Double>> spList = getSpineInSkeletonDirection(mask, contourPairs.get(0).key, contourPairs.get(0).value, spListSk, persistanceRadius, true, logOff);
+        // lateral direction at both ends of the skeleton (mean over the last points): the pole extensions are perpendicular to it
+        Vector[] endLateral = new Vector[]{meanLateral(spListSk, persistanceRadius, true), meanLateral(spListSk, persistanceRadius, false)};
+        if (poleContour!=null) {
+            blendPoleCaps(circContour, poleContour, spListSk.get(0), poleDirection(endLateral[0], true), radius);
+            blendPoleCaps(circContour, poleContour, spListSk.get(spListSk.size()-1), poleDirection(endLateral[1], false), radius);
+        }
+        List<PointContainer2<Vector, Double>> spList = getSpineInSkeletonDirection(mask, contourPairs.get(0).key, contourPairs.get(0).value, spListSk, endLateral[0], true, logOff);
         spList = Utils.reverseOrder(spList);
         spList.addAll(spListSk);
-        spList.addAll(getSpineInSkeletonDirection(mask, contourPairs.get(contourPairs.size()-1).key, contourPairs.get(contourPairs.size()-1).value, spListSk, persistanceRadius, false, logOff));
+        spList.addAll(getSpineInSkeletonDirection(mask, contourPairs.get(contourPairs.size()-1).key, contourPairs.get(contourPairs.size()-1).value, spListSk, endLateral[1], false, logOff));
         if (imageDisp!=null) logger.debug("sk spine: total points: {}", spList.size());
         // 4) compute cumulative distances (used as smoothing coordinate / spacing estimate)
         setCumulativeDistance(spList);
@@ -412,6 +737,9 @@ public class BacteriaSpineFactory {
         smoothCenterlineTaubin(spList, centerlineSmoothScale);
         // 6) cumulative length from first pole on the smoothed centerline
         setCumulativeDistance(spList);
+        // 7) lateral directions
+        if (lateralDirectionFromCenterline) setLateralFromCenterline(spList, circContour, Math.max(1, lateralSmoothScale * radius));
+        else if (smoothLateralDirections) smoothDirectionsKeepNorm(spList, Math.max(1, lateralSmoothScale * radius));
         PointContainer2<Vector, Double>[] spine = spList.toArray(new PointContainer2[spList.size()]);
         if (imageDisp!=null) imageDisp.accept(drawSpine(mask, spine, circContour, verboseZoomFactor, true).setName("skeleton Spine after smooth"));
         // 6) TODO recompute center in actual smoothed direction, using intersection with contour function
@@ -646,49 +974,101 @@ public class BacteriaSpineFactory {
         return new Pair<>(Point.asPoint2D(p.key.element).translate(off), Point.asPoint2D(p.value.element).translate(off));
     }
     
-    private static <T extends Localizable> List<PointContainer2<Vector, Double>> getSpineInSkeletonDirection(ImageMask mask, CircularNode<T> s1, CircularNode<T> s2, List<PointContainer2<Vector, Double>> skeleton, int persistanceRadius, boolean firstNext, Offset logOff) {
+    private static Vector meanLateral(List<PointContainer2<Vector, Double>> skeleton, int persistanceRadius, boolean first) {
+        return SlidingVector.getMeanVector2D(skeleton.stream().skip(first?0:skeleton.size()-persistanceRadius).limit(persistanceRadius).map(p->p.getContent1()));
+    }
+    /**
+     * @return unit direction of the straight pole extension: perpendicular to the lateral direction {@param endLateral} at the end of the skeleton, pointing outward
+     */
+    private static Vector poleDirection(Vector endLateral, boolean first) {
+        Vector dir = endLateral.duplicate().normalize().rotateXY90();
+        if (!first) dir.reverseOffset();
+        return dir;
+    }
+    /**
+     * Replaces (in place) the pole cap of {@param contour} by the corresponding part of {@param poleContour} (same nodes in the same order).
+     * Cap = contour points beyond the skeleton end {@param end} along the outward pole direction {@param dir}. The weight of {@param poleContour} goes smoothly from 0 at the skeleton end to 1 at half a radius beyond it, so that the pole tip (about one radius beyond) lies on {@param poleContour}, and the transition is continuous. Points further than 4 radii from the skeleton end are not modified (C-shaped cells).
+     */
+    private static <T extends Localizable> void blendPoleCaps(CircularNode<T> contour, CircularNode<T> poleContour, Point end, Vector dir, double radius) {
+        CircularNode<T> c = contour, p = poleContour;
+        do {
+            Point b = (Point)c.element, q = (Point)p.element;
+            double dx = b.get(0) - end.get(0), dy = b.get(1) - end.get(1);
+            double w = smoothStep((dx * dir.get(0) + dy * dir.get(1)) / (0.5 * radius)) * smoothStep(4 - Math.sqrt(dx*dx+dy*dy) / radius);
+            if (w>0) {
+                b.set((float)((1-w) * b.get(0) + w * q.get(0)), 0);
+                b.set((float)((1-w) * b.get(1) + w * q.get(1)), 1);
+            }
+            c = c.next();
+            p = p.next();
+        } while (c!=contour && p!=poleContour);
+    }
+    private static double smoothStep(double x) {
+        if (x<=0) return 0;
+        if (x>=1) return 1;
+        return x * x * (3 - 2 * x);
+    }
+    /**
+     * Straight pole extension from the end of the skeleton until the contour, perpendicular to {@param skDir}
+     * @param skDir lateral direction at the end of the skeleton (left to right contour, norm ~ width)
+     */
+    private static <T extends Localizable> List<PointContainer2<Vector, Double>> getSpineInSkeletonDirection(ImageMask mask, CircularNode<T> s1, CircularNode<T> s2, List<PointContainer2<Vector, Double>> skeleton, Vector skDir, boolean firstNext, Offset logOff) {
         List<PointContainer2<Vector, Double>> sp = new ArrayList<>();
-        Vector skDir = SlidingVector.getMeanVector2D(skeleton.stream().skip(firstNext?0:skeleton.size()-persistanceRadius).limit(persistanceRadius).map(p->p.getContent1()));
-        Vector spineDir = skDir.duplicate().normalize().rotateXY90();
-        if (!firstNext) spineDir.reverseOffset();
-        Point lastPoint = skeleton.get(firstNext ? 0 : skeleton.size()-1);
-        List<CircularNode<T>> bucketFirst = new ArrayList<>();
-        while(true) { // within loop there is a condition of inclusion of point in bacteria
-            Point nextPoint = lastPoint.duplicate().translate(spineDir);
-            // get direction of current point according to contour
-            Point c1 = getIntersectionWithContour(mask, nextPoint, skDir.duplicate().multiply(-1), s1, bucketFirst, logOff);
-            s1 = bucketFirst.get(0); // push
-            Point c2 = getIntersectionWithContour(mask, nextPoint, skDir.duplicate(), s2, bucketFirst, logOff);
-            s2 = bucketFirst.get(0); // push
-            PointContainer2<Vector, Double> next = PointContainer2.fromPoint(nextPoint, Vector.vector2D(c1, c2), 0d);
-            if (imageDisp!=null) logger.debug("extend skeleton {}: [{};{}] -> {}",firstNext?"up":"down", c1.duplicate().translate(logOff), c2.duplicate().translate(logOff), next.duplicate().translate(logOff));
-            sp.add(next); 
-            // stop condition
-            Point nextPoint2 = next.duplicate().translate(spineDir);
-            Voxel nextVox2 = nextPoint2.asVoxel();
-            if (!mask.containsWithOffset(nextVox2.x, nextVox2.y, mask.zMin()) || !mask.insideMaskWithOffset(nextVox2.x, nextVox2.y, mask.zMin())) {
-                adjustPointToContour(next, spineDir, CircularNode.getMiddlePoint(s1, s2, firstNext), bucketFirst); // snap pole to contour along spine direction (sub-pixel ray-contour intersection)
-                if (sp.size()>2) { // check that adjusted point is after previous point AND not too close to previous point (if too close may cause projection issues)
-                    Point ref = sp.get(sp.size()-3);
-                    if (sp.get(sp.size()-2).distSqXY(ref)>next.distSqXY(ref)) sp.remove(sp.size()-2); // adjusted before previous
-                    else if (sp.get(sp.size()-2).dist(sp.get(sp.size()-1))<0.25) sp.remove(sp.size()-2); // adjusted too close to previous
-                }
-                break;
-            }
-            lastPoint = next;
-            
+        Vector spineDir = poleDirection(skDir, firstNext);
+        Point start = skeleton.get(firstNext ? 0 : skeleton.size()-1);
+        // pole: first exit point of the ray (start, spineDir) through the contour polygon (sub-pixel)
+        double tPole = rayContourExit(start, spineDir, s1);
+        if (Double.isNaN(tPole)) {
+            if (imageDisp!=null) logger.debug("extend skeleton {}: no exit point of the ray through the contour", firstNext?"up":"down");
+            return sp;
         }
-        // check direction of last point: if the norm is too small direction is not precise -> take direction of previous one keeping the norm
-        if (sp.size()>1) {
-            double norm = sp.get(sp.size()-1).getContent1().norm();
-            if (norm < 3) { // in pixels
-                if (norm<2) norm = 2; // minimal norm
-                sp.get(sp.size()-1).setContent1(sp.get(sp.size()-2).getContent1().duplicate().normalize().multiply(norm));
-            }
+        // intermediate points every pixel (the last one at least 0.25 px before the pole), with lateral vector from contour intersections
+        List<CircularNode<T>> bucket = new ArrayList<>();
+        int nSteps = (int)Math.floor(tPole - 0.25);
+        for (int k = 1; k<=nSteps; ++k) {
+            Point p = start.duplicate().translate(spineDir.duplicate().multiply(k));
+            Point c1 = getIntersectionWithContour(mask, p, skDir.duplicate().multiply(-1), s1, bucket, logOff);
+            s1 = bucket.get(0); // push
+            Point c2 = getIntersectionWithContour(mask, p, skDir.duplicate(), s2, bucket, logOff);
+            s2 = bucket.get(0); // push
+            sp.add(PointContainer2.fromPoint(p, Vector.vector2D(c1, c2), 0d));
         }
+        // pole: lateral direction of the previous point (or end lateral direction), minimal norm 2
+        Vector poleLat = (sp.isEmpty() ? skDir : sp.get(sp.size()-1).getContent1()).duplicate().normalize().multiply(2);
+        sp.add(PointContainer2.fromPoint(start.duplicate().translate(spineDir.duplicate().multiply(tPole)), poleLat, 0d));
+        if (imageDisp!=null) logger.debug("extend skeleton {}: pole at distance {} -> {}", firstNext?"up":"down", tPole, sp.get(sp.size()-1).duplicate().translate(logOff));
         return sp;
     }
     
+    /**
+     * Exact intersection of a ray with a closed contour polygon
+     * @param start origin of the ray (normally inside the contour)
+     * @param dir unit direction of the ray
+     * @param contour any node of the contour
+     * @return smallest distance t&gt;0 at which the ray exits the contour (crosses a segment from inside to outside), NaN if none
+     */
+    private static <T extends Localizable> double rayContourExit(Point start, Vector dir, CircularNode<T> contour) {
+        double ox = start.get(0), oy = start.get(1), ux = dir.get(0), uy = dir.get(1);
+        double area = 0;
+        CircularNode<T> c = contour;
+        do { area += c.element.getDoublePosition(0)*c.next().element.getDoublePosition(1) - c.next().element.getDoublePosition(0)*c.element.getDoublePosition(1); c = c.next(); } while (c!=contour);
+        double orient = Math.signum(area);
+        double best = Double.NaN;
+        c = contour;
+        do {
+            double ax = c.element.getDoublePosition(0), ay = c.element.getDoublePosition(1), bx = c.next().element.getDoublePosition(0), by = c.next().element.getDoublePosition(1);
+            double ex = bx-ax, ey = by-ay;
+            double den = ux*ey - uy*ex; // cross(dir, segment)
+            if (den!=0 && (ey*ux - ex*uy)*orient > 0) { // exit: outward normal of the segment (orient * (ey, -ex)) along dir
+                double wx = ax-ox, wy = ay-oy;
+                double t = (wx*ey - wy*ex) / den; // along ray
+                double v = (wx*uy - wy*ux) / den; // along segment
+                if (t>0 && v>=0 && v<=1 && (Double.isNaN(best) || t<best)) best = t;
+            }
+            c = c.next();
+        } while (c!=contour);
+        return best;
+    }
     /**
      * Get the nearest intersection point with the contour, in the direction of {@param dir}
      * @param startPoint of p, can be away from contour
@@ -737,25 +1117,6 @@ public class BacteriaSpineFactory {
         }
         return p;
     }
-    /**
-     * Sets the coordinates of {@param p} to the nearest intersection point with the contour, in the direction of {@param dir}
-     * @param p
-     * @param dir
-     * @param firstSearchPoint nearest or close to nearest contour point from {@param p} in the direction {@param dir}
-     * @param bucket 
-     */
-    private static <T extends Localizable> void adjustPointToContour(Point p, Vector dir, CircularNode<T> firstSearchPoint, List<CircularNode<T>> bucket) {
-        CircularNode.addTwoLocalNearestPoints(p, firstSearchPoint, bucket);
-        if (bucket.size()==1) {
-            p.setData(bucket.get(0).element.getFloatPosition(0), bucket.get(0).element.getFloatPosition(1));
-        } else {
-            Point inter = Point.intersect2D(p, p.duplicate().translate(dir), Point.asPoint2D(bucket.get(0).element), Point.asPoint2D(bucket.get(1).element));
-            if (Vector.vector2D(inter, bucket.get(0).element).dotProduct(Vector.vector2D(inter, bucket.get(1).element))>0) { // intersection is not between the two closest points
-                inter = Point.asPoint(Collections.min(bucket, (p1, p2) -> Double.compare(p.distSq(p1.element), p.distSq(p2.element))).element); // set the closest point
-            }
-            if (inter!=null) p.setData(inter);
-        }
-    }
     public static <T extends RealLocalizable> Image drawSpine(BoundingBox bounds, PointContainer2<Vector, Double>[] spine, CircularNode<T> circularContour, int zoomFactor, boolean drawDistance) {
         boolean spineDirIdx = false;
         if (zoomFactor%2==0) throw new IllegalArgumentException("Zoom Factor should be uneven");
@@ -802,6 +1163,74 @@ public class BacteriaSpineFactory {
             }
         }
         return spineImage;
+    }
+    /**
+     * Draws a spine in {@param dest} (absolute coordinates, drawn in all z-planes): smoothed contour, lateral (width) vectors, center line and first pole (origin of the curvilinear coordinate).
+     * Drawing is performed at {@param supersampling} x the resolution of {@param dest} and then averaged (gray level anti-aliasing). Each pixel of {@param dest} is set to the maximum of its current value and the averaged value, so that several spines can be drawn in the same image.
+     * @param dest image in which spine is drawn
+     * @param spine spine to draw
+     * @param values values for contour, lateral vectors, center line and first pole
+     * @param supersampling drawing resolution factor (1 = no anti-aliasing)
+     */
+    public static void drawSpineAndContour(Image dest, SpineResult spine, double[] values, int supersampling) {
+        if (spine==null) return;
+        PointContainer2<Vector, Double>[] sp = spine.spine;
+        BoundingBox area = spine.bounds != null ? spine.bounds : dest;
+        // high resolution buffer covering the bounds of the bacteria (+1 pixel margin)
+        int f = Math.max(1, supersampling);
+        int x0 = Math.max(dest.xMin(), area.xMin()-1), y0 = Math.max(dest.yMin(), area.yMin()-1);
+        int x1 = Math.min(dest.xMin()+dest.sizeX()-1, area.xMin()+area.sizeX()), y1 = Math.min(dest.yMin()+dest.sizeY()-1, area.yMin()+area.sizeY());
+        if (x1<x0 || y1<y0) return;
+        int sx = (x1-x0+1)*f, sy = (y1-y0+1)*f;
+        double[] hr = new double[sx * sy];
+        // continuous coordinate -> high resolution index: pixel i covers [i-0.5; i+0.5[
+        Consumer<double[]> set = xyv -> {
+            int hx = (int)Math.floor((xyv[0] - x0 + 0.5) * f), hy = (int)Math.floor((xyv[1] - y0 + 0.5) * f);
+            if (hx>=0 && hy>=0 && hx<sx && hy<sy) hr[hx + hy * sx] = xyv[2];
+        };
+        BiConsumer<RealLocalizable[], Double> line = (se, v) -> {
+            double ax = se[0].getDoublePosition(0), ay = se[0].getDoublePosition(1), bx = se[1].getDoublePosition(0), by = se[1].getDoublePosition(1);
+            int n = Math.max(1, (int)Math.ceil(Math.hypot(bx-ax, by-ay) * f * 4));
+            for (int i = 0; i<=n; ++i) {
+                double w = i / (double)n;
+                set.accept(new double[]{ax + w * (bx-ax), ay + w * (by-ay), v});
+            }
+        };
+        if (spine.circContour!=null) {
+            CircularNode.apply(spine.circContour, c -> line.accept(new RealLocalizable[]{c.getElement(), c.next().getElement()}, values[0]), true);
+        }
+        if (sp!=null && sp.length>0) {
+            // lateral vectors: one every ~3 pixels (2D only: in 3D the lateral vector only holds the width, not a direction)
+            boolean is3D = sp[0].numDimensions()>2;
+            double spacing = sp.length>1 ? sp[sp.length-1].getContent2() / (sp.length-1) : 1;
+            int step = Math.max(1, (int)Math.round(3 / Math.max(spacing, 1e-3)));
+            for (int i = 0; i<sp.length && !is3D; i+=step) {
+                Vector v = sp[i].getContent1();
+                if (v==null || v.isNull()) continue;
+                Point start = Point.asPoint2D((RealLocalizable)sp[i]).translateRev(v.duplicate().multiply(0.5));
+                Point end = Point.asPoint2D((RealLocalizable)sp[i]).translate(v.duplicate().multiply(0.5));
+                line.accept(new RealLocalizable[]{start, end}, values[1]);
+            }
+            for (int i = 1; i<sp.length; ++i) line.accept(new RealLocalizable[]{sp[i-1], sp[i]}, values[2]);
+            // first pole (origin of the curvilinear coordinate): disk of radius 1 pixel
+            double px = sp[0].getDoublePosition(0), py = sp[0].getDoublePosition(1);
+            for (double dy = -1; dy<=1; dy+=0.5/f) for (double dx = -1; dx<=1; dx+=0.5/f) if (dx*dx+dy*dy<=1) set.accept(new double[]{px+dx, py+dy, values[3]});
+        }
+        // downsample (average) & combine with existing values
+        double norm = 1d / (f * f);
+        for (int y = y0; y<=y1; ++y) {
+            for (int x = x0; x<=x1; ++x) {
+                double sum = 0;
+                int hx0 = (x-x0)*f, hy0 = (y-y0)*f;
+                for (int dy = 0; dy<f; ++dy) for (int dx = 0; dx<f; ++dx) sum += hr[hx0 + dx + (hy0 + dy) * sx];
+                if (sum==0) continue;
+                double v = sum * norm;
+                for (int z = 0; z<dest.sizeZ(); ++z) {
+                    int zz = z + dest.zMin();
+                    if (v > dest.getPixelWithOffset(x, y, zz)) dest.setPixelWithOffset(x, y, zz, v);
+                }
+            }
+        }
     }
     public static void drawVector(Image output, Point start, Vector dir, int zoomFactor, float value, boolean drawFirstPoint, int size) {
         List<int[]> bucket = new ArrayList<>(4);
@@ -897,7 +1326,7 @@ public class BacteriaSpineFactory {
             v.init(elementToSmooth.apply(spine.get(i)), true);
             double currentPos = spine.get(i).getContent2();
             int j = i-1;
-            while (j>0 && v.add(elementToSmooth.apply(spine.get(j)), Math.abs(currentPos-spine.get(j).getContent2()))) {--j;}
+            while (j>=(smoothLateralDirections?0:1) && v.add(elementToSmooth.apply(spine.get(j)), Math.abs(currentPos-spine.get(j).getContent2()))) {--j;} // first element used to be excluded: fixed with smoothLateralDirections
             j = i+1;
             while (j<spine.size() && v.add(elementToSmooth.apply(spine.get(j)), Math.abs(currentPos-spine.get(j).getContent2()))) {++j;}
             smoothed.add(v.getSmoothed());
@@ -912,7 +1341,7 @@ public class BacteriaSpineFactory {
     /**
      * Shrinkage-free (Taubin λ|μ) smoothing of an open centerline, keeping the two endpoints (poles) fixed.
      * Alternates a shrinking pass (+λ·Δ) and an un-shrinking pass (+μ·Δ, μ&lt;−λ) so jitter is removed without
-     * pulling curved spines toward their chord (which would under-estimate the length). XY only.
+     * pulling curved spines toward their chord (which would under-estimate the length). All dimensions are smoothed (in 3D, z is in XY-pixel units).
      * @param sp centerline points (positions are modified in place); cumulative distances (content2) must be set
      * @param sigma smoothing strength; mapped to an iteration count from the mean point spacing
      */
@@ -951,7 +1380,18 @@ public class BacteriaSpineFactory {
         }
     }
     public static double[] getSpineLengthAndWidth(Region r) {
+        return getSpineLengthAndWidth(r, BacteriaSpineLocalizer.defaultCoordinates3D);
+    }
+    public static double getSpineLength(Region r, BacteriaSpineLocalizer.COORDINATES_3D spine3D) {
+        return getSpineLengthAndWidth(r, spine3D)[0];
+    }
+    /**
+     * @param spine3D for 3D objects: spine computed in 3D, or on the projection of the object in the XY plane
+     * @return {spine length, median width} (XY-pixel units)
+     */
+    public static double[] getSpineLengthAndWidth(Region r, BacteriaSpineLocalizer.COORDINATES_3D spine3D) {
         try {
+            if (!r.is2D() && spine3D==BacteriaSpineLocalizer.COORDINATES_3D.PROJECTION_2_5D) r = projectXY(r);
             PointContainer2<Vector, Double>[] spine = BacteriaSpineFactory.createSpine(r).spine;
             if (spine==null || spine.length==1) return new double[]{Double.NaN, Double.NaN};
             double width = ArrayUtil.quantile(Arrays.stream(spine).mapToDouble(s->s.getContent1().norm()).sorted(), spine.length, 0.5);
