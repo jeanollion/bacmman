@@ -263,7 +263,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         public int getChannel(int inputIdx) {
-            if (inputIdx == 0) return parentTrack.get(0).getExperimentStructure().getChannelIdx(objectClassIdx);
+            if (inputIdx == 0) return parentTrack.values().iterator().next().getExperimentStructure().getChannelIdx(objectClassIdx); // track may not start at frame 0
             else if (inputIdx <= additionalInputChannels.length) return additionalInputChannels[inputIdx-1];
             else return -1;
         }
