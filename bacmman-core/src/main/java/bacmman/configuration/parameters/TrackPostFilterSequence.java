@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.SegmentedObjectFactory;
 import bacmman.data_structure.SegmentedObject;
 
@@ -41,9 +42,11 @@ public class TrackPostFilterSequence extends PluginParameterList<TrackPostFilter
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) throws MultipleException {
         if (parentTrack.isEmpty()) return;
         int count=0;
-        for (TrackPostFilter p : this.get()) {
-            p.filter(structureIdx, parentTrack, factory, editor);
-            logger.debug("track post-filter: {}/{} done", ++count, this.getChildCount());
+        List<TrackPostFilter> filters = this.get();
+        ProgressContext.Stages stages = ProgressContext.stages(filters.size()); // filters that predict report their progress: each one within its own stage
+        for (TrackPostFilter p : filters) {
+            stages.run(p.getClass().getSimpleName(), () -> p.filter(structureIdx, parentTrack, factory, editor));
+            logger.debug("track post-filter: {}/{} done", ++count, filters.size());
         }
     }
     @Override public TrackPostFilterSequence add(TrackPostFilter... instances) {

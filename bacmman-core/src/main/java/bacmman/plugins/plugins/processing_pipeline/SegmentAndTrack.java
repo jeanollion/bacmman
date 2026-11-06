@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.processing_pipeline;
 
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.TrackPreFilterSequence;
@@ -70,10 +71,12 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
         //logger.debug("segmentAndTrack: # prefilters: {}", preFilters.getChildCount());
         TrackerSegmenter t = getTracker();
         TrackPreFilterSequence tpf = getTrackPreFilters(true);
-        t.segmentAndTrack(structureIdx, parentTrack, tpf, postFilters, factory, editor);
-        if (trackPostFilters.getActivatedChildCount() > 0) {
+        boolean hasTrackPostFilters = trackPostFilters.getActivatedChildCount() > 0;
+        ProgressContext.Stages stages = ProgressContext.stages(hasTrackPostFilters ? 2 : 1);
+        stages.run("Segmentation and tracking", () -> t.segmentAndTrack(structureIdx, parentTrack, tpf, postFilters, factory, editor));
+        if (hasTrackPostFilters) {
             logger.debug("executing #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getActivatedChildCount(), parentTrack.get(0), structureIdx);
-            trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
+            stages.run("Track post-filters", () -> trackPostFilters.filter(structureIdx, parentTrack, factory, editor));
             logger.debug("executed #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getActivatedChildCount(), parentTrack.get(0), structureIdx);
         }
     }
@@ -89,8 +92,10 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
             parent.getChildren(structureIdx).forEach( c-> editor.resetTrackLinks(c,true, true, false));
         }
         TrackerSegmenter t = getTracker();
-        t.track(structureIdx, parentTrack, editor);
-        trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
+        boolean hasTrackPostFilters = trackPostFilters.getActivatedChildCount() > 0;
+        ProgressContext.Stages stages = ProgressContext.stages(hasTrackPostFilters ? 2 : 1);
+        stages.run("Tracking", () -> t.track(structureIdx, parentTrack, editor));
+        if (hasTrackPostFilters) stages.run("Track post-filters", () -> trackPostFilters.filter(structureIdx, parentTrack, factory, editor));
     }
 
     @Override

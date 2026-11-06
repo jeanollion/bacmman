@@ -4,6 +4,8 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.image.*;
@@ -71,8 +73,11 @@ public class SegmentAroundAndLink implements TrackerSegmenter, TestableProcessin
         int total = refTracks.size();
         int totalFrame = refTracks.values().stream().mapToInt(List::size).sum();
         long[] count = new long[2];
+        // one slice of the current sub-task per reference track, weighted by its number of frames: progress reported by the segmenter for each track does not restart the progress of the sub-task
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(totalFrame);
         for (List<SegmentedObject> refTrack : refTracks.values()) {
-            segment(objectClassIdx, refTrack, ps, boxConverter, parentOC == referenceObjectClass, refMapSegmentedObject, factory, editor);
+            String label = total > 1 ? "Track " + (count[0] + 1) + "/" + total : null;
+            ProgressContext.runSlice(progress, refTrack.size(), label, () -> segment(objectClassIdx, refTrack, ps, boxConverter, parentOC == referenceObjectClass, refMapSegmentedObject, factory, editor));
             imageManager.clear(true);
             count[0]+=1;
             count[1]+=refTrack.size();

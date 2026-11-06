@@ -18,6 +18,9 @@
  */
 package bacmman.plugins.plugins.processing_pipeline;
 
+import bacmman.configuration.parameters.TrackPreFilterSequence;
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
@@ -100,12 +103,18 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     
     @Override public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         long t0 = System.currentTimeMillis();
-        getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
+        TrackPreFilterSequence trackPreFilters = getTrackPreFilters(true);
+        Segmenter seg = instantiateSegmenter();
+        boolean trackConfigurable = seg instanceof TrackConfigurable;
+        // stages that can each report progress (e.g. a track pre-filter or a segmenter configuration that predicts)
+        ProgressContext.Stages stages = ProgressContext.stages((trackPreFilters.isEmpty() ? 0 : 1) + (trackConfigurable ? 1 : 0) + 1);
+        if (!trackPreFilters.isEmpty()) stages.run("Track pre-filters", () -> trackPreFilters.filter(structureIdx, parentTrack)); // set preFiltered images to structureObjects
         long t1 = System.currentTimeMillis();
-        TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, instantiateSegmenter());
+        TrackConfigurer[] apply = new TrackConfigurer[1];
+        if (trackConfigurable) stages.run("Configuring segmenter", () -> apply[0] = TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, seg));
         long t2 = System.currentTimeMillis();
         //logger.debug("segmenter with track configuration: {}", apply!=null);
-        segmentAndTrack(structureIdx, parentTrack, apply, factory);
+        stages.run("Segmentation", () -> segmentAndTrack(structureIdx, parentTrack, apply[0], factory));
         long t3 = System.currentTimeMillis();
         logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}ms (pf: {} trackconf: {} seg {})", parentTrack.get(0), parentTrack.size(), t3-t0, t1-t0, t2-t1, t3-t2);
 
@@ -140,23 +149,14 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getExperimentStructure().sizeZ( parentTrack.get(0).getPositionName(), parentTrack.get(0).getExperimentStructure().getChannelIdx(structureIdx) )>1;
         long t0 = System.currentTimeMillis();
         List<RegionPopulation> pops;
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(allParents.size()); // progress in segmented parents. Thread-safe
         try {
             boolean multithreadF = multithread;
-            pops = safeMap(Utils.parallel(allParents.stream(), parallel), subParent -> {
-                SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
-                Segmenter seg = instantiateSegmenter();
-                if (multithreadF) ((MultiThreaded)seg).setMultiThread(true);
-                if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
-                if (stores != null && seg instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)seg).setTestDataStore(stores);
-                Image input = globalParent.getPreFilteredImage(structureIdx);
-                if (subSegmentation) {
-                    input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
-                    accessor.setPreFilteredImage(subParent, structureIdx, input);
-                }
-                RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
-                if (subSegmentation && pop != null) pop.translate(subParent.getBounds(), true);
+            pops = safeMap(Utils.parallel(allParents.stream(), parallel), subParent -> ProgressContext.call(null, () -> { // segmentation of a single parent does not report progress: it is counted here. No context, as other threads of the parallel stream do not see it
+                RegionPopulation pop = segmentParent(structureIdx, subParent, parentStructureIdx, subSegmentation, ref2D, multithreadF, applyToSegmenter, accessor);
+                progress.increment();
                 return pop;
-            }).collect(Collectors.toList());
+            })).collect(Collectors.toList());
             if (applyToSegmenter != null) applyToSegmenter.close();
         } catch (ThreadRunner.TR_RuntimeException ex) {
             if (ex.getCause() instanceof RuntimeException) throw (RuntimeException)ex.getCause();
@@ -214,6 +214,22 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         if (!me.isEmpty()) throw me;
     }
     
+    protected RegionPopulation segmentParent(int structureIdx, SegmentedObject subParent, int parentStructureIdx, boolean subSegmentation, boolean ref2D, boolean multithread, TrackConfigurer applyToSegmenter, SegmentedObjectAccessor accessor) {
+        SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
+        Segmenter seg = instantiateSegmenter();
+        if (multithread) ((MultiThreaded)seg).setMultiThread(true);
+        if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
+        if (stores != null && seg instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)seg).setTestDataStore(stores);
+        Image input = globalParent.getPreFilteredImage(structureIdx);
+        if (subSegmentation) {
+            input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
+            accessor.setPreFilteredImage(subParent, structureIdx, input);
+        }
+        RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
+        if (subSegmentation && pop != null) pop.translate(subParent.getBounds(), true);
+        return pop;
+    }
+
     @Override public void trackOnly(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {return;}
 
     @Override

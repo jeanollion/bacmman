@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
@@ -504,7 +506,13 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      */
     @Override
     public TrackConfigurer<SpotSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
-        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(parentTrack.size()); // progress in frames for which maps are computed. Thread-safe
+        progress.setMessage("SpotSegmenter: computing maps");
+        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p-> {
+            Image[] maps = computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx));
+            progress.increment();
+            return maps;
+        }));
         int segParent = parentTrack.iterator().next().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         logger.debug("track config: norm mode: {}", normMode.getSelectedEnum());
         Map<SegmentedObject, double[]> parentMapMeanAndSigma = NORMALIZATION_MODE.PER_FRAME_CENTER.equals(normMode.getSelectedEnum()) ? parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p -> {

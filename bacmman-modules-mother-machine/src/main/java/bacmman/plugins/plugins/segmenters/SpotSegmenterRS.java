@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -436,7 +438,13 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             if (segParent == p.getStructureIdx()) return p.getMask();
             return p.getChildRegionPopulation(segParent).getLabelMap();
         };
-        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true)));
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(parentTrack.size()); // progress in frames for which maps are computed
+        progress.setMessage("SpotSegmenterRS: computing maps");
+        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().collect(Collectors.toMap(p->p, p-> {
+            Image[] maps = computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true);
+            progress.increment();
+            return maps;
+        }));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));
     }
 

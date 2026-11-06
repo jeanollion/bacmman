@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.Region;
@@ -302,12 +304,14 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, MultiThreaded
                 if (r>=500 || n==0) ++n;
                 int window = parentTrack.size() / n;
                 Map<SegmentedObject, Double> thldMap = new HashMap<>(parentTrack.size());
+                ProgressCallback.SubProgress progress = ProgressContext.subProgress(n); // progress in frame windows
                 for (int i = 0; i<n; ++i) {
                     int min = i * window;
                     int max = i==n-1 ? parentTrack.size() : min + window;
                     double thld = getRelativeThreshold(parentTrack.subList(min, max), structureIdx);
                     //if (n>1) logger.debug("computed threshold for range: [{}, {}) -> {}", min, max, thld);
                     IntStream.range(min, max).forEach(ii -> thldMap.put(parentTrack.get(ii), thld));
+                    progress.increment();
                 }
                 return (p, s) -> s.globalLocalDerThld = thldMap.get(p);
         }

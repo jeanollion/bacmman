@@ -2,6 +2,8 @@ package bacmman.core;
 
 import bacmman.ui.logger.ProgressDisplay;
 
+import java.util.function.Consumer;
+
 /**
  * Counts tasks and sub-tasks and forwards progress to a {@link ProgressDisplay}:
  * <ul>
@@ -9,14 +11,16 @@ import bacmman.ui.logger.ProgressDisplay;
  *     <li>progress of the current task = (finished sub-tasks + fraction of the current sub-task) / number of sub-tasks</li>
  * </ul>
  * The fraction of the current sub-task is reported through {@link #subProgress(int)}.
+ * Displayed progress never goes backward: the progress of the current task only increases until the next task starts (see {@link Fraction}),
+ * and overall progress only increases until it is explicitly reset by {@link #setTaskNumber(int)}, {@link #setProgress(int)} or {@link #setRunning(boolean)}
+ * (e.g. when {@link #incrementTaskNumber(int)} adds tasks during the run, it stays still until the actual progress catches up).
  * Values are only forwarded when the displayed percentage or message changes.
  */
 public class ProgressTracker implements ProgressCallback {
     private final ProgressDisplay ui;
     private int taskNumber, taskCounter;
-    private int subTaskNumber, subTaskCounter;
-    private double subTaskFraction; // progress within the current sub-task, in [0, 1]
-    private int subTaskGeneration; // incremented each time the current sub-task changes, to invalidate SubProgress handles
+    private final Fraction currentTask = new Fraction();
+    private double overall; // overall fraction done, never decreases until reset
     private String progressMessage, subTaskMessage, subProgressMessage;
     private int lastProgress = -1, lastSubProgress = -1;
     private String lastProgressText, lastSubText;
@@ -39,7 +43,8 @@ public class ProgressTracker implements ProgressCallback {
     public synchronized void setTaskNumber(int number) {
         taskNumber = number;
         taskCounter = 0;
-        resetSubTasks();
+        overall = 0;
+        newTask();
         update();
     }
 
@@ -54,31 +59,34 @@ public class ProgressTracker implements ProgressCallback {
 
     @Override
     public synchronized void setSubtaskNumber(int number) {
-        subTaskNumber = Math.max(0, number);
-        subTaskCounter = 0;
+        currentTask.setSubtaskNumber(number);
         subTaskMessage = null;
-        newSubTask();
+        subProgressMessage = null;
         update();
     }
 
     @Override
     public synchronized void incrementSubTask() {
-        ++subTaskCounter;
-        newSubTask();
+        currentTask.incrementSubTask();
+        subProgressMessage = null;
         update();
     }
 
     @Override
     public synchronized void incrementProgress() {
         ++taskCounter;
-        resetSubTasks();
+        newTask();
         update();
     }
 
+    /**
+     * Explicitly sets the number of finished tasks: this can make overall progress go backward
+     */
     @Override
     public synchronized void setProgress(int i) {
         taskCounter = i;
-        resetSubTasks();
+        overall = 0;
+        newTask();
         update();
     }
 
@@ -97,29 +105,10 @@ public class ProgressTracker implements ProgressCallback {
 
     @Override
     public synchronized SubProgress subProgress(int steps) {
-        final int generation = subTaskGeneration;
-        final double total = Math.max(1, steps);
-        return new SubProgress() {
-            double count = 0;
-            @Override
-            public void increment(double n) {
-                synchronized (ProgressTracker.this) {
-                    if (generation != subTaskGeneration) return;
-                    count += n;
-                    subTaskFraction = Math.min(1, count / total);
-                    update();
-                }
-            }
-
-            @Override
-            public void setMessage(String message) {
-                synchronized (ProgressTracker.this) {
-                    if (generation != subTaskGeneration) return;
-                    subProgressMessage = message;
-                    update();
-                }
-            }
-        };
+        return currentTask.newHandle(steps, this, this::update, message -> {
+            subProgressMessage = message;
+            update();
+        });
     }
 
     @Override
@@ -131,6 +120,7 @@ public class ProgressTracker implements ProgressCallback {
     public void setRunning(boolean running) {
         if (ui != null) ui.setRunning(running);
         synchronized (this) { // the display is reset when running state changes
+            overall = 0;
             lastProgress = -1;
             lastSubProgress = -1;
             lastProgressText = null;
@@ -138,31 +128,18 @@ public class ProgressTracker implements ProgressCallback {
         }
     }
 
-    private void resetSubTasks() {
-        subTaskNumber = 0;
-        subTaskCounter = 0;
+    private void newTask() {
+        currentTask.reset();
         subTaskMessage = null;
-        newSubTask();
-    }
-
-    private void newSubTask() {
-        subTaskFraction = 0;
         subProgressMessage = null;
-        ++subTaskGeneration;
-    }
-
-    /**
-     * @return fraction of the current task that is done, in [0, 1]
-     */
-    private double currentTaskFraction() {
-        if (subTaskNumber > 0) return Math.min(1, (subTaskCounter + subTaskFraction) / subTaskNumber);
-        else return subTaskFraction;
+        lastSubProgress = -1; // a new task starts: its progress starts from 0
     }
 
     private void update() {
+        double taskFraction = currentTask.getValue();
+        if (taskNumber > 0) overall = Math.max(overall, Math.min(1, (taskCounter + taskFraction) / taskNumber));
         if (ui == null) return;
-        double taskFraction = currentTaskFraction();
-        int progress = taskNumber > 0 ? toPercent((taskCounter + taskFraction) / taskNumber) : 0;
+        int progress = toPercent(overall);
         int subProgress = toPercent(taskFraction);
         if (progress != lastProgress) {
             lastProgress = progress;
@@ -177,7 +154,7 @@ public class ProgressTracker implements ProgressCallback {
             lastProgressText = progressText;
             ui.setProgressMessage(progressText);
         }
-        String subText = getSubText();
+        String subText = Fraction.join(subTaskMessage, subProgressMessage);
         if (!subText.equals(lastSubText)) {
             lastSubText = subText;
             ui.setSubMessage(subText);
@@ -192,22 +169,110 @@ public class ProgressTracker implements ProgressCallback {
     }
 
     private String getProgressText() {
-        StringBuilder sb = new StringBuilder();
-        if (taskNumber > 0) sb.append("Task ").append(Math.min(taskCounter + 1, taskNumber)).append("/").append(taskNumber);
-        append(sb, progressMessage);
-        return sb.toString();
+        String task = taskNumber > 0 ? "Task " + Math.min(taskCounter + 1, taskNumber) + "/" + taskNumber : null;
+        return Fraction.join(task, progressMessage);
     }
 
-    private String getSubText() {
-        StringBuilder sb = new StringBuilder();
-        append(sb, subTaskMessage);
-        append(sb, subProgressMessage);
-        return sb.toString();
-    }
+    /**
+     * Fraction of a unit of work that is done, in [0, 1]. The value never decreases until {@link #reset()}.
+     * <ul>
+     *     <li>The work can be divided into sub-tasks ({@link #setSubtaskNumber(int)}, {@link #incrementSubTask()}). Setting a new number of sub-tasks divides the remaining work: what is already done is kept.</li>
+     *     <li>Progress inside the current sub-task is reported by {@link ProgressCallback.SubProgress} handles. Several handles can be created in the same sub-task (e.g. a track pre-filter then a segmenter that both predict): each new handle divides what remains of the sub-task.</li>
+     * </ul>
+     * Not thread-safe: the owner synchronizes on the lock given to {@link #newHandle(int, Object, Runnable, Consumer)}.
+     */
+    static class Fraction {
+        private double base; // value when the current division into sub-tasks was set
+        private int subTaskNumber, subTaskCounter;
+        private double subTaskFraction; // progress within the current sub-task, in [0, 1]
+        private int generation; // incremented each time the current sub-task changes, to invalidate handles
+        private double value;
 
-    private static void append(StringBuilder sb, String message) {
-        if (message == null || message.isEmpty()) return;
-        if (sb.length() > 0) sb.append(" · ");
-        sb.append(message);
+        void reset() {
+            base = 0;
+            value = 0;
+            subTaskNumber = 0;
+            subTaskCounter = 0;
+            newSubTask();
+        }
+
+        void setSubtaskNumber(int number) {
+            base = value;
+            subTaskNumber = Math.max(0, number);
+            subTaskCounter = 0;
+            newSubTask();
+        }
+
+        void incrementSubTask() {
+            ++subTaskCounter;
+            newSubTask();
+            update();
+        }
+
+        /**
+         * Marks the whole work as done
+         */
+        void complete() {
+            value = 1;
+        }
+
+        double getValue() {
+            return value;
+        }
+
+        private void newSubTask() {
+            subTaskFraction = 0;
+            ++generation;
+        }
+
+        private void update() {
+            double inner = subTaskNumber > 0 ? Math.min(1, (subTaskCounter + subTaskFraction) / subTaskNumber) : subTaskFraction;
+            value = Math.max(value, base + (1 - base) * inner);
+        }
+
+        /**
+         * @param steps number of steps the handle is divided into
+         * @param lock object the owner synchronizes on
+         * @param onUpdate called (holding the lock) after the value may have changed
+         * @param onMessage called (holding the lock) when the handle sets a message
+         * @return handle that reports progress within the current sub-task. It has no effect once the current sub-task has changed
+         */
+        ProgressCallback.SubProgress newHandle(int steps, Object lock, Runnable onUpdate, Consumer<String> onMessage) {
+            final int handleGeneration = generation;
+            final double start = subTaskFraction; // a new handle divides what remains of the sub-task
+            final double total = Math.max(1, steps);
+            return new ProgressCallback.SubProgress() {
+                double count = 0;
+                @Override
+                public void increment(double n) {
+                    if (!(n > 0)) return; // also ignores NaN
+                    synchronized (lock) {
+                        if (handleGeneration != generation) return;
+                        count += n;
+                        subTaskFraction = Math.max(subTaskFraction, start + (1 - start) * Math.min(1, count / total));
+                        update();
+                        onUpdate.run();
+                    }
+                }
+
+                @Override
+                public void setMessage(String message) {
+                    synchronized (lock) {
+                        if (handleGeneration != generation) return;
+                        onMessage.accept(message);
+                    }
+                }
+            };
+        }
+
+        static String join(String... messages) {
+            StringBuilder sb = new StringBuilder();
+            for (String message : messages) {
+                if (message == null || message.isEmpty()) continue;
+                if (sb.length() > 0) sb.append(" · ");
+                sb.append(message);
+            }
+            return sb.toString();
+        }
     }
 }

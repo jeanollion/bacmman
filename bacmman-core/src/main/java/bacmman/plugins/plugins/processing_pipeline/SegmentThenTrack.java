@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.processing_pipeline;
 
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.SegmentedObject;
@@ -95,9 +96,11 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
             logger.info("No tracker set for structure: {}", structureIdx);
             return;
         }
-        segmentOnly(structureIdx, parentTrack, factory);
-        trackOnly(structureIdx, parentTrack, factory, editor);
-        trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
+        boolean hasTrackPostFilters = trackPostFilters.getActivatedChildCount() > 0;
+        ProgressContext.Stages stages = ProgressContext.stages(hasTrackPostFilters ? 3 : 2);
+        stages.run("Segmentation", () -> segmentOnly(structureIdx, parentTrack, factory));
+        stages.run("Tracking", () -> trackOnly(structureIdx, parentTrack, factory, editor));
+        if (hasTrackPostFilters) stages.run("Track post-filters", () -> trackPostFilters.filter(structureIdx, parentTrack, factory, editor));
     }
     public void segmentOnly(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory) {
         if (!segmenter.isOnePluginSet()) {

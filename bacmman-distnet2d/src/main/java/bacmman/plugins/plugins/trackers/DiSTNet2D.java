@@ -365,15 +365,16 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (factory==null) factory = getFactory(objectClassIdx); // in case called from track only method -> for post-processing
         PredictionResults predictions = null;
         TRACK_POST_PROCESSING_WINDOW_MODE ppMode = trackPPRange.getSelectedEnum();
-        // progress in frames: prediction + segmentation + tracking of each frame, + post-processing of the whole track
+        // progress in frames: track pre-filters, prediction + segmentation + tracking of each frame, + post-processing of the whole track
         int nFrames = parentTrack.size();
-        ProgressCallback.SubProgress progress = ProgressContext.subProgress(3 * nFrames + (TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE.equals(ppMode) ? nFrames : 0));
+        boolean hasTrackPreFilters = trackPreFilters!=null && !trackPreFilters.isEmpty();
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress((hasTrackPreFilters ? nFrames : 0) + 3 * nFrames + (TRACK_POST_PROCESSING_WINDOW_MODE.WHOLE.equals(ppMode) ? nFrames : 0));
         Set<UnaryPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
         Map<SegmentedObject, LinkMultiplicity> lwFW=null, lmBW=null;
         Map<SegmentedObject, LinkMultiplicity>[] linkMultiplicityMapContainer = new Map[2];
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(linkDistanceTolerance.getIntValue());
-        if (trackPreFilters!=null && !trackPreFilters.isEmpty()) {
-            trackPreFilters.filter(objectClassIdx, parentTrack);
+        if (hasTrackPreFilters) { // track pre-filters that predict report their progress within their own part
+            ProgressContext.runSlice(progress, nFrames, "DiSTNet2D: track pre-filters", () -> trackPreFilters.filter(objectClassIdx, parentTrack));
         }
         /*if (false && stores != null && allImages.size()>1 && stores.get(parentTrack.get(0)).isExpertMode()) {
             Map<Integer, SegmentedObject> parentMap = parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, Function.identity()));

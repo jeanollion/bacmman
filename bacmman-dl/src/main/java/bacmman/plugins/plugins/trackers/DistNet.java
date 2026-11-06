@@ -46,20 +46,19 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        // progress in frames: prediction, segmentation and tracking of each frame
-        ProgressCallback.SubProgress progress = ProgressContext.subProgress(3 * parentTrack.size());
+        // progress in frames: track pre-filters, prediction, segmentation and tracking of each frame
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(((trackPreFilters==null || trackPreFilters.isEmpty()) ? 0 : parentTrack.size()) + 3 * parentTrack.size());
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters, progress);
         if (stores!=null && edm_div_dy_np[1]!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
-        progress.setMessage("DistNet: segmenting");
-        segment(objectClassIdx, parentTrack, edm_div_dy_np[0], postFilters, factory);
-        progress.increment(parentTrack.size());
+        // segmenter configuration may report its progress: within the segmentation part
+        ProgressContext.runSlice(progress, parentTrack.size(), "DistNet: segmenting", () -> segment(objectClassIdx, parentTrack, edm_div_dy_np[0], postFilters, factory));
         progress.setMessage("DistNet: tracking");
         track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], edm_div_dy_np[0], editor, factory);
         progress.increment(parentTrack.size());
     }
 
     /**
-     * @param progress incremented by the number of frames of the parent track in total during prediction
+     * @param progress incremented by the number of frames of the parent track during track pre-filters (if any), and during prediction
      */
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, ProgressCallback.SubProgress progress) {
         long t0= System.currentTimeMillis();
@@ -67,7 +66,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         engine.init();
         long t1= System.currentTimeMillis();
         logger.info("engine instanciated in {}ms, class: {}", t1-t0, engine.getClass());
-        trackPreFilters.filter(objectClassIdx, parentTrack);
+        if (trackPreFilters!=null && !trackPreFilters.isEmpty()) ProgressContext.runSlice(progress, parentTrack.size(), "DistNet: track pre-filters", () -> trackPreFilters.filter(objectClassIdx, parentTrack)); // track pre-filters that predict report their progress within their own part
         if (stores!=null && !trackPreFilters.isEmpty()) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
