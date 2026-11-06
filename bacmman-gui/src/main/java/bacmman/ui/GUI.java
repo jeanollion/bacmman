@@ -33,6 +33,7 @@ import bacmman.data_structure.image_container.TimePointsJSON;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
+import bacmman.github.gist.GistRepository;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.data_structure.dao.DiskBackedImageManager;
@@ -271,12 +272,18 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         addWindowListener(new WindowAdapter() {
             @Override 
             public void windowClosing(WindowEvent evt) {
+                // unsaved modifications of the configuration library: closing can be canceled (the close operation is read after the listeners)
+                if (configurationLibrary!=null && !configurationLibrary.confirmClose("Close BACMMAN")) {
+                    setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+                    return;
+                }
+                setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                 if (db!=null) closeDataset();
                 if (pyGtw!=null) pyGtw.stopGateway();
                 Core.getCore().getGithubGateway().clear();
                 INSTANCE = null;
                 if (Core.getCore().getOmeroGateway()!=null) Core.getCore().getOmeroGateway().close();
-                if (configurationLibrary!=null) configurationLibrary.close();
+                if (configurationLibrary!=null) configurationLibrary.close(false);
                 if (dlModelLibrary!=null) dlModelLibrary.close();
                 if (dockerTraining!=null) dockerTraining.close();
                 Core.clearDiskBackedImageManagers();
@@ -1190,6 +1197,10 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             displayOnlineDLModelLibrary();
         });
         this.importMenu.add(onlineDLModelLibraryMenuItem);
+        JMenuItem syncRepositoriesMenuItem = new JMenuItem("Synchronize Repositories...");
+        syncRepositoriesMenuItem.setToolTipText("Copy configurations and / or DL models from one repository (GitHub, GitLab or local folder) to another one");
+        syncRepositoriesMenuItem.addActionListener(e -> new bacmman.ui.gui.configurationIO.RepositorySyncForm(Core.getCore().getGithubGateway(), this).display(this));
+        this.importMenu.add(syncRepositoriesMenuItem);
 
         if (Core.enableTrackMate) {
             openTrackMateMenuItem.setText("Open TrackMate");
@@ -1315,15 +1326,17 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         });
 
         JMenuItem upload = new JMenuItem("Upload...");
-        upload.setToolTipText("Upload a file (or directory) as gist to a prompt account");
+        upload.setToolTipText("Upload a file (or directory) to a repository (GitHub, GitLab or local folder)");
         upload.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = FileChooser.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
                 if (f!=null) {
-                    UserAuth auth = Core.getCore().getGithubGateway().promptCredentials(INSTANCE::setMessage, "Connect to account to upload file to...");
-                    if (auth instanceof NoAuth) return;
+                    GistRepository repo = bacmman.ui.gui.configurationIO.OtherRepositoryPrompt.promptRepository(Core.getCore().getGithubGateway(), "Repository to upload file to...", true, INSTANCE, INSTANCE);
+                    if (repo == null) return;
                     try {
-                        LargeFileGist.storeFile(f, false, "", "dataset", auth, true, id->setMessage("Stored File ID: "+id), INSTANCE);
+                        // GitHub: secret gist, readable with its url. Repositories where private items cannot be read with their url (GitLab): public, so that the file can be downloaded with its url
+                        boolean visible = !repo.privateItemsAccessibleByURL();
+                        LargeFileGist.storeFile(repo, f, visible, "", "dataset", true, id->setMessage("Stored File: " + (GistRepository.TYPE.GITHUB.equals(repo.getType()) ? "ID: " + id : "URL: " + repo.toURL(id))), INSTANCE);
                     } catch (IOException e) {
                         setMessage("Could not upload file: "+ e.getMessage());
                     }
@@ -1331,15 +1344,15 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             }
         });
         JMenu downloadMenu = new JMenu("Download");
-        TextParameter downloadId = new TextParameter("File ID").setHint("Enter uploaded file id");
+        TextParameter downloadId = new TextParameter("File ID").setHint("Enter uploaded file id (GitHub) or url (any repository: GitHub, GitLab, local folder)");
         JMenuItem download = new JMenuItem("Download...");
         download.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = FileChooser.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
                     try {
-                        LargeFileGist lf = new LargeFileGist(downloadId.getValue(), new NoAuth());
-                        lf.retrieveFile(f, true, true, new NoAuth(), null, INSTANCE);
+                        LargeFileGist lf = MLModelFileParameter.openLargeFile(downloadId.getValue().trim()); // repository identified by the url, with the credentials of the session
+                        lf.retrieveFile(f, true, true, null, null, INSTANCE);
                         setMessage(lf.getFileName() + " downloaded to "+ f);
                     } catch (IOException e) {
                         setMessage("Could not download file: "+ e.getMessage());
@@ -1391,8 +1404,8 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                 File f = FileChooser.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
                     try {
-                        LargeFileGist lf = new LargeFileGist(id, new NoAuth());
-                        lf.retrieveFile(f, true, true, new NoAuth(), null, INSTANCE);
+                        LargeFileGist lf = MLModelFileParameter.openLargeFile(id); // gist id or url of any repository
+                        lf.retrieveFile(f, true, true, null, null, INSTANCE);
                     } catch (IOException e) {
                         setMessage("Could not download file: "+ e.getMessage());
                     }

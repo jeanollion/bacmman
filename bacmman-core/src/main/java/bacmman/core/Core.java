@@ -65,7 +65,7 @@ public class Core {
     private static Consumer<Image> image5D_Displayer;
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
-    private static GithubGateway githubGateway;
+    private static RepositoryGateway repositoryGateway;
     private static DockerGateway dockerGateway;
     public String tfVisibleDeviceList="";
     public boolean tfSetAllowGrowth=false;
@@ -73,6 +73,14 @@ public class Core {
     final List<Runnable> toFront = new ArrayList<>();
     protected Consumer<String> closePosition;
     protected Function<String, Boolean> userPrompt;
+
+    /**
+     * @return gateway to repositories (credentials of the session) if the core is initialized, null otherwise (does not initialize the core)
+     */
+    public static RepositoryGateway getGithubGatewayIfAvailable() {
+        Core c = core;
+        return c == null ? null : c.repositoryGateway;
+    }
 
     public static Core getCore() {
         if (core==null) {
@@ -92,7 +100,7 @@ public class Core {
         MasterDAOFactory.findModules("bacmman.data_structure.dao");
         createOmeroGateway();
         createDockerGateway();
-        githubGateway = new GithubGateway();
+        repositoryGateway = new RepositoryGateway();
         initTF2();
     }
 
@@ -216,8 +224,8 @@ public class Core {
     public OmeroGateway getOmeroGateway() {
         return omeroGateway;
     }
-    public GithubGateway getGithubGateway() {
-        return githubGateway;
+    public RepositoryGateway getGithubGateway() {
+        return repositoryGateway;
     }
     private static void createOmeroGateway() {
         List<Class<OmeroGateway>> impl = findImplementation("bacmman.core", OmeroGateway.class);

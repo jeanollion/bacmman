@@ -46,6 +46,27 @@ public class TreeTransferHandler extends TransferHandler {
     MutableTreeNode[] nodesToRemove;
     final Function<TreeNode, MutableTreeNode> copy;
     final BiPredicate<TreePath, TreePath> canRecieve;
+    CrossTreeDrop crossTreeDrop;
+
+    /**
+     * Drop of nodes dragged from another tree
+     */
+    public interface CrossTreeDrop {
+        /**
+         * @param childIndex insertion index in dest (drop between children), -1 for a drop on dest
+         */
+        boolean canImport(JTree sourceTree, TreePath[] sourcePaths, JTree destTree, TreePath dest, int childIndex);
+        boolean importData(JTree sourceTree, TreePath[] sourcePaths, JTree destTree, TreePath dest, int childIndex);
+    }
+
+    /**
+     * @param crossTreeDrop handles drops of nodes dragged from another tree. If null, nodes from another tree are inserted in lists as nodes of the same tree
+     */
+    public TreeTransferHandler setCrossTreeDrop(CrossTreeDrop crossTreeDrop) {
+        this.crossTreeDrop = crossTreeDrop;
+        return this;
+    }
+
     public TreeTransferHandler(Function<TreeNode, MutableTreeNode> copy, BiPredicate<TreePath, TreePath> canRecieve) {
         this.copy=copy;
         this.canRecieve = canRecieve;
@@ -75,8 +96,13 @@ public class TreeTransferHandler extends TransferHandler {
             return false;
         }
         JTree sourceTree = nt.sourceTree;
+        if (crossTreeDrop != null && sourceTree != destTree) {
+            support.setDropAction(COPY); // nodes are never removed from the source tree
+            return crossTreeDrop.canImport(sourceTree, nt.sourcePaths, destTree, dl.getPath(), dl.getChildIndex());
+        }
         int[] selRows = sourceTree.getSelectionRows();
-        if (selRows.length==0) return false;
+        if (selRows==null || selRows.length==0) return false;
+        if (nt.nodes == null || Arrays.stream(nt.nodes).anyMatch(java.util.Objects::isNull)) return false; // nodes could not be copied
         //logger.debug("selected rows: {} destination: {}", selRows, dl.getPath().getLastPathComponent());
 
         TreePath dest = dl.getPath();
@@ -120,9 +146,10 @@ public class TreeTransferHandler extends TransferHandler {
         JTree tree = (JTree)c;
         TreePath[] pathsA = tree.getSelectionPaths();
         if (pathsA==null) return null;
-        List<TreePath> paths = Arrays.asList(pathsA);
+        List<TreePath> paths = new java.util.ArrayList<>(Arrays.asList(pathsA));
         if (paths.isEmpty()) return null;
-        if (paths.size()>1) paths.removeIf(n->n.getParentPath()!=paths.get(0).getParentPath()); // only move from same parent
+        TreePath firstParent = paths.get(0).getParentPath();
+        if (paths.size()>1) paths.removeIf(n->!java.util.Objects.equals(n.getParentPath(), firstParent)); // only move from same parent
 
         // Make up a node array of copies for transfer and
         // another for/of the nodes that will be removed in
@@ -132,7 +159,9 @@ public class TreeTransferHandler extends TransferHandler {
         
         MutableTreeNode[] nodes =  copies.toArray(new MutableTreeNode[copies.size()]);
         nodesToRemove = toRemove.toArray(new MutableTreeNode[toRemove.size()]);
-        return new NodesTransferable(nodes, tree, paths.get(0).getParentPath());
+        NodesTransferable res = new NodesTransferable(nodes, tree, paths.get(0).getParentPath());
+        res.sourcePaths = paths.toArray(new TreePath[0]);
+        return res;
         
     }
   
@@ -186,6 +215,12 @@ public class TreeTransferHandler extends TransferHandler {
             logger.error("dnd error: {}", ufe);
             return false;
         }
+        JTree destTree = (JTree)support.getComponent();
+        if (crossTreeDrop != null && nt.sourceTree != destTree) {
+            JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
+            nt.destModel = (DefaultTreeModel)destTree.getModel(); // different from source model: nodes are not removed from the source tree
+            return crossTreeDrop.importData(nt.sourceTree, nt.sourcePaths, destTree, dl.getPath(), dl.getChildIndex());
+        }
         // Get drop location info.
         JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
         //int childIndex = dl.getChildIndex();
@@ -223,6 +258,7 @@ public class TreeTransferHandler extends TransferHandler {
         MutableTreeNode[] nodes;
         JTree sourceTree;
         TreePath sourceParent;
+        TreePath[] sourcePaths;
         DefaultTreeModel destModel, sourceModel;
         public NodesTransferable(MutableTreeNode[] nodes, JTree sourceTree, TreePath sourceParent) {
             this.nodes = nodes;

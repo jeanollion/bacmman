@@ -5,6 +5,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
+import bacmman.core.RepositoryGateway;
 import bacmman.plugins.Hint;
 import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.IconUtils;
@@ -34,9 +35,93 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     public static final Logger logger = LoggerFactory.getLogger(GistConfiguration.class);
 
     public static void copyRemoteToLocal(Experiment xp, int localItemIdx, TYPE configBlockType, ContainerParameter remote, String remoteID, int remoteIdx, UserAuth auth, Component ui) {
+        copyRemoteToLocal(xp, localItemIdx, configBlockType, remote, remoteID, remoteIdx, GistRepository.github(auth), ui);
+    }
+
+    /**
+     * @param repository repository from which linked configuration blocks (auto-update) are retrieved
+     */
+    public static void copyRemoteToLocal(Experiment xp, int localItemIdx, TYPE configBlockType, ContainerParameter remote, String remoteID, int remoteIdx, GistRepository repository, Component ui) {
+        copyRemoteToLocal(xp, localItemIdx, configBlockType, remote, remoteID, remoteIdx, repository, ui, true);
+    }
+
+    /**
+     * Link to an item, to be stored outside of its repository (e.g. in a dataset): bare id for GitHub (legacy: bare ids are GitHub ids), url for other repositories
+     */
+    public static String externalLink(GistRepository repository, String id) {
+        if (id == null || repository == null || GistRepository.TYPE.GITHUB.equals(repository.getType()) || id.contains("/")) return id;
+        return repository.toURL(id);
+    }
+
+    /**
+     * @return repository that contains a linked configuration: the repository of the referencing configuration for a bare id or an url of this repository, otherwise the repository identified by the url, with the credentials of the session
+     */
+    public static GistRepository resolveLink(GistRepository repository, String link) {
+        if (link == null) return repository;
+        if (repository != null && repository.idFromURL(link) != null) return repository;
+        if (!link.contains("/")) return repository != null ? repository : GistRepository.github(new NoAuth());
+        RepositoryGateway gw = bacmman.core.Core.getGithubGatewayIfAvailable();
+        GistRepository r = gw != null ? gw.getRepository(link) : GistRepository.fromURL(link, null);
+        return r != null ? r : repository;
+    }
+
+    /**
+     * @return content of the configuration to be used outside of its repository (e.g. to create a dataset): linked to the configuration, with links that are urls for repositories other than GitHub
+     */
+    public static JSONObject toExternalContent(GistConfiguration gist) {
+        JSONObject content;
+        try {
+            content = JSONUtils.parse(gist.getContent().toJSONString());
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+        externalLinks(content, gist.getRepository());
+        content.put(ConfigIDAware.key, externalLink(gist.getRepository(), gist.getID()));
+        return content;
+    }
+
+    /**
+     * Converts the links of configuration blocks copied from one context to another (e.g. by drag and drop), so that they still designate the same configurations
+     * @param source repository of the copied configuration. null: a dataset (bare ids are GitHub ids)
+     * @param target repository of the configuration receiving the copy. null: a dataset
+     */
+    public static void convertLinks(Object json, GistRepository source, GistRepository target) {
+        GistRepository src = source != null ? source : GistRepository.github(new NoAuth());
+        if (target != null && (src.getKey().equals(target.getKey()) || (GistRepository.TYPE.GITHUB.equals(src.getType()) && GistRepository.TYPE.GITHUB.equals(target.getType())))) return; // bare ids keep their meaning
+        if (json instanceof JSONObject) {
+            JSONObject o = (JSONObject) json;
+            Object id = o.get(ConfigIDAware.key);
+            if (id instanceof String && !((String) id).contains("/")) {
+                o.put(ConfigIDAware.key, target == null ? externalLink(src, (String) id) : src.toURL((String) id));
+            }
+            for (Object v : o.values()) convertLinks(v, source, target);
+        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) convertLinks(v, source, target);
+    }
+
+    /**
+     * Replaces links (bare ids relative to the repository) by external links
+     */
+    static void externalLinks(Object json, GistRepository repository) {
+        if (json instanceof JSONObject) {
+            JSONObject o = (JSONObject) json;
+            Object id = o.get(ConfigIDAware.key);
+            if (id instanceof String) o.put(ConfigIDAware.key, externalLink(repository, (String) id));
+            for (Object v : o.values()) externalLinks(v, repository);
+        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) externalLinks(v, repository);
+    }
+
+    /**
+     * @param externalLinks true if xp is outside of the repository (e.g. a dataset): links to the repository are stored as urls for repositories other than GitHub. false if xp belongs to the repository (auto-update of library configurations)
+     */
+    public static void copyRemoteToLocal(Experiment xp, int localItemIdx, TYPE configBlockType, ContainerParameter remote, String remoteID, int remoteIdx, GistRepository repository, Component ui, boolean externalLinks) {
+        String link = externalLinks ? externalLink(repository, remoteID) : remoteID;
+        java.util.function.Consumer<ConfigIDAware> setLink = b -> {
+            if (b.getConfigID() != null && b.getConfigID().equals(remoteID)) b.setConfigID(link);
+        };
         switch (configBlockType) {
             case WHOLE: {
                 JSONObject content = (JSONObject) remote.toJSONEntry();
+                if (externalLinks) externalLinks(content, repository);
                 String outputPath = xp.getOutputDirectory();
                 String outputImagePath = xp.getOutputImageDirectory();
                 content.remove("positions");
@@ -44,7 +129,7 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
                 xp.initFromJSONEntry(content);
                 xp.setOutputDirectory(outputPath);
                 xp.setOutputImageDirectory(outputImagePath);
-                xp.setConfigID(remoteID);
+                xp.setConfigID(link);
                 boolean differ = xp.getPositions().stream().anyMatch(p -> !p.getPreProcessingChain().sameContent(xp.getPreProcessingTemplate()));
                 if (differ && (ui==null || Utils.promptBoolean("Also copy pre-processing template to all positions ?", ui))) {
                     xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(xp.getPreProcessingTemplate()));
@@ -53,35 +138,59 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
             }
             case PRE_PROCESSING: {
                 JSONObject content = (JSONObject) remote.toJSONEntry();
-                Experiment remoteXP = getExperiment(content, configBlockType, remoteID, auth, false);
+                Experiment remoteXP = getExperiment(content, configBlockType, remoteID, repository, false);
                 int pIdx = localItemIdx - 1;
                 if (pIdx < 0) { // template is selected
                     xp.getPreProcessingTemplate().setContentFrom(remoteXP.getPreProcessingTemplate());
+                    setLink.accept(xp.getPreProcessingTemplate());
                     boolean differ = xp.getPositions().stream().anyMatch(p -> !p.getPreProcessingChain().sameContent(remoteXP.getPreProcessingTemplate()));
                     if (differ && (ui==null || Utils.promptBoolean("Also copy pre-processing to all positions ?", ui))) {
-                        xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate()));
+                        xp.getPositions().forEach(p -> {
+                            p.getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate());
+                            setLink.accept(p.getPreProcessingChain());
+                        });
                     }
                 } else { // one position is selected
                     xp.getPosition(pIdx).getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate());
+                    setLink.accept(xp.getPosition(pIdx).getPreProcessingChain());
                 }
                 break;
             }
             case MEASUREMENTS: {
                 xp.getMeasurements().initFromJSONEntry(remote.toJSONEntry());
+                setLink.accept(xp.getMeasurements());
                 break;
             }
             case PROCESSING: {
                 JSONObject content = (JSONObject) remote.toJSONEntry();
-                Experiment remoteXP = getExperiment(content, configBlockType, remoteID, auth, false);
+                Experiment remoteXP = getExperiment(content, configBlockType, remoteID, repository, false);
                 xp.getStructure(localItemIdx).getProcessingPipelineParameter().setContentFrom(remoteXP.getStructure(0).getProcessingPipelineParameter());
                 xp.getStructure(localItemIdx).getProcessingPipelineParameter().setConfigItemIdx(remoteIdx);
+                setLink.accept(xp.getStructure(localItemIdx).getProcessingPipelineParameter());
                 break;
             }
         }
     }
 
     public static void updateConfigIdAwareParameter(Experiment xp, ConfigIDAware cia, UserAuth auth, Component ui) throws IOException {
-        GistConfiguration config = new GistConfiguration(cia.getConfigID(), auth);
+        updateConfigIdAwareParameter(xp, cia, GistRepository.github(auth), ui);
+    }
+
+    /**
+     * Updates a configuration block from the configuration it is linked to, retrieved from the repository
+     */
+    public static void updateConfigIdAwareParameter(Experiment xp, ConfigIDAware cia, GistRepository repository, Component ui) throws IOException {
+        updateConfigIdAwareParameter(xp, cia, repository, ui, true);
+    }
+
+    /**
+     * Updates a configuration block from the configuration it is linked to
+     * @param repository repository of xp (links that are bare ids are resolved in it), or default repository for a dataset
+     * @param externalLinks see {@link #copyRemoteToLocal(Experiment, int, TYPE, ContainerParameter, String, int, GistRepository, Component, boolean)}
+     */
+    public static void updateConfigIdAwareParameter(Experiment xp, ConfigIDAware cia, GistRepository repository, Component ui, boolean externalLinks) throws IOException {
+        repository = resolveLink(repository, cia.getConfigID());
+        GistConfiguration config = new GistConfiguration(repository, cia.getConfigID());
         int remoteItemIdx = -1;
         if (config.getType().equals(WHOLE) && cia.getType().equals(PROCESSING)) {
             remoteItemIdx = cia.getConfigItemIdx();
@@ -96,9 +205,9 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
             Position p = (Position) ((Parameter)cia).getParent();
             itemIdx = p.getIndex() + 1; // 0 is template in configuration library
         }
-        ContainerParameter remoteParameter = getParameter(config, remoteItemIdx, cia.getType(), auth);
+        ContainerParameter remoteParameter = getParameter(config, remoteItemIdx, cia.getType(), null);
         if (remoteParameter == null) throw new IOException("Could not retrieve remote configuration");
-        copyRemoteToLocal(xp, itemIdx, cia.getType(), remoteParameter, cia.getConfigID(), cia.getConfigItemIdx(), auth, ui);
+        copyRemoteToLocal(xp, itemIdx, cia.getType(), remoteParameter, cia.getConfigID(), cia.getConfigItemIdx(), repository, ui, externalLinks);
     }
 
     public static ContainerParameter getParameter(GistConfiguration gist, int objectClass, TYPE configBlockType, UserAuth auth) {
@@ -152,7 +261,6 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     private String name, folder;
     String description;
     boolean visible=true;
-    private String fileURL;
     private JSONObject jsonContent;
     private Supplier<String> contentRetriever;
     public String getHintText() {return description;}
@@ -161,38 +269,56 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     String id;
     Experiment xp;
     boolean partialInit;
-    public static String BASE_URL = "https://api.github.com";
+    public static String BASE_URL = GitHubRepository.API_URL;
     private Runnable thumbnailRetriever;
     List<BufferedImage> thumbnail;
     TreeMap<Integer, List<BufferedImage>> thumbnailByObjectClass;
     boolean thumbnailModified, contentModified;
+    GistRepository repository;
 
     public GistConfiguration(String id, UserAuth auth) throws IOException {
-        String response;
-        try {
-            response = new JSONQuery(BASE_URL + "/gists/" + id).method(JSONQuery.METHOD.GET).authenticate(auth).fetch();
-            Object json = new JSONParser().parse(response);
-            init((JSONObject) json, auth);
-        } catch (ParseException e) {
-            throw new IOException(e);
-        }
+        this(GistRepository.github(auth), id);
+    }
+
+    public GistConfiguration(GistRepository repository, String id) throws IOException {
+        this.repository = repository;
+        init(repository.get(repository.parseId(id)));
     }
 
     public GistConfiguration(JSONObject gist, UserAuth auth) {
-        init(gist, auth);
+        GitHubRepository repo = GistRepository.github(auth);
+        this.repository = repo;
+        init(repo.parse(gist));
     }
 
-    private void init(JSONObject gist, UserAuth auth) {
-        description = (String)gist.get("description");
-        id = (String)gist.get("id");
-        visible = (Boolean)gist.get("public");
-        Object files = gist.get("files");
-        if (files!=null) {
-            JSONObject allFiles = (JSONObject) files;
-            JSONObject file = ((JSONObject)allFiles.values().stream().filter(f-> ((String)((JSONObject)f).get("filename")).endsWith(".json") && TYPE.fromFileName((String) (((JSONObject)f).get("filename")))!=null).findFirst().orElse(null)); // supposes there is only one file that corresponds to a configuration file according to its name
-            if (file!=null) {
-                fileURL = (String) file.get("raw_url");
-                String fileName = (String) file.get("filename");
+    public GistConfiguration(GistItem item) {
+        this.repository = item.getRepository();
+        init(item);
+    }
+
+    public GistRepository getRepository() {
+        return repository;
+    }
+
+    /**
+     * Uses the authentication if provided, the authentication of the repository otherwise
+     */
+    protected GistRepository repo(UserAuth auth) {
+        if (auth == null || auth instanceof NoAuth) return repository;
+        return repository.withAuth(auth);
+    }
+
+    public static boolean isConfigurationFile(String fileName) {
+        return fileName.endsWith(".json") && TYPE.fromFileName(fileName)!=null;
+    }
+
+    private void init(GistItem gist) {
+        description = gist.getDescription();
+        id = gist.getID();
+        visible = gist.isVisible();
+        {
+            String fileName = gist.getFileNames().stream().filter(GistConfiguration::isConfigurationFile).findFirst().orElse(null); // supposes there is only one file that corresponds to a configuration file according to its name
+            if (fileName!=null) {
                 // parse file name:
                 type = TYPE.fromFileName(fileName);
                 int folderIdx = fileName.indexOf("_");
@@ -201,14 +327,12 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
                 if (configNameIdx < 0) throw new IllegalArgumentException("Invalid config file name");
                 folder = fileName.substring(folderIdx + 1, configNameIdx);
                 name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
-                if (file.containsKey("content")) contentRetriever = () -> (String)file.get("content");
+                contentRetriever = () -> GistDLModel.readSilently(gist, fileName);
                 // look for thumbnail file
-                if (((JSONObject) files).containsKey("thumbnail")) {
-                    JSONObject thumbnailFile = (JSONObject) ((JSONObject) files).get("thumbnail");
-                    String thumbFileURL = (String) thumbnailFile.get("raw_url");
+                if (gist.hasFile("thumbnail")) {
                     thumbnailRetriever = () -> {
                         Base64.Decoder decoder = Base64.getDecoder();
-                        String thumbdataB64 = thumbnailFile.containsKey("content") ? (String)thumbnailFile.get("content") : new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).authenticate(auth).fetchSilently();
+                        String thumbdataB64 = GistDLModel.readSilently(gist, "thumbnail");
                         switch(type) {
                             default:
                                 logger.debug("retrieved thumbnail: length = {}", thumbdataB64 == null ? 0 : thumbdataB64.length());
@@ -257,12 +381,7 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
                 name = null;
                 type = null;
             }
-        } else {
-            type =null;
-            folder = null;
-            name = null;
         }
-        if (contentRetriever==null) contentRetriever = () -> new JSONQuery(fileURL).authenticate(auth).fetchSilently();
     }
 
     public GistConfiguration(String folder, String name, String description, JSONObject content, TYPE type) {
@@ -272,6 +391,7 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
         this.description=description;
         this.jsonContent=content;
         this.type=type;
+        this.repository = GistRepository.github(new NoAuth());
     }
 
     public String name() {
@@ -309,27 +429,31 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     }
 
     public void createNewGist(UserAuth auth) {
-        JSONObject files = new JSONObject();
-        JSONObject file = new JSONObject();
-        files.put(getFileName(), file);
-        file.put("content", jsonContent.toJSONString());
-        JSONObject gist = new JSONObject();
-        gist.put("files", files);
-        gist.put("description", description);
-        gist.put("public", visible);
-        String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
-        JSONObject json = null;
         try {
-            json = JSONUtils.parse(res);
-            id = (String)json.get("id");
-            if (thumbnailModified) uploadThumbnail(auth);
-        } catch (ParseException e) {
-            logger.error("Error parsing configuration file: {}: content: {}", e.toString(), res);
+            createNewGist(repo(auth));
+        } catch (IOException e) {
+            logger.error("Error creating configuration", e);
         }
     }
 
+    /**
+     * Creates this configuration in a repository (the configuration's repository is set to it)
+     */
+    public void createNewGist(GistRepository repository) throws IOException {
+        this.repository = repository;
+        Map<String, String> files = new HashMap<>();
+        files.put(getFileName(), jsonContent.toJSONString());
+        id = repository.create(description, visible, files).getID();
+        contentModified = false;
+        if (thumbnailModified) uploadThumbnail(repository);
+    }
+
     public void delete(UserAuth auth) {
-        new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetchSilently();
+        try {
+            repo(auth).delete(id);
+        } catch (IOException e) {
+            logger.error("Error deleting configuration {}", id, e);
+        }
     }
 
     private String getFileName() {
@@ -346,14 +470,14 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     }
 
     public void uploadContent(UserAuth auth) {
-        JSONObject files = new JSONObject();
-        JSONObject file = new JSONObject();
-        files.put(getFileName(), file);
-        file.put("content", jsonContent.toJSONString());
-        JSONObject gist = new JSONObject();
-        gist.put("files", files);
-        gist.put("description", description);
-        new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
+        Map<String, String> files = new HashMap<>();
+        files.put(getFileName(), jsonContent.toJSONString());
+        try {
+            repo(auth).update(id, description == null ? "" : description, null, files);
+            contentModified = false;
+        } catch (IOException e) {
+            logger.error("Error uploading configuration {}", id, e);
+        }
     }
 
     public JSONObject getContent() {
@@ -444,124 +568,175 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     }
 
     public void uploadThumbnail(UserAuth auth) {
+        uploadThumbnail(repo(auth));
+    }
+
+    protected void uploadThumbnail(GistRepository repo) {
         Base64.Encoder encoder = Base64.getEncoder();
+        String content;
         switch(type) {
             default: {
-                if (thumbnail==null || thumbnail.isEmpty()) storeBytes("thumbnail", (byte[]) null, auth);
-                else if (thumbnail.size()==1) storeBytes("thumbnail", IconUtils.toByteArray(thumbnail.get(0)), auth);
+                if (thumbnail==null || thumbnail.isEmpty()) content = null; // erase thumbnail
+                else if (thumbnail.size()==1) content = encoder.encodeToString(IconUtils.toByteArray(thumbnail.get(0)));
                 else {
                     JSONArray thumbArray = new JSONArray();
                     for (BufferedImage thumb : thumbnail) thumbArray.add(encoder.encodeToString(IconUtils.toByteArray(thumb)));
-                    JSONObject gist = new JSONObject();
-                    JSONObject files = new JSONObject();
-                    gist.put("files", files);
-                    JSONObject file = new JSONObject();
-                    files.put("thumbnail", file);
-                    file.put("content", thumbArray.toJSONString());
-                    JSONQuery q = new JSONQuery(BASE_URL + "/gists/" + id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString());
-                    String answer = q.fetchSilently();
-                    //logger.debug("storing multi thumbnails: {}", answer);
+                    content = thumbArray.toJSONString();
                 }
                 break;
             } case WHOLE: {
                 if (thumbnail!=null || (thumbnailByObjectClass!=null && !thumbnailByObjectClass.isEmpty())) {
                     JSONObject thumbnailObject = new JSONObject();
                     if (thumbnail != null) {
-                        Object content;
-                        if (thumbnail.size() == 1) content = encoder.encodeToString(IconUtils.toByteArray(thumbnail.get(0)));
+                        Object c;
+                        if (thumbnail.size() == 1) c = encoder.encodeToString(IconUtils.toByteArray(thumbnail.get(0)));
                         else {
-                            JSONArray c = new JSONArray();
-                            thumbnail.stream().map(IconUtils::toByteArray).map(encoder::encodeToString).forEach(c::add);
-                            content = c;
+                            JSONArray a = new JSONArray();
+                            thumbnail.stream().map(IconUtils::toByteArray).map(encoder::encodeToString).forEach(a::add);
+                            c = a;
                         }
-                        thumbnailObject.put(PRE_PROCESSING.name(), content);
+                        thumbnailObject.put(PRE_PROCESSING.name(), c);
                     }
                     if (thumbnailByObjectClass != null) {
                         for (Map.Entry<Integer, List<BufferedImage>> e : thumbnailByObjectClass.entrySet()) {
-                            Object content;
-                            if (e.getValue().size() == 1) content = encoder.encodeToString(IconUtils.toByteArray(e.getValue().get(0)));
+                            Object c;
+                            if (e.getValue().size() == 1) c = encoder.encodeToString(IconUtils.toByteArray(e.getValue().get(0)));
                             else {
-                                JSONArray c = new JSONArray();
-                                e.getValue().stream().map(IconUtils::toByteArray).map(encoder::encodeToString).forEach(c::add);
-                                content = c;
+                                JSONArray a = new JSONArray();
+                                e.getValue().stream().map(IconUtils::toByteArray).map(encoder::encodeToString).forEach(a::add);
+                                c = a;
                             }
-                            thumbnailObject.put(e.getKey().toString(), content );
+                            thumbnailObject.put(e.getKey().toString(), c );
                         }
                     }
-                    JSONObject gist = new JSONObject();
-                    JSONObject files = new JSONObject();
-                    gist.put("files", files);
-                    JSONObject file = new JSONObject();
-                    files.put("thumbnail", file);
-                    file.put("content", thumbnailObject.toJSONString());
-                    JSONQuery q = new JSONQuery(BASE_URL + "/gists/" + id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString());
-                    String answer = q.fetchSilently();
-                }
+                    content = thumbnailObject.toJSONString();
+                } else return;
             }
         }
-
+        storeThumbnail(repo, id, content);
+        thumbnailModified = false;
     }
 
-    protected boolean storeBytes(String name, byte[] bytes, UserAuth auth) {
-        String content = JSONQuery.encodeJSONBase64(name, bytes); // null will set empty content -> remove the file
-        logger.debug("storing thumbnail content: {}", content);
-        JSONQuery q = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
-        String answer = q.fetchSilently();
-        return answer!=null;
+    /**
+     * Stores (or removes if content is null) the thumbnail file of an item. Errors are logged
+     */
+    static void storeThumbnail(GistRepository repo, String id, String content) {
+        try {
+            if (content == null && !repo.get(id).hasFile("thumbnail")) return;
+            Map<String, String> files = new HashMap<>();
+            files.put("thumbnail", content);
+            repo.update(id, null, null, files);
+        } catch (IOException e) {
+            logger.error("Error storing thumbnail of {}", id, e);
+        }
     }
 
     public static List<GistConfiguration> getPublicConfigurations(String account, ProgressDisplay pcb) {
-        try {
-            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL + "/users/" + account + "/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET));
-            return gists.stream().map(c -> new GistConfiguration(c, new NoAuth(account))).filter(gc -> gc.type != null).collect(Collectors.toList());
-        } catch (IOException | ParseException e) {
-            logger.error("Error getting public configurations", e);
-            if (pcb!=null) pcb.setMessage("Could not get public configurations: "+e.getMessage());
-            return Collections.emptyList();
-        }
+        GitHubRepository repo = GistRepository.github(account);
+        return getConfigurations(() -> repo.list(GitHubRepository.API_URL + "/users/" + account + "/gists"), pcb);
     }
 
     public static List<GistConfiguration> getConfigurations(UserAuth auth, ProgressDisplay pcb) {
-        String url = auth.getAccount() == null ? BASE_URL+"/gists" : BASE_URL + "/users/" + auth.getAccount() + "/gists";
+        GitHubRepository repo = GistRepository.github(auth);
+        String url = auth.getAccount() == null ? GitHubRepository.API_URL+"/gists" : GitHubRepository.API_URL + "/users/" + auth.getAccount() + "/gists";
+        return getConfigurations(() -> repo.list(url), pcb);
+    }
+
+    /**
+     * @return all configurations stored in the repository
+     */
+    public static List<GistConfiguration> getConfigurations(GistRepository repository, ProgressDisplay pcb) {
+        return getConfigurations(repository::list, pcb);
+    }
+
+    private interface ItemLister {
+        List<GistItem> list() throws IOException;
+    }
+
+    private static List<GistConfiguration> getConfigurations(ItemLister lister, ProgressDisplay pcb) {
         try {
-            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(url, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
-            return gists.stream().map(c -> new GistConfiguration(c, auth)).filter(gc -> gc.type != null).collect(Collectors.toList());
-        } catch (IOException | ParseException e) {
+            return lister.list().stream().filter(i -> i.getFileNames().stream().anyMatch(GistConfiguration::isConfigurationFile)).map(GistConfiguration::new).filter(gc -> gc.type != null).collect(Collectors.toList());
+        } catch (IOException e) {
             logger.error("Error getting configurations", e);
             if (pcb!=null) pcb.setMessage("Could not get configurations: "+e.getMessage());
             return Collections.emptyList();
         }
     }
 
-    private static List<GistConfiguration> parseJSON(String response, UserAuth auth) {
-        List<GistConfiguration> res = new ArrayList<>();
-        try {
-            Object json = new JSONParser().parse(response);
-            if (json instanceof JSONArray) {
-                JSONArray gistsRequest = (JSONArray)json;
-                res.addAll(((Stream<JSONObject>) gistsRequest.stream()).map(c -> new GistConfiguration(c, auth)).filter(gc -> gc.type != null).collect(Collectors.toList()));
-            } else {
-                GistConfiguration gc = new GistConfiguration((JSONObject)json, auth);
-                if (gc.type!=null) res.add(gc);
-            }
-        } catch (ParseException e) {
-            logger.error("Error parsing gist. Error: {} content: {}", e.toString(), response);
-        }
-        return res;
+    /*
+     * Light accessors to the object classes of a whole configuration, read from the stored content without creating the configuration.
+     * They are used to list configurations; the configuration is only created when displayed (see getExperiment).
+     * If the configuration has already been created, it is used, as it may have been modified.
+     */
+    private JSONObject objectClassJSON(int objectClassIdx) {
+        if (!TYPE.WHOLE.equals(type)) return null;
+        JSONObject content = getContent();
+        if (content == null || !(content.get("structures") instanceof JSONArray)) return null;
+        JSONArray oc = (JSONArray) content.get("structures");
+        if (objectClassIdx < 0 || objectClassIdx >= oc.size() || !(oc.get(objectClassIdx) instanceof JSONObject)) return null;
+        return (JSONObject) oc.get(objectClassIdx);
+    }
+
+    /**
+     * @return number of object classes of a whole configuration, 0 for other types of configuration
+     */
+    public int getObjectClassCount() {
+        if (!TYPE.WHOLE.equals(type)) return 0;
+        if (xp != null) return xp.getStructureCount();
+        JSONObject content = getContent();
+        if (content == null || !(content.get("structures") instanceof JSONArray)) return 0;
+        return ((JSONArray) content.get("structures")).size();
+    }
+
+    /**
+     * @return name of an object class of a whole configuration, null if not available
+     */
+    public String getObjectClassName(int objectClassIdx) {
+        if (xp != null) return objectClassIdx < xp.getStructureCount() ? xp.getStructure(objectClassIdx).getName() : null;
+        JSONObject oc = objectClassJSON(objectClassIdx);
+        return oc == null || oc.get("name") == null ? null : oc.get("name").toString();
+    }
+
+    /**
+     * @return id of the configuration linked to the processing pipeline of an object class of a whole configuration, null if not linked
+     */
+    public String getProcessingConfigID(int objectClassIdx) {
+        if (xp != null) return objectClassIdx < xp.getStructureCount() ? xp.getStructure(objectClassIdx).getProcessingPipelineParameter().getConfigID() : null;
+        JSONObject oc = objectClassJSON(objectClassIdx);
+        if (oc == null || !(oc.get("processingScheme") instanceof JSONObject)) return null;
+        Object id = ((JSONObject) oc.get("processingScheme")).get(ConfigIDAware.key);
+        return id == null ? null : id.toString();
     }
 
     public Experiment getExperiment(UserAuth auth, boolean allowPartialInit) {
         if (xp==null || (this.partialInit && !allowPartialInit) ) {
             JSONObject content = getContent();
             if (content != null) {
-                xp = getExperiment(content, type, getID(), auth, allowPartialInit);
+                xp = getExperiment(content, type, getID(), repo(auth), allowPartialInit);
                 this.partialInit = allowPartialInit;
             }
         }
         return xp;
     }
 
+    /**
+     * Informs the user that a linked block could not be updated: the copy stored in the configuration is used
+     */
+    static void linkedConfigurationUnavailable(String block, String linkedId, IOException e) {
+        String reason = JSONQuery.isNotFound(e) ? "it is private (a token is needed) or was deleted" : e.getMessage();
+        String m = "The " + block + " is linked to configuration " + linkedId + " that could not be retrieved (" + reason + "): the copy stored in the configuration is used";
+        logger.warn(m);
+        bacmman.core.Core.userLog(m);
+    }
+
     public static Experiment getExperiment(JSONObject jsonContent, TYPE type, String id, UserAuth auth, boolean partialInit) {
+        return getExperiment(jsonContent, type, id, GistRepository.github(auth), partialInit);
+    }
+
+    /**
+     * @param repository repository from which linked configuration blocks (auto-update) are retrieved
+     */
+    public static Experiment getExperiment(JSONObject jsonContent, TYPE type, String id, GistRepository repository, boolean partialInit) {
         Experiment res = new Experiment("");
         switch (type) {
             case WHOLE:
@@ -571,25 +746,25 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
                 if (!partialInit) {
                     if (res.getMeasurements().getConfigID() != null && res.getMeasurements().getAutoUpdate().getSelected()) {
                         try {
-                            GistConfiguration.updateConfigIdAwareParameter(res, res.getMeasurements(), auth, null);
+                            GistConfiguration.updateConfigIdAwareParameter(res, res.getMeasurements(), repository, null, false);
                         } catch (IOException e) {
-                            logger.error("Configuration measurement block is linked to remote configuration that could not be retrieved", e);
+                            linkedConfigurationUnavailable("measurement block", res.getMeasurements().getConfigID(), e);
                         }
                     }
                     if (res.getPreProcessingTemplate().getConfigID() != null && res.getPreProcessingTemplate().getAutoUpdate().getSelected()) {
                         try {
-                            GistConfiguration.updateConfigIdAwareParameter(res, res.getPreProcessingTemplate(), auth, null);
+                            GistConfiguration.updateConfigIdAwareParameter(res, res.getPreProcessingTemplate(), repository, null, false);
                         } catch (IOException e) {
-                            logger.error("Configuration pre-processing block is linked to remote configuration that could not be retrieved", e);
+                            linkedConfigurationUnavailable("pre-processing block", res.getPreProcessingTemplate().getConfigID(), e);
                         }
                     }
                     for (int oc = 0; oc < res.experimentStructure.getObjectClassNumber(); ++oc) {
                         if (res.getStructure(oc).getProcessingPipelineParameter().getConfigID() != null && res.getStructure(oc).getProcessingPipelineParameter().getAutoUpdate().getSelected()) {
                             try {
-                                GistConfiguration.updateConfigIdAwareParameter(res, res.getStructure(oc).getProcessingPipelineParameter(), auth, null);
+                                GistConfiguration.updateConfigIdAwareParameter(res, res.getStructure(oc).getProcessingPipelineParameter(), repository, null, false);
                                 logger.debug("oc {} init from bloc: {}", oc, res.getStructure(oc).getProcessingPipelineParameter().getConfigID());
                             } catch (IOException e) {
-                                logger.error("Configuration processing block of object class: " + oc + " is linked to remote configuration that could not be retrieved", e);
+                                linkedConfigurationUnavailable("processing block of object class #" + oc, res.getStructure(oc).getProcessingPipelineParameter().getConfigID(), e);
                             }
                         }
                     }

@@ -24,24 +24,40 @@ package bacmman.configuration.parameters;
  * @author Jean Ollion
  */
 public class BooleanParameter extends AbstractChoiceParameterFixedChoiceList<Boolean, BooleanParameter> {
-    
+    boolean defaultValue; // used when no value is set (e.g. empty value in a configuration file): a boolean parameter always has a value
+
     public BooleanParameter(String name) {
         this(name, false);
     }
     
     public BooleanParameter(String name, boolean defaultValue) {
         super(name, new String[]{"true", "false"}, defaultValue?"true":"false", "true"::equals, null, false);
+        this.defaultValue = defaultValue;
         toString = s -> getChoiceList()[s ? 0 : 1];
     }
     
     public BooleanParameter(String name, String trueLabel, String falseLabel, boolean defaultValue) {
         super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, trueLabel::equals, null, false);
+        this.defaultValue = defaultValue;
         toString = s -> getChoiceList()[s ? 0 : 1];
         //if (listChoice.length!=2) throw new IllegalArgumentException("List choice should be of length 2");
     }
 
     public boolean getSelected() {
-        return this.selectedItem;
+        return this.selectedItem == null ? defaultValue : this.selectedItem;
+    }
+
+    @Override
+    public void setSelectedItem(String selectedItem) {
+        if (selectedItem == null || selectedItem.isEmpty()) setSelected(defaultValue);
+        else super.setSelectedItem(selectedItem);
+    }
+
+    @Override
+    public void setContentFrom(Parameter other) {
+        if (other instanceof BooleanParameter) setSelected(((BooleanParameter) other).getSelected());
+        else super.setContentFrom(other);
+        if (!(this.selectedItem instanceof Boolean)) setSelected(defaultValue); // other had no selection, or a value of another type
     }
     
     public void setSelected(boolean selected){
@@ -50,6 +66,7 @@ public class BooleanParameter extends AbstractChoiceParameterFixedChoiceList<Boo
     }
     @Override public BooleanParameter duplicate() {
         BooleanParameter res = new BooleanParameter(name, this.listChoice[0], this.listChoice[1], this.getSelected());
+        res.defaultValue = defaultValue;
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         res.setHint(toolTipText);

@@ -1,15 +1,13 @@
 package bacmman.ui.gui.configurationIO;
 
-import bacmman.core.GithubGateway;
+import bacmman.core.RepositoryGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
-import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.gui.objects.DLModelGistTreeGenerator;
 import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.IconUtils;
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -24,14 +22,13 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static bacmman.github.gist.GistDLModel.BASE_URL;
 import static bacmman.ui.gui.Utils.getDisplayedImage;
 
 public class DLModelsLibrary {
@@ -47,7 +44,7 @@ public class DLModelsLibrary {
     private JButton setThumbnailButton;
     private JButton configureParameterButton;
     JFrame displayingFrame;
-    GithubGateway gateway;
+    RepositoryGateway gateway;
     List<GistDLModel> gists;
     boolean loggedIn = false;
     DLModelGistTreeGenerator tree;
@@ -57,15 +54,15 @@ public class DLModelsLibrary {
     BiConsumer<String, DLModelMetadata> configureParameterCallback;
     JDialog dia;
     Runnable onClose;
-    GitCredentialPanel gitCredentialPanel;
+    RepositoryCredentialPanel repositoryCredentialPanel;
 
-    public DLModelsLibrary(GithubGateway gateway, String workingDirectory, Runnable onClose, ProgressDisplay pcb) {
+    public DLModelsLibrary(RepositoryGateway gateway, String workingDirectory, Runnable onClose, ProgressDisplay pcb) {
         this.gateway = gateway;
         this.workingDirectory = workingDirectory;
         this.pcb = pcb;
         this.onClose = onClose;
         if (pcb instanceof JFrame) displayingFrame = (JFrame) pcb;
-        this.gitCredentialPanel = new GitCredentialPanel(gateway, () -> {
+        this.repositoryCredentialPanel = new RepositoryCredentialPanel(gateway, () -> {
             fetchGists();
             updateGistDisplay();
             updateEnableButtons();
@@ -79,7 +76,7 @@ public class DLModelsLibrary {
             String currentFolder = tree.getSelectedFolder();
             SaveDLModelGist form = new SaveDLModelGist(gateway);
             if (currentFolder != null) form.setFolder(currentFolder);
-            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
 
             form.display(displayingFrame, "Store dl model");
             if (form.canceled) return;
@@ -99,7 +96,7 @@ public class DLModelsLibrary {
             }
             GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             try {
-                toSave.createNewGist(getAuth());
+                toSave.createNewGist(getRepository());
                 gists.add(toSave);
                 updateGistDisplay();
                 tree.setSelectedGist(toSave);
@@ -140,7 +137,7 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible()).disableVisibleField();
-            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
             form.display(displayingFrame, "Update model...");
             if (form.canceled) return;
             gist.setDescription(form.description());
@@ -160,7 +157,7 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible());
-            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
             form.display(displayingFrame, "Duplicate model...");
             if (form.canceled) return;
             // check that name does not already exists
@@ -181,7 +178,7 @@ public class DLModelsLibrary {
             List<BufferedImage> otherThumb = gist.getThumbnail();
             if (otherThumb != null) for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
             try {
-                toSave.createNewGist(getAuth());
+                toSave.createNewGist(getRepository());
                 gists.add(toSave);
                 updateGistDisplay();
                 tree.setSelectedGist(toSave);
@@ -198,10 +195,10 @@ public class DLModelsLibrary {
                     Action dupOther = new AbstractAction("Duplicate To another Account") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to duplicate to");
-                            if (cred != null) {
+                            GistRepository other = OtherRepositoryPrompt.prompt(getRepository(), gateway, "Account to duplicate to", displayingFrame, pcb);
+                            if (other != null) {
+                                boolean sameAccount = OtherRepositoryPrompt.same(other, getRepository());
                                 try {
-                                    TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                     GistDLModel gist = tree.getSelectedGist();
                                     if (gist == null) return;
                                     SaveDLModelGist form = new SaveDLModelGist(gateway);
@@ -211,7 +208,7 @@ public class DLModelsLibrary {
                                             .setURL(gist.getModelURL())
                                             .setMetadata(gist.getMetadata())
                                             .setVisible(gist.isVisible());
-                                    form.setAuthAndDefaultDirectory(auth2, workingDirectory, pcb);
+                                    form.setAuthAndDefaultDirectory(other.getAuth(), workingDirectory, pcb).setRepository(other);
                                     form.display(displayingFrame, "Duplicate model to another account...");
                                     if (form.canceled) return;
                                     if (!Utils.isValid(form.name(), false)) {
@@ -222,18 +219,18 @@ public class DLModelsLibrary {
                                         pcb.setMessage("Invalid folder name");
                                         return;
                                     }
-                                    if (cred.key.equals(gitCredentialPanel.getUsername())) { // same account
+                                    if (sameAccount) {
                                         boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
                                         if (exists) {
                                             pcb.setMessage("Model already exists.");
                                             return;
                                         }
-                                    } else { // check on remote
-                                        List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, pcb);
-                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder().equals(form.folder()) && g.name().equals(form.name()));
+                                    } else { // check on other repository
+                                        List<GistDLModel> otherModels = GistDLModel.get(other, pcb);
+                                        boolean exists = otherModels.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
                                         if (exists) {
                                             if (pcb != null)
-                                                pcb.setMessage("Configuration already exists on other account.");
+                                                pcb.setMessage("Model already exists on other account.");
                                             return;
                                         }
                                     }
@@ -241,14 +238,12 @@ public class DLModelsLibrary {
                                     List<BufferedImage> otherThumb = gist.getThumbnail();
                                     if (otherThumb != null)
                                         for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
-                                    toSave.createNewGist(auth2);
-                                    if (cred.key.equals(gitCredentialPanel.getUsername())) { // same account
+                                    toSave.createNewGist(other);
+                                    if (sameAccount) {
                                         gists.add(toSave);
                                         updateGistDisplay();
                                         tree.setSelectedGist(toSave);
                                     }
-                                } catch (GeneralSecurityException ex) {
-                                    pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
                                 } catch (IOException ex) {
                                     if (pcb != null) pcb.setMessage("Error saving gist" + ex.getMessage());
                                     logger.error("Error saving gist", ex);
@@ -307,10 +302,11 @@ public class DLModelsLibrary {
                 if (gist != null) configureParameterCallback.accept(gist.getModelID(), gist.getMetadata());
             }
         });
-        /*if (!gitCredentialPanel.getUsername().isEmpty()) {
+        if (repositoryCredentialPanel.loadAllowed(getAuth())) { // local repository or credentials of this session. public models of remote repositories are loaded only on user request
             fetchGists();
             updateGistDisplay();
-        }*/
+            updateEnableButtons();
+        }
     }
 
     public boolean setSelectedGist(String id, boolean modelID) {
@@ -363,6 +359,7 @@ public class DLModelsLibrary {
 
     public void uploadModel(UserAuth modelAuth, DLModelMetadata metadata, File model) {
         if (tree == null || !loggedIn) return;
+        if (!GistRepository.TYPE.GITHUB.equals(repositoryCredentialPanel.getRepositoryType())) modelAuth = getAuth(); // model file is stored in the repository of the library
         GistDLModel gist = tree.getSelectedGist();
         boolean update = gist != null && Utils.promptBoolean("Update selected Model ?", this.displayingFrame);
         SaveDLModelGist form = new SaveDLModelGist(gateway);
@@ -383,16 +380,16 @@ public class DLModelsLibrary {
             if (folder != null) form.setFolder(folder);
         }
         if (metadata != null) form.setMetadata(metadata);
-        form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
+        form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
 
         logger.debug("uploading new gist...");
         form.uploadFile(model, modelAuth, true);
         form.display(displayingFrame, update ? "Update model..." : "Upload model...");
         if (form.canceled) {
-            boolean del = JSONQuery.delete(BASE_URL + "/gists/" + form.id(), modelAuth);
+            deleteModelFile(form.id(), modelAuth);
             return;
         } else if (update && gist.getModelID() != null && !gist.getModelID().isEmpty()) { // delete previous model file
-            JSONQuery.delete(BASE_URL + "/gists/" + gist.getModelID(), modelAuth);
+            deleteModelFile(gist.getModelID(), modelAuth);
         }
         if (!update) {
             boolean validName = false;
@@ -413,14 +410,14 @@ public class DLModelsLibrary {
                 if (!validName) { // re-ask name
                     form.display(displayingFrame, "Upload model...");
                     if (form.canceled) {
-                        boolean del = JSONQuery.delete(BASE_URL + "/gists/" + form.id(), modelAuth);
+                        deleteModelFile(form.id(), modelAuth);
                         return;
                     }
                 }
             }
             gist = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             try {
-                gist.createNewGist(getAuth());
+                gist.createNewGist(getRepository());
                 gists.add(gist);
                 updateGistDisplay();
                 tree.setSelectedGist(gist);
@@ -459,14 +456,19 @@ public class DLModelsLibrary {
     }
 
     public void connect() {
-        gitCredentialPanel.connect();
+        repositoryCredentialPanel.connect();
     }
 
     private void fetchGists() {
-        String account = gitCredentialPanel.getUsername();
-        if (account.length() == 0) {
-            gists = Collections.emptyList();
+        String account = repositoryCredentialPanel.getUsername();
+        if (account.length() == 0 || !repositoryCredentialPanel.loadAllowed(getAuth())) { // public items of remote repositories are loaded only on user request
+            gists = new ArrayList<>();
             loggedIn = false;
+        } else if (!GistRepository.TYPE.GITHUB.equals(repositoryCredentialPanel.getRepositoryType())) { // GitLab or local
+            GistRepository repo = getRepository();
+            gists = repo == null ? Collections.emptyList() : GistDLModel.get(repo, pcb);
+            loggedIn = repo != null && repo.isWritable();
+            repositoryCredentialPanel.persistUsername();
         } else {
             UserAuth auth = getAuth();
             if (auth instanceof NoAuth) {
@@ -480,14 +482,45 @@ public class DLModelsLibrary {
                     GUI.log("Could authenticate. Wrong username / password / token ?");
                 } else loggedIn = true;
             }
-            PropertyUtils.set("GITHUB_USERNAME", gitCredentialPanel.getUsername());
-            PropertyUtils.addFirstStringToList("GITHUB_USERNAME", gitCredentialPanel.getUsername());
+            repositoryCredentialPanel.persistUsername();
         }
         logger.debug("fetched gists: {}", gists.size());
     }
 
     private UserAuth getAuth() {
-        return gitCredentialPanel.getAuth();
+        return repositoryCredentialPanel.getAuth();
+    }
+
+    private GistRepository getRepository() {
+        return repositoryCredentialPanel.getRepository();
+    }
+
+    /**
+     * @return type of the repository selected in the library
+     */
+    public GistRepository.TYPE getRepositoryType() {
+        return repositoryCredentialPanel.getRepositoryType();
+    }
+
+    /**
+     * @return whether the library is connected to a repository where models can be stored
+     */
+    public boolean isWritable() {
+        return loggedIn;
+    }
+
+    /**
+     * Deletes a model file from the library repository (or from the GitHub account of modelAuth for a GitHub library)
+     */
+    private void deleteModelFile(String id, UserAuth modelAuth) {
+        if (id == null || id.isEmpty()) return;
+        GistRepository repo = GistRepository.TYPE.GITHUB.equals(repositoryCredentialPanel.getRepositoryType()) ? GistRepository.github(modelAuth) : getRepository();
+        if (repo == null) return;
+        try {
+            repo.delete(repo.parseId(id));
+        } catch (IOException e) {
+            logger.debug("Could not delete model file {}", id, e);
+        }
     }
 
     public void display(JFrame parent) {
@@ -574,7 +607,7 @@ public class DLModelsLibrary {
     }
 
     private void createUIComponents() {
-        credentialPanel = new CollapsiblePanel("Git Credentials", gitCredentialPanel.getPanel());
+        credentialPanel = new CollapsiblePanel("Repository", repositoryCredentialPanel.getPanel());
     }
 
     private class Dial extends JDialog {

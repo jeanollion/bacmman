@@ -72,7 +72,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
         dest.setAllowDeactivable(source.allowDeactivate);
         dest.setAllowMoveChildren(source.allowMoveChildren);
-        dest.setAllowMoveChildren(source.allowModifications);
+        dest.setAllowModifications(source.allowModifications);
         dest.setUnmutableIndex(source.unMutableIndex);
         dest.setMaxChildCount(source.maxChildCount);
         dest.setMinChildCount(source.minChildCount);

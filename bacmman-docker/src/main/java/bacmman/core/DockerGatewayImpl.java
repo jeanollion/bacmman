@@ -334,7 +334,11 @@ public class DockerGatewayImpl implements DockerGateway {
 
     @Override
     public void stopContainer(String containerId) {
-        dockerClient.stopContainerCmd(containerId).exec();
+        try {
+            dockerClient.stopContainerCmd(containerId).exec();
+        } catch (NotFoundException e) {
+
+        }
         try {
             dockerClient.removeContainerCmd(containerId).withForce(true).exec();
         } catch (ConflictException e) {

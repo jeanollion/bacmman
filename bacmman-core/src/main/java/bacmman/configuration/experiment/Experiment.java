@@ -98,7 +98,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
 
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
     protected OmeroGateway omeroGateway;
-    protected GithubGateway githubGateway;
+    protected RepositoryGateway repositoryGateway;
     protected String configID;
     protected Supplier<Stream<Selection>> selectionSupplier;
     @Override
@@ -216,13 +216,13 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         if (omeroGateway == null) omeroGateway = Core.getCore().getOmeroGateway();
         return omeroGateway;
     }
-    public Experiment setGithubGateway(GithubGateway githubGateway) {
-        this.githubGateway = githubGateway;
+    public Experiment setGithubGateway(RepositoryGateway repositoryGateway) {
+        this.repositoryGateway = repositoryGateway;
         return this;
     }
-    public GithubGateway getGithubGateway() {
-        if (githubGateway == null) githubGateway = Core.getCore().getGithubGateway();
-        return githubGateway;
+    public RepositoryGateway getGithubGateway() {
+        if (repositoryGateway == null) repositoryGateway = Core.getCore().getGithubGateway();
+        return repositoryGateway;
     }
     public String getNote() {
         return note.getValue();

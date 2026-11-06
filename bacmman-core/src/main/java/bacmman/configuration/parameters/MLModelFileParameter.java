@@ -2,6 +2,10 @@ package bacmman.configuration.parameters;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
+import bacmman.core.RepositoryGateway;
+import bacmman.github.gist.GistRepository;
+import bacmman.github.gist.GitLabRepository;
+import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
@@ -136,12 +140,30 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
             Core.userLog("Could not set model file: " + e.getMessage());
         }
     }
+    /**
+     * Opens the model file from its repository (GitHub gist id, or url of an item of any repository), with the credentials recorded during the session for this repository if any
+     */
+    public static LargeFileGist openLargeFile(String idOrURL) throws IOException {
+        RepositoryGateway gw = Core.getGithubGatewayIfAvailable();
+        GistRepository repo = gw != null ? gw.getRepository(idOrURL) : null;
+        if (repo == null) return new LargeFileGist(idOrURL, new NoAuth());
+        try {
+            return new LargeFileGist(repo, repo.parseId(idOrURL));
+        } catch (IOException e) {
+            if (JSONQuery.isNotFound(e) && !repo.privateItemsAccessibleByURL() && repo.getAuth() instanceof NoAuth) {
+                String server = repo instanceof GitLabRepository ? ((GitLabRepository) repo).getServerURL() : repo.getKey();
+                throw new IOException("Model file " + idOrURL + " not found: it may be private. Connect to an account of " + server + " (e.g. in the DL model library) to download it", e);
+            }
+            throw e;
+        }
+    }
+
     public LargeFileGist getLargeFileGist() throws IOException {
         if (lfId != null && !lfId.equals(getID())) { // id has been changed after LF was downloaded
             synchronized (this) {
                 if (lfId != null && !lfId.equals(getID())) {
                     String id = getID();
-                    lf = new LargeFileGist(id, new NoAuth());
+                    lf = openLargeFile(id);
                     lfId = id;
                 }
             }
@@ -150,7 +172,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
             synchronized (this) {
                 if (lf==null) {
                     String id = getID();
-                    lf = new LargeFileGist(id, new NoAuth());
+                    lf = openLargeFile(id);
                     lfId = id;
                 }
             }

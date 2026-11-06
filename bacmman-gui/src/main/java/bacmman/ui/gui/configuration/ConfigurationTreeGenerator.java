@@ -25,6 +25,7 @@ import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.GistConfiguration;
+import bacmman.github.gist.GistRepository;
 import bacmman.github.gist.UserAuth;
 import bacmman.image.*;
 import bacmman.image.Image;
@@ -90,6 +91,66 @@ public class ConfigurationTreeGenerator {
         this.setHint=setHint;
         this.setModules = setModules;
     }
+
+    public static final String GENERATOR_PROPERTY = "ConfigurationTreeGenerator";
+    GistRepository repository; // repository of the displayed configuration. null: dataset
+    boolean dropEnabled = true;
+
+    /**
+     * @param repository repository of the configuration displayed in the tree (null: a dataset). Used to convert links of configuration blocks dropped from another tree
+     */
+    public ConfigurationTreeGenerator setRepository(GistRepository repository) {
+        this.repository = repository;
+        return this;
+    }
+
+    public GistRepository getRepository() {
+        return repository;
+    }
+
+    /**
+     * @param enabled whether parameters dragged from another configuration tree can be dropped in this tree
+     */
+    public ConfigurationTreeGenerator setDropEnabled(boolean enabled) {
+        this.dropEnabled = enabled;
+        return this;
+    }
+
+    static List<Parameter> sourceParameters(TreePath[] sourcePaths) {
+        if (sourcePaths == null) return Collections.emptyList();
+        List<Parameter> res = new java.util.ArrayList<>();
+        for (TreePath p : sourcePaths) {
+            if (!(p.getLastPathComponent() instanceof Parameter) || p.getPathCount() <= 1) return Collections.emptyList(); // the root cannot be dragged
+            res.add((Parameter) p.getLastPathComponent());
+        }
+        return res;
+    }
+
+    final TreeTransferHandler.CrossTreeDrop crossTreeDrop = new TreeTransferHandler.CrossTreeDrop() {
+        @Override
+        public boolean canImport(JTree sourceTree, TreePath[] sourcePaths, JTree destTree, TreePath dest, int childIndex) {
+            if (!dropEnabled || !(sourceTree.getClientProperty(GENERATOR_PROPERTY) instanceof ConfigurationTreeGenerator)) return false;
+            if (dest == null || !(dest.getLastPathComponent() instanceof Parameter)) return false;
+            return ConfigurationDrop.plan(sourceParameters(sourcePaths), (Parameter) dest.getLastPathComponent(), childIndex) != null;
+        }
+
+        @Override
+        public boolean importData(JTree sourceTree, TreePath[] sourcePaths, JTree destTree, TreePath dest, int childIndex) {
+            if (!canImport(sourceTree, sourcePaths, destTree, dest, childIndex)) return false;
+            ConfigurationTreeGenerator source = (ConfigurationTreeGenerator) sourceTree.getClientProperty(GENERATOR_PROPERTY);
+            ConfigurationDrop.Plan plan = ConfigurationDrop.plan(sourceParameters(sourcePaths), (Parameter) dest.getLastPathComponent(), childIndex);
+            List<Parameter> res = ConfigurationDrop.perform(plan, treeModel, source.getRepository(), repository);
+            if (res.isEmpty()) {
+                Core.userLog("Drop failed: the configuration could not be copied");
+                return false;
+            }
+            TreePath[] paths = res.stream().map(ConfigurationTreeModel::getPath).toArray(TreePath[]::new);
+            tree.setSelectionPaths(paths);
+            for (TreePath p : paths) tree.scrollPathToVisible(p);
+            xpChanged();
+            return true;
+        }
+    };
 
     public MasterDAO getMasterDAO() {return mDAO;}
     public Experiment getExperiment() {return experiment;}
@@ -442,8 +503,10 @@ public class ConfigurationTreeGenerator {
                                             try {
                                                 Experiment xp = ParameterUtils.getExperiment((Parameter)lastO);
                                                 if (xp == null) throw new IOException("Local parameter is not within an Experiment");
-                                                UserAuth auth = Core.getCore().getGithubGateway().getAuthentication(false);
-                                                GistConfiguration.updateConfigIdAwareParameter(xp, cia, auth, tree);
+                                                // the link is a GitHub gist id (legacy) or the url of a configuration of any repository: credentials of the session are used
+                                                GistRepository repo = Core.getCore().getGithubGateway().getRepository(cia.getConfigID());
+                                                if (repo == null) throw new IOException("Unknown repository for link: " + cia.getConfigID());
+                                                GistConfiguration.updateConfigIdAwareParameter(xp, cia, repo, tree);
                                                 treeModel.nodeChanged((Parameter)lastO);
                                                 treeModel.nodeStructureChanged((Parameter)lastO);
                                             } catch (IOException ex) {
@@ -616,8 +679,9 @@ public class ConfigurationTreeGenerator {
         // drag and drop for lists
         tree.setDragEnabled(true);
         tree.setDropMode(DropMode.ON_OR_INSERT);
+        tree.putClientProperty(GENERATOR_PROPERTY, this);
         tree.setTransferHandler(new TreeTransferHandler( 
-                (TreeNode n) -> ((Parameter)n).duplicate(), 
+                (TreeNode n) -> { try { return ((Parameter)n).duplicate(); } catch (RuntimeException e) { logger.debug("could not duplicate {}", n, e); return null; } }, // null: cannot be moved within the tree
                 (TreePath destP, TreePath sourceP)-> { // can receive bi-predicate
                     if (destP==null) return false;
                     if (!(destP.getLastPathComponent() instanceof ListParameter)) return false;
@@ -627,7 +691,7 @@ public class ConfigurationTreeGenerator {
                     ListParameter source= (ListParameter)sourceP.getLastPathComponent();
                     return source.getChildClass().equals(dest.getChildClass());
                 }
-        ));
+        ).setCrossTreeDrop(crossTreeDrop)); // drop from another tree: insertion in compatible lists or replacement of compatible parameters
         if (rootParameter instanceof ParameterChangeCallback) {
             Consumer<Parameter> cb  = p -> {treeModel.nodeChanged(p);treeModel.nodeStructureChanged(p);};
             ((ParameterChangeCallback)rootParameter).addParameterChangeCallback(cb);

@@ -20,6 +20,7 @@ package bacmman.ui.gui.objects;
 
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.core.DefaultWorker;
+import bacmman.github.gist.GistRepository;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.UserAuth;
 import bacmman.ui.logger.ProgressDisplay;
@@ -67,6 +68,7 @@ public class NotebookGistTree {
     final Function<GistTreeNode, Supplier<JSONObject>> displayNotebook;
     final ProgressDisplay pcb;
     final Supplier<UserAuth> authSupplier;
+    Supplier<GistRepository> repositorySupplier;
     final Supplier<File> selectedLocalFileSupplier;
     final Consumer<File> localFileUpdated;
 
@@ -172,8 +174,36 @@ public class NotebookGistTree {
         tree.updateUI();
     }
 
+    /**
+     * Displays no notebooks (e.g. until the user requests loading them)
+     */
+    public void clearGists() {
+        gists = new ArrayList<>();
+        if (tree == null) generateTree();
+        else populateRoot();
+        tree.updateUI();
+    }
+
+    /**
+     * @param repositorySupplier repository where notebooks are stored. If not set: GitHub account of the authentication
+     */
+    public NotebookGistTree setRepositorySupplier(Supplier<GistRepository> repositorySupplier) {
+        this.repositorySupplier = repositorySupplier;
+        return this;
+    }
+
+    protected GistRepository getRepository() {
+        if (repositorySupplier != null) return repositorySupplier.get();
+        return GistRepository.github(authSupplier.get());
+    }
+
     protected void fetchGists(UserAuth auth) {
-        gists = LargeFileGist.fetch(auth, fn -> fn.startsWith("jnb_"), pcb).collect(Collectors.toList());
+        GistRepository repo = repositorySupplier != null ? repositorySupplier.get() : GistRepository.github(auth);
+        if (repo == null || (repo.getAccount() == null && !repo.isWritable() && !GistRepository.TYPE.LOCAL.equals(repo.getType()))) {
+            gists = new ArrayList<>();
+            return;
+        }
+        gists = LargeFileGist.fetch(repo, fn -> fn.startsWith("jnb_"), pcb).collect(Collectors.toList());
         logger.debug("fetched notebooks: {}", gists.size());
     }
 
@@ -346,7 +376,7 @@ public class NotebookGistTree {
         Consumer<String> cb = id -> {
             try {
                 UserAuth auth = authSupplier.get();
-                LargeFileGist gist = new LargeFileGist(id, auth);
+                LargeFileGist gist = new LargeFileGist(getRepository(), id);
                 if (gists == null) fetchGists(auth);
                 else gists.add(gist);
                 populateRoot();
@@ -358,7 +388,9 @@ public class NotebookGistTree {
             }
         };
         try {
-            Pair<String, DefaultWorker> upload = LargeFileGist.storeString(nbName, content.toJSONString(), true, "", ".ipynb", authSupplier.get(), true, cb, pcb);
+            GistRepository repo = getRepository();
+            if (repo == null) return false;
+            Pair<String, DefaultWorker> upload = LargeFileGist.storeString(repo, nbName, content.toJSONString(), true, "", ".ipynb", true, cb, pcb);
         } catch (IOException e) {
             pcb.setMessage("Error uploading notebook: " + e.getMessage());
             logger.error("Error uploading notebook", e);

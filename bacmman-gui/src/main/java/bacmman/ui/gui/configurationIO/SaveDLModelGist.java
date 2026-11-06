@@ -2,7 +2,7 @@ package bacmman.ui.gui.configurationIO;
 
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.core.DefaultWorker;
-import bacmman.core.GithubGateway;
+import bacmman.core.RepositoryGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
@@ -22,11 +22,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.function.Consumer;
 
-import static bacmman.github.gist.GistDLModel.BASE_URL;
-import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 import static bacmman.utils.Utils.SPECIAL_CHAR;
 
 public class SaveDLModelGist {
@@ -52,13 +49,15 @@ public class SaveDLModelGist {
     private DLModelMetadata metadata = new DLModelMetadata();
     private ConfigurationTreeGenerator metadataTG;
     private UserAuth auth;
+    private GistRepository repository; // repository of the model library. null: GitHub
+    private GistRepository uploaderRepository;
     private String defaultDirectory;
     private ProgressDisplay pcb;
     Pair<String, DefaultWorker> uploader;
-    GithubGateway gateway;
+    RepositoryGateway gateway;
     JDialog dia;
 
-    public SaveDLModelGist(GithubGateway gateway) {
+    public SaveDLModelGist(RepositoryGateway gateway) {
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
@@ -72,10 +71,28 @@ public class SaveDLModelGist {
         this.gateway = gateway;
     }
 
+    /**
+     * @return repository of the library if auth is the authentication of the library, otherwise GitHub repository of the account of auth (e.g. "another account" actions)
+     */
+    protected GistRepository repository(UserAuth auth) {
+        if (repository != null && (auth == this.auth || auth == null)) return repository;
+        return GistRepository.github(auth);
+    }
+
     public void uploadFile(File file, UserAuth auth, boolean background) {
+        uploadFile(file, repository(auth), background);
+    }
+
+    /**
+     * Stores the model file in the repository, and sets the url of the model to it
+     */
+    public void uploadFile(File file, GistRepository repo, boolean background) {
         try {
-            uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", auth, background, id -> {
-                setURL(GIST_BASE_URL + id);
+            uploaderRepository = repo;
+            // GitHub: secret gist, readable with its url. Repositories where private items cannot be read with their url (GitLab): same visibility as the model
+            boolean visible = !repo.privateItemsAccessibleByURL() && publicJCB.isSelected();
+            uploader = LargeFileGist.storeFile(repo, file, visible, description(), "dl_model", background, id -> {
+                setURL(repo.toURL(id));
                 GUI.log("Model stored @ id = " + id);
                 uploader = null;
             }, pcb);
@@ -86,17 +103,37 @@ public class SaveDLModelGist {
     }
 
     public void promptDeleteExisting(UserAuth auth) {
+        promptDeleteExisting(repository(auth));
+    }
+
+    public void promptDeleteExisting(GistRepository repo) {
         if (!url.getText().isEmpty()) {
             if (Utils.promptBoolean("A model file is already linked to this configuration, remove it from server ?", dia)) {
-                deleteFile(auth);
+                deleteFile(repo);
             }
         }
     }
 
     public boolean deleteFile(UserAuth auth) {
-        String url = BASE_URL + "/gists/" + id();
-        boolean del = JSONQuery.delete(url, auth);
-        logger.debug("deleted gist: {} -> {}", url, del);
+        return deleteFile(repository(auth));
+    }
+
+    /**
+     * Deletes the model file from the repository
+     */
+    public boolean deleteFile(GistRepository repo) {
+        String id = repo.parseId(url());
+        boolean del;
+        try {
+            if (!repo.isWritable()) del = false;
+            else {
+                repo.delete(id);
+                del = true;
+            }
+        } catch (IOException e) {
+            del = false;
+        }
+        logger.debug("deleted model file: {} -> {}", id, del);
         if (del) {
             this.url.setText("");
             this.deleteFromServer.setEnabled(false);
@@ -231,7 +268,7 @@ public class SaveDLModelGist {
                 }
             };
             uploadButton.addActionListener(e -> {
-                promptDeleteExisting(auth);
+                promptDeleteExisting(repository(auth));
                 uploadFile.accept(auth);
             });
             uploadButton.addMouseListener(new MouseAdapter() {
@@ -242,16 +279,11 @@ public class SaveDLModelGist {
                         Action upOther = new AbstractAction("Upload Model to another account") {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to save model to...");
-                                if (cred != null) {
-                                    try {
-                                        TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
-                                        promptDeleteExisting(auth2);
-                                        uploadFile.accept(auth2);
-                                    } catch (GeneralSecurityException ex) {
-                                        if (pcb != null)
-                                            pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
-                                    }
+                                GistRepository other = OtherRepositoryPrompt.prompt(repository(auth), gateway, "Account to save model to...", Dial.this, pcb);
+                                if (other != null) {
+                                    promptDeleteExisting(other);
+                                    File file = FileChooser.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
+                                    if (file != null) uploadFile(file, other, true);
                                 }
                             }
                         };
@@ -271,16 +303,8 @@ public class SaveDLModelGist {
                         Action delOther = new AbstractAction("Delete Model from another account") {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to delete from...");
-                                if (cred != null) {
-                                    try {
-                                        TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
-                                        deleteFile(auth2);
-                                    } catch (GeneralSecurityException ex) {
-                                        if (pcb != null)
-                                            pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
-                                    }
-                                }
+                                GistRepository other = OtherRepositoryPrompt.prompt(repository(auth), gateway, "Account to delete from...", Dial.this, pcb);
+                                if (other != null) deleteFile(other);
                             }
                         };
                         menu.add(delOther);
@@ -320,8 +344,13 @@ public class SaveDLModelGist {
                         uploader.value.cancelSilently();
                         url.setText(currentURL); // callback may have modified url
                         if (id != null) {
-                            boolean deleted = JSONQuery.delete(BASE_URL + "/gists/" + id, auth);
-                            logger.debug("aborted gist id: {} deleted ? {}", id, deleted);
+                            GistRepository repo = uploaderRepository != null ? uploaderRepository : repository(auth);
+                            try {
+                                repo.delete(id);
+                                logger.debug("aborted upload: {} deleted", id);
+                            } catch (IOException ex) {
+                                logger.debug("aborted upload: {} could not be deleted", id, ex);
+                            }
                         }
                         uploader = null;
                     }
@@ -337,6 +366,15 @@ public class SaveDLModelGist {
                 && !url.getText().isEmpty();
         OK.setEnabled(enabled);
         deleteFromServer.setEnabled(!url.getText().isEmpty());
+    }
+
+    /**
+     * @param repository repository where model files are uploaded (repository of the model library). null: GitHub account of the authentication
+     */
+    public SaveDLModelGist setRepository(GistRepository repository) {
+        this.repository = repository;
+        if (repository != null && repository.isWritable()) uploadButton.setEnabled(true);
+        return this;
     }
 
     public SaveDLModelGist setAuthAndDefaultDirectory(UserAuth auth, String defaultDir, ProgressDisplay pcb) {
@@ -415,8 +453,7 @@ public class SaveDLModelGist {
     }
 
     public String id() {
-        String url = url();
-        return url.replace(GIST_BASE_URL, "");
+        return repository(auth).parseId(url());
     }
 
     public DLModelMetadata metadata() {

@@ -1,13 +1,13 @@
 package bacmman.ui.gui;
 
 import bacmman.core.DockerGateway;
-import bacmman.core.GithubGateway;
+import bacmman.core.RepositoryGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.UUID;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.ui.GUI;
-import bacmman.ui.gui.configurationIO.GitCredentialPanel;
+import bacmman.ui.gui.configurationIO.RepositoryCredentialPanel;
 import bacmman.ui.gui.objects.CollapsiblePanel;
 import bacmman.ui.gui.objects.JupyterNotebookViewer;
 import bacmman.ui.gui.objects.NotebookTree;
@@ -50,20 +50,20 @@ public class DataAnalysisPanel {
 
     static String WD_ID = "data_analysis_working_dir";
     private final DockerGateway dockerGateway;
-    private final GithubGateway githubGateway;
+    private final RepositoryGateway repositoryGateway;
     private final ProgressDisplay bacmmanLogger;
     private final String jupyterToken;
 
     private WorkingDirPanel workingDirPanel;
     private DockerImageLauncher dockerImageLauncher;
-    private GitCredentialPanel gitCredentialPanel;
+    private RepositoryCredentialPanel repositoryCredentialPanel;
     private NotebookTree localNotebooks;
     private NotebookGistTree remoteNotebooks;
     private JupyterNotebookViewer localViewer, remoteViewer;
 
-    public DataAnalysisPanel(DockerGateway dockerGateway, GithubGateway githubGateway, ProgressDisplay bacmmanLogger) {
+    public DataAnalysisPanel(DockerGateway dockerGateway, RepositoryGateway repositoryGateway, ProgressDisplay bacmmanLogger) {
         this.dockerGateway = dockerGateway;
-        this.githubGateway = githubGateway;
+        this.repositoryGateway = repositoryGateway;
         this.bacmmanLogger = bacmmanLogger;
         String defWD;
         if (GUI.hasInstance()) {
@@ -71,7 +71,7 @@ public class DataAnalysisPanel {
             else defWD = GUI.getInstance().getWorkingDirectory();
         } else defWD = "";
         jupyterToken = UUID.get().toHexString();
-        gitCredentialPanel = new GitCredentialPanel(githubGateway, this::updateGitCredentials, "Notebooks", bacmmanLogger);
+        repositoryCredentialPanel = new RepositoryCredentialPanel(repositoryGateway, this::updateGitCredentials, "Notebooks", bacmmanLogger);
         Function<NotebookTree.NotebookTreeNode, Supplier<JSONObject>> localNotebookDisplay = nb -> {
             if (nb == null || nb.isFolder()) {
                 localViewer = null;
@@ -116,7 +116,8 @@ public class DataAnalysisPanel {
             } else dockerImageLauncher.startContainer();
         };
         localNotebooks = new NotebookTree(localNotebookDisplay, () -> remoteNotebooks.getSelectedGistNode(), doubleClickCB, (n, c) -> remoteNotebooks.upload(n, c), (n, c) -> remoteNotebooks.updateRemote(n, c), bacmmanLogger);
-        remoteNotebooks = new NotebookGistTree(remoteNotebookDisplay, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, gitCredentialPanel::getAuth, bacmmanLogger);
+        remoteNotebooks = new NotebookGistTree(remoteNotebookDisplay, localNotebooks::getFirstSelectedFolderOrNotebookFile, localNotebooks::reloadNotebook, repositoryCredentialPanel::getAuth, bacmmanLogger).setRepositorySupplier(repositoryCredentialPanel::getRepository);
+        if (repositoryCredentialPanel.loadAllowed(repositoryCredentialPanel.getAuth())) updateGitCredentials(); // local repository or credentials of this session: load notebooks
         workingDirPanel = new WorkingDirPanel(null, defWD, WD_ID, this::updateWD, this::updateWD);
         BiConsumer<String, int[]> startContainer = (containerId, ports) -> {
             String serverURL = getServerURL(ports[0]);
@@ -192,10 +193,11 @@ public class DataAnalysisPanel {
     }
 
     protected void updateGitCredentials() {
-        UserAuth auth = gitCredentialPanel.getAuth();
-        if (auth instanceof NoAuth && gitCredentialPanel.hasPassword())
+        UserAuth auth = repositoryCredentialPanel.getAuth();
+        if (auth instanceof NoAuth && repositoryCredentialPanel.hasPassword())
             bacmmanLogger.setMessage("Token could not be loaded. Wrong configuration ? Only public items will be loaded");
-        remoteNotebooks.updateGists(auth);
+        if (repositoryCredentialPanel.loadAllowed(auth)) remoteNotebooks.updateGists(auth);
+        else remoteNotebooks.clearGists(); // public notebooks of remote repositories are loaded only on user request
     }
 
     public JPanel getMainPanel() {
@@ -257,6 +259,6 @@ public class DataAnalysisPanel {
     private void createUIComponents() {
         directoryPanel = new CollapsiblePanel("Working Directory", workingDirPanel.getPanel());
         dockerPanel = new CollapsiblePanel("Run Notebook", dockerImageLauncher.getPanel());
-        gitPanel = new CollapsiblePanel("Git Credentials", gitCredentialPanel.getPanel());
+        gitPanel = new CollapsiblePanel("Repository", repositoryCredentialPanel.getPanel());
     }
 }

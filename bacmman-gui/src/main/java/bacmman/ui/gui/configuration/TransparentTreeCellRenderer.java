@@ -22,6 +22,9 @@ import bacmman.configuration.parameters.Deactivable;
 import bacmman.configuration.parameters.Parameter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import bacmman.configuration.experiment.ConfigIDAware;
+import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.parameters.BooleanParameter;
 import java.awt.*;
 import java.awt.font.TextAttribute;
 import java.util.Map;
@@ -72,6 +75,14 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
             if (value instanceof Deactivable && !((Deactivable)value).isActivated()) attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
             else attributes.remove(TextAttribute.STRIKETHROUGH);
             attributes.put(TextAttribute.WEIGHT, bold ? TextAttribute.WEIGHT_BOLD : TextAttribute.WEIGHT_REGULAR);
+            // blocks linked to a configuration of a library: auto-updated blocks are replaced by the linked configuration when loaded
+            boolean autoUpdated = false;
+            if (value instanceof ConfigIDAware && !(value instanceof Experiment) && ((ConfigIDAware) value).getConfigID() != null) {
+                BooleanParameter au = ((ConfigIDAware) value).getAutoUpdate();
+                autoUpdated = au != null && au.getSelected();
+                setText(getText() + (autoUpdated ? " [linked, auto-update]" : " [linked]"));
+            }
+            attributes.put(TextAttribute.POSTURE, autoUpdated ? TextAttribute.POSTURE_OBLIQUE : TextAttribute.POSTURE_REGULAR);
             ret.setFont(new Font(attributes));
         }
         return ret;

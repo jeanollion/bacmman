@@ -1,6 +1,7 @@
 package bacmman.ui.gui.configurationIO;
 
-import bacmman.core.GithubGateway;
+import bacmman.core.RepositoryGateway;
+import bacmman.github.gist.GistRepository;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -24,11 +25,29 @@ public class PromptGithubCredentials extends JDialog {
     private JPasswordField password;
     private JPanel credentialPane;
     private JButton generateToken;
-    GithubGateway gateway;
+    RepositoryGateway gateway;
     boolean storeToGateway;
     Pair<String, char[]> credentials;
+    GistRepository.TYPE type;
+    String serverURL;
 
-    public PromptGithubCredentials(GithubGateway gateway, String message, boolean storeToGateway) {
+    public PromptGithubCredentials(RepositoryGateway gateway, String message, boolean storeToGateway) {
+        this(gateway, message, storeToGateway, GistRepository.TYPE.GITHUB);
+    }
+
+    /**
+     * @param type repository type: user names are recorded separately for GitHub and GitLab
+     */
+    public PromptGithubCredentials(RepositoryGateway gateway, String message, boolean storeToGateway, GistRepository.TYPE type) {
+        this(gateway, message, storeToGateway, type, null);
+    }
+
+    /**
+     * @param serverURL server of a GitLab repository (recent user names are recorded for each server)
+     */
+    public PromptGithubCredentials(RepositoryGateway gateway, String message, boolean storeToGateway, GistRepository.TYPE type, String serverURL) {
+        this.type = type == null ? GistRepository.TYPE.GITHUB : type;
+        this.serverURL = serverURL;
         this.gateway = gateway;
         this.storeToGateway = storeToGateway;
         setContentPane(contentPane);
@@ -36,12 +55,13 @@ public class PromptGithubCredentials extends JDialog {
         setModal(true);
         getRootPane().setDefaultButton(connect);
         username.addActionListener(e -> {
-            if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
-                password.setText(String.valueOf(gateway.getPassword(username.getText())));
+            char[] sessionPassword = gateway.getPassword(this.type, this.serverURL, username.getText());
+            if (password.getPassword().length == 0 && sessionPassword != null)
+                password.setText(String.valueOf(sessionPassword));
             updateEnableButtons(false);
         });
-        PropertyUtils.setPersistent(username, "GITHUB_USERNAME", "", true);
-        if (gateway.getUsername() != null && gateway.getUsername().length() > 0)
+        PropertyUtils.setPersistent(username, RepositoryCredentialPanel.usernameKey(this.type, this.serverURL), "", true);
+        if (GistRepository.TYPE.GITHUB.equals(this.type) && gateway.getUsername() != null && gateway.getUsername().length() > 0)
             username.setText(gateway.getUsername());
         updateEnableButtons(false);
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
@@ -66,7 +86,7 @@ public class PromptGithubCredentials extends JDialog {
         connect.addActionListener(e -> onOK());
 
         generateToken.addActionListener(e -> {
-            Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(username.getText(), password.getPassword(), null);
+            Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(type, serverURL, username.getText(), password.getPassword(), null);
             if (usernameAndPassword != null) {
                 gateway.setCredentials(usernameAndPassword.key, usernameAndPassword.value);
                 this.username.setText(usernameAndPassword.key);
@@ -114,7 +134,19 @@ public class PromptGithubCredentials extends JDialog {
         dispose();
     }
 
-    public static Pair<String, char[]> promptCredentials(GithubGateway gateway, String message) {
+    /**
+     * @param type repository type: the token generation procedure depends on it
+     * @param serverURL server of a GitLab repository
+     */
+    public static Pair<String, char[]> promptCredentials(RepositoryGateway gateway, String message, GistRepository.TYPE type, String serverURL) {
+        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, message, false, type, serverURL);
+        if (GistRepository.TYPE.GITLAB.equals(dialog.type) && message == null) dialog.setTitle("GitLab Credentials");
+        dialog.pack();
+        dialog.setVisible(true);
+        return dialog.credentials;
+    }
+
+    public static Pair<String, char[]> promptCredentials(RepositoryGateway gateway, String message) {
         PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, message, false);
         dialog.pack();
         dialog.setVisible(true);

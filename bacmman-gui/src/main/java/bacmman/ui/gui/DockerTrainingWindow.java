@@ -9,6 +9,7 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
+import bacmman.github.gist.GistRepository;
 import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.image.BlankMask;
@@ -658,21 +659,36 @@ public class DockerTrainingWindow implements ProgressDisplay {
             DockerDLTrainer trainer = getTrainerFromTrainingConfig();  // get trainer from config used for training and not current config.
             if (trainer == null) trainer = trainerParameter.instantiatePlugin();
             else logger.debug("train config loaded");
-            GithubGateway githubGateway = Core.getCore().getGithubGateway();
-            if (githubGateway == null) {
+            RepositoryGateway repositoryGateway = Core.getCore().getGithubGateway();
+            if (repositoryGateway == null) {
                 setMessage("Github not reachable");
                 return;
             }
-            UserAuth modelAuth = githubGateway.promptCredentials(this::setMessage, "Account to save model file to...");
+            DLModelsLibrary library = getDLModelLibrary(repositoryGateway, null);
+            if (!GistRepository.TYPE.GITHUB.equals(library.getRepositoryType())) { // GitLab or local library: model file is stored in the repository of the library
+                if (!library.isWritable()) {
+                    setMessage("Connect the DL model library to a repository where models can be stored (" + library.getRepositoryType() + ")");
+                    return;
+                }
+                library.uploadModel(null, trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
+                if (GUI.hasInstance()) library.setProgressLogger(GUI.getInstance());
+                epochLabel.setText("Epoch:");
+                if (currentProgressBar != null) {
+                    currentProgressBar.setValue(currentProgressBar.getMinimum());
+                    currentProgressBar.setString("");
+                }
+                return;
+            }
+            UserAuth modelAuth = repositoryGateway.promptCredentials(this::setMessage, "Account to save model file to...");
             if (modelAuth instanceof NoAuth) {
                 setMessage("Could not connect to account to store model file to..");
                 return;
             } else setMessage("Successfully authenticated to account to store model file to.");
-            UserAuth libAuth = githubGateway.getAuthentication(true, "Online Model Library Account");
+            UserAuth libAuth = repositoryGateway.getAuthentication(true, "Online Model Library Account");
             if (libAuth instanceof NoAuth) setMessage("Could not connect to online library");
             else {
                 setMessage("Successfully authenticated to account to store configuration to.");
-                DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
+                DLModelsLibrary dlModelLibrary = getDLModelLibrary(repositoryGateway, null);
                 dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
                 // set back properties
                 if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
@@ -691,12 +707,12 @@ public class DockerTrainingWindow implements ProgressDisplay {
                     Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            GithubGateway githubGateway = Core.getCore().getGithubGateway();
-                            if (githubGateway == null) {
+                            RepositoryGateway repositoryGateway = Core.getCore().getGithubGateway();
+                            if (repositoryGateway == null) {
                                 setMessage("Github not reachable");
                                 return;
                             }
-                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
+                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(repositoryGateway, (id, dl) -> {
                                 DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
                                 if (newTrainer != null) {
                                     trainerParameter.setPlugin(newTrainer);
@@ -831,7 +847,7 @@ public class DockerTrainingWindow implements ProgressDisplay {
         }
     }
 
-    protected DLModelsLibrary getDLModelLibrary(GithubGateway githubGateway, BiConsumer<String, DLModelMetadata> configureCB) {
+    protected DLModelsLibrary getDLModelLibrary(RepositoryGateway repositoryGateway, BiConsumer<String, DLModelMetadata> configureCB) {
         boolean fromGUI = GUI.hasInstance();
         int tabIdx = fromGUI ? GUI.getInstance().getCurrentTab() : -1;
         DLModelsLibrary dlModelLibrary;
@@ -839,7 +855,7 @@ public class DockerTrainingWindow implements ProgressDisplay {
             dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
                     .setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
         } else {
-            dlModelLibrary = new DLModelsLibrary(githubGateway, workingDirPanel.getCurrentWorkingDirectory(), () -> {
+            dlModelLibrary = new DLModelsLibrary(repositoryGateway, workingDirPanel.getCurrentWorkingDirectory(), () -> {
                 epochLabel.setText("Epoch:");
                 if (currentProgressBar != null) {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
