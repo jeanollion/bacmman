@@ -18,6 +18,8 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowAdapter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.region_container.roi.IJRoi3D;
 import bacmman.image.*;
@@ -81,6 +83,14 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         //logger.debug("show image:w={}, h={}, disp: {}", ip.getWidth(), ip.getHeight(), displayRange);
         if (!ip.isVisible()) {
             ip.show();
+            if (ip.getWindow() != null) { // release the image when its window is closed. Images registered by the image window manager are also released by its own listener: removing twice has no effect
+                ip.getWindow().addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        if (displayedImages.get(image) == ip) removeImage(image); // the image may have been displayed again in another window
+                    }
+                });
+            }
             InteractiveImage im = ImageWindowManagerFactory.getImageManager().getInteractiveImage(image);
             logger.debug("im shown. interactive image is null? {}", im==null);
             if (im != null) {
@@ -143,7 +153,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     
     @Override
     public boolean isDisplayed(Image image) {
-        ImagePlus ip = getImage(image);
+        ImagePlus ip = displayedImages.get(image); // getImage would create an ImagePlus for images that are not displayed
         return ip!=null && ip.isVisible();
     }
     

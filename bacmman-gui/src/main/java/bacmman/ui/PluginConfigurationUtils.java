@@ -409,9 +409,11 @@ public class PluginConfigurationUtils {
                                 }
                                 try{
                                     if (transfo instanceof Transformation.ConfigurableTransformation) ((Transformation.ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
-                                } catch (Throwable t) {
-                                    logger.error("error while configuring transformation:", t);
-                                    if (pcb!=null) pcb.log("Error while configuring transformation: "+t.toString());
+                                } catch (Throwable t) { // stop the test: an unconfigured transformation cannot be applied
+                                    if (pcb!=null) pcb.log("Error while configuring transformation: "+tpp.getPluginName());
+                                    if (t instanceof RuntimeException) throw (RuntimeException)t;
+                                    if (t instanceof Error) throw (Error)t;
+                                    throw new RuntimeException("Error while configuring transformation: "+tpp.getPluginName(), t);
                                 }
                                 images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
                                 if (i<transfoIdx &&  transfo instanceof TransformationApplyDirectly) { // copyTo
