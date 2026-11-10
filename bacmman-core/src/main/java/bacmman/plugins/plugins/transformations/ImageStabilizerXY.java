@@ -69,8 +69,9 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
     NumberParameter tol = new BoundedNumberParameter("Error Tolerance", 15, 5e-8, 0, null);
     BooleanParameter allowInterpolation = new BooleanParameter("Allow non-integer translation (interpolation)", false);
     PluginParameter<Cropper> cropper = new PluginParameter<>("Cropper", Cropper.class, true);
+    BooleanParameter removeBorders = new BooleanParameter("Remove Black Borders", true).setLegacyInitializationValue(false).setHint("If true, images are cropped to the area that is covered at all frames after stabilization, so that no black borders appear. <br />If a cropper is set, borders are always removed.");
     SimpleListParameter<GroupParameter> additionalTranslation = new SimpleListParameter<GroupParameter>("Additional Translation", new GroupParameter("Channel Translation", new ChannelImageParameter("Channel"), new NumberParameter("dX", 3, 0), new NumberParameter("dY", 3, 0), new NumberParameter("dZ", 3, 0)));
-    Parameter[] parameters = new Parameter[]{maxIter, tol, pyramidLevel, segmentLength, cropper, additionalTranslation, allowInterpolation}; //alpha
+    Parameter[] parameters = new Parameter[]{maxIter, tol, pyramidLevel, segmentLength, cropper, removeBorders, additionalTranslation, allowInterpolation}; //alpha
     ArrayList<ArrayList<Double>> translationTXY = new ArrayList<ArrayList<Double>>();
     public static boolean debug=false;
     public ImageStabilizerXY(){}
@@ -120,44 +121,39 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
         ccdSegments(channelIdx, inputImages, segmentLength.getValue().intValue(), tRef, translationTXYArray, maxIterations, tolerance, cropBB);
         translationTXY = new ArrayList<>(translationTXYArray.length);
         for (Double[] d : translationTXYArray) translationTXY.add(new ArrayList<>(Arrays.asList(d)));
+        if (cropBB==null && removeBorders.getSelected()) cropBB = inputImages.getImage(0, tRef).getBoundingBox().resetOffset(); // whole image, contracted below to the area covered at all frames
         if (cropBB!=null) { // ensure BB never gets out of the image + store BB parameters
-            double minDX = Collections.min(translationTXY, (l1, l2) -> Double.compare(l1.get(0), l2.get(0))).get(0);
-            double maxDX = Collections.max(translationTXY, (l1, l2) -> Double.compare(l1.get(0), l2.get(0))).get(0);
-            double minDY = Collections.min(translationTXY, (l1, l2) -> Double.compare(l1.get(1), l2.get(1))).get(1);
-            double maxDY = Collections.max(translationTXY, (l1, l2) -> Double.compare(l1.get(1), l2.get(1))).get(1);
+            double minDX = Double.POSITIVE_INFINITY, maxDX = Double.NEGATIVE_INFINITY, minDY = Double.POSITIVE_INFINITY, maxDY = Double.NEGATIVE_INFINITY;
+            for (Double[] d : translationTXYArray) {
+                if (d[0]<minDX) minDX = d[0];
+                if (d[0]>maxDX) maxDX = d[0];
+                if (d[1]<minDY) minDY = d[1];
+                if (d[1]>maxDY) maxDY = d[1];
+            }
             logger.debug("ImageStabXY : dx:[{};{}], dy:[{};{}]", minDX, maxDX, minDY, maxDY);
             double[] addTransMin = this.getAdditionalTranslation(channelIdx);
             double[] addTransMax = this.getAdditionalTranslation(channelIdx);
-            for (int c = 1; c<inputImages.getChannelNumber(); ++c) {
-                double[] addTrans = this.getAdditionalTranslation(c);     
+            for (int c = 0; c<inputImages.getChannelNumber(); ++c) {
+                double[] addTrans = this.getAdditionalTranslation(c);
                 for (int i = 0; i<3; ++i) {
-                    if (addTransMin[i]>addTrans[i]) addTransMin[i] = addTrans[i]; 
+                    if (addTransMin[i]>addTrans[i]) addTransMin[i] = addTrans[i];
                     if (addTransMax[i]<addTrans[i]) addTransMax[i] = addTrans[i];
                 }
             }
             logger.debug("transMax: {}, transMin: {}", addTransMax, addTransMin);
-            MutableBoundingBox bds = null;
-            try {
-                bds = inputImages.getImage(0, tRef).getBoundingBox().resetOffset();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            // bb translated (int)(tXY-addTrans)
-            int xLeft = (int)Math.round(minDX-addTransMax[0]);
-            xLeft = xLeft<0 ? -Math.min(0, cropBB.xMin()+xLeft) : cropBB.xMin();
-            int xRight= (int)Math.round(maxDX-addTransMin[0]);
-            xRight = bds.xMax() - (xRight>0 ? Math.max(0, cropBB.xMax()+xRight-bds.xMax()) : 0);
-            cropBB.contractX(xLeft, xRight);
+            BoundingBox bds = inputImages.getImage(0, tRef).getBoundingBox().resetOffset();
+            // in applyTransformation, BB is translated by -round(add - tXY): compute extreme shifts with the same rounding
+            int sXMin = (int)-Math.round(addTransMax[0]-minDX);
+            int sXMax = (int)-Math.round(addTransMin[0]-maxDX);
+            int sYMin = (int)-Math.round(addTransMax[1]-minDY);
+            int sYMax = (int)-Math.round(addTransMin[1]-maxDY);
+            // translated BB must remain within image bounds: xMin + sXMin >= 0 and xMax + sXMax <= bds.xMax()
+            cropBB.contractX(-sXMin, bds.xMax() - sXMax);
+            cropBB.contractY(-sYMin, bds.yMax() - sYMax);
+            logger.debug("ImageStabXY : shifts x:[{};{}], y:[{};{}], contracted BB: {}", sXMin, sXMax, sYMin, sYMax, cropBB);
+            if (cropBB.sizeX()<=0 || cropBB.sizeY()<=0) throw new RuntimeException("ImageStabilizerXY: shift amplitude is larger than image / crop area: no area is covered at all frames");
             
-            int yLeft = (int)Math.round(minDY-addTransMax[1]);
-            yLeft = yLeft<0 ? -Math.min(0, cropBB.yMin()+yLeft) : cropBB.yMin();
-            int yRight= (int)Math.round(maxDY-addTransMin[1]);
-            yRight = bds.yMax() - (yRight>0 ? Math.max(0, cropBB.yMax()+yRight-bds.yMax()) : 0);
-            cropBB.contractY(yLeft, yRight);
-            
-            logger.debug("ImageStabXY : contract x:[{};{}], y:[{};{}]", xLeft, xRight, yLeft, yRight);
-            
-            translationTXY.add(new ArrayList<Double>(){{add((double)cropBB.xMin()); add((double)cropBB.xMax()); add((double)cropBB.yMin()); add((double)cropBB.yMax()); add((double)cropBB.zMin()); add((double)cropBB.zMax());}});
+            translationTXY.add(new ArrayList<>(Arrays.asList((double)cropBB.xMin(), (double)cropBB.xMax(), (double)cropBB.yMin(), (double)cropBB.yMax(), (double)cropBB.zMin(), (double)cropBB.zMax())));
         }   
         long tEnd = System.currentTimeMillis();
         logger.debug("ImageStabilizerXY: total estimation time: {}, reference timePoint: {}", tEnd-tStart, tRef);
@@ -166,6 +162,7 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
     public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel, boolean allowInterpolation, boolean crop, String tmpDir) throws IOException{
         InputImages ii = new SimpleInputImages(tmpDir, images);
         ImageStabilizerXY stab = new ImageStabilizerXY();
+        stab.removeBorders.setSelected(false); // cropping is handled below
         stab.segmentLength.setValue(segmentLength);
         stab.pyramidLevel.setSelectedIndex(pyramidLevel);
         stab.allowInterpolation.setSelected(allowInterpolation);
@@ -319,7 +316,7 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
     
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        MutableBoundingBox cropBB =  cropper.isOnePluginSet() ? getBB() : null;
+        MutableBoundingBox cropBB =  storesBB() ? getBB() : null;
         ArrayList<Double> trans = translationTXY.get(timePoint);
         boolean allowNonInteger = allowInterpolation.getSelected();
         //logger.debug("stabilization time: {}, channel: {}, X:{}, Y:{}", timePoint, channelIdx, trans.get(0), trans.get(1));
@@ -365,8 +362,12 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
     
     @Override
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
-        return translationTXY!=null && translationTXY.size()==(totalTimePointNumber+(cropper.isOnePluginSet()?1:0));
-    } 
+        return translationTXY!=null && translationTXY.size()==(totalTimePointNumber+(storesBB()?1:0));
+    }
+
+    private boolean storesBB() {
+        return cropper.isOnePluginSet() || removeBorders.getSelected();
+    }
 
     public boolean isTimeDependent() {
         return true;
