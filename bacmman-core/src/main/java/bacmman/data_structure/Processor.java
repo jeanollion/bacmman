@@ -136,6 +136,7 @@ public class Processor {
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         setTransformations(position, memoryLimit, pcb); // perform pre-processing
         position.recomputeSizeZ(); // set sizeZC
+        checkPreProcessedImageSizeXY(position);
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
@@ -208,11 +209,41 @@ public class Processor {
                 dao.setRoots(res); // also stores
             }
         } else {
+            checkRootTrackSize(position, res);
             res = adjustRootTrackToFrameNumber(dao, position, res);
             position.setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
         }
         if (res==null || res.isEmpty()) throw new IOException("no pre-processed image found");
         return res;
+    }
+
+    /**
+     * Root objects are created with the XY size of pre-processed images (see {@link Position#getMask()}) and are not updated afterwards.
+     * If pre-processed images have a different size, stored objects do not correspond to them and must be deleted (or images pre-processed again)
+     */
+    protected static void checkRootTrackSize(Position position, List<SegmentedObject> roots) throws IOException {
+        BlankMask mask = position.getMask();
+        if (mask==null) return;
+        List<SegmentedObject> wrongSize = roots.stream().filter(r -> r.getBounds().sizeX()!=mask.sizeX() || r.getBounds().sizeY()!=mask.sizeY()).collect(Collectors.toList());
+        if (!wrongSize.isEmpty()) {
+            SegmentedObject r = wrongSize.get(0);
+            throw new IOException("Objects of position "+position.getName()+" do not match pre-processed images: "+wrongSize.size()+"/"+roots.size()+" root objects (e.g. frame "+r.getFrame()+": "+r.getBounds().sizeX()+"x"+r.getBounds().sizeY()+") differ from pre-processed images ("+mask.sizeX()+"x"+mask.sizeY()+"). Re-run pre-processing or delete objects of this position");
+        }
+    }
+
+    /**
+     * All channels of pre-processed images must have the same size in XY: root objects are created with the size of the first channel
+     */
+    protected static void checkPreProcessedImageSizeXY(Position position) throws IOException {
+        int nC = position.getExperiment().getChannelImageCount(true);
+        BlankMask ref = position.getImageDAO().getPreProcessedImageProperties(0);
+        if (ref==null) return;
+        for (int c = 1; c<nC; ++c) {
+            BlankMask props = position.getImageDAO().getPreProcessedImageProperties(c);
+            if (props!=null && (props.sizeX()!=ref.sizeX() || props.sizeY()!=ref.sizeY())) {
+                throw new IOException("Position "+position.getName()+": pre-processed channel "+c+" has size "+props.sizeX()+"x"+props.sizeY()+" whereas channel 0 has size "+ref.sizeX()+"x"+ref.sizeY()+". All channels must have the same size in XY: check that transformations that change image size (crop, rotation, stabilization...) are applied to all channels");
+            }
+        }
     }
 
     /**

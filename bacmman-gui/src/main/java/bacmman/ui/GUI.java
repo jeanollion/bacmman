@@ -5829,7 +5829,10 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                 SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(SegmentedObject::isTrackHead).map(Selection::indicesString).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
                 if (sel !=null) testParentTrackJCB.setSelectedItem(sel);
                 //logger.debug("parent track: {}", Processor.getOrCreateRootTrack(db.getDao(position)).size());
-            } catch (IOException e) {}
+            } catch (IOException e) {
+                logger.error("Error getting root track", e);
+                log(e.getMessage());
+            }
             setTestParentTHTitle(parentObjectClassIdx>=0 ? db.getExperiment().getStructure(parentObjectClassIdx).getName() : "Viewfield");
             //testParentTrackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Parent Track"));
         } else setTestParentTHTitle("Viewfield");
