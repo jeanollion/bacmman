@@ -55,7 +55,7 @@ public class SaturateHistogramHyperfluoBacteria implements Transformation.Config
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
         long t0 = System.currentTimeMillis();
-        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), true).flatMapToDouble(Image::stream));
+        Histogram histo = HistogramFactory.getHistogram(()->InputImages.streamChannel(inputImages, channelIdx, frameModulo.getIntValue(), 3, true).flatMapToDouble(Image::stream));
         double[] bckMuStd = new double[2];
         double bckThld = BackgroundFit.backgroundFit(histo, 10, bckMuStd);
         Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(bckThld)+1, histo.getData().length);
