@@ -87,7 +87,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 ip.getWindow().addWindowListener(new WindowAdapter() {
                     @Override
                     public void windowClosed(WindowEvent e) {
-                        if (displayedImages.get(image) == ip) removeImage(image); // the image may have been displayed again in another window
+                        ImagePlus current = displayedImages.get(image);
+                        if (current == null || current == ip) removeImage(image); // the image may have been displayed again in another window. null: already removed (e.g. flush / close) but runOnClose may still need to be run
                     }
                 });
             }
@@ -161,12 +162,15 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         for (ImagePlus ip : new ArrayList<>(displayedImages.values())) if (ip.isVisible()) ip.close();
         displayedImages.clear();
         displayedImagesInv.clear();
+        // release virtual stacks (and stop their background loader threads, which otherwise keep the whole image in memory)
+        java.util.List<Runnable> rocs = new ArrayList<>(runOnClose.values());
+        runOnClose.clear();
+        rocs.forEach(Runnable::run);
     }
     @Override public void close(Image image) {
-        ImagePlus imp = this.getImage(image);
-        this.displayedImages.remove(image);
+        ImagePlus imp = this.displayedImages.remove(image); // getImage would create an ImagePlus (and a virtual stack) for images that are not displayed
         if (imp!=null) {
-            for (WindowListener win : imp.getWindow().getWindowListeners()) win.windowClosed(null);
+            if (imp.getWindow()!=null) for (WindowListener win : imp.getWindow().getWindowListeners()) win.windowClosed(null);
             imp.close();
             this.displayedImagesInv.remove(imp);
         }
@@ -177,8 +181,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         if (image==null) return;
         Image im = this.displayedImagesInv.remove(image);
         if (im!=null) this.displayedImages.remove(im);
-        for (WindowListener win : image.getWindow().getWindowListeners()) win.windowClosed(null);
+        if (image.getWindow()!=null) for (WindowListener win : image.getWindow().getWindowListeners()) win.windowClosed(null);
         image.close();
+        if (im!=null) {
+            Runnable roc = runOnClose.remove(im);
+            if (roc != null) roc.run();
+        }
     }
 
     /*@Override public boolean isVisible(Image image) {
