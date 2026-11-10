@@ -53,7 +53,7 @@ public class ModeFit implements ThresholderHisto, SimpleThresholder, MultiThread
     public String getHintText() {
         return "Estimates the mean (µ) and standard deviation (σ) of the main peak of the histogram (e.g. background) and returns µ + <em>Sigma factor</em> x σ." +
                 "<br/>µ and σ are estimated by fitting a parabola on the logarithm of the histogram counts (i.e. a gaussian) on the core of the peak: [µ - " + LOWER_EXTENT + "σ ; µ + " + UPPER_EXTENT + "σ], the window being updated iteratively. Weighted least squares are used (weights = counts), and σ is corrected for the bin width (Sheppard's correction)." +
-                "<br/>As only the core of the peak is used, the estimation is not influenced by the upper tail (e.g. foreground) nor by the lower tail of the peak, and it is robust to the bin size (precision below the bin size)." +
+                "<br/>As only the core of the peak is used, the estimation is not influenced by the upper tail (e.g. foreground) nor by the lower tail of the peak, and it is robust to the bin size (precision below the bin size). If bins are too fine for the main peak (e.g. integer values and bins smaller than 1, which happens when the bin size is set by a narrow peak of low values such as the borders of registered images), bins are merged until the peak is well sampled." +
                 "<br/>Assumes that the main peak of the histogram corresponds to the background and that its core is approximately gaussian. If the fit fails, the mode and the half width at half maximum of the lower side of the peak are returned";
     }
 
@@ -79,6 +79,29 @@ public class ModeFit implements ThresholderHisto, SimpleThresholder, MultiThread
      * @return {mean, standard deviation}
      */
     public static double[] fit(Histogram h) {
+        // bins can be too fine for the main peak, e.g. when the bin size resolves a narrow peak of low values (borders of registered images) while the main peak has integer values: the main peak is then a comb of populated and empty bins, and the fit fails.
+        // in this case, bins are merged until the peak is well sampled
+        double[] first = null;
+        for (int factor = 1; ; factor *= 2) {
+            Histogram hf = HistogramFactory.mergeBins(h, factor);
+            double[] res = fitPeak(hf);
+            if (res[2] > 0) {
+                if (debug && factor > 1) logger.debug("peak fit: bins merged by a factor {}", factor);
+                return new double[]{res[0], res[1]};
+            }
+            if (first == null) first = res;
+            if (hf.getMaxNonNullIdx() - hf.getMinNonNullIdx() + 1 < MIN_BINS) break;
+        }
+        return new double[]{first[0], first[1]};
+    }
+
+    public static int MIN_BINS = 16;
+    public static double MAX_EMPTY_FRACTION = 0.25;
+
+    /**
+     * @return {mean, standard deviation, 1 if the peak is well sampled (fit converged, σ spans at least 2 bins and few empty bins within µ ± σ) else 0}
+     */
+    private static double[] fitPeak(Histogram h) {
         long[] n = h.getData();
         double b = h.getBinSize();
         int start = h.getMinNonNullIdx(), end = h.getMaxNonNullIdx() + 1;
@@ -136,11 +159,19 @@ public class ModeFit implements ThresholderHisto, SimpleThresholder, MultiThread
             if (converged) break;
         }
         if (!success) {
-            if (debug) logger.debug("peak fit failed: returning initial estimates mode: {} sigma: {}", mu0, sigma0);
-            return new double[]{mu0, sigma0};
+            if (debug) logger.debug("peak fit failed (bin size: {}): returning initial estimates mode: {} sigma: {}", b, mu0, sigma0);
+            return new double[]{mu0, sigma0, 0};
         }
-        if (debug) logger.debug("peak fit: mu: {} sigma: {} (initial: {}, {})", mu, sigma, mu0, sigma0);
-        return new double[]{mu, sigma};
+        boolean wellSampled = sigma >= 2 * b;
+        if (wellSampled) {
+            int lo = Math.max(start, HistogramThresholdUtils.binIdx(h, mu - sigma));
+            int hi = Math.min(end - 1, HistogramThresholdUtils.binIdx(h, mu + sigma));
+            int empty = 0;
+            for (int i = lo; i <= hi; ++i) if (n[i] == 0) ++empty;
+            wellSampled = empty <= MAX_EMPTY_FRACTION * (hi - lo + 1);
+        }
+        if (debug) logger.debug("peak fit: mu: {} sigma: {} (initial: {}, {}) bin size: {} well sampled: {}", mu, sigma, mu0, sigma0, b, wellSampled);
+        return new double[]{mu, sigma, wellSampled ? 1 : 0};
     }
 
     private static double[] solve3(double[][] A, double[] B) { // gauss-jordan elimination with partial pivoting
