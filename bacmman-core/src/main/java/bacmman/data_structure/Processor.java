@@ -113,7 +113,7 @@ public class Processor {
     public static void preProcessImages(MasterDAO db, double memoryLimit)  throws Exception {
         Experiment xp = db.getExperiment();
         for (int i = 0; i<xp.getPositionCount(); ++i) {
-            preProcessImages(xp.getPosition(i), db.getDao(xp.getPosition(i).getName()), false, memoryLimit, null);
+            preProcessImages(xp.getPosition(i), db.getDao(xp.getPosition(i).getName()), true, memoryLimit, null);
         }
     }
     
@@ -129,6 +129,9 @@ public class Processor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        // pre-processed images are re-computed: existing objects (including the root track) are no longer valid.
+        // erase() is a no-op on a read-only DAO, so stale objects would survive: refuse to pre-process in that case
+        if (dao.isReadOnly()) throw new IOException("Position: "+position.getName()+" is read-only (locked by another process?): cannot delete existing objects before pre-processing");
         if (deleteObjects) dao.erase();
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         setTransformations(position, memoryLimit, pcb); // perform pre-processing
@@ -198,14 +201,72 @@ public class Processor {
     
     public static List<SegmentedObject> getOrCreateRootTrack(ObjectDAO dao) throws IOException {
         List<SegmentedObject> res = dao.getRoots();
+        Position position = dao.getExperiment().getPosition(dao.getPositionName());
         if (res==null || res.isEmpty()) {
-            res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
+            res = position.createRootObjects(dao);
             if (res!=null && !res.isEmpty()) {
                 dao.setRoots(res); // also stores
             }
-        } else dao.getExperiment().getPosition(dao.getPositionName()).setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
+        } else {
+            res = adjustRootTrackToFrameNumber(dao, position, res);
+            position.setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
+        }
         if (res==null || res.isEmpty()) throw new IOException("no pre-processed image found");
         return res;
+    }
+
+    /**
+     * Makes sure the stored root track has exactly one root per frame of the position (e.g. if frame trimming was modified after pre-processing):
+     * roots (and their children) beyond the last frame are deleted, missing roots are created, and track links are updated.
+     * @return the adjusted root track, sorted by frame
+     */
+    protected static List<SegmentedObject> adjustRootTrackToFrameNumber(ObjectDAO dao, Position position, List<SegmentedObject> roots) throws IOException {
+        int frameNumber = position.getFrameNumber(false);
+        if (frameNumber<=0) return roots;
+        roots = new ArrayList<>(roots);
+        roots.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+        List<SegmentedObject> toDelete = roots.stream().filter(r -> r.getFrame()>=frameNumber).collect(Collectors.toList());
+        Set<Integer> existingFrames = roots.stream().map(SegmentedObject::getFrame).filter(f -> f<frameNumber).collect(Collectors.toSet());
+        int[] missingFrames = IntStream.range(0, frameNumber).filter(f -> !existingFrames.contains(f)).toArray();
+        if (toDelete.isEmpty() && missingFrames.length==0) return roots;
+        logger.debug("Position: {} root track has {} frames but position has {} frames: deleting {} roots, creating {} roots", position.getName(), roots.size(), frameNumber, toDelete.size(), missingFrames.length);
+        if (!toDelete.isEmpty()) {
+            dao.delete(toDelete, true, false, false);
+            roots.removeAll(toDelete);
+        }
+        List<SegmentedObject> modified = new ArrayList<>();
+        if (missingFrames.length>0) {
+            BlankMask mask = position.getMask();
+            if (mask==null) throw new IOException("no pre-processed image found");
+            SegmentedObjectAccessor accessor = dao.getMasterDAO().getAccess();
+            for (int f : missingFrames) {
+                SegmentedObject r = accessor.createRoot(f, mask, dao);
+                roots.add(r);
+                modified.add(r);
+            }
+            roots.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+        }
+        // reset root track links
+        if (!roots.isEmpty()) {
+            roots.get(0).setPrevious(null);
+            roots.get(roots.size()-1).setNext(null);
+            SegmentedObjectUtils.setTrackLinks(roots);
+            modified = roots; // track head and links may have changed for all roots
+        }
+        // children of the new last frame may link to deleted objects
+        if (!toDelete.isEmpty() && !roots.isEmpty()) {
+            SegmentedObject lastRoot = roots.get(roots.size()-1);
+            List<SegmentedObject> modifiedChildren = new ArrayList<>();
+            for (int oc = 0; oc<dao.getExperiment().getStructureCount(); ++oc) {
+                lastRoot.getChildren(oc).filter(c -> c.getNextId()!=null).forEach(c -> {
+                    c.setNext(null);
+                    modifiedChildren.add(c);
+                });
+            }
+            if (!modifiedChildren.isEmpty()) dao.store(modifiedChildren);
+        }
+        dao.store(modified);
+        return roots;
     }
     
     public static void processAndTrackStructures(MasterDAO db, boolean deleteObjects, int... structures) {
