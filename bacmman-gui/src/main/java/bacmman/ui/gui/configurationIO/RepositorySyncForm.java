@@ -36,8 +36,6 @@ public class RepositorySyncForm {
     private JPanel targetPanel;
     private JPanel targetCredentialPanel;
     private JPanel modelFilePanel;
-    private JTextField modelFileUsername;
-    private JPasswordField modelFilePassword;
     private JPanel optionsPanel;
     private JCheckBox configurationsJCB;
     private JCheckBox dlModelsJCB;
@@ -54,6 +52,7 @@ public class RepositorySyncForm {
     private JButton syncButton;
     private JButton closeButton;
     final RepositoryCredentialPanel source, target;
+    final ModelFileAccountPanel modelFileAccount = new ModelFileAccountPanel("SYNC_MODEL_FILE_USERNAME");
     final ProgressDisplay pcb;
     JDialog dia;
     volatile boolean running;
@@ -69,7 +68,6 @@ public class RepositorySyncForm {
             updateModelFilePanel();
         }, "Items", pcb, "_SYNC_TARGET");
         $$$setupUI$$$();
-        PropertyUtils.setPersistent(modelFileUsername, "SYNC_MODEL_FILE_USERNAME", "", true);
         updateModelFilePanel();
         chooseItemsButton.addActionListener(e -> chooseItems());
         previewButton.addActionListener(e -> run(true));
@@ -87,7 +85,7 @@ public class RepositorySyncForm {
 
     protected void updateModelFilePanel() {
         if (modelFilePanel == null) return; // called before UI setup
-        modelFilePanel.setVisible(!GistRepository.TYPE.LOCAL.equals(target.getRepositoryType()));
+        modelFileAccount.updateVisibility(target.getRepositoryType());
         contentPane.revalidate();
         contentPane.repaint();
     }
@@ -97,17 +95,7 @@ public class RepositorySyncForm {
      * @throws IllegalArgumentException if the token of the account cannot be loaded
      */
     public GistRepository getModelFileTarget(GistRepository target) {
-        if (!modelFilePanel.isVisible() || modelFileUsername.getText().trim().isEmpty() || target == null || GistRepository.TYPE.LOCAL.equals(target.getType())) return null;
-        String username = modelFileUsername.getText().trim();
-        if (modelFilePassword.getPassword().length == 0) throw new IllegalArgumentException("Set the password of the model weights account " + username);
-        TokenAuth auth;
-        try {
-            auth = new TokenAuth(username, modelFilePassword.getPassword(), target.getType(), target instanceof GitLabRepository ? ((GitLabRepository) target).getServerURL() : null);
-        } catch (GeneralSecurityException | RuntimeException e) {
-            throw new IllegalArgumentException("Could not load the token of the model weights account " + username + ": wrong password or no token stored (generate one from the library window)");
-        }
-        if (target instanceof GitLabRepository) return GistRepository.gitlab(((GitLabRepository) target).getServerURL(), auth);
-        else return GistRepository.github(auth);
+        return modelFileAccount.getRepository(target);
     }
 
     protected void setSelection(Set<String> selection) {
@@ -297,6 +285,7 @@ public class RepositorySyncForm {
         sourcePanel.add(source.getPanel(), BorderLayout.NORTH);
         targetCredentialPanel = new JPanel(new BorderLayout());
         targetCredentialPanel.add(target.getPanel(), BorderLayout.NORTH);
+        modelFilePanel = modelFileAccount.getPanel();
     }
 
     private class Dial extends JDialog {
@@ -332,23 +321,7 @@ public class RepositorySyncForm {
         contentPane.add(targetPanel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         targetPanel.setBorder(BorderFactory.createTitledBorder(null, "Target", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         targetPanel.add(targetCredentialPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        modelFilePanel = new JPanel();
-        modelFilePanel.setLayout(new GridLayoutManager(1, 4, new Insets(0, 0, 0, 0), -1, -1));
-        modelFilePanel.setToolTipText("<html>Optional: account of the target server where model weights (files of DL models) are stored. Configurations and DL models are stored in the target account, with links to the weights stored in this account.<br />A token must have been stored for this account (password required).<br />If no username is set, model weights are stored along with the models.</html>");
         targetPanel.add(modelFilePanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        modelFilePanel.setBorder(BorderFactory.createTitledBorder(null, "Model weights account (optional)", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        final JLabel label1 = new JLabel();
-        label1.setText("Username");
-        modelFilePanel.add(label1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        modelFileUsername = new JTextField();
-        modelFileUsername.setToolTipText("Username of the account where model weights are stored. Empty: weights are stored with the models");
-        modelFilePanel.add(modelFileUsername, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        final JLabel label2 = new JLabel();
-        label2.setText("Password");
-        modelFilePanel.add(label2, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        modelFilePassword = new JPasswordField();
-        modelFilePassword.setToolTipText("Password used to encrypt the token stored for this account");
-        modelFilePanel.add(modelFilePassword, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         optionsPanel = new JPanel();
         optionsPanel.setLayout(new GridLayoutManager(1, 7, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(optionsPanel, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));

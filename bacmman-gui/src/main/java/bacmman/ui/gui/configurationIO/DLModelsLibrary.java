@@ -24,6 +24,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -43,10 +45,15 @@ public class DLModelsLibrary {
     private JButton duplicateButton;
     private JButton setThumbnailButton;
     private JButton configureParameterButton;
+    private JButton storeTrainedModelButton;
     JFrame displayingFrame;
     RepositoryGateway gateway;
     List<GistDLModel> gists;
     boolean loggedIn = false;
+    final ModelFileAccountPanel modelFileAccount = new ModelFileAccountPanel("DL_LIBRARY_MODEL_FILE_USERNAME");
+    DLModelMetadata pendingMetadata; // model to be stored, requested from the training tab
+    File pendingModel;
+    String connectedRepositoryKey; // key of the repository the library is connected to
     DLModelGistTreeGenerator tree;
     private static final Logger logger = LoggerFactory.getLogger(DLModelsLibrary.class);
     String workingDirectory;
@@ -63,12 +70,15 @@ public class DLModelsLibrary {
         this.onClose = onClose;
         if (pcb instanceof JFrame) displayingFrame = (JFrame) pcb;
         this.repositoryCredentialPanel = new RepositoryCredentialPanel(gateway, () -> {
+            modelFileAccount.updateVisibility(repositoryCredentialPanel.getRepositoryType());
             fetchGists();
             updateGistDisplay();
             updateEnableButtons();
         }, "Models", pcb);
+        modelFileAccount.updateVisibility(repositoryCredentialPanel.getRepositoryType());
         $$$setupUI$$$();
         updateEnableButtons();
+        storeTrainedModelButton.addActionListener(e -> storePendingModel());
 
         newButton.addActionListener(e -> {
             if (tree == null || !loggedIn) return;
@@ -76,7 +86,9 @@ public class DLModelsLibrary {
             String currentFolder = tree.getSelectedFolder();
             SaveDLModelGist form = new SaveDLModelGist(gateway);
             if (currentFolder != null) form.setFolder(currentFolder);
-            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
+            GistRepository modelFileRepository = getModelFileRepository();
+            if (modelFileRepository == null) return;
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(modelFileRepository);
 
             form.display(displayingFrame, "Store dl model");
             if (form.canceled) return;
@@ -137,7 +149,9 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible()).disableVisibleField();
-            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
+            GistRepository modelFileRepository = getModelFileRepository();
+            if (modelFileRepository == null) return;
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(modelFileRepository);
             form.display(displayingFrame, "Update model...");
             if (form.canceled) return;
             gist.setDescription(form.description());
@@ -157,7 +171,9 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible());
-            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
+            GistRepository modelFileRepository = getModelFileRepository();
+            if (modelFileRepository == null) return;
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(modelFileRepository);
             form.display(displayingFrame, "Duplicate model...");
             if (form.canceled) return;
             // check that name does not already exists
@@ -345,21 +361,96 @@ public class DLModelsLibrary {
             String folder = tree.getSelectedFolder();
             if (folder == null) return;
             if (!Utils.promptBoolean("Delete all model files from selected folder ? ", actionPanel)) return;
-            gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {
-                gists.remove(g);
-                g.delete(getAuth(), deleteFile);
-            });
-            tree.removeFolder(folder);
-        } else {
-            gist.delete(getAuth(), deleteFile);
+            boolean allDeleted = true;
+            for (GistDLModel g : gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList())) {
+                if (deleteModel(g, deleteFile)) gists.remove(g);
+                else allDeleted = false;
+            }
+            if (allDeleted) tree.removeFolder(folder);
+            else updateGistDisplay();
+        } else if (deleteModel(gist, deleteFile)) {
             gists.remove(gist);
             tree.removeGist(gist);
         }
     }
 
-    public void uploadModel(UserAuth modelAuth, DLModelMetadata metadata, File model) {
+    /**
+     * Requests the upload of a model (e.g. from the training tab): enables the button that stores the model, so that the repository of the library and the (optional) model file account can be set before.
+     * The model file is stored in the model file account if set, in the repository of the library otherwise.
+     */
+    public void requestModelUpload(DLModelMetadata metadata, File model) {
+        pendingMetadata = metadata;
+        pendingModel = model;
+        updateEnableButtons();
+        String msg = "To save the model: set the repository of the library (and optionally the model file account), then click \"" + storeTrainedModelButton.getText() + "\"";
+        if (pcb != null) pcb.setMessage(msg);
+        Utils.displayTemporaryMessage(msg, 8000);
+    }
+
+    /**
+     * Connects to the repository of the library if not connected or connected to another account, and to the model file account, then stores the model requested from the training tab.
+     * If a connection fails, the request is kept so that it can be retried. It is cleared once the form of the new model is displayed.
+     */
+    protected void storePendingModel() {
+        if (pendingModel == null) return;
+        GistRepository repo = getRepository();
+        String key = repo == null ? null : repo.getKey();
+        if (!loggedIn || key == null || !key.equals(connectedRepositoryKey)) connect();
+        if (!loggedIn || tree == null) {
+            error("Could not connect to the repository of the library: check username / password (or the folder of the local repository), then click again on \"" + storeTrainedModelButton.getText() + "\"");
+            return;
+        }
+        GistRepository modelRepository = getModelFileRepository();
+        if (modelRepository == null) {
+            error("Model was not saved: check the model file account (or clear its username to store the model file in the repository of the library), then click again on \"" + storeTrainedModelButton.getText() + "\"");
+            return;
+        }
+        DLModelMetadata metadata = pendingMetadata;
+        File model = pendingModel;
+        pendingMetadata = null;
+        pendingModel = null;
+        updateEnableButtons();
+        if (pcb != null) pcb.setMessage("Model file will be stored in: " + modelRepository.getKey());
+        uploadModel(modelRepository, metadata, model);
+    }
+
+    protected void error(String message) {
+        logger.error(message);
+        if (pcb != null) pcb.setMessage(message);
+        Utils.displayTemporaryMessage(message, 8000);
+    }
+
+    /**
+     * @return repository where model files are stored: the model file account if set, the repository of the library otherwise. null if the model file account is set but cannot be used: token cannot be loaded or connection fails (an error message is displayed)
+     */
+    protected GistRepository getModelFileRepository() {
+        GistRepository repo;
+        try {
+            repo = modelFileAccount.getRepository(getRepository());
+        } catch (IllegalArgumentException e) {
+            error(e.getMessage());
+            return null;
+        }
+        if (repo == null) return getRepository();
+        if (!repo.isWritable()) {
+            error("Model file account " + repo.getKey() + " is not writable: set its password");
+            return null;
+        }
+        try {
+            repo.checkConnection();
+        } catch (IOException e) {
+            error("Could not connect to the model file account " + repo.getKey() + ": " + e.getMessage());
+            return null;
+        }
+        return repo;
+    }
+
+    /**
+     * @param modelRepository repository where the model file is stored (any type: GitHub, GitLab, local). null: repository of the library
+     */
+    public void uploadModel(GistRepository modelRepository, DLModelMetadata metadata, File model) {
         if (tree == null || !loggedIn) return;
-        if (!GistRepository.TYPE.GITHUB.equals(repositoryCredentialPanel.getRepositoryType())) modelAuth = getAuth(); // model file is stored in the repository of the library
+        final GistRepository modelRepo = modelRepository == null ? getRepository() : modelRepository;
         GistDLModel gist = tree.getSelectedGist();
         boolean update = gist != null && Utils.promptBoolean("Update selected Model ?", this.displayingFrame);
         SaveDLModelGist form = new SaveDLModelGist(gateway);
@@ -380,16 +471,16 @@ public class DLModelsLibrary {
             if (folder != null) form.setFolder(folder);
         }
         if (metadata != null) form.setMetadata(metadata);
-        form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(getRepository());
+        form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(modelRepo);
 
         logger.debug("uploading new gist...");
-        form.uploadFile(model, modelAuth, true);
+        form.uploadFile(model, modelRepo, true);
         form.display(displayingFrame, update ? "Update model..." : "Upload model...");
         if (form.canceled) {
-            deleteModelFile(form.id(), modelAuth);
+            deleteModelFile(form.id(), modelRepo);
             return;
         } else if (update && gist.getModelID() != null && !gist.getModelID().isEmpty()) { // delete previous model file
-            deleteModelFile(gist.getModelID(), modelAuth);
+            if (!deleteModelFile(gist.getModelURL(), modelRepo)) error("Previous model file " + gist.getModelURL() + " could not be deleted");
         }
         if (!update) {
             boolean validName = false;
@@ -410,7 +501,7 @@ public class DLModelsLibrary {
                 if (!validName) { // re-ask name
                     form.display(displayingFrame, "Upload model...");
                     if (form.canceled) {
-                        deleteModelFile(form.id(), modelAuth);
+                        deleteModelFile(form.id(), modelRepo);
                         return;
                     }
                 }
@@ -453,6 +544,7 @@ public class DLModelsLibrary {
         updateButton.setEnabled(loggedIn && gistSel);
         setThumbnailButton.setEnabled(loggedIn && gistSel);
         configureParameterButton.setEnabled(gistSel && configureParameterCallback != null);
+        storeTrainedModelButton.setEnabled(pendingModel != null);
     }
 
     public void connect() {
@@ -461,13 +553,27 @@ public class DLModelsLibrary {
 
     private void fetchGists() {
         String account = repositoryCredentialPanel.getUsername();
+        connectedRepositoryKey = null;
         if (account.length() == 0 || !repositoryCredentialPanel.loadAllowed(getAuth())) { // public items of remote repositories are loaded only on user request
             gists = new ArrayList<>();
             loggedIn = false;
         } else if (!GistRepository.TYPE.GITHUB.equals(repositoryCredentialPanel.getRepositoryType())) { // GitLab or local
             GistRepository repo = getRepository();
-            gists = repo == null ? Collections.emptyList() : GistDLModel.get(repo, pcb);
-            loggedIn = repo != null && repo.isWritable();
+            if (repo == null) {
+                gists = new ArrayList<>();
+                loggedIn = false;
+            } else {
+                try {
+                    gists = GistDLModel.list(repo);
+                    loggedIn = repo.isWritable();
+                    if (loggedIn) connectedRepositoryKey = repo.getKey();
+                } catch (IOException e) { // connection or authentication error
+                    logger.error("Error getting DL models", e);
+                    if (pcb != null) pcb.setMessage("Could not get DL models: " + e.getMessage());
+                    gists = new ArrayList<>();
+                    loggedIn = false;
+                }
+            }
             repositoryCredentialPanel.persistUsername();
         } else {
             UserAuth auth = getAuth();
@@ -480,7 +586,10 @@ public class DLModelsLibrary {
                     gists = GistDLModel.getPublic(account, pcb);
                     loggedIn = false;
                     GUI.log("Could authenticate. Wrong username / password / token ?");
-                } else loggedIn = true;
+                } else {
+                    loggedIn = true;
+                    connectedRepositoryKey = getRepository().getKey();
+                }
             }
             repositoryCredentialPanel.persistUsername();
         }
@@ -510,17 +619,61 @@ public class DLModelsLibrary {
     }
 
     /**
-     * Deletes a model file from the library repository (or from the GitHub account of modelAuth for a GitHub library)
+     * Deletes a model from the library, and its model file if {@param deleteFile} is true. If the model file cannot be deleted, the model is kept (so that the file is not left without reference)
+     * @return true if the model was deleted
      */
-    private void deleteModelFile(String id, UserAuth modelAuth) {
-        if (id == null || id.isEmpty()) return;
-        GistRepository repo = GistRepository.TYPE.GITHUB.equals(repositoryCredentialPanel.getRepositoryType()) ? GistRepository.github(modelAuth) : getRepository();
-        if (repo == null) return;
-        try {
-            repo.delete(repo.parseId(id));
-        } catch (IOException e) {
-            logger.debug("Could not delete model file {}", id, e);
+    protected boolean deleteModel(GistDLModel model, boolean deleteFile) {
+        if (deleteFile && !deleteModelFile(model.getModelURL(), null)) {
+            error("Model " + model.folder + "/" + model.name + " was not deleted: its model file " + model.getModelURL() + " could not be deleted. Set the model file account where it is stored (and its password), or delete the model and keep its file (right click on Delete)");
+            return false;
         }
+        if (!model.delete(getAuth(), false)) {
+            error("Model " + model.folder + "/" + model.name + " could not be deleted");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Deletes a model file and its sub-files. The file may be stored in another account than the account of the library (model file account), and its url does not always identify the account (GitHub, GitLab):
+     * deletion is attempted with each repository that may contain it: {@param repo}, model file account, repository of the library, repository inferred from the url
+     * @param id id or url of the model file
+     * @param repo preferred repository (may be null)
+     * @return true if the file was deleted or if there is no file
+     */
+    private boolean deleteModelFile(String id, GistRepository repo) {
+        if (id == null || id.isEmpty()) return true;
+        List<GistRepository> candidates = new ArrayList<>();
+        candidates.add(repo);
+        try {
+            candidates.add(modelFileAccount.getRepository(getRepository()));
+        } catch (IllegalArgumentException e) {
+            logger.debug("model file account cannot be used: {}", e.getMessage());
+        }
+        candidates.add(getRepository());
+        candidates.add(gateway.getRepository(id));
+        Set<String> tried = new HashSet<>();
+        for (GistRepository r : candidates) {
+            if (r == null || !r.isWritable() || !tried.add(r.getKey())) continue;
+            if (id.contains("/") && r.idFromURL(id) == null) continue; // url of another server / folder
+            String itemId = r.parseId(id);
+            try {
+                if (new LargeFileGist(r, itemId).delete(null)) { // also deletes sub-files
+                    logger.debug("model file {} deleted from {}", id, r.getKey());
+                    return true;
+                }
+            } catch (IOException e) { // not readable from this repository, or not a large file
+                logger.debug("could not read model file {} from {}", id, r.getKey(), e);
+            }
+            try {
+                r.delete(itemId);
+                logger.debug("model file {} deleted from {}", id, r.getKey());
+                return true;
+            } catch (IOException e) {
+                logger.debug("could not delete model file {} from {}", id, r.getKey(), e);
+            }
+        }
+        return false;
     }
 
     public void display(JFrame parent) {
@@ -529,6 +682,8 @@ public class DLModelsLibrary {
     }
 
     public boolean close() {
+        pendingMetadata = null;
+        pendingModel = null;
         if (dia != null) dia.dispose();
         if (tree != null) tree.flush();
         if (onClose != null) onClose.run();
@@ -570,7 +725,7 @@ public class DLModelsLibrary {
         DLModelsJSP = new JScrollPane();
         dlModelsPanel.add(DLModelsJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(600, 200), null, null, 0, false));
         actionPanel = new JPanel();
-        actionPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
+        actionPanel.setLayout(new GridLayoutManager(3, 3, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(actionPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         newButton = new JButton();
         newButton.setText("New");
@@ -597,6 +752,11 @@ public class DLModelsLibrary {
         configureParameterButton.setText("Configure Parameter");
         configureParameterButton.setToolTipText("Configure the current parameter using the metadata of the selected model. ");
         actionPanel.add(configureParameterButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        storeTrainedModelButton = new JButton();
+        storeTrainedModelButton.setEnabled(false);
+        storeTrainedModelButton.setText("Store Model From Training");
+        storeTrainedModelButton.setToolTipText("Stores the model exported from the training tab (enabled after clicking \"Export To Library\" in the training tab). Connects to the repository of the library (if not already connected to this account) and to the model file account (if set). The model file is stored in the model file account if set, in the repository of the library otherwise");
+        actionPanel.add(storeTrainedModelButton, new GridConstraints(2, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
@@ -607,7 +767,10 @@ public class DLModelsLibrary {
     }
 
     private void createUIComponents() {
-        credentialPanel = new CollapsiblePanel("Repository", repositoryCredentialPanel.getPanel());
+        JPanel repoPanel = new JPanel(new BorderLayout());
+        repoPanel.add(repositoryCredentialPanel.getPanel(), BorderLayout.CENTER);
+        repoPanel.add(modelFileAccount.getPanel(), BorderLayout.SOUTH);
+        credentialPanel = new CollapsiblePanel("Repository", repoPanel);
     }
 
     private class Dial extends JDialog {

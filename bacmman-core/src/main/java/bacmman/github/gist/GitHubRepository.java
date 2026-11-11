@@ -57,6 +57,15 @@ public class GitHubRepository implements GistRepository {
     }
 
     /**
+     * Single request on the authenticated user (if authentication is set), on the account otherwise
+     */
+    @Override
+    public void checkConnection() throws IOException {
+        String url = auth instanceof NoAuth ? API_URL + "/users/" + getAccount() : API_URL + "/user";
+        JSONQuery.fetchRaw(() -> new JSONQuery(url).method(JSONQuery.METHOD.GET).authenticate(auth), 1);
+    }
+
+    /**
      * Lists gists of the authenticated user if authentication is set, public gists of the account otherwise
      */
     @Override

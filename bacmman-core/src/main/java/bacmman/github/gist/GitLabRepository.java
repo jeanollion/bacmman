@@ -123,6 +123,14 @@ public class GitLabRepository implements GistRepository {
         return query(url, Collections.emptyList(), method);
     }
 
+    /**
+     * Single request on the authenticated user
+     */
+    @Override
+    public void checkConnection() throws IOException {
+        JSONQuery.fetchRaw(() -> query(apiURL + "/user", JSONQuery.METHOD.GET), 1);
+    }
+
     protected JSONQuery bodyQuery(String url, JSONQuery.METHOD method, JSONObject body) {
         JSONQuery q = new JSONQuery(url, "application/json", Collections.emptyList()).method(method).header("Content-Type", "application/json; charset=UTF-8").authenticate(auth, TYPE.GITLAB);
         return q.setBody(body.toJSONString());

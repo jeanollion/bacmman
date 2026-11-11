@@ -138,8 +138,8 @@ public class SaveDLModelGist {
             this.url.setText("");
             this.deleteFromServer.setEnabled(false);
         } else {
-            if (pcb != null) pcb.setMessage("Could not delete model file. If model was stored on another account, use right click to delete the file from this account");
-            logger.info("Could not delete model file. If model was stored on another account, use right click to delete the file from this account");
+            if (pcb != null) pcb.setMessage("Could not delete model file. If model was stored on another account, set this account as model file account in the library window");
+            logger.info("Could not delete model file. If model was stored on another account, set this account as model file account in the library window");
         }
         return del;
     }
@@ -271,46 +271,8 @@ public class SaveDLModelGist {
                 promptDeleteExisting(repository(auth));
                 uploadFile.accept(auth);
             });
-            uploadButton.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent evt) {
-                    if (SwingUtilities.isRightMouseButton(evt)) {
-                        JPopupMenu menu = new JPopupMenu();
-                        Action upOther = new AbstractAction("Upload Model to another account") {
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                GistRepository other = OtherRepositoryPrompt.prompt(repository(auth), gateway, "Account to save model to...", Dial.this, pcb);
-                                if (other != null) {
-                                    promptDeleteExisting(other);
-                                    File file = FileChooser.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
-                                    if (file != null) uploadFile(file, other, true);
-                                }
-                            }
-                        };
-                        menu.add(upOther);
-                        menu.show(uploadButton, evt.getX(), evt.getY());
-                    }
-                }
-            });
             deleteFromServer.addActionListener(al -> {
                 deleteFile(auth);
-            });
-            deleteFromServer.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent evt) {
-                    if (SwingUtilities.isRightMouseButton(evt)) {
-                        JPopupMenu menu = new JPopupMenu();
-                        Action delOther = new AbstractAction("Delete Model from another account") {
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                GistRepository other = OtherRepositoryPrompt.prompt(repository(auth), gateway, "Account to delete from...", Dial.this, pcb);
-                                if (other != null) deleteFile(other);
-                            }
-                        };
-                        menu.add(delOther);
-                        menu.show(deleteFromServer, evt.getX(), evt.getY());
-                    }
-                }
             });
             DocumentListener dl = new DocumentListener() {
                 @Override

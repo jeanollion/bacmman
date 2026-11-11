@@ -43,6 +43,14 @@ public interface GistRepository {
     boolean isWritable();
 
     /**
+     * Checks that the repository can be reached with its authentication (e.g. valid token)
+     * @throws IOException if the repository cannot be reached or the authentication is refused
+     */
+    default void checkConnection() throws IOException {
+        list();
+    }
+
+    /**
      * Lists all items of the repository (of the account for remote repositories). File content may not be included in the returned items.
      */
     List<GistItem> list() throws IOException;

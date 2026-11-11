@@ -10,8 +10,6 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistRepository;
-import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.UserAuth;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.DLEngine;
@@ -661,43 +659,12 @@ public class DockerTrainingWindow implements ProgressDisplay {
             else logger.debug("train config loaded");
             RepositoryGateway repositoryGateway = Core.getCore().getGithubGateway();
             if (repositoryGateway == null) {
-                setMessage("Github not reachable");
+                setMessage("Repositories not reachable");
                 return;
             }
             DLModelsLibrary library = getDLModelLibrary(repositoryGateway, null);
-            if (!GistRepository.TYPE.GITHUB.equals(library.getRepositoryType())) { // GitLab or local library: model file is stored in the repository of the library
-                if (!library.isWritable()) {
-                    setMessage("Connect the DL model library to a repository where models can be stored (" + library.getRepositoryType() + ")");
-                    return;
-                }
-                library.uploadModel(null, trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
-                if (GUI.hasInstance()) library.setProgressLogger(GUI.getInstance());
-                epochLabel.setText("Epoch:");
-                if (currentProgressBar != null) {
-                    currentProgressBar.setValue(currentProgressBar.getMinimum());
-                    currentProgressBar.setString("");
-                }
-                return;
-            }
-            UserAuth modelAuth = repositoryGateway.promptCredentials(this::setMessage, "Account to save model file to...");
-            if (modelAuth instanceof NoAuth) {
-                setMessage("Could not connect to account to store model file to..");
-                return;
-            } else setMessage("Successfully authenticated to account to store model file to.");
-            UserAuth libAuth = repositoryGateway.getAuthentication(true, "Online Model Library Account");
-            if (libAuth instanceof NoAuth) setMessage("Could not connect to online library");
-            else {
-                setMessage("Successfully authenticated to account to store configuration to.");
-                DLModelsLibrary dlModelLibrary = getDLModelLibrary(repositoryGateway, null);
-                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
-                // set back properties
-                if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
-                epochLabel.setText("Epoch:");
-                if (currentProgressBar != null) {
-                    currentProgressBar.setValue(currentProgressBar.getMinimum());
-                    currentProgressBar.setString("");
-                }
-            }
+            // the model is saved when the "Store Model From Training" button of the library is clicked: the library repository and the optional model file account can be set before
+            library.requestModelUpload(trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
         });
         uploadModelButton.addMouseListener(new MouseAdapter() {
             @Override

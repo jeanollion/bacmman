@@ -350,9 +350,16 @@ public class GistDLModel implements Hint {
     /**
      * @return all DL models stored in the repository
      */
+    /**
+     * @throws IOException if the repository cannot be listed (e.g. connection or authentication error)
+     */
+    public static List<GistDLModel> list(GistRepository repository) throws IOException {
+        return repository.list().stream().filter(i -> i.getFileNames().stream().anyMatch(GistDLModel::isDLModelFile)).map(GistDLModel::new).filter(gc -> gc.folder != null).collect(Collectors.toList());
+    }
+
     public static List<GistDLModel> get(GistRepository repository, ProgressDisplay pcb) {
         try {
-            return repository.list().stream().filter(i -> i.getFileNames().stream().anyMatch(GistDLModel::isDLModelFile)).map(GistDLModel::new).filter(gc -> gc.folder != null).collect(Collectors.toList());
+            return list(repository);
         } catch (IOException e) {
             logger.error("Error getting DL models", e);
             if (pcb!=null) pcb.setMessage("Could not get DL models: "+e.getMessage());
