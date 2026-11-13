@@ -1331,7 +1331,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = FileChooser.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
                 if (f!=null) {
-                    GistRepository repo = bacmman.ui.gui.configurationIO.OtherRepositoryPrompt.promptRepository(Core.getCore().getGithubGateway(), "Repository to upload file to...", true, INSTANCE, INSTANCE);
+                    GistRepository repo = bacmman.ui.gui.configurationIO.RepositoryPrompt.promptRepository(Core.getCore().getGithubGateway(), "Repository to upload file to...", true, INSTANCE, INSTANCE);
                     if (repo == null) return;
                     try {
                         // GitHub: secret gist, readable with its url. Repositories where private items cannot be read with their url (GitLab): public, so that the file can be downloaded with its url

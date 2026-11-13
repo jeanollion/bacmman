@@ -217,7 +217,7 @@ public class SaveDLModelGist {
         uploadButton = new JButton();
         uploadButton.setEnabled(false);
         uploadButton.setText("Upload From Disk");
-        uploadButton.setToolTipText("Upload the selected file as a github gist, on the connected github account.  If the selected file is a directory it will be zipped first.");
+        uploadButton.setToolTipText("Upload the selected file to the repository where model files are stored (model file account if set, repository of the library otherwise).  If the selected file is a directory it will be zipped first.");
         panel1.add(uploadButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, 1, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         deleteFromServer = new JButton();
         deleteFromServer.setEnabled(false);

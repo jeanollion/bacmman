@@ -69,7 +69,7 @@
             </constraints>
             <properties>
               <text value="Duplicate"/>
-              <toolTipText value="Duplicate selected model. Right click: duplicate to another account"/>
+              <toolTipText value="Duplicate selected model"/>
             </properties>
           </component>
           <component id="4c030" class="javax.swing.JButton" binding="setThumbnailButton" default-binding="true">

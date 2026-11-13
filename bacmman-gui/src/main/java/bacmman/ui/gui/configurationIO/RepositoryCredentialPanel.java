@@ -110,7 +110,7 @@ public class RepositoryCredentialPanel {
         generateToken.addActionListener(e -> {
             Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(getRepositoryType(), serverURL.getText(), username.getText(), password.getPassword(), bacmmanLogger);
             if (usernameAndPassword != null) {
-                gateway.setCredentials(usernameAndPassword.key, usernameAndPassword.value);
+                gateway.setCredentials(getRepositoryType(), serverURL.getText(), usernameAndPassword.key, usernameAndPassword.value);
                 this.username.setText(usernameAndPassword.key);
                 this.password.setText(String.valueOf(usernameAndPassword.value));
             }
@@ -135,7 +135,8 @@ public class RepositoryCredentialPanel {
                 if (SwingUtilities.isRightMouseButton(evt)) showRecentUsernames(evt);
             }
         });
-        if (GistRepository.TYPE.GITHUB.equals(getRepositoryType()) && gateway.getUsername() != null && !gateway.getUsername().isEmpty()) username.setText(gateway.getUsername());
+        String sessionUsername = gateway.getUsername(getRepositoryType(), serverURL.getText());
+        if (sessionUsername != null && !sessionUsername.isEmpty()) username.setText(sessionUsername);
         if (!username.getText().isEmpty() && password.getPassword().length == 0 && sessionPassword(username.getText()) != null)
             password.setText(String.valueOf(sessionPassword(username.getText())));
         username.addActionListener(e -> {
@@ -323,24 +324,20 @@ public class RepositoryCredentialPanel {
     }
 
     public UserAuth getAuth() {
-        switch (getRepositoryType()) {
-            case LOCAL:
-                return new NoAuth();
-            case GITLAB: {
-                if (password.getPassword().length == 0 || username.getText().isEmpty()) return new NoAuth(username.getText().isEmpty() ? null : username.getText());
-                try {
-                    TokenAuth auth = new TokenAuth(username.getText(), password.getPassword(), GistRepository.TYPE.GITLAB, serverURL.getText());
-                    gateway.setCredentials(GistRepository.TYPE.GITLAB, serverURL.getText(), username.getText(), password.getPassword()); // recorded for this server only (does not change GitHub credentials)
-                    return auth;
-                } catch (GeneralSecurityException | RuntimeException e) {
-                    if (bacmmanLogger != null) bacmmanLogger.setMessage("GitLab token could not be retrieved (no token stored or wrong password): only public items will be loaded");
-                    return new NoAuth(username.getText());
-                }
-            }
-            case GITHUB:
-            default:
-                gateway.setCredentials(username.getText(), password.getPassword());
-                return gateway.getAuthentication(false);
+        GistRepository.TYPE type = getRepositoryType();
+        if (GistRepository.TYPE.LOCAL.equals(type)) return new NoAuth();
+        String user = username.getText();
+        if (user.isEmpty()) return new NoAuth();
+        String server = serverURL.getText();
+        gateway.setCredentials(type, server, user, null); // last account used for this type and server
+        if (password.getPassword().length == 0) return new NoAuth(user);
+        try {
+            TokenAuth auth = new TokenAuth(user, password.getPassword(), type, server);
+            gateway.setCredentials(type, server, user, password.getPassword());
+            return auth;
+        } catch (GeneralSecurityException | RuntimeException e) {
+            if (bacmmanLogger != null) bacmmanLogger.setMessage(TYPE_NAMES[type.ordinal()] + " token could not be retrieved (no token stored or wrong password): only public items will be loaded");
+            return new NoAuth(user);
         }
     }
 

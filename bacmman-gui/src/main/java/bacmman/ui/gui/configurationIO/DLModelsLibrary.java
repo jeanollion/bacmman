@@ -203,76 +203,6 @@ public class DLModelsLibrary {
                 logger.error("Error saving gist", ex);
             }
         });
-        duplicateButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    JPopupMenu menu = new JPopupMenu();
-                    Action dupOther = new AbstractAction("Duplicate To another Account") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            GistRepository other = OtherRepositoryPrompt.prompt(getRepository(), gateway, "Account to duplicate to", displayingFrame, pcb);
-                            if (other != null) {
-                                boolean sameAccount = OtherRepositoryPrompt.same(other, getRepository());
-                                try {
-                                    GistDLModel gist = tree.getSelectedGist();
-                                    if (gist == null) return;
-                                    SaveDLModelGist form = new SaveDLModelGist(gateway);
-                                    form.setFolder(gist.folder)
-                                            .setName(gist.name)
-                                            .setDescription(gist.getDescription())
-                                            .setURL(gist.getModelURL())
-                                            .setMetadata(gist.getMetadata())
-                                            .setVisible(gist.isVisible());
-                                    form.setAuthAndDefaultDirectory(other.getAuth(), workingDirectory, pcb).setRepository(other);
-                                    form.display(displayingFrame, "Duplicate model to another account...");
-                                    if (form.canceled) return;
-                                    if (!Utils.isValid(form.name(), false)) {
-                                        pcb.setMessage("Invalid name");
-                                        return;
-                                    }
-                                    if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
-                                        pcb.setMessage("Invalid folder name");
-                                        return;
-                                    }
-                                    if (sameAccount) {
-                                        boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
-                                        if (exists) {
-                                            pcb.setMessage("Model already exists.");
-                                            return;
-                                        }
-                                    } else { // check on other repository
-                                        List<GistDLModel> otherModels = GistDLModel.get(other, pcb);
-                                        boolean exists = otherModels.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
-                                        if (exists) {
-                                            if (pcb != null)
-                                                pcb.setMessage("Model already exists on other account.");
-                                            return;
-                                        }
-                                    }
-                                    GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-                                    List<BufferedImage> otherThumb = gist.getThumbnail();
-                                    if (otherThumb != null)
-                                        for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
-                                    toSave.createNewGist(other);
-                                    if (sameAccount) {
-                                        gists.add(toSave);
-                                        updateGistDisplay();
-                                        tree.setSelectedGist(toSave);
-                                    }
-                                } catch (IOException ex) {
-                                    if (pcb != null) pcb.setMessage("Error saving gist" + ex.getMessage());
-                                    logger.error("Error saving gist", ex);
-                                }
-                            }
-                        }
-                    };
-                    dupOther.setEnabled(tree != null && tree.getSelectedGist() != null);
-                    menu.add(dupOther);
-                    menu.show(duplicateButton, evt.getX(), evt.getY());
-                }
-            }
-        });
         setThumbnailButton.addActionListener(e -> {
             if (tree == null) return;
             Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentDisplayedImage();
@@ -315,7 +245,7 @@ public class DLModelsLibrary {
         configureParameterButton.addActionListener(e -> {
             if (configureParameterCallback != null) {
                 GistDLModel gist = tree.getSelectedGist();
-                if (gist != null) configureParameterCallback.accept(gist.getModelID(), gist.getMetadata());
+                if (gist != null) configureParameterCallback.accept(gist.getModelLink(), gist.getMetadata());
             }
         });
         if (repositoryCredentialPanel.loadAllowed(getAuth())) { // local repository or credentials of this session. public models of remote repositories are loaded only on user request
@@ -414,6 +344,11 @@ public class DLModelsLibrary {
         uploadModel(modelRepository, metadata, model);
     }
 
+    protected void warning(String message) {
+        logger.warn(message);
+        if (pcb != null) pcb.setMessage(message);
+    }
+
     protected void error(String message) {
         logger.error(message);
         if (pcb != null) pcb.setMessage(message);
@@ -479,8 +414,10 @@ public class DLModelsLibrary {
         if (form.canceled) {
             deleteModelFile(form.id(), modelRepo);
             return;
-        } else if (update && gist.getModelID() != null && !gist.getModelID().isEmpty()) { // delete previous model file
-            if (!deleteModelFile(gist.getModelURL(), modelRepo)) error("Previous model file " + gist.getModelURL() + " could not be deleted");
+        } else if (update && gist.getModelURL() != null && !gist.getModelURL().isEmpty() && !form.url().equals(gist.getModelURL())) { // delete previous model file, unless used by another model
+            List<GistDLModel> others = getOtherModelsUsingFile(gist);
+            if (!others.isEmpty()) warning("Previous model file " + gist.getModelURL() + " was not deleted: it is also used by model(s): " + toString(others));
+            else if (!deleteModelFile(gist.getModelURL(), modelRepo)) warning("Previous model file " + gist.getModelURL() + " could not be deleted. It can be deleted manually");
         }
         if (!update) {
             boolean validName = false;
@@ -619,13 +556,31 @@ public class DLModelsLibrary {
     }
 
     /**
-     * Deletes a model from the library, and its model file if {@param deleteFile} is true. If the model file cannot be deleted, the model is kept (so that the file is not left without reference)
+     * @return the other models of the library that link to the same model file as {@param model} (e.g. duplicated models)
+     */
+    protected List<GistDLModel> getOtherModelsUsingFile(GistDLModel model) {
+        String link = model.getModelLink();
+        if (link == null || link.isEmpty() || gists == null) return Collections.emptyList();
+        return gists.stream().filter(g -> g != model && link.equals(g.getModelLink())).collect(Collectors.toList());
+    }
+
+    private static String toString(List<GistDLModel> models) {
+        return models.stream().map(g -> g.folder + "/" + g.name).collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Deletes a model from the library, and its model file if {@param deleteFile} is true.
+     * The model file is not deleted if another model of the library uses it. If the model file cannot be deleted, the model is kept (so that the file is not left without reference) and a warning is displayed.
      * @return true if the model was deleted
      */
     protected boolean deleteModel(GistDLModel model, boolean deleteFile) {
-        if (deleteFile && !deleteModelFile(model.getModelURL(), null)) {
-            error("Model " + model.folder + "/" + model.name + " was not deleted: its model file " + model.getModelURL() + " could not be deleted. Set the model file account where it is stored (and its password), or delete the model and keep its file (right click on Delete)");
-            return false;
+        if (deleteFile && model.getModelURL() != null && !model.getModelURL().isEmpty()) {
+            List<GistDLModel> others = getOtherModelsUsingFile(model);
+            if (!others.isEmpty()) warning("Model file " + model.getModelURL() + " of model " + model.folder + "/" + model.name + " was not deleted: it is also used by model(s): " + toString(others));
+            else if (!deleteModelFile(model.getModelURL(), null)) {
+                warning("Model " + model.folder + "/" + model.name + " was not deleted: its model file " + model.getModelURL() + " could not be deleted. Set the model file account where it is stored (and its password), or delete the model and keep its file (right click on Delete)");
+                return false;
+            }
         }
         if (!model.delete(getAuth(), false)) {
             error("Model " + model.folder + "/" + model.name + " could not be deleted");
@@ -737,7 +692,7 @@ public class DLModelsLibrary {
         actionPanel.add(deleteButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         duplicateButton = new JButton();
         duplicateButton.setText("Duplicate");
-        duplicateButton.setToolTipText("Duplicate selected model. Right click: duplicate to another account");
+        duplicateButton.setToolTipText("Duplicate selected model");
         actionPanel.add(duplicateButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         setThumbnailButton = new JButton();
         setThumbnailButton.setText("Set Thumbnail");

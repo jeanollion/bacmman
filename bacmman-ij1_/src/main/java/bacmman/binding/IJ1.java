@@ -21,7 +21,7 @@ package bacmman.binding;
 import bacmman.core.Core;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.ui.PropertyUtils;
-import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
+import bacmman.ui.gui.configurationIO.RepositoryPrompt;
 import bacmman.ui.gui.image_interaction.IJImageDisplayer;
 import bacmman.ui.gui.image_interaction.IJImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
@@ -73,7 +73,7 @@ public class IJ1 implements PlugIn {
         Core.setImageDisplayer(image -> Utils.runOnEDTAndWait(() -> disp.displayImage(image)));
         Core.setOverlayDisplayer(disp);
         Core.setImage5dDisplayer(image -> Utils.runOnEDTAndWait(() -> disp.displayImage(image)));
-        Core.getCore().getGithubGateway().setPromptGithubCredientials(PromptGithubCredentials::promptCredentials);
+        Core.getCore().getGithubGateway().setRepositoryPrompt((gateway, message, writable) -> RepositoryPrompt.promptRepository(gateway, message, writable, GUI.hasInstance() ? GUI.getInstance() : null, GUI.hasInstance() ? GUI.getInstance() : null));
     }
 
     public static void main(String[] args) {

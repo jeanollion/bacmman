@@ -93,7 +93,7 @@ public class LocalRepositoryDumpTest {
             String url = model.getModelURL();
             assertNotNull(m, url);
             if (repo.idFromURL(url) == null) continue; // model file stored elsewhere (e.g. external url)
-            assertEquals(m, repo.idFromURL(url), model.getModelID());
+            assertEquals(m, url, model.getModelLink()); // local file: link is the url (bare ids are GitHub ids)
             LargeFileGist lf = model.getLargeFileGist(null);
             assertEquals(m, repo.getKey(), lf.getRepository().getKey());
             // same resolution as MLModelFileParameter: from the url alone

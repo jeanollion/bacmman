@@ -676,7 +676,7 @@ public class DockerTrainingWindow implements ProgressDisplay {
                         public void actionPerformed(ActionEvent e) {
                             RepositoryGateway repositoryGateway = Core.getCore().getGithubGateway();
                             if (repositoryGateway == null) {
-                                setMessage("Github not reachable");
+                                setMessage("Repositories not reachable");
                                 return;
                             }
                             DLModelsLibrary dlModelLibrary = getDLModelLibrary(repositoryGateway, (id, dl) -> {

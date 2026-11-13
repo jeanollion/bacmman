@@ -21,7 +21,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static bacmman.configuration.parameters.DLMetadataConfigurable.configureParentsAndSiblings;
-import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 
 public class MLModelFileParameter extends ContainerParameterImpl<MLModelFileParameter> {
     FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false)
@@ -74,12 +73,10 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         return modelFile.getFirstSelectedFilePath();
     }
 
+    /**
+     * @return link to the model file: bare GitHub id, or url of an item of any repository
+     */
     public String getID() {
-        if (id.getValue().startsWith(GIST_BASE_URL)) {
-            synchronized (this) {
-                if (id.getValue().startsWith(GIST_BASE_URL)) id.setValue(id.getValue().replace(GIST_BASE_URL, ""));
-            }
-        }
         return id.getValue();
     }
 

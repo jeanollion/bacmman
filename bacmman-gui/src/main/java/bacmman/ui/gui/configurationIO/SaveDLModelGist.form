@@ -154,7 +154,7 @@
                 <properties>
                   <enabled value="false"/>
                   <text value="Upload From Disk"/>
-                  <toolTipText value="Upload the selected file as a github gist, on the connected github account.  If the selected file is a directory it will be zipped first."/>
+                  <toolTipText value="Upload the selected file to the repository where model files are stored (model file account if set, repository of the library otherwise).  If the selected file is a directory it will be zipped first."/>
                 </properties>
               </component>
               <component id="b1fc6" class="javax.swing.JButton" binding="deleteFromServer">

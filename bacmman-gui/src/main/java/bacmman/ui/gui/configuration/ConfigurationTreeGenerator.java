@@ -26,7 +26,6 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.GistConfiguration;
 import bacmman.github.gist.GistRepository;
-import bacmman.github.gist.UserAuth;
 import bacmman.image.*;
 import bacmman.image.Image;
 import bacmman.image.io.ImageReaderFile;
@@ -525,14 +524,15 @@ public class ConfigurationTreeGenerator {
                                     public void actionPerformed(ActionEvent ae) {
                                         try {
                                             ConfigurationLibrary lib = GUI.getInstance().displayConfigurationLibrary();
-                                            UserAuth auth = lib.getAuth();
-                                            GistConfiguration config = new GistConfiguration(id, auth);
+                                            // the link is a GitHub gist id (legacy) or the url of a configuration of any repository: the library must display the repository that contains it
+                                            GistConfiguration config = lib.getDisplayedConfiguration(id);
+                                            if (config == null) throw new IOException("the configuration is not in the repository displayed in the library: connect the library to the repository (and account) that contains it");
                                             int remoteItemIdx = -1;
                                             if (config.getType().equals(GistConfiguration.TYPE.WHOLE) && cia.getType().equals(GistConfiguration.TYPE.PROCESSING)) {
                                                 remoteItemIdx = cia.getConfigItemIdx();
                                                 if (remoteItemIdx == -1) throw new IOException("Configuration of processing chain points to a whole configuration but object class is not set");
                                             }  else if (!config.getType().equals(cia.getType()) && !config.getType().equals(GistConfiguration.TYPE.WHOLE)) throw new IOException("Remote configuration type do not match configuration block type: remote="+config.getType()+" vs local="+cia.getType());
-                                            ContainerParameter remoteParameter = GistConfiguration.getParameter(config, remoteItemIdx, cia.getType(), auth);
+                                            ContainerParameter remoteParameter = GistConfiguration.getParameter(config, remoteItemIdx, cia.getType(), null); // credentials of the library
                                             if (remoteParameter == null) throw new IOException("Could not retrieve remote configuration");
                                             Experiment xp = ParameterUtils.getExperiment((Parameter)lastO);
                                             if (xp == null) throw new IOException("Local parameter is not within an Experiment");

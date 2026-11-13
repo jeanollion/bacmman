@@ -59,6 +59,8 @@ public class ConfigurationLibrary {
     private JPanel localSelectorPanel;
     private JButton copyToLocal;
     private JButton copyToRemote;
+    // A vs B mode: copy the displayed configuration as a new configuration of the other repository
+    private final JButton copyNewToA = new JButton("◀ Copy B to A"), copyNewToB = new JButton("Copy A to B ▶");
     private JButton saveToRemote;
     private JPanel mainPanel;
     private JButton deleteRemote;
@@ -187,8 +189,6 @@ public class ConfigurationLibrary {
         saveRemoteChanges.addActionListener(e -> saveChanges(sideB));
         duplicateA.addActionListener(e -> duplicate(sideA, sideA.repository(), sideA));
         duplicateRemote.addActionListener(e -> duplicate(sideB, sideB.repository(), sideB));
-        addDuplicateMenu(duplicateA, sideA);
-        addDuplicateMenu(duplicateRemote, sideB);
         deleteA.addActionListener(e -> delete(sideA));
         deleteRemote.addActionListener(e -> delete(sideB));
         setThumbnailA.addActionListener(e -> setThumbnail(sideA, false));
@@ -211,6 +211,8 @@ public class ConfigurationLibrary {
             remoteConfig.getTree().updateUI();
             if (configurationChanged != null) configurationChanged.run();
         });
+        copyNewToA.addActionListener(e -> duplicate(sideB, sideA.repository(), sideA));
+        copyNewToB.addActionListener(e -> duplicate(sideA, sideB.repository(), sideB));
         copyToRemote.addActionListener(e -> {
             if (localConfig == null || remoteConfig == null) return;
             copyTree(localConfig.getRoot(), repoMode ? sideA.repository() : null, sideB, repoMode ? "Configuration A copied to B" : "Local configuration copied to the remote configuration");
@@ -559,13 +561,15 @@ public class ConfigurationLibrary {
         ConfigurationGistTreeGenerator selector = side.selector();
         GistConfiguration gist = selector == null ? null : selector.getSelectedGist();
         if (config == null || gist == null || target == null) return;
-        boolean displayed = targetSide != null && targetSide.selector() != null && OtherRepositoryPrompt.same(target, targetSide.repository());
+        boolean displayed = targetSide != null && targetSide.selector() != null && RepositoryPrompt.same(target, targetSide.repository());
+        String folder = gist.folder();
+        if (targetSide != null && targetSide != side && targetSide.selector() != null && targetSide.selector().getSelectedFolder() != null) folder = targetSide.selector().getSelectedFolder(); // folder selected in the other repository
         SaveGistForm form = new SaveGistForm();
-        form.setFolder(gist.folder())
+        form.setFolder(folder)
                 .setName(gist.name())
                 .setDescription(gist.getDescription())
                 .setVisible(gist.isVisible());
-        form.display(displayingFrame, "Duplicate configuration " + side.name() + (targetSide == side ? "..." : (targetSide != null ? " to repository " + targetSide.name() + "..." : " to another account...")));
+        form.display(displayingFrame, "Duplicate configuration " + side.name() + (targetSide == side || targetSide == null ? "..." : " to repository " + targetSide.name() + "..."));
         if (form.canceled) return;
         if (!Utils.isValid(form.name(), false)) {
             if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid name");
@@ -609,40 +613,6 @@ public class ConfigurationLibrary {
         refreshSidesShowing(target, displayed ? targetSide : null);
         if (bacmmanLogger != null)
             bacmmanLogger.setMessage("Configuration duplicated: " + toSave.folder() + "/" + toSave.name());
-    }
-
-    protected void addDuplicateMenu(JButton button, Side side) {
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent evt) {
-                if (!SwingUtilities.isRightMouseButton(evt)) return;
-                boolean sel = side.config() != null && side.selector() != null && side.selector().getSelectedGist() != null;
-                JPopupMenu menu = new JPopupMenu();
-                if (repoMode) {
-                    Side other = side.other();
-                    Action dupSide = new AbstractAction("Duplicate to repository " + other.name()) {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            duplicate(side, other.repository(), other);
-                        }
-                    };
-                    dupSide.setEnabled(sel && other.loggedIn());
-                    menu.add(dupSide);
-                }
-                Action dupOther = new AbstractAction("Duplicate to another account") {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        GistRepository other = OtherRepositoryPrompt.prompt(side.repository(), gateway, "Account to duplicate to", displayingFrame, bacmmanLogger);
-                        if (other == null) return;
-                        Side displaying = OtherRepositoryPrompt.same(other, side.repository()) ? side : (repoMode && OtherRepositoryPrompt.same(other, side.other().repository()) ? side.other() : null);
-                        duplicate(side, other, displaying);
-                    }
-                };
-                dupOther.setEnabled(sel);
-                menu.add(dupOther);
-                menu.show(button, evt.getX(), evt.getY());
-            }
-        });
     }
 
     protected void delete(Side side) {
@@ -729,8 +699,12 @@ public class ConfigurationLibrary {
         deleteRemote.setText("Delete" + sB);
         setTitle(remoteSelectorJSP, repoMode ? "Configuration File B" : "Remote Configuration File");
         setTitle(localSelectorPanel, repoMode ? "Configuration File A" : "Local Item");
-        copyToLocal.setText(repoMode ? "◀ Copy B to A" : "◀ Copy to current dataset");
-        copyToRemote.setText(repoMode ? "Copy A to B ▶" : "Copy to library ▶");
+        copyToLocal.setText(repoMode ? "◀ Overwrite B to A" : "◀ Copy to current dataset");
+        copyToRemote.setText(repoMode ? "Overwrite A to B ▶" : "Copy to library ▶");
+        copyNewToA.setVisible(repoMode);
+        copyNewToB.setVisible(repoMode);
+        copyNewToA.setToolTipText(formatHint("Creates a new configuration in repository A, copy of configuration B (including unsaved modifications). The folder selected in repository A, if any, is proposed as folder of the new configuration", true));
+        copyNewToB.setToolTipText(formatHint("Creates a new configuration in repository B, copy of configuration A (including unsaved modifications). The folder selected in repository B, if any, is proposed as folder of the new configuration", true));
         String left = repoMode ? "configuration A (left)" : "the configuration of the current dataset (left)";
         String right = repoMode ? "configuration B (right)" : "the remote configuration (right)";
         copyToLocal.setToolTipText(formatHint(repoMode ? "Replaces configuration A (left) by configuration B (right).<br/>The copy is only made in the tree of A: click <em>Save changes (A)</em> to store it" : "Copies the displayed remote configuration to the current dataset", true));
@@ -741,7 +715,7 @@ public class ConfigurationLibrary {
             JButton save = side.a ? saveLocalChanges : saveRemoteChanges, thumb = side.a ? setThumbnailA : setThumbnailButton, dup = side.a ? duplicateA : duplicateRemote, del = side.a ? deleteA : deleteRemote;
             save.setToolTipText(formatHint("Stores the modifications of the configuration tree (edition, drag and drop, copy) in the selected configuration of " + repo + ". Configurations with unsaved modifications are indicated in the title of their tree.<br />A password must be provided to perform this action", true));
             thumb.setToolTipText(formatHint("Sets the active image as thumbnail of the selected configuration of " + repo + " and uploads it. Right click: append a thumbnail", true));
-            dup.setToolTipText(formatHint("Creates a copy of the displayed configuration (including unsaved modifications) in " + repo + ". Right click: duplicate to " + (repoMode ? "repository " + side.other().name() + " or to " : "") + "another account", true));
+            dup.setToolTipText(formatHint("Creates a copy of the displayed configuration (including unsaved modifications) in " + repo, true));
             del.setToolTipText(formatHint("Deletes the selected configuration from " + repo + ". If a folder is selected: deletes all its configurations", true));
         }
         String dnd = "<br/>Parameters can be dragged from the other tree and dropped in this tree: items of a list are added when dropped on a list of the same kind (e.g. object classes, transformations), other parameters replace the content of the compatible parameter they are dropped on (e.g. an object class on an object class, a list of transformations on a list of transformations). Incompatible drops are not allowed";
@@ -791,7 +765,7 @@ public class ConfigurationLibrary {
         };
         actionPanel.removeAll();
         if (repoMode) {
-            grid.accept(middleActionPanel, new JButton[][]{{copyToLocal, copyToRemote}, {saveToRemote, null}});
+            grid.accept(middleActionPanel, new JButton[][]{{copyToLocal, copyToRemote}, {copyNewToA, copyNewToB}});
             grid.accept(rightActionPanel, new JButton[][]{{saveRemoteChanges, setThumbnailButton}, {duplicateRemote, deleteRemote}});
             actionPanel.setLayout(new GridLayoutManager(1, 5, new Insets(0, 0, 0, 0), -1, -1));
             actionPanel.add(leftActionPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, CS, CS, null, null, null, 0, false));
@@ -1576,6 +1550,24 @@ public class ConfigurationLibrary {
         return remoteSelector.setSelectedGist(gist, remoteObjectClass);
     }
 
+    /**
+     * @param idOrURL link to a configuration: url of a configuration of any repository (GitHub, GitLab, local) or GitHub gist id (legacy)
+     * @return the configuration among the configurations displayed by the library (remote side), with the repository and credentials of the library. null if the library does not display the repository that contains it
+     */
+    public GistConfiguration getDisplayedConfiguration(String idOrURL) {
+        GistRepository repo = getRepository();
+        if (repo == null || gists == null || idOrURL == null) return null;
+        GistRepository linkRepo = gateway.getRepository(idOrURL);
+        if (linkRepo == null || !linkRepo.getType().equals(repo.getType())) return null;
+        String id = repo.idFromURL(idOrURL); // null if the url is not an url of this repository (other server or folder)
+        if (id == null) {
+            if (!GistRepository.TYPE.GITHUB.equals(repo.getType()) || idOrURL.contains("/")) return null;
+            id = idOrURL; // bare GitHub gist id (legacy)
+        }
+        String fid = id;
+        return gists.stream().filter(g -> fid.equals(g.getID())).findAny().orElse(null);
+    }
+
     public void setLocalItemIdx(int idx) {
         if (currentMode.equals(GistConfiguration.TYPE.PRE_PROCESSING))
             localSelectorJCB.setSelectedIndex(idx + 1); // zero is template
@@ -1651,6 +1643,8 @@ public class ConfigurationLibrary {
         boolean gistSelectedA = repoMode && local && localSelector != null && localSelector.getSelectedGist() != null;
         copyToLocal.setEnabled(local && remote);
         copyToRemote.setEnabled(local && remote);
+        copyNewToA.setEnabled(repoMode && gistSelected && loggedInA);
+        copyNewToB.setEnabled(gistSelectedA && loggedIn);
         saveToRemote.setEnabled(!repoMode && local && loggedIn);
         saveRemoteChanges.setEnabled(gistSelected && loggedIn);
         duplicateRemote.setEnabled(gistSelected && loggedIn);

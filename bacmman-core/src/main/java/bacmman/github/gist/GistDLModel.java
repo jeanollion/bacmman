@@ -18,7 +18,6 @@ import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 
 public class GistDLModel implements Hint {
 
@@ -293,13 +292,23 @@ public class GistDLModel implements Hint {
         }
         return jsonContent;
     }
-    public String getModelID() {
-        String url = getModelURL();
-        if (url == null) return null;
-        String modelId = repository.idFromURL(url);
-        if (modelId != null) return modelId;
-        GistRepository r = GistRepository.fromURL(url, null);
-        return r == null ? url : r.parseId(url);
+    /**
+     * @return link to the model file, to be stored outside of the repository (e.g. in a parameter): bare id if the file is stored on GitHub, url otherwise
+     */
+    public String getModelLink() {
+        return toModelLink(getModelURL());
+    }
+
+    /**
+     * @param idOrURL bare GitHub id or url of an item of any repository
+     * @return bare id for items stored on GitHub, url otherwise (bare ids are GitHub ids)
+     */
+    public static String toModelLink(String idOrURL) {
+        if (idOrURL == null || !idOrURL.contains("/")) return idOrURL;
+        GistRepository r = GistRepository.fromURL(idOrURL, null);
+        if (r == null || !GistRepository.TYPE.GITHUB.equals(r.getType())) return idOrURL;
+        String id = r.idFromURL(idOrURL);
+        return id == null ? idOrURL : id;
     }
     public String getModelURL() {
         getContent();
