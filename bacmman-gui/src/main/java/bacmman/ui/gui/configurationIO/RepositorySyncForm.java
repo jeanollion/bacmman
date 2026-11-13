@@ -205,7 +205,7 @@ public class RepositorySyncForm {
         }
         if (!dryRun) {
             String message = "Synchronize " + tgt.getKey() + " from " + src.getKey() + " ?" + (selection == null ? "" : "\n" + selectionLabel.getText() + " (and the items they depend on)") + (modelFileTarget == null ? "" : "\nModel weights will be stored in " + modelFileTarget.getKey()) + (deleteRemovedJCB.isSelected() ? "\nItems removed from the source will be deleted from the target." : "") + (overwriteJCB.isSelected() ? "\nItems modified in the target will be overwritten." : "");
-            if (JOptionPane.showConfirmDialog(contentPane, message, "Synchronize repositories", JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
+            if (JOptionPane.showConfirmDialog(contentPane, message, "Synchronize libraries", JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
         }
         RepositorySync sync = new RepositorySync(src, tgt)
                 .setFilter(RepositorySync.libraries(libraries))
@@ -262,7 +262,7 @@ public class RepositorySyncForm {
     }
 
     public void display(JFrame parent) {
-        if (dia == null) dia = new Dial(parent, "Synchronize Repositories");
+        if (dia == null) dia = new Dial(parent, "Synchronize Libraries");
         dia.setVisible(true);
         dia.toFront();
     }

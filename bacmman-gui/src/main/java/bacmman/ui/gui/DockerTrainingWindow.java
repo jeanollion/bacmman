@@ -833,6 +833,10 @@ public class DockerTrainingWindow implements ProgressDisplay {
             currentProgressBar = trainingProgressBar;
             epochLabel.setText("Upload:");
         }
+        if (configureCB == null) { // not called to configure a parameter: the callback of the library is left unchanged
+            dlModelLibrary.connect();
+            return dlModelLibrary;
+        }
         BiConsumer<String, DLModelMetadata> newConfigureCB;
         if (!fromGUI) {
             newConfigureCB = (s, m) -> {

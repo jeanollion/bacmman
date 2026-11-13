@@ -1186,19 +1186,19 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             }
         });
 
-        onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
+        onlineConfigurationLibraryMenuItem.setText("Configuration Library");
         this.importMenu.add(onlineConfigurationLibraryMenuItem);
         onlineConfigurationLibraryMenuItem.addActionListener(e -> {
             displayConfigurationLibrary();
         });
 
-        onlineDLModelLibraryMenuItem.setText("Online DL Model library");
+        onlineDLModelLibraryMenuItem.setText("DL Model Library");
         onlineDLModelLibraryMenuItem.addActionListener(e -> {
             displayOnlineDLModelLibrary();
         });
         this.importMenu.add(onlineDLModelLibraryMenuItem);
-        JMenuItem syncRepositoriesMenuItem = new JMenuItem("Synchronize Repositories...");
-        syncRepositoriesMenuItem.setToolTipText("Copy configurations and / or DL models from one repository (GitHub, GitLab or local folder) to another one");
+        JMenuItem syncRepositoriesMenuItem = new JMenuItem("Synchronize Libraries...");
+        syncRepositoriesMenuItem.setToolTipText("Copy configurations, DL models and / or notebooks from one repository (GitHub, GitLab or local folder) to another one");
         syncRepositoriesMenuItem.addActionListener(e -> new bacmman.ui.gui.configurationIO.RepositorySyncForm(Core.getCore().getGithubGateway(), this).display(this));
         this.importMenu.add(syncRepositoriesMenuItem);
 
@@ -3195,7 +3195,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         });
         experimentMenu.add(newXPFromTemplateMenuItem);
 
-        newDatasetFromGithubMenuItem.setText("New dataset from Online Library");
+        newDatasetFromGithubMenuItem.setText("New dataset from Library");
         newDatasetFromGithubMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 newDatasetFromGithubMenuItemActionPerformed(evt);
@@ -5498,7 +5498,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                 }
             };
             menu.add(newDatasetTemplate);
-            Action newDatasetGithub = new AbstractAction("New Dataset from Online Library") {
+            Action newDatasetGithub = new AbstractAction("New Dataset from Library") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     newDatasetFromGithubMenuItemActionPerformed(e);

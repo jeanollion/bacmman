@@ -1186,7 +1186,7 @@ public class ConfigurationLibrary {
     }
 
     public void display(JFrame parent) {
-        dia = new Dial(parent, "Online Configuration Library");
+        dia = new Dial(parent, "Configuration Library");
         dia.setVisible(true);
         if (parent != null) { // in case configuration is modified by drag and drop -> update the configuration tree in the main window
             dia.addWindowFocusListener(new WindowFocusListener() {

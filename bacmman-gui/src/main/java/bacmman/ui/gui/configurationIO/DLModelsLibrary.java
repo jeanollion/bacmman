@@ -281,6 +281,11 @@ public class DLModelsLibrary {
     public DLModelsLibrary setConfigureParameterCallback(BiConsumer<String, DLModelMetadata> callback) {
         this.configureParameterCallback = callback;
         updateEnableButtons();
+        if (callback != null) {
+            String msg = "To configure the parameter: select a model in the library, then click \"" + configureParameterButton.getText() + "\"";
+            if (pcb != null) pcb.setMessage(msg);
+            Utils.displayTemporaryMessage(msg, 8000);
+        }
         return this;
     }
 
@@ -632,7 +637,7 @@ public class DLModelsLibrary {
     }
 
     public void display(JFrame parent) {
-        dia = new Dial(parent, "Online DL Model Library");
+        dia = new Dial(parent, "DL Model Library");
         dia.setVisible(true);
     }
 
