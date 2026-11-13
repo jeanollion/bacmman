@@ -177,6 +177,7 @@ public class ConfigurationLibrary {
                 xp.setNote("");
                 content = xp.toJSONEntry();
             } else content = (JSONObject) localConfig.getRoot().toJSONEntry();
+            LocalLinks.resolveAll(content, xp == null ? null : xp.getPath()); // links to local repositories are relative to the dataset folder
             GistConfiguration.convertLinks(content, null, getRepository()); // links of the dataset are external links
             GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
             if (!createNewGist(toSave, getRepository())) return;
@@ -530,6 +531,7 @@ public class ConfigurationLibrary {
             json = xp.toJSONEntry();
         } else json = source.toJSONEntry();
         json = JSONValue.parse(JSONValue.toJSONString(json)); // copy
+        if (sourceRepository == null) LocalLinks.resolveAll(json, xp == null ? null : xp.getPath()); // dataset: links to local repositories are relative to the dataset folder
         Object destJSON = dest.toJSONEntry();
         if (json instanceof JSONObject) { // the displayed configuration keeps its own link
             for (String k : LINK_KEYS) ((JSONObject) json).remove(k);

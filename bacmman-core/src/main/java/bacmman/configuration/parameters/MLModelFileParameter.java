@@ -8,6 +8,7 @@ import bacmman.github.gist.GitLabRepository;
 import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
+import bacmman.github.gist.LocalLinks;
 import bacmman.github.gist.NoAuth;
 import bacmman.ui.logger.ProgressDisplay;
 import org.json.simple.JSONArray;
@@ -74,10 +75,27 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     }
 
     /**
-     * @return link to the model file: bare GitHub id, or url of an item of any repository
+     * @return link to the model file: bare GitHub id, or url of an item of any repository.
+     * Links to local repositories are stored relative to the dataset folder, and resolved here
      */
     public String getID() {
-        return id.getValue();
+        String link = id.getValue();
+        return LocalLinks.isRelative(link) ? LocalLinks.resolve(link, getLinkRefPath()) : link;
+    }
+
+    /**
+     * @return folder relative to which links to local repositories are stored: the reference folder of the model file (dataset folder)
+     */
+    protected Path getLinkRefPath() {
+        getChildren(); // ensures the model file has this parameter as parent
+        return modelFile.getRefPath();
+    }
+
+    /**
+     * @return link to the model file as stored in the configuration: relative to the dataset folder if it is a link to a local repository
+     */
+    protected String storedLink(String link) {
+        return LocalLinks.isAbsolute(link) ? LocalLinks.relativize(link, getLinkRefPath()) : link;
     }
 
     public boolean needsToDownloadModel() throws IOException {
@@ -110,9 +128,9 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         logger.debug("configuring MLModelFileParameter from metadata");
         lf = null;
         String oldID = id.getValue();
-        id.setValue(modelID);
+        id.setValue(storedLink(modelID));
         // special case: when valid model was set before: file needs to be changed
-        if ( (oldID==null || !oldID.equals(modelID))) {
+        if ( (oldID==null || !oldID.equals(id.getValue()))) {
             String path = modelFile.getFirstSelectedFilePath();
             if (path == null) { // get current experiment path
                 Experiment xp = ParameterUtils.getExperiment(this);
@@ -220,9 +238,14 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     public Object toJSONEntry() {
         JSONObject res = new JSONObject();
         res.put("file", modelFile.toJSONEntry());
-        getID();
-        res.put("id", id.toJSONEntry());
+        res.put("id", storedLink(getID()));
         return res;
+    }
+
+    @Override
+    public void setContentFrom(Parameter other) {
+        super.setContentFrom(other);
+        if (other instanceof MLModelFileParameter) id.setValue(storedLink(((MLModelFileParameter) other).getID())); // the link is relative to the dataset folder of each parameter
     }
 
     @Override

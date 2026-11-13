@@ -22,6 +22,28 @@ public interface ConfigIDAware<P extends Parameter<P>> extends Parameter<P>, JSO
         if (targetAU == null) return;
         targetAU.setContentFrom(sourceAU);
     }
+    /**
+     * @return folder relative to which links to local repositories are stored: folder of the dataset that contains {@param p}, or null
+     */
+    static java.nio.file.Path getLinkRefPath(Parameter p) {
+        Experiment xp = bacmman.configuration.parameters.ParameterUtils.getExperiment(p);
+        return xp == null ? null : xp.getPath();
+    }
+
+    /**
+     * @return {@param link} resolved (absolute) if it is a link to a local repository stored relative to the dataset folder
+     */
+    static String resolveLink(Parameter p, String link) {
+        return bacmman.github.gist.LocalLinks.isRelative(link) ? bacmman.github.gist.LocalLinks.resolve(link, getLinkRefPath(p)) : link;
+    }
+
+    /**
+     * @return {@param link} as stored in the configuration: relative to the dataset folder if it is a link to a local repository
+     */
+    static String storedLink(Parameter p, String link) {
+        return bacmman.github.gist.LocalLinks.isAbsolute(link) ? bacmman.github.gist.LocalLinks.relativize(link, getLinkRefPath(p)) : link;
+    }
+
     static BooleanParameter getAutoUpdateParameter() {
         return new BooleanParameter("Auto Update Config", true)
                 .setHint("If true, this configuration block will be automatically updated each time it is downloaded from configuration library");

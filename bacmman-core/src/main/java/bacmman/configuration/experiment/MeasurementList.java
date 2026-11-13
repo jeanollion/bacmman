@@ -45,7 +45,7 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
     }
 
     public String getConfigID() {
-        return configID;
+        return ConfigIDAware.resolveLink(this, configID); // links to local repositories are stored relative to the dataset folder
     }
 
     @Override
@@ -69,7 +69,7 @@ public class MeasurementList extends SimpleListParameter<PluginParameter<Measure
         if (configID==null) return super.toJSONEntry();
         JSONObject res = new JSONObject();
         JSONArray list = (JSONArray)super.toJSONEntry();
-        res.put(ConfigIDAware.key, configID);
+        res.put(ConfigIDAware.key, ConfigIDAware.storedLink(this, getConfigID()));
         res.put(ConfigIDAware.autoUpdateKey, autoUpdate.toJSONEntry());
         res.put("list", list);
         return res;

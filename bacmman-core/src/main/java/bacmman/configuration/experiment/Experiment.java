@@ -116,7 +116,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         res.put("importMethod", importCond.toJSONEntry());
         res.put("bestFocusPlane", bestFocusPlane.toJSONEntry());
         res.put("note", note.toJSONEntry());
-        if (configID!=null) res.put(ConfigIDAware.key, configID);
+        if (configID!=null) res.put(ConfigIDAware.key, ConfigIDAware.storedLink(this, getConfigID()));
         return res;
     }
 
@@ -174,7 +174,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
 
     public String getConfigID() {
-        return configID;
+        return ConfigIDAware.resolveLink(this, configID); // links to local repositories are stored relative to the dataset folder
     }
 
     @Override

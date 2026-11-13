@@ -25,7 +25,7 @@ public class ProcessingChain extends PluginParameter<ProcessingPipeline> impleme
     }
 
     public String getConfigID() {
-        return configID;
+        return ConfigIDAware.resolveLink(this, configID); // links to local repositories are stored relative to the dataset folder
     }
 
     @Override
@@ -57,7 +57,7 @@ public class ProcessingChain extends PluginParameter<ProcessingPipeline> impleme
     public JSONObject toJSONEntry() {
         JSONObject res= super.toJSONEntry();
         if (configID!=null) {
-            res.put(ConfigIDAware.key, configID);
+            res.put(ConfigIDAware.key, ConfigIDAware.storedLink(this, getConfigID()));
             res.put(ConfigIDAware.autoUpdateKey, autoUpdate.toJSONEntry());
             if (configObjectClassIdx>=0) res.put(ConfigIDAware.idxKey, configObjectClassIdx);
         }
