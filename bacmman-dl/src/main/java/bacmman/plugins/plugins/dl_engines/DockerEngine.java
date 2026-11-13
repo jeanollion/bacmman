@@ -256,22 +256,35 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         int nIterMax = (int)Math.ceil(1000 * processTimeout.getDoubleValue() / (double)loopFreqMs);
         Path ds_path_out = dataDir.resolve(ds_name_out);
         Path ds_path_error = dataDir.resolve(ds_name.replace("h5", "error"));
+        int openFailures = 0;
+        int maxOpenFailures = (int)Math.ceil(10000. / loopFreqMs); // ~10s
         while(t++ < nIterMax) {
             if (Files.exists(ds_path_out)) {
+                IHDF5Reader reader = null;
                 try {
-                    Image[][][] resONC = new Image[outputNames.length][][];
-                    IHDF5Reader reader = HDF5IO.getReader(ds_path_out.toFile());
-                    for (int i = 0; i<outputNames.length; ++i) {
-                        LazyImage5D im = HDF5IO.readDatasetLazy(reader, "outputs/"+outputNames[i], true);
-                        resONC[i] = toImageArray(im);
-                    }
-                    reader.close();
-                    return resONC;
+                    reader = HDF5IO.getReader(ds_path_out.toFile());
                 } catch (Exception e) {
-                    deleteSilently(ds_path);
-                    throw new RuntimeException(e);
-                } finally {
-                    deleteSilently(ds_path_out);
+                    // right after the container renames the file, it can be transiently locked (e.g. Docker Desktop file sharing or antivirus on Windows -> "Permission denied"): retry
+                    if (++openFailures >= maxOpenFailures || t >= nIterMax) {
+                        deleteSilently(ds_path_out);
+                        throw new RuntimeException(e);
+                    }
+                    logger.debug("could not open output file {} (attempt {}): {}, retrying", ds_path_out, openFailures, e.getMessage());
+                }
+                if (reader != null) {
+                    try {
+                        Image[][][] resONC = new Image[outputNames.length][][];
+                        for (int i = 0; i < outputNames.length; ++i) {
+                            LazyImage5D im = HDF5IO.readDatasetLazy(reader, "outputs/" + outputNames[i], true);
+                            resONC[i] = toImageArray(im);
+                        }
+                        return resONC;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        reader.close();
+                        deleteSilently(ds_path_out);
+                    }
                 }
             } else if (Files.exists(ds_path_error)) {
                 List<String> error = FileIO.readFromFile(ds_path_error.toString(), s->s, null);
