@@ -138,7 +138,7 @@ public class ProcessingTest {
                 }
                 @Override
                 public void close() {
-                    applyToSeg.close();
+                    if (applyToSeg!=null) applyToSeg.close();
                 }
             };
             nextStage(pcb, "Segmentation");
