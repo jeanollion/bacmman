@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.trackers.nested_spot_tracker;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.image.ImageMask;
@@ -35,7 +36,9 @@ import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -115,10 +118,46 @@ public class SpotQuality {
     }
 
     private void computeQuality(SegmentedObject parent, int spotClassIdx, List<SegmentedObject> spots, Function<SegmentedObject, SegmentedObject> bacteria) {
+        Map<Region, SegmentedObject> regionSpot = new IdentityHashMap<>(spots.size());
+        for (SegmentedObject s : spots) regionSpot.put(s.getRegion(), s);
+        List<Region> regions = spots.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+        double[] quality = computeQuality(parent.getPreFilteredImage(spotClassIdx), null, regions, r -> bacteria.apply(regionSpot.get(r)), parent); // raw image if no pre-filtered image
+        for (int i = 0; i<spots.size(); ++i) {
+            spots.get(i).getRegion().setQuality(quality[i]);
+            spots.get(i).setAttribute("Quality", quality[i]);
+        }
+    }
+
+    /**
+     * @return parameters of the quality computation (formula, value, normalization)
+     */
+    public Parameter[] getQualityParameters() {
+        return new Parameter[]{formulaCond, value, normCond};
+    }
+
+    /**
+     * @return border (in pixels) to add around regions so that the gaussian and laplacian transforms are not influenced by the border of the image
+     */
+    public int getTransformBorder() {
+        QUALITY_FORMULA f = formula.getSelectedEnum();
+        double scale = Math.max(QUALITY_FORMULA.L.equals(f) ? 0 : gaussianScale.getDoubleValue(), QUALITY_FORMULA.G.equals(f) ? 0 : laplacianScale.getDoubleValue());
+        return (int)Math.ceil(4 * scale) + 1;
+    }
+
+    /**
+     * Quality of spots, as in {@link SpotSegmenter}: value of the gaussian and / or laplacian transforms at the center of the spot (or median over the spot), after normalization of the intensity within the object that contains the spot
+     * @param source image (with its offset in absolute landmark), e.g. pre-filtered image of the parent of the spots
+     * @param transformBounds bounds (absolute landmark) on which the gaussian and laplacian transforms are computed, should contain all regions with a border (see {@link #getTransformBorder()}). If null, transforms are computed on the whole {@param source}
+     * @param regions spots, in absolute landmark
+     * @param normalizationObject object within which the intensity is normalized for a given spot (MEAN and SD of background). If it returns null, {@param defaultNormalizationObject} is used
+     * @param defaultNormalizationObject see {@param normalizationObject}
+     * @return quality of each region
+     */
+    public double[] computeQuality(Image source, BoundingBox transformBounds, List<Region> regions, Function<Region, SegmentedObject> normalizationObject, SegmentedObject defaultNormalizationObject) {
         QUALITY_FORMULA f = formula.getSelectedEnum();
         boolean useG = !QUALITY_FORMULA.L.equals(f), useL = !QUALITY_FORMULA.G.equals(f);
         double scaleZRatio = this.scaleZRatio.getDoubleValue();
-        Image input = parent.getPreFilteredImage(spotClassIdx); // raw image if no pre-filtered image
+        Image input = transformBounds == null ? source : source.cropWithOffset(transformBounds);
         double gScale = gaussianScale.getDoubleValue();
         double lScale = laplacianScale.getDoubleValue();
         Image gauss = useG ? SpotSegmenter.computeGaussian(input, gScale, SpotSegmenter.getScaleZ(gScale, scaleZRatio, input)) : null;
@@ -127,19 +166,21 @@ public class SpotQuality {
         if (lap!=null) lap.resetOffset().translate(input);
         boolean median = VALUE.MEDIAN.equals(value.getSelectedEnum());
         NORMALIZATION_MODE norm = normMode.getSelectedEnum();
-        // background mean & sd within each bacterium (or within the parent if the spot is not in a bacterium)
+        // background mean & sd within each normalization object
         HashMapGetCreate<SegmentedObject, double[]> meanSigma = HashMapGetCreate.getRedirectedMap(b -> {
             if (NORMALIZATION_MODE.NO_NORM.equals(norm)) return new double[]{0, 1};
-            Image crop = b.equals(parent) ? input : input.cropWithOffset(b.getBounds());
+            Image crop = source.getBoundingBox().sameBounds(b.getBounds()) ? source : source.cropWithOffset(b.getBounds());
             ImageMask mask = b.getMask().sizeZ() != crop.sizeZ() ? new ImageMask2D(b.getMask()) : b.getMask();
             double[] ms = backgroundEstimation.getMeanAndSigma(crop, mask);
             if (NORMALIZATION_MODE.PER_CELL_CENTER.equals(norm)) ms[1] = 1;
             return ms;
-        }, HashMapGetCreate.Syncronization.NO_SYNC); // one map per parent: not shared between threads
-        for (SegmentedObject s : spots) {
-            Region r = s.getRegion();
-            SegmentedObject b = bacteria.apply(s);
-            if (b == null) b = parent;
+        }, HashMapGetCreate.Syncronization.NO_SYNC); // not shared between threads
+        double[] res = new double[regions.size()];
+        for (int i = 0; i<res.length; ++i) {
+            Region r = regions.get(i);
+            if (!r.isAbsoluteLandMark()) throw new IllegalArgumentException("Region should be in absolute landmark");
+            SegmentedObject b = normalizationObject == null ? null : normalizationObject.apply(r);
+            if (b == null) b = defaultNormalizationObject;
             double[] ms = meanSigma.getAndCreateIfNecessary(b);
             double g, l;
             if (median) {
@@ -147,7 +188,7 @@ public class SpotQuality {
                 l = useL ? BasicMeasurements.getQuantileValue(r, lap, 0.5)[0] : Double.NaN;
             } else {
                 Point c = r.getCenterOrGeomCenter().duplicate();
-                if (r.isAbsoluteLandMark()) c.translateRev(input); // relative to input image
+                c.translateRev(input); // relative to input image
                 c.ensureWithinBounds(input.getBoundingBox().resetOffset());
                 double z = c.numDimensions() > 2 ? c.get(2) : 0;
                 g = useG ? gauss.getPixel(c.get(0), c.get(1), z) : Double.NaN;
@@ -155,9 +196,8 @@ public class SpotQuality {
             }
             double G = useG ? (g - ms[0]) * SpotSegmenter.gaussianNormalizationFactor(gScale, ms) : Double.NaN;
             double L = useL ? l / ms[1] : Double.NaN;
-            double Q = SpotSegmenter.quality(G, L, f);
-            r.setQuality(Q);
-            s.setAttribute("Quality", Q);
+            res[i] = SpotSegmenter.quality(G, L, f);
         }
+        return res;
     }
 }
