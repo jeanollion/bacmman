@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  *
@@ -69,6 +70,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false).setEmphasized(true).setHint("Algorithm used to detect the spots. Only used when segmentation and tracking are run together.<br />Each detected spot gets a quality value computed by the segmenter (see its help), which is compared to <em>Spot Quality Threshold</em>. The quality can also be computed by the tracker: see <em>Compute Spot Quality</em>");
     ParentObjectClassParameter compartmentStructure = new ParentObjectClassParameter("Bacteria Object Class", -1, -1, false, false).setEmphasized(true).setHint("Object class of the bacteria that contain the spots. A spot can only be linked to spots of the same bacterium lineage.<br />Each spot is assigned to the bacterium it overlaps the most; a spot that overlaps no bacterium is assigned to the bacterium whose contour is the closest. Two spots can only be linked if their bacteria belong to the same track, or to tracks connected by divisions. The shape of each bacterium (its spine, see the help of the tracker) is used to correct distances for the growth and motion of the bacteria");
     NumberParameter spotQualityThreshold = new NumberParameter<>("Spot Quality Threshold", 3, 3.5).setEmphasized(true).setHint("Faint spots below this quality are kept only if they can be linked to reliable spots. Lower it to keep fainter spots, raise it to remove more false detections.<br />Only used when segmentation and tracking are run together. Spots with a quality at least equal to this threshold are high-quality spots (HQ), the others are low-quality spots (LQ). Frame-to-frame linking is first done between HQ spots only, then LQ spots are added. LQ spots that are not linked, directly or through other spots, to a HQ spot are removed, and a track cannot start with a LQ spot followed by a gap. The quality value is given by the segmenter, or computed by the tracker (see <em>Compute Spot Quality</em>)");
+    NumberParameter minSpotQuality = new NumberParameter<>("Min. Spot Quality", 3, 0).setLegacyInitializationValue(-1e9).setEmphasized(true).setHint("Faint spots below this quality are discarded. Lower it to keep fainter spots, raise it to remove more false detections.<br />Only used when segmentation and tracking are run together.<br/>The quality value is given by the segmenter, or computed by the tracker (see <em>Compute Spot Quality</em>)");
     SpotQuality spotQuality = new SpotQuality();
     NumberParameter maxGap = new BoundedNumberParameter("Maximum Frame Gap", 0, 1, 0, null).setEmphasized(true).setHint("Maximum number of consecutive frames in which a spot can be missing (e.g. not detected) while still being linked across the gap. 0: spots are only linked between consecutive frames.<br />Links across gaps are made in the second linking step (gap closing): their distance is limited by <em>Maximum Linking Distance</em> and increased by <em>Gap Distance Penalty</em> for each missing frame");
     NumberParameter maxLinkingDistance = new BoundedNumberParameter("Maximum Linking Distance (FTF)", 2, 0.4, 0, null).setEmphasized(true).setHint("Largest distance a spot can move between two consecutive frames. Increase it if tracks are broken because spots move fast; decrease it to avoid wrong links between close spots.<br />Used in the first linking step (frame-to-frame linking). The distance is measured after correction for the growth and motion of the bacteria (see the help of the tracker and <em>Distance Direction</em>)"+calibrationTT);
@@ -81,7 +83,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     BooleanParameter allowMerging = new BooleanParameter("Allow merging", false).setHint("If set, two spots can be linked to the same spot in a following frame, e.g. when two spots become too close to be separated.<br />Merges are created in the gap-closing step, within <em>Maximum Linking Distance</em>");
     BooleanParameter calibration = new BooleanParameter("Use calibrated distance", true).setHint("Unit of the distance parameters: µm if set (using the calibration of the images), pixels otherwise.<br />Applies to <em>Maximum Linking Distance (FTF)</em>, <em>Maximum Linking Distance</em> and <em>Gap Distance Penalty</em>");
     EnumChoiceParameter<BacteriaSpineLocalizer.COORDINATES_3D> coordinates3D = BacteriaSpineLocalizer.getCoordinates3DParameter("3D Coordinate System", false);
-    Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, distanceMode, coordinates3D, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, calibration, spotQuality.getParameter(), spotQualityThreshold, allowSplitting, allowMerging};
+    Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, distanceMode, coordinates3D, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, calibration, spotQuality.getParameter(), spotQualityThreshold, minSpotQuality, allowSplitting, allowMerging};
 
     static String toolTipSimple = "<b>Tracker for spots inside bacteria</b><br />" +
             "Links spots (e.g. fluorescent foci) detected inside bacteria that are already segmented and tracked. Distances between spots are corrected for the motion and the growth of the bacteria, and spots are only linked within the same bacterium lineage (including across divisions)." +
@@ -140,6 +142,16 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         int nQuality = spotQuality.computeQuality(parentTrack, structureIdx, s -> getContainingBacteria(s, compartmentIdx));
         long t1= System.currentTimeMillis();
         if (nQuality>0) logger.debug("spot quality computed by the tracker for {} spots in {}ms", nQuality, t1-t0);
+        double minSpotQuality = this.minSpotQuality.getDoubleValue();
+        for (SegmentedObject p : parentTrack) {
+            Stream<SegmentedObject> children = p.getChildren(structureIdx);
+            if (children == null) continue;
+            List<SegmentedObject> toRemove = children.filter(o -> o.getRegion().getQuality() < minSpotQuality).collect(Collectors.toList()); // collect before removal: children stream may be backed by the list of children
+            if (!toRemove.isEmpty()) {
+                factory.removeFromParent(toRemove.toArray(new SegmentedObject[0]));
+                factory.relabelChildren(p);
+            }
+        }
         track(structureIdx, parentTrack, true, allowSplitting.getSelected(), allowMerging.getSelected(), factory, editor);
     }
 

@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Spot quality computed by {@link bacmman.plugins.plugins.trackers.NestedSpotTracker}, with the same formula as {@link SpotSegmenter}:
@@ -104,7 +105,9 @@ public class SpotQuality {
         if (COMPUTE.NEVER.equals(c)) return 0;
         boolean all = COMPUTE.ALWAYS.equals(c);
         return Utils.parallel(parentTrack.stream(), true).mapToInt(p -> {
-            List<SegmentedObject> spots = p.getChildren(spotClassIdx).filter(s -> all || Double.isNaN(s.getRegion().getQuality())).collect(Collectors.toList());
+            Stream<SegmentedObject> children = p.getChildren(spotClassIdx);
+            if (children == null) return 0;
+            List<SegmentedObject> spots = children.filter(s -> all || Double.isNaN(s.getRegion().getQuality())).collect(Collectors.toList());
             if (spots.isEmpty()) return 0;
             computeQuality(p, spotClassIdx, spots, bacteria);
             return spots.size();
