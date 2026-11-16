@@ -70,10 +70,10 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     NumberParameter laplacianThld = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
     NumberParameter propagationThld = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Lower threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode (or <em>Gaussian</em> if selected as watershed map)");
     NumberParameter gaussianThld = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    PluginParameter<bacmman.plugins.SimpleThresholder> normThresholder = new PluginParameter<>("Foreground Removal Thld", bacmman.plugins.SimpleThresholder.class, new BackgroundThresholder(6, 6, 2), true);
+    BackgroundEstimation backgroundEstimation = new BackgroundEstimation();
     public enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER, PER_FRAME_CENTER}
-    EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER).setLegacyInitializationValue(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. Backgroun threshold within the cell is determined by applying BackgroundThresholder to I within the cell. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN <br> PER_FRAME_CENTER removes the mean intensity outside segmentation parent (e.g. bacteria) within parent (e.g. microchannels).<br><br>If a thresholder is set, only values under the threshold are considered to compute MEAN and STDEV");
-    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, normThresholder).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE, normThresholder);
+    EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER).setLegacyInitializationValue(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN <br> PER_FRAME_CENTER removes the mean intensity outside segmentation parent (e.g. bacteria) within parent (e.g. microchannels).<br><br>MEAN and SD are estimated within the cell (see <em>Background Estimation</em>)");
+    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, backgroundEstimation.getParameter()).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE, backgroundEstimation.getParameter());
     public enum QUALITY_FORMULA {GL, G, L}
     public static final String QUALITY_FORMULA_HINT = "GL : sqrt(Gaussian x Laplacian). G: Gaussian. L: Laplacian. <br /> Gaussian (resp. Laplacian) correspond to the value of the Gaussian (resp Laplacian) transform at the center of the spot";
     EnumChoiceParameter<QUALITY_FORMULA> qualityFormula = new EnumChoiceParameter<>("Quality Formula", QUALITY_FORMULA.values(), QUALITY_FORMULA.G).setLegacyInitializationValue(QUALITY_FORMULA.GL).setHint("Formula for quality feature. <br />"+QUALITY_FORMULA_HINT);
@@ -157,7 +157,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         else return res;
     }
     /**
-     * See {@link #run(Image, SegmentedObject, double[], double[], int, double, double, double, NORMALIZATION_MODE, bacmman.plugins.SimpleThresholder)}
+     * See {@link #run(Image, SegmentedObject, double[], double[], int, double, double, double, NORMALIZATION_MODE, BackgroundEstimation)}
      * @param input
      * @param objectClassIdx
      * @param parent
@@ -165,7 +165,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      */
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        return run(input, parent, getScale(), getGaussianScale(), minSpotSize.getValue().intValue(), laplacianThld.getValue().doubleValue(), propagationThld.getValue().doubleValue(), gaussianThld.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin());
+        return run(input, parent, getScale(), getGaussianScale(), minSpotSize.getValue().intValue(), laplacianThld.getValue().doubleValue(), propagationThld.getValue().doubleValue(), gaussianThld.getValue().doubleValue(), normMode.getSelectedEnum(), backgroundEstimation);
     }
     // testable
     Map<SegmentedObject, TestDataStore> stores;
@@ -180,11 +180,11 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         boolean lapScaled, gaussScaled;
         double[] ms;
         double[] gaussianScale;
-        public void initPV(Image input, ImageMask mask, double[] gaussianScale, NORMALIZATION_MODE normMode, bacmman.plugins.SimpleThresholder thlder) {
+        public void initPV(Image input, ImageMask mask, double[] gaussianScale, NORMALIZATION_MODE normMode, BackgroundEstimation backgroundEstimation) {
             this.input=input;
             this.gaussianScale=gaussianScale;
             if (ms == null && (NORMALIZATION_MODE.PER_CELL_CENTER.equals(normMode) || NORMALIZATION_MODE.PER_CELL_CENTER_SCALE.equals(normMode) )) {
-                ms = getBackgroundMeanAndSigma(input, mask, thlder);
+                ms = backgroundEstimation.getMeanAndSigma(input, mask);
             }
             switch (normMode) {
                 case NO_NORM: {
@@ -238,7 +238,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      * @param gaussianThreshold minimal gaussian value to semgent a spot
      * @return segmented spots
      */
-    public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, double[] gaussScale, int minSpotSize, double laplacianThld, double thresholdPropagation, double gaussianThreshold, NORMALIZATION_MODE normMode, bacmman.plugins.SimpleThresholder thlder) {
+    public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, double[] gaussScale, int minSpotSize, double laplacianThld, double thresholdPropagation, double gaussianThreshold, NORMALIZATION_MODE normMode, BackgroundEstimation backgroundEstimation) {
         Arrays.sort(scale);
         Arrays.sort(gaussScale);
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
@@ -246,7 +246,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             pv.ms = parentMapMeanAndSigma.get(parent.getParent());
             //logger.debug("set mean sd @ frame: {} = {}", parent.getFrame(), this.pv.ms);
         }
-        this.pv.initPV(input, parentMask, gaussScale, normMode, thlder);
+        this.pv.initPV(input, parentMask, gaussScale, normMode, backgroundEstimation);
         if (pv.getGaussianMap()==null || pv.getLaplacianMap()==null) throw new RuntimeException("Mutation Segmenter not parametrized");//setMaps(computeMaps(input, input));
 
         QUALITY_FORMULA qFormula;
@@ -421,7 +421,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-        this.pv.initPV(input, segmentationMask, getGaussianScale(), this.normMode.getSelectedEnum(), this.normThresholder.instantiatePlugin()) ;
+        this.pv.initPV(input, segmentationMask, getGaussianScale(), this.normMode.getSelectedEnum(), backgroundEstimation) ;
         if (pv.gauss ==null || pv.lap==null) setMaps(computeMaps(input, input));
         else logger.debug("manual seg: maps already set!");
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
@@ -573,29 +573,6 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      */
     public static double getScaleZ(double scaleXY, double scaleZRatio, Image image) {
         return scaleZRatio==0 ? scaleXY*image.getScaleXY()/image.getScaleZ() : scaleXY * scaleZRatio;
-    }
-
-    /**
-     * Mean and standard deviation of the background of {@param input} within {@param mask}
-     * @param thlder background threshold: only values below it are considered (all values if null)
-     * @return [mean, sd]
-     */
-    public static double[] getBackgroundMeanAndSigma(Image input, ImageMask mask, bacmman.plugins.SimpleThresholder thlder) {
-        double[] ms;
-        double thld = 0;
-        if (thlder instanceof BackgroundThresholder) {
-            ms = new double[2];
-            BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
-            thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, bthlder.symmetrical(), ms);
-        } else if (thlder != null) {
-            double t = thlder.runSimpleThresholder(input, mask);
-            ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=t);
-            thld = t;
-        } else {
-            ms = ImageOperations.getMeanAndSigma(input, mask, null);
-        }
-        if (debug) logger.debug("scaling thld: {} mean & sigma: {}", thld, ms);
-        return ms;
     }
 
     /**

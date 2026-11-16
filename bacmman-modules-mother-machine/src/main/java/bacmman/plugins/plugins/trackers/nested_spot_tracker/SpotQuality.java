@@ -25,11 +25,10 @@ import bacmman.image.Image;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageMask2D;
-import bacmman.plugins.SimpleThresholder;
+import bacmman.plugins.plugins.segmenters.BackgroundEstimation;
 import bacmman.plugins.plugins.segmenters.SpotSegmenter;
 import bacmman.plugins.plugins.segmenters.SpotSegmenter.NORMALIZATION_MODE;
 import bacmman.plugins.plugins.segmenters.SpotSegmenter.QUALITY_FORMULA;
-import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
@@ -72,10 +71,9 @@ public class SpotQuality {
             .setActionParameters(QUALITY_FORMULA.L, laplacianScale, laplacianPlaneByPlane, scaleZRatio)
             .setActionParameters(QUALITY_FORMULA.GL, gaussianScale, laplacianScale, laplacianPlaneByPlane, scaleZRatio);
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", new NORMALIZATION_MODE[]{NORMALIZATION_MODE.NO_NORM, NORMALIZATION_MODE.PER_CELL_CENTER, NORMALIZATION_MODE.PER_CELL_CENTER_SCALE}, NORMALIZATION_MODE.PER_CELL_CENTER)
-            .setHint("Makes the quality independent of the background fluorescence of each bacterium, so that the same threshold can be used for all bacteria. The <em>Spot Quality Threshold</em> depends on this choice.<br />Let I be the intensity, MEAN and SD the mean and standard deviation of the background of I within the bacterium that contains the spot. NO_NORM: I. PER_CELL_CENTER: I -> I - MEAN. PER_CELL_CENTER_SCALE: I -> (I - MEAN) / SD.<br />If a thresholder is set, only values under the threshold are considered to compute MEAN and SD. The normalization is applied to the gaussian and laplacian transforms (as in <em>SpotSegmenter</em>)");
-    PluginParameter<SimpleThresholder> normThresholder = new PluginParameter<>("Foreground Removal Thld", SimpleThresholder.class, new BackgroundThresholder(6, 6, 2), true)
-            .setHint("Threshold that separates the background from the foreground (e.g. spots) within the bacterium: only values under the threshold are used to compute the mean and standard deviation of the background");
-    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, normThresholder).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE, normThresholder);
+            .setHint("Makes the quality independent of the background fluorescence of each bacterium, so that the same threshold can be used for all bacteria. The <em>Spot Quality Threshold</em> depends on this choice.<br />Let I be the intensity, MEAN and SD the mean and standard deviation of the background of I within the bacterium that contains the spot. NO_NORM: I. PER_CELL_CENTER: I -> I - MEAN. PER_CELL_CENTER_SCALE: I -> (I - MEAN) / SD.<br />MEAN and SD are estimated within the bacterium (see <em>Background Estimation</em>). The normalization is applied to the gaussian and laplacian transforms (as in <em>SpotSegmenter</em>)");
+    BackgroundEstimation backgroundEstimation = new BackgroundEstimation();
+    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, backgroundEstimation.getParameter()).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE, backgroundEstimation.getParameter());
     ConditionalParameter<COMPUTE> computeCond = new ConditionalParameter<>(compute)
             .setActionParameters(COMPUTE.ALWAYS, formulaCond, value, normCond)
             .setActionParameters(COMPUTE.IF_MISSING, formulaCond, value, normCond)
@@ -126,13 +124,12 @@ public class SpotQuality {
         if (lap!=null) lap.resetOffset().translate(input);
         boolean median = VALUE.MEDIAN.equals(value.getSelectedEnum());
         NORMALIZATION_MODE norm = normMode.getSelectedEnum();
-        SimpleThresholder thlder = NORMALIZATION_MODE.NO_NORM.equals(norm) ? null : normThresholder.instantiatePlugin();
         // background mean & sd within each bacterium (or within the parent if the spot is not in a bacterium)
         HashMapGetCreate<SegmentedObject, double[]> meanSigma = HashMapGetCreate.getRedirectedMap(b -> {
             if (NORMALIZATION_MODE.NO_NORM.equals(norm)) return new double[]{0, 1};
             Image crop = b.equals(parent) ? input : input.cropWithOffset(b.getBounds());
             ImageMask mask = b.getMask().sizeZ() != crop.sizeZ() ? new ImageMask2D(b.getMask()) : b.getMask();
-            double[] ms = SpotSegmenter.getBackgroundMeanAndSigma(crop, mask, thlder);
+            double[] ms = backgroundEstimation.getMeanAndSigma(crop, mask);
             if (NORMALIZATION_MODE.PER_CELL_CENTER.equals(norm)) ms[1] = 1;
             return ms;
         }, HashMapGetCreate.Syncronization.NO_SYNC); // one map per parent: not shared between threads
