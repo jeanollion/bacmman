@@ -152,7 +152,9 @@ public class SpotQuality {
             }
             double G = useG ? (g - ms[0]) * SpotSegmenter.gaussianNormalizationFactor(gScale, ms) : Double.NaN;
             double L = useL ? l / ms[1] : Double.NaN;
-            r.setQuality(SpotSegmenter.quality(G, L, f));
+            double Q = SpotSegmenter.quality(G, L, f);
+            r.setQuality(Q);
+            s.setAttribute("Quality", Q);
         }
     }
 }
