@@ -45,7 +45,8 @@ public class MLModelFileParameterUI implements ParameterUI {
                             GUI.getInstance().setSelectedTab(tabIdx);
                         }
                     });
-                    if (parameter.getID() != null) library.setSelectedGist(parameter.getID(), true);
+                    String modelLink = parameter.getID();
+                    if (modelLink != null && !modelLink.isEmpty()) library.selectModel(modelLink); // switches to the type of library of the configured model
                     if (GUI.getInstance()==null) library.display(null);
                 }
             }

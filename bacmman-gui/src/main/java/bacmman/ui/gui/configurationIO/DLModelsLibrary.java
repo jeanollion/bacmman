@@ -268,6 +268,37 @@ public class DLModelsLibrary {
         return false;
     }
 
+    /**
+     * Selects the model whose model file is {@code modelLink} (e.g. the model configured in a parameter).
+     * The library is switched to the type of repository of the model file (GitHub, GitLab or local), with the most recent library of this type (server or folder, and account), and its models are loaded if necessary
+     * @param modelLink link to the model file: bare GitHub id or url
+     * @return true if the model was found and selected
+     */
+    public boolean selectModel(String modelLink) {
+        if (modelLink == null || modelLink.isEmpty()) return false;
+        GistRepository modelRepo = GistRepository.fromURL(modelLink, null);
+        if (modelRepo == null) return false;
+        GistRepository.TYPE type = modelRepo.getType();
+        if (!type.equals(getRepositoryType())) repositoryCredentialPanel.setRepositoryType(type); // reloads the models
+        if (setSelectedGist(modelLink, true)) return true;
+        if (!repositoryCredentialPanel.loadAllowed(getAuth()) && !repositoryCredentialPanel.getUsername().isEmpty()) { // models not loaded yet (remote repository without password): load public models
+            repositoryCredentialPanel.connect();
+            if (setSelectedGist(modelLink, true)) return true;
+        }
+        String msg = "The configured model was not found in the " + RepositoryCredentialPanel.TYPE_NAMES[type.ordinal()] + " library " + libraryDescription() + (GistRepository.TYPE.LOCAL.equals(type) ? ". Select another folder" : ". Select another account, or connect to access private models");
+        if (pcb != null) pcb.setMessage(msg);
+        return false;
+    }
+
+    private String libraryDescription() {
+        if (GistRepository.TYPE.LOCAL.equals(getRepositoryType())) {
+            GistRepository r = getRepository();
+            return r instanceof LocalRepository ? "(" + ((LocalRepository) r).getFolder() + ")" : "(no folder selected)";
+        }
+        String user = repositoryCredentialPanel.getUsername();
+        return user.isEmpty() ? "(no account selected)" : "of account " + user;
+    }
+
     public DLModelsLibrary setProgressLogger(ProgressDisplay progressDisplay) {
         this.pcb = progressDisplay;
         return this;
