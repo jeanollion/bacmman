@@ -6,7 +6,6 @@ import bacmman.image.ImageFloat;
 import bacmman.image.PrimitiveType;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Utils;
 import net.imglib2.RandomAccessible;
 import net.imglib2.img.Img;
 import net.imglib2.parallel.Parallelization;
@@ -14,18 +13,13 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.view.IntervalView;
-import net.imglib2.view.MixedTransformView;
 import net.imglib2.view.Views;
-import net.imglib2.algorithm.gradient.PartialDerivative;
 import net.imglib2.algorithm.gauss3.Gauss3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.IntConsumer;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -96,133 +90,84 @@ public class ImageDerivatives {
         return getGradient(image, getScaleArray(scale, image), scaled, parallel, axis);
     }
 
+    /**
+     * Gaussian-derivative gradient
+     * @param scale standard deviation of the gaussian for each dimension (in pixels), or empty array / zeros for no smoothing (finite differences)
+     * @param scaled if true, each gradient component is divided by the scale along its axis
+     * @param axis axes along which the gradient is computed (all if none is provided)
+     */
     public static List<ImageFloat> getGradient(Image image, double[] scale, boolean scaled, boolean parallel, int... axis) {
-        Img input = ImgLib2ImageWrapper.toImg(image);
-        if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(input.numDimensions());
-        for (int ax : axis) if (ax >= input.numDimensions()) throw new IllegalArgumentException("Invalid axis provided: "+ax+" Image has "+input.numDimensions() + " dimensions");
-        if ((scaled || scale.length>0) && scale.length != input.numDimensions()) throw new IllegalArgumentException("Image has "+input.numDimensions() + " dimensions and "+scale.length+" scales are provided");
-        RandomAccessible inputRA = Views.extendBorder(input);
-        if (scale.length > 0 && DoubleStream.of(scale).anyMatch(s->s>0)) {
-            Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
-            RandomAccessible inputG = inputRA;
-            Runnable r = () -> Gauss3.gauss(scale, inputG, smooth);
-            if (parallel) Parallelization.runWithNumThreads(Runtime.getRuntime().availableProcessors(), r);
-            else r.run();
-            inputRA = Views.extendBorder(smooth);
+        int nDim = image.dimensions().length;
+        if (axis.length == 0) axis = ArrayUtil.generateIntegerArray(nDim);
+        for (int ax : axis) if (ax >= nDim) throw new IllegalArgumentException("Invalid axis provided: "+ax+" Image has "+nDim + " dimensions");
+        double[] sigma = getSigma(scale, nDim, scaled);
+        List<ImageFloat> res = new ArrayList<>(axis.length);
+        for (int ax : axis) {
+            int[] order = new int[nDim];
+            order[ax] = 1;
+            ImageFloat der = ImageFeatures.gaussianDerivative(image, sigma, order, false, parallel);
+            if (scaled) ImageOperations.affineOpMulAdd(der, der, 1. / sigma[ax], 0);
+            res.add(der);
         }
-        RandomAccessible inputD = inputRA;
-        IntFunction<ImageFloat> compute = d -> {
-            Img<FloatType> der = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
-            PartialDerivative.gradientCentralDifference(inputD, der, d);
-            return (ImageFloat) ImgLib2ImageWrapper.toImage(der, null);
-        };
-        List<ImageFloat> res = Utils.parallel(IntStream.of(axis), parallel).mapToObj(compute).collect(Collectors.toList());
-        if (scaled) {
-            for (int i = 0; i<axis.length; ++i) {
-                Image im = res.get(i);
-                double s = scale[axis[i]];
-                BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> im.setPixel(x, y, z, im.getPixel(x, y, z) / s), parallel);
-            }
-        }
-        res.forEach(i -> i.setCalibration(image.getScaleXY(), image.getScaleZ()));
-        res.forEach(i -> i.resetOffset().translate(image));
         return res;
     }
 
+    /**
+     * Gaussian-derivative Laplacian
+     * @param scale standard deviation of the gaussian for each dimension (in pixels)
+     * @param performSmooth if false, derivatives are computed by finite differences without smoothing ({@code scale} is only used for scaling)
+     * @param scaled if true, each second derivative is multiplied by the squared scale along its axis
+     * @param invert if true, result is multiplied by -1
+     */
     public static ImageFloat getLaplacian(Image image, double[] scale, boolean performSmooth, boolean scaled, boolean invert, boolean parallel) {
-        Img input = ImgLib2ImageWrapper.toImg(image);
-        int nDim = input.numDimensions();
-        RandomAccessible inputRA = Views.extendBorder(input);
-        if (scale.length>0 && performSmooth) {
-            Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
-            RandomAccessible inputG = inputRA;
-            Runnable r = () -> Gauss3.gauss(scale, inputG, smooth);
-            if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
-            else r.run();
-            //if (scaled) LoopBuilder.setImages(smooth).forEachPixel(pixel -> pixel.mul(1/scale[0]));
-            inputRA = Views.extendBorder(smooth);
+        int nDim = image.dimensions().length;
+        double[] sigma = getSigma(scale, nDim, scaled);
+        double[] sigmaD = performSmooth ? sigma : new double[nDim];
+        ImageFloat res = null;
+        for (int d = 0; d < nDim; ++d) {
+            int[] order = new int[nDim];
+            order[d] = 2;
+            ImageFloat der = ImageFeatures.gaussianDerivative(image, sigmaD, order, false, parallel);
+            double mul = (invert ? -1 : 1) * (scaled ? sigma[d] * sigma[d] : 1);
+            if (res == null) res = mul == 1 ? der : (ImageFloat)ImageOperations.affineOpMulAdd(der, der, mul, 0);
+            else ImageOperations.weightedSum(res, new double[]{1, mul}, res, der);
         }
-        Img<FloatType> grad = ImgLib2ImageWrapper.createImage(new FloatType(), appendDim(image.dimensions(), image.dimensions().length));
-        Img<FloatType> grad2 = ImgLib2ImageWrapper.createImage(new FloatType(), appendDim(image.dimensions(), image.dimensions().length));
-        RandomAccessible inputH = inputRA;
-        IntConsumer der1 = dim -> PartialDerivative.gradientCentralDifference(inputH, Views.hyperSlice(grad, nDim, dim), dim);
-        Utils.parallel(IntStream.range(0, nDim), parallel).forEach(der1);
-        RandomAccessible gradRA = Views.extendBorder( grad );
-        IntConsumer der2 = dim -> PartialDerivative.gradientCentralDifference(Views.hyperSlice(gradRA, nDim, dim), Views.hyperSlice(grad2, nDim, dim), dim);
-        Utils.parallel(IntStream.range(0, nDim), parallel).forEach(der2);
-        ImageFloat[] res = Utils.parallel(IntStream.range(0, nDim), parallel).mapToObj(d -> (ImageFloat)ImgLib2ImageWrapper.toImage(Views.hyperSlice( grad2, nDim, d ), null)).toArray(ImageFloat[]::new);
-        BoundingBox.LoopFunction fun;
-        double[] scale2 = scaled? DoubleStream.of(scale).map(d -> d*d).toArray() : null;
-        double mul = invert ? -1 : 1;
-        if (nDim == 2) {
-            fun = scaled ? (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z)*scale2[0] + res[1].getPixel(x, y, z)*scale2[1])) : (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z) + res[1].getPixel(x, y, z)));
-        } else if (nDim == 3) {
-            fun = scaled ? (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z)*scale2[0] + res[1].getPixel(x, y, z)*scale2[1] + res[2].getPixel(x, y, z)*scale2[2])) : (x, y, z) -> res[0].setPixel(x, y, z, mul * (res[0].getPixel(x, y, z) + res[1].getPixel(x, y, z) + res[2].getPixel(x, y, z)));
-        } else {
-            if (scaled) {
-                fun = (x, y, z) -> {
-                    double v=0;
-                    for (int d = 0 ; d<nDim; ++d) v+=res[d].getPixel(x, y, z)*scale2[d];
-                    res[0].setPixel(x, y, z, mul * v);
-                };
-            } else {
-                fun = (x, y, z) -> {
-                    double v=0;
-                    for (int d = 0 ; d<nDim; ++d) v+=res[d].getPixel(x, y, z);
-                    res[0].setPixel(x, y, z, mul * v);
-                };
-            }
-        }
-        BoundingBox.loop(image.getBoundingBox().resetOffset(), fun, parallel);
-        res[0].setCalibration(image.getScaleXY(), image.getScaleZ());
-        res[0].translate(image);
-        return res[0];
+        return res;
     }
 
+    /**
+     * Gaussian-derivative Hessian matrix (symmetric: res[i][j] and res[j][i] are the same image)
+     * @param scale standard deviation of the gaussian for each dimension (in pixels)
+     * @param performSmooth if false, derivatives are computed by finite differences without smoothing
+     * @param scaled if true, component (i, j) is divided by scale[i] * scale[j]
+     */
     public static ImageFloat[][] getHessian(Image image, double[] scale, boolean performSmooth, boolean scaled, boolean parallel) {
-        Img input = ImgLib2ImageWrapper.toImg(image);
-        int nDim = input.numDimensions();
-        RandomAccessible inputRA = Views.extendBorder(input);
-        if (scale.length>0 && performSmooth) {
-            Img<FloatType> smooth = ImgLib2ImageWrapper.createImage(new FloatType(), image.dimensions());
-            RandomAccessible inputG = inputRA;
-            Runnable r = () -> Gauss3.gauss(scale, inputG, smooth);
-            if (parallel) Parallelization.runWithNumThreads( Runtime.getRuntime().availableProcessors(), r);
-            else r.run();
-            inputRA = Views.extendBorder(smooth);
-        }
-        Img<FloatType> grad = ImgLib2ImageWrapper.createImage(new FloatType(), appendDim(image.dimensions(), image.dimensions().length));
-        Img<FloatType> hess = ImgLib2ImageWrapper.createImage(new FloatType(), appendDim(image.dimensions(), image.dimensions().length * (image.dimensions().length+1) / 2));
-        RandomAccessible inputH = inputRA;
-        IntConsumer der1 = dim -> PartialDerivative.gradientCentralDifference(inputH, Views.hyperSlice(grad, nDim, dim), dim);
-        Utils.parallel(IntStream.range(0, nDim), parallel).forEach(der1);
-        RandomAccessible gradRA = Views.extendBorder( grad );
-        ImageFloat[][] res = new ImageFloat[image.dimensions().length][image.dimensions().length];
-        Utils.TriConsumer<Integer, Integer, Integer> der2 = (d1, d2, count) -> {
-            final MixedTransformView< FloatType > hs1 = Views.hyperSlice( gradRA, nDim, d1 );
-            final IntervalView< FloatType > hs2 = Views.hyperSlice( hess, nDim, count );
-            PartialDerivative.gradientCentralDifference( hs1, hs2, d2 );
-            res[d1][d2] = (ImageFloat)ImgLib2ImageWrapper.toImage(hs2, null);
-            if (!d2.equals(d1)) res[d2][d1] = res[d1][d2];
-        };
-        List<int[]> tasks = new ArrayList<>();
-        int count = 0;
-        for ( int d1 = 0; d1 < nDim; ++d1 ) {
-            for ( int d2 = d1; d2 < nDim; ++d2 ) {
-                tasks.add(new int[]{d1, d2, count++});
-            }
-        }
-        Utils.parallel(tasks.stream(), parallel).forEach(t -> der2.accept(t[0], t[1], t[2]));
-        if (scaled) {
-            for (int[] t : tasks) {
-                Image im = res[t[0]][t[1]];
-                double s = scale[t[0]] * scale[t[1]];
-                BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> im.setPixel(x, y, z, im.getPixel(x, y, z) / s), parallel);
-                im.setCalibration(image.getScaleXY(), image.getScaleZ());
-                im.translate(image);
+        int nDim = image.dimensions().length;
+        double[] sigma = getSigma(scale, nDim, scaled);
+        double[] sigmaD = performSmooth ? sigma : new double[nDim];
+        ImageFloat[][] res = new ImageFloat[nDim][nDim];
+        for (int d1 = 0; d1 < nDim; ++d1) {
+            for (int d2 = d1; d2 < nDim; ++d2) {
+                int[] order = new int[nDim];
+                order[d1]++;
+                order[d2]++;
+                ImageFloat der = ImageFeatures.gaussianDerivative(image, sigmaD, order, false, parallel);
+                if (scaled) ImageOperations.affineOpMulAdd(der, der, 1. / (sigma[d1] * sigma[d2]), 0);
+                res[d1][d2] = der;
+                res[d2][d1] = der;
             }
         }
         return res;
+    }
+
+    private static double[] getSigma(double[] scale, int nDim, boolean scaled) {
+        if (scale.length == 0) {
+            if (scaled) throw new IllegalArgumentException("Scale must be provided for scaling");
+            return new double[nDim];
+        }
+        if (scale.length != nDim) throw new IllegalArgumentException("Image has "+nDim + " dimensions and "+scale.length+" scales are provided");
+        if (scaled && DoubleStream.of(scale).anyMatch(s -> s <= 0)) throw new IllegalArgumentException("Scale must be > 0 for scaling");
+        return scale;
     }
 
     public static ImageFloat[] getHessianEigenValues(Image image, double[] scale, boolean performSmooth, boolean performScaling, boolean parallel) {
@@ -237,7 +182,7 @@ public class ImageDerivatives {
         }
     }
 
-    // adapted from Imagescience by Erik Meijering: https://imagescience.org/meijering/software/imagescience/
+    // closed-form eigenvalues of a symmetric matrix, sorted by decreasing value
     protected static BoundingBox.LoopFunction eignvalues2D(ImageFloat[][] hessian, ImageFloat e1, ImageFloat e2) {
         return (x, y, z) -> {
             double xx = hessian[0][0].getPixel(x, y, z);
@@ -263,7 +208,7 @@ public class ImageDerivatives {
             }
         };
     }
-    // adapted from Imagescience by Erik Meijering: https://imagescience.org/meijering/software/imagescience/
+    // closed-form eigenvalues of a symmetric matrix, sorted by decreasing value
     protected static BoundingBox.LoopFunction eignvalues3D(ImageFloat[][] hessian, ImageFloat e1, ImageFloat e2, ImageFloat e3) {
         return (x, y, z) -> {
             final double fhxx = hessian[0][0].getPixel(x, y, z);
@@ -301,13 +246,6 @@ public class ImageDerivatives {
     }
 
     private static final double TWOPI = 2*Math.PI;
-
-    protected static int[] appendDim(int[] dims, int n) {
-        int[] res = new int[dims.length + 1];
-        System.arraycopy(dims, 0, res, 0, dims.length);
-        res[dims.length] = n;
-        return res;
-    }
 
     public static double[] getScaleArray(double scale, Image image) {
         return scale>0 ? IntStream.range(0, image.dimensions().length).mapToDouble(i->scale).toArray(): new double[0];

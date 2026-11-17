@@ -19,42 +19,195 @@
 package bacmman.processing;
 
 import bacmman.data_structure.Processor;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.TypeConverter;
-import bacmman.image.wrappers.ImagescienceWrapper;
-import imagescience.feature.Differentiator;
-import imagescience.feature.Hessian;
-import imagescience.feature.Laplacian;
-import imagescience.feature.Structure;
-import imagescience.image.Aspects;
-import imagescience.segment.Thresholder;
+import bacmman.image.wrappers.ImgLib2ImageWrapper;
+import net.imglib2.RandomAccessible;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.convolution.kernel.Kernel1D;
+import net.imglib2.algorithm.convolution.kernel.SeparableKernelConvolution;
+import net.imglib2.img.Img;
+import net.imglib2.parallel.Parallelization;
+import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.Views;
+
 import java.util.ArrayList;
-import java.util.Vector;
 
 /**
- *
+ * Gaussian-derivative based image features (smoothing, derivatives, gradient, Laplacian, Hessian and structure tensor eigenvalues).
+ * Computations are performed with ImgLib2 separable convolutions with sampled Gaussian derivative kernels and repeated border
+ * boundary conditions. Scales are standard deviations of the Gaussian, expressed in pixels: scaleXY along X and Y, scaleZ along Z.
+ * When scaleZ is not given, it is computed from scaleXY and the image calibration (scaleXY * pixelSizeXY / pixelSizeZ).
+ * Eigenvalues of the Hessian are sorted by decreasing value, eigenvalues of the structure tensor by decreasing absolute value.
  * @author Jean Ollion
  */
 public class ImageFeatures {
-    public static void hysteresis(Image image, double lowval, double highval) {
-        final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        final Thresholder thres = new Thresholder();
-        thres.hysteresis(is, lowval, highval);
+
+    /**
+     * Half-kernel of the Gaussian derivative of order {@code order} and standard deviation {@code s} (in pixels), sampled at 0..h-1
+     * Kernel extent is 3s for order 0, 4s for orders 1 and 2, 5s for higher orders (truncated to the image size). Order 0 kernel is normalized to a sum of 1.
+     * The full kernel is symmetric for even orders and anti-symmetric for odd orders.
+     */
+    static double[] gaussianDerivativeHalfKernel(double s, int order, int size) {
+        if (s == 0) { // no smoothing: finite differences
+            switch (order) {
+                case 0: return new double[]{1};
+                case 1: return new double[]{0, -0.5}; // central difference
+                case 2: return new double[]{-2, 1};
+                default: throw new IllegalArgumentException("Derivative of order > 2 without smoothing is not supported");
+            }
+        }
+        double r = order == 0 ? 3 : (order <= 2 ? 4 : 5);
+        int h = (int)(s * r) + 1;
+        if (h > size) h = size;
+        final double[] kernel = new double[h];
+        kernel[0] = order == 0 ? 1 : 0;
+        if (h == 1) return kernel;
+        final double mis2 = -0.5 / (s * s);
+        if (order == 0) {
+            double integral = 0;
+            for (int k = 0; k < h; ++k) {
+                kernel[k] = Math.exp(k * k * mis2);
+                integral += kernel[k];
+            }
+            integral = 2 * integral - kernel[0];
+            for (int k = 0; k < h; ++k) kernel[k] /= integral;
+        } else { // d^n/dx^n G(x) = (-1)^n He_n(x/s) / s^n * G(x) with He the probabilists' Hermite polynomials
+            final double c = (order % 2 == 0 ? 1 : -1) / (Math.pow(s, order) * Math.sqrt(2 * Math.PI) * s);
+            for (int k = 0; k < h; ++k) {
+                final double u = k / s;
+                double hm1 = 1, he = u; // He_0, He_1
+                for (int n = 1; n < order; ++n) {
+                    double hp1 = u * he - n * hm1;
+                    hm1 = he;
+                    he = hp1;
+                }
+                kernel[k] = c * he * Math.exp(k * k * mis2);
+            }
+            if (order % 2 == 1) kernel[0] = 0;
+        }
+        return kernel;
     }
-    
+
+    static Kernel1D gaussianDerivativeKernel(double s, int order, int size) {
+        double[] half = gaussianDerivativeHalfKernel(s, order, size);
+        int n = half.length;
+        double[] full = new double[2 * n - 1];
+        double sign = order % 2 == 0 ? 1 : -1;
+        // out[i] = sum_k half[k] * ( in[i+k] * sign + in[i-k] )
+        for (int k = 0; k < n; ++k) {
+            full[n - 1 - k] = sign * half[k];
+            full[n - 1 + k] = half[k];
+        }
+        full[n - 1] = half[0];
+        return Kernel1D.asymmetric(full, n - 1);
+    }
+
+    /**
+     * Gaussian derivative of an image (multithreaded)
+     * @see #gaussianDerivative(Image, double[], int[], boolean, boolean)
+     */
+    public static ImageFloat gaussianDerivative(Image image, double[] sigma, int[] order, boolean overrideIfFloat) {
+        return gaussianDerivative(image, sigma, order, overrideIfFloat, true);
+    }
+
+    /**
+     * Gaussian derivative of an image
+     * @param image input image (1D, 2D or 3D)
+     * @param sigma standard deviation of the gaussian for each dimension of {@code image.dimensions()}, in pixels. A null value means no smoothing along the dimension: derivatives are then computed by finite differences (central difference for order 1, [1, -2, 1] for order 2)
+     * @param order derivative order for each dimension
+     * @param overrideIfFloat if true and image is an ImageFloat, the result is written in the pixel array of image
+     * @param parallel multithreaded computation
+     * @return derivative image. Calibration and offset are copied from input image.
+     */
+    public static ImageFloat gaussianDerivative(Image image, double[] sigma, int[] order, boolean overrideIfFloat, boolean parallel) {
+        int[] dims = image.dimensions();
+        if (sigma.length < dims.length || order.length < dims.length) throw new IllegalArgumentException("sigma and order must be provided for each of the "+dims.length+" dimensions");
+        boolean inPlace = overrideIfFloat && image instanceof ImageFloat;
+        ImageFloat res = inPlace ? new ImageFloat(image.getName(), image.sizeX(), ((ImageFloat)image).getPixelArray()) : new ImageFloat(image.getName(), image);
+        res.setCalibration(image).resetOffset().translate(image);
+        boolean zero = false;
+        Kernel1D[] kernels = new Kernel1D[dims.length];
+        for (int d = 0; d < dims.length; ++d) {
+            if (dims[d] == 1) {
+                if (order[d] > 0) zero = true;
+                kernels[d] = Kernel1D.symmetric(1);
+            } else {
+                if (sigma[d] < 0) throw new IllegalArgumentException("Negative smoothing scale in dimension "+d);
+                kernels[d] = gaussianDerivativeKernel(sigma[d], order[d], dims[d]);
+            }
+        }
+        if (zero) {
+            ImageOperations.fill(res, 0, null);
+            return res;
+        }
+        Img<FloatType> target = ImgLib2ImageWrapper.toImg(res);
+        Img input = ImgLib2ImageWrapper.toImg(image);
+        RandomAccessible source = Views.extendBorder((RandomAccessibleInterval)input);
+        if (parallel) SeparableKernelConvolution.convolve(kernels, source, target);
+        else Parallelization.runSingleThreaded(() -> SeparableKernelConvolution.convolve(kernels, source, target));
+        return res;
+    }
+
+    static double[] getSigma(Image image, double scaleXY, double scaleZ) {
+        switch (image.dimensions().length) {
+            case 1: return new double[]{scaleXY};
+            case 2: return new double[]{scaleXY, scaleXY};
+            default: return new double[]{scaleXY, scaleXY, scaleZ};
+        }
+    }
+
+    static int[] getOrder(Image image, int xOrder, int yOrder, int zOrder) {
+        switch (image.dimensions().length) {
+            case 1: return new int[]{xOrder};
+            case 2: return new int[]{xOrder, yOrder};
+            default: return new int[]{xOrder, yOrder, zOrder};
+        }
+    }
+
+    static double getZRatio(Image image) { // pixel size ratio XY/Z
+        return image.getScaleXY() > 0 && image.getScaleZ() > 0 ? image.getScaleXY() / image.getScaleZ() : 1;
+    }
+
+    /**
+     * Eigenvalues of the structure tensor, sorted by decreasing absolute value
+     */
     public static ImageFloat[] getStructure(Image image, double smoothScale, double integrationScale, boolean overrideIfFloat) {
-        ImageFloat[] res = new ImageFloat[image.sizeZ()<=1?2:3];
-        boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
-        imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        double sscale = smoothScale;
-        double iscale = integrationScale;
-        sscale *= image.getScaleXY();
-        iscale *= image.getScaleXY();
-        
-        Vector vector = (new Structure()).run(duplicate?is.duplicate():is, sscale, iscale);
-        for (int i=0;i<res.length;i++) res[i] = (ImageFloat)ImagescienceWrapper.wrap((imagescience.image.Image)vector.get(i));
-        
+        double zRatio = getZRatio(image);
+        return getStructure(image, smoothScale, smoothScale * zRatio, integrationScale, integrationScale * zRatio, overrideIfFloat);
+    }
+
+    /**
+     * Eigenvalues of the structure tensor, sorted by decreasing absolute value
+     * @param smoothScaleXY scale of the gaussian derivatives (gradient) in XY
+     * @param smoothScaleZ scale of the gaussian derivatives (gradient) in Z
+     * @param integrationScaleXY scale of the gaussian smoothing of the tensor components in XY
+     * @param integrationScaleZ scale of the gaussian smoothing of the tensor components in Z
+     */
+    public static ImageFloat[] getStructure(Image image, double smoothScaleXY, double smoothScaleZ, double integrationScaleXY, double integrationScaleZ, boolean overrideIfFloat) {
+        boolean is3D = image.sizeZ() > 1;
+        double smoothScale = smoothScaleXY;
+        double[] sSigma = getSigma(image, smoothScaleXY, smoothScaleZ);
+        double[] iSigma = getSigma(image, integrationScaleXY, integrationScaleZ);
+        int nDim = is3D ? 3 : 2;
+        ImageFloat[] grad = new ImageFloat[nDim];
+        for (int d = 0; d < nDim; ++d) grad[d] = gaussianDerivative(image, sSigma, getOrder(image, d==0?1:0, d==1?1:0, d==2?1:0), false);
+        ImageFloat[][] tensor = new ImageFloat[nDim][nDim];
+        for (int d1 = 0; d1 < nDim; ++d1) {
+            for (int d2 = d1; d2 < nDim; ++d2) {
+                ImageFloat prod = new ImageFloat(image.getName(), image);
+                float[][] p = prod.getPixelArray(), g1 = grad[d1].getPixelArray(), g2 = grad[d2].getPixelArray();
+                for (int z = 0; z < p.length; ++z) for (int i = 0; i < p[z].length; ++i) p[z][i] = g1[z][i] * g2[z][i];
+                tensor[d1][d2] = gaussianDerivative(prod, iSigma, new int[iSigma.length], true);
+                tensor[d2][d1] = tensor[d1][d2];
+            }
+        }
+        ImageFloat[] res = new ImageFloat[nDim];
+        for (int d = 0; d < nDim; ++d) res[d] = tensor[d][d];
+        BoundingBox.loop(image.getBoundingBox().resetOffset(), nDim == 2 ? ImageDerivatives.eignvalues2D(tensor, res[0], res[1]) : ImageDerivatives.eignvalues3D(tensor, res[0], res[1], res[2]), false);
+        sortByDecreasingAbsoluteValue(res);
         for (int i = 0; i < res.length; i++) {
             res[i].setName(image.getName() + ":structure:" + (i + 1));
             res[i].setCalibration(image);
@@ -63,14 +216,31 @@ public class ImageFeatures {
         }
         return res;
     }
+
+    private static void sortByDecreasingAbsoluteValue(ImageFloat[] eigenValues) {
+        float[][][] p = new float[eigenValues.length][][];
+        for (int i = 0; i < p.length; ++i) p[i] = eigenValues[i].getPixelArray();
+        float[] v = new float[p.length];
+        for (int z = 0; z < p[0].length; ++z) {
+            for (int xy = 0; xy < p[0][z].length; ++xy) {
+                for (int i = 0; i < v.length; ++i) v[i] = Math.abs(p[i][z][xy]);
+                java.util.Arrays.sort(v);
+                for (int i = 0; i < v.length; ++i) p[i][z][xy] = v[v.length - 1 - i];
+            }
+        }
+    }
     
     public static ImageFloat[] getStructureMaxAndDeterminant(Image image,  double smoothScale, double integrationScale, boolean overrideIfFloat) {
-        ImageFloat[] structure=getStructure(image, smoothScale, integrationScale, overrideIfFloat);
+        double zRatio = getZRatio(image);
+        return getStructureMaxAndDeterminant(image, smoothScale, smoothScale * zRatio, integrationScale, integrationScale * zRatio, overrideIfFloat);
+    }
+
+    public static ImageFloat[] getStructureMaxAndDeterminant(Image image,  double smoothScaleXY, double smoothScaleZ, double integrationScaleXY, double integrationScaleZ, boolean overrideIfFloat) {
+        ImageFloat[] structure=getStructure(image, smoothScaleXY, smoothScaleZ, integrationScaleXY, integrationScaleZ, overrideIfFloat);
         ImageFloat det = structure[structure.length-1];
         if (structure.length==2) {
             for (int xy = 0; xy<structure[0].sizeXY(); ++xy) det.setPixel(xy, 0, structure[0].getPixel(xy, 0)*structure[1].getPixel(xy, 0)); 
         } else if (structure.length==3) {
-            //double pow = 1d/3d;
             for (int z = 0; z<structure[0].sizeZ(); ++z) {
                 for (int xy = 0; xy<structure[0].sizeXY(); ++xy) {
                     det.setPixel(xy, z, structure[0].getPixel(xy, z)*structure[1].getPixel(xy, z)*structure[2].getPixel(xy, z)); 
@@ -84,43 +254,26 @@ public class ImageFeatures {
         return new ImageFloat[]{structure[0], det};
     }
     public static ImageFloat getDerivative(Image image, double scale, int xOrder, int yOrder, int zOrder, boolean overrideIfFloat) {
-        return getDerivative(image, scale, scale * image.getScaleXY()/image.getScaleZ(), xOrder, yOrder, zOrder, overrideIfFloat);
+        return getDerivative(image, scale, scale * getZRatio(image), xOrder, yOrder, zOrder, overrideIfFloat);
     }
     public static ImageFloat getDerivative(Image image, double scaleXY, double scaleZ, int xOrder, int yOrder, int zOrder, boolean overrideIfFloat) {
-        if (image.sizeZ()==1) zOrder=0;
-        if (image.sizeY()==1) yOrder=0;
-        if (image.sizeX()==1) xOrder=0;
-        final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
-        boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
-        final Differentiator differentiator = new Differentiator();
-        ImageFloat res = (ImageFloat)ImagescienceWrapper.wrap(differentiator.run(duplicate?is.duplicate():is, scaleXY, xOrder, yOrder, zOrder));
-        res.setCalibration(image);
-        res.resetOffset().translate(image);
-        return res;
+        return gaussianDerivative(image, getSigma(image, scaleXY, scaleZ), getOrder(image, xOrder, yOrder, zOrder), overrideIfFloat);
     }
     public static ImageFloat[] getGradient(Image image, double scale, boolean overrideIfFloat) {
-        return getGradient(image, scale, scale * image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
+        return getGradient(image, scale, scale * getZRatio(image), overrideIfFloat);
     }
     public static ImageFloat[] getGradient(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
         final int dims = image.sizeZ()==1?2:3;
         final ImageFloat[] res = new ImageFloat[dims];
-        boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
-        final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
-        final Differentiator differentiator = new Differentiator();
         for (int i =0;i<dims; i++) {
-            boolean dup= i==dims-1?duplicate : image instanceof ImageFloat;
-            res[i] = (ImageFloat)ImagescienceWrapper.wrap(differentiator.run(dup?is.duplicate():is, scaleXY, i==0?1:0, i==1?1:0, i==2?1:0));
-            res[i].setCalibration(image);
-            res[i].resetOffset().translate(image);
+            res[i] = getDerivative(image, scaleXY, scaleZ, i==0?1:0, i==1?1:0, i==2?1:0, false);
             if (i==2 && scaleZ!=scaleXY) ImageOperations.affineOpMulAdd(res[2], res[2], scaleZ/scaleXY, 0); // take into account anisotropy
         }
         return res;
     }
     
     public static ImageFloat getGradientMagnitude(Image image, double scale, boolean overrideIfFloat) {
-        return getGradientMagnitude(image, scale, scale * image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
+        return getGradientMagnitude(image, scale, scale * getZRatio(image), overrideIfFloat);
     }
     public static ImageFloat getGradientMagnitude(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
         ImageFloat[] grad = getGradient(image, scaleXY, scaleZ, overrideIfFloat);
@@ -206,13 +359,17 @@ public class ImageFeatures {
         return res;
     }
     public static ImageFloat getLaplacian(Image image, double scale, boolean invert, boolean overrideIfFloat) {
-        return getLaplacian(image, scale, scale * image.getScaleXY()/image.getScaleZ(), invert, overrideIfFloat);
+        return getLaplacian(image, scale, scale * getZRatio(image), invert, overrideIfFloat);
     }
     public static ImageFloat getLaplacian(Image image, double scaleXY, double scaleZ, boolean invert, boolean overrideIfFloat) {
-        final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
-        boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
-        ImageFloat res = (ImageFloat)ImagescienceWrapper.wrap(new Laplacian().run(duplicate?is.duplicate():is, scaleXY));
+        if (scaleXY <= 0) throw new IllegalArgumentException("Smoothing scale less than or equal to 0");
+        int nDim = image.sizeZ()>1 ? 3 : 2;
+        ImageFloat res = null;
+        for (int d = nDim-1; d>=0; --d) { // last derivative is computed in place if allowed
+            ImageFloat der = getDerivative(image, scaleXY, scaleZ, d==0?2:0, d==1?2:0, d==2?2:0, d==0 && overrideIfFloat);
+            if (res == null) res = der;
+            else ImageOperations.addImage(der, res, res, 1);
+        }
         double norm = getNorm(scaleXY, 2);
         if (invert) ImageOperations.affineOpMulAdd(res, res, -norm, 0);
         else ImageOperations.affineOpMulAdd(res, res, norm, 0);
@@ -220,11 +377,14 @@ public class ImageFeatures {
         return res;
     }
     public static ImageFloat[] getHessian(Image image, double scale, boolean overrideIfFloat) {
-        return getHessian(image, scale, scale * image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
+        return getHessian(image, scale, scale * getZRatio(image), overrideIfFloat);
     }
+    /**
+     * Shape index 2/PI * atan( (k2+k1)/(k2-k1) ) where k1 &le; k2 are the eigenvalues of the Hessian at scale {@code scaleXY}. Computed independently on each Z-plane
+     */
     public static Image getShapeIndex(Image image, double scaleXY, boolean overrideIfFloat) {
         return ImageOperations.applyPlaneByPlane(image, im -> {
-            ImageFloat[] hess = getHessian(image, scaleXY, overrideIfFloat);
+            ImageFloat[] hess = getHessian(im, scaleXY, overrideIfFloat);
             Image k1 = hess[1];
             Image k2 = hess[0];
             double f = 2d/Math.PI;
@@ -237,13 +397,22 @@ public class ImageFeatures {
         });
     }
     public static ImageFloat[] getHessian(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
-        ImageFloat[] res = new ImageFloat[image.sizeZ()==1?2:3];
-        final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
-        boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
-        Vector vector = new Hessian().run(duplicate?is.duplicate():is, scaleXY, false);
+        if (scaleXY <= 0) throw new IllegalArgumentException("Smoothing scale less than or equal to 0");
+        int nDim = image.sizeZ()==1?2:3;
+        ImageFloat[][] hessian = new ImageFloat[nDim][nDim];
+        for (int d1 = 0; d1<nDim; ++d1) {
+            for (int d2 = d1; d2<nDim; ++d2) {
+                int[] order = new int[3];
+                order[d1]++;
+                order[d2]++;
+                hessian[d1][d2] = getDerivative(image, scaleXY, scaleZ, order[0], order[1], order[2], false);
+                hessian[d2][d1] = hessian[d1][d2];
+            }
+        }
+        ImageFloat[] res = new ImageFloat[nDim]; // eigenvalues sorted by decreasing value
+        for (int d = 0; d<nDim; ++d) res[d] = hessian[d][d];
+        BoundingBox.loop(image.getBoundingBox().resetOffset(), nDim == 2 ? ImageDerivatives.eignvalues2D(hessian, res[0], res[1]) : ImageDerivatives.eignvalues3D(hessian, res[0], res[1], res[2]), false);
         for (int i=0;i<res.length;i++) {
-            res[i] = (ImageFloat)ImagescienceWrapper.wrap((imagescience.image.Image) vector.get(i));
             res[i].setCalibration(image);
             res[i].resetOffset().translate(image);
             res[i].setName(image.getName() + ":hessian" + (i + 1));
@@ -252,7 +421,11 @@ public class ImageFeatures {
         return res;
     }
     public static ImageFloat[] getHessianMaxAndDeterminant(Image image, double scale, boolean overrideIfFloat) {
-        ImageFloat[] hess=getHessian(image, scale, overrideIfFloat);
+        return getHessianMaxAndDeterminant(image, scale, scale * getZRatio(image), overrideIfFloat);
+    }
+
+    public static ImageFloat[] getHessianMaxAndDeterminant(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
+        ImageFloat[] hess=getHessian(image, scaleXY, scaleZ, overrideIfFloat);
         ImageFloat det = hess[hess.length-1];
         if (hess.length==2) {
             for (int xy = 0; xy<hess[0].sizeXY(); ++xy) det.setPixel(xy, 0, hess[0].getPixel(xy, 0)*hess[1].getPixel(xy, 0)); 
@@ -342,21 +515,14 @@ public class ImageFeatures {
         return number>=0?Math.sqrt(number):-Math.sqrt(-number);
     }
     public static ImageFloat gaussianSmooth(Image image, double scale, boolean overrideIfFloat) {
-        return gaussianSmooth(image, scale, scale*image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
+        return gaussianSmooth(image, scale, scale*getZRatio(image), overrideIfFloat);
     }
     public static ImageFloat gaussianSmooth(Image image, double scaleXY, double scaleZ, boolean overwriteIfFloat) {
         if (image.sizeZ()>1 && scaleZ<=0) throw new IllegalArgumentException("Scale Z should be >0 ");
         else if (scaleZ<=0) scaleZ=1;
         if (scaleXY == 0) return TypeConverter.toFloat(image, null, !overwriteIfFloat);
         if (scaleXY<0) throw new IllegalArgumentException("Scale XY should be >0 ");
-        boolean duplicate = !((image instanceof ImageFloat) && overwriteIfFloat);
-        final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
-        Differentiator differentiator = new Differentiator();
-        ImageFloat res = (ImageFloat)ImagescienceWrapper.wrap(differentiator.run(duplicate?is.duplicate():is, scaleXY, 0, 0, 0));
-        res.setCalibration(image);
-        res.resetOffset().translate(image);
-        return res;
+        return getDerivative(image, scaleXY, scaleZ, 0, 0, 0, overwriteIfFloat);
     }
     public static ImageFloat gaussianSmoothScaleIndep(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
         ImageFloat res = gaussianSmooth(image, scaleXY, scaleZ, overrideIfFloat);

@@ -67,7 +67,7 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
     BoundedNumberParameter maxIter = new BoundedNumberParameter("Maximum Iterations", 0, 1000, 1, null);
     BoundedNumberParameter segmentLength = new BoundedNumberParameter("Segment length", 0, 20, 2, null);
     NumberParameter tol = new BoundedNumberParameter("Error Tolerance", 15, 5e-8, 0, null);
-    BooleanParameter allowInterpolation = new BooleanParameter("Allow non-integer translation (interpolation)", false);
+    BooleanParameter allowInterpolation = new BooleanParameter("Allow non-integer translation (interpolation)", false).setHint("If true, images are translated by non-integer vectors using quintic B-spline interpolation, otherwise translation vectors are rounded. <br />Pixels whose position in the input image falls outside of the image are set to zero");
     PluginParameter<Cropper> cropper = new PluginParameter<>("Cropper", Cropper.class, true);
     BooleanParameter removeBorders = new BooleanParameter("Remove Black Borders", true).setLegacyInitializationValue(false).setHint("If true, images are cropped to the area that is covered at all frames after stabilization, so that no black borders appear. <br />If a cropper is set, borders are always removed.");
     SimpleListParameter<GroupParameter> additionalTranslation = new SimpleListParameter<GroupParameter>("Additional Translation", new GroupParameter("Channel Translation", new ChannelImageParameter("Channel"), new NumberParameter("dX", 3, 0), new NumberParameter("dY", 3, 0), new NumberParameter("dZ", 3, 0)));
@@ -150,6 +150,10 @@ public class ImageStabilizerXY implements Transformation.ConfigurableTransformat
             // translated BB must remain within image bounds: xMin + sXMin >= 0 and xMax + sXMax <= bds.xMax()
             cropBB.contractX(-sXMin, bds.xMax() - sXMax);
             cropBB.contractY(-sYMin, bds.yMax() - sYMax);
+            if (allowInterpolation.getSelected()) { // residual sub-pixel translation sets pixels whose source is outside the image to zero: remove one more pixel on each side
+                cropBB.contractX(cropBB.xMin() + 1, cropBB.xMax() - 1);
+                cropBB.contractY(cropBB.yMin() + 1, cropBB.yMax() - 1);
+            }
             logger.debug("ImageStabXY : shifts x:[{};{}], y:[{};{}], contracted BB: {}", sXMin, sXMax, sYMin, sYMax, cropBB);
             if (cropBB.sizeX()<=0 || cropBB.sizeY()<=0) throw new RuntimeException("ImageStabilizerXY: shift amplitude is larger than image / crop area: no area is covered at all frames");
             
