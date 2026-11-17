@@ -19,11 +19,12 @@
 package bacmman.processing.bacteria_spine;
 
 /**
- *
+ * Coordinate of a point in the spine coordinate system of a bacteria: curvilinear coordinate (distance along the spine from the first pole), radial coordinate (signed distance to the spine along the lateral direction), spine length and spine width at the point.
+ * In 3D, a second radial coordinate is the signed distance along the second lateral direction (B = T x N of the frame of the spine), or, with the 2.5D coordinate system, the signed distance along z to the mid-plane of the bacteria (and the half-thickness of the bacteria at the point is also stored, so that the height can be normalized when the coordinate is projected in another bacteria). Both are 0 in 2D.
  * @author Jean Ollion
  */
 public class BacteriaSpineCoord {
-    public final double[] coords = new double[4];
+    public final double[] coords = new double[6];
     public BacteriaSpineCoord duplicate() {
         BacteriaSpineCoord dup = new BacteriaSpineCoord();
         System.arraycopy(coords, 0, dup.coords, 0, coords.length);
@@ -58,6 +59,32 @@ public class BacteriaSpineCoord {
     public double spineRadius() {
         return coords[3];
     }
+    /**
+     * @return 3D: signed distance to the spine along the second lateral direction (B = T x N). 0 in 2D
+     */
+    public double radialCoord2() {
+        return coords[4];
+    }
+    public BacteriaSpineCoord setRadialCoord2(double radialCoord2) {
+        coords[4] = radialCoord2;
+        return this;
+    }
+    /**
+     * @return 2.5D coordinate system: half-thickness (along z) of the bacteria at the point (XY-pixel units), 0 otherwise
+     */
+    public double halfThickness() {
+        return coords[5];
+    }
+    public BacteriaSpineCoord setHalfThickness(double halfThickness) {
+        coords[5] = halfThickness;
+        return this;
+    }
+    /**
+     * @return distance to the spine (in 2D: absolute value of the radial coordinate)
+     */
+    public double distanceToSpine() {
+        return Math.sqrt(coords[1]*coords[1] + coords[4]*coords[4]);
+    }
     public BacteriaSpineCoord setCurvilinearCoord(double curvilinearCoord) {
         coords[0] = curvilinearCoord;
         return this;
@@ -88,6 +115,6 @@ public class BacteriaSpineCoord {
     
     @Override
     public String toString() {
-        return new StringBuilder().append("curvilinear:").append(curvilinearCoord(false)).append("/").append(spineLength()).append(" radial:").append(radialCoord(false)).append("/").append(spineRadius()).toString();
+        return new StringBuilder().append("curvilinear:").append(curvilinearCoord(false)).append("/").append(spineLength()).append(" radial:").append(radialCoord(false)).append(coords[4]!=0 ? ", "+coords[4] : "").append("/").append(spineRadius()).toString();
     }
 }

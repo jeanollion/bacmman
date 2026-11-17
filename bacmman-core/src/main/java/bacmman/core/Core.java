@@ -29,7 +29,7 @@ import bacmman.image.LazyImage5DStack;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.OverlayDisplayer;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
 import org.slf4j.Logger;
@@ -59,13 +59,13 @@ public class Core {
     private static OpService opService;
     private static volatile Core core;
     private static final Object lock = new Object();
-    private static ProgressLogger progressLogger;
+    private static ProgressDisplay progressDisplay;
     private static Consumer<Image> imageDisplayer;
     private static OverlayDisplayer overlayDisplayer;
     private static Consumer<Image> image5D_Displayer;
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
-    private static GithubGateway githubGateway;
+    private static RepositoryGateway repositoryGateway;
     private static DockerGateway dockerGateway;
     public String tfVisibleDeviceList="";
     public boolean tfSetAllowGrowth=false;
@@ -73,6 +73,14 @@ public class Core {
     final List<Runnable> toFront = new ArrayList<>();
     protected Consumer<String> closePosition;
     protected Function<String, Boolean> userPrompt;
+
+    /**
+     * @return gateway to repositories (credentials of the session) if the core is initialized, null otherwise (does not initialize the core)
+     */
+    public static RepositoryGateway getGithubGatewayIfAvailable() {
+        Core c = core;
+        return c == null ? null : c.repositoryGateway;
+    }
 
     public static Core getCore() {
         if (core==null) {
@@ -92,7 +100,7 @@ public class Core {
         MasterDAOFactory.findModules("bacmman.data_structure.dao");
         createOmeroGateway();
         createDockerGateway();
-        githubGateway = new GithubGateway();
+        repositoryGateway = new RepositoryGateway();
         initTF2();
     }
 
@@ -150,18 +158,18 @@ public class Core {
         System.gc();
     }
 
-    public static void freeDiskManagersMemory() {
+    public static void freeDiskManagersMemory() throws IOException {
         diskBackedImageManagerProvider.freeMemory();
         System.gc();
     }
 
-    public static void setUserLogger(ProgressLogger plogger) {
-        progressLogger = plogger;
+    public static void setUserLogger(ProgressDisplay plogger) {
+        progressDisplay = plogger;
         if (omeroGateway!=null) omeroGateway.setLogger(plogger);
     }
-    public static ProgressLogger getProgressLogger() {return progressLogger;};
+    public static ProgressDisplay getProgressLogger() {return progressDisplay;};
     public static void userLog(String message) {
-        if (progressLogger !=null) progressLogger.setMessage(message);
+        if (progressDisplay !=null) progressDisplay.setMessage(message);
     }
 
     public void setUserPrompt(Function<String, Boolean> userPrompt) {
@@ -216,8 +224,8 @@ public class Core {
     public OmeroGateway getOmeroGateway() {
         return omeroGateway;
     }
-    public GithubGateway getGithubGateway() {
-        return githubGateway;
+    public RepositoryGateway getGithubGateway() {
+        return repositoryGateway;
     }
     private static void createOmeroGateway() {
         List<Class<OmeroGateway>> impl = findImplementation("bacmman.core", OmeroGateway.class);

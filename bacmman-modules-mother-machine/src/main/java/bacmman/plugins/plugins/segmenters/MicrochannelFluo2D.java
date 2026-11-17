@@ -39,6 +39,8 @@ import bacmman.image.ImageFloat;
 import bacmman.image.ImageInteger;
 import bacmman.processing.ImageLabeller;
 import bacmman.utils.SynchronizedPool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -51,7 +53,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigurable<MicrochannelFluo2D>, Hint, HintSimple, TestableProcessingPlugin {
-    
+    private final static Logger logger = LoggerFactory.getLogger(MicrochannelFluo2D.class);
     NumberParameter channelLength = new BoundedNumberParameter("Microchannel Length", 0, 320, 5, null).setEmphasized(true).setHint("Length of microchannels, in pixels. This parameter will determine the length of segmented microchannels along the y-axis");
     NumberParameter channelWidth = new BoundedNumberParameter("Microchannel Width", 0, 60, 5, null).setEmphasized(true).setHint("Width of microchannels in pixels. This parameter will determine the width of segmented microchannels");
     NumberParameter yShift = new BoundedNumberParameter("y-Start Shift", 0, 20, 0, null).setHint("Y-coordinate of the closed-end of microchannels will be translated of this value (in pixels) towards upper direction");
@@ -126,6 +128,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public TrackConfigurer<MicrochannelFluo2D> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Buffers buffers = parentTrack.isEmpty() || !parentTrack.get(0).isRoot() ? null: new Buffers(parentTrack.get(0).getMaskProperties());
         double thld = TrackConfigurable.getGlobalThreshold(structureIdx, parentTrack, this.threshold.instantiatePlugin());
+        if (stores != null) logger.debug("Global Threshold: {} thresholder: {}", thld, this.threshold.getPluginName());
         return new TrackConfigurer<MicrochannelFluo2D>() {
             @Override
             public void apply(SegmentedObject parent, MicrochannelFluo2D plugin) {
@@ -174,13 +177,11 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double yMarginProportion, double fillingProportion, double thld, int minObjectSize, double peakProportion, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer, Buffers buffers) {
 
         // get thresholded image
-        if (Double.isNaN(thld) && thresholdedImage == null) {
-            thld = BackgroundThresholder.runThresholder(image, null, 3, 6, 3, Double.MAX_VALUE, false, null); //IJAutoThresholder.runThresholder(image, null, AutoThresholder.Method.Triangle); // OTSU / TRIANGLE / YEN
-        }
+        if (Double.isNaN(thld) && thresholdedImage == null) throw new RuntimeException("Threshold is NaN and thresholded image is null");
         if (miscDataDisplayer != null) {
             double t = thld;
             miscDataDisplayer.accept("Display Threshold", l -> {
-                Plugin.logger.debug("Micochannels segmentation threshold : {}", t);
+                logger.debug("Micochannels segmentation threshold : {}", t);
                 Core.userLog("Microchannel Segmentation threshold: " + t);
             });
         }

@@ -1,13 +1,14 @@
 package bacmman.plugins.plugins.docker_dl_trainers;
 
+import bacmman.core.DatasetExportTask;
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SelectionOperations;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
-import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.py_dataset.DatasetExportTasks;
 import bacmman.ui.PropertyUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -22,7 +23,7 @@ import static bacmman.configuration.parameters.InputShapesParameter.getInputShap
 public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecision, DockerDLTrainer.TestPredict {
     BooleanParameter mixedPrecision = TrainingConfigurationParameter.getMixedPrecisionParameter(true);
     EnumChoiceParameter<TrainingConfigurationParameter.EXPORT_PRECISION> exportPrecision = TrainingConfigurationParameter.getExportPrecisionParameter();
-    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters", "category_loss_parameters", true, true, true, false), mixedPrecision, exportPrecision};
+    Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getStartEpochParameter(), TrainingConfigurationParameter.getValidationStepParameter(100), TrainingConfigurationParameter.getValidationFreqParameter(1), new TrainingConfigurationParameter.CategoryLossParameter("Loss Parameters", "category_loss_parameters", true, false, true, false), mixedPrecision, exportPrecision};
     Parameter[] datasetParameters = new Parameter[]{new IntegerParameter("Min Annotated Pixel Number", 100).setLowerBound(0).setHint("If greater than zero, each batch item will contain at least this amount of annotated pixels. To do so, several batches may be combined.")};
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
     Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
@@ -77,7 +78,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
 
     @Override
     public String minimalScriptVersion() {
-        return "1.1.5";
+        return "1.1.6";
     }
 
     @Override
@@ -96,7 +97,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
     }
 
     @Override
-    public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
+    public DatasetExportTask getDatasetExportTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
         int compression = PropertyUtils.get("extract_DS_compression", 0);
         int[] selOC = extractClasses.getSelectedIndices();
         List<String> selections;
@@ -118,7 +119,7 @@ public class PixMClass implements DockerDLTrainer, DockerDLTrainer.MixedPrecisio
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        return ExtractDatasetUtil.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, extractZAxisParameter.getConfig(), selections, outputFile, compression);
+        return DatasetExportTasks.getPixMClassDatasetTask(mDAO, extractChannels.getSelectedIndices(), selOC, extractZAxisParameter.getConfig(), selections, outputFile, compression);
     }
 
     public String getDockerImageName() {

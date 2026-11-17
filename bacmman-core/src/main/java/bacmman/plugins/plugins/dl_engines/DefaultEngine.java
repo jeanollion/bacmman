@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.dl_engines;
 
+import bacmman.core.ProgressCallback;
+
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.core.DLEngineProvider;
@@ -31,6 +33,11 @@ public class DefaultEngine implements DLEngine {
     @Override
     public Image[][][] process(Image[][]... inputNC) {
         return engine.process(inputNC);
+    }
+
+    @Override
+    public Image[][][] process(ProgressCallback.SubProgress progress, double steps, Image[][]... inputNC) {
+        return engine.process(progress, steps, inputNC);
     }
 
     @Override

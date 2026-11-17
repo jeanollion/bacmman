@@ -47,7 +47,7 @@ public class TrackLinkEditor {
     public boolean manualEditing() {
         return manualEditing;
     }
-    Set<SegmentedObject> getModifiedObjects() {
+    public Set<SegmentedObject> getModifiedObjects() {
         return modifiedObjects;
     }
     public int getEditableObjectClassIdx() {return editableObjectClassIdx;}

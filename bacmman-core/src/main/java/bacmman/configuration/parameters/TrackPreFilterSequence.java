@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.core.ProgressContext;
 import bacmman.core.Core;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.SegmentedObject;
@@ -88,8 +89,10 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
             im.resetOffset().translate(o.getBounds());
         });
         //setScale.run();
-        for (TrackPreFilter p : this.get()) {
-            p.filter(structureIdx, images);
+        List<TrackPreFilter> filters = this.get();
+        ProgressContext.Stages stages = ProgressContext.stages(filters.size()); // filters that predict report their progress: each one within its own stage
+        for (TrackPreFilter p : filters) {
+            stages.run(p.getClass().getSimpleName(), () -> p.filter(structureIdx, images));
             setScale.run();
             images.setAllowInplaceModification(true);  // image can be modified inplace
         }

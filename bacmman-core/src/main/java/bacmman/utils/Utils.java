@@ -56,6 +56,26 @@ import java.util.jar.JarFile;
 public class Utils {
     final public static String NA_STRING = "NA";
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
+    /**
+     * Runs {@code action} on the event dispatch thread and waits for it to complete, e.g. to display an image from a background thread.
+     * Runs it directly if called from the event dispatch thread.
+     */
+    public static void runOnEDTAndWait(Runnable action) {
+        if (SwingUtilities.isEventDispatchThread()) action.run();
+        else {
+            try {
+                SwingUtilities.invokeAndWait(action);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (InvocationTargetException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException) throw (RuntimeException)cause;
+                if (cause instanceof Error) throw (Error)cause;
+                throw new RuntimeException(cause);
+            }
+        }
+    }
+
 
     public static <T> List<T> safeCollectToList(Stream<T> stream) {
         if (stream == null) return Collections.emptyList();

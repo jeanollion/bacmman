@@ -220,7 +220,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (getExperiment()==null) return Double.NaN;
         Position f = getExperiment().getPosition(getPositionName());
         int z = (int)Math.round((getBounds().zMin()+getBounds().zMax())/2);
-        double res = f.getCalibratedTimePoint(getExperiment().getChannelImageIdx(structureIdx), timePoint, z);
+        double res = f.getCalibratedTimePoint(timePoint, getExperiment().getChannelImageIdx(structureIdx), z);
         if (Double.isNaN(res)) res = timePoint * f.getFrameDuration();
         return res;
     }

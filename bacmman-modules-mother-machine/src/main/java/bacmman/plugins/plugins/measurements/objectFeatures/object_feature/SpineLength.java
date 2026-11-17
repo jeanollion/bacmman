@@ -19,6 +19,8 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.EnumChoiceParameter;
+import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -39,9 +41,10 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
 public class SpineLength implements GeometricalFeature, Hint, HintSimple {
     public static String SPINE_DEF = "The <em>spine</em> of a bacterium is defined as the central line (medial axis) crossing it from one pole to the other. In 2D, each point of the spine is equidistant from the two closest points of the contour located on each side of the spine; in 3D the spine is the medial axis of the volume.";
     protected BooleanParameter scaled = new BooleanParameter("Scale", "Unit", "Pixel", true).setHint(SCALED_TT);
+    protected EnumChoiceParameter<BacteriaSpineLocalizer.COORDINATES_3D> spine3D = BacteriaSpineLocalizer.getCoordinates3DParameter("3D Spine", true);
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scaled};
+        return new Parameter[]{scaled, spine3D};
     }
     public SpineLength setScaled(boolean scaled) {
         this.scaled.setSelected(scaled);
@@ -54,7 +57,7 @@ public class SpineLength implements GeometricalFeature, Hint, HintSimple {
 
     @Override
     public double performMeasurement(Region region) {
-        double l =  getSpineLength(region);
+        double l =  getSpineLength(region, spine3D.getSelectedEnum());
         if (scaled.getSelected()) l*=region.getScaleXY();
         return l;
     }
@@ -69,7 +72,7 @@ public class SpineLength implements GeometricalFeature, Hint, HintSimple {
         return spineLengthTT + validTT + spineLengthAlgo +SPINE_DEF;
     }
     public static String spineLengthTT= "Curvilinear length of a bacterium from one pole to the other (taking into account rippling deformations).";
-    public static String spineLengthAlgo = "<br />Computation details: the value of the measurement is the curvilinear length of the spine (see definition below), measured from one pole tip to the other. The spine is extracted from a Euclidean-distance-map medial axis, which makes the measurement robust to contour noise. For 3D objects the spine is computed in 3D and the length accounts for the Z spacing (see anisotropy note below). <br />";
+    public static String spineLengthAlgo = "<br />Computation details: the value of the measurement is the curvilinear length of the spine (see definition below), measured from one pole tip to the other. The spine is extracted from a Euclidean-distance-map medial axis, which makes the measurement robust to contour noise. For 3D objects the spine is computed in 3D and the length accounts for the Z spacing (see anisotropy note below), or on the projection of the object in the XY plane (see <em>3D Spine</em>). <br />";
     @Override
     public String getSimpleHintText() {
         return spineLengthTT + validTT;

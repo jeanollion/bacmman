@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.image.HistogramSource;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
@@ -97,8 +98,7 @@ public class ParentThresholder implements Thresholder {
                 synchronized(p) {
                     // get track histogram
                     Map<Image, ImageMask> map = track.stream().collect(Collectors.toMap(o->o.getRawImage(sIdx), SegmentedObject::getMask));
-                    Histogram  histo = HistogramFactory.getHistogram(()->Image.stream(map, true).parallel());
-                    double thld = this.thresholderHisto.instantiatePlugin().runThresholderHisto(histo);
+                    double thld = this.thresholderHisto.instantiatePlugin().runThresholderHisto(HistogramSource.of(()->Image.stream(map, true).parallel()));
                     logger.debug("computing thld : {}, thresholder {} on track: {}, key: {}", thld, this.thresholderHisto.getPluginName(), p, key);
                     p.setAttribute(key, thld);
                 }

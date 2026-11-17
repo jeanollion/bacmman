@@ -58,7 +58,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         res.put("trimFrames", trimFrames.toJSONEntry());
         res.put("transformations", transformations.toJSONEntry());
         if (configID!=null) {
-            res.put(ConfigIDAware.key, configID);
+            res.put(ConfigIDAware.key, ConfigIDAware.storedLink(this, getConfigID()));
             res.put(ConfigIDAware.autoUpdateKey, autoUpdate.toJSONEntry());
         }
         return res;
@@ -94,7 +94,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     }
 
     public String getConfigID() {
-        return configID;
+        return ConfigIDAware.resolveLink(this, configID); // links to local repositories are stored relative to the dataset folder
     }
 
     @Override

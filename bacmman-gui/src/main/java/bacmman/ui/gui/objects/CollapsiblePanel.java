@@ -43,6 +43,10 @@ public class CollapsiblePanel extends JPanel {
         });
     }
 
+    public void setTitle(String title) {
+        titleLabel.setText(title);
+    }
+
     public void toggle() {
         isCollapsed = !isCollapsed;
         contentPanel.setVisible(!isCollapsed);

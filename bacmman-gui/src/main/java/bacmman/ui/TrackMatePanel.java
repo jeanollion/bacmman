@@ -13,7 +13,7 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.Image;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -168,7 +168,7 @@ public class TrackMatePanel {
     GroupParameter importParams = new GroupParameter("", importCond);
     ConfigurationTreeGenerator importConfigTree;
     MasterDAO db;
-    ProgressLogger progress;
+    ProgressDisplay progress;
     Object currentModel;
     Image currentImage;
     Runnable closeCurrentTrackMate;
@@ -316,7 +316,7 @@ public class TrackMatePanel {
         if (updateUI) trackMatePanel.updateUI();
     }
 
-    public void updateComponents(MasterDAO db, ProgressLogger progress) {
+    public void updateComponents(MasterDAO db, ProgressDisplay progress) {
         this.db = db;
         this.progress = progress;
         populatePositionJCB();

@@ -28,7 +28,7 @@ import bacmman.ui.GUI;
 import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,9 +77,9 @@ public class DLModelGistTreeGenerator {
     Supplier<Icon> currentThumbnail;
     Icon dlModelDefaultIcon, urlIcon, metadataIcon, folderIcon;
     String defaultDirectory;
-    ProgressLogger pcb;
+    ProgressDisplay pcb;
     Supplier<UserAuth> authSupplier;
-    public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged, String defaultDirectory, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+    public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged, String defaultDirectory, Supplier<UserAuth> authSupplier, ProgressDisplay pcb) {
         this.gists=gists;
         this.selectionChanged=selectionChanged;
         this.pcb = pcb;
@@ -122,7 +122,10 @@ public class DLModelGistTreeGenerator {
 
     public GistDLModel getByID(String id, boolean modelID) {
         if (id == null) return null;
-        if (modelID) return this.gists.stream().filter(g -> g.getModelID().equals(id)).findFirst().orElse(null);
+        if (modelID) { // id: link to the model file (bare GitHub id or url)
+            String link = GistDLModel.toModelLink(id);
+            return this.gists.stream().filter(g -> link.equals(g.getModelLink())).findFirst().orElse(null);
+        }
         else return this.gists.stream().filter(g -> g.getID().equals(id)).findFirst().orElse(null);
     }
 

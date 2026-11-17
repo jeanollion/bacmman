@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.github.jeanollion.bacmman</groupId>
         <artifactId>bacmman</artifactId>
-        <version>3.9.1</version>
+        <version>4.0.0</version>
     </parent>
 
     <artifactId>bacmman-mapdb</artifactId>
@@ -37,6 +37,17 @@
             <groupId>org.mapdb</groupId>
             <artifactId>mapdb</artifactId>
             <version>3.0.10</version>
+            <exclusions> <!-- same classes (net.jpountz) as org.lz4:lz4-java shipped by Fiji -->
+                <exclusion>
+                    <groupId>net.jpountz.lz4</groupId>
+                    <artifactId>lz4</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency> <!-- lz4 implementation used by mapdb: version shipped by Fiji -->
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>1.9-inv</version>
         </dependency>
     </dependencies>
 </project>

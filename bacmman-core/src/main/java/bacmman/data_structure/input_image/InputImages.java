@@ -51,7 +51,7 @@ import java.util.stream.Stream;
 public interface InputImages {
     String getTmpDirectory();
     boolean sourceImagesLinked();
-    public static Image getImage(InputImages images , int channelIdx, int timePoint, IOException[] exceptionContainer) {
+    static Image getImage(InputImages images, int channelIdx, int timePoint, IOException[] exceptionContainer) {
         try {
             return images.getImage(channelIdx, timePoint);
         } catch (IOException e) {
@@ -115,24 +115,38 @@ public interface InputImages {
         for (int f = fMin; f<fMax; ++f) imagesToAv.add(images.getImage(channelIdx, f));
         return ImageOperations.meanZProjection(Image.mergeZPlanes(imagesToAv));
     }
+
+    /**
+     * See {@link #chooseNImagesWithSignal(java.util.function.Supplier, int, int) }
+     * Uses 20 as oversampling factor.
+     */
+    static List<Integer> chooseNImagesWithSignal(InputImages inputImages, int channelIdx, int n) {
+        return chooseNImagesWithSignal(inputImages, channelIdx, n, 20);
+    }
+
     /**
      * See {@link #chooseNImagesWithSignal(java.util.function.Supplier, int, int) }
      * @param inputImages
      * @param channelIdx
-     * @param n
-     * @return 
+     * @param n number of images to choose
+     * @param oversampling number of candidate frames examined per requested image: min(frameNumber, oversampling * n)
+     *                     evenly spaced frames are evaluated (values < 1 are treated as 1)
+     * @return indices of chosen frames
      */
-    public static List<Integer> chooseNImagesWithSignal(InputImages inputImages, int channelIdx, int n) {
-        int modulo = Math.max(1, inputImages.getFrameNumber()/(12*n));
-        if (modulo>1) logger.debug("choose {} images among {} -> modulo: {}", n, inputImages.getFrameNumber(), modulo);
-        Supplier<Stream<Pair<Integer, Image>>> images = () -> IntStream.range(0, inputImages.getFrameNumber()).filter(f -> f%modulo==0).mapToObj(f -> {
+    static List<Integer> chooseNImagesWithSignal(InputImages inputImages, int channelIdx, int n, int oversampling) {
+        int frameNumber = inputImages.getFrameNumber();
+        if (n <= 0 || frameNumber <= 0) return Collections.emptyList();
+        int count = (int) Math.min(frameNumber, (long) Math.max(1, oversampling) * n); // monotonic in frameNumber
+        int step = frameNumber / count;                                                // >= 1, (count-1)*step < frameNumber
+        if (step > 1) logger.debug("choose {} images among {} (oversampling {}) -> step: {}", n, frameNumber, oversampling, step);
+        Supplier<Stream<Pair<Integer, Image>>> images = () -> IntStream.range(0, count).map(i -> i * step).mapToObj(f -> {
             try {
                 return new Pair<>(f, inputImages.getImage(channelIdx, f));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
-        return chooseNImagesWithSignal(images, n, inputImages.getFrameNumber()/modulo);
+        return chooseNImagesWithSignal(images, n, count);
     }
     /**
      * Measure amount of signal in each image by counting number of pixel above  a threshold computed by {@link BackgroundFit} method with parameter = 3.
@@ -140,7 +154,7 @@ public interface InputImages {
      * @param n number of indices to return
      * @return list of image indexed from {@param images} list paired with signal measurement
      */
-    public static List<Integer> chooseNImagesWithSignal(Supplier<Stream<Pair<Integer, Image>>> images, int n, int totalImagesNumber) {
+    static List<Integer> chooseNImagesWithSignal(Supplier<Stream<Pair<Integer, Image>>> images, int n, int totalImagesNumber) {
         if (n>=totalImagesNumber) return Utils.toList(ArrayUtil.generateIntegerArray(totalImagesNumber));
         // signal is measured as number of
         long t0 = System.currentTimeMillis();
@@ -178,8 +192,18 @@ public interface InputImages {
         });
     }
 
-    static Stream<Image> streamChannel(InputImages images, int channelIdx, int modulo, boolean parallel) {
-        return Utils.parallel(IntStream.iterate(0, i->i+Math.max(1, modulo)).limit(images.getFrameNumber() / modulo), parallel).mapToObj(f -> {
+    static Stream<Image> streamChannel(InputImages images, int channelIdx, int modulo, int minImageNumber, boolean parallel) {
+        int n = images.getFrameNumber();
+        if (n <= 0) return Stream.empty();
+        int min = Math.max(1, minImageNumber);
+        int step = Math.max(1, modulo);
+        int count = (int) ((n + (long) step - 1) / step); // ceil(n / step): frames 0, step, ... < n
+        if (count < min) {                       // too few: take exactly min frames (or all if n < min)
+            count = Math.min(n, min);
+            step = n / count;
+        }
+        final int stepF = step;
+        return Utils.parallel(IntStream.range(0, count).map(i -> i * stepF), parallel).mapToObj(f -> {
             try {
                 return images.getImage(channelIdx, f);
             } catch (IOException e) {

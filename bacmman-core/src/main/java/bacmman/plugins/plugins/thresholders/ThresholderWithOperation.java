@@ -21,8 +21,10 @@ package bacmman.plugins.plugins.thresholders;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.HistogramBinning;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
+import bacmman.image.HistogramSource;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.SimpleThresholder;
@@ -36,6 +38,7 @@ import bacmman.utils.Utils;
  */
 public class ThresholderWithOperation implements ThresholderHisto, SimpleThresholder, Hint {
     PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Thresholder", ThresholderHisto.class, new BackgroundFit(10), false).setEmphasized(true).setHint("Threshold method");
+    HistogramBinningParameter binning = new HistogramBinningParameter();
     NumberParameter quantile = new BoundedNumberParameter("Quantile", 5, 0.25, 0, 1).setEmphasized(true);
     BooleanParameter overThld = new BooleanParameter("Perform stat over threshold", true).setEmphasized(true);
     enum STAT {MEAN, QUANTILE};
@@ -48,8 +51,22 @@ public class ThresholderWithOperation implements ThresholderHisto, SimpleThresho
     }
     
     @Override
+    public double runSimpleThresholder(Image input, ImageMask mask) {
+        return runThresholderHisto(HistogramSource.of(()->input.stream(mask, true)));
+    }
+
+    @Override
     public double runThresholderHisto(Histogram histogram) {
-        double thld =thresholder.instantiatePlugin().runThresholderHisto(histogram);
+        return runThresholderHisto(HistogramSource.of(histogram, getHistogramBinning()));
+    }
+
+    /**
+     * The histogram is shared with the thresholder if it uses the same bin size method, otherwise it computes its own histogram from the same source
+     */
+    @Override
+    public double runThresholderHisto(HistogramSource source) {
+        Histogram histogram = source.getHistogram(getHistogramBinning());
+        double thld =thresholder.instantiatePlugin().runThresholderHisto(source);
         int idx = (int)histogram.getIdxFromValue(thld);
         Histogram hist = overThld.getSelected() ? histogram.duplicate(idx, histogram.getData().length): histogram.duplicate(0, idx);
         switch(STAT.valueOf(stat.getSelectedItem())) {
@@ -57,14 +74,19 @@ public class ThresholderWithOperation implements ThresholderHisto, SimpleThresho
             default :
                 return hist.getQuantiles(quantile.getValue().doubleValue())[0];
             case MEAN:
-                return hist.getValueFromIdx(hist.getMeanIdx(0, hist.getData().length));
+                return hist.getMean(0, hist.getData().length);
         }
         
     }
 
+
+    @Override
+    public HistogramBinning getHistogramBinning() {
+        return binning.getBinning();
+    }
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{thresholder, cond};
+        return new Parameter[]{thresholder, cond, binning};
     }
 
 }

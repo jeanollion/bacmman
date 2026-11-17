@@ -83,6 +83,7 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
             if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(m)) return m;
             mode = compare.apply(mode, m);
             Tracker t = pst.getTracker();
+            if (t == null) return PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
             m = t.parentTrackMode();
             if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(m)) return m;
             mode = compare.apply(mode, m);

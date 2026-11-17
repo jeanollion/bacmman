@@ -50,7 +50,9 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
     PluginParameter<ManualTracker> manualTracker = new PluginParameter<>("Manual Tracker", ManualTracker.class, new ManualTracker.OverlapTracker(), true).setEmphasized(false).setHint("Algorithm used to link selected objects with unlinked objects from previous and next frames. <br>If no algorithm is defined here and the tracker has manual tracking ability, it will be used instead");
     ProcessingChain processingPipeline = new ProcessingChain("Processing Pipeline");
-    PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object by pressing ctrl + F");
+    PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object(s) by pressing ctrl + F");
+    PostFilterSequence manualPostFilters2 = new PostFilterSequence("Manual Post-Filters (secondary)").setHint("Post-filter that can be applied on selected object(s) by pressing shift + F");
+    TrackPostFilterSequence manualTrackPostFilters = new TrackPostFilterSequence("Manual Track-Post-Filters").setHint("Track Post-filter that can be applied on selected object(s) by pressing ctrl + G");
     ChoiceParameter objectDimension = new ChoiceParameter("Dimension Mode", new String[]{"2D", "3D", "Auto"}, "Auto", false).setHint("Determines if manually created objects are 2D or 3D. When set to 2D, objects will appear on all slices. If set to <em>Auto</em>, objects will be 3D if the associated channel contains multiple slices; otherwise, they will be 2D. Note that for a specific object class, all segmented objects must uniformly be either 2D or 3D, and this consistency takes precedence over other rules.");
     BooleanParameter allowOverlap = new BooleanParameter("Allow Overlap", "yes", "no", false).setHint("If <em>yesy</em> is set, objects can overlap during manual curation");
     BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>yesy</em> is set, a track can divide in several tracks");
@@ -80,6 +82,8 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         res.put("manualTracker", manualTracker.toJSONEntry());
         res.put("processingScheme", processingPipeline.toJSONEntry());
         res.put("manualPostFilters", manualPostFilters.toJSONEntry());
+        res.put("manualPostFilters2", manualPostFilters2.toJSONEntry());
+        res.put("manualTrackPostFilters", manualTrackPostFilters.toJSONEntry());
         res.put("allowOverlap", allowOverlap.toJSONEntry());
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
@@ -107,6 +111,8 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         if (!partialInit && jsonO.containsKey("manualTracker")) manualTracker.initFromJSONEntry(jsonO.get("manualTracker"));
         processingPipeline.initFromJSONEntry(jsonO.get("processingScheme"), partialInit);
         if (jsonO.containsKey("manualPostFilters") && !partialInit) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
+        if (jsonO.containsKey("manualPostFilters2") && !partialInit) manualPostFilters2.initFromJSONEntry(jsonO.get("manualPostFilters2"));
+        if (jsonO.containsKey("manualTrackPostFilters") && !partialInit) manualTrackPostFilters.initFromJSONEntry(jsonO.get("manualTrackPostFilters"));
         if (jsonO.containsKey("objectDimension")) objectDimension.initFromJSONEntry(jsonO.get("objectDimension"));
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
@@ -171,7 +177,7 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualTracker, manualPostFilters, objectDimension, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualTracker, manualPostFilters, manualPostFilters2, manualTrackPostFilters, objectDimension, allowOverlap, allowMerge, allowSplit, trackDisplay, color); //brightObject
     }
 
     public boolean is2D(String position) {
@@ -227,9 +233,15 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         if (!scaler.isOnePluginSet()) return null;
         return scalerP.get(position);
     }
-    public PostFilterSequence getManualPostFilters() {
-        return manualPostFilters;
+
+    public PostFilterSequence getManualPostFilters(boolean secondary) {
+        return secondary? manualPostFilters2 : manualPostFilters;
     }
+
+    public TrackPostFilterSequence getManualTrackPostFilters() {
+        return manualTrackPostFilters;
+    }
+
     public void ensureScalerConfiguration(String position) {
         if (scalerP.containsKey(position)) {
             Parameter[] scalerParams =  scalerP.get(position).getParameters();

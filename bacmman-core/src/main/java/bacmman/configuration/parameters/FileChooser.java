@@ -36,6 +36,7 @@ import javax.swing.filechooser.FileFilter;
 import bacmman.configuration.experiment.Experiment;
 import net.imagej.ops.Ops;
 import org.json.simple.JSONArray;
+import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
 
@@ -178,7 +179,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public FileChooser setSelectedFilePath(String... filePath) {
         String[] currentPath = getSelectedFilePath();
         if (filePath==null) selectedFiles = new String[0];
-        else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).toArray(String[]::new);
+        else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).map(FileIO::fromPortablePath).toArray(String[]::new); // separators of the current system
         Path refPath = getRefPath();
         if (refPath!=null) {
             for (int i = 0; i < selectedFiles.length; ++i) {
@@ -286,7 +287,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override
     public Object toJSONEntry() {
         if (selectedFiles==null) selectedFiles=new String[0];
-        return JSONUtils.toJSONArray(selectedFiles);
+        return JSONUtils.toJSONArray(Arrays.stream(selectedFiles).map(FileIO::toPortablePath).toArray(String[]::new)); // paths are stored with '/' separator, independently of the system
     }
 
     @Override
@@ -296,7 +297,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         } else if (jsonEntry instanceof JSONArray) {
             selectedFiles = JSONUtils.fromStringArray((JSONArray) jsonEntry);
         } else selectedFiles = new String[0];
-        Utils.transformInPlace(selectedFiles, FileChooser::fixWindowsPath);
+        Utils.transformInPlace(selectedFiles, FileIO::fromPortablePath); // stored with '/' separator, or '\\' separator for configurations saved on Windows by previous versions
         // check absolute...
         if (selectedFiles.length>0) {
             boolean rel = !currentPathsAreAbsolute();
@@ -312,24 +313,30 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         if (files.length==0) return new String[0];
         return Arrays.stream(files).map(p -> toRelativePath(refPath, p)).toArray(String[]::new);
     }
-    protected static String toRelativePath(Path ref, String toConvert) {
+    /**
+     * @return path relative to {@param ref}. {@param toConvert} is returned unchanged if it is already relative, or if it has no path relative to {@param ref} (e.g. other drive on Windows)
+     */
+    public static String toRelativePath(Path ref, String toConvert) {
+        if (ref == null || toConvert == null) return toConvert;
+        Path p = Paths.get(toConvert);
+        if (!p.isAbsolute()) return toConvert;
         try {
-            return ref.relativize(Paths.get(toConvert)).toString();
-        } catch(Exception e) {
-            logger.error("toRelativePath error: ref: {}, toConvert: {}", ref, toConvert);
-            throw e;
+            return ref.relativize(p).toString();
+        } catch (IllegalArgumentException e) { // e.g. other root
+            logger.debug("no relative path from {} to {}: kept absolute", ref, toConvert);
+            return toConvert;
         }
+    }
 
-    }
-    protected static String fixWindowsPath(String path) {
-        if (File.separatorChar=='\\') { // current system is windows convert path from Unix to windows
-            return path.replace('/', File.separatorChar);
-        } else { // current system is Unix: convert path from Windows to Unix
-            return path.replace('\\', File.separatorChar);
-        }
-    }
-    protected  static String toAbsolutePath(Path ref, String toConvert) {
-        return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
+    /**
+     * @return absolute path: {@param toConvert} resolved against {@param ref} if it is relative, {@param toConvert} if it is absolute (e.g. path that had no relative path)
+     */
+    public static String toAbsolutePath(Path ref, String toConvert) {
+        if (toConvert == null) return null;
+        Path p = Paths.get(toConvert);
+        if (p.isAbsolute()) return p.normalize().toFile().getAbsolutePath();
+        if (ref == null) return toConvert;
+        return ref.resolve(p).normalize().toFile().getAbsolutePath();
     }
     public Path getRefPath() {
         if (refPath !=null) return refPath;
@@ -361,7 +368,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         boolean abs = Paths.get(selectedFiles[0]).isAbsolute();
         if (selectedFiles.length>1) {
             boolean anyDif = IntStream.range(1, selectedFiles.length).mapToObj(i -> selectedFiles[i]).anyMatch(f -> Paths.get(f).isAbsolute()!=abs);
-            if (anyDif) throw new IllegalArgumentException("Some paths are relative other absolute");
+            if (anyDif) logger.debug("Some paths are relative other absolute (absolute paths with no relative path)"); // conversions keep paths that cannot be converted
             return abs;
         } else return abs;
     }

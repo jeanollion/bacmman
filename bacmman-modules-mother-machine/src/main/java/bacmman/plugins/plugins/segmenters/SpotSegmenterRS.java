@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -59,12 +61,12 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
     ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 1.5, 1.5 * 3, false).setNumberParameters(1, null, 1, true, true).setHint("Radius of local maxima filter for seed detection step. Increasing the value will decrease false positive spots but decrease the capacity to segment close spots. <br/> This parameter also defines the z-anisotropy ratio used for gaussian fit and gaussian and radial symmetry transform");
     enum NORMALIZATION_MODE {NO_NORMALIZATION, GLOBAL, PER_CELL, PER_CELL_CENTER}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.GLOBAL)
-            .setHint("Normalization of the input intensity, will influence the values of <em>Radial Symmetry Threshold</em> and <em>Seed Threshold</em>.<br>MEAN and STDEV of intensity is computed within the cell. <br>If a thresholder is set, only values under the threshold are considered to compute MEAN and STDEV. " +
+            .setHint("Normalization of the input intensity, will influence the values of <em>Radial Symmetry Threshold</em> and <em>Seed Threshold</em>.<br>MEAN and STDEV of the background intensity are estimated within the cell (see <em>Background Estimation</em>). " +
                     "<br>PER_CELL: Normalization is I -> (I - MEAN) / GLOBAL_STDEV." +
                     "<br>GLOBAL: uses a median STDEV in the parent cell line. normalization is I -> (I - MEAN) / GLOBAL_STDEV." +
                     "<br>PER_CELL_CENTER: only removes MEAN (caution: before 2025 march 19, this mode was called NO_NORM)");
-    PluginParameter<bacmman.plugins.SimpleThresholder> normThresholder = new PluginParameter<>("Foreground Removal Thld", bacmman.plugins.SimpleThresholder.class, new BackgroundThresholder(6, 6, 2), true);
-    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.GLOBAL, normThresholder).setActionParameters(NORMALIZATION_MODE.PER_CELL, normThresholder).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, normThresholder);
+    BackgroundEstimation backgroundEstimation = new BackgroundEstimation();
+    ConditionalParameter<NORMALIZATION_MODE> normCond = new ConditionalParameter<>(normMode).setActionParameters(NORMALIZATION_MODE.GLOBAL, backgroundEstimation.getParameter()).setActionParameters(NORMALIZATION_MODE.PER_CELL, backgroundEstimation.getParameter()).setActionParameters(NORMALIZATION_MODE.PER_CELL_CENTER, backgroundEstimation.getParameter());
     NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null);
     IntervalParameter sigmaRange = new IntervalParameter("Sigma Filter", 3, 0, null, 1, 5)
             .setLegacyParameter((p, i)->i.setValue(((NumberParameter)p[0]).getDoubleValue(), 1), maxSigma)
@@ -135,24 +137,13 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
         double[] ms;
         double smoothScale;
         double globalScale = Double.NaN;
-        public void initPV(Image input, ImageMask mask, double smoothScale, NORMALIZATION_MODE norm, SimpleThresholder thlder) {
+        public void initPV(Image input, ImageMask mask, double smoothScale, NORMALIZATION_MODE norm, BackgroundEstimation backgroundEstimation) {
             this.input=input;
             this.smoothScale=smoothScale;
             if (ms == null) {
                 if (NORMALIZATION_MODE.NO_NORMALIZATION.equals(norm)) {
                     ms = new double[]{0, 1};
-                } else {
-                    if (thlder instanceof BackgroundThresholder) {
-                        ms = new double[2];
-                        BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
-                        BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, bthlder.symmetrical(), ms);
-                    } else if (thlder != null) {
-                        double thld = thlder.runSimpleThresholder(input, mask);
-                        ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=thld);
-                    } else {
-                        ms = ImageOperations.getMeanAndSigma(input, mask, null);
-                    }
-                }
+                } else ms = backgroundEstimation.getMeanAndSigma(input, mask);
                 if (NORMALIZATION_MODE.GLOBAL.equals(norm) && !Double.isNaN(globalScale)) ms[1] = globalScale;
                 if (NORMALIZATION_MODE.PER_CELL_CENTER.equals(norm)) ms[1] = 1;
             }
@@ -203,7 +194,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
      */
     public RegionPopulation run(Image input, int objectClassIdx, SegmentedObject parent, Thresholder thresholderSeeds, Thresholder intensityThresholder) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin());
+        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), backgroundEstimation);
         if (pv.smooth==null || pv.getRadialSymmetryMap()==null) throw new RuntimeException("Spot Segmenter not parametrized");//setMaps(computeMaps(input, input));
         //logger.debug("get maps..");
         Image smooth = pv.getSmoothedMap();
@@ -377,7 +368,7 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
 
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedObjects) {
-        this.pv.initPV(input, segmentationMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), normThresholder.instantiatePlugin());
+        this.pv.initPV(input, segmentationMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum(), backgroundEstimation);
         if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(parent.getRawImage(objectClassIdx), input, parent.getMask(), false), Double.NaN);
         else logger.debug("manual seg: maps already set!");
         Image radialSymmetryMap = pv.getRadialSymmetryMap();
@@ -436,7 +427,13 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
             if (segParent == p.getStructureIdx()) return p.getMask();
             return p.getChildRegionPopulation(segParent).getLabelMap();
         };
-        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true)));
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(parentTrack.size()); // progress in frames for which maps are computed
+        progress.setMessage("SpotSegmenterRS: computing maps");
+        Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().collect(Collectors.toMap(p->p, p-> {
+            Image[] maps = computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx), getParentMask.apply(p), true);
+            progress.increment();
+            return maps;
+        }));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));
     }
 
@@ -480,22 +477,10 @@ public class SpotSegmenterRS implements Segmenter, TrackConfigurable<SpotSegment
                 int segmentationParentIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
                 int parentIdx = parentTrack.get(0).getStructureIdx();
                 Stream<SegmentedObject> allParents = parentIdx==segmentationParentIdx ? parentTrack.stream() : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segmentationParentIdx);
-                SimpleThresholder thlder = normThresholder.instantiatePlugin();
                 return ArrayUtil.median(allParents.parallel().mapToDouble(p -> {
                     Image input = p.getParent(parentIdx).getPreFilteredImage(structureIdx);
                     ImageMask mask = p.getMask();
-                    double[] ms;
-                    if (thlder instanceof BackgroundThresholder) {
-                        ms = new double[2];
-                        BackgroundThresholder bthlder  = (BackgroundThresholder)thlder;
-                        double thld = BackgroundThresholder.runThresholder(input, mask, bthlder.getSigma(), bthlder.getFinalSigma(), bthlder.getIterations(), Double.MAX_VALUE, bthlder.symmetrical(), ms);
-                    } else if (thlder != null) {
-                        double thld = thlder.runSimpleThresholder(input, mask);
-                        ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<=thld);
-                    } else {
-                        ms = ImageOperations.getMeanAndSigma(input, mask, null);
-                    }
-                    return ms[1];
+                    return backgroundEstimation.getMeanAndSigma(input, mask)[1];
                 }).toArray());
             }
         }

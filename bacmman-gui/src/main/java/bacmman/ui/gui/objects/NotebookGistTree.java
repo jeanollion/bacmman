@@ -20,9 +20,10 @@ package bacmman.ui.gui.objects;
 
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.core.DefaultWorker;
+import bacmman.github.gist.GistRepository;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.UserAuth;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
@@ -65,19 +66,58 @@ public class NotebookGistTree {
     List<LargeFileGist> gists;
 
     final Function<GistTreeNode, Supplier<JSONObject>> displayNotebook;
-    final ProgressLogger pcb;
+    final ProgressDisplay pcb;
     final Supplier<UserAuth> authSupplier;
-    final Supplier<File> selectedLocalFileSupplier;
+    Supplier<GistRepository> repositorySupplier;
     final Consumer<File> localFileUpdated;
+    Runnable selectionListener; // called when the selection or the displayed notebook changes
 
     GistTreeNode displayingNode;
 
-    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> displayNotebook, Supplier<File> selectedLocalFileSupplier, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
+    /**
+     * @param localFileUpdated called after a notebook is downloaded to a local file
+     */
+    public NotebookGistTree(Function<GistTreeNode, Supplier<JSONObject>> displayNotebook, Consumer<File> localFileUpdated, Supplier<UserAuth> authSupplier, ProgressDisplay pcb) {
         this.displayNotebook =displayNotebook;
         this.pcb = pcb;
         this.authSupplier = authSupplier;
-        this.selectedLocalFileSupplier = selectedLocalFileSupplier;
         this.localFileUpdated = localFileUpdated;
+    }
+
+    public NotebookGistTree setSelectionListener(Runnable selectionListener) {
+        this.selectionListener = selectionListener;
+        return this;
+    }
+
+    protected void fireSelectionChanged() {
+        if (selectionListener != null) selectionListener.run();
+    }
+
+    /**
+     * @return whether notebooks can be created, modified or deleted in the repository
+     */
+    public boolean isWritable() {
+        GistRepository repo = getRepository();
+        return repo != null && repo.isWritable();
+    }
+
+    public GistTreeNode getDisplayedNotebook() {
+        return displayingNode;
+    }
+
+    public boolean hasUnsavedNotebooks() {
+        return tree != null && streamGists().anyMatch(GistTreeNode::isUnsaved);
+    }
+
+    public boolean isDisplayed(GistTreeNode node) {
+        return node != null && node == displayingNode;
+    }
+
+    /**
+     * @return content of the notebook, including modifications made in the viewer if it is displayed
+     */
+    public JSONObject getCurrentContent(GistTreeNode n) throws IOException {
+        return n.contentUpdate != null ? n.contentUpdate.get() : n.getContent(false);
     }
 
     public JTree getTree() {
@@ -165,15 +205,46 @@ public class NotebookGistTree {
 
     public void updateGists(UserAuth auth) {
         GistTreeNode sel = getSelectedGistNode();
+        if (displayingNode != null) displayNotebook(null); // nodes are re-created
         fetchGists(auth);
         if (tree == null) generateTree();
         else populateRoot();
         if (sel != null) setSelectedGist(folder(sel.gist), sel.name);
         tree.updateUI();
+        fireSelectionChanged();
+    }
+
+    /**
+     * Displays no notebooks (e.g. until the user requests loading them)
+     */
+    public void clearGists() {
+        if (displayingNode != null) displayNotebook(null);
+        gists = new ArrayList<>();
+        if (tree == null) generateTree();
+        else populateRoot();
+        tree.updateUI();
+    }
+
+    /**
+     * @param repositorySupplier repository where notebooks are stored. If not set: GitHub account of the authentication
+     */
+    public NotebookGistTree setRepositorySupplier(Supplier<GistRepository> repositorySupplier) {
+        this.repositorySupplier = repositorySupplier;
+        return this;
+    }
+
+    protected GistRepository getRepository() {
+        if (repositorySupplier != null) return repositorySupplier.get();
+        return GistRepository.github(authSupplier.get());
     }
 
     protected void fetchGists(UserAuth auth) {
-        gists = LargeFileGist.fetch(auth, fn -> fn.startsWith("jnb_"), pcb).collect(Collectors.toList());
+        GistRepository repo = repositorySupplier != null ? repositorySupplier.get() : GistRepository.github(auth);
+        if (repo == null || (repo.getAccount() == null && !repo.isWritable() && !GistRepository.TYPE.LOCAL.equals(repo.getType()))) {
+            gists = new ArrayList<>();
+            return;
+        }
+        gists = LargeFileGist.fetch(repo, fn -> fn.startsWith("jnb_"), pcb).collect(Collectors.toList());
         logger.debug("fetched notebooks: {}", gists.size());
     }
 
@@ -227,14 +298,7 @@ public class NotebookGistTree {
                 final TreePath selPath = tree.getPathForLocation(e.getX(), e.getY());
                 if (selPath !=null && selPath.getLastPathComponent() instanceof GistTreeNode) {
                     GistTreeNode n = ((GistTreeNode)selPath.getLastPathComponent());
-                    if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 2) {
-                        downloadGist(n.gist, selectedLocalFileSupplier.get());
-                    } else if (SwingUtilities.isRightMouseButton(e)) {
-                        TreePath oldSel = tree.getSelectionPath();
-                        tree.setSelectionPath(selPath);
-                        selectionChanged(oldSel, selPath);
-                        showPopupMenu(e, n);
-                    }
+                    if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 2) displayNotebook(n);
                 }
             }
         };
@@ -259,65 +323,77 @@ public class NotebookGistTree {
             ((GistTreeNode)oldSel).updateContent();
         }
         if (displayNotebook != null) displayNotebook.apply(null);
+        if (displayingNode != null) displayingNode.contentUpdate = null;
         displayingNode = null;
+        fireSelectionChanged();
     }
 
-    protected void displayNotebook(TreeNode node) {
+    public void displayNotebook(GistTreeNode node) {
         if (displayingNode != null && !displayingNode.equals(node)) {
             if (displayNotebook != null) displayNotebook.apply(null);
+            displayingNode.contentUpdate = null;
             displayingNode = null;
         }
         if (displayNotebook != null) {
             if (node == null) displayNotebook.apply(null);
             else {
-                GistTreeNode newSelN = (GistTreeNode)node;
-                newSelN.contentUpdate = displayNotebook.apply(newSelN);
-                displayingNode = newSelN;
+                node.contentUpdate = displayNotebook.apply(node);
+                displayingNode = node.contentUpdate == null ? null : node; // null: content could not be retrieved
             }
+        }
+        fireSelectionChanged();
+    }
 
+    /**
+     * Stores the modifications made in the viewer
+     */
+    public void save(GistTreeNode node) {
+        if (node == null || !isWritable()) return;
+        if (node.uploadContent(true)) {
+            node.setSaved();
+            treeModel.nodeChanged(node);
+            pcb.setMessage("Remote notebook saved: " + folder(node.gist) + "/" + node.name);
         }
     }
 
-    private void showPopupMenu(MouseEvent e, GistTreeNode n) {
-        JPopupMenu menu = new JPopupMenu();
-        File f = selectedLocalFileSupplier.get();
-        JMenuItem display = new JMenuItem(new AbstractAction("Display") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                displayNotebook(n);
-            }
-        });
-        JMenuItem save = new JMenuItem(new AbstractAction("Download") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                downloadGist(n.gist, f);
-            }
-        });
-        JMenuItem update = new JMenuItem(new AbstractAction("Update local...") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                downloadGist(n.gist, f);
-            }
-        });
-        JMenuItem delete = new JMenuItem(new AbstractAction("Delete from server...") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                deleteGist(n.gist);
-            }
-        });
-        menu.add(display);
-        menu.add(save);
-        save.setEnabled(f.isDirectory());
-        menu.add(update);
-        update.setEnabled(!f.isDirectory());
-        menu.add(delete);
-        menu.show(e.getComponent(), e.getX(), e.getY());
+    /**
+     * Reloads the content from the repository (modifications made in the viewer are lost)
+     */
+    public void reload(GistTreeNode node) {
+        if (node == null) return;
+        try {
+            node.getContent(true);
+            node.setSaved(); // modifications are discarded
+            treeModel.nodeChanged(node);
+            if (isDisplayed(node)) displayNotebook(node);
+        } catch (IOException e) {
+            pcb.setMessage("Error getting content: " + e.getMessage());
+            logger.error("Error getting content", e);
+        }
     }
 
+    public void delete(GistTreeNode node) {
+        if (node == null || !isWritable()) return;
+        if (!Utils.promptBoolean("Delete remote notebook " + folder(node.gist) + "/" + node.name + " from the repository ?", tree)) return;
+        if (isDisplayed(node)) displayNotebook(null);
+        if (deleteGist(node.gist)) {
+            tree.clearSelection();
+            fireSelectionChanged();
+        } else pcb.setMessage("Could not delete notebook " + node.name);
+    }
+
+    /**
+     * Replaces the content of the remote notebook
+     */
     public boolean updateRemote(GistTreeNode node, JSONObject content) {
+        if (node == null || content == null || !isWritable()) return false;
         node.content = content;
-        node.contentUpdate = displayNotebook.apply(node);
-        return node.uploadContent(false);
+        if (!node.uploadContent(false)) return false;
+        node.setSaved();
+        treeModel.nodeChanged(node);
+        displayNotebook(node); // display the new content
+        pcb.setMessage("Remote notebook updated: " + folder(node.gist) + "/" + node.name);
+        return true;
     }
 
     public boolean upload(String name, JSONObject content) {
@@ -342,11 +418,15 @@ public class NotebookGistTree {
             Utils.displayTemporaryMessage("Name cannot be empty", 5000);
             return false;
         }
+        if (streamGists().anyMatch(g -> folder(g.gist).equals(folderName[0]) && g.name.equals(folderName[1]))) {
+            Utils.displayTemporaryMessage("Notebook " + path + " already exists: choose another name, or use Overwrite remote", 5000);
+            return false;
+        }
         String nbName = gistName(folderName[0], folderName[1]);
         Consumer<String> cb = id -> {
             try {
                 UserAuth auth = authSupplier.get();
-                LargeFileGist gist = new LargeFileGist(id, auth);
+                LargeFileGist gist = new LargeFileGist(getRepository(), id);
                 if (gists == null) fetchGists(auth);
                 else gists.add(gist);
                 populateRoot();
@@ -358,7 +438,9 @@ public class NotebookGistTree {
             }
         };
         try {
-            Pair<String, DefaultWorker> upload = LargeFileGist.storeString(nbName, content.toJSONString(), true, "", ".ipynb", authSupplier.get(), true, cb, pcb);
+            GistRepository repo = getRepository();
+            if (repo == null) return false;
+            Pair<String, DefaultWorker> upload = LargeFileGist.storeString(repo, nbName, content.toJSONString(), true, "", ".ipynb", true, cb, pcb);
         } catch (IOException e) {
             pcb.setMessage("Error uploading notebook: " + e.getMessage());
             logger.error("Error uploading notebook", e);
@@ -366,17 +448,24 @@ public class NotebookGistTree {
         return false;
     }
 
-    public boolean downloadGist(LargeFileGist lf, File destFile) {
-        if (destFile.isFile() && !Utils.promptBoolean("Overwrite local notebook ?", tree)) return false;
+    /**
+     * @param destFile folder (the notebook is saved in this folder, with the name of the remote notebook) or notebook file to overwrite
+     * @param confirmOverwrite whether the user is asked before overwriting an existing file
+     */
+    public boolean downloadGist(LargeFileGist lf, File destFile, boolean confirmOverwrite) {
+        if (lf == null || destFile == null) return false;
         if (destFile.isDirectory()) destFile = Paths.get(destFile.getAbsolutePath(), name(lf)+".ipynb").toFile();
+        if (confirmOverwrite && destFile.isFile() && !Utils.promptBoolean("Overwrite local notebook " + destFile.getName() + " ?", tree)) return false;
         try {
             UserAuth auth = authSupplier.get();
             String s = lf.retrieveString(auth, pcb);
             FileIO.writeToFile(destFile.getAbsolutePath(), Collections.singletonList(s), Function.identity());
+            if (localFileUpdated != null) localFileUpdated.accept(destFile);
+            pcb.setMessage("Notebook downloaded to: " + destFile);
             return true;
         } catch (IOException ex) {
-            logger.error("Error while downloading model", ex);
-            if (pcb!=null) pcb.setMessage("Could not download model");
+            logger.error("Error while downloading notebook", ex);
+            if (pcb!=null) pcb.setMessage("Could not download notebook: " + ex.getMessage());
         }
         return false;
     }
@@ -410,6 +499,7 @@ public class NotebookGistTree {
         List<GistTreeNode> toDelete = streamGists().filter(gistMatch).collect(Collectors.toList());
         Set<MutableTreeNode> foldersToCheck = toDelete.stream().map(g -> (MutableTreeNode)g.getParent()).collect(Collectors.toSet());
         toDelete.forEach(DefaultMutableTreeNode::removeFromParent);
+        if (this.gists != null) this.gists.removeIf(g -> targetIds.contains(g.getID())); // otherwise re-displayed when the tree is re-populated
         List<MutableTreeNode> emptyFolders = foldersToCheck.stream().map(f -> {
             if (f.getChildCount()==0) return f;
            else {
@@ -417,6 +507,7 @@ public class NotebookGistTree {
                return null;
             }
         }).filter(Objects::nonNull).collect(Collectors.toList());
+        emptyFolders.forEach(MutableTreeNode::removeFromParent);
         if (!emptyFolders.isEmpty()) treeModel.nodeStructureChanged(getRoot());
     }
     
@@ -469,6 +560,16 @@ public class NotebookGistTree {
         final String name;
         Supplier<JSONObject> contentUpdate;
         TextParameter description;
+        boolean unsaved; // content modified in the viewer and not saved
+        String savedSignature; // signature (see JupyterNotebookViewer) of the saved version, null: current content is saved
+
+        public boolean isUnsaved() { return unsaved; }
+        public void setUnsaved(boolean unsaved) { this.unsaved = unsaved; }
+        public String getSavedSignature() { return savedSignature; }
+        public void setSavedSignature(String savedSignature) { this.savedSignature = savedSignature; }
+        void setSaved() { unsaved = false; savedSignature = null; }
+        public String getName() { return name; }
+        public String getFolder() { return folder(gist); }
 
         public GistTreeNode(LargeFileGist gist) {
             super(gist);
@@ -520,7 +621,7 @@ public class NotebookGistTree {
 
         @Override
         public String toString() {
-            return name;
+            return unsaved ? name + " *" : name;
         }
     }
 

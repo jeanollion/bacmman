@@ -43,7 +43,7 @@ public class EDTSkeleton {
      * Ordered medial-axis centerline of {@param mask}, computing the EDT internally.
      * @param mask binary mask (not modified)
      * @param az anisotropy ratio scaleZ/scaleXY (1 for 2D / isotropic data); all distances are in XY-pixel units
-     * @return centerline points in absolute (offset) voxel coords, oriented from the upper-left end (min x+y),
+     * @return centerline points in absolute (offset) voxel coords, oriented from the upper-left end (min x+y, in 3D: min x+y+z, z in XY-pixel units),
      *         or null if no centerline could be traced
      */
     public static List<Point> getCenterline(ImageByte mask, double az) {
@@ -140,6 +140,10 @@ public class EDTSkeleton {
         // two furthest regional maxima = poles (medial-axis endpoints)
         int a = dijkstraGrid(seed, mask, edt, sizeX, sizeY, sizeZ, sizeXY, ndx, ndy, ndz, len, edtMax, false, ridge, null);
         int b = dijkstraGrid(a, mask, edt, sizeX, sizeY, sizeZ, sizeXY, ndx, ndy, ndz, len, edtMax, false, ridge, null);
+        if (a==b && ridge!=null) { // single regional maximum (short and wide object): poles = two furthest foreground voxels
+            a = dijkstraGrid(seed, mask, edt, sizeX, sizeY, sizeZ, sizeXY, ndx, ndy, ndz, len, edtMax, false, null, null);
+            b = dijkstraGrid(a, mask, edt, sizeX, sizeY, sizeZ, sizeXY, ndx, ndy, ndz, len, edtMax, false, null, null);
+        }
         int[] prev = new int[sizeXY*sizeZ];
         dijkstraGrid(a, mask, edt, sizeX, sizeY, sizeZ, sizeXY, ndx, ndy, ndz, len, edtMax, true, null, prev);
         LinkedList<Point> path = new LinkedList<>();
@@ -151,7 +155,7 @@ public class EDTSkeleton {
         // left/right convention derived from it) is stable across frames and methods.
         if (path.size()>1) {
             Point f = path.getFirst(), l = path.getLast();
-            if (f.get(0)+f.get(1) > l.get(0)+l.get(1)) java.util.Collections.reverse(path);
+            if (f.get(0)+f.get(1)+f.getWithDimCheck(2)*az > l.get(0)+l.get(1)+l.getWithDimCheck(2)*az) java.util.Collections.reverse(path); // z (physical) included: the orientation is also defined for objects oriented along z
         }
         return path;
     }

@@ -12,7 +12,7 @@ import bacmman.omero.BACMMANLogger;
 import bacmman.image.io.ImageReaderOmero;
 import bacmman.omero.OmeroAquisitionMetadata;
 import bacmman.ui.gui.ImportFromOmero;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.FileIO;
 import bacmman.utils.Pair;
 import bacmman.utils.UnaryPair;
@@ -59,7 +59,7 @@ public class OmeroGatewayI implements OmeroGateway {
     String hostname, username, password;
     final private Map<UnaryPair<String>, char[]> serverPasswords = new HashMap<>();
     ImportFromOmero importInstance;
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     public OmeroGatewayI() {
         gateway = new Gateway(new BACMMANLogger(logger));
     }
@@ -104,7 +104,7 @@ public class OmeroGatewayI implements OmeroGateway {
     }
 
     @Override
-    public void setLogger(ProgressLogger logger) {
+    public void setLogger(ProgressDisplay logger) {
         this.bacmmanLogger = logger;
         ((BACMMANLogger)gateway.getLogger()).setBacmmanLogger(logger);
         this.logger.debug("setting bacmman logger: GUI ? {}", logger==null ? "null": logger.isGUI());

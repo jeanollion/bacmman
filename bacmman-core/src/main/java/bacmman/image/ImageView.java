@@ -1,8 +1,8 @@
 package bacmman.image;
 
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
     protected final I source;
@@ -101,18 +101,31 @@ public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
 
     @Override
     public ImageView<I> newImage(String name, ImageProperties properties) {
-        throw new NotImplementedException("Not implemented");
+        throw new UnsupportedOperationException("Not implemented");
     }
 
     @Override
     public DoubleStream streamPlane(int z) {
-        return source.streamPlane(z, new BlankMask(boundingBox, scaleXY, scaleZ), true);
+        return source.streamPlane(z + zMin - source.zMin(), new BlankMask(boundingBox, scaleXY, scaleZ), true); // z is relative to this view, source expects its own plane index
     }
 
     @Override
     public DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset) {
-        ImageMask maskView = maskHasAbsoluteOffset ? new MaskView(mask, boundingBox) : new MaskView(mask, (BoundingBox)boundingBox.duplicate().resetOffset());
-        return streamPlane(z, maskView, maskHasAbsoluteOffset);
+        if (maskHasAbsoluteOffset) { // restrict the mask to this view, and delegate to the source
+            return source.streamPlane(z + zMin - source.zMin(), new MaskView(mask, boundingBox), true);
+        } else { // mask is relative to this view: loop over the intersection
+            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z-mask.zMin()<0 || z-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
+            SimpleBoundingBox inter = BoundingBox.getIntersection2D(new SimpleBoundingBox(this).resetOffset(), mask);
+            if (inter.isEmpty()) return DoubleStream.empty();
+            int sX = inter.sizeX();
+            int offX = inter.xMin();
+            int offY = inter.yMin();
+            return IntStream.range(0, inter.getSizeXY()).mapToDouble(i -> {
+                int x = i%sX + offX;
+                int y = i/sX + offY;
+                return mask.insideMaskWithOffset(x, y, z) ? getPixel(x, y, z) : Double.NaN;
+            }).filter(v -> !Double.isNaN(v));
+        }
     }
 
     @Override
@@ -140,11 +153,11 @@ public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
 
     @Override
     public ImageView<I> getZPlane(int z) {
-        I sourcePlane = source.getZPlane(z);
-        return new ImageView<>(sourcePlane, new MutableBoundingBox(boundingBox).setzMin(boundingBox.zMin() + z).setzMax(boundingBox.zMin() + z));
+        I sourcePlane = source.getZPlane(z + zMin - source.zMin()); // z is relative to this view, source expects its own plane index
+        return new ImageView<>(sourcePlane, new MutableBoundingBox(boundingBox).setzMin(zMin + z).setzMax(zMin + z));
     }
     @Override
     public Object[] getPixelArray() {
-        throw new NotImplementedException("Do not call getPixelArray on a ImageView");
+        throw new UnsupportedOperationException("Do not call getPixelArray on a ImageView");
     }
 }

@@ -20,7 +20,7 @@ package bacmman.ui;
 
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.core.Daemon;
-import bacmman.core.Task;
+import bacmman.core.AbstractTask;
 import ij.plugin.PlugIn;
 import java.io.BufferedReader;
 import java.io.File;
@@ -73,10 +73,10 @@ public class Console implements PlugIn {
         }
         runJobs(jobs);*/
     }
-    public void runJobs(Collection<Task> jobs) {
+    public void runJobs(Collection<? extends AbstractTask<?>> jobs) {
         if (jobs==null || jobs.isEmpty()) return;
         int count = 0;
-        for (Task t : jobs) {
+        for (AbstractTask<?> t : jobs) {
             if (t==null) {
                 ui.setMessage("Error: job "+count+" could not be parsed");
                 return;
@@ -90,16 +90,16 @@ public class Console implements PlugIn {
             ++count;
         }
         System.out.println(">Will execute: "+jobs.size()+" jobs");
-        for (Task t : jobs) {
+        for (AbstractTask<?> t : jobs) {
             ui.setMessage("Running: "+t.toString());
             t.setPreprocessingMemoryThreshold(0.5);
             t.runTask();
             t.flush(false);
         }
         int errorCount = 0;
-        for (Task t: jobs) errorCount+=t.getErrors().size();
+        for (AbstractTask<?> t : jobs) errorCount+=t.getErrors().size();
         ui.setMessage("All jobs finished. Errors: "+errorCount);
-        for (Task t: jobs) t.printErrors();
+        for (AbstractTask<?> t : jobs) t.printErrors();
     }
     
     private boolean promptCommand() {

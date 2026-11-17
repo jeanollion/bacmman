@@ -18,9 +18,11 @@
  */
 package bacmman.plugins.plugins.thresholders;
 
+import bacmman.configuration.parameters.HistogramBinningParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
+import bacmman.image.HistogramBinning;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
@@ -43,6 +45,7 @@ import org.apache.commons.math3.fitting.WeightedObservedPoints;
 public class BackgroundFit implements ThresholderHisto, SimpleThresholder, MultiThreaded, Thresholder, Hint {
     public static boolean debug;
     NumberParameter sigmaFactor = new BoundedNumberParameter("Sigma factor", 3, 10, 0, null).setEmphasized(true).setHint("Multiplication factor applied to background σ to compute the threshold (see module description).");
+    HistogramBinningParameter binning = new HistogramBinningParameter();
     
     public BackgroundFit() {
         
@@ -76,7 +79,7 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     
     @Override
     public double runSimpleThresholder(Image input, ImageMask mask) {
-        return runThresholderHisto(HistogramFactory.getHistogram(()->Utils.parallel(input.stream(mask, true), parallel)) );
+        return runThresholderHisto(HistogramFactory.getHistogram(()->Utils.parallel(input.stream(mask, true), parallel), getHistogramBinning().getMethod()));
     }
 
     public static float[] smooth(long[] data, double scale) {
@@ -159,11 +162,11 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
         // use gaussian fit on lowest half of data 
         long t3 = System.currentTimeMillis();
         WeightedObservedPoints obs = new WeightedObservedPoints();
-        for (int i = start; i<=modeIdx; ++i) obs.add(histo.getValueFromIdx(i), histo.getData()[i]);
-        obs.add(histo.getValueFromIdx(modeFitIdx), histo.getCountLinearApprox(modeFitIdx));
-        for (double i  = modeFitIdx; i<=2 * modeFitIdx - start; ++i) obs.add(histo.getValueFromIdx(i), histo.getCountLinearApprox(2*modeFitIdx-i));  
+        for (int i = start; i<=modeIdx; ++i) obs.add(histo.getBinCenter(i), histo.getData()[i]);
+        obs.add(histo.getValueFromIdx(modeFitIdx + 0.5), histo.getCountLinearApprox(modeFitIdx)); // bin centers
+        for (double i  = modeFitIdx; i<=2 * modeFitIdx - start; ++i) obs.add(histo.getValueFromIdx(i + 0.5), histo.getCountLinearApprox(2*modeFitIdx-i));  
         try {
-            double[] coeffs = GaussianCurveFitter.create().withMaxIterations(1000).withStartPoint(new double[]{histo.getData()[modeIdx], histo.getValueFromIdx(modeIdx), sigma}).fit(obs.toList());
+            double[] coeffs = GaussianCurveFitter.create().withMaxIterations(1000).withStartPoint(new double[]{histo.getData()[modeIdx], histo.getBinCenter(modeIdx), sigma}).fit(obs.toList());
             double meanBck = coeffs[1];
             double stdBck = coeffs[2];
             if (meanSigma!=null) {
@@ -212,9 +215,14 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     }
     
     
+
+    @Override
+    public HistogramBinning getHistogramBinning() {
+        return binning.getBinning();
+    }
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{sigmaFactor};
+        return new Parameter[]{sigmaFactor, binning};
     }
 
     

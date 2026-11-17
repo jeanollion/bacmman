@@ -27,6 +27,8 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.*;
 import bacmman.processing.bacteria_spine.BacteriaSpineFactory;
+import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.utils.Utils;
 
 import java.util.ArrayList;
@@ -47,7 +49,8 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
 public class SpineFeatures implements Measurement.TrackMeasurement, MultiThreaded, Hint, HintSimple {
     protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria", -1, false, false);
     protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", false).setHint(SCALED_TT);
-    protected Parameter[] parameters = new Parameter[]{bacteria, scaled};
+    protected EnumChoiceParameter<BacteriaSpineLocalizer.COORDINATES_3D> spine3D = BacteriaSpineLocalizer.getCoordinates3DParameter("3D Spine", true);
+    protected Parameter[] parameters = new Parameter[]{bacteria, scaled, spine3D};
 
     public SpineFeatures() {}
     public SpineFeatures(int bacteriaIdx) {
@@ -84,7 +87,7 @@ public class SpineFeatures implements Measurement.TrackMeasurement, MultiThreade
         double scale = scaled.getSelected() ? parentTrack.get(0).getScaleXY() : 1d;
         int objectClassIdx = bacteria.getSelectedClassIdx();
         Utils.parallel(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)), parallel).forEach(e-> {
-            double[] lengthAndWidth = BacteriaSpineFactory.getSpineLengthAndWidth(e.getRegion());
+            double[] lengthAndWidth = BacteriaSpineFactory.getSpineLengthAndWidth(e.getRegion(), spine3D.getSelectedEnum());
             e.getMeasurements().setValue("SpineLength", lengthAndWidth[0]*scale);
             e.getMeasurements().setValue("SpineWidth", lengthAndWidth[1]*scale);
         });

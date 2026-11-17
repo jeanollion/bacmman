@@ -58,7 +58,7 @@ public class SimpleListParameter<T extends Parameter> extends ListParameterImpl<
 
     @Override
     public SimpleListParameter<T> duplicate() {
-        SimpleListParameter<T> res = new SimpleListParameter<>(name, unMutableIndex, getChildClass());
+        SimpleListParameter<T> res = childInstance != null ? new SimpleListParameter<>(name, unMutableIndex, (T) childInstance.duplicate()) : new SimpleListParameter<>(name, unMutableIndex, getChildClass()); // child instance: for child classes without constructor with name only
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;

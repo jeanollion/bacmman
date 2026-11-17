@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker;
 
+import bacmman.configuration.parameters.TrackPreFilterSequence;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.measurement.GeometricalMeasurements;
@@ -229,12 +231,17 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
         //Core.userLog("bacteria Segment and Track: "+parentTrack.get(0));
         // 1) Segment and keep track of segmenter parametrizer for corrections
         SegmentOnly so = new SegmentOnly(segmenter.instantiatePlugin()).setPostFilters(postFilters).setTrackPreFilters(trackPreFilters);
+        // stages that can report progress (e.g. a track pre-filter that predicts), then tracking and corrections (that do not report): the last stage is completed with the current sub-task
         if (correction) {
-            so.getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
-            applyToSegmenter=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
-            so.segmentAndTrack(structureIdx, parentTrack, applyToSegmenter, factory);
+            TrackPreFilterSequence tpf = so.getTrackPreFilters(true);
+            boolean trackConfigurable = segmenter.instantiatePlugin() instanceof TrackConfigurable;
+            ProgressContext.Stages stages = ProgressContext.stages((tpf.isEmpty() ? 0 : 1) + (trackConfigurable ? 1 : 0) + 2);
+            if (!tpf.isEmpty()) stages.run("Track pre-filters", () -> tpf.filter(structureIdx, parentTrack)); // set preFiltered images to structureObjects
+            applyToSegmenter = null;
+            if (trackConfigurable) stages.run("Configuring segmenter", () -> applyToSegmenter=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin()));
+            stages.run("Segmentation", () -> so.segmentAndTrack(structureIdx, parentTrack, applyToSegmenter, factory));
             inputImages=parentTrack.stream().collect(Collectors.toMap(SegmentedObject::getFrame, p->p.getPreFilteredImage(structureIdx))); // record prefiltered images
-        } else so.segmentAndTrack(structureIdx, parentTrack, factory, editor);
+        } else ProgressContext.stages(2).run("Segmentation", () -> so.segmentAndTrack(structureIdx, parentTrack, factory, editor));
         // trim empty frames @ start & end. Limit to first continuous segment ?
         while (minF<maxFExcluded && getObjects(minF).isEmpty()) ++minF;
         while (maxFExcluded>minF && getObjects(maxFExcluded-1).isEmpty()) --maxFExcluded;

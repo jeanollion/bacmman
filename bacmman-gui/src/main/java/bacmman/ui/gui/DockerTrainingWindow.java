@@ -1,5 +1,6 @@
 package bacmman.ui.gui;
 
+import bacmman.core.AbstractDatasetExportTask;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
@@ -8,8 +9,7 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.github.gist.DLModelMetadata;
-import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.UserAuth;
+import bacmman.github.gist.GistRepository;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.DLEngine;
@@ -22,7 +22,7 @@ import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
 import bacmman.ui.gui.objects.CollapsiblePanel;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Reader;
@@ -67,7 +67,7 @@ import static bacmman.plugins.plugins.trackers.ObjectOrderTracker.IndexingOrder.
 import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
-public class DockerTrainingWindow implements ProgressLogger {
+public class DockerTrainingWindow implements ProgressDisplay {
     private Frame parent;
     private JPanel mainPanel;
     private JPanel configurationPanel;
@@ -86,7 +86,6 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JTextField datasetNameTextField;
     private JButton uploadModelButton;
     private JScrollPane extractDatasetConfigurationJSP;
-    private JProgressBar extractProgressBar;
     private JProgressBar stepProgressBar;
     private JLabel epochLabel;
     private JLabel stepLabel;
@@ -249,7 +248,7 @@ public class DockerTrainingWindow implements ProgressLogger {
                     Action appendTask = new AbstractAction("Append extraction task") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Task t = getDatasetExtractionTask(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, new ArrayList<>());
+                            AbstractDatasetExportTask<?> t = getDatasetExportTask(Paths.get(workingDirPanel.getCurrentWorkingDirectory()), null, new ArrayList<>());
                             GUI.getInstance().appendTask(t);
                         }
                     };
@@ -337,7 +336,6 @@ public class DockerTrainingWindow implements ProgressLogger {
             dataset.setFilePath(tempDatasetFile.getAbsolutePath());
             Map<String, String> mounts = fixDirectories(trainer);
             pythonConfig.write(JSONUtils.toJSONString(trainer.getConfiguration().getPythonConfiguration()), false); // dataset has been replaced so manually save configuration
-            currentProgressBar = extractProgressBar;
             runLater(() -> {
                 if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
                 List<String> selections = new ArrayList<>();
@@ -659,30 +657,14 @@ public class DockerTrainingWindow implements ProgressLogger {
             DockerDLTrainer trainer = getTrainerFromTrainingConfig();  // get trainer from config used for training and not current config.
             if (trainer == null) trainer = trainerParameter.instantiatePlugin();
             else logger.debug("train config loaded");
-            GithubGateway githubGateway = Core.getCore().getGithubGateway();
-            if (githubGateway == null) {
-                setMessage("Github not reachable");
+            RepositoryGateway repositoryGateway = Core.getCore().getGithubGateway();
+            if (repositoryGateway == null) {
+                setMessage("Repositories not reachable");
                 return;
             }
-            UserAuth modelAuth = githubGateway.promptCredentials(this::setMessage, "Account to save model file to...");
-            if (modelAuth instanceof NoAuth) {
-                setMessage("Could not connect to account to store model file to..");
-                return;
-            } else setMessage("Successfully authenticated to account to store model file to.");
-            UserAuth libAuth = githubGateway.getAuthentication(true, "Online Model Library Account");
-            if (libAuth instanceof NoAuth) setMessage("Could not connect to online library");
-            else {
-                setMessage("Successfully authenticated to account to store configuration to.");
-                DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
-                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
-                // set back properties
-                if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
-                epochLabel.setText("Epoch:");
-                if (currentProgressBar != null) {
-                    currentProgressBar.setValue(currentProgressBar.getMinimum());
-                    currentProgressBar.setString("");
-                }
-            }
+            DLModelsLibrary library = getDLModelLibrary(repositoryGateway, null);
+            // the model is saved when the "Store Model From Training" button of the library is clicked: the library repository and the optional model file account can be set before
+            library.requestModelUpload(trainer.getDLModelMetadata(workingDirPanel.getCurrentWorkingDirectory()).setDockerDLTrainer(trainer), getSavedModelPath());
         });
         uploadModelButton.addMouseListener(new MouseAdapter() {
             @Override
@@ -692,12 +674,12 @@ public class DockerTrainingWindow implements ProgressLogger {
                     Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            GithubGateway githubGateway = Core.getCore().getGithubGateway();
-                            if (githubGateway == null) {
-                                setMessage("Github not reachable");
+                            RepositoryGateway repositoryGateway = Core.getCore().getGithubGateway();
+                            if (repositoryGateway == null) {
+                                setMessage("Repositories not reachable");
                                 return;
                             }
-                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
+                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(repositoryGateway, (id, dl) -> {
                                 DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
                                 if (newTrainer != null) {
                                     trainerParameter.setPlugin(newTrainer);
@@ -791,22 +773,30 @@ public class DockerTrainingWindow implements ProgressLogger {
         this.focusGained();
     }
 
-    protected Task getDatasetExtractionTask(Path dir, String fileName, List<String> selectionList) {
+    protected AbstractDatasetExportTask<?> getDatasetExportTask(Path dir, String fileName, List<String> selectionList) {
         MasterDAO mDAO = GUI.getDBConnection();
         DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
         ParameterUtils.setContent(trainer.getDatasetExtractionParameters(), ((ContainerParameter<Parameter, ?>) extractConfig.getRoot()).getChildren().toArray(new Parameter[0]));
         for (Parameter p : trainer.getDatasetExtractionParameters()) p.setParent(mDAO.getExperiment());
         String extractFileName = fileName == null ? datasetNameTextField.getText().contains(".") ? datasetNameTextField.getText() : datasetNameTextField.getText() + ".h5" : fileName;
-        return trainer.getDatasetExtractionTask(mDAO, dir.resolve(extractFileName).toString(), selectionList).setExtractDSCompression(GUI.getInstance().getExtractedDSCompressionFactor());
+        return trainer.getDatasetExportTask(mDAO, dir.resolve(extractFileName).toString(), selectionList).setCompression(GUI.getInstance().getExtractedDSCompressionFactor());
     }
 
     protected boolean extractCurrentDataset(Path dir, String fileName, boolean background, List<String> sel, boolean[] timelapseDatasetBucket) {
-        currentProgressBar = extractProgressBar;
         if (sel == null) sel = new ArrayList<>();
-        Task t = getDatasetExtractionTask(dir, fileName, sel).setDB(GUI.getDBConnection());
-        timelapseDatasetBucket[0] = t.getExtractDSTimelapse();
-        if (background) Task.executeTask(t, this, 1);
-        else Task.executeTaskInForeground(t, this, 1);
+        AbstractDatasetExportTask<?> t = getDatasetExportTask(dir, fileName, sel).setDB(GUI.getDBConnection());
+        timelapseDatasetBucket[0] = t.isTimelapse();
+        // progress is displayed on the main progress bars of the GUI, like other tasks
+        ProgressDisplay display = GUI.hasInstance() ? GUI.getInstance() : this;
+        if (background) Task.executeTask(t, display, 1); // running state is handled by the worker, as for other tasks
+        else {
+            display.setRunning(true);
+            try {
+                Task.executeTaskInForeground(t, display, 1);
+            } finally {
+                display.setRunning(false);
+            }
+        }
         if (!t.getErrors().isEmpty()) {
             t.publishErrors();
             return false;
@@ -824,7 +814,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    protected DLModelsLibrary getDLModelLibrary(GithubGateway githubGateway, BiConsumer<String, DLModelMetadata> configureCB) {
+    protected DLModelsLibrary getDLModelLibrary(RepositoryGateway repositoryGateway, BiConsumer<String, DLModelMetadata> configureCB) {
         boolean fromGUI = GUI.hasInstance();
         int tabIdx = fromGUI ? GUI.getInstance().getCurrentTab() : -1;
         DLModelsLibrary dlModelLibrary;
@@ -832,7 +822,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
                     .setWorkingDirectory(workingDirPanel.getCurrentWorkingDirectory());
         } else {
-            dlModelLibrary = new DLModelsLibrary(githubGateway, workingDirPanel.getCurrentWorkingDirectory(), () -> {
+            dlModelLibrary = new DLModelsLibrary(repositoryGateway, workingDirPanel.getCurrentWorkingDirectory(), () -> {
                 epochLabel.setText("Epoch:");
                 if (currentProgressBar != null) {
                     currentProgressBar.setValue(currentProgressBar.getMinimum());
@@ -842,6 +832,10 @@ public class DockerTrainingWindow implements ProgressLogger {
             dlModelLibrary.display(dia.getParent() instanceof JFrame ? (JFrame) dia.getParent() : null);
             currentProgressBar = trainingProgressBar;
             epochLabel.setText("Upload:");
+        }
+        if (configureCB == null) { // not called to configure a parameter: the callback of the library is left unchanged
+            dlModelLibrary.connect();
+            return dlModelLibrary;
         }
         BiConsumer<String, DLModelMetadata> newConfigureCB;
         if (!fromGUI) {
@@ -1643,7 +1637,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         splitPane1.setRightComponent(actionPanel);
         actionPanel.add(directoryPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
         datasetPanel = new JPanel();
-        datasetPanel.setLayout(new GridLayoutManager(3, 3, new Insets(0, 0, 0, 0), -1, -1));
+        datasetPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(datasetPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         datasetPanel.setBorder(BorderFactory.createTitledBorder(null, "Extract Dataset", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         extractDSNamePanel = new JPanel();
@@ -1655,9 +1649,6 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractDSNamePanel.add(datasetNameTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         extractDatasetConfigurationJSP = new JScrollPane();
         datasetPanel.add(extractDatasetConfigurationJSP, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 70), new Dimension(-1, 90), null, 0, false));
-        extractProgressBar = new JProgressBar();
-        extractProgressBar.setStringPainted(true);
-        datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel1 = new JPanel();
         panel1.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
         datasetPanel.add(panel1, new GridConstraints(1, 1, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));

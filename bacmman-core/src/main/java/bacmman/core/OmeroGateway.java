@@ -4,7 +4,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.image.io.ImageReader;
 import bacmman.ui.PropertyUtils;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.PasswordUtils;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public interface OmeroGateway {
-    void setLogger(ProgressLogger logger);
+    void setLogger(ProgressDisplay logger);
     OmeroGateway setCredentials(String hostname, String userName, String password);
     boolean isConnected();
     boolean connect();

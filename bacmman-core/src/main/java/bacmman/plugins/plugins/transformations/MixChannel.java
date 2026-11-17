@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.image.HistogramSource;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
@@ -35,9 +36,10 @@ public class MixChannel implements Transformation.ConfigurableTransformation, Tr
         inputChannelIdx=channelIdx;
         if (!scalePerFrame.getSelected()) {
             scalerInstance = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
-            if (scalerInstance!=null) scalerInstance.setHistogram(getHisto(channelIdx));
+            HistogramSource histo = getHisto(channelIdx); // shared by both scalers: values read once
+            if (scalerInstance!=null) scalerInstance.setHistogram(histo);
             otherScalerInstance = otherScaler.isOnePluginSet() ? otherScaler.instantiatePlugin() : null;
-            if (otherScalerInstance!=null) otherScalerInstance.setHistogram(getHisto(channelIdx));
+            if (otherScalerInstance!=null) otherScalerInstance.setHistogram(histo);
         }
         switch (mix.getSelectedEnum()) {
             case MAX:
@@ -63,10 +65,9 @@ public class MixChannel implements Transformation.ConfigurableTransformation, Tr
         }
     }
 
-    private Histogram getHisto(int c) {
+    private HistogramSource getHisto(int c) {
         List<Image> allImages = Arrays.asList(InputImages.getImageForChannel(ii, c, false));
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).parallel());
-        return histo;
+        return HistogramSource.of(()->Image.stream(allImages).parallel());
     }
 
     @Override
@@ -102,7 +103,7 @@ public class MixChannel implements Transformation.ConfigurableTransformation, Tr
             bacmman.plugins.HistogramScaler scalerI = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
             if (scalerI!=null) {
                 Image i = image;
-                scalerI.setHistogram(HistogramFactory.getHistogram(i::stream));
+                scalerI.setHistogram(HistogramSource.of(i::stream));
             }
             bacmman.plugins.HistogramScaler otherScalerI = otherScaler.isOnePluginSet() ? otherScaler.instantiatePlugin() : null;
             if (otherScalerI!=null) otherImage = otherScalerI.scale(otherImage);

@@ -25,7 +25,7 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
     protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Dilatation radius for excluded object", 1, 1, 0, null).setHint("Dilate objects to be excluded");
 
     ObjectFeature currentFeature;
-    HashMap<Region, Region> modifiedObjectMap;
+    Map<Region, Region> modifiedObjectMap;
     @Override
     public Parameter[] getParameters() {
         return new Parameter[] {excludeOc, dilateExcluded, feature};

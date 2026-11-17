@@ -19,9 +19,12 @@
 package bacmman.plugins.plugins.thresholders;
 
 import bacmman.configuration.parameters.*;
+import bacmman.image.HistogramBinning;
 import bacmman.image.BlankMask;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
+import bacmman.image.HistogramSource;
+import bacmman.image.TransformedHistogram;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.*;
@@ -44,10 +47,12 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     NumberParameter iterations = new BoundedNumberParameter("Iteration number", 0, 2, 1, null);
     PluginParameter<SimpleThresholder> startingPoint = new PluginParameter<>("Starting value", SimpleThresholder.class, true).setHint("This value limits the threshold computed at first iteration. Use this parameter when the image contains pixel with high values");
     BooleanParameter symmetrical = new BooleanParameter("Symmetrical", false).setHint("If true, also remove values lower that mean - f x sigma");
-    Parameter[] parameters = new Parameter[]{sigmaFactor, finalSigmaFactor, iterations, startingPoint, symmetrical};
+    HistogramBinningParameter binning = new HistogramBinningParameter(HistogramFactory.BIN_SIZE_METHOD.DEFAULT, HistogramBinning.FUNCTION.LINEAR, true);
+    Parameter[] parameters = new Parameter[]{sigmaFactor, finalSigmaFactor, iterations, startingPoint, symmetrical, binning};
 
     public static String simpleHint = "This algorithm estimates the mean (µ) and standard deviation (σ) of the background pixel intensity, and use these two parameters to select the pixels significantly different from the background"
             +"<br />This method works only on images in which most pixels are background pixels"
+            +"<br />With LOG function (see <em>Histogram binning</em>), µ and σ are estimated in log space, which reduces the influence of very bright objects: recommended when the foreground is sparse (e.g. nuclei), not when it is dense (e.g. confluent cytoplasmic signal)"
             +"<br />Adapted from Implementation of <em>Kappa Sigma Clipping</em> algorithm by Gaëtan Lehmann, <a href='http://www.insight-journal.org/browse/publication/132'>http://www.insight-journal.org/browse/publication/132</a>";
 
 
@@ -81,18 +86,47 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
         return symmetrical.getSelected();
     }
 
+    /**
+     * Computes the threshold on the histogram as given (the function of the binning is not applied, see {@link #runThresholderHisto(HistogramSource)})
+     */
     @Override
     public double runThresholderHisto(Histogram histogram) {
+        return run(histogram, HistogramSource.of(histogram, HistogramBinning.linear(getHistogramBinning().getMethod())));
+    }
+
+    /**
+     * The histogram is shared with the starting point thresholder if it uses the same binning, otherwise it computes its own histogram from the same source.
+     * With LOG or POWER function, the threshold is computed in transformed space and mapped back to values
+     */
+    @Override
+    public double runThresholderHisto(HistogramSource source) {
+        return run(source.getHistogram(getHistogramBinning()), source);
+    }
+
+    private double run(Histogram histogram, HistogramSource startingPointSource) {
         double firstValue = Double.MAX_VALUE;
         if (this.startingPoint.isOnePluginSet()) {
             if (startingPoint.instantiatePlugin() instanceof ThresholderHisto) {
-                firstValue = ((ThresholderHisto)startingPoint.instantiatePlugin()).runThresholderHisto(histogram);
+                firstValue = ((ThresholderHisto)startingPoint.instantiatePlugin()).runThresholderHisto(startingPointSource);
             } else throw new IllegalArgumentException("Starting point should be a thresholder histo");
+        }
+        if (histogram instanceof TransformedHistogram) { // compute in transformed space
+            TransformedHistogram th = (TransformedHistogram)histogram;
+            if (firstValue != Double.MAX_VALUE) {
+                firstValue = th.transform(firstValue);
+                if (!Double.isFinite(firstValue)) firstValue = Double.MAX_VALUE;
+            }
+            return th.inverse(runThresholder(th.getTransformedSpaceHistogram(), sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, symmetrical.getValue(), null));
         }
         return runThresholder(histogram, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, symmetrical.getValue(), null);
     }
+
+    /**
+     * With LINEAR function, the threshold is computed on pixel values (more precise). With LOG or POWER function, it is computed on the histogram of the transformed values
+     */
     @Override 
     public double runSimpleThresholder(Image input, ImageMask mask) {
+        if (!getHistogramBinning().isLinear()) return runThresholderHisto(HistogramSource.of(() -> input.stream(mask, true)));
         double firstValue = Double.MAX_VALUE;
         if (this.startingPoint.isOnePluginSet()) {
             firstValue = startingPoint.instantiatePlugin().runSimpleThresholder(input, mask);
@@ -148,7 +182,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
         if (meanSigma!=null && meanSigma.length<2) throw new IllegalArgumentException("Argument Mean Sigma should be null or of size 2 to receive mean and sigma values");
         int firstIdx =  Double.isInfinite(firstValue)||firstValue==Double.MAX_VALUE ? histo.getData().length-1 : (int)histo.getIdxFromValue(firstValue);
         if (firstIdx>histo.getData().length-1) firstIdx=histo.getData().length-1;
-        double binInc = 0.245; // empirical correction !
+        double binInc = 0.5; // each bin is represented by its center
         double lastThreshold = firstIdx;
         double lastThresholdNeg = 0;
         double mean=0, sigma=0;
@@ -191,6 +225,11 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
         return histo.getValueFromIdx(Math.min(firstIdx, lastThreshold));
     }
 
+
+    @Override
+    public HistogramBinning getHistogramBinning() {
+        return binning.getBinning();
+    }
     @Override
     public Parameter[] getParameters() {
         return parameters;

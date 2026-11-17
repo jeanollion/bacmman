@@ -51,6 +51,38 @@ import java.util.stream.Collectors;
  */
 public class FileIO {
     public static final Logger logger = LoggerFactory.getLogger(FileIO.class);
+
+    /**
+     * Paths stored in configuration files use '/' as separator, independently of the system, so that configurations can be shared between Windows and Unix systems
+     * @param path path with separators of the current system
+     * @return path with '/' as separator
+     */
+    public static String toPortablePath(String path) {
+        if (path == null) return null;
+        if (File.separatorChar == '/') return checkNoBackslash(path);
+        return path.replace(File.separatorChar, '/');
+    }
+
+    /**
+     * Backslash is not allowed in paths stored in configuration files: on Unix systems it would be a valid character of a file name, but it is interpreted as separator when loading paths (compatibility with configurations saved on Windows)
+     * @return path
+     * @throws IllegalArgumentException if the current system is not Windows and the path contains a backslash
+     */
+    public static String checkNoBackslash(String path) {
+        if (path != null && File.separatorChar == '/' && path.indexOf('\\') >= 0) throw new IllegalArgumentException("Backslash ('\\') is not allowed in file or directory names: "+path);
+        return path;
+    }
+
+    /**
+     * Converts a path stored in a configuration file to a path with separators of the current system. Accepts paths stored with '/' as separator, and paths stored with '\' as separator (configurations saved on Windows by previous versions)
+     * @param path stored path
+     * @return path with separators of the current system
+     */
+    public static String fromPortablePath(String path) {
+        if (path == null) return null;
+        if (File.separatorChar == '\\') return path.replace('/', '\\');
+        else return path.replace('\\', '/');
+    }
     
     // random access file
     public static void write(RandomAccessFile raf, String write, boolean append) throws IOException  {

@@ -78,6 +78,8 @@ public class BinaryDilate implements PostFilter, MultiThreaded, Hint {
         Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
         boolean allowOverlap = parent.getExperimentStructure().allowOverlap(childStructureIdx);
         Map<Region, Set<Voxel>> contourMap = allowOverlap? null : childPopulation.getRegions().stream().collect(Collectors.toMap(Function.identity(), Region::getContour));
+        BoundingBox<?> bds = parent.getBounds();
+        if (!childPopulation.isAbsoluteLandmark()) bds = (BoundingBox)bds.duplicate().resetOffset();
         for (Region o : childPopulation.getRegions()) {
             ImageInteger max = edt ? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryDilate(o.getMaskAsImageInteger(), radius, radiusZ, true, parallel), null)
                     : Filters.binaryMax(o.getMaskAsImageInteger(), null, n, true, parallel);
@@ -87,6 +89,7 @@ public class BinaryDilate implements PostFilter, MultiThreaded, Hint {
             }
             o.setMask(max);
             o.resetMask();
+            o.getCroppedRegion(bds, false); // ensure region is contained within parent
         }
         if (!allowOverlap) { // remove overlapping pixels using the distance to the original contour
             double scaleXY = parent.getScaleXY();

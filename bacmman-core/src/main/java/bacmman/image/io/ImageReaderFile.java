@@ -37,6 +37,9 @@ import loci.formats.FormatException;
 import loci.formats.meta.IMetadata;
 import loci.formats.services.OMEXMLService;
 import ome.units.quantity.Length;
+import ome.units.quantity.Time;
+import ome.units.UNITS;
+import ome.xml.model.primitives.Timestamp;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageInt;
@@ -46,6 +49,7 @@ import bacmman.utils.Pair;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import loci.common.DataTools;
 import loci.formats.FormatTools;
@@ -88,6 +92,10 @@ public class ImageReaderFile implements ImageReader {
     @Override
     public boolean imageExists() {
         return new File(getImagePath()).exists();
+    }
+
+    public boolean getInvertTZ() {
+        return invertTZ;
     }
 
     public ImageReaderFile setInvertTZ(boolean invertTZ) {
@@ -399,9 +407,7 @@ public class ImageReaderFile implements ImageReader {
             synchronized(this) {
                 if (timePoints==null) {
                     if (this.extension == ImageFormat.DV) { // look for log file
-                        int deconvIdx = getImagePath().indexOf("_D3D");
-                        String logPath = deconvIdx>0 ? getImagePath().substring(0, deconvIdx)+".dv.log" : getImagePath()+".log";
-                        timePoints = paseDVLogFile(logPath, "Time Point: ");
+                        timePoints = paseDVLogFile(getDVLogPath(getImagePath()), "Time Point: ");
                         //logger.debug("timePoints: {}", timePoints);
                     } else {
                         // not supported
@@ -417,6 +423,155 @@ public class ImageReaderFile implements ImageReader {
         } else return Double.NaN;
     }
     
+    /**
+     * Sources of plane time points, by order of priority.
+     */
+    public enum TIME_SOURCE {
+        TIF_TAGS(true, false), // acquisition time written in TIF tags by acquisition software (fast, see TiffTimestamps)
+        DV_LOG(false, false), // DeltaVision log file
+        BIOFORMATS_ACQUISITION_TIME(true, true), // acquisition date of the series + time offset of the plane
+        BIOFORMATS_DELTA_T(false, true), // time offset of the plane relative to the start of the file
+        FRAME_INTERVAL(false, true); // frame index x frame interval (Bio-Formats time increment or ImageJ TIF frame interval)
+        public final boolean absolute, needsBioFormats;
+        TIME_SOURCE(boolean absolute, boolean needsBioFormats) {
+            this.absolute = absolute;
+            this.needsBioFormats = needsBioFormats;
+        }
+    }
+
+    /**
+     * Time points of planes of a file, in seconds: since epoch if the source is absolute, otherwise relative to the file.
+     * Absolute local times without time zone are interpreted as UTC: they are only meaningful as differences.
+     */
+    public static class TimePoints {
+        public final TIME_SOURCE source;
+        public final double[] times;
+        public final double frameInterval; // in seconds, only for FRAME_INTERVAL source
+        TimePoints(TIME_SOURCE source, double[] times, double frameInterval) {
+            this.source = source;
+            this.times = times;
+            this.frameInterval = frameInterval;
+        }
+    }
+
+    private static String getDVLogPath(String imagePath) {
+        int deconvIdx = imagePath.indexOf("_D3D");
+        return deconvIdx>0 ? imagePath.substring(0, deconvIdx)+".dv.log" : imagePath+".log";
+    }
+
+    private static boolean isDV(String path) {
+        return path.toLowerCase().endsWith(ImageFormat.DV.getExtension());
+    }
+
+    /**
+     * Time points read without Bio-Formats (fast), for files whose planes are stored in order (e.g. one file per frame and channel, planes = z-slices).
+     * Sources tried: TIF tags, then DeltaVision log file.
+     * @param nPlanes number of planes
+     * @param sources allowed sources
+     * @return time points of the {@code nPlanes} first planes, or null if not found
+     */
+    public static TimePoints getTimePointsWithoutBioFormats(String filePath, int nPlanes, Set<TIME_SOURCE> sources) {
+        if (sources.contains(TIME_SOURCE.TIF_TAGS) && isIJTif(filePath)) {
+            double[] tifTimes = TiffTimestamps.read(filePath);
+            if (tifTimes != null) { // if only one time is found for a stack, it is used for all planes
+                double[] times = IntStream.range(0, nPlanes).mapToDouble(i -> tifTimes[Math.min(i, tifTimes.length-1)] / 1000d).toArray();
+                return new TimePoints(TIME_SOURCE.TIF_TAGS, times, Double.NaN);
+            }
+        }
+        if (sources.contains(TIME_SOURCE.DV_LOG) && isDV(filePath)) {
+            List<Double> log = paseDVLogFile(getDVLogPath(filePath), "Time Point: ");
+            if (log != null && log.size() >= nPlanes) return new TimePoints(TIME_SOURCE.DV_LOG, log.subList(0, nPlanes).stream().mapToDouble(d->d).toArray(), Double.NaN);
+        }
+        return null;
+    }
+
+    /**
+     * Time points of planes of the file. Sources are tried by order of priority (see {@link TIME_SOURCE}), the first source that gives the time of all planes is used.
+     * @param series series index
+     * @param planesCTZ coordinates (channel, frame, z) of each plane
+     * @param sources allowed sources
+     * @return time points of each plane, or null if not found
+     */
+    public synchronized TimePoints getTimePoints(int series, int[][] planesCTZ, Set<TIME_SOURCE> sources) {
+        if (reader==null) return null;
+        reader.setSeries(series);
+        int[] idx = Arrays.stream(planesCTZ).mapToInt(p -> getIndex(p[0], p[1], p[2])).toArray();
+        String path = getImagePath();
+        if (sources.contains(TIME_SOURCE.TIF_TAGS) && isIJTif(path)) {
+            double[] tifTimes = TiffTimestamps.read(path);
+            if (tifTimes != null && tifTimes.length == reader.getImageCount() && reader.getSeriesCount() == 1) { // pages are planes
+                double[] times = IntStream.of(idx).mapToDouble(i -> tifTimes[i] / 1000d).toArray();
+                if (isValid(planesCTZ, times)) return new TimePoints(TIME_SOURCE.TIF_TAGS, times, Double.NaN);
+            }
+        }
+        if (sources.contains(TIME_SOURCE.DV_LOG) && isDV(path)) {
+            List<Double> log = paseDVLogFile(getDVLogPath(path), "Time Point: ");
+            if (log != null && IntStream.of(idx).allMatch(i -> i < log.size())) {
+                double[] times = IntStream.of(idx).mapToDouble(log::get).toArray();
+                if (isValid(planesCTZ, times)) return new TimePoints(TIME_SOURCE.DV_LOG, times, Double.NaN);
+            }
+        }
+        if (meta == null) return null;
+        try {
+            double[] deltaT = IntStream.of(idx).mapToDouble(i -> getDeltaT(series, i)).toArray();
+            boolean allDeltaT = DoubleStream.of(deltaT).noneMatch(Double::isNaN);
+            if (sources.contains(TIME_SOURCE.BIOFORMATS_ACQUISITION_TIME)) {
+                Timestamp date = meta.getImageAcquisitionDate(series);
+                boolean singleFrame = Arrays.stream(planesCTZ).mapToInt(p -> p[1]).distinct().count() == 1;
+                if (date != null && date.asInstant() != null && (allDeltaT || singleFrame)) { // without time offsets, planes of different frames would have the same time
+                    double date_s = date.asInstant().getMillis() / 1000d;
+                    double[] times = DoubleStream.of(deltaT).map(dt -> Double.isNaN(dt) ? date_s : date_s + dt).toArray();
+                    if (isValid(planesCTZ, times)) return new TimePoints(TIME_SOURCE.BIOFORMATS_ACQUISITION_TIME, times, Double.NaN);
+                }
+            }
+            if (sources.contains(TIME_SOURCE.BIOFORMATS_DELTA_T) && allDeltaT && isValid(planesCTZ, deltaT)) return new TimePoints(TIME_SOURCE.BIOFORMATS_DELTA_T, deltaT, Double.NaN);
+            if (sources.contains(TIME_SOURCE.FRAME_INTERVAL)) {
+                double interval = toSeconds(meta.getPixelsTimeIncrement(series));
+                if (!(interval > 0) && isIJTif(path)) interval = getTIFTimeFrameInterval(path);
+                if (interval > 0) {
+                    double fi = interval;
+                    return new TimePoints(TIME_SOURCE.FRAME_INTERVAL, Arrays.stream(planesCTZ).mapToDouble(p -> p[1] * fi).toArray(), fi);
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.debug("error while reading time points of file: {}: {}", path, e.toString());
+        }
+        return null;
+    }
+
+    /**
+     * Time points are valid if, for each channel and z-slice, time strictly increases with the frame index.
+     * Some readers return invalid values when times are not recorded (e.g. 0 for all planes)
+     */
+    static boolean isValid(int[][] planesCTZ, double[] times) {
+        if (DoubleStream.of(times).anyMatch(Double::isNaN)) return false;
+        Map<List<Integer>, TreeMap<Integer, Double>> timeByFrameByCZ = new HashMap<>();
+        for (int i = 0; i < planesCTZ.length; ++i) {
+            int[] p = planesCTZ[i];
+            Double previous = timeByFrameByCZ.computeIfAbsent(Arrays.asList(p[0], p[2]), k -> new TreeMap<>()).put(p[1], times[i]);
+            if (previous != null && previous != times[i]) return false; // same plane with different times
+        }
+        for (TreeMap<Integer, Double> timeByFrame : timeByFrameByCZ.values()) {
+            double previous = Double.NEGATIVE_INFINITY;
+            for (double t : timeByFrame.values()) {
+                if (t <= previous) return false;
+                previous = t;
+            }
+        }
+        return true;
+    }
+
+    private double getDeltaT(int series, int planeIdx) {
+        if (planeIdx >= meta.getPlaneCount(series)) return Double.NaN;
+        return toSeconds(meta.getPlaneDeltaT(series, planeIdx));
+    }
+
+    private static double toSeconds(Time time) {
+        if (time == null) return Double.NaN;
+        Number s = time.value(UNITS.SECOND);
+        return s == null ? Double.NaN : s.doubleValue();
+    }
+
     public void logTimeAnnotations() {
         if (meta!=null) {
             logger.debug("image count: {}", meta.getImageCount());
@@ -529,6 +684,22 @@ public class ImageReaderFile implements ImageReader {
             return Double.NaN;
         }
     }
+    /**
+     * @return true if the file is a TIF that is not an OME-TIF: such files are opened with ImageJ's TIF reader, which is much faster than Bio-Formats
+     */
+    public static boolean isIJTif(String filePath) {
+        String lower = filePath.toLowerCase();
+        return (lower.endsWith(".tif") || lower.endsWith(".tiff")) && !lower.endsWith(".ome.tif") && !lower.endsWith(".ome.tiff");
+    }
+
+    /**
+     * Acquisition time of each plane of a TIF file, read directly from TIF tags (fast: no Bio-Formats reader is created). See {@link TiffTimestamps} for supported software.
+     * @return acquisition time in milliseconds of each plane (only meaningful as differences), or null if not found
+     */
+    public static double[] getTIFAcquisitionTimes(String filePath) {
+        return TiffTimestamps.read(filePath);
+    }
+
     public static Pair<int[][], double[]> getTIFInfo(String filePath) {
         File file = new File(filePath);
         TiffDecoder td = new TiffDecoder(file.getParent(), file.getName());

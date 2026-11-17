@@ -19,6 +19,8 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.EnumChoiceParameter;
+import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -38,9 +40,10 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
  */
 public class SpineWidth implements GeometricalFeature, Hint, HintSimple {
     protected BooleanParameter scaled = new BooleanParameter("Scale", "Unit", "Pixel", true).setHint(SCALED_TT);
+    protected EnumChoiceParameter<BacteriaSpineLocalizer.COORDINATES_3D> spine3D = BacteriaSpineLocalizer.getCoordinates3DParameter("3D Spine", true);
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scaled};
+        return new Parameter[]{scaled, spine3D};
     }
     public SpineWidth setScaled(boolean scaled) {
         this.scaled.setSelected(scaled);
@@ -53,7 +56,7 @@ public class SpineWidth implements GeometricalFeature, Hint, HintSimple {
 
     @Override
     public double performMeasurement(Region region) {
-        double w= getSpineLengthAndWidth(region)[1];
+        double w= getSpineLengthAndWidth(region, spine3D.getSelectedEnum())[1];
         if (scaled.getSelected()) w *= region.getScaleXY();
         return w;
     }
@@ -74,5 +77,5 @@ public class SpineWidth implements GeometricalFeature, Hint, HintSimple {
     }
     public static String validTT = "This module is valid for regular rod-shaped objects, in 2D as well as in 3D. For anisotropic 3D acquisitions the Z spacing is taken into account (distances along Z are scaled by the Z/XY pixel-size ratio), and lengths/widths are returned in XY-pixel units (multiply by the XY pixel size to get physical units). If objects are not regular (presence of holes, thickness of less than 3 pixels) results are not defined. If needed use regularization such as binary close and fill holes.";
     public static String spineWidthTT = "Estimation of the thickness of a bacterium.";
-    public static String spineWidthAlgo = "<br />Computation details: for each point of the spine (see definition below), the local diameter is measured as the distance between the two contour points located on each side of the spine. The value of the measurement is the median of those diameters. For 3D objects the diameters are measured on the contours of each Z-slice. <br />";
+    public static String spineWidthAlgo = "<br />Computation details: for each point of the spine (see definition below), the local diameter is measured as the distance between the two contour points located on each side of the spine. The value of the measurement is the median of those diameters. For 3D objects the diameters are measured on the contours of each Z-slice (or on the projection in the XY plane, see <em>3D Spine</em>). <br />";
 }

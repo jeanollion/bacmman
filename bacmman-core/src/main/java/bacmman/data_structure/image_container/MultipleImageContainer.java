@@ -22,11 +22,13 @@ import bacmman.core.OmeroGateway;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import org.json.simple.JSONObject;
+import bacmman.utils.FileIO;
 import bacmman.utils.JSONSerializable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Map;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -50,6 +52,15 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public float getScaleXY() {return (float)scaleXY;}
     public float getScaleZ() {return (float)scaleZ;}
     public abstract double getCalibratedTimePoint(int t, int c, int z);
+
+    /**
+     * Converts absolute time points (in seconds) to times relative to the first time point, rounded to the microsecond (removes floating point errors due to large absolute values)
+     */
+    protected static void toRelativeTime(Map<String, Double> timePoints) {
+        if (timePoints.isEmpty()) return;
+        double ref = timePoints.values().stream().mapToDouble(d -> d).min().getAsDouble();
+        timePoints.replaceAll((k, v) -> Math.round((v - ref) * 1e6) / 1e6);
+    }
     public abstract MultipleImageContainer duplicate();
     public abstract boolean singleFrame(int channel);
     public abstract boolean isEmpty();
@@ -90,15 +101,23 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public static String getKeyCT(int c, int t) {
         return new StringBuilder(7).append(c).append(";").append(t).toString();
     }
+    /**
+     * @return path relative to the dataset path, with '/' as separator (independent of the system) to be stored
+     */
     protected String relativePath(String absolutePath) {
         try {
-            return path.relativize(Paths.get(absolutePath)).toString();
+            return FileIO.toPortablePath(path.relativize(Paths.get(absolutePath)).toString());
         } catch(IllegalArgumentException e) { // under windows, some path have different roots and cannot be relativized
-            return absolutePath;
+            return FileIO.toPortablePath(absolutePath);
         }
     }
+
+    /**
+     * @param relativePath stored path, relative to the dataset path (or absolute), with '/' as separator or '\\' (saved on Windows by previous versions)
+     * @return absolute path with separators of the current system
+     */
     protected String absolutePath(String relativePath) {
-        Path p = path.resolve(relativePath);
+        Path p = path.resolve(FileIO.fromPortablePath(relativePath));
         if (p.isAbsolute()) return p.toFile().getAbsolutePath();
         return p.normalize().toFile().getAbsolutePath();
 

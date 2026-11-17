@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.dl_engines;
 
+import bacmman.core.ProgressCallback;
+
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
@@ -70,6 +72,14 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         if (dc != null) dockerImage.setImageRequirement(dc.getDockerImageName(), dc.getVersionPrefix(), dc.minimalVersion(), dc.maximalVersion());
         else dockerImage.setImageRequirement("predict_dnn", null, null, null);
+        // docker is not contacted here: the engine is instantiated in many contexts (e.g. at startup as default engine) and contacting docker can be slow when it is not started. Image is selected when the engine is used (see ensureImage)
+    }
+
+    /**
+     * Selects an installed image (or an image that can be built) if no image is selected
+     */
+    protected void selectDefaultImageIfNecessary() {
+        if (dockerImage.getValue() != null) return;
         DockerGateway.DockerImage im = dockerImage.getAllImages()
                 .filter(DockerGateway.DockerImage::isInstalled).sorted().findFirst()
                 .orElse(dockerImage.getAllImages().sorted().findFirst().orElse(null));
@@ -133,7 +143,12 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     }
 
     @Override
-    public synchronized Image[][][] process(Image[][]... inputNC) {
+    public Image[][][] process(Image[][]... inputNC) {
+        return process(null, 0, inputNC);
+    }
+
+    @Override
+    public synchronized Image[][][] process(ProgressCallback.SubProgress progress, double steps, Image[][]... inputNC) {
         if (containerID == null) throw new RuntimeException("Engine not initialized (no container)");
         if (!dockerGateway.isContainerRunning(containerID)) { // restart container
             containerID = null;
@@ -194,6 +209,7 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
                 }
                 ++curIdx;
             }
+            if (progress!=null) progress.increment(steps * (idxMax - idx) / nSamples);
         }
         switch (zAxis.getSelectedEnum()) {
             case Z:
@@ -240,22 +256,35 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
         int nIterMax = (int)Math.ceil(1000 * processTimeout.getDoubleValue() / (double)loopFreqMs);
         Path ds_path_out = dataDir.resolve(ds_name_out);
         Path ds_path_error = dataDir.resolve(ds_name.replace("h5", "error"));
+        int openFailures = 0;
+        int maxOpenFailures = (int)Math.ceil(10000. / loopFreqMs); // ~10s
         while(t++ < nIterMax) {
             if (Files.exists(ds_path_out)) {
+                IHDF5Reader reader = null;
                 try {
-                    Image[][][] resONC = new Image[outputNames.length][][];
-                    IHDF5Reader reader = HDF5IO.getReader(ds_path_out.toFile());
-                    for (int i = 0; i<outputNames.length; ++i) {
-                        LazyImage5D im = HDF5IO.readDatasetLazy(reader, "outputs/"+outputNames[i], true);
-                        resONC[i] = toImageArray(im);
-                    }
-                    reader.close();
-                    return resONC;
+                    reader = HDF5IO.getReader(ds_path_out.toFile());
                 } catch (Exception e) {
-                    deleteSilently(ds_path);
-                    throw new RuntimeException(e);
-                } finally {
-                    deleteSilently(ds_path_out);
+                    // right after the container renames the file, it can be transiently locked (e.g. Docker Desktop file sharing or antivirus on Windows -> "Permission denied"): retry
+                    if (++openFailures >= maxOpenFailures || t >= nIterMax) {
+                        deleteSilently(ds_path_out);
+                        throw new RuntimeException(e);
+                    }
+                    logger.debug("could not open output file {} (attempt {}): {}, retrying", ds_path_out, openFailures, e.getMessage());
+                }
+                if (reader != null) {
+                    try {
+                        Image[][][] resONC = new Image[outputNames.length][][];
+                        for (int i = 0; i < outputNames.length; ++i) {
+                            LazyImage5D im = HDF5IO.readDatasetLazy(reader, "outputs/" + outputNames[i], true);
+                            resONC[i] = toImageArray(im);
+                        }
+                        return resONC;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        reader.close();
+                        deleteSilently(ds_path_out);
+                    }
                 }
             } else if (Files.exists(ds_path_error)) {
                 List<String> error = FileIO.readFromFile(ds_path_error.toString(), s->s, null);
@@ -409,7 +438,9 @@ public class DockerEngine implements DLEngine, DLMetadataConfigurable, Hint {
     protected String ensureImage() {
         DockerComplient dc = ParameterUtils.getFirstParameterFromParents(DockerComplient.class, dockerImage, false);
         dockerImage.refreshImageList();
+        selectDefaultImageIfNecessary();
         DockerGateway.DockerImage currentImage = dockerImage.getValue();
+        if (currentImage == null) throw new RuntimeException("No docker image available" + (dockerGateway.dockerStarted() ? "" : ": is Docker started ?"));
         if (!currentImage.isInstalled()) { // look for dockerfile and build it
             String dockerFilePath = null;
             Path dockerDir = null;

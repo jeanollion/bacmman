@@ -18,12 +18,14 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.core.ProgressCallback;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
+import bacmman.image.io.ImageReaderFile.TIME_SOURCE;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,6 +58,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     Map<String, Boolean> invertTZ_CT;
     volatile List<List<String>> fileCT;
     volatile Map<String, Double> timePointCZT;
+    transient boolean timePointInitTried; // an empty time point map may come from a version that could not read time points: try once again per session
     boolean fromOmero;
     @Override
     public boolean sameContent(MultipleImageContainer other) {
@@ -125,7 +128,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         res.put("frameNumber", frameNumber);
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
         if (rgbC!=null) res.put("rgb", JSONUtils.toJSONArrayEnum(rgbC));
-        if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
+        TimePointsJSON.write(timePointCZT, res);
         if (invertTZ_CT!=null) res.put("invertTZ_CT", JSONUtils.toJSONObject(invertTZ_CT));
         if (singleFrameC!=null) res.put("singleFrameC", JSONUtils.toJSONArray(singleFrameC));
         return res;
@@ -155,15 +158,22 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         frameNumber = ((Number)jsonO.get("frameNumber")).intValue();
         sizeZC = JSONUtils.fromIntArray((JSONArray)jsonO.get("sizeZC"));
         if (jsonO.containsKey("rgb")) rgbC = JSONUtils.fromEnumArray((List)jsonO.get("rgb"), ImageIOCoordinates.RGB.class);
-        if (jsonO.containsKey("timePointCZT")) timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
+        timePointCZT = TimePointsJSON.read(jsonO);
         if (jsonO.containsKey("invertTZ_CT")) invertTZ_CT = (Map<String, Boolean>)jsonO.get("invertTZ_CT");
         positionName =  jsonO.containsKey("positionName") ?  (String)jsonO.get("positionName") : positionKey;
         if (jsonO.containsKey("singleFrameC")) singleFrameC = JSONUtils.fromBooleanArray((JSONArray)jsonO.get("singleFrameC"));
     }
     protected MultipleImageContainerPositionChannelFrame() {super(1, 1);} // JSON init
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int[] sizeZC, int frameNumber, double scaleXY, double scaleZ, String positionName) throws IOException {
+        this(inputDir, extension, positionKey, timeKeyword, channelKeywords, rgbC, sizeZC, frameNumber, scaleXY, scaleZ, positionName, ProgressCallback.SubProgress.NO_OP);
+    }
+
+    /**
+     * @param timePointProgress progress of time point reading, which counts as one step
+     */
+    public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int[] sizeZC, int frameNumber, double scaleXY, double scaleZ, String positionName, ProgressCallback.SubProgress timePointProgress) throws IOException {
         super(scaleXY, scaleZ);
-        this.inputDir = inputDir;
+        this.inputDir = FileIO.checkNoBackslash(inputDir);
         this.extension = extension;
         this.positionKey = positionKey;
         this.positionName = positionName == null ? positionKey : positionName;
@@ -205,11 +215,17 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             this.scaleZ = info.value[2];
             logger.debug("scale: xy={} z={}", this.scaleXY, this.scaleZ);
         }
-        initTimePointMap();
-        
+        initTimePointMap(timePointProgress);
     }
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int frameNumber, String positionName) throws IOException {
         this(inputDir, extension, positionKey, timeKeyword, channelKeywords, rgbC, null, frameNumber, -1, -1, positionName);
+    }
+
+    /**
+     * @param timePointProgress progress of time point reading, which counts as one step
+     */
+    public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, List<ImageIOCoordinates.RGB> rgbC, int frameNumber, String positionName, ProgressCallback.SubProgress timePointProgress) throws IOException {
+        this(inputDir, extension, positionKey, timeKeyword, channelKeywords, rgbC, null, frameNumber, -1, -1, positionName, timePointProgress);
     }
 
     // omero constructor
@@ -236,13 +252,13 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         return fromOmero;
     }
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
-        if (timePointCZT==null) {
+        if (timePointCZT==null || (timePointCZT.isEmpty() && !timePointInitTried)) {
             synchronized(this) {
-                if (timePointCZT==null) {
+                if (timePointCZT==null || (timePointCZT.isEmpty() && !timePointInitTried)) {
                     if (fromOmero()) initTimePointMapOmero();
                     else {
                         try {
-                            initTimePointMap();
+                            initTimePointMap(ProgressCallback.SubProgress.NO_OP);
                         } catch (IOException ignored) {}
                     }
                 }
@@ -298,35 +314,73 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         }
     }
 
-    private void initTimePointMap() throws IOException {
+    /**
+     * Sources for files that contain a single frame: time offsets relative to the file are excluded as they are not comparable between files
+     */
+    private static final Set<TIME_SOURCE> SINGLE_FRAME_FILE_SOURCES = Collections.unmodifiableSet(EnumSet.of(TIME_SOURCE.TIF_TAGS, TIME_SOURCE.DV_LOG, TIME_SOURCE.BIOFORMATS_ACQUISITION_TIME, TIME_SOURCE.FRAME_INTERVAL));
+
+    /**
+     * Time points are read for each file, from the first available source among (by priority): TIF tags (fast), DeltaVision log file, acquisition time read by Bio-Formats, frame interval (time = frame index x frame interval).
+     * The source of the first file is used for all files. Time points are in seconds, absolute times are converted to times relative to the first acquisition among all channels.
+     * If the time point of one plane is missing, the map is left empty.
+     */
+    private void initTimePointMap(ProgressCallback.SubProgress progress) throws IOException {
         if (fromOmero()) return;
-        timePointCZT = new HashMap<>();
         synchronized(this) {
-            if (fileCT == null) getFileMap();
-            for (int c = 0; c<this.nChannels; ++c) {
-                logger.debug("init timepoint map for channel: {}", c);
-                for (int f = 0; f<fileCT.get(channelIdx[c]).size(); ++f) {
-                    try {
-                        ImageReader r = getReader(c, f);
-                        if (r == null) return;
-                        for (int z = 0; z < sizeZC[c]; ++z) {
-                            double res = r.getTimePoint(0, 0, z);
-                            if (!Double.isNaN(res)) timePointCZT.put(getKey(c, z, f), res);
-                            else {
-                                timePointCZT.clear();
-                                logger.error("time point information not found in file: {}", f);
-                                r.closeReader();
-                                return;
-                            }
+            timePointInitTried = true;
+            Map<String, Double> timePoints = new HashMap<>();
+            try {
+                if (fileCT == null) getFileMap();
+                TIME_SOURCE source = null;
+                double progressStep = 1d / Math.max(1, IntStream.range(0, nChannels).map(c -> fileCT.get(channelIdx[c]).size()).sum());
+                for (int c = 0; c<this.nChannels; ++c) {
+                    logger.debug("init timepoint map for channel: {}", c);
+                    double frameInterval = Double.NaN;
+                    for (int f = 0; f<fileCT.get(channelIdx[c]).size(); ++f) {
+                        progress.increment(progressStep);
+                        if (!Double.isNaN(frameInterval)) { // no need to read the file
+                            for (int z = 0; z < sizeZC[c]; ++z) timePoints.put(getKey(c, z, f), f * frameInterval);
+                            continue;
                         }
-                        r.closeReader();
-                    } catch(Exception|Error e) {
-                        return;
+                        String path = fileCT.get(channelIdx[c]).get(singleFrame(c) ? 0 : f);
+                        ImageReaderFile.TimePoints tp = readTimePoints(path, sizeZC[c], source == null ? SINGLE_FRAME_FILE_SOURCES : EnumSet.of(source));
+                        if (tp == null) {
+                            timePoints.clear();
+                            if (source == null) logger.info("time point information not found in file: {}", path);
+                            else logger.error("time point information of file: {} not found in: {} (source of other files)", path, source);
+                            return;
+                        }
+                        if (source == null) {
+                            source = tp.source;
+                            logger.debug("time points read from: {}", source);
+                        }
+                        if (TIME_SOURCE.FRAME_INTERVAL.equals(source)) { // time = file index x frame interval
+                            frameInterval = tp.frameInterval;
+                            for (int z = 0; z < sizeZC[c]; ++z) timePoints.put(getKey(c, z, f), f * frameInterval);
+                        } else {
+                            for (int z = 0; z < sizeZC[c]; ++z) timePoints.put(getKey(c, z, f), tp.times[z]);
+                        }
                     }
                 }
+                if (source!=null && source.absolute) toRelativeTime(timePoints);
+            } finally { // set only once complete (empty in case of error) as it can be read without synchronization
+                timePointCZT = timePoints;
             }
         }
     }
+
+    private static ImageReaderFile.TimePoints readTimePoints(String path, int nPlanes, Set<TIME_SOURCE> sources) {
+        ImageReaderFile.TimePoints tp = ImageReaderFile.getTimePointsWithoutBioFormats(path, nPlanes, sources);
+        if (tp != null || sources.stream().noneMatch(s -> s.needsBioFormats)) return tp;
+        ImageReaderFile r = new ImageReaderFile(path);
+        try {
+            int[][] planes = IntStream.range(0, nPlanes).mapToObj(z -> new int[]{0, 0, z}).toArray(int[][]::new);
+            return r.getTimePoints(0, planes, sources);
+        } finally {
+            r.closeReader();
+        }
+    }
+
     public long getImageID(int c, int f) {
         if (singleFrame(c)) f = 0;
         return Long.parseLong(fileCT.get(channelIdx[c]).get(f));

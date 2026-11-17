@@ -1,6 +1,7 @@
 package bacmman.image;
 
 import bacmman.data_structure.dao.DiskBackedImageManager;
+import bacmman.data_structure.dao.DiskBackedImageMemoryGuard;
 
 import java.io.IOException;
 import java.util.stream.DoubleStream;
@@ -19,16 +20,12 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I
     }
 
     @Override
-    public void freeMemory(boolean storeIfModified) {
+    public void freeMemory(boolean storeIfModified) throws IOException{
         if (image != null) {
             synchronized (this) {
                 if (image !=null) {
                     if (modified && storeIfModified) {
-                        try {
-                            manager.storeDiskBackedImage(this);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
+                        manager.storeDiskBackedImage(this);
                         modified = false;
                     }
                     image = null;
@@ -77,12 +74,20 @@ public class SimpleDiskBackedImage<I extends Image<I>> extends DiskBackedImage<I
     }
 
     @Override
-    public synchronized I getImage() {
+    public I getImage() {
+        if (image == null) DiskBackedImageMemoryGuard.beforeLoading(manager, heapMemory()); // before acquiring the lock of this image (avoids deadlocks with eviction)
+        return getImageSync();
+    }
+
+    private synchronized I getImageSync() {
         if (image == null ) {
+            DiskBackedImageMemoryGuard.enter(); // lock of this image is held: no guard for nested loadings
             try {
                 image = manager.openImageContent(this);
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } finally {
+                DiskBackedImageMemoryGuard.exit();
             }
         } else { // case calibration / offset have been modified on this object
             if (!image.getOffset().sameOffset(this)) image.resetOffset().translate(this);

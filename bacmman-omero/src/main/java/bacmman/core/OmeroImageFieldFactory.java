@@ -51,7 +51,15 @@ public class OmeroImageFieldFactory {
         ArrayList<MultipleImageContainer> res = new ArrayList<>();
         switch (xp.getImportImageMethod()) {
             case SINGLE_FILE:
-                for (OmeroImageMetadata i : images) OmeroImageFieldFactory.addContainerSingleFile(i, xp, res, pcb);
+                if (pcb!=null) pcb.incrementTaskNumber(images.size());
+                for (OmeroImageMetadata i : images) {
+                    ImageFieldFactory.startTask(pcb, i.getFileNameAndId());
+                    try {
+                        OmeroImageFieldFactory.addContainerSingleFile(i, xp, res, pcb);
+                    } finally {
+                        ImageFieldFactory.endTask(pcb);
+                    }
+                }
                 break;
             case ONE_FILE_PER_CHANNEL_POSITION:
                 {
@@ -79,6 +87,7 @@ public class OmeroImageFieldFactory {
             default:
                 break;
         }
+        if (pcb!=null) pcb.setProgressMessage(null);
         Collections.sort(res, (MultipleImageContainer arg0, MultipleImageContainer arg1) -> arg0.getName().compareToIgnoreCase(arg1.getName()));
         for (MultipleImageContainer c : res) c.setPath(xp.getPath());
         return res;
@@ -107,26 +116,29 @@ public class OmeroImageFieldFactory {
         if (channelKeywords.length==0) return;
         List<OmeroImageMetadata> images0 = images.stream().filter(i -> i.getFileName().contains(channelKeywords[0])).collect(Collectors.toList());
         logger.debug("import images in dir: {} number of candidates: {}", images.get(0).getDatasetName(), images0.size());
+        if (pcb!=null) pcb.incrementTaskNumber(images0.size());
         for (OmeroImageMetadata i0 : images0) {
-            OmeroImageMetadata[] allChannels = new OmeroImageMetadata[channelKeywords.length];
-            allChannels[0] = i0;
-            boolean allFiles = true;
-            for (int c = 1; c < channelKeywords.length; ++c) {
-                String name = i0.getFileName().replace(channelKeywords[0], channelKeywords[c]);
-                String nameL = Utils.changeExtensionCase(name, true);
-                String nameU = Utils.changeExtensionCase(name, false);
-                OmeroImageMetadata ic = images.stream().filter(i -> i.getFileName().equals(name) || i.getFileName().equals(nameL) || i.getFileName().equals(nameU)).findAny().orElse(null);
-                if (ic==null) {
-                    logger.warn("missing file: {} (or {} or {})", name, nameL, nameU);
-                    allFiles=false;
-                    break;
-                } else allChannels[c] = ic;
+            String positionName = Utils.removeExtension(i0.getFileName().replace(channelKeywords[0], ""));
+            ImageFieldFactory.startTask(pcb, positionName);
+            try {
+                OmeroImageMetadata[] allChannels = new OmeroImageMetadata[channelKeywords.length];
+                allChannels[0] = i0;
+                boolean allFiles = true;
+                for (int c = 1; c < channelKeywords.length; ++c) {
+                    String name = i0.getFileName().replace(channelKeywords[0], channelKeywords[c]);
+                    String nameL = Utils.changeExtensionCase(name, true);
+                    String nameU = Utils.changeExtensionCase(name, false);
+                    OmeroImageMetadata ic = images.stream().filter(i -> i.getFileName().equals(name) || i.getFileName().equals(nameL) || i.getFileName().equals(nameU)).findAny().orElse(null);
+                    if (ic==null) {
+                        logger.warn("missing file: {} (or {} or {})", name, nameL, nameU);
+                        allFiles=false;
+                        break;
+                    } else allChannels[c] = ic;
+                }
+                if (allFiles) addContainerChannel(allChannels, positionName, xp, containersTC, pcb);
+            } finally {
+                ImageFieldFactory.endTask(pcb);
             }
-            if (allFiles) {
-                String name = Utils.removeExtension(i0.getFileName().replace(channelKeywords[0], ""));
-                addContainerChannel(allChannels, name, xp, containersTC, pcb);
-            }
-            
         }
     }
 
@@ -157,98 +169,106 @@ public class OmeroImageFieldFactory {
             pcb.incrementTaskNumber(filesByPosition.size());
         }
         PosLoop : for (Entry<String, List<OmeroImageMetadata>> positionFiles : filesByPosition.entrySet()) {
-            logger.debug("Pos: {}, grouping {} files by channels...", positionFiles.getKey(), positionFiles.getValue().size());
-            String[] sortedChannelKW = Stream.of(channelKeywords).sorted(Comparator.comparingInt(s->-s.length())).toArray(String[]::new); // longer channel kw first, in case some kw have same start
-            Map<String, List<OmeroImageMetadata>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getFileName(), sortedChannelKW, "")));
-            logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
-            int nDistinctChannels = (int)Stream.of(channelKeywords).distinct().count();
-            if (filesByChannel.size()==nDistinctChannels) {
-                Integer frameNumber = null;
-                boolean ok = true;
-                Map<String, List<OmeroImageMetadata>> sortedFilesByChannel = new TreeMap<>();
-                for (Entry<String, List<OmeroImageMetadata>> channelFiles : filesByChannel.entrySet()) {
-                    logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
-                    Map<Integer, OmeroImageMetadata> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getFileName(), timePattern), Function.identity()));
-                    logger.debug("files grouped. checking frame continuity...");
-                    filesByTimePoint = new TreeMap<>(filesByTimePoint);
-                    List<Integer> tpList = new ArrayList<>(filesByTimePoint.keySet());
-                    int minTimePoint = tpList.get(0);
-                    int maxFrameNumberSuccessive=1;
-                    while(maxFrameNumberSuccessive<tpList.size() && tpList.get(maxFrameNumberSuccessive-1)+1==tpList.get(maxFrameNumberSuccessive)) {++maxFrameNumberSuccessive;}
-                    int maxTimePoint = tpList.get(tpList.size()-1);
-                    //int maxTimePoint = Collections.max(filesByTimePoint.entrySet(), (e1, e2) -> e1.getKey() - e2.getKey()).getKey();
-                    //int minTimePoint = Collections.min(filesByTimePoint.entrySet(), (e1, e2) -> e1.getKey() - e2.getKey()).getKey();
-                    int theoframeNumberCurrentChannel = maxTimePoint-minTimePoint+1;
+            ImageFieldFactory.startTask(pcb, positionFiles.getKey());
+            ImageFieldFactory.startSteps(pcb, 2, "Grouping files by channel and frame");
+            try {
+                logger.debug("Pos: {}, grouping {} files by channels...", positionFiles.getKey(), positionFiles.getValue().size());
+                String[] sortedChannelKW = Stream.of(channelKeywords).sorted(Comparator.comparingInt(s->-s.length())).toArray(String[]::new); // longer channel kw first, in case some kw have same start
+                Map<String, List<OmeroImageMetadata>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getFileName(), sortedChannelKW, "")));
+                logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
+                int nDistinctChannels = (int)Stream.of(channelKeywords).distinct().count();
+                if (filesByChannel.size()==nDistinctChannels) {
+                    Integer frameNumber = null;
+                    boolean ok = true;
+                    Map<String, List<OmeroImageMetadata>> sortedFilesByChannel = new TreeMap<>();
+                    for (Entry<String, List<OmeroImageMetadata>> channelFiles : filesByChannel.entrySet()) {
+                        logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
+                        Map<Integer, OmeroImageMetadata> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getFileName(), timePattern), Function.identity()));
+                        logger.debug("files grouped. checking frame continuity...");
+                        filesByTimePoint = new TreeMap<>(filesByTimePoint);
+                        List<Integer> tpList = new ArrayList<>(filesByTimePoint.keySet());
+                        int minTimePoint = tpList.get(0);
+                        int maxFrameNumberSuccessive=1;
+                        while(maxFrameNumberSuccessive<tpList.size() && tpList.get(maxFrameNumberSuccessive-1)+1==tpList.get(maxFrameNumberSuccessive)) {++maxFrameNumberSuccessive;}
+                        int maxTimePoint = tpList.get(tpList.size()-1);
+                        //int maxTimePoint = Collections.max(filesByTimePoint.entrySet(), (e1, e2) -> e1.getKey() - e2.getKey()).getKey();
+                        //int minTimePoint = Collections.min(filesByTimePoint.entrySet(), (e1, e2) -> e1.getKey() - e2.getKey()).getKey();
+                        int theoframeNumberCurrentChannel = maxTimePoint-minTimePoint+1;
                     
-                    if (theoframeNumberCurrentChannel != maxFrameNumberSuccessive) {
-                        logger.warn("Position: {}, missing time points for channel: {}, 1st: {}, last: {}, count: {}, max successive: {}", positionFiles.getKey(), channelFiles.getKey(), minTimePoint, maxTimePoint, filesByTimePoint.size(), maxFrameNumberSuccessive);
-                        //ok = false;
-                        //break;
-                    } 
-                    // check if all channels have same number of Frames
-                    if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
-                    else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
-                    else {
-                        if (maxFrameNumberSuccessive!=1 && frameNumber!=maxFrameNumberSuccessive) {
-                            logger.warn("Position: {}, Channel: {}, {} timepoint found instead of {}", positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);
-                            if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+", Channel: "+channelFiles.getKey()+", "+maxFrameNumberSuccessive+" timepoint found instead of "+frameNumber);
-                            ok = false;
-                            break;
-                        }
-                    }
-                    sortedFilesByChannel.put(channelFiles.getKey(), new ArrayList<>(filesByTimePoint.values()));
-                    logger.debug("continuity checked");
-                }
-                if (ok) {
-                    logger.debug("creating container...");
-                    List<List<String>> fileIDsCT = new ArrayList<>(sortedFilesByChannel.size());
-                    Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
-                    List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
-                    int[] sizeZC = new int[sortedFilesByChannel.size()];
-                    Map<String, Boolean> invertTZ_CT = new HashMap<>();
-                    int cIdx = 0;
-                    for (String c : channelKeywords) {
-                        fileIDsCT.add(sortedFilesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
-                        Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(cIdx).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(cIdx);
-                        List<OmeroImageMetadata> files = sortedFilesByChannel.get(c);
-                        for (int t = 0; t<files.size(); ++t) {
-                            OmeroImageMetadata meta = sortedFilesByChannel.get(c).get(t);
-                            boolean invertTZ = false;
-                            if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) invertTZ = true;
-                            else if (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && meta.getSizeT()>1 && meta.getSizeZ()==1) invertTZ = true;
-                            if (t==0) sizeZC[cIdx] = invertTZ ? meta.getSizeT() : meta.getSizeZ();
-                            else if (sizeZC[cIdx]!= (invertTZ ? meta.getSizeT() : meta.getSizeZ())){
-                                logger.warn("Position: {}, Channel: {}, Frame: {} invalid number of slices: {} instead of {}", positionFiles.getKey(), c, t, invertTZ ? meta.getSizeT() : meta.getSizeZ(), sizeZC[cIdx]);
-                                if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+", Channel: "+cIdx+", Frame: "+t+" invalid number of slices: "+(invertTZ ? meta.getSizeT() : meta.getSizeZ())+" instead of :"+sizeZC[cIdx]);
+                        if (theoframeNumberCurrentChannel != maxFrameNumberSuccessive) {
+                            logger.warn("Position: {}, missing time points for channel: {}, 1st: {}, last: {}, count: {}, max successive: {}", positionFiles.getKey(), channelFiles.getKey(), minTimePoint, maxTimePoint, filesByTimePoint.size(), maxFrameNumberSuccessive);
+                            //ok = false;
+                            //break;
+                        } 
+                        // check if all channels have same number of Frames
+                        if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
+                        else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
+                        else {
+                            if (maxFrameNumberSuccessive!=1 && frameNumber!=maxFrameNumberSuccessive) {
+                                logger.warn("Position: {}, Channel: {}, {} timepoint found instead of {}", positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);
+                                if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+", Channel: "+channelFiles.getKey()+", "+maxFrameNumberSuccessive+" timepoint found instead of "+frameNumber);
                                 ok = false;
                                 break;
                             }
-                            invertTZ_CT.put(MultipleImageContainerPositionChannelFrame.getKeyCT(cIdx, t), invertTZ);
                         }
-                        ++cIdx;
+                        sortedFilesByChannel.put(channelFiles.getKey(), new ArrayList<>(filesByTimePoint.values()));
+                        logger.debug("continuity checked");
                     }
                     if (ok) {
-                        String refChan = channelKeywords[0];
-                        containersTC.add(
-                                new MultipleImageContainerPositionChannelFrame(
-                                        fileIDsCT,
-                                        frameNumber,
-                                        xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList()),
-                                        invertTZ_CT,
-                                        sizeZC,
-                                        sortedFilesByChannel.get(refChan).get(0).getScaleXY(),
-                                        sortedFilesByChannel.get(refChan).get(0).getScaleZ(),
-                                        positionFiles.getKey()
-                                ));
-                        logger.debug("container created");
+                        logger.debug("creating container...");
+                        ImageFieldFactory.nextStep(pcb, "Checking z-slices and creating position");
+                        ProgressCallback.SubProgress fileProgress = ImageFieldFactory.stepProgress(pcb, Arrays.stream(channelKeywords).mapToInt(c -> sortedFilesByChannel.get(c).size()).sum());
+                        List<List<String>> fileIDsCT = new ArrayList<>(sortedFilesByChannel.size());
+                        Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
+                        List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
+                        int[] sizeZC = new int[sortedFilesByChannel.size()];
+                        Map<String, Boolean> invertTZ_CT = new HashMap<>();
+                        int cIdx = 0;
+                        for (String c : channelKeywords) {
+                            fileIDsCT.add(sortedFilesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
+                            Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(cIdx).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(cIdx);
+                            List<OmeroImageMetadata> files = sortedFilesByChannel.get(c);
+                            for (int t = 0; t<files.size(); ++t) {
+                                OmeroImageMetadata meta = sortedFilesByChannel.get(c).get(t);
+                                boolean invertTZ = false;
+                                if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) invertTZ = true;
+                                else if (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && meta.getSizeT()>1 && meta.getSizeZ()==1) invertTZ = true;
+                                if (t==0) sizeZC[cIdx] = invertTZ ? meta.getSizeT() : meta.getSizeZ();
+                                else if (sizeZC[cIdx]!= (invertTZ ? meta.getSizeT() : meta.getSizeZ())){
+                                    logger.warn("Position: {}, Channel: {}, Frame: {} invalid number of slices: {} instead of {}", positionFiles.getKey(), c, t, invertTZ ? meta.getSizeT() : meta.getSizeZ(), sizeZC[cIdx]);
+                                    if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+", Channel: "+cIdx+", Frame: "+t+" invalid number of slices: "+(invertTZ ? meta.getSizeT() : meta.getSizeZ())+" instead of :"+sizeZC[cIdx]);
+                                    ok = false;
+                                    break;
+                                }
+                                invertTZ_CT.put(MultipleImageContainerPositionChannelFrame.getKeyCT(cIdx, t), invertTZ);
+                                fileProgress.increment();
+                            }
+                            ++cIdx;
+                        }
+                        if (ok) {
+                            String refChan = channelKeywords[0];
+                            containersTC.add(
+                                    new MultipleImageContainerPositionChannelFrame(
+                                            fileIDsCT,
+                                            frameNumber,
+                                            xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList()),
+                                            invertTZ_CT,
+                                            sizeZC,
+                                            sortedFilesByChannel.get(refChan).get(0).getScaleXY(),
+                                            sortedFilesByChannel.get(refChan).get(0).getScaleZ(),
+                                            positionFiles.getKey()
+                                    ));
+                            logger.debug("container created");
+                        }
                     }
-                }
                 
-            } else {
-                logger.warn("Position: {}, {} channels instead of {}", positionFiles.getKey(), filesByChannel.size(), channelKeywords.length);
-                if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+". Wrong channel number: "+filesByChannel.size()+" channels instead of "+channelKeywords.length);
+                } else {
+                    logger.warn("Position: {}, {} channels instead of {}", positionFiles.getKey(), filesByChannel.size(), channelKeywords.length);
+                    if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+". Wrong channel number: "+filesByChannel.size()+" channels instead of "+channelKeywords.length);
+                }
+            } finally {
+                ImageFieldFactory.endTask(pcb);
             }
-            if (pcb!=null) pcb.incrementProgress();
         }
     }
     
@@ -269,6 +289,9 @@ public class OmeroImageFieldFactory {
         boolean[] invertZTbyC = new boolean[imageC.length];
         List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
         for (int c = 0; c< imageC.length; ++c) {
+            String step = "Checking channel "+c+": "+imageC[c].getFileName();
+            if (c==0) ImageFieldFactory.startSteps(pcb, imageC.length, step);
+            else ImageFieldFactory.nextStep(pcb, step);
             Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(c).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(c);
             OmeroImageMetadata cur = imageC[c];
             int sizeT = cur.getSizeT();

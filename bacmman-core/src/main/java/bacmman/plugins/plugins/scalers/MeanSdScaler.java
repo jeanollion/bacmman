@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramFactory;
+import bacmman.image.HistogramSource;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
 import bacmman.image.Image;
@@ -21,6 +23,14 @@ public class MeanSdScaler implements HistogramScaler, Hint {
     protected void log(double[] meanSd) {
         if (scaleLogger!=null) scaleLogger.accept("MeanSd Scaler : center="+meanSd[0]+", sd="+meanSd[1]);
     }
+    /**
+     * Uses the fine histogram of the source (one bin per value for integer values): statistics do not depend on binning
+     */
+    @Override
+    public void setHistogram(HistogramSource source) {
+        setHistogram(source.getFineHistogram());
+    }
+
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
@@ -32,8 +42,8 @@ public class MeanSdScaler implements HistogramScaler, Hint {
     }
     public static double[] getMeanSd(Histogram histogram) {
         double total = histogram.count();
-        double mean = IntStream.range(0, histogram.getData().length).mapToDouble(i->histogram.getValueFromIdx(i) * histogram.getData()[i]).sum() / total;
-        double sd = IntStream.range(0, histogram.getData().length).mapToDouble(i-> Math.pow(histogram.getValueFromIdx(i) - mean, 2) * histogram.getData()[i]).sum() / total;
+        double mean = IntStream.range(0, histogram.getData().length).mapToDouble(i->histogram.getBinCenter(i) * histogram.getData()[i]).sum() / total;
+        double sd = IntStream.range(0, histogram.getData().length).mapToDouble(i-> Math.pow(histogram.getBinCenter(i) - mean, 2) * histogram.getData()[i]).sum() / total;
         return new double[] {mean, Math.sqrt(sd)};
     }
     @Override
@@ -57,6 +67,12 @@ public class MeanSdScaler implements HistogramScaler, Hint {
         this.transformInputImage = transformInputImage;
         return this;
     }
+    @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(mean, sd);
+    }
+
     @Override
     public boolean isConfigured() {
         return histogram != null;

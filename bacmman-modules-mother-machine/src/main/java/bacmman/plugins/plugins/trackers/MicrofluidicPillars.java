@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -35,7 +36,8 @@ public class MicrofluidicPillars implements TrackerSegmenter, TestableProcessing
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
-        trackPreFilters.filter(objectClassIdx, parentTrack);
+        // track pre-filters (that can report progress, e.g. when they predict) then segmentation and tracking (that do not report): the second stage is completed with the current sub-task
+        if (!trackPreFilters.isEmpty()) ProgressContext.stages(2).run("Track pre-filters", () -> trackPreFilters.filter(objectClassIdx, parentTrack));
         Map<SegmentedObject, Integer> parentMapIdx = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, Function.identity()));
         // generate time averages
         int n = Math.max(1, parentTrack.size() / this.frameWindow.getIntValue());

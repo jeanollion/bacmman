@@ -30,10 +30,10 @@ public class SegmentationExporter {
             }
             sel = pSel;
         }
-        Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));;
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
         features.add(new FeatureExtractor.Feature("masks",  new Labels(), objectClass, selFilter ));
-        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, -1, new int[0], true, 1, 1, 1, compression);
+        DatasetExportTask resultingTask = new DatasetExportTask(mDAO).setParametersWithSelections(outputFile, Collections.singletonList(sel), features, null, null, -1, new int[0], true, 1, 1, 1, compression);
+        resultingTask.setProgressTracker(new ProgressTracker(null)); // run within another task: progress is not displayed
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());
     }
@@ -47,10 +47,10 @@ public class SegmentationExporter {
             }
             sel = pSel;
         }
-        Task resultingTask = new Task(mDAO).setPositions(sel.getAllPositions().toArray(new String[0]));
         List<FeatureExtractor.Feature> features = new ArrayList<>(1);
         features.add(new FeatureExtractor.Feature("Contours", new Contours(), objectClass, (String)null ));
-        resultingTask.setExtractDSWithSelection(outputFile, Collections.singletonList(sel), features, null, null, -1, new int[0], false, 1, 1, 1, compression);
+        DatasetExportTask resultingTask = new DatasetExportTask(mDAO).setParametersWithSelections(outputFile, Collections.singletonList(sel), features, null, null, -1, new int[0], false, 1, 1, 1, compression);
+        resultingTask.setProgressTracker(new ProgressTracker(null)); // run within another task: progress is not displayed
         resultingTask.runTask();
         if (!resultingTask.getErrors().isEmpty()) throw new MultipleException(resultingTask.getErrors());
     }

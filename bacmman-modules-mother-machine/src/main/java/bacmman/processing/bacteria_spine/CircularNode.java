@@ -192,7 +192,7 @@ public class CircularNode<T> implements Comparable<CircularNode> {
     public static <T> CircularNode<T> toCircularContour(List<T> orderedList) {
         CircularNode<T> first = new CircularNode(orderedList.get(0));
         CircularNode<T> previous=first;
-        for (int i = 0; i<orderedList.size();++i) previous = previous.setNext(orderedList.get(i));
+        for (int i = 1; i<orderedList.size();++i) previous = previous.setNext(orderedList.get(i)); // first element is already in the first node
         previous.setNext(first); // closes contour
         return first;
     }

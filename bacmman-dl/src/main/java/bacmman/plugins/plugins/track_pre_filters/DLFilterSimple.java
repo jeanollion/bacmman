@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.track_pre_filters;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
@@ -16,12 +18,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DLFilterSimple implements TrackPreFilter, Transformation, Transformation.ConfigurableTransformation, Transformation.Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
     static Logger logger = LoggerFactory.getLogger(DLFilterSimple.class);
@@ -92,9 +96,14 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
             }
         };
         logger.debug("segments: {}",Utils.toStringList(segments, s -> "["+s[0]+"; "+s[1]+")"));
+        // intensity scaling computed once on the whole movie (all segments) so that all batches are scaled identically
+        int[] frames = parentTrack.keySet().stream().mapToInt(i->i).sorted().toArray();
+        DLResizeAndScale dl = dlResample.withGlobalScaling(frames.length, parentTrack.get(frames[0]).getBounds(), (inputIdx, subset) -> IntStream.of(subset).mapToObj(f -> preFilteredImages.getImage(parentTrack.get(frames[f]))));
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(frames.length); // progress in predicted frames
         for (int[] segment : segments) {
             try {
-                predict(imageIO, segment[0], segment[1], dLengine);
+                progress.setMessage("DLFilterSimple: predicting frames " + segment[0] + "-" + (segment[1]-1));
+                predict(imageIO, segment[0], segment[1], dLengine, dl, progress);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -137,12 +146,23 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
 
             @Override
             public void set(int frame, Image img) throws IOException {
-                DiskBackedImage sdbi = preProcessedImagesManager.createDiskBackedImage(img, false, false);
+                DiskBackedImage sdbi = preProcessedImagesManager.createDiskBackedImage(img, false);
                 preProcessedImagesManager.storeDiskBackedImage(sdbi);
                 preProcessedImages.put(frame-minFrame, sdbi);
             }
         };
-        predict(imageIO, minFrame, minFrame+nFrames, getDLengine());
+        // intensity scaling computed once on the whole movie so that all batches are scaled identically
+        // no image dimension accessor: dimensions are read from the first frame (all frames are read for prediction anyway)
+        DLResizeAndScale dl = dlResample.withGlobalScaling(nFrames, imageIO.get(minFrame), (inputIdx, subset) -> IntStream.of(subset).mapToObj(f -> {
+            try {
+                return imageIO.get(minFrame + f);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }));
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(nFrames); // progress in predicted frames
+        progress.setMessage("DLFilterSimple: predicting");
+        predict(imageIO, minFrame, minFrame+nFrames, getDLengine(), dl, progress);
     }
 
     @Override
@@ -157,7 +177,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
 
     @Override
     public void clear() {
-        preProcessedImagesManager.clear(true);
+        preProcessedImagesManager.close();
         preProcessedImagesManager = null;
     }
 
@@ -198,7 +218,10 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
         void accept(int idx, Image[][][] pred) throws IOException;
     }
 
-    private void predict(ImageIO imageIO, int idxMin, int idxMaxExcl, DLEngine engine) throws IOException {
+    /**
+     * @param progress incremented by the number of predicted images (about the number of frames: edge frames can be taken from the output channels without prediction)
+     */
+    private void predict(ImageIO imageIO, int idxMin, int idxMaxExcl, DLEngine engine, DLResizeAndScale dl, ProgressCallback.SubProgress progress) throws IOException {
         int nImages = idxMaxExcl - idxMin;
         int increment = batchSize.getIntValue() == 0 ? nImages : (int)Math.ceil( (double)nImages / Math.ceil( (double)nImages / batchSize.getIntValue()) );
         if (!timelapse.getSelected()) {
@@ -206,7 +229,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
                 int batchSize = Math.min(nImages-i, increment);
                 Image[][][] inputSub = new Image[1][batchSize][1];
                 for (int j = 0; j<batchSize; ++j) inputSub[0][j][0] = imageIO.get(j+i+idxMin);
-                Image[][][] predictionONC =dlResample.predict(engine, inputSub);
+                Image[][][] predictionONC =dl.predict(engine, progress, batchSize, inputSub);
                 if (predictionONC[0][0].length != 1) throw new RuntimeException("Invalid output channel number. Model should return 1 channel");
                 Image[] pred = ResizeUtils.getChannel(predictionONC[0], 0);
                 for (int j = 0; j<batchSize; ++j) imageIO.set(j+i+idxMin, pred[j]);
@@ -217,7 +240,7 @@ public class DLFilterSimple implements TrackPreFilter, Transformation, Transform
             Boolean[] centralOnly = new Boolean[1];
             int[] channel = new int[1];
             UnaryOperator<Image[][][]> predict = (inputSub) -> {
-                Image[][][] predictionONC =dlResample.predict(engine, inputSub);
+                Image[][][] predictionONC =dl.predict(engine, progress, inputSub[0].length, inputSub);
                 if (centralOnly[0] == null) {
                     if (predictionONC[0][0].length == 1) centralOnly[0] = true;
                     else {

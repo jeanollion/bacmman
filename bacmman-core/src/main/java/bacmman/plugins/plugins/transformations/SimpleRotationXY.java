@@ -37,7 +37,7 @@ import bacmman.utils.Utils;
 public class SimpleRotationXY implements MultichannelTransformation, Hint {
     NumberParameter angle = new BoundedNumberParameter("Angle (degree)", 4, 0, -180, 180).setEmphasized(true);
     ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.BSPLINE5.toString(), false).setHint("The interpolation scheme to be used"+ImageTransformation.INTERPOLATION_HINT);
-    BooleanParameter removeIncomplete = new BooleanParameter("Remove incomplete rows and columns", false).setHint("If this option is not selected, the rotated image will be inscribed in a larger image filled with zeros");
+    BooleanParameter removeIncomplete = new BooleanParameter("Remove incomplete rows and columns", false).setHint("If this option is selected, the output image has the same size as the input image, otherwise it is enlarged to contain the whole rotated image. <br />In both cases, pixels whose position in the input image falls outside of the image are set to zero");
     BooleanParameter maintainMaximum = new BooleanParameter("Maintain Maximum Value", false).setHint("When interpolating with a polynomial of degree>1, pixels can be assigned values above the maximal value of the initial image. <br />This option will saturate the rotated image to the old maximal value.<br />This option is useful if the image's histogram has been saturated, in order to preserve the saturation value");
 
     Parameter[] parameters = new Parameter[]{angle, interpolation, removeIncomplete, maintainMaximum};

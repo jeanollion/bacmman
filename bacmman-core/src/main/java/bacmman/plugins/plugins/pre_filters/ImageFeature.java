@@ -42,14 +42,15 @@ public class ImageFeature implements PreFilter, Transformation.Filter, Hint {
 
     @Override
     public String getHintText() {
-        return "Collection of image transformations frequently used in image analysis" +
+        return "Collection of image features frequently used in image analysis, computed by convolution with sampled derivatives of a Gaussian function whose standard deviation is the <em>Scale</em> (in pixels). Pixels outside the image are assumed equal to the nearest border pixel. " +
+                "For 3D images, the scale along Z is either defined explicitly or computed from the XY scale and the image calibration, unless <em>Apply Slice by Slice</em> is selected." +
                 "<ul><li><em>Gaussian Smooth</em>: blurs the image using a Gaussian function, typically reduces the noise and the details</li>" +
-                "<li><em>Gradient Magnitude</em>: detects the amplitude edges, where the pixel grey levels change abruptly</li>" +
-                "<li><em>Laplacian</em>: The Laplacian is an isotropic measure of the 2nd spatial derivative of an image. It highlights the regions of rapid intensity change and is therefore often used for edge detection or spot-like structure detection</li>" +
-                "<li><em>Hessian</em>: Hessian matrix or Hessian is a square matrix of second-order partial derivatives of the image intensity. It describes its local curvature. <em>Hessian Max</em> is the maximum eigenvalue, <em>Hessian Min</em> is the minimum eigenvalue and <em>Hessian Det</em> is the determinant</li>" +
-                "<li><em>Structure</em>: The structure tensor, also referred to as the second-moment matrix, is a matrix derived from the gradient of the image. <em>Structure Max</em> is the maximum eigenvalue of the structure matrix. <em>Structure Det</em> is the determinant of the structure matrix.</li>" +
-                "<li><em>Shape Index</em>: Shape index 2/PI * atan( (k2+K2)/(k2-k1) ) where k1 & k2 are eignevalues of the Hessian. See Koenderink JJ van Doorn AJ (1992) Surface shape and curvature scales Image and Vision Computing 10:557–564. https://doi.org/10.1016/0262-8856(92)90076-F </li</ul>>" +
-                "Using <em>ImageScience</em> library: <a href='https://imagescience.org/meijering/software/featurej/'>https://imagescience.org/meijering/software/featurej/</a>";
+                "<li><em>Gradient</em>: magnitude of the gradient, high where the pixel grey levels change abruptly (edges)</li>" +
+                "<li><em>Laplacian</em>: isotropic measure of the 2nd spatial derivative of an image. It highlights the regions of rapid intensity change and is therefore often used for edge detection or spot-like structure detection. Values are inverted: bright spot-like structures give positive values</li>" +
+                "<li><em>Hessian</em>: square matrix of second-order partial derivatives of the image intensity, that describes its local curvature. <em>Hessian Max</em> is the maximum eigenvalue, <em>Hessian Min</em> is the minimum eigenvalue and <em>Hessian Det</em> is the determinant</li>" +
+                "<li><em>Structure</em>: the structure tensor, also referred to as the second-moment matrix, is the product of the gradient (computed at <em>Smooth Scale</em>) with itself, smoothed with a Gaussian function of standard deviation <em>Scale</em>. <em>Structure Max</em> is the eigenvalue of maximal absolute value, <em>Structure Det</em> is the determinant</li>" +
+                "<li><em>Shape Index</em>: 2/&pi; &times; atan( (k2+k1)/(k2-k1) ) where k1 &le; k2 are the eigenvalues of the Hessian computed at <em>Scale</em>. Always computed slice by slice. See Koenderink JJ, van Doorn AJ (1992) Surface shape and curvature scales, Image and Vision Computing 10:557–564. https://doi.org/10.1016/0262-8856(92)90076-F</li></ul>" +
+                "Normalization: <em>Laplacian</em> and <em>Hessian</em> values are multiplied by scale<sup>2</sup>&times;&radic;(2&pi;), <em>Structure</em> values by the squared <em>Smooth Scale</em>, so that values are comparable across scales";
     }
 
     public static enum Feature {
@@ -71,9 +72,9 @@ public class ImageFeature implements PreFilter, Transformation.Filter, Hint {
         }
     }
     ChoiceParameter feature = new ChoiceParameter("Feature", Utils.transform(Feature.values(), new String[Feature.values().length], f->f.name), Feature.GAUSS.name, false).setEmphasized(true);
-    ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setEmphasized(true).setHint("Scale of the operation in pixels").setEmphasized(true);
-    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true).setEmphasized(true);
-    ConditionalParameter<String> cond = new ConditionalParameter<>(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, scale, smoothScale);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setEmphasized(true).setHint("Scale of the operation in pixels: standard deviation of the Gaussian function. For <em>Structure</em> features: integration scale, i.e. scale of the smoothing of the structure tensor").setEmphasized(true);
+    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true).setEmphasized(true).setHint("Scale of the gaussian derivatives used to compute the gradient, in pixels");
+    ConditionalParameter<String> cond = new ConditionalParameter<>(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, scale, smoothScale).setActionParameters(Feature.StructureDet.name, scale, smoothScale);
     BooleanParameter applySliceBySlice = new BooleanParameter("Apply Slice by Slice", false).setEmphasized(true).setHint("For 3D image, computes the feature slice by slice i.e. returns a stack of 2D features");
 
     public ImageFeature() {}
@@ -108,22 +109,29 @@ public class ImageFeature implements PreFilter, Transformation.Filter, Hint {
         //logger.debug("ImageFeauture: feature: {}, scale: {}, scaleZ: {} (from image: {}) normScale: {}", feature.getSelectedItem(), scale.getScaleXY(), scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), scale.getUseImageCalibration(), normScale.getValue());
         double scaleXY = scale.getScaleXY();
         double scaleZ = scale.getScaleZ(input.getScaleXY(), input.getScaleZ());
-        Function<Image, Image> fun = getFeatureFunction(scaleXY, scaleZ, allowInplaceModification);
+        double smoothScaleXY = smoothScale.getScaleXY();
+        double smoothScaleZ = smoothScale.getScaleZ(input.getScaleXY(), input.getScaleZ());
+        Function<Image, Image> fun = getFeatureFunction(scaleXY, scaleZ, smoothScaleXY, smoothScaleZ, allowInplaceModification);
         if (applySliceBySlice.getSelected()) return ImageOperations.applyPlaneByPlane(input, fun);
         else return fun.apply(input);
     }
 
     public Function<Image, Image> getFeatureFunction(double scaleXY, double scaleZ, boolean canModifyImage) {
+        double smoothScaleXY = smoothScale.getScaleXY();
+        return getFeatureFunction(scaleXY, scaleZ, smoothScaleXY, scaleXY > 0 ? smoothScaleXY * scaleZ / scaleXY : smoothScaleXY, canModifyImage); // same anisotropy as scale
+    }
+
+    public Function<Image, Image> getFeatureFunction(double scaleXY, double scaleZ, double smoothScaleXY, double smoothScaleZ, boolean canModifyImage) {
         Feature f = Feature.getFeature(feature.getSelectedItem());
         switch(f) {
             case GAUSS:
                 return input -> ImageFeatures.gaussianSmooth(input, scaleXY, scaleZ, canModifyImage);
             case GRAD:
-                return input -> ImageFeatures.getGradientMagnitude(input, scaleXY, canModifyImage);
+                return input -> ImageFeatures.getGradientMagnitude(input, scaleXY, scaleZ, canModifyImage);
             case LoG:
-                return input -> ImageFeatures.getLaplacian(input, scaleXY, true, canModifyImage);
+                return input -> ImageFeatures.getLaplacian(input, scaleXY, scaleZ, true, canModifyImage);
             case HessianDet:
-                return input -> ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, canModifyImage)[1];
+                return input -> ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, scaleZ, canModifyImage)[1];
             case HessianMax:
                 return input -> ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage)[0];
             case HessianMin:
@@ -132,11 +140,11 @@ public class ImageFeature implements PreFilter, Transformation.Filter, Hint {
                         return hess[hess.length-1];
                 };
             case StructureMax:
-                return input -> ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[0];
+                return input -> ImageFeatures.getStructure(input, smoothScaleXY, smoothScaleZ, scaleXY, scaleZ, canModifyImage)[0];
             case StructureDet:
-                return input -> ImageFeatures.getStructureMaxAndDeterminant(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[1];
+                return input -> ImageFeatures.getStructureMaxAndDeterminant(input, smoothScaleXY, smoothScaleZ, scaleXY, scaleZ, canModifyImage)[1];
             case ShapeIndex:
-                return input -> ImageFeatures.getShapeIndex(input, smoothScale.getScaleXY(), canModifyImage);
+                return input -> ImageFeatures.getShapeIndex(input, scaleXY, canModifyImage);
             default:
                 throw new IllegalArgumentException("Feature "+feature.getSelectedItem()+"not supported");
         }

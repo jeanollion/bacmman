@@ -23,12 +23,12 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_IQR, LOCAL_THLD_MAD, LOCAL_THLD_MEAN_SD, LOCAL_THLD_GRADIENT}
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 5, 2, null, null).setEmphasized(true)
             .setSimpleHint("Lower value of this threshold will results in smaller cells.<br /><br /><b>This threshold should be calibrated for each new experimental setup</b>");
-    protected NumberParameter alpha = new BoundedNumberParameter("Alpha", 5, 1, 0, 1).setEmphasized(false)
+    protected NumberParameter alpha = new BoundedNumberParameter("Alpha", 5, 0.75, 0, 1).setEmphasized(false)
             .setSimpleHint("Lower value of this threshold will results in bigger cells.<br />");
 
     ScaleXYZParameter gradientScale = new ScaleXYZParameter("Gradient Scale", 1);
     FloatParameter sizeRatioLimit = new FloatParameter("Size Ratio Limit", 1).setLowerBound(0.1).setUpperBound(1).setHint("Limit threshold to a fraction of the object size. 1 = no limit");
-    FloatParameter dilationRadius = new FloatParameter("Dilate Objects", 0).setHint("If greater than zero, dilates objects before running the erosion");
+    FloatParameter dilationRadius = new FloatParameter("Dilate Objects", 3).setHint("If greater than zero, dilates objects before running the erosion");
     BooleanParameter darkBackground = new BooleanParameter("Dark Background", true);
     String hint = "<b>Intensity-based contour refinement methods</b> that propagate from object boundaries inward, removing background contamination.<br/><br/>" +
             "All methods analyze the intensity distribution <i>within each object</i> to compute a local threshold:<br/><br/>" +
@@ -41,7 +41,7 @@ public class ContourAdjustment implements PostFilter, TestableProcessingPlugin {
             "Classical method. Works best for symmetric, Gaussian-like distributions but sensitive to outliers.</li>" +
             "</ul>" +
             "<b>Note:</b> For dark backgrounds, the factor is <i>subtracted</i> from the central value (Median/Mean); for bright backgrounds, it is <i>added</i>.";
-    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_MAD).setEmphasized(true).setHint(hint);
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_GRADIENT).setEmphasized(true).setHint(hint);
     ConditionalParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentCond = new ConditionalParameter<>(contourAdjustmentMethod)
             .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_IQR, localThresholdFactor)
             .setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_MEAN_SD, localThresholdFactor)

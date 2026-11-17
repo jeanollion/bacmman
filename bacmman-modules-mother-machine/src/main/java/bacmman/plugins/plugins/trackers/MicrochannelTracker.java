@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -189,8 +191,15 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         if (parentTrack.isEmpty()) return;
         // segmentation
         final MicrochannelSegmenter.Result[] boundingBoxes = new MicrochannelSegmenter.Result[parentTrack.size()];
-        trackPreFilters.filter(structureIdx, parentTrack);
-        TrackConfigurable.TrackConfigurer<? super MicrochannelSegmenter> applyToSegmenter = TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
+        // stages that can each report progress (e.g. a track pre-filter that predicts)
+        boolean hasTrackPreFilters = !trackPreFilters.isEmpty();
+        MicrochannelSegmenter seg = segmenter.instantiatePlugin();
+        boolean trackConfigurable = seg instanceof TrackConfigurable;
+        ProgressContext.Stages stages = ProgressContext.stages((hasTrackPreFilters ? 1 : 0) + (trackConfigurable ? 1 : 0) + 2);
+        if (hasTrackPreFilters) stages.run("Track pre-filters", () -> trackPreFilters.filter(structureIdx, parentTrack));
+        List<TrackConfigurable.TrackConfigurer<? super MicrochannelSegmenter>> configurer = new ArrayList<>(1);
+        if (trackConfigurable) stages.run("Configuring segmenter", () -> configurer.add(TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, seg)));
+        TrackConfigurable.TrackConfigurer<? super MicrochannelSegmenter> applyToSegmenter = configurer.isEmpty() ? null : configurer.get(0);
         IntConsumer exe =  idx -> {
             SegmentedObject parent = parentTrack.get(idx);
             MicrochannelSegmenter s = segmenter.instantiatePlugin();
@@ -209,14 +218,22 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             //logger.debug("Window: {} -> {} ({})", s, count, log);
             Core.waitDiskManagerFreeMemory();
         };
-        ThreadRunner.parallelExecutionBySegments(exe, 0, parentTrack.size(), 200, endOfSegment);
+        stages.run("Segmentation", () -> {
+            ProgressCallback.SubProgress progress = ProgressContext.subProgress(parentTrack.size()); // progress in segmented frames. Thread-safe
+            ThreadRunner.parallelExecutionBySegments(idx -> {
+                exe.accept(idx);
+                progress.increment();
+            }, 0, parentTrack.size(), 200, endOfSegment);
+        });
         if (applyToSegmenter !=null) applyToSegmenter.close();
         Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i->boundingBoxes[i]));
 
         // tracking
         if (debug) logger.debug("mc2: {}", Utils.toStringList(parentTrack, p->"t:"+p.getFrame()+"->"+p.getChildren(structureIdx).count()));
-        track(structureIdx, parentTrack, editor);
-        fillGaps(structureIdx, parentTrack, allowGaps.getSelected(), factory, editor);
+        stages.run("Tracking", () -> {
+            track(structureIdx, parentTrack, editor);
+            fillGaps(structureIdx, parentTrack, allowGaps.getSelected(), factory, editor);
+        });
         if (debug) logger.debug("mc3: {}", Utils.toStringList(parentTrack, p->"t:"+p.getFrame()+"->"+p.getChildren(structureIdx).count()));
         // compute mean of Y-shifts & width for each microchannel and modify objects
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);

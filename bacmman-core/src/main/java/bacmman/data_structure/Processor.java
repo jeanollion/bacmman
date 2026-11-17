@@ -26,6 +26,7 @@ import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
@@ -38,6 +39,7 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -111,7 +113,7 @@ public class Processor {
     public static void preProcessImages(MasterDAO db, double memoryLimit)  throws Exception {
         Experiment xp = db.getExperiment();
         for (int i = 0; i<xp.getPositionCount(); ++i) {
-            preProcessImages(xp.getPosition(i), db.getDao(xp.getPosition(i).getName()), false, memoryLimit, null);
+            preProcessImages(xp.getPosition(i), db.getDao(xp.getPosition(i).getName()), true, memoryLimit, null);
         }
     }
     
@@ -127,10 +129,14 @@ public class Processor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        // pre-processed images are re-computed: existing objects (including the root track) are no longer valid.
+        // erase() is a no-op on a read-only DAO, so stale objects would survive: refuse to pre-process in that case
+        if (dao.isReadOnly()) throw new IOException("Position: "+position.getName()+" is read-only (locked by another process?): cannot delete existing objects before pre-processing");
         if (deleteObjects) dao.erase();
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         setTransformations(position, memoryLimit, pcb); // perform pre-processing
         position.recomputeSizeZ(); // set sizeZC
+        checkPreProcessedImageSizeXY(position);
         if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
@@ -140,6 +146,7 @@ public class Processor {
         PreProcessingChain ppc = position.getPreProcessingChain();
         logger.info("pre-processing position: {}", position.getName());
         Runnable clearMem = setTransformations(images, ppc.getTransformations(true), memoryLimit, pcb);
+        if (pcb!=null) pcb.setSubTaskMessage("Applying transformations and saving");
         logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
         images.applyTransformationsAndSave(true, false); // here : should be able to close if necessary
         clearMem.run();
@@ -158,8 +165,19 @@ public class Processor {
             logger.info("adding transformation: {} of class: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), tpp.getInputChannel(), tpp.getOutputChannels());
             if (transfo instanceof Transformation.ConfigurableTransformation) {
                 Transformation.ConfigurableTransformation ct = (Transformation.ConfigurableTransformation)transfo;
+                if (pcb!=null) pcb.setSubTaskMessage("Configuring: "+transfo.getClass().getSimpleName());
                 logger.debug("before configuring: {}", Utils.getMemoryUsage());
-                ct.computeConfigurationData(tpp.getInputChannel(), images);
+                try {
+                    ProgressContext.run(pcb, () -> { // transformations that predict report their progress through the context
+                        try {
+                            ct.computeConfigurationData(tpp.getInputChannel(), images);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    });
+                } catch (UncheckedIOException e) {
+                    throw e.getCause();
+                }
                 logger.debug("after configuring: {}", Utils.getMemoryUsage());
                 if (pcb!=null) pcb.incrementSubTask();
                 configurableTransformations.add((Transformation.ConfigurableTransformation)transfo);
@@ -184,14 +202,102 @@ public class Processor {
     
     public static List<SegmentedObject> getOrCreateRootTrack(ObjectDAO dao) throws IOException {
         List<SegmentedObject> res = dao.getRoots();
+        Position position = dao.getExperiment().getPosition(dao.getPositionName());
         if (res==null || res.isEmpty()) {
-            res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
+            res = position.createRootObjects(dao);
             if (res!=null && !res.isEmpty()) {
                 dao.setRoots(res); // also stores
             }
-        } else dao.getExperiment().getPosition(dao.getPositionName()).setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
+        } else {
+            checkRootTrackSize(position, res);
+            res = adjustRootTrackToFrameNumber(dao, position, res);
+            position.setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
+        }
         if (res==null || res.isEmpty()) throw new IOException("no pre-processed image found");
         return res;
+    }
+
+    /**
+     * Root objects are created with the XY size of pre-processed images (see {@link Position#getMask()}) and are not updated afterwards.
+     * If pre-processed images have a different size, stored objects do not correspond to them and must be deleted (or images pre-processed again)
+     */
+    protected static void checkRootTrackSize(Position position, List<SegmentedObject> roots) throws IOException {
+        BlankMask mask = position.getMask();
+        if (mask==null) return;
+        List<SegmentedObject> wrongSize = roots.stream().filter(r -> r.getBounds().sizeX()!=mask.sizeX() || r.getBounds().sizeY()!=mask.sizeY()).collect(Collectors.toList());
+        if (!wrongSize.isEmpty()) {
+            SegmentedObject r = wrongSize.get(0);
+            throw new IOException("Objects of position "+position.getName()+" do not match pre-processed images: "+wrongSize.size()+"/"+roots.size()+" root objects (e.g. frame "+r.getFrame()+": "+r.getBounds().sizeX()+"x"+r.getBounds().sizeY()+") differ from pre-processed images ("+mask.sizeX()+"x"+mask.sizeY()+"). Re-run pre-processing or delete objects of this position");
+        }
+    }
+
+    /**
+     * All channels of pre-processed images must have the same size in XY: root objects are created with the size of the first channel
+     */
+    protected static void checkPreProcessedImageSizeXY(Position position) throws IOException {
+        int nC = position.getExperiment().getChannelImageCount(true);
+        BlankMask ref = position.getImageDAO().getPreProcessedImageProperties(0);
+        if (ref==null) return;
+        for (int c = 1; c<nC; ++c) {
+            BlankMask props = position.getImageDAO().getPreProcessedImageProperties(c);
+            if (props!=null && (props.sizeX()!=ref.sizeX() || props.sizeY()!=ref.sizeY())) {
+                throw new IOException("Position "+position.getName()+": pre-processed channel "+c+" has size "+props.sizeX()+"x"+props.sizeY()+" whereas channel 0 has size "+ref.sizeX()+"x"+ref.sizeY()+". All channels must have the same size in XY: check that transformations that change image size (crop, rotation, stabilization...) are applied to all channels");
+            }
+        }
+    }
+
+    /**
+     * Makes sure the stored root track has exactly one root per frame of the position (e.g. if frame trimming was modified after pre-processing):
+     * roots (and their children) beyond the last frame are deleted, missing roots are created, and track links are updated.
+     * @return the adjusted root track, sorted by frame
+     */
+    protected static List<SegmentedObject> adjustRootTrackToFrameNumber(ObjectDAO dao, Position position, List<SegmentedObject> roots) throws IOException {
+        int frameNumber = position.getFrameNumber(false);
+        if (frameNumber<=0) return roots;
+        roots = new ArrayList<>(roots);
+        roots.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+        List<SegmentedObject> toDelete = roots.stream().filter(r -> r.getFrame()>=frameNumber).collect(Collectors.toList());
+        Set<Integer> existingFrames = roots.stream().map(SegmentedObject::getFrame).filter(f -> f<frameNumber).collect(Collectors.toSet());
+        int[] missingFrames = IntStream.range(0, frameNumber).filter(f -> !existingFrames.contains(f)).toArray();
+        if (toDelete.isEmpty() && missingFrames.length==0) return roots;
+        logger.debug("Position: {} root track has {} frames but position has {} frames: deleting {} roots, creating {} roots", position.getName(), roots.size(), frameNumber, toDelete.size(), missingFrames.length);
+        if (!toDelete.isEmpty()) {
+            dao.delete(toDelete, true, false, false);
+            roots.removeAll(toDelete);
+        }
+        List<SegmentedObject> modified = new ArrayList<>();
+        if (missingFrames.length>0) {
+            BlankMask mask = position.getMask();
+            if (mask==null) throw new IOException("no pre-processed image found");
+            SegmentedObjectAccessor accessor = dao.getMasterDAO().getAccess();
+            for (int f : missingFrames) {
+                SegmentedObject r = accessor.createRoot(f, mask, dao);
+                roots.add(r);
+                modified.add(r);
+            }
+            roots.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+        }
+        // reset root track links
+        if (!roots.isEmpty()) {
+            roots.get(0).setPrevious(null);
+            roots.get(roots.size()-1).setNext(null);
+            SegmentedObjectUtils.setTrackLinks(roots);
+            modified = roots; // track head and links may have changed for all roots
+        }
+        // children of the new last frame may link to deleted objects
+        if (!toDelete.isEmpty() && !roots.isEmpty()) {
+            SegmentedObject lastRoot = roots.get(roots.size()-1);
+            List<SegmentedObject> modifiedChildren = new ArrayList<>();
+            for (int oc = 0; oc<dao.getExperiment().getStructureCount(); ++oc) {
+                lastRoot.getChildren(oc).filter(c -> c.getNextId()!=null).forEach(c -> {
+                    c.setNext(null);
+                    modifiedChildren.add(c);
+                });
+            }
+            if (!modifiedChildren.isEmpty()) dao.store(modifiedChildren);
+        }
+        dao.store(modified);
+        return roots;
     }
     
     public static void processAndTrackStructures(MasterDAO db, boolean deleteObjects, int... structures) {
@@ -316,8 +422,9 @@ public class Processor {
             int totalFrame = allParentTracks.values().stream().mapToInt(List::size).sum();
             int[] count = new int[2];
             long t0 = System.currentTimeMillis();
-            ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
-                execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
+            ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> { // sequential: a single parent track is processed at a time
+                if (pcb !=null) pcb.setSubTaskMessage(total>1 ? "Parent track "+(count[0]+1)+"/"+total : "Frames: "+pt.size());
+                ProgressContext.run(pcb, () -> execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao));
                 if (pcb !=null) pcb.incrementSubTask();
                 count[0]+=1;
                 count[1]+=pt.size();
@@ -339,6 +446,7 @@ public class Processor {
             else return s;
         }).forEachOrdered(children::add);
         logger.debug("total objects to store: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
+        if (pcb!=null) pcb.setSubTaskMessage("Storing objects");
         dao.store(children);
         if (pcb!=null) {
             pcb.incrementSubTask();
@@ -385,7 +493,7 @@ public class Processor {
             root.setAttribute(histoKey, histogram.toJSONEntry());
             dao.store(root);
         }
-        scaler.setHistogram(histogram);
+        scaler.setHistogram(HistogramSource.of(histogram)); // stored histogram is fine (one bin per value for 8 and 16-bit images): each scaler derives its binning from it
     }
     public static Histogram createHistogramForPosition(ObjectDAO dao, int objectClassIdx) {
         int parentClassIdx = dao.getExperiment().experimentStructure.getParentObjectClassIdx(objectClassIdx);
@@ -399,11 +507,11 @@ public class Processor {
             nBins = 1000;
             binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], nBins);
         } else if (refImage.byteCount()==1) {
-            min = 0;
+            min = -0.5; // bins centered on integer values
             binSize = 1;
             nBins = 256;
         } else if (refImage.byteCount() == 2) {
-            min = 0;
+            min = -0.5; // bins centered on integer values
             binSize = 1;
             nBins = 65536;
         } else throw new RuntimeException("Unsupported image type: "+ refImage.getClass());
@@ -464,7 +572,10 @@ public class Processor {
         List<SegmentedObject> roots = dao.getRoots();
         logger.debug("Measurements : {} number of roots: {}, mode: {}", dao.getPositionName(), roots.size(), mode);
         final Map<Integer, List<Measurement>> measurements = dao.getExperiment().getMeasurementsByCallStructureIdx();
-        if (roots.isEmpty()) return;
+        if (roots.isEmpty()) {
+            if (pcb!=null) for (int i = 0; i<=measurements.size(); ++i) pcb.incrementProgress(); // keep progress consistent with the expected number of tasks
+            return;
+        }
         Map<SegmentedObject, List<SegmentedObject>> rootTrack = new HashMap<>(1); rootTrack.put(roots.get(0), roots);
         boolean containsObjects=false;
         BiPredicate<SegmentedObject, Measurement> measurementMissing = (SegmentedObject callObject, Measurement m) -> {
@@ -559,6 +670,7 @@ public class Processor {
                     .filter(m->m instanceof Measurement.ObjectMeasurement).map(m -> (Measurement.ObjectMeasurement)m).collect(Collectors.toList());
             if (!measObj.isEmpty()) subTaskNumber+=measObj.size();
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
+            if (pcb!=null) pcb.setSubTaskMessage("Measurements on: "+(e.getKey()<0 ? "Viewfield" : dao.getExperiment().getStructure(e.getKey()).getName()));
             if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
             if (!nonParallelTrackMeasurements.isEmpty()) {
                 Function<Measurement, Set<Integer>> modifiedOC = m -> m.getMeasurementKeys().stream().map(MeasurementKey::getStoreStructureIdx).collect(Collectors.toSet());
@@ -605,11 +717,12 @@ public class Processor {
                         dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
                                 .filter(m -> m instanceof Measurement.TrackMeasurement && (m instanceof MultiThreaded))
                                 .map(m -> (Measurement.TrackMeasurement)m)
-                                .filter(m -> measurementMissing.test(pt, m)) // only test on trackhead object
                                 .forEach(m -> {
-                                    ((MultiThreaded) m).setMultiThread(true);
-                                    m.performMeasurement(getTrackArg.apply(m, pt));
-                                    if (pcb != null) pcb.incrementSubTask();
+                                    if (measurementMissing.test(pt, m)) { // only test on trackhead object
+                                        ((MultiThreaded) m).setMultiThread(true);
+                                        ProgressContext.run(pcb, () -> m.performMeasurement(getTrackArg.apply(m, pt))); // run on this thread: measurements that predict report their progress through the context
+                                    }
+                                    if (pcb != null) pcb.incrementSubTask(); // also when skipped, so that the count matches the sub-task number
                                 });
                     });
                 } catch (MultipleException me) {
@@ -633,7 +746,7 @@ public class Processor {
                     if (pcb!=null) pcb.incrementSubTask();
                 }
             });
-            //f (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
+            if (pcb!=null) pcb.incrementProgress();
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->m instanceof Measurement.ObjectMeasurement).findAny().orElse(null)!=null;
         }
         long t1 = System.currentTimeMillis();
@@ -646,7 +759,7 @@ public class Processor {
             }
         }
         logger.debug("measurements on field: {}: computation time: {}, #modified objects: {}", dao.getPositionName(), t1-t0, allModifiedObjects.size());
-        //if (pcb!=null) pcb.log("Measurements performed, saving "+allModifiedObjects.size()+" objects...");
+        if (pcb!=null) pcb.setSubTaskMessage("Storing measurements");
         dao.upsertMeasurements(allModifiedObjects);
         if (pcb!=null) pcb.incrementProgress();
         if (!globE.isEmpty()) throw globE;

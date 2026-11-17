@@ -53,18 +53,15 @@ public class ImportCellTrackingBenchmark {
         mDAO.getExperiment().setImportImageFrameSeparator("t");
         String chanKW = mDAO.getExperiment().getChannelImages().getChildAt(0).getImportImageChannelKeyword();
         mDAO.getExperiment().getChannelImages().getChildAt(0).setImportImageChannelKeyword("");
-        if (pcb!=null) pcb.incrementTaskNumber(2 * allDir.length);
+        if (pcb!=null) pcb.incrementTaskNumber(allDir.length); // one task per position for objects. Image import counts its own tasks
         for (File resDir : allDir) {
             String posName = resDir.getName().replace(suffix, "");
             File rawDir = Paths.get(resDir.getParent(), posName).toFile();
             boolean exists = mDAO.getExperiment().getPositions().stream().map(ContainerParameterImpl::getName).anyMatch(p->p.equals(posName));
             if (!exists && !rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
             if (!exists) Processor.importFiles(mDAO.getExperiment(), true, false, pcb, rawDir.getAbsolutePath());
-            if (!rawOnly) {
-                if (trainingSet) resDir = Paths.get(resDir.getAbsolutePath(), "TRA").toFile();
-                if (overwriteObjects || !exists)
-                    importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, trainingSet, pcb);
-            }
+            if (!rawOnly && trainingSet) resDir = Paths.get(resDir.getAbsolutePath(), "TRA").toFile();
+            if (!rawOnly && (overwriteObjects || !exists)) importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, trainingSet, pcb); // increments progress
             else if (pcb!=null) pcb.incrementProgress();
             mDAO.storeExperiment();
         }

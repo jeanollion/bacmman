@@ -131,7 +131,7 @@ public class GrowthRate implements Measurement.TrackMeasurement, MultiThreaded, 
         long t1 = System.currentTimeMillis();
         Map<SegmentedObject, Double> logLengthMap = Utils.parallel(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));
         long t2 = System.currentTimeMillis();
-        Map<SegmentedObject, List<SegmentedObject>> bacteriaTracks = SegmentedObjectUtils.getAllTracks(parentTrack, bIdx);
+        Map<SegmentedObject, List<SegmentedObject>> bacteriaTracks = SegmentedObjectUtils.getAllTracks(parentTrack, bIdx, false, false);
         long t3 = System.currentTimeMillis();
         boolean wholeCycle = this.wholeCycle.getSelected();
         int minCells = this.minCells.getValue().intValue();

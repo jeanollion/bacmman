@@ -1,6 +1,7 @@
 package bacmman.plugins;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.ProgressCallback;
 import bacmman.image.Image;
 import bacmman.processing.ResizeUtils;
 
@@ -33,6 +34,20 @@ public interface DLEngine extends Plugin, PersistentConfiguration {
      * @return prediction. shape: output / batch / channel
      */
     Image[][][] process(Image[][]... inputNC); // O, N, C
+
+    /**
+     * Same as {@link #process(Image[][]...)}, reporting progress.
+     * Engines that divide the samples into batches report progress after each batch; the default implementation reports it at the end.
+     * @param progress incremented by {@code steps} in total: {@code steps} x (number of samples of the batch) / (total number of samples) after each batch
+     * @param steps number of steps of {@code progress} corresponding to this call
+     * @param inputNC
+     * @return prediction. shape: output / batch / channel
+     */
+    default Image[][][] process(ProgressCallback.SubProgress progress, double steps, Image[][]... inputNC) {
+        Image[][][] res = process(inputNC);
+        if (progress != null) progress.increment(steps);
+        return res;
+    }
     void init();
     int getNumOutputArrays();
     int getNumInputArrays();

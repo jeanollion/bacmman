@@ -1,7 +1,8 @@
 package bacmman.plugins.plugins.docker_dl_trainer;
 
+import bacmman.core.DatasetExportTask;
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SelectionOperations;
@@ -9,7 +10,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.Hint;
-import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.py_dataset.DatasetExportTasks;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.ArrayUtil;
 
@@ -124,7 +125,7 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
     }
 
     @Override
-    public Task getDatasetExtractionTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
+    public DatasetExportTask getDatasetExportTask(MasterDAO mDAO, String outputFile, List<String> selectionContainer) {
         int compression = PropertyUtils.get("extract_DS_compression", 0);
         int selOC = objectClass.getSelectedClassIdx();
         List<String> selections;
@@ -149,9 +150,9 @@ public class DiSTNet2DSegTraining implements DockerDLTrainer, DockerDLTrainer.Co
             }
         }
         if (selectionContainer != null) selectionContainer.addAll(selections);
-        List<ExtractDatasetUtil.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new ExtractDatasetUtil.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
-        labelsAndChannels.add(0, new ExtractDatasetUtil.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
-        return ExtractDatasetUtil.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resizeMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
+        List<DatasetExportTasks.ExtractOCParameters> labelsAndChannels = otherOCList.getActivatedChildren().stream().map(g -> new DatasetExportTasks.ExtractOCParameters( g.getSelectedChannelOrObjectClass(), g.isLabel(), g.key.getValue(), g.getExtractZAxis())).collect(Collectors.toList());
+        labelsAndChannels.add(0, new DatasetExportTasks.ExtractOCParameters(channel.getSelectedIndex(), false, channel.getSelectedItemsNames()[0], extractZAxisParameter.getConfig()));
+        return DatasetExportTasks.getDiSTNetSegDatasetTask(mDAO, selOC, labelsAndChannels, extractCategory.getCategorySelections(), extractCategory.addDefaultCategory(), ArrayUtil.reverse(extractDims.getArrayInt(), true), resizeMode.getSelectedEnum(), selections, selectionFilter.getSelectedItem(), outputFile, timelapse.getSelected(), spatialDownsampling.getIntValue(), compression);
     }
 
     public String getDockerImageName() {

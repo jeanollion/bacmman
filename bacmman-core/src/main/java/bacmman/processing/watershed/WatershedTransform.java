@@ -139,6 +139,12 @@ public class WatershedTransform {
      */
     public WatershedTransform(Image watershedMap, ImageMask mask, List<Region> regionalExtrema, WatershedConfiguration config) {
         if (mask==null) mask=new BlankMask( watershedMap);
+        long nanCount = watershedMap.stream(mask, false).filter(Double::isNaN).count();
+        if (nanCount>0) { // NaN values cannot be ordered: they are excluded from the segmentation
+            logger.warn("watershed map {} contains {} NaN values: they are excluded from segmentation", watershedMap.getName(), nanCount);
+            ImageMask sourceMask = mask;
+            mask = new PredicateMask(sourceMask, (x, y, z) -> sourceMask.insideMask(x, y, z) && !Double.isNaN(watershedMap.getPixel(x, y, z)), (xy, z) -> sourceMask.insideMask(xy, z) && !Double.isNaN(watershedMap.getPixel(xy, z)), false);
+        }
         if (config ==null) config = new WatershedConfiguration(); // default config
         this.decreasingPropagation = config.decreasingPropagation;
         this.lowConnectivity = config.lowConnectivity;
@@ -315,8 +321,8 @@ public class WatershedTransform {
             Map.Entry<Integer, Integer> maxLabel = null;
             for (Map.Entry<Integer, Integer> e : Utils.entriesSortedByValues(countMap, true)) {
                 if (maxLabel==null) maxLabel = e;
-                else if (maxLabel.getValue().equals(e.getValue())) { // same number of neighbors -> minimize diff
-                    if (diffMap.get(e.getKey())<diffMap.get(maxLabel.getKey())) maxLabel = e;
+                else if (maxLabel.getValue().equals(e.getValue())) { // same number of neighbors -> minimize diff. no diff is recorded when values are NaN: considered as infinite
+                    if (diffMap.getOrDefault(e.getKey(), Double.POSITIVE_INFINITY) < diffMap.getOrDefault(maxLabel.getKey(), Double.POSITIVE_INFINITY)) maxLabel = e;
                 } else break; // no equal
             }
             return maxLabel.getKey();

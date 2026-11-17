@@ -207,6 +207,15 @@ public class PropertyUtils {
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} jcb persistSel {}", key, item.getSelectedItem());PropertyUtils.set(key, (String)item.getSelectedItem()); });
     }
     public static ActionListener setPersistent(JTextField item, String key, String defaultValue, boolean multiple, Action... rigthClickActions) {
+        return setPersistent(item, key, multiple ? key : null, defaultValue, rigthClickActions);
+    }
+
+    /**
+     * @param key key of the value
+     * @param listKey key of the list of recent values (can be shared by several fields that have distinct values). null: no recent list
+     */
+    public static ActionListener setPersistent(JTextField item, String key, String listKey, String defaultValue, Action... rigthClickActions) {
+        boolean multiple = listKey != null;
         item.setText(PropertyUtils.get(key, defaultValue));
         ActionListener res;
         for (ActionListener al : item.getActionListeners()) al.actionPerformed(null); // perform action after having set default value
@@ -229,7 +238,7 @@ public class PropertyUtils {
         else {
             res = (java.awt.event.ActionEvent evt) -> {
                 PropertyUtils.set(key, item.getText());
-                PropertyUtils.addFirstStringToList(key, item.getText());
+                PropertyUtils.addFirstStringToList(listKey, item.getText());
             };
             item.addActionListener(res);
             item.addMouseListener(new MouseAdapter() {
@@ -240,15 +249,15 @@ public class PropertyUtils {
                     for (Action a : rigthClickActions) menu.add(a);
                     JMenu recentFiles = new JMenu("Recent");
                     menu.add(recentFiles);
-                    List<String> recent = PropertyUtils.getStrings(key);
+                    List<String> recent = PropertyUtils.getStrings(listKey);
                     for (String s : recent) {
                         Action setRecent = new AbstractAction(s) {
                             @Override
                             public void actionPerformed(ActionEvent e) {
                                 if (checkMod(e.getModifiers(), ActionEvent.CTRL_MASK)) {
-                                    List<String> recent = PropertyUtils.getStrings(key);
+                                    List<String> recent = PropertyUtils.getStrings(listKey);
                                     recent.remove(s);
-                                    PropertyUtils.setStrings(key, recent);
+                                    PropertyUtils.setStrings(listKey, recent);
                                 } else {
                                     item.setText(s);
                                     for (ActionListener al : item.getActionListeners()) al.actionPerformed(e);
@@ -261,7 +270,7 @@ public class PropertyUtils {
                     Action delRecent = new AbstractAction("Delete recent list (ctrl + click to delete one item)") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            PropertyUtils.setStrings(key, null);
+                            PropertyUtils.setStrings(listKey, null);
                         }
                     };
                     recentFiles.add(delRecent);

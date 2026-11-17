@@ -2,6 +2,8 @@ package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -16,9 +18,9 @@ import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
-import org.apache.commons.lang.ArrayUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -26,10 +28,13 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
+public class ProbabilityMapSegmenter implements Segmenter, GlobalHistogramConfigurable, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
     public final static Logger logger = LoggerFactory.getLogger(ProbabilityMapSegmenter.class);
     PluginParameter<DLEngine> dlEngine = new PluginParameter<>("model", DLEngine.class, "DefaultEngine", false).setEmphasized(true).addNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Limit the number of frames predicted at once");
@@ -53,6 +58,15 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         inputChannels.addValidationFunction(cp -> Math.max(cp.getChildCount(), 1) == dlResample.getInputNumber());
         dlResample.addRankValidation( DLEngine.getRankSupplier(dlEngine, -1) );
         DLEngine.setZAxisValidation( dlEngine, dlResample.getRankFunction() );
+    }
+
+    IntFunction<HistogramSource> globalHistograms;
+    /**
+     * Global distributions of values of the input channels, used for intensity scaling of the corresponding inputs instead of the distribution computed on the processed track (see {@link GlobalHistogramConfigurable})
+     */
+    @Override
+    public void setGlobalHistograms(IntFunction<HistogramSource> histogramSourcePerChannel) {
+        this.globalHistograms = histogramSourcePerChannel;
     }
 
     @Override
@@ -119,23 +133,61 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         }
         // perform prediction on single image
         logger.warn("Segmenter not configured! Prediction will be performed one by one, performance might be reduced.");
-        return predict.getSelected() ? predict(getInputImages(input, objectClassIdx, parent))[0] : input;
+        return predict.getSelected() ? predict(getInputImages(parent, objectClassIdx, input))[0] : input;
     }
 
-    private Image[] getInputImages(Image input, int objectClassIdx, SegmentedObject parent) {
+    /**
+     * Whole-track mode: the image of the current channel is the pre-filtered image of the parent
+     * @return images of all inputs for this parent
+     */
+    private Image[] getInputImages(SegmentedObject parent, int objectClassIdx) {
+        return getInputImages(parent, objectClassIdx, () -> parent.getPreFilteredImage(objectClassIdx));
+    }
+
+    /**
+     * Frame-by-frame mode: the image of the current channel is the image given to the segmenter
+     * @return images of all inputs for this parent
+     */
+    private Image[] getInputImages(SegmentedObject parent, int objectClassIdx, Image currentChannelImage) {
+        return getInputImages(parent, objectClassIdx, () -> currentChannelImage);
+    }
+
+    private Image[] getInputImages(SegmentedObject parent, int objectClassIdx, Supplier<Image> currentChannelImage) {
+        return IntStream.of(getInputSources(objectClassIdx, parent.getExperimentStructure())).mapToObj(source -> getInputImage(parent, source, currentChannelImage)).toArray(Image[]::new);
+    }
+
+    /**
+     * Source of each input: the current channel (channel of the segmented object class) or another channel. If no input channel is set, the single input is the current channel. If the current channel is selected several times, only its first occurrence is considered as the current channel, others are raw images.
+     * @return for each input: raw channel index, or -1 for the current channel (pre-filtered image or image given to the segmenter)
+     */
+    private int[] getInputSources(int objectClassIdx, ExperimentStructure xp) {
         int[] inputChans = inputChannels.getChildren().stream().mapToInt(IndexChoiceParameter::getSelectedIndex).toArray();
-        if (inputChans.length == 0) return new Image[]{input==null?parent.getPreFilteredImage(objectClassIdx):input};
-        int curChan = parent.getExperimentStructure().getChannelIdx(objectClassIdx);
-        int curChanIdx = ArrayUtils.indexOf(inputChans, curChan);
-        Image[] res = new Image[inputChans.length];
-        for (int i = 0; i<inputChans.length; ++i) {
-            if (i == curChanIdx) res[i] = input==null?parent.getPreFilteredImage(objectClassIdx):input;
-            else res[i] = parent.getRawImageByChannel(inputChans[i]);
-        }
-        return res;
+        if (inputChans.length == 0) return new int[]{-1};
+        int currentChanIdx = ArrayUtil.indicesOf(inputChans, xp.getChannelIdx(objectClassIdx)).findFirst().orElse(-1);
+        if (currentChanIdx >= 0) inputChans[currentChanIdx] = -1;
+        return inputChans;
+    }
+
+    /**
+     * @param source raw channel index, or -1 for the current channel, see {@link #getInputSources(int, ExperimentStructure)}
+     * @return image of the input: only this image is read
+     */
+    private Image getInputImage(SegmentedObject parent, int source, Supplier<Image> currentChannelImage) {
+        return source < 0 ? currentChannelImage.get() : parent.getRawImageByChannel(source);
     }
 
     private Image[] predict(Image[]... inputImagesNI) {
+        return predict(dlResample, inputImagesNI);
+    }
+
+    private Image[] predict(DLResizeAndScale dlResizeAndScale, Image[]... inputImagesNI) {
+        return predict(dlResizeAndScale, null, 0, inputImagesNI);
+    }
+
+    /**
+     * @param progress incremented by {@code steps} in total during prediction (can be null)
+     */
+    private Image[] predict(DLResizeAndScale dlResizeAndScale, ProgressCallback.SubProgress progress, double steps, Image[]... inputImagesNI) {
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         int nI = Math.max(inputChannels.getChildCount(), 1);
@@ -145,7 +197,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
                 inputINC[i][n][0] = inputImagesNI[n][i];
             }
         }
-        Image[][][] predictionONC = dlResample.predict(engine, inputINC);
+        Image[][][] predictionONC = dlResizeAndScale.predict(engine, progress, steps, inputINC);
         return ResizeUtils.getChannel(predictionONC[0], outputChannel.getIntValue());
     }
 
@@ -158,16 +210,24 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         DiskBackedImageManager imageManager = Core.getDiskBackedManager(parentTrack.get(0));
         Map<SegmentedObject, Image> segM = new HashMap<>(singleFrame ? 1 : parentTrack.size());
         int increment = frameWindow.getIntValue ()<=1 || frameWindow.getIntValue()>parentTrack.size() ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / frameWindow.getIntValue()) );
+        // intensity scaling computed once on the whole movie so that all frame windows are scaled identically
+        int[] inputSources = getInputSources(structureIdx, parentTrack.get(0).getExperimentStructure());
+        int currentChannel = parentTrack.get(0).getExperimentStructure().getChannelIdx(structureIdx);
+        IntFunction<HistogramSource> globalHistogramPerInput = globalHistograms == null ? null : inputIdx -> globalHistograms.apply(inputSources[inputIdx] < 0 ? currentChannel : inputSources[inputIdx]);
+        DLResizeAndScale dl = dlResample.withGlobalScaling(singleFrame ? 1 : parentTrack.size(), parentTrack.get(0).getBounds(), (inputIdx, frames) -> IntStream.of(frames).mapToObj(parentTrack::get).map(p -> getInputImage(p, inputSources[inputIdx], () -> p.getPreFilteredImage(structureIdx))), globalHistogramPerInput);
+        // progress in predicted frames (prediction is performed on the calling thread)
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(singleFrame ? 1 : parentTrack.size());
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            Image[][] inputNI = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> getInputImages(null, structureIdx, p)).toArray(Image[][]::new);
+            Image[][] inputNI = subParentTrack.stream().limit(singleFrame?1:subParentTrack.size()).map(p -> getInputImages(p, structureIdx)).toArray(Image[][]::new);
+            progress.setMessage("ProbabilityMapSegmenter: predicting frames " + subParentTrack.get(0).getFrame() + "-" + subParentTrack.get(inputNI.length-1).getFrame());
             Image[] out;
-            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(inputNI);
-            else out = Arrays.stream(inputNI).map(this::predict).map(ii -> ii[0]).toArray(Image[]::new);
+            if (Image.allHaveSameDimensionsArray(Arrays.asList(inputNI))) out = predict(dl, progress, inputNI.length, inputNI);
+            else out = Arrays.stream(inputNI).map(in -> predict(dl, progress, 1, in)).map(ii -> ii[0]).toArray(Image[]::new);
             for (int ii = 0; ii<subParentTrack.size(); ++ii) {
                 //logger.debug("frame: {} range: {}", subParentTrack.get(ii).getFrame(), out[singleFrame?0:ii].getMinAndMax(null));
-                segM.put(subParentTrack.get(ii), imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false, false));
+                segM.put(subParentTrack.get(ii), imageManager.createDiskBackedImage(TypeConverter.toHalfFloat(out[singleFrame?0:ii], null), false));
             }
             if (singleFrame) break;
         }
@@ -208,7 +268,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
     }
 
     protected SplitAndMergeEDM initSplitAndMerge(Image input, int objectClassIdx, SegmentedObject parent) {
-        Image probaMap = predict.getSelected() ? predict(getInputImages(input, objectClassIdx, parent))[0] : input;
+        Image probaMap = predict.getSelected() ? predict(getInputImages(parent, objectClassIdx, input))[0] : input;
         return (SplitAndMergeEDM)new SplitAndMergeEDM(probaMap, probaMap, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
     }
@@ -220,7 +280,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         this.verboseManualSeg=verbose;
     }
     @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-        Image probaMap = predict.getSelected() ? predict(getInputImages(input, objectClassIdx, parent))[0] : input;
+        Image probaMap = predict.getSelected() ? predict(getInputImages(parent, objectClassIdx, input))[0] : input;
         PredicateMask mask = new PredicateMask(probaMap, minimalProba.getValue().doubleValue(), true, true);
         if (probaMap.sizeZ()==1 && input.sizeZ()>1) { // handle a special case: 2D objects from a 3D image
             segmentationMask = new ImageMask2D(segmentationMask);

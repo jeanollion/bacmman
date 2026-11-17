@@ -30,7 +30,7 @@ import static bacmman.utils.ThreadRunner.sleep;
 
 public class JSONQuery {
     public static final Logger logger = LoggerFactory.getLogger(JSONQuery.class);
-    public enum METHOD {GET, POST, PATCH, DELETE}
+    public enum METHOD {GET, POST, PATCH, PUT, DELETE}
     public static String REQUEST_PROPERTY_DEFAULT = "application/json; charset=UTF-8";
     public static String REQUEST_PROPERTY_GITHUB_BASE64 = "application/vnd.github.v3.base64";
     public static String REQUEST_PROPERTY_GITHUB_JSON= "application/vnd.github+json";
@@ -110,6 +110,19 @@ public class JSONQuery {
         auth.authenticate(urlConnection);
         return this;
     }
+
+    /**
+     * Authenticates using the header scheme of the given repository type (e.g. GitLab expects a PRIVATE-TOKEN header)
+     */
+    public JSONQuery authenticate(UserAuth auth, GistRepository.TYPE type) {
+        if (auth == null || auth instanceof NoAuth) {
+            this.auth = null;
+            return this;
+        }
+        this.auth = auth;
+        auth.authenticate(urlConnection, type);
+        return this;
+    }
     public JSONQuery setBody(String jsonString) {
         byte[] out = jsonString.getBytes(StandardCharsets.UTF_8);
         int length = out.length;
@@ -175,6 +188,65 @@ public class JSONQuery {
             urlConnection.disconnect();
         }
         return o_oSb.toString();
+    }
+
+    /**
+     * Reads the whole response as UTF-8 text, without altering line separators (unlike {@link #fetch()}).
+     * In case of HTTP error, the error body returned by the server is appended to the exception message.
+     */
+    public String fetchRaw() throws IOException {
+        try {
+            InputStream is = urlConnection.getInputStream();
+            return readFully(is);
+        } catch (FileNotFoundException e) {
+            throw new IOException("Authentication Error or Erased/Unexisting file : "+e.getMessage(), e);
+        } catch (IOException e) {
+            String error = null;
+            try {
+                InputStream es = urlConnection.getErrorStream();
+                if (es != null) error = readFully(es);
+            } catch (IOException ignored) {}
+            if (error != null && !error.isEmpty()) throw new IOException(e.getMessage() + " server message: " + error, e);
+            else throw e;
+        } finally {
+            urlConnection.disconnect();
+        }
+    }
+
+    public static String readFully(InputStream is) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[64 * 1024];
+        int n;
+        try {
+            while ((n = is.read(buffer)) > 0) bos.write(buffer, 0, n);
+        } finally {
+            is.close();
+        }
+        return new String(bos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    public static String fetchRaw(Supplier<JSONQuery> querySupplier, int tryouts) throws IOException {
+        if (tryouts<=0) tryouts=1;
+        int sleep = TRYOUT_SLEEP;
+        while (true) {
+            try {
+                return querySupplier.get().fetchRaw();
+            } catch (IOException e) {
+                --tryouts;
+                String m = e.getMessage() == null ? "" : e.getMessage();
+                if (m.contains("unable to find valid certification path") && tryouts>0) trustAllCertificates();
+                else if (tryouts>0 && (m.contains("HTTP response code: 50") || m.contains("HTTP response code: 429"))) {
+                    logger.debug("error {} -> try again, remaining tryouts: {}", m, tryouts);
+                    sleep(sleep);
+                    sleep+=TRYOUT_SLEEP_INC;
+                } else throw e;
+            }
+        }
+    }
+
+    public static boolean isNotFound(IOException e) {
+        String m = e.getMessage();
+        return e instanceof FileNotFoundException || (m!=null && (m.contains("Erased/Unexisting file") || m.contains("HTTP response code: 404")));
     }
 
     @Override

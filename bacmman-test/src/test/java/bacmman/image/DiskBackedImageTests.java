@@ -39,8 +39,7 @@ public class DiskBackedImageTests {
         manager.startDaemon(0, 1);
         Thread.sleep(200);
         assertTrue("image not freed by daemon", !dbIm.isOpen());
-        manager.stopDaemon();
-        manager.clear(true);
+        manager.close();
     }
 
     @Test

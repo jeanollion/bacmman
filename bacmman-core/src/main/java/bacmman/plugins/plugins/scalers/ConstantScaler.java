@@ -26,6 +26,19 @@ public class ConstantScaler implements HistogramScaler, Hint {
             "<li>Higher Tail: Values greater than 1 are transformed with a power law to saturate high values smoothly. A value of 0 for this parameter results in hard saturation, meaning no gradual transition is applied.</li></ul> " +
             "Together, these parameters allow for controlled saturation of both low and high values, ensuring smooth handling of outliers in the data.");
 
+    /**
+     * @param powerLaw saturation power laws for the lower and higher tails, see <em>Saturate</em> parameter
+     */
+    public ConstantScaler setSaturation(double[] powerLaw) {
+        this.saturate.setValue(powerLaw);
+        return this;
+    }
+
+    @Override
+    public HistogramScaler toConstantScaler() {
+        return new ConstantScaler().setParameters(center.getDoubleValue(), scale.getDoubleValue()).setSaturation(saturate.getArrayDouble());
+    }
+
     public ConstantScaler setParameters(double center, double scale) {
         this.scale.setValue(scale);
         this.center.setValue(center);

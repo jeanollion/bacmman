@@ -48,10 +48,7 @@ public class DiskBackedImageManagerProvider {
             synchronized (managers) {
                 manager = managers.get(position);
                 if (manager == null || replaceIfExisting) {
-                    if (manager!=null) {
-                        manager.stopDaemon();
-                        manager.clear(true);
-                    }
+                    if (manager!=null) manager.close();
                     manager = new DiskBackedImageManagerImageDAO(position, imageDAO, tmpDir);
                     managers.put(position, manager);
                     manager.startDaemon(DiskBackedImageManager.memoryFraction, DiskBackedImageManager.timeInterval);
@@ -68,14 +65,11 @@ public class DiskBackedImageManagerProvider {
     }
 
     public synchronized void clear() {
-        for (DiskBackedImageManager m : managers.values()) {
-            m.stopDaemon();
-            m.clear(true);
-        }
+        for (DiskBackedImageManager m : managers.values()) m.close();
         managers.clear();
     }
 
-    public synchronized void freeMemory() {
+    public synchronized void freeMemory() throws IOException {
         for (DiskBackedImageManager m : managers.values()) {
             m.freeMemory(0.1);
         }

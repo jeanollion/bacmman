@@ -4,7 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.logger.ProgressLogger;
+import bacmman.ui.logger.ProgressDisplay;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -68,13 +68,13 @@ public class PlotPanel {
     ConditionalParameter<CHART_TYPE> chartTypeCond = new ConditionalParameter<>(chartType).setActionParameters(CHART_TYPE.LINE, xColumn, yColumns, smoothScale); //yLogScale
     GroupParameter root = new GroupParameter("Parameters", workingDirs, fileFilterInclude, fileFilterExclude, selectedFiles, chartTypeCond);
     Color[] colorPalette = new Color[]{new Color(31, 119, 180), new Color(255, 127, 14), new Color(44, 160, 44), new Color(214, 39, 40), new Color(148, 103, 189), new Color(140, 86, 75), new Color(227, 119, 194), new Color(127, 127, 127), new Color(188, 189, 34), new Color(23, 190, 207)};
-    ProgressLogger bacmmanLogger;
+    ProgressDisplay bacmmanLogger;
     JFreeChart lastPlot;
     int plotIdx;
     String name;
 
     // TODO: add right axis
-    public PlotPanel(int plotIdx, int loadPlotIdx, ProgressLogger bacmmanLogger) {
+    public PlotPanel(int plotIdx, int loadPlotIdx, ProgressDisplay bacmmanLogger) {
         this.plotIdx = plotIdx;
         this.name = "Plot";
         if (plotIdx < 0) throw new IllegalArgumentException("Plot idx must be >=0");

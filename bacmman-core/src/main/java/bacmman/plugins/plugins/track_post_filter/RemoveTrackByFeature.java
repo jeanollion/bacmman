@@ -23,8 +23,10 @@ import bacmman.core.Core;
 import bacmman.data_structure.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.data_structure.dao.DiskBackedImageManager;
@@ -49,6 +51,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -66,9 +69,9 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
     BoundedNumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
     ConditionalParameter<STAT> statCond = new ConditionalParameter<>(statistics).setActionParameters(STAT.Quantile, quantile).setHint("Statistics to summarize the distribution of computed features");
     NumberParameter threshold = new NumberParameter<>("Threshold", 5, 0).setEmphasized(true);
-    EnumChoiceParameter<THLD_MODE> thldMode = new EnumChoiceParameter<>("Threshold Mode", THLD_MODE.values(), THLD_MODE.Constant).setHint("Constant: threshld is a constant value. Feature: threshold is computed based on the feature value distribution of all objects. Image: threshold is computed based on image intensity distribution (for intensity measurements)");
+    EnumChoiceParameter<THLD_MODE> thldMode = new EnumChoiceParameter<>("Threshold Mode", THLD_MODE.values(), THLD_MODE.Constant).setHint("<ul><li><em>Constant</em>: threshold is a constant value. </li><li><em>Feature</em>: threshold is computed based on the feature value distribution of all objects.</li><li><em>Image</em>: threshold is computed based on image intensity distribution (for intensity measurements)</li></ul>");
     PluginParameter<ThresholderHisto> thldImage = new PluginParameter<>("Threshold Method", ThresholderHisto.class, false).setEmphasized(true).setHint("Method used to compute threshlod on input image. If pre-filtered are defined, thresholder is applied to pre-filtered images");
-    PluginParameter<ThresholderHisto> thldDistribution = new PluginParameter<>("Threshold Method", ThresholderHisto.class, false).setEmphasized(true).setHint("Method used to compute threshlod on feature distribution");
+    PluginParameter<ThresholderHisto> thldDistribution = new PluginParameter<>("Threshold Method", ThresholderHisto.class, false).setEmphasized(true).setHint("Method used to compute threshold on feature distribution");
 
     ConditionalParameter<THLD_MODE> thldCond = new ConditionalParameter<>(thldMode)
             .setActionParameters(THLD_MODE.Constant, threshold)
@@ -113,13 +116,20 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
         return this;
     }
     
+    /**
+     * Releases the raw image of the parent once its objects are measured, when it is a copy cropped from the root image: such copies are not disk-backed and are cached by the parent, so they cannot be freed by the memory daemon of the disk-backed image managers. Raw images of root objects are disk-backed: their memory is managed by the image manager (see {@link bacmman.data_structure.dao.DiskBackedImageMemoryGuard})
+     */
+    private static void releaseIntensityMap(SegmentedObject parent, ObjectFeature f) {
+        if (!(f instanceof ObjectFeatureWithCore)) return;
+        Image raw = ((ObjectFeatureWithCore)f).getIntensityMap(false);
+        if (raw != null && !(raw instanceof DiskBackedImage)) parent.flushImages(true, false);
+    }
+
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) throws MultipleException {
         if (!feature.isOnePluginSet() || parentTrack.isEmpty()) return;
         Map<Region, Double> valueMap = new ConcurrentHashMap<>();
         BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.isEmpty() ? null : preFilters.filter(im,mask);
-        // compute feature for each object, by parent
-
         boolean needImages = thldMode.getSelectedEnum().equals(THLD_MODE.Image);
         if (needImages && !(feature.instantiatePlugin() instanceof ObjectFeatureWithCore)) {
             throw new RuntimeException("Cannot use image threshold with a feature that is not an intensity measurement");
@@ -127,7 +137,10 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
         String featureName = feature.instantiatePlugin().getDefaultName();
         boolean needDiskBackedImage = needImages && !preFilters.isEmpty() ;
         DiskBackedImageManager dbim = needDiskBackedImage ? Core.getDiskBackedManager(parentTrack.get(0)) : null;
-        List<Image> allImages = new ArrayList<>();
+        List<Image> allImages = Collections.synchronizedList(new ArrayList<>());
+        // image threshold: histogram computed on a subset of frames, only the intensity maps of these frames are kept
+        Set<SegmentedObject> imageParents = needImages ? IntStream.of(HistogramFactory.getFrameSubset(parentTrack.size(), parentTrack.get(0).getBounds())).mapToObj(parentTrack::get).collect(Collectors.toSet()) : Collections.emptySet();
+        // compute feature for each object, by parent
         Consumer<SegmentedObject> exe = parent -> {
             RegionPopulation pop = parent.getChildRegionPopulation(structureIdx);
             ObjectFeature f = feature.instantiatePlugin();
@@ -138,31 +151,39 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint, TestableProc
                 //if (value == null || value.isNaN()) logger.debug("invalid region: {} bds: {} (image: {}) size: {} value: {}", o.getLabel(), o.getBounds(), f instanceof ObjectFeatureWithCore ? ((ObjectFeatureWithCore)f).getIntensityMap(true).getBoundingBox() : null, o.size(), value);
                 //return value;
             }));
-            if (needImages) {
+            if (needImages && imageParents.contains(parent)) {
                 if (f instanceof ObjectFeatureWithCore) {
                     Image image = ((ObjectFeatureWithCore) f).getIntensityMap(true);
                     if (!(image instanceof DiskBackedImage) && dbim != null) {
-                        image = dbim.createDiskBackedImage(image, false, false);
+                        image = dbim.createDiskBackedImage(image, false);
                     }
                     allImages.add(image);
                 }
             }
             valueMap.putAll(locValueMap);
+            releaseIntensityMap(parent, f);
         };
-
         ThreadRunner.executeAndThrowErrors(Utils.parallel(parentTrack.stream(), true), exe);
         double threshold;
         switch (thldMode.getSelectedEnum()) {
             case Feature: {
                 Supplier<DoubleStream> streamSupplier = () -> valueMap.values().stream().mapToDouble(d->d);
                 ThresholderHisto thdler = this.thldDistribution.instantiatePlugin();
-                threshold = thdler.runThresholderHisto(HistogramFactory.getHistogram(streamSupplier));
+                threshold = thdler.runThresholderHisto(HistogramSource.of(streamSupplier));
+                if (stores != null) {
+                    logger.debug("Thresholder feature: {}", threshold);
+                    Core.userLog("RemoveTrackByFeature threshold feature: "+threshold);
+                }
                 break;
             }
             case Image: {
                 Supplier<DoubleStream> streamSupplier = () -> Image.stream(allImages);
                 ThresholderHisto thdler = this.thldImage.instantiatePlugin();
-                threshold = thdler.runThresholderHisto(HistogramFactory.getHistogram(streamSupplier));
+                threshold = thdler.runThresholderHisto(HistogramSource.of(streamSupplier));
+                if (stores != null) {
+                    logger.debug("Thresholder image: {} (computed on {}/{} frames)", threshold, imageParents.size(), parentTrack.size());
+                    Core.userLog("RemoveTrackByFeature threshold image: "+threshold+" (computed on "+imageParents.size()+"/"+parentTrack.size()+" frames)");
+                }
                 if (needDiskBackedImage) dbim.clear(true);
                 allImages.clear();
                 break;

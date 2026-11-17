@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.dl_engines;
 
+import bacmman.core.ProgressCallback;
+
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.github.gist.DLModelMetadata;
@@ -148,7 +150,12 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
         outputNames = null;
     }
 
-    public synchronized Image[][][] process(Image[][]... inputNC) {
+    public Image[][][] process(Image[][]... inputNC) {
+        return process(null, 0, inputNC);
+    }
+
+    @Override
+    public synchronized Image[][][] process(ProgressCallback.SubProgress progress, double steps, Image[][]... inputNC) {
         if (inputNC.length!=getNumInputArrays()) throw new IllegalArgumentException("Invalid number of input provided. Expected:"+getNumInputArrays()+" provided:"+inputNC.length);
         int batchSize = this.batchSize.getValue().intValue();
         int nSamples = inputNC[0].length;
@@ -219,6 +226,7 @@ public class TF2engine implements DLEngine, Hint, DLMetadataConfigurable {
             }
             long t1 = System.currentTimeMillis();
             predictTime += t1-t0;
+            if (progress!=null) progress.increment(steps * (idxMax - idx) / nSamples);
         }
         switch (zAxis.getSelectedEnum()) {
             case Z:

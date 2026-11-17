@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.*;
+import bacmman.image.BoundingBox;
 import bacmman.image.ImageInteger;
 import bacmman.plugins.Hint;
 import bacmman.processing.BinaryMorphoEDT;
@@ -66,11 +67,14 @@ public class BinaryClose implements PostFilter, MultiThreaded, Hint {
         boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
         childPopulation.ensureEditableRegions();
         Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
+        BoundingBox<?> bds = parent.getBounds();
+        if (!childPopulation.isAbsoluteLandmark()) bds = (BoundingBox)bds.duplicate().resetOffset();
         for (Region o : childPopulation.getRegions()) {
             ImageInteger closed = edt ? BinaryMorphoEDT.binaryClose(o.getMaskAsImageInteger(), radius, radiusZ, parallel)
                     : Filters.binaryCloseExtend(o.getMaskAsImageInteger(), n, parallel);
             o.setMask(closed);
             o.resetMask();
+            o.getCroppedRegion(bds, false); // ensure region is contained within parent
         }
         childPopulation.relabel(true);
         return childPopulation;

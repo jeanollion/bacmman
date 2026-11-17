@@ -36,7 +36,7 @@ public class SimpleTranslation implements MultichannelTransformation, Hint {
     NumberParameter X = new NumberParameter<>("dX", 3, 0).setEmphasized(true);
     NumberParameter Y = new NumberParameter<>("dY", 3, 0).setEmphasized(true);
     NumberParameter Z = new NumberParameter<>("dZ", 3, 0).setEmphasized(true);
-    ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.BSPLINE5.toString(), false);
+    ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.BSPLINE5.toString(), false).setHint("The interpolation scheme used for non-integer translations"+ImageTransformation.INTERPOLATION_HINT);
     Parameter[] parameters = new Parameter[]{X, Y, Z, interpolation};
 
     public SimpleTranslation() {}
@@ -68,6 +68,6 @@ public class SimpleTranslation implements MultichannelTransformation, Hint {
 
     @Override
     public String getHintText() {
-        return "Translate one or several detection channel by a constant user-defined vector";
+        return "Translates one or several detection channels by a constant user-defined vector (in pixels). <br />Pixels whose position in the input image falls outside of the image are set to zero, so that they can be detected and removed afterwards";
     }
 }

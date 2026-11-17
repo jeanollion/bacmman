@@ -1,5 +1,8 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.image.HistogramSource;
+import bacmman.image.HistogramBinning;
+import bacmman.configuration.parameters.HistogramBinningParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
@@ -20,9 +23,10 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
     enum CENTER {MEAN, MEDIAN, MODE}
     EnumChoiceParameter<CENTER> centerMethod = new EnumChoiceParameter<>("Center type", CENTER.values(), CENTER.MODE);
 
-    BoundedNumberParameter excludeEdgeLeft = new BoundedNumberParameter("Exclude low values", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge");
-    BoundedNumberParameter excludeEdgeRight = new BoundedNumberParameter("Exclude high values", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
+    BoundedNumberParameter excludeEdgeLeft = new BoundedNumberParameter("Exclude low values", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge (bins of the histogram defined by <em>Histogram binning</em>)");
+    BoundedNumberParameter excludeEdgeRight = new BoundedNumberParameter("Exclude high values", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge (bins of the histogram defined by <em>Histogram binning</em>)");
 
+    HistogramBinningParameter binning = new HistogramBinningParameter();
     boolean transformInputImage = false;
 
     Consumer<String> scaleLogger;
@@ -44,7 +48,7 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
             default:
                 return histogram.getModeExcludingTailEnds(excludeEdgeLeft.getIntValue(), excludeEdgeRight.getIntValue());
             case MEAN:
-                return histogram.getMeanIdx(excludeEdgeLeft.getIntValue(), histogram.getData().length - excludeEdgeRight.getIntValue());
+                return histogram.getMean(excludeEdgeLeft.getIntValue(), histogram.getData().length - excludeEdgeRight.getIntValue());
             case MEDIAN:
                 if (excludeEdgeLeft.getIntValue()>0 || excludeEdgeRight.getIntValue()>0) {
                     histogram = histogram.duplicate(excludeEdgeLeft.getIntValue(), histogram.getData().length - excludeEdgeRight.getIntValue());
@@ -57,7 +61,7 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOpAddMul(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
         else { // perform on single image
-            double center = getCenter(HistogramFactory.getHistogram(image::stream));
+            double center = getCenter(HistogramSource.of(image::stream).getHistogram(getHistogramBinning()));
             log(center);
             return ImageOperations.affineOpAddMul(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ center, 0);
         }
@@ -75,13 +79,24 @@ public class RelativeIntensityScaler implements HistogramScaler, Hint {
         return this;
     }
     @Override
+    public HistogramScaler toConstantScaler() {
+        if (!isConfigured()) return null;
+        return new ConstantScaler().setParameters(0, center); // I / center
+    }
+
+    @Override
     public boolean isConfigured() {
         return histogram != null;
     }
 
     @Override
+    public HistogramBinning getHistogramBinning() {
+        return binning.getBinning();
+    }
+
+    @Override
     public Parameter[] getParameters() {
-        return new Parameter[] {centerMethod, excludeEdgeLeft, excludeEdgeRight};
+        return new Parameter[] {centerMethod, excludeEdgeLeft, excludeEdgeRight, binning};
     }
 
     @Override

@@ -76,8 +76,10 @@ public class Shortcuts {
         MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse/selection-brush tool)", "shift + alt + Line/Oval/Ellipse/Brush"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
         MANUAL_ERASE("Erase part of an existing object using the selection brush tool", "ctrl + Brush"),
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
+        POST_FILTER_2("Apply secondary post-filters defined in the object class parameter to selected object(s) / track(s)"),
         MANUAL_TRACK("Manual Tracking: Link selected objects with unlinked objects from previous and next frames"),
         MANUAL_TRACK_PROPAGATE("Perform manual tracking on selected object(s), then successively on newly linked objects"),
+        MANUAL_TRACK_POST_FILTER("Apply track-post-filters defined in the object class parameter to tracks of selected object(s)"),
         SELECT_CONNECTED("In track mode, displays selected tracks and their connected tracks", "ctrl + selection"),
         SELECT_ALL_OBJECTS("Display all objects of interactive object class on active image"), SELECT_ALL_OBJECT_CLASSES("Display all objects from all classes on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), SELECT_NEXT_TRACKS("Display Next tracks on active Kymograph"), SELECT_PREVIOUS_TRACKS("Display previous tracks on active Kymograph"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         SYNC_VIEW("Synchronize View between different images"),
@@ -185,8 +187,10 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK), ACTION.CREATE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0 ), ACTION.TOGGLE_CREATION_TOOL);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), ACTION.POST_FILTER);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.SHIFT_DOWN_MASK), ACTION.POST_FILTER_2);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_T, KeyEvent.SHIFT_DOWN_MASK), ACTION.MANUAL_TRACK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_T, KeyEvent.CTRL_DOWN_MASK), ACTION.MANUAL_TRACK_PROPAGATE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, KeyEvent.CTRL_DOWN_MASK), MANUAL_TRACK_POST_FILTER);
                 
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_OBJECTS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK), ACTION.SELECT_ALL_OBJECT_CLASSES);
@@ -235,8 +239,10 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK), ACTION.CREATE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0 ), ACTION.TOGGLE_CREATION_TOOL);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), ACTION.POST_FILTER);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.SHIFT_DOWN_MASK), ACTION.POST_FILTER_2);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_T, KeyEvent.SHIFT_DOWN_MASK), ACTION.MANUAL_TRACK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_T, KeyEvent.CTRL_DOWN_MASK), ACTION.MANUAL_TRACK_PROPAGATE);
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, KeyEvent.CTRL_DOWN_MASK), MANUAL_TRACK_POST_FILTER);
 
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK), ACTION.SELECT_ALL_OBJECTS);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK), ACTION.SELECT_ALL_OBJECT_CLASSES);
@@ -375,9 +381,9 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Manual Curation: all action are performed on active image</b>", TOGGLE_SAFE_MODE,
             "<b>Object Edition:</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MANUAL_SPLIT_SLICE, MERGE, MERGE_Z, SPLIT, SPLIT_UP, SPLIT_DOWN, SPLIT_UP_DOWN, POST_FILTER, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MANUAL_SPLIT_SLICE, MERGE, MERGE_Z, SPLIT, SPLIT_UP, SPLIT_DOWN, SPLIT_UP_DOWN, POST_FILTER, POST_FILTER_2, INCREASE_BRUSH_SIZE, DECREASE_BRUSH_SIZE,
             "<b>Lineage Edition:</b>",
-            RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK, MANUAL_TRACK, MANUAL_TRACK_PROPAGATE
+            RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK, MANUAL_TRACK, MANUAL_TRACK_PROPAGATE, MANUAL_TRACK_POST_FILTER
         };
         int shortcutWidth = 210;
         int descWidth = 700;

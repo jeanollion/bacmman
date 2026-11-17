@@ -1,7 +1,8 @@
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.core.DatasetExportTask;
 import bacmman.configuration.parameters.*;
-import bacmman.core.Task;
+import bacmman.core.ProcessingTask;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
@@ -44,7 +45,7 @@ public class ExtractDataset extends JDialog {
     private final ObjectClassParameter cropOC;
     private final GroupParameter container;
     private final FileChooser outputFile;
-    private Task resultingTask;
+    private DatasetExportTask resultingTask;
     private final MasterDAO mDAO;
     private static final Logger logger = LoggerFactory.getLogger(ExtractDataset.class);
 
@@ -210,7 +211,7 @@ public class ExtractDataset extends JDialog {
     }
 
     private void onOK() {
-        resultingTask = new Task(mDAO.getDBName(), mDAO.getDatasetDir().toFile().getAbsolutePath());
+        resultingTask = new DatasetExportTask(mDAO.getDBName(), mDAO.getDatasetDir().toFile().getAbsolutePath());
         List<String> sels = this.selectionList.getSelectedValuesList()
                 .stream()
                 .map(Selection::getName)
@@ -223,7 +224,7 @@ public class ExtractDataset extends JDialog {
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
         int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
-        resultingTask.setExtractDS(fixOutputPath(outputFile.getFirstSelectedFilePath()), sels, features, dims, resizeMode.getSelectedEnum(), cropOC.getSelectedClassIdx(), eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
+        resultingTask.setParameters(fixOutputPath(outputFile.getFirstSelectedFilePath()), sels, features, dims, resizeMode.getSelectedEnum(), cropOC.getSelectedClassIdx(), eraseContoursOC, trackingDataset.getSelected(), downsamplingFactor.getIntValue(), subsamplingFactor.getIntValue(), subsamplingNumber.getIntValue(), GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         close();
     }
 
@@ -232,11 +233,11 @@ public class ExtractDataset extends JDialog {
         return path;
     }
 
-    public static Task promptExtractDatasetTask(MasterDAO mDAO, Task selectedTask) {
+    public static DatasetExportTask promptExtractDatasetTask(MasterDAO mDAO, DatasetExportTask selectedTask) {
         ExtractDataset dialog = new ExtractDataset(mDAO);
-        dialog.setTitle("Configure Dataset extraction");
+        dialog.setTitle("Configure Dataset export");
         if (selectedTask != null)
-            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelectionNames(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSResizeMode(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
+            dialog.setDefaultValues(selectedTask.getOutputFile(), selectedTask.getSelectionNames(), selectedTask.getFeatures(), selectedTask.getResizeMode(), selectedTask.getDimensions(), selectedTask.getEraseTouchingContoursOC());
         dialog.pack();
         dialog.setVisible(true);
         //System.exit(0);

@@ -3,6 +3,7 @@ package bacmman.image;
 import bacmman.data_structure.dao.DiskBackedImageManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.IOException;
 
 public abstract class DiskBackedImage<I extends Image<I>> extends Image<I> {
     public final static Logger logger = LoggerFactory.getLogger(DiskBackedImage.class);
@@ -50,7 +51,7 @@ public abstract class DiskBackedImage<I extends Image<I>> extends Image<I> {
 
     public abstract boolean isOpen();
 
-    public abstract void freeMemory(boolean storeIfModified);
+    public abstract void freeMemory(boolean storeIfModified) throws IOException;
 
     public abstract I getImage();
 

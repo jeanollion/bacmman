@@ -98,7 +98,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
 
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
     protected OmeroGateway omeroGateway;
-    protected GithubGateway githubGateway;
+    protected RepositoryGateway repositoryGateway;
     protected String configID;
     protected Supplier<Stream<Selection>> selectionSupplier;
     @Override
@@ -116,7 +116,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         res.put("importMethod", importCond.toJSONEntry());
         res.put("bestFocusPlane", bestFocusPlane.toJSONEntry());
         res.put("note", note.toJSONEntry());
-        if (configID!=null) res.put(ConfigIDAware.key, configID);
+        if (configID!=null) res.put(ConfigIDAware.key, ConfigIDAware.storedLink(this, getConfigID()));
         return res;
     }
 
@@ -174,7 +174,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
 
     public String getConfigID() {
-        return configID;
+        return ConfigIDAware.resolveLink(this, configID); // links to local repositories are stored relative to the dataset folder
     }
 
     @Override
@@ -216,13 +216,13 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         if (omeroGateway == null) omeroGateway = Core.getCore().getOmeroGateway();
         return omeroGateway;
     }
-    public Experiment setGithubGateway(GithubGateway githubGateway) {
-        this.githubGateway = githubGateway;
+    public Experiment setGithubGateway(RepositoryGateway repositoryGateway) {
+        this.repositoryGateway = repositoryGateway;
         return this;
     }
-    public GithubGateway getGithubGateway() {
-        if (githubGateway == null) githubGateway = Core.getCore().getGithubGateway();
-        return githubGateway;
+    public RepositoryGateway getGithubGateway() {
+        if (repositoryGateway == null) repositoryGateway = Core.getCore().getGithubGateway();
+        return repositoryGateway;
     }
     public String getNote() {
         return note.getValue();
@@ -426,7 +426,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
         for (int i = 0; i<res.length; i++) res[i] = getStructure(i).getChannelImage();
         return res;
     }
-    public HashMap<Integer, List<Integer>> getChannelToStructureCorrespondance() {
+    public Map<Integer, List<Integer>> getChannelToStructureCorrespondance() {
         HashMapGetCreate<Integer, List<Integer>> res = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
         for (int s = 0; s<getStructureCount(); s++) res.getAndCreateIfNecessary(getStructure(s).getChannelImage()).add(s);
         return res;

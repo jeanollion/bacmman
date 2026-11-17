@@ -1,5 +1,7 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.core.ProgressCallback;
+import bacmman.core.ProgressContext;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.github.gist.DLModelMetadata;
@@ -44,19 +46,27 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
+        // progress in frames: track pre-filters, prediction, segmentation and tracking of each frame
+        ProgressCallback.SubProgress progress = ProgressContext.subProgress(((trackPreFilters==null || trackPreFilters.isEmpty()) ? 0 : parentTrack.size()) + 3 * parentTrack.size());
+        Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters, progress);
         if (stores!=null && edm_div_dy_np[1]!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
-        segment(objectClassIdx, parentTrack, edm_div_dy_np[0], postFilters, factory);
+        // segmenter configuration may report its progress: within the segmentation part
+        ProgressContext.runSlice(progress, parentTrack.size(), "DistNet: segmenting", () -> segment(objectClassIdx, parentTrack, edm_div_dy_np[0], postFilters, factory));
+        progress.setMessage("DistNet: tracking");
         track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], edm_div_dy_np[0], editor, factory);
+        progress.increment(parentTrack.size());
     }
 
-    private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
+    /**
+     * @param progress incremented by the number of frames of the parent track during track pre-filters (if any), and during prediction
+     */
+    private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, ProgressCallback.SubProgress progress) {
         long t0= System.currentTimeMillis();
         DLEngine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1= System.currentTimeMillis();
         logger.info("engine instanciated in {}ms, class: {}", t1-t0, engine.getClass());
-        trackPreFilters.filter(objectClassIdx, parentTrack);
+        if (trackPreFilters!=null && !trackPreFilters.isEmpty()) ProgressContext.runSlice(progress, parentTrack.size(), "DistNet: track pre-filters", () -> trackPreFilters.filter(objectClassIdx, parentTrack)); // track pre-filters that predict report their progress within their own part
         if (stores!=null && !trackPreFilters.isEmpty()) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
@@ -67,7 +77,8 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         logger.info("input resampled in {}ms", t3-t2);
         boolean next = this.next.getSelected();
         Image[][] input = getInputs(resampledImages.key, true, next);
-        Image[][][] predictions =  engine.process(input); // order: output# [dy / cat (cat_next) / edm] / batch / channel
+        progress.setMessage("DistNet: predicting");
+        Image[][][] predictions =  engine.process(progress, parentTrack.size(), input); // order: output# [dy / cat (cat_next) / edm] / batch / channel
         boolean categories = predictions.length>2;
         int channelEdmCur = predictions[predictions.length-1][0].length==1 ? 0 : 1;
         Image[] dy = ResizeUtils.getChannel(predictions[0], 0);
@@ -543,7 +554,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         if (next && parent.getPrevious()==null && parent.getNext()!=null && parent.getNext()!=null) parentTrack.add(parent.getNext().getNext());
         if (next && parentTrack.size()<3) throw new RuntimeException("Parent Track Must contain at least 3 frames");
         else if (!next && parentTrack.size()<2) throw new RuntimeException("Parent Track Must contain at least 2 frames");
-        Map<SegmentedObject, Image> predictions = predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""))[0];
+        Map<SegmentedObject, Image> predictions = predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""), ProgressCallback.SubProgress.NO_OP)[0];
         return predictions.get(parent);
     }
 
@@ -623,8 +634,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape, HistogramScaler scaler) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         if ( !(scaler instanceof MinMaxScaler) && !scaler.isConfigured()) {
-            Histogram histo = HistogramFactory.getHistogram(() -> Image.stream(Arrays.asList(in)));
-            scaler.setHistogram(histo);
+            scaler.setHistogram(HistogramSource.of(() -> Image.stream(Arrays.asList(in))));
         }
 
         int[][] dimensions = ResizeUtils.getDimensions(in);

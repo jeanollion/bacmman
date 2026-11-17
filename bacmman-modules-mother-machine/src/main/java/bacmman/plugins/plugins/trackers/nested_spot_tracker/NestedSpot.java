@@ -71,11 +71,13 @@ public class NestedSpot extends SpotWithQuality<NestedSpot> {
             if (this.getFrame()>s.getFrame()) return s.squareDistanceTo(this);
             if (!distanceParameters.includeLQ && (isLowQuality() || s.isLowQuality())) return Double.POSITIVE_INFINITY;
             if (s.getFrame()- getFrame()>distanceParameters.maxFrameDiff) return Double.POSITIVE_INFINITY;
+            if (s.getFrame()==getFrame() && parent!=s.parent) return Double.POSITIVE_INFINITY; // two different bacteria at same frame: not in same lineage
             //logger.debug("get distance: F{}->{}", frame(), ss.frame());
-            double distSq = BacteriaSpineLocalizer.distanceSq(spineCoord, s.region.getCenter(), parent, s.parent, distanceParameters.projectionType, distanceParameters.projectOnSameSides, localizerMap, false);
+            double distSq = BacteriaSpineLocalizer.distanceSq(region.getCenter(), spineCoord, s.region.getCenter(), s.spineCoord, parent, s.parent, distanceParameters.distanceMode, distanceParameters.projectionType, distanceParameters.projectOnSameSides, localizerMap, false);
             //logger.debug("dist F{}-{}->F{}-{} = {} penalty = {}, spine coords: {} & {} centers: {} & {}", frame(), region.getLabel()-1, s.frame(), s.region.getLabel()-1, Math.sqrt(distSq), Math.sqrt(distanceParameters.getSquareDistancePenalty(distSq, this, s)), spineCoord.coords, s.spineCoord.coords, getRegion().getCenter(), s.getRegion().getCenter());
+            if (Double.isNaN(distSq) || Double.isInfinite(distSq)) return Double.POSITIVE_INFINITY;
             distSq+=distanceParameters.getSquareDistancePenalty(distSq, this, s);
-            return distSq;
+            return Double.isNaN(distSq) ? Double.POSITIVE_INFINITY : distSq; // NaN would pass the linking cost threshold
         } else return super.squareDistanceTo(s);
     }
 }

@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.utils.FileIO;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
@@ -28,6 +29,8 @@ import bacmman.image.io.ImageReaderFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +51,8 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     int sizeZ;
     MutableBoundingBox bounds;
     private volatile ImageReader reader;
-    private Map<String, Double> timePointCZT;
+    private volatile Map<String, Double> timePointCZT;
+    private transient boolean timePointInitTried; // an empty time point map may come from a version that could not read time points: try once again per session
     private boolean invertTZ;
     @Override
     public boolean sameContent(MultipleImageContainer other) {
@@ -96,7 +100,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         res.put("sizeZ", sizeZ);
         res.put("invertTZ", invertTZ);
         if (bounds!=null) res.put("bounds", bounds.toJSONEntry());
-        if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
+        TimePointsJSON.write(timePointCZT, res);
         return res;
     }
 
@@ -117,10 +121,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
             bounds = new MutableBoundingBox();
             bounds.initFromJSONEntry(jsonO.get(("bounds")));
         }
-        if (jsonO.containsKey("timePointCZT")) {
-            timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
-            logger.debug("load tpMap: {}", timePointCZT);
-        }
+        timePointCZT = TimePointsJSON.read(jsonO);
     }
 
     protected MultipleImageContainerSingleFile() {super(1, 1);}
@@ -128,7 +129,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         super(scaleXY, scaleZ);
         this.name = name;
         this.seriesIdx=series;
-        filePath = imagePath;
+        filePath = FileIO.checkNoBackslash(imagePath);
         this.timePointNumber = timePointNumber;
         this.channelNumber=channelNumber;
         this.sizeZ=sizeZ;
@@ -160,8 +161,17 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     }
     
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
-        //return Double.NaN; // not supported
-        ///f (timePointCZT==null) initTimePointMap();
+        if (!fromOmero() && (timePointCZT==null || (timePointCZT.isEmpty() && !timePointInitTried))) {
+            synchronized (this) {
+                if (timePointCZT==null || (timePointCZT.isEmpty() && !timePointInitTried)) {
+                    try {
+                        initTimePointMap();
+                    } catch (IOException e) {
+                        logger.debug("could not read time points", e);
+                    }
+                }
+            }
+        }
         if (timePointCZT==null || timePointCZT.isEmpty()) return Double.NaN;
         String key = getKey(c, z, t);
         Double d = timePointCZT.get(key);
@@ -190,23 +200,48 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         return this;
     }
     
-    private void initTimePointMap() throws IOException {
+    private synchronized void initTimePointMap() throws IOException {
         ImageReader r = this.getReader();
-        timePointCZT = new HashMap<>();
-        if (r==null) return;
-        for (int c = 0; c<this.getChannelNumber(); ++c) {
-            for (int z = 0; z<getSizeZ(c); ++z) {
-                for (int t = 0; t<getFrameNumber(); ++t) {
-                    double tp = r.getTimePoint(c, t, z);
-                    if (!Double.isNaN(tp)) timePointCZT.put(getKey(c, z, t), tp);
+        if (r instanceof ImageReaderFile) initTimePoints((ImageReaderFile) r);
+        else {
+            timePointInitTried = true;
+            timePointCZT = new HashMap<>();
+        }
+    }
+
+    /**
+     * Time points of all planes, from the first available source (see {@link ImageReaderFile.TIME_SOURCE}), in seconds relative to the first plane. Left empty if not found.
+     * Should be called at import with the reader used for import, so that time points are stored with the configuration and the file needs not be opened again to get them.
+     * @param r reader of the file of this container
+     */
+    public synchronized void initTimePoints(ImageReaderFile r) {
+        timePointInitTried = true;
+        Map<String, Double> timePoints = new HashMap<>();
+        boolean readerInvertTZ = r.getInvertTZ();
+        r.setInvertTZ(invertTZ); // plane coordinates of this container
+        try {
+            List<int[]> planes = new ArrayList<>();
+            for (int c = 0; c < getChannelNumber(); ++c) {
+                for (int t = 0; t < getFrameNumber(); ++t) {
+                    for (int z = 0; z < getSizeZ(c); ++z) planes.add(new int[]{c, t, z});
                 }
             }
+            ImageReaderFile.TimePoints tp = r.getTimePoints(seriesIdx, planes.toArray(new int[0][]), EnumSet.allOf(ImageReaderFile.TIME_SOURCE.class));
+            if (tp == null) {
+                logger.info("time point information not found in file: {}", filePath);
+                return;
+            }
+            logger.debug("time points read from: {}", tp.source);
+            for (int i = 0; i < planes.size(); ++i) timePoints.put(getKey(planes.get(i)[0], planes.get(i)[2], planes.get(i)[1]), tp.times[i]);
+            if (tp.source.absolute) toRelativeTime(timePoints);
+        } finally {
+            r.setInvertTZ(readerInvertTZ);
+            timePointCZT = timePoints;
         }
-        logger.debug("tpMap: {}", timePointCZT);
     }
     
     public void setImagePath(String path) {
-        this.filePath=path;
+        this.filePath=FileIO.checkNoBackslash(path);
     }
     
     public String getFilePath(){return filePath;}

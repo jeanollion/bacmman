@@ -58,7 +58,7 @@ public class PreviousLinks implements FeatureExtractorConfigurable, FeatureExtra
             }
         });
         if (!remainingPreviousObjects.isEmpty()) { // also add null links for previous objects that where not linked
-            for (SegmentedObject p : remainingPreviousObjects) {
+            for (SegmentedObject p : remainingPreviousObjects.stream().sorted().collect(Collectors.toList())) { // sorted: deterministic order
                 SegmentedObject n = getNextWithGap(p, subsamplingFactor); // search for next to discard merging cases
                 if (n == null) res.setPixel(1, idx[0]++, 0, p.getIdx() + 1); // no next was found : set a null link
             }

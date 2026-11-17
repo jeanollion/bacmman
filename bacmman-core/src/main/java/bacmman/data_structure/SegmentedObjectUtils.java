@@ -23,16 +23,8 @@ import bacmman.data_structure.dao.MemoryObjectDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.MemoryMasterDAO;
 import bacmman.image.Offset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -45,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  *
@@ -257,6 +250,24 @@ public class SegmentedObjectUtils {
         }
         return track;
     }
+
+    public static Stream<SegmentedObject> getTrackAsStream(SegmentedObject trackHead) {
+        if (trackHead == null) return Stream.empty();
+        SegmentedObject head = trackHead.getTrackHead();
+        Iterator<SegmentedObject> it = new Iterator<SegmentedObject>() {
+            SegmentedObject next = head;
+            public boolean hasNext() {
+                return next != null && next.getTrackHead().equals(head);
+            }
+            public SegmentedObject next() {
+                SegmentedObject cur = next;
+                next = next.getNext();
+                return cur;
+            }
+        };
+        return StreamSupport.stream( Spliterators.spliteratorUnknownSize(it, Spliterator.ORDERED | Spliterator.NONNULL), false );
+    }
+
     public static List<List<SegmentedObject>> getTracks(Collection<SegmentedObject> trackHeads) {
         List<List<SegmentedObject>> res = new ArrayList<>(trackHeads.size());
         for (SegmentedObject o : trackHeads) res.add(getTrack(o));
