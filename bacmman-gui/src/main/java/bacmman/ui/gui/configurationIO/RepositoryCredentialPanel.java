@@ -423,7 +423,7 @@ public class RepositoryCredentialPanel {
         fieldPanel.setLayout(new GridLayoutManager(1, 4, new Insets(0, 0, 0, 0), -1, -1));
         credentialPanel.add(fieldPanel, new GridConstraints(1, 0, 1, 5, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         localFolder = new JTextField();
-        localFolder.setToolTipText("Folder of the local repository. Press Enter or click Open to load it (it is created if it does not exist). Right click: recent list");
+        localFolder.setToolTipText("Folder of the local repository. Press Enter or click Load to load it (it is created if it does not exist). Right click: recent list");
         fieldPanel.add(localFolder, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         browseFolder = new JButton();
         browseFolder.setText("...");

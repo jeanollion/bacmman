@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -256,11 +257,13 @@ public class DockerGatewayImpl implements DockerGateway {
         }
         if (shmSizeGb == 0) shmSizeGb = PropertyUtils.get(PropertyUtils.DOCKER_SHM_GB, 8.);
         hostConfig = hostConfig.withShmSize(Math.round(shmSizeGb * Math.pow(2, 30))); //.withMemorySwappiness(0L); //.withBlkioWeight(1000);
+        List<ExposedPort> exposedPorts = new ArrayList<>();
         if (portBindingHostToContainer != null && !portBindingHostToContainer.isEmpty()) {
             Ports portBindings = new Ports();
             for (UnaryPair<Integer> ports : portBindingHostToContainer) {
                 ExposedPort exposedPort = ExposedPort.tcp(ports.value);
                 portBindings.bind(exposedPort, Ports.Binding.bindPort(ports.key));
+                exposedPorts.add(exposedPort);
             }
             hostConfig = hostConfig.withPortBindings(portBindings);
         }
@@ -274,6 +277,7 @@ public class DockerGatewayImpl implements DockerGateway {
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
            .withHostConfig(hostConfig)
            .withTty(true);
+        if (!exposedPorts.isEmpty()) cmd = cmd.withExposedPorts(exposedPorts); // as docker run -p: a binding is only published if the port is exposed (not declared by all images)
         int defUID = -1;
         int defGID = -1;
         if (environmentVariables != null && !environmentVariables.isEmpty()) {

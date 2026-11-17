@@ -52,6 +52,8 @@ public class JupyterNotebookViewer {
     private JSONObject notebook;
     private String language = "python";
     private RSyntaxTextArea description;
+    private Runnable changeListener; // called when the notebook is edited
+    private String savedSignature; // signature of the saved version: modified if the current signature differs
 
     public JupyterNotebookViewer(JSONObject notebook) {
         this.notebook = notebook;
@@ -64,6 +66,50 @@ public class JupyterNotebookViewer {
         tree.addMouseListener(new NotebookMouseAdapter());
         tree.setRootVisible(false);
         loadNotebook();
+        savedSignature = getSignature();
+    }
+
+    /**
+     * @param changeListener called each time the notebook is edited (text of a cell, cells added, removed, moved or type changed)
+     */
+    public JupyterNotebookViewer setChangeListener(Runnable changeListener) {
+        this.changeListener = changeListener;
+        return this;
+    }
+
+    protected void fireChanged() {
+        if (changeListener != null) changeListener.run();
+    }
+
+    /**
+     * @return what can be edited in the viewer: type and text of each cell (outputs cannot be edited). Cheap to compute
+     */
+    public String getSignature() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            TreeNode n = rootNode.getChildAt(i);
+            if (n instanceof CellNode) sb.append(((CellNode) n).type).append('\u0001').append(((CellNode) n).code.getText()).append('\u0002');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * @param savedSignature signature of the saved version of the notebook (when the displayed content already contains unsaved modifications)
+     */
+    public void setSavedSignature(String savedSignature) {
+        this.savedSignature = savedSignature;
+        fireChanged();
+    }
+
+    /**
+     * The current content is the saved version
+     */
+    public void setSaved() {
+        setSavedSignature(getSignature());
+    }
+
+    public boolean isModified() {
+        return !getSignature().equals(savedSignature);
     }
 
     private void loadNotebook() {
@@ -185,6 +231,11 @@ public class JupyterNotebookViewer {
             code.setLineWrap(false);
             code.setWrapStyleWord(true);
             code.setText(initTxt);
+            code.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { fireChanged(); }
+                @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { fireChanged(); }
+                @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { }
+            });
             if (CODE.equals(type)) {
                 code.setSyntaxEditingStyle("text/"+language);
             } else if (MARKDOWN.equals(type)) {
@@ -460,6 +511,7 @@ public class JupyterNotebookViewer {
                 DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
                 CellNode newCellNode = new CellNode(CODE, language);
                 treeModel.insertNodeInto(newCellNode, (MutableTreeNode) selectedNode.getParent(), selectedNode.getParent().getIndex(selectedNode) + 1);
+                fireChanged();
             }
         }
 
@@ -468,6 +520,7 @@ public class JupyterNotebookViewer {
             if (path != null) {
                 DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
                 treeModel.removeNodeFromParent(selectedNode);
+                fireChanged();
             }
         }
 
@@ -480,6 +533,7 @@ public class JupyterNotebookViewer {
                 if (index > 0) {
                     treeModel.removeNodeFromParent(selectedNode);
                     treeModel.insertNodeInto(selectedNode, parent, index - 1);
+                    fireChanged();
                 }
             }
         }
@@ -493,6 +547,7 @@ public class JupyterNotebookViewer {
                 if (index < parent.getChildCount() - 1) {
                     treeModel.removeNodeFromParent(selectedNode);
                     treeModel.insertNodeInto(selectedNode, parent, index + 1);
+                    fireChanged();
                 }
             }
         }
@@ -503,7 +558,10 @@ public class JupyterNotebookViewer {
                 DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
                 if (selectedNode instanceof CellNode) {
                     CellNode cellNode = (CellNode)selectedNode;
-                    if (cellNode.setType(type)) treeModel.reload(selectedNode);
+                    if (cellNode.setType(type)) {
+                        treeModel.reload(selectedNode);
+                        fireChanged();
+                    }
                 }
             }
         }

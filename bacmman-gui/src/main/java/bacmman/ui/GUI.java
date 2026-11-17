@@ -136,6 +136,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private DefaultListModel<Selection> selectionModel;
     StructureSelectorTree trackTreeStructureSelector, actionStructureSelector;
     PythonGateway pyGtw;
+    Runnable startPythonGateway;
     // shortcuts
     private Shortcuts shortcuts;
 
@@ -168,7 +169,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private BooleanParameter importMetadata = new BooleanParameter("Import Image Metadata", false).setHint("When importing images, choose this option to extract image metadata in the folder ./SourceImageMetadata");
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
-    private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "localhost", true, false).setHint("adress of the python gateway server. set localhost by default. set 0.0.0.0 to listen on all network interfaces");
+    private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "localhost", true, false).setHint("address the python gateway server listens on. localhost (default): all network interfaces, so that python can connect locally and from docker containers. Connections require the token displayed in the log when the gateway is started");
     private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory. \nDecrease this value in case of out-of-memory errors. Note that saving images to disk will reduce speed.");
     private IntegerParameter processingWindow = new IntegerParameter("Pre-Processing Window", 100).setLowerBound(5).setHint("Pre-processing is performed in frame windows (frames are processed in parallel when possible) to reduce memory footprint. \nDecrease this value in case of memory errors during pre-processing. \nIn absence of memory errors set this value to 10-20 times the number of CPU cores");
     private NumberParameter dbStartSize = new BoundedNumberParameter("Database Start Size (Mb)", 0, 2, 1, null);
@@ -658,7 +659,8 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             pyGtw = new PythonGateway(pyGatewayPort.getValue().intValue(), pyGatewayPythonPort.getValue().intValue(), pyGatewayAddress.getValue());
             pyGtw.startGateway();
         };
-        JMenuItem restartPyGateway = new JMenuItem("Restart Python Gateway");
+        startPythonGateway = pyGatewayListener;
+        JMenuItem restartPyGateway = new JMenuItem("Start / Restart Python Gateway");
         restartPyGateway.addActionListener(al -> pyGatewayListener.run());
         pyGatewayMenu.add(restartPyGateway);
         JMenuItem stopPyGateway = new JMenuItem("Stop Python Gateway");
@@ -667,7 +669,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             pyGtw = null;
         }});
         pyGatewayMenu.add(stopPyGateway);
-        pyGatewayListener.run();
+        // not started at startup (the gateway gives access to the JVM): started on demand, from this menu or when a docker container is launched
 
         // ctc
         PropertyUtils.setPersistent(marginCTC, "ctc_margin");
@@ -1531,6 +1533,16 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         } catch (BadLocationException|NullPointerException ex) {
         }
     }
+    /**
+     * @return the python gateway, started if necessary (null if it could not be started)
+     */
+    public static PythonGateway ensurePythonGateway() {
+        if (!hasInstance()) return null;
+        GUI gui = getInstance();
+        if ((gui.pyGtw == null || !gui.pyGtw.isRunning()) && gui.startPythonGateway != null) gui.startPythonGateway.run();
+        return gui.pyGtw != null && gui.pyGtw.isRunning() ? gui.pyGtw : null;
+    }
+
     public static PythonGateway getPythonGateway() {
         if (hasInstance()) return getInstance().pyGtw;
         return null;

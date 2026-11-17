@@ -1,8 +1,7 @@
-FROM quay.io/jupyter/scipy-notebook:x86_64-lab-4.4.9
-#RUN pip install PyBacmman
-RUN pip install git+https://git@github.com/jeanollion/PyBacmman.git
-#RUN pip install bokeh, selenium # to export bokeh plots as images
-RUN pip install plotly kaleido
+FROM quay.io/jupyter/r-notebook:x86_64-lab-4.6.6
+USER root
+RUN Rscript -e 'install.packages(c("data.table", "ggplot2", "rjson"), repos="https://cloud.r-project.org")'
+USER $NB_UID
 # Override settings: dark theme
 RUN mkdir -p /opt/conda/share/jupyter/lab/settings
 RUN echo '{"@jupyterlab/apputils-extension:themes": {"theme": "JupyterLab Dark"}}' > /opt/conda/share/jupyter/lab/settings/overrides.json

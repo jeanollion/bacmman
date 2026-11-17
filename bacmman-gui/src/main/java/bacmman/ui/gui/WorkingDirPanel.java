@@ -100,6 +100,17 @@ public class WorkingDirPanel {
         return workingDirPanel;
     }
 
+    /**
+     * Single button (when setting the working directory has no other effect, e.g. no configuration to load or write)
+     */
+    public WorkingDirPanel setSingleButton(String text, String hint, String textFieldHint) {
+        setLoadButton.setText(text);
+        setLoadButton.setToolTipText(hint);
+        setWriteButton.setVisible(false);
+        workingDirectoryTextField.setToolTipText(textFieldHint);
+        return this;
+    }
+
     protected boolean workingDirectoryIsValid() {
         String wd = workingDirectoryTextField.getText();
         return wd != null && !wd.isEmpty() && new File(wd).isDirectory();

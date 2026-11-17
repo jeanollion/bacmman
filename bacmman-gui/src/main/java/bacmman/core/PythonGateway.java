@@ -27,6 +27,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,25 +53,37 @@ import javax.swing.*;
  */
 public class PythonGateway {
     public static final Logger logger = LoggerFactory.getLogger(PythonGateway.class);
+    // the gateway gives access to the whole JVM (any class can be called): every connection must provide this token.
+    // generated once per session so that restarting the gateway does not invalidate running docker containers
+    private static String TOKEN;
     GatewayServer server;
     final int port, pythonPort;
     final String address;
     public PythonGateway(int port, int pythonPort, String address) {
         this.port=port;
         this.pythonPort=pythonPort;
-        String add = null;
-        try {
-            add="localhost".equals(address) ? Utils.getExternalIP() : address;
-        } catch (SocketException e) {
-            add = "0.0.0.0";
+        // localhost: listen on all network interfaces, so that python can connect locally (127.0.0.1) and from docker containers. access is protected by the token
+        this.address = address == null || address.isEmpty() || "localhost".equals(address) ? "0.0.0.0" : address;
+    }
+
+    public static synchronized String getToken() {
+        if (TOKEN == null) {
+            byte[] bytes = new byte[32];
+            new SecureRandom().nextBytes(bytes);
+            TOKEN = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         }
-        this.address = add == null ? "0.0.0.0" : add; // 0.0.0.0 listen on all network devices
+        return TOKEN;
+    }
+
+    public boolean isRunning() {
+        return server != null;
     }
 
     public List<UnaryPair<String>> getEnv(boolean docker) {
         List<UnaryPair<String>> res = new ArrayList<>();
         res.add(new UnaryPair<>("PYBACMMAN_PORT", String.valueOf(port)));
         res.add(new UnaryPair<>("PYBACMMAN_PYPROXYPORT", String.valueOf(pythonPort)));
+        res.add(new UnaryPair<>("PYBACMMAN_TOKEN", getToken()));
         if (docker && (address.equals("0.0.0.0"))) {
             if (Utils.isWindows() || Utils.isMac())
                 res.add(new UnaryPair<>("PYBACMMAN_ADDRESS", "host.docker.internal"));
@@ -87,20 +101,29 @@ public class PythonGateway {
         return res;
     }
 
+    /**
+     * Port bindings (host -> container) needed when python runs in a docker container.
+     * Only the python callback port is published: python listens on it inside the container and the java callback client connects to it through the host.
+     * The gateway port must not be published: the java gateway server already listens on it on the host (docker would fail with "port is already allocated"), and python in the container reaches it directly through PYBACMMAN_ADDRESS.
+     * @return list of (host port, container port)
+     */
     public List<UnaryPair<Integer>> getPorts() {
         List<UnaryPair<Integer>> res = new ArrayList<>();
-        res.add(new UnaryPair<>(port, port));
         res.add(new UnaryPair<>(pythonPort, pythonPort));
         return res;
     }
 
     public void startGateway() {
         try {
-            server = new GatewayServer(this, port, address(), 0, 0, null, new CallbackClient(pythonPort, address()), ServerSocketFactory.getDefault());
+            server = new GatewayServer.GatewayServerBuilder(this).javaPort(port).javaAddress(address())
+                    .callbackClient(pythonPort, GatewayServer.defaultAddress(), getToken()).authToken(getToken())
+                    .serverSocketFactory(ServerSocketFactory.getDefault()).build();
             server.start();
-            if (GUI.hasInstance()) GUI.log("Python Gateway started : port: "+port+" python port: "+pythonPort+ " address: "+address);
-            logger.debug("Python Gateway started : port: {} python port: {} address: {}", port, pythonPort, address);
+            String message = "Python Gateway started: port: "+port+" python port: "+pythonPort+ " address: "+address+" token: "+getToken() + "\n(token: required to connect, valid until BACMMAN is closed. Set automatically in docker containers launched by BACMMAN. Otherwise, set environment variable PYBACMMAN_TOKEN or pass it to pybacmman: store_selection(..., token=\"...\"))";
+            if (GUI.hasInstance()) GUI.log(message);
+            logger.debug("Python Gateway started: port: {} python port: {} address: {}", port, pythonPort, address);
         } catch(Exception e) {
+            server = null;
             logger.debug("Error with Python Gateway: binding with python will not be available", e);
             if (GUI.hasInstance()) GUI.log("Could not start Python Gateway: binding with python will not be available. \nAnother python gateway may be running on those ports, try to change ports from the menu Misc>Python Gateway");
         }
@@ -108,6 +131,7 @@ public class PythonGateway {
 
     public void stopGateway() {
         if (server!=null) server.shutdown();
+        server = null;
     }
 
     public InetAddress address() {

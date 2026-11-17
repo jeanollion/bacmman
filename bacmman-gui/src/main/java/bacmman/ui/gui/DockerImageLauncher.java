@@ -112,6 +112,18 @@ public class DockerImageLauncher {
         stop.addActionListener(ae -> stopContainer());
     }
 
+    /**
+     * Hints of the parameters and buttons, for the Jupyter server of the data analysis panel
+     */
+    public DockerImageLauncher setJupyterHints() {
+        dockerImage.setHint("Docker image of the Jupyter server: Python or R flavor, and version. By default, the most recent version is selected<br/>An image that is not installed is built from the Dockerfile shipped with BACMMAN when the server is started (this can take several minutes and requires an internet connection)");
+        port.setHint("Port of this computer through which the Jupyter server is accessed (http://127.0.0.1:<em>port</em>). Change it if the port is already used, e.g. by another Jupyter server");
+        dockerContainer.setHint("Jupyter servers started from BACMMAN that are running. Selecting one sets the working directory and the port it was started with, so that notebooks open in this server");
+        start.setToolTipText(bacmman.plugins.Hint.formatHint("Starts a Jupyter server in a Docker container, with the working directory available as <em>/data</em> in the container, and opens the selected notebook (or the home page of the server) in the web browser.<br/>The Python Gateway is started, so that notebooks can send selections to BACMMAN (pybacmman)", true));
+        stop.setToolTipText(bacmman.plugins.Hint.formatHint("Stops the selected Jupyter server (Docker container). Notebooks are saved in the working directory, but modifications not saved in Jupyter are lost", true));
+        return this;
+    }
+
     public int[] getHostPorts() {
         if (nPorts == 0) return null;
         else if (nPorts == 1) return new int[]{port.getIntValue()};
@@ -163,8 +175,9 @@ public class DockerImageLauncher {
             if (image != null) {
                 int[] exposedPorts = getHostPorts();
                 List<UnaryPair<Integer>> portList = IntStream.range(0, nPorts).mapToObj(i -> new UnaryPair<>(exposedPorts[i], containerPorts[i])).collect(Collectors.toList());
-                if (GUI.getPythonGateway() != null) portList.addAll(GUI.getPythonGateway().getPorts());
-                List<UnaryPair<String>> env = GUI.getPythonGateway() != null ? GUI.getPythonGateway().getEnv(true) : new ArrayList<>();
+                PythonGateway pyGtw = GUI.ensurePythonGateway(); // started on demand
+                if (pyGtw != null) portList.addAll(pyGtw.getPorts());
+                List<UnaryPair<String>> env = pyGtw != null ? pyGtw.getEnv(true) : new ArrayList<>();
                 if (environmentVariables.length > 0) env.addAll(Arrays.asList(environmentVariables));
                 env.add(new UnaryPair<>("BACMMAN_WD", workingDir));
                 env.add(new UnaryPair<>("BACMMAN_CONTAINER_DIR", containerDir));
@@ -242,18 +255,48 @@ public class DockerImageLauncher {
         }
     }
 
+    // build progress: one task per dockerfile step ("Step i/N : COMMAND"), layer download progress (MB) as progress of the current step
+    private ProgressCallback.SubProgress downloadProgress;
+    private int downloadTotal, downloadCurrent;
+
     protected void parseBuildProgress(String message) {
         int[] prog = DockerGateway.parseBuildProgress(message);
         logger.debug("build progress: {}", message);
         if (prog != null) {
             logger.debug("parse build progress: {}/{}", prog[0], prog[1]);
-            setProgress(prog[0], prog[1]);
+            setStep(prog[0], prog[1], message);
         }
     }
 
-    public void setProgress(int i, int max) {
-        if (max > 0 && bacmmanLogger.getTaskNumber() != max) bacmmanLogger.setTaskNumber(max);
-        bacmmanLogger.setProgress(i);
+    protected synchronized void setStep(int step, int stepNumber, String message) {
+        if (stepNumber > 0 && bacmmanLogger.getTaskNumber() != stepNumber) bacmmanLogger.setTaskNumber(stepNumber);
+        String command = message.trim(); // displayed after "Task i/N"
+        int sep = command.indexOf(" : ");
+        if (sep >= 0) command = command.substring(sep + 3);
+        if (command.length() > 60) command = command.substring(0, 57) + "...";
+        bacmmanLogger.setProgressMessage(command);
+        bacmmanLogger.setProgress(step - 1); // previous steps are done
+        downloadProgress = null; // downloads of the new step
+    }
+
+    /**
+     * Download progress of the current step
+     * @param current downloaded MB
+     * @param total MB to download (can increase as layers are discovered)
+     */
+    public synchronized void setProgress(int current, int total) {
+        if (total <= 0) return;
+        if (downloadProgress == null || total != downloadTotal) { // new handle when the total changes
+            bacmmanLogger.setSubtaskNumber(1);
+            downloadProgress = bacmmanLogger.subProgress(total);
+            downloadTotal = total;
+            downloadCurrent = 0;
+        }
+        if (current > downloadCurrent) {
+            downloadProgress.increment(current - downloadCurrent);
+            downloadCurrent = current;
+        }
+        downloadProgress.setMessage("Downloading: " + current + "/" + total + " MB");
     }
 
     public DockerImageLauncher setWorkingDirectory(String dir) {
@@ -264,6 +307,7 @@ public class DockerImageLauncher {
         }, null, null).rootVisible(false);
         configurationGen.expandAll();
         configurationJSP.setViewportView(configurationGen.getTree());
+        fitHeightToTree();
         loadConfig();
         // ensure selected container is consistent with current WD
         DockerGateway.DockerContainer container = dockerContainer.getValue();
@@ -309,6 +353,25 @@ public class DockerImageLauncher {
         }
     }
 
+    /**
+     * Minimal (and preferred) height of the parameter panel: all lines of the tree are visible
+     */
+    protected void fitHeightToTree() {
+        JTree tree = configurationGen.getTree();
+        int rows = tree.getRowCount();
+        if (rows == 0) return;
+        java.awt.Rectangle last = tree.getRowBounds(rows - 1);
+        int treeHeight = last != null ? last.y + last.height : rows * tree.getRowHeight();
+        Insets in = configurationJSP.getInsets();
+        Insets tin = tree.getInsets();
+        int h = treeHeight + in.top + in.bottom + tin.top + tin.bottom;
+        GridLayoutManager layout = (GridLayoutManager) mainPanel.getLayout();
+        GridConstraints c = layout.getConstraintsForComponent(configurationJSP);
+        c.myMinimumSize.height = h;
+        c.myPreferredSize.height = h;
+        mainPanel.revalidate();
+    }
+
     public void updateButtons() {
         start.setEnabled(configuration.isValid());
         stop.setEnabled(dockerContainer.getValue() != null);
@@ -316,7 +379,7 @@ public class DockerImageLauncher {
 
     public DockerImageLauncher setImageRequirements(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
         dockerImage.setImageRequirement(imageName, versionPrefix, minimalVersion, maximalVersion).addArchFilter();
-        dockerImage.selectLatestImageIfNoSelection();
+        dockerImage.selectLatestImage(); // default: most recent version
         return this;
     }
 
@@ -340,12 +403,12 @@ public class DockerImageLauncher {
      */
     private void $$$setupUI$$$() {
         mainPanel = new JPanel();
-        mainPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
+        mainPanel.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         configurationJSP = new JScrollPane();
-        mainPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 50), new Dimension(-1, 65), null, 0, false));
+        mainPanel.add(configurationJSP, new GridConstraints(0, 0, 2, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 50), new Dimension(-1, 65), null, 0, false));
         start = new JButton();
         start.setText("Start");
-        mainPanel.add(start, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        mainPanel.add(start, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         stop = new JButton();
         stop.setText("Stop");
         mainPanel.add(stop, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));

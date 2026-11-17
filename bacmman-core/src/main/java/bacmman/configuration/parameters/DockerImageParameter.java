@@ -27,10 +27,21 @@ public class DockerImageParameter extends AbstractChoiceParameter<DockerGateway.
     }
 
     public void selectLatestImageIfNoSelection() {
-        if (getValue() == null) {
-            DockerGateway.DockerImage im = getAllImages().sorted(Comparator.reverseOrder()).findFirst().orElse(null);
-            if (im != null) setValue(im);
-        }
+        if (getValue() == null) selectLatestImage();
+    }
+
+    /**
+     * Selects the image with the most recent version. Same version: installed image first, then python flavor (e.g. py vs R)
+     */
+    public void selectLatestImage() {
+        DockerGateway.DockerImage im = getAllImages().min(latestFirst()).orElse(null);
+        if (im != null) setValue(im);
+    }
+
+    protected static Comparator<DockerGateway.DockerImage> latestFirst() {
+        return Comparator.<DockerGateway.DockerImage>naturalOrder() // DockerImage natural order: most recent version first
+                .thenComparing(im -> !im.isInstalled())
+                .thenComparing(im -> im.getVersionPrefix() == null || !im.getVersionPrefix().toLowerCase().contains("py"));
     }
 
     public DockerImageParameter setImageRequirement(String imageName, String versionPrefix, int[] minimalVersion, int[] maximalVersion) {
