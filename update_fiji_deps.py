@@ -33,7 +33,8 @@ Commands (align and deploy are dry runs unless --apply is given):
           tensorflow) are fetched for every platform and copied to jars/<platform>/ (GPU variant
           of tensorflow natives for linux if the BACMMAN-TF2-GPU site is enabled).
           Replaced files are moved to a backup folder, never deleted. --remove-duplicates also
-          moves BACMMAN-site copies of jars provided by Fiji. --with-bacmman installs the bacmman
+          moves BACMMAN-site copies of jars provided by Fiji (same artifact, or same classes under
+          another name, e.g. net.jpountz lz4 vs lz4-java). --with-bacmman installs the bacmman
           module jars. Requires the project to be installed in the local Maven repository.
 
   check   Verifies the policy on the local Fiji: every runtime artifact has the Maven version,
@@ -93,6 +94,16 @@ PUBLISH_SITES = ["BACMMAN", "BACMMAN-TF2", "BACMMAN-TF2-GPU"]
 SITE_URL = "https://sites.imagej.net/{site}/db.xml.gz"
 # dependencies provided to Fiji users by another update site (with their own dependencies): not deployed
 OTHER_SITE_GROUPS = {"org.openmicroscopy": "OMERO update site"}
+
+# minimal versions (security fixes, e.g. GitHub Dependabot alerts): align never pins a lower version,
+# whatever Fiji ships or bacmman resolves. When Fiji ships an older version, check accepts it (the
+# Maven build is newer: backward compatibility) and Fiji's jar is still the one loaded at runtime.
+SECURITY_MIN = {
+    ("org.bouncycastle", "bcprov-jdk18on"): "1.82",  # same version for the whole bouncycastle family
+    ("org.bouncycastle", "bcpkix-jdk18on"): "1.82",
+    ("org.bouncycastle", "bcutil-jdk18on"): "1.82",
+    ("com.google.protobuf", "protobuf-java"): "3.25.8",  # CVE-2024-7254 (fixed 3.25.5); 3.x: compatible with tensorflow 1.1.0 (gencode 3.21)
+}
 
 # module whose runtime classpath defines what must be present in Fiji
 DEPLOY_MODULE = "bacmman-ij1_"
@@ -586,14 +597,18 @@ def align_transitive(args, by_ga, by_name, protected):
     report = {}
     corrections = {}
     try:
-        write_managed_block(root_pom, None, {})
-        natural = tree_versions(dependency_trees(root))  # versions resolved by bacmman alone
-        bom_only = None
+        write_managed_block(root_pom, bom, {})
+        bom_trees = dependency_trees(root)
+        bom_only = tree_versions(bom_trees)
+        # versions resolved by bacmman alone (without the BOM). Direct dependencies declared without
+        # <version> (managed by the BOM, e.g. TrackMate) keep the version given by the BOM
+        direct = {(n["g"], n["a"], n["c"]): n["v"] for nodes in bom_trees.values() for n in nodes
+                  if n["depth"] == 1 and n["g"] != BACMMAN_GROUP}
+        write_managed_block(root_pom, None, direct)
+        natural = tree_versions(dependency_trees(root))
         for it in range(6):
             write_managed_block(root_pom, bom, corrections)
             trees = dependency_trees(root)
-            if bom_only is None:
-                bom_only = tree_versions(trees)
             changed = False
             for module, nodes in trees.items():
                 for n in nodes:
@@ -614,6 +629,9 @@ def align_transitive(args, by_ga, by_name, protected):
                             target, why = fv, "Fiji (older than BOM)" + (" (name-match)" if how == "name-match" else "")
                         else:
                             target, why = nat, "bacmman" + (f" ({how})" if how else "")
+                    sec = SECURITY_MIN.get((g, a))
+                    if sec and (target is None or compare_versions(target, sec) < 0):
+                        target, why = sec, "security minimum " + sec  # lowest fixed version (BOM's may be another major)
                     if target is None or v == target:
                         continue
                     if corrections.get(key) != target:
@@ -791,6 +809,18 @@ def plan_deploy(args):
     orphans = sorted(rel for rel, (site, _) in db.items() if site_excluded(site, args.exclude_site) and rel.endswith(".jar")
                      and (fiji / rel).is_file() and rel not in deployed and rel not in moved)
     duplicates = [o for o in orphans if jar_key(o)[1] in fiji_artifacts]
+    candidates = [o for o in orphans if o not in duplicates and not o.split("/")[-1].startswith("bacmman-")
+                  and Path(o).parent.as_posix() not in PLATFORM_DIRS]
+    if candidates:  # same classes under another artifact name (e.g. net.jpountz.lz4:lz4 vs org.lz4:lz4-java)
+        fiji_classes = set()
+        for sub in ("jars", "plugins"):
+            for f in (fiji / sub).rglob("*.jar"):
+                if f.parent.relative_to(fiji).as_posix() not in PLATFORM_DIRS and fiji_owned(f):
+                    fiji_classes |= jar_classes(f)
+        for o in candidates:
+            classes = jar_classes(fiji / o)
+            if classes and len(classes & fiji_classes) >= 0.5 * len(classes):
+                duplicates.append(o)
     others = [o for o in orphans if o not in duplicates]
     return dict(root=root, fiji=fiji, db=db, gpu=gpu, nodes=nodes, actions=actions, moves=moves, problems=problems,
                 skipped=skipped, provided=provided, duplicates=duplicates, others=others, fiji_owned=fiji_owned,
@@ -809,7 +839,7 @@ def deploy(args):
     for pb in P["problems"]:
         print("WARNING: " + pb)
     if P["duplicates"]:
-        print("\nFiles of the BACMMAN update sites that duplicate a jar provided by Fiji (another version on the classpath)"
+        print("\nFiles of the BACMMAN update sites that duplicate a jar provided by Fiji (another version, or the same classes under another name)"
               + (": moved to backup" if args.remove_duplicates else ": not touched, use --remove-duplicates to move them to backup"))
         for o in P["duplicates"]:
             print("  " + o)
@@ -854,7 +884,7 @@ def check(args):
     classes also present in Fiji's own jars (same classes under another artifact name)."""
     P = plan_deploy(args)
     fiji, issues = P["fiji"], []
-    newer = []
+    newer, security = [], []
     # 1. artifacts provided by Fiji must have the resolved version (or an older one: --fiji-versions older)
     for d in sorted(P["provided"], key=lambda d: (d["g"], d["a"])):
         versions = set(P["fiji_ga"].get((d["g"], d["a"]), {})) | set(P["fiji_names"].get(d["a"], {}))
@@ -862,6 +892,10 @@ def check(args):
             if args.fiji_versions == "older" and all(compare_versions(fv, d["v"]) > 0 for fv in versions):
                 newer.append(f"{d['a']} {d['v']}->{best_version(versions)}")
                 continue  # Fiji newer than the Maven build: compatible (backward compatibility)
+            sec = SECURITY_MIN.get((d["g"], d["a"]))
+            if sec and compare_versions(d["v"], sec) >= 0 and all(compare_versions(fv, d["v"]) < 0 for fv in versions):
+                security.append(f"{d['a']} {d['v']} (Fiji: {best_version(versions)})")
+                continue  # raised to the security minimum: Fiji's older jar is loaded at runtime
             issues.append(dict(artifact=f"{d['g']}:{d['a']}", maven=d["v"], fiji=", ".join(sorted(versions)),
                                problem="version mismatch: run align --apply (or add to SHADOW if Fiji's version does not work)"))
     # 2. deployed artifacts must be installed, in the resolved version only
@@ -890,6 +924,9 @@ def check(args):
           + (f", SHADOW: {', '.join(SHADOW + args.shadow)}" if SHADOW + args.shadow else ""))
     if newer:
         print(f"{len(newer)} artifacts built against an older version than Fiji's (accepted, backward compatibility): " + ", ".join(sorted(newer)))
+    if security:
+        print(f"{len(security)} artifacts raised to a security minimum (SECURITY_MIN) above Fiji's version: " + ", ".join(sorted(security))
+              + ". Fiji's jar is loaded at runtime: the fix only reaches users when Fiji updates it")
     if issues:
         print(f"\n{len(issues)} problem(s):")
         print_table(issues, ["artifact", "maven", "fiji", "problem"])
@@ -1054,7 +1091,7 @@ def main():
     d = ap.add_argument_group("deploy")
     d.add_argument("--with-bacmman", action="store_true", help="also install the bacmman module jars")
     d.add_argument("--remove-duplicates", action="store_true",
-                   help="move to backup the files of the BACMMAN sites that duplicate a jar provided by Fiji")
+                   help="move to backup the files of the BACMMAN sites that duplicate a jar provided by Fiji (same artifact, or same classes)")
     d.add_argument("--backup-dir", help="where replaced files are moved (default: <fiji>.bacmman-backup/<date>)")
     u = ap.add_argument_group("upload-plan")
     ap.add_argument("--fiji-versions", choices=["older", "all"], default="older",
