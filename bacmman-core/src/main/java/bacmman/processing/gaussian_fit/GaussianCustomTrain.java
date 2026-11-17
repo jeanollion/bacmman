@@ -2,7 +2,6 @@ package bacmman.processing.gaussian_fit;
 
 import bacmman.utils.ArrayUtil;
 import net.imglib2.algorithm.localization.Gaussian;
-import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

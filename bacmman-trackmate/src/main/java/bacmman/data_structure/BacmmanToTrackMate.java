@@ -73,7 +73,7 @@ public class BacmmanToTrackMate {
     public static fiji.plugin.trackmate.Spot regionToSpot(Region region, Offset offset, int frame, double timescale) {
         double scale = region.getScaleXY();
         Point centerTemp = region.getCenter()==null ? region.getGeomCenter(false) : region.getCenter();
-        Point center = centerTemp.numDimensions()==2 ? new Point(centerTemp.get(0), centerTemp.get(1), offset.zMin()) : centerTemp;
+        Point center = centerTemp.numDimensions()==2 ? new Point(centerTemp.get(0), centerTemp.get(1), offset.zMin()) : centerTemp.duplicate(); // copy: center is translated and scaled below
         double radius;
         SpotRoi roi = null;
         if (region instanceof Spot) radius = ((Spot)region).getRadius() * region.getScaleXY();

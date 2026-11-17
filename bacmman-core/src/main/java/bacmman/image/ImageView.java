@@ -1,6 +1,5 @@
 package bacmman.image;
 
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -102,7 +101,7 @@ public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
 
     @Override
     public ImageView<I> newImage(String name, ImageProperties properties) {
-        throw new NotImplementedException("Not implemented");
+        throw new UnsupportedOperationException("Not implemented");
     }
 
     @Override
@@ -159,6 +158,6 @@ public class ImageView<I extends Image<I>> extends Image<ImageView<I>> {
     }
     @Override
     public Object[] getPixelArray() {
-        throw new NotImplementedException("Do not call getPixelArray on a ImageView");
+        throw new UnsupportedOperationException("Do not call getPixelArray on a ImageView");
     }
 }

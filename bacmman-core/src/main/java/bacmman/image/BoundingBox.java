@@ -21,7 +21,6 @@ package bacmman.image;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.geom.Point;
-import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -593,7 +592,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     }
 
     static java.util.List<BoundingBox> tile(BoundingBox bds, int[] tileDimensions) {
-        if (tileDimensions.length > 2) throw new NotImplementedException("3D tiles not implemented yet");
+        if (tileDimensions.length > 2) throw new UnsupportedOperationException("3D tiles not implemented yet");
         int[] coordsX = getTileCoordinates(bds.getMin(0), bds.getMax(0), tileDimensions[0]);
         int[] coordsY = getTileCoordinates(bds.getMin(1), bds.getMax(1), tileDimensions[1]);
         java.util.List<BoundingBox> res = new ArrayList<>(coordsX.length * coordsY.length);

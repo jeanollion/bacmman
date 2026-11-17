@@ -18,9 +18,9 @@ import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
-import org.apache.commons.lang.ArrayUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -163,7 +163,7 @@ public class ProbabilityMapSegmenter implements Segmenter, GlobalHistogramConfig
     private int[] getInputSources(int objectClassIdx, ExperimentStructure xp) {
         int[] inputChans = inputChannels.getChildren().stream().mapToInt(IndexChoiceParameter::getSelectedIndex).toArray();
         if (inputChans.length == 0) return new int[]{-1};
-        int currentChanIdx = ArrayUtils.indexOf(inputChans, xp.getChannelIdx(objectClassIdx));
+        int currentChanIdx = ArrayUtil.indicesOf(inputChans, xp.getChannelIdx(objectClassIdx)).findFirst().orElse(-1);
         if (currentChanIdx >= 0) inputChans[currentChanIdx] = -1;
         return inputChans;
     }
