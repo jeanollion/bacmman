@@ -21,6 +21,17 @@
             <groupId>org.openmicroscopy</groupId>
             <artifactId>omero-gateway</artifactId>
             <version>5.10.2</version>
+            <exclusions> <!-- SQL engine of the OMERO server (omero-server), not used by the client: not shipped by
+                              Fiji's OMERO update site either. Also removes avatica-core (Dependabot alert) -->
+                <exclusion>
+                    <groupId>org.apache.calcite</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.calcite.avatica</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.intellij</groupId>
