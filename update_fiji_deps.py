@@ -99,9 +99,11 @@ OTHER_SITE_GROUPS = {"org.openmicroscopy": "OMERO update site"}
 # whatever Fiji ships or bacmman resolves. When Fiji ships an older version, check accepts it (the
 # Maven build is newer: backward compatibility) and Fiji's jar is still the one loaded at runtime.
 SECURITY_MIN = {
-    ("org.bouncycastle", "bcprov-jdk18on"): "1.82",  # same version for the whole bouncycastle family
-    ("org.bouncycastle", "bcpkix-jdk18on"): "1.82",
-    ("org.bouncycastle", "bcutil-jdk18on"): "1.82",
+    # bouncycastle: GHSA-9pwp-9qqc-pr26 (critical), GHSA-qp49-qgx5-5m26 and earlier ones, all fixed in 1.85.
+    # same version for the whole family. Check https://github.com/advisories before changing a value
+    ("org.bouncycastle", "bcprov-jdk18on"): "1.87",
+    ("org.bouncycastle", "bcpkix-jdk18on"): "1.87",
+    ("org.bouncycastle", "bcutil-jdk18on"): "1.87",
     ("com.google.protobuf", "protobuf-java"): "3.25.8",  # CVE-2024-7254 (fixed 3.25.5); 3.x: compatible with tensorflow 1.1.0 (gencode 3.21)
 }
 
