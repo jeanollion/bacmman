@@ -459,7 +459,8 @@ public class NotebookGistTree {
         try {
             UserAuth auth = authSupplier.get();
             String s = lf.retrieveString(auth, pcb);
-            FileIO.writeToFile(destFile.getAbsolutePath(), Collections.singletonList(s), Function.identity());
+            if (destFile.getParentFile() != null) destFile.getParentFile().mkdirs();
+            java.nio.file.Files.write(destFile.toPath(), s.getBytes(java.nio.charset.StandardCharsets.UTF_8)); // notebooks are UTF-8
             if (localFileUpdated != null) localFileUpdated.accept(destFile);
             pcb.setMessage("Notebook downloaded to: " + destFile);
             return true;
