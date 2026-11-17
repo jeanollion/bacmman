@@ -162,24 +162,22 @@ public class JupyterNotebookViewer {
             this.type = type;
             this.language = language;
             this.data = new JSONObject();
-            data.put("cell_type", "code");
+            data.put("cell_type", CODE.equals(type) ? "code" : "markdown");
             data.put("source", new JSONArray());
-            data.put("execution_count", null);
-            data.put("outputs", new JSONArray());
+            if (CODE.equals(type)) {
+                data.put("execution_count", null);
+                data.put("outputs", new JSONArray());
+                data.put("metadata", createEmptyMetadata());
+            } else data.put("metadata", new JSONObject());
             data.put("id", UUID.get().toHexString());
-            data.put("metadata", createEmptyMetadata());
-            createCodeNode("\t\t\t\t\t\t\t\t\n\n");
+            createCodeNode("");
+            code.setRows(3); // room to type in the empty cell
+            code.setColumns(60);
             createOutputNodes();
         }
 
         public JSONObject getData() { // update code and return data
-            JSONArray source = (JSONArray)data.get("source");
-            source.clear();
-            String[] lines = code.getText().split("\n");
-            for (int i = 0; i<lines.length; ++i) {
-                if (i<lines.length-1) source.add(lines[i] + "\n");
-                else source.add(lines[i]);
-            }
+            data.put("source", toSourceLines(code.getText()));
             return data;
         }
 
@@ -191,14 +189,20 @@ public class JupyterNotebookViewer {
                     setMarkdownEdit(true);
                     this.type = type;
                     code.setSyntaxEditingStyle("text/"+language);
+                    data.put("cell_type", "code");
                     data.put("metadata", createEmptyMetadata());
+                    data.put("execution_count", null);
+                    data.put("outputs", new JSONArray());
+                    data.remove("attachments");
                     return true;
                 }
                 case MARKDOWN: {
                     this.type = type;
                     code.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_MARKDOWN);
+                    data.put("cell_type", "markdown");
                     data.put("metadata", new JSONObject());
-                    data.put("outputs", new JSONArray());
+                    data.remove("outputs"); // not allowed in markdown cells
+                    data.remove("execution_count");
                     if (getChildCount()>1) { // remove output nodes
                         for (int i = getChildCount()-1; i>0; --i) remove(i);
                     }
@@ -248,42 +252,26 @@ public class JupyterNotebookViewer {
         }
 
         protected void createOutputNodes() {
-            if (CODE.equals(type)) {
-                JSONArray outputs = (JSONArray) data.get("outputs");
-                if (outputs != null) {
-                    for (Object outputObj : outputs) {
-                        JSONObject output = (JSONObject) outputObj;
-                        String outputType = (String) output.get("output_type");
-                        JSONObject data = (JSONObject) output.get("data");
-                        if (data != null) {
-                            JSONArray text = null;
-                            if (data.containsKey("text/html")) {
-                                text = (JSONArray) data.get("text/html");
-                            } else if (data.containsKey("text/plain")) {
-                                text = (JSONArray) data.get("text/plain");
-                            }
-                            if (text != null) {
-                                add(new DefaultMutableTreeNode(new JLabel("<html>" + String.join("", text) + "</html>")));
-                            }
-                            if (data.containsKey("image/png")) {
-                                ImageIcon imageIcon = createImageIcon((String) data.get("image/png"));
-                                if (imageIcon != null) {
-                                    add(new DefaultMutableTreeNode(new JLabel(imageIcon)));
-                                }
-                            }
-                        }
-                    }
-                }
+            if (!CODE.equals(type)) return;
+            Object outputs = data.get("outputs");
+            if (!(outputs instanceof JSONArray)) return;
+            for (Object outputObj : (JSONArray) outputs) {
+                if (!(outputObj instanceof JSONObject)) continue;
+                JComponent c = createOutputComponent((JSONObject) outputObj);
+                if (c != null) add(new DefaultMutableTreeNode(c));
             }
         }
 
         public String getCodeString() {
-            JSONArray source = (JSONArray) data.get("source");
+            Object source = data.get("source");
+            if (!(source instanceof java.util.List)) return source == null ? "" : source.toString();
+            // nbformat: lines end with \n. Notebooks saved by previous versions of BACMMAN lost the line breaks: they are restored
+            java.util.List<?> lines = (java.util.List<?>) source;
             StringBuilder sourceS = new StringBuilder();
-            for (int i = 0; i< source.size(); ++i) {
-                String line = (String)source.get(i);
+            for (int i = 0; i< lines.size(); ++i) {
+                String line = String.valueOf(lines.get(i));
                 sourceS.append(line);
-                if (i<source.size()-1 && !line.endsWith("\n")) sourceS.append("\n");
+                if (i<lines.size()-1 && !line.endsWith("\n")) sourceS.append("\n");
             }
             return sourceS.toString();
         }
@@ -311,13 +299,102 @@ public class JupyterNotebookViewer {
         }
     }
 
+    /**
+     * @param text text of a cell
+     * @return lines of the text as stored in notebooks: each line ends with \n except the last one; trailing line breaks are kept
+     */
+    static JSONArray toSourceLines(String text) {
+        JSONArray source = new JSONArray();
+        if (text == null || text.isEmpty()) return source;
+        String[] lines = text.split("\n", -1);
+        for (int i = 0; i < lines.length; ++i) {
+            if (i < lines.length - 1) source.add(lines[i] + "\n");
+            else if (!lines[i].isEmpty()) source.add(lines[i]);
+        }
+        return source;
+    }
+
+    /**
+     * @return text of a multiline field of a notebook: a string or a list of strings
+     */
+    static String multiline(Object o) {
+        if (o == null) return null;
+        if (o instanceof java.util.List) {
+            StringBuilder sb = new StringBuilder();
+            for (Object l : (java.util.List<?>) o) sb.append(l);
+            return sb.toString();
+        }
+        return o.toString();
+    }
+
+    static final Pattern ANSI = Pattern.compile("\u001B\\[[0-?]*[ -/]*[@-~]");
+    static final Pattern STYLE_SCRIPT = Pattern.compile("(?is)<(style|script)\\b.*?</\\1\\s*>");
+
+    static String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /**
+     * @return html displaying text as is (line breaks, spaces, characters such as < >), without terminal color codes
+     */
+    static String preformatted(String text, String color) {
+        text = ANSI.matcher(text).replaceAll("");
+        if (text.endsWith("\n")) text = text.substring(0, text.length() - 1);
+        return "<html><pre style=\"margin:0" + (color == null ? "" : ";color:" + color) + "\">" + escapeHtml(text) + "</pre></html>";
+    }
+
+    /**
+     * html outputs (e.g. pandas tables) contain style sheets and scripts that Swing displays as text: they are removed
+     */
+    static String sanitizeHtml(String html) {
+        return "<html>" + STYLE_SCRIPT.matcher(html).replaceAll("") + "</html>";
+    }
+
+    /**
+     * Displays an output as Jupyter does: printed text (stream), error, or the richest representation of a result (html, image, then text)
+     */
+    JComponent createOutputComponent(JSONObject output) {
+        String outputType = String.valueOf(output.get("output_type"));
+        switch (outputType) {
+            case "stream": {
+                String text = multiline(output.get("text"));
+                if (text == null || text.isEmpty()) return null;
+                return new JLabel(preformatted(text, "stderr".equals(output.get("name")) ? "#a00000" : null));
+            }
+            case "error": {
+                String text = output.get("ename") + ": " + output.get("evalue");
+                Object tb = output.get("traceback");
+                if (tb instanceof java.util.List && !((java.util.List<?>) tb).isEmpty()) text = String.join("\n", (java.util.List<String>) tb);
+                return new JLabel(preformatted(text, "#a00000"));
+            }
+            default: { // execute_result, display_data
+                Object d = output.get("data");
+                if (!(d instanceof JSONObject)) return null;
+                JSONObject data = (JSONObject) d;
+                if (data.containsKey("text/html")) return new JLabel(sanitizeHtml(multiline(data.get("text/html"))));
+                for (String imageType : new String[]{"image/png", "image/jpeg"}) {
+                    if (data.containsKey(imageType)) {
+                        ImageIcon imageIcon = createImageIcon(multiline(data.get(imageType)));
+                        if (imageIcon != null) return new JLabel(imageIcon);
+                    }
+                }
+                if (data.containsKey("text/plain")) return new JLabel(preformatted(multiline(data.get("text/plain")), null));
+                if (data.isEmpty()) return null;
+                java.util.List<String> types = new ArrayList<>();
+                for (Object k : data.keySet()) types.add(String.valueOf(k));
+                String kind = types.stream().anyMatch(k -> k.contains("plotly")) ? "plotly" : String.join(", ", types);
+                return new JLabel("<html><i style=\"color:gray\">Interactive output (" + escapeHtml(kind) + "): open the notebook in Jupyter to display it</i></html>");
+            }
+        }
+    }
+
     private ImageIcon createImageIcon(String base64Image) {
         try {
             base64Image = base64Image.replaceAll("[^a-zA-Z0-9+/=]", "");
             byte[] imageBytes = Base64.getDecoder().decode(base64Image);
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(imageBytes));
-            return new ImageIcon(image);
-        } catch (IOException e) {
+            return image == null ? null : new ImageIcon(image);
+        } catch (IOException | IllegalArgumentException e) {
             logger.debug("error parsing image: ", e);
             return null;
         }
@@ -579,7 +656,7 @@ public class JupyterNotebookViewer {
     }
 
     public static void saveNotebook(String filePath, JSONObject notebook) {
-        try (FileWriter file = new FileWriter(filePath)) {
+        try (Writer file = new OutputStreamWriter(new FileOutputStream(filePath), java.nio.charset.StandardCharsets.UTF_8)) {
             String toSave = notebook.toJSONString();
             toSave = toSave.replace("\\/", "/");
             toSave = JSONUtils.prettyPrint(toSave, " ");

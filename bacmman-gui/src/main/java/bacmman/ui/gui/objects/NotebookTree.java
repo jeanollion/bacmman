@@ -476,7 +476,7 @@ public class NotebookTree {
             if (forceReload) content = null;
             if (content == null) {
                 try {
-                    String contentS = new String(Files.readAllBytes(Paths.get(file.getAbsolutePath())));
+                    String contentS = new String(Files.readAllBytes(Paths.get(file.getAbsolutePath())), java.nio.charset.StandardCharsets.UTF_8); // notebooks are UTF-8
                     this.content = (JSONObject) new JSONParser().parse(contentS);
                 } catch (IOException | ParseException e) {
                     bacmmanLogger.setMessage("could not read notebook: "+file.getAbsolutePath());
