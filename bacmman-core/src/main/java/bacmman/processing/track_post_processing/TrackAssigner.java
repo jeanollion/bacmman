@@ -32,6 +32,16 @@ public interface TrackAssigner {
         }
 
     }
+    /**
+     * Sets the links of the objects at the end of {@param prevTracks} and at the start of {@param nextTracks} according to the links between tracks.
+     * Resetting a link also removes the reciprocal link (see {@link bacmman.data_structure.SegmentedObject#resetTrackLinks}), so all links are reset before being set, otherwise a link that was just set can be removed
+     */
+    static void setLinks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor) {
+        prevTracks.stream().filter(p -> p.getNext().size() != 1).forEach(p -> editor.setTrackLinks(p.tail(), null, false, true, false, false));
+        nextTracks.stream().filter(n -> n.getPrevious().size() != 1).forEach(n -> editor.setTrackLinks(null, n.head(), true, false, false, false));
+        setLinks(prevTracks, true, editor);
+        setLinks(nextTracks, false, editor);
+    }
     static void assignOneToN(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor) {
         if (prevTracks.size() == 1 ) {
             prevTracks.forEach(pt -> {
@@ -40,7 +50,6 @@ public interface TrackAssigner {
                     nt.addPrevious(pt);
                 });
             });
-            setLinks(prevTracks, true, editor);
         }
         if (nextTracks.size() == 1 ) {
             nextTracks.forEach(nt -> {
@@ -49,8 +58,8 @@ public interface TrackAssigner {
                     nt.addPrevious(pt);
                 });
             });
-            setLinks(nextTracks, false, editor);
         }
+        setLinks(prevTracks, nextTracks, editor);
     }
     static void removeLinks(Collection<Track> prevs, Collection<Track> nexts) {
         prevs.forEach(p -> {
@@ -91,8 +100,7 @@ public interface TrackAssigner {
                     nextL.get(0).addPrevious(prevL.get(1));
                     nextL.get(1).addPrevious(prevL.get(0));
                 }
-                setLinks(prevTracks, true, editor);
-                setLinks(nextTracks, false, editor);
+                setLinks(prevTracks, nextTracks, editor);
             } else {
                 Map<Integer, List<SegmentedObject>> map = new HashMap<>();
                 map.put(prevFrame, prevTracks.stream().map(Track::tail).collect(Collectors.toList()));
@@ -111,7 +119,7 @@ public interface TrackAssigner {
                         });
                     });
                     prevTracks.forEach(p -> {
-                        List<SegmentedObject> allNexts = tmi.getAllNexts(tmi.graphObjectMapper.getGraphObject(p.tail().getRegion())).stream().map(np -> tmi.getSegmentedObject(map.get(prevFrame), np)).collect(Collectors.toList());
+                        List<SegmentedObject> allNexts = tmi.getAllNexts(tmi.graphObjectMapper.getGraphObject(p.tail().getRegion())).stream().map(np -> tmi.getSegmentedObject(map.get(nextFrame), np)).collect(Collectors.toList());
                         //logger.debug("prev track {}, assigned prev: {}", p, allNexts);
                         allNexts.forEach(pn -> {
                             Track n = getTrack(nextTracks, pn);
@@ -121,8 +129,7 @@ public interface TrackAssigner {
                             }
                         });
                     });
-                    setLinks(prevTracks, true, editor);
-                    setLinks(nextTracks, false, editor);
+                    setLinks(prevTracks, nextTracks, editor);
                 } else {
                     logger.debug("Could not assign");
                 }

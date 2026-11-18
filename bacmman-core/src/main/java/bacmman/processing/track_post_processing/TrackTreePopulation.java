@@ -130,26 +130,27 @@ public class TrackTreePopulation {
         checkTrackConsistency();
     }
 
-    public void mergeContact(int startFrame, int endFrame, BiPredicate<Track, Track> contact, SegmentedObjectFactory factory) {
+    public void mergeContact(int startFrame, int endFrame, BiPredicate<Track, Track> contact, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         TreeSet<Track> start = getAllTracksAt(startFrame, true).collect(Collectors.toCollection(TreeSet::new));
-        mergeContact(start, contact, factory);
+        mergeContact(start, contact, factory, editor);
         TreeSet<Track> end = getAllTracksAt(endFrame, false).filter(t -> t.getFirstFrame()>startFrame).collect(Collectors.toCollection(TreeSet::new));
-        mergeContact(end, contact, factory);
+        mergeContact(end, contact, factory, editor);
     }
 
-    protected void mergeContact(TreeSet<Track> tracks, BiPredicate<Track, Track> contact, SegmentedObjectFactory factory) {
+    protected void mergeContact(TreeSet<Track> tracks, BiPredicate<Track, Track> contact, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Consumer<Track> nullConsumer = t -> {};
         while(!tracks.isEmpty()) {
             Track t1 = tracks.pollFirst();
             TrackTree tt1 = getTrackTree(t1);
             boolean removed = true;
+            boolean mergedT1 = false;
             while(removed) {
                 removed = false;
                 for (Track t2 : tracks) {
                     if (t1.getFirstFrame() != t2.getFirstFrame()) continue;
                     if (contact.test(t1, t2)) {
                         logger.debug("MergeContact: merging: {} + {}", t1, t2);
-                        Track merged = Track.mergeTracks(t1, t2, factory, null, nullConsumer, nullConsumer);
+                        Track merged = Track.mergeTracks(t1, t2, factory, editor, nullConsumer, nullConsumer);
                         if (merged != null) {
                             if (!merged.equals(t1)) throw new RuntimeException("Merged track must be track 1");
                             TrackTree tt2 = getTrackTree(t2);
@@ -160,11 +161,16 @@ public class TrackTreePopulation {
                             }
                             tracks.remove(t2);
                             removed = true;
+                            mergedT1 = true;
                             break;
                         }
                     }
                 }
             }
+            if (mergedT1) t1.simplifyTrack(editor, t -> { // merged track may now be linked 1 to 1 to a neighbor track
+                TrackTree tt = getTrackTree(t);
+                if (tt != null) tt.remove(t.head());
+            });
         }
     }
     static abstract class TrackEvent {
