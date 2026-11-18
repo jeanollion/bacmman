@@ -227,10 +227,10 @@ public class AutoFlipY implements Transformation.ConfigurableTransformation, Mul
                 // filter immobile values
                 double sigma_dt = ImageOperations.getMeanAndSigma(dt, null, null)[1];
                 double thld_dt = sigma_dt*thresholdFactor_dt.getValue().doubleValue();
-                BoundingBox.loop(dt, (x, y, z)->dt.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dt.getPixel(x, y, z))<thld_dt, true);
+                BoundingBox.loop(new SimpleBoundingBox(dt).resetOffset(), (x, y, z)->dt.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dt.getPixel(x, y, z))<thld_dt, true);
                 double sigma_dy = ImageOperations.getMeanAndSigma(dy, null, null)[1];
                 double thld_dy = sigma_dy*thresholdFactor_dy.getValue().doubleValue();
-                BoundingBox.loop(dt, (x, y, z)->dy.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dy.getPixel(x, y, z))<thld_dy, true);
+                BoundingBox.loop(new SimpleBoundingBox(dt).resetOffset(), (x, y, z)->dy.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dy.getPixel(x, y, z))<thld_dy, true);
 
                 Image Vy = ImageOperations.divide(dt, dy, null,-1);
 
@@ -241,7 +241,7 @@ public class AutoFlipY implements Transformation.ConfigurableTransformation, Mul
                     Core.showImage(image3D.setName("input"));
                     Core.showImage(dy.setName("dI/dy"));
                     Core.showImage(dt.setName("dI/dt"));
-                    BoundingBox.loop(Vy, (x, y, z)->Vy.setPixel(x, y, z, 0), (x, y, z)->Double.isNaN(Vy.getPixel(x, y, z)) || Double.isInfinite(Vy.getPixel(x, y, z)), true);
+                    BoundingBox.loop(new SimpleBoundingBox(Vy).resetOffset(), (x, y, z)->Vy.setPixel(x, y, z, 0), (x, y, z)->Double.isNaN(Vy.getPixel(x, y, z)) || Double.isInfinite(Vy.getPixel(x, y, z)), true);
                     Core.showImage(Vy.setName("Vy"));
                 }
             }
