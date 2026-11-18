@@ -113,6 +113,9 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     public static final String DBprefix = "";
     public String currentDBPrefix = "";
     private static GUI INSTANCE;
+    // close operation applied once closing is confirmed: EXIT_ON_CLOSE standalone, DISPOSE_ON_CLOSE in Fiji (set by IJ1).
+    // Exiting from Fiji must not happen here: System.exit called on the event dispatch thread deadlocks with Fiji's shutdown hook
+    private int confirmedCloseOperation = EXIT_ON_CLOSE;
     // db-related attributes
     private MasterDAO<?, ?> db;
 
@@ -278,7 +281,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                     setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
                     return;
                 }
-                setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                setDefaultCloseOperation(confirmedCloseOperation);
                 if (db!=null) closeDataset();
                 if (pyGtw!=null) pyGtw.stopGateway();
                 Core.getCore().getGithubGateway().clear();
@@ -1986,6 +1989,16 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         //if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
     }
     
+    /**
+     * Records the close operation to apply once closing is confirmed (see the window listener: closing can be canceled
+     * by temporarily setting DO_NOTHING_ON_CLOSE, which is not recorded)
+     */
+    @Override
+    public void setDefaultCloseOperation(int operation) {
+        if (operation != DO_NOTHING_ON_CLOSE) confirmedCloseOperation = operation;
+        super.setDefaultCloseOperation(operation);
+    }
+
     public static GUI getInstance() {
         //if (INSTANCE==null) INSTANCE=new GUI();
         return INSTANCE;
