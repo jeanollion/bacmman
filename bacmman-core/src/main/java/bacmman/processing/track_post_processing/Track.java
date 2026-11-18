@@ -205,14 +205,16 @@ public class Track implements Comparable<Track> {
         if (track.get(0).isTrackHead()) return ;
         SegmentedObject trackHead = track.get(0).getTrackHead();
         SegmentedObject first = track.get(0);
+        List<SegmentedObject> toAdd = new ArrayList<>(); // only modify track on success: callers repair the track on failure and would add the same objects again
         while (!first.isTrackHead()) {
             first = first.getPrevious();
             if (first == null || !first.getTrackHeadId().equals(trackHead.getId())) {
                 logger.error("No trackhead in track {}", track);
                 throw new RuntimeException("Missing trackhead");
             }
-            track.add(first);
+            toAdd.add(first);
         }
+        track.addAll(toAdd);
         Collections.sort(track);
 
     }

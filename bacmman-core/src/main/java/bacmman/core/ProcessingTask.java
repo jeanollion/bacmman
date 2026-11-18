@@ -494,7 +494,7 @@ public class ProcessingTask extends AbstractTask<ProcessingTask> {
 
 
         if (ownDB) {
-            db.unlockPositions(positionsToProcess.toArray(new String[0]));
+            db.unlockPositions(); // all positions: positions outside positionsToProcess may have been opened (e.g. selections), and are locked by this DB
             db.unlockConfiguration();
             db.clearCache(true, true, true);
             db=null;
