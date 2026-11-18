@@ -10,6 +10,10 @@ For every dependency that Fiji ships:
   - otherwise: add it to SHADOW (or --shadow G:A). bacmman keeps its version, deploy installs it in
     place of Fiji's jar, and it must be shadowed on the BACMMAN update site (upload-plan).
 "Works" is decided by building and testing after align --apply (mvn clean install).
+Exception, FIJI_OVERRIDES: Fiji files deliberately replaced by the tensorflow update sites (protobuf 3.x
+and protobuf-java-util instead of Fiji's 4.x, javacpp): bacmman's version is kept, deployed in place of
+Fiji's file and published on every tensorflow site; check reports BACMMAN-site files that replace a
+Fiji file without being declared there.
 
 Commands (align and deploy are dry runs unless --apply is given):
 
@@ -89,6 +93,19 @@ PROTECTED_GROUPS = [
 # artifacts shipped by Fiji whose Fiji version does NOT work with bacmman (G or G:A): align does not
 # change them, deploy installs bacmman's version in place of Fiji's (to be shadowed on the BACMMAN site)
 SHADOW = []
+# Fiji files deliberately replaced by the tensorflow update sites (same updater identity, e.g.
+# jars/protobuf-java: Fiji's protobuf-java-4.32.0.jar is replaced by protobuf-java-3.25.8.jar when a
+# tensorflow site is enabled). align keeps bacmman's version; deploy installs it in place of Fiji's file;
+# upload-plan publishes it on every TF_SITES. check / upload-plan report files of the BACMMAN sites that
+# replace a Fiji file without being declared here.
+FIJI_OVERRIDES = {
+    ("com.google.protobuf", "protobuf-java"): "tensorflow-java 1.1.0 needs protobuf 3.x (generated code), Fiji ships 4.x",
+    ("com.google.protobuf", "protobuf-java-util"): "same version as protobuf-java (Fiji's util 4.x does not work with protobuf 3.x)",
+    ("org.bytedeco", "javacpp"): "tensorflow-core-native 1.1.0 is built with javacpp 1.5.11",
+}
+# artifacts not in the Maven dependency tree, deployed with the version of another artifact
+COMPANIONS = {("com.google.protobuf", "protobuf-java"): [("com.google.protobuf", "protobuf-java-util")]}
+TF_SITES = ["BACMMAN-TF2", "BACMMAN-TF2-GPU"]
 # update sites where bacmman publishes (upload-plan)
 PUBLISH_SITES = ["BACMMAN", "BACMMAN-TF2", "BACMMAN-TF2-GPU"]
 SITE_URL = "https://sites.imagej.net/{site}/db.xml.gz"
@@ -109,6 +126,9 @@ SECURITY_MIN = {
 
 # module whose runtime classpath defines what must be present in Fiji
 DEPLOY_MODULE = "bacmman-ij1_"
+# bacmman modules not published on the update sites (own git repository): neither they nor what only
+# they depend on are deployed
+UNPUBLISHED_MODULES = ["bacmman-blissed"]
 BACMMAN_GROUP = "com.github.jeanollion.bacmman"
 BACMMAN_DEPLOY_DIR = "plugins/BACMMAN"
 
@@ -220,6 +240,45 @@ def read_update_db(fiji_dir):
     for p in root.iter("plugin"):
         files[p.get("filename")] = (p.get("update-site"), p.find("version") is not None)
     return files
+
+
+def fiji_site_keys(fiji_dir, exclude_sites, offline=False):
+    """{jar_key: filename} of the current files of the active update sites that are not excluded (Fiji's
+    own sites), read from their published db.xml.gz: the local db only records the site that wins when
+    a BACMMAN site replaces a Fiji file. None if unavailable."""
+    db = Path(fiji_dir) / "db.xml.gz"
+    if offline or not db.is_file():
+        return None
+    import urllib.request
+    out = {}
+    for us in ET.parse(gzip.open(db)).getroot().iter("update-site"):
+        name, url = us.get("name"), us.get("url", "")
+        if site_excluded(name, exclude_sites) or not url:
+            continue
+        try:
+            with urllib.request.urlopen(url.rstrip("/") + "/db.xml.gz", timeout=30) as r:
+                root = ET.fromstring(gzip.decompress(r.read()))
+        except Exception as e:
+            print(f"WARNING: cannot read the database of update site {name} ({e}): Fiji files replaced by BACMMAN sites not checked")
+            return None
+        for pl in root.iter("plugin"):
+            if pl.find("version") is not None and pl.get("filename", "").endswith(".jar"):
+                out.setdefault(jar_key(pl.get("filename")), pl.get("filename"))
+    return out
+
+
+def fiji_overrides(fiji_dir, db, exclude_sites, offline=False):
+    """Files of the BACMMAN sites that replace a file of Fiji's own sites: (declared, undeclared),
+    lists of (bacmman_file, fiji_file); declared = artifact in FIJI_OVERRIDES."""
+    keys = fiji_site_keys(fiji_dir, exclude_sites, offline)
+    if keys is None or db is None:
+        return None, None
+    declared_names = {a for (_, a) in FIJI_OVERRIDES}
+    declared, undeclared = [], []
+    for rel, (site, current) in sorted(db.items()):
+        if site_excluded(site, exclude_sites) and current and rel.endswith(".jar") and jar_key(rel) in keys:
+            (declared if jar_key(rel)[1] in declared_names else undeclared).append((rel, keys[jar_key(rel)]))
+    return declared, undeclared
 
 
 def site_excluded(site, exclude_sites):
@@ -726,6 +785,16 @@ def plan_deploy(args):
         site = db.get(f.relative_to(fiji).as_posix(), (None,))[0]
         return site is not None and not site_excluded(site, args.exclude_site)
 
+    _needed = []
+
+    def needed_elsewhere():
+        """artifacts used by the published modules (Maven shows a shared dependency only once, possibly
+        under an unpublished module)"""
+        if not _needed:
+            others = dependency_trees(root, [m for m in reactor_modules(root) if m not in UNPUBLISHED_MODULES + [DEPLOY_MODULE]])
+            _needed.append({(x["g"], x["a"], x["c"]) for ns in others.values() for x in ns})
+        return _needed[0]
+
     plan, skipped, provided = [], [], []  # provided: runtime artifacts taken from Fiji
     seen = set()
     for n in nodes:
@@ -738,6 +807,11 @@ def plan_deploy(args):
         if key in seen:
             continue
         seen.add(key)
+        if a in UNPUBLISHED_MODULES or any(p["a"] in UNPUBLISHED_MODULES for p in n["path"]):
+            if a in UNPUBLISHED_MODULES or key not in needed_elsewhere():
+                skipped.append(dict(ga=f"{g}:{a}", version=v, reason="unpublished module (UNPUBLISHED_MODULES)"
+                                    if a in UNPUBLISHED_MODULES else "only used by an unpublished module"))
+                continue
         if g == BACMMAN_GROUP:
             if args.with_bacmman:
                 plan.append(dict(g=g, a=a, v=v, c=c, dest=BACMMAN_DEPLOY_DIR, reason="bacmman module"))
@@ -746,6 +820,11 @@ def plan_deploy(args):
         other = next((OTHER_SITE_GROUPS[x] for x in OTHER_SITE_GROUPS if any(in_groups(cg, [x]) for cg in chain)), None)
         if other:
             skipped.append(dict(ga=f"{g}:{a}", version=v, reason=f"provided by {other}"))
+            continue
+        if (g, a) in FIJI_OVERRIDES:
+            plan.append(dict(g=g, a=a, v=v, c=c, dest="jars", reason="replaces Fiji's file (FIJI_OVERRIDES)", override=True))
+            for cg, ca in COMPANIONS.get((g, a), []):
+                plan.append(dict(g=cg, a=ca, v=v, c="", dest="jars", reason=f"companion of {a} (same version)", override=True))
             continue
         if a in fiji_artifacts:
             if is_protected(g, a, shadow):
@@ -779,7 +858,9 @@ def plan_deploy(args):
             problems.append(f"{p['g']}:{p['a']}:{p['v']}" + (f":{p['c']}" if p["c"] else "") + " not found in Maven repositories")
             continue
         same = same_artifact_files(fiji, p["a"], p["c"], platform_classifiers)
-        if p.get("shadow"):  # replace Fiji's file, in the same folder (same updater identity)
+        if p.get("override"):  # replaces any installed version, Fiji's included (same updater identity)
+            olds = [f for f in same if f.parent.relative_to(fiji).as_posix() == p["dest"]]
+        elif p.get("shadow"):  # replace Fiji's file, in the same folder (same updater identity)
             olds = same
             fiji_files = [f for f in same if fiji_owned(f)]
             if p["dest"] is None and fiji_files:
@@ -802,7 +883,7 @@ def plan_deploy(args):
         else:
             status = "update" if olds else "new"
         actions.append(dict(file=src.name, dest=p["dest"], status=status, reason=p["reason"], src=src, g=p["g"],
-                            shadow=bool(p.get("shadow")), replaces=", ".join(f.name for f in olds)))
+                            shadow=bool(p.get("shadow")), override=bool(p.get("override")), replaces=", ".join(f.name for f in olds)))
         moves += olds
 
     # files of BACMMAN sites that are not part of the deployment
@@ -929,6 +1010,12 @@ def check(args):
     if security:
         print(f"{len(security)} artifacts raised to a security minimum (SECURITY_MIN) above Fiji's version: " + ", ".join(sorted(security))
               + ". Fiji's jar is loaded at runtime: the fix only reaches users when Fiji updates it")
+    declared, undeclared = fiji_overrides(fiji, P["db"], args.exclude_site)
+    if declared:
+        print(f"{len(declared)} Fiji files replaced by the BACMMAN sites (FIJI_OVERRIDES): "
+              + ", ".join(f"{Path(r).name} (Fiji: {Path(f).name})" for r, f in declared))
+    for rel, ff in undeclared or []:
+        issues.append(dict(artifact=rel, maven="", fiji=ff, problem="replaces a Fiji file: declare it in FIJI_OVERRIDES (or remove it from the BACMMAN site)"))
     if issues:
         print(f"\n{len(issues)} problem(s):")
         print_table(issues, ["artifact", "maven", "fiji", "problem"])
@@ -981,6 +1068,13 @@ def upload_plan(args):
             rows.append(dict(site="BACMMAN", action="SHADOW", file=rel, published="(Fiji: " + a["replaces"] + ")"))
             uploads.setdefault(("BACMMAN", True), []).append(rel)
             continue
+        if a.get("override"):  # published on every tensorflow site (each one replaces Fiji's file)
+            for s in TF_SITES:
+                pub = published[s].get(k)
+                if pub is None or Path(pub).name != a["file"]:
+                    rows.append(dict(site=s, action="add" if pub is None else "update", file=rel, published=Path(pub).name if pub else ""))
+                    uploads.setdefault((s, False), []).append(rel)
+            continue
         if not sites:  # new file
             site = (GPU_SITE if gpu_file else "BACMMAN-TF2") if a["g"] == "org.tensorflow" else "BACMMAN"
             rows.append(dict(site=site, action="add", file=rel, published=""))
@@ -1006,6 +1100,12 @@ def upload_plan(args):
         for k, pub in sorted(published[s].items()):
             if k not in local:
                 rows.append(dict(site=s, action="remove?", file=pub, published="not in the deployment: check"))
+    declared, undeclared = fiji_overrides(fiji, db, args.exclude_site, args.offline)
+    if undeclared:
+        print("WARNING: files of the BACMMAN sites that replace a Fiji file without being declared in FIJI_OVERRIDES:")
+        for rel, ff in undeclared:
+            print(f"  {rel} (Fiji: {ff})")
+        print()
     if not rows:
         print("Update sites are up-to-date with the deployment")
         return
@@ -1032,7 +1132,7 @@ def align(args):
     by_ga, by_name, njars, nexcl = index_fiji(args.fiji, args.source, args.exclude_site, db)
     print(f"Fiji ({args.source}): {njars} local jars, {nexcl} ignored (update sites {args.exclude_site}); "
           f"reference: {len(by_ga)} artifacts with groupId, {len(by_name)} by file name only\n")
-    protected = PROTECTED_GROUPS + SHADOW + args.protect + args.shadow  # SHADOW: bacmman keeps its version
+    protected = PROTECTED_GROUPS + SHADOW + args.protect + args.shadow + [f"{g}:{a}" for g, a in FIJI_OVERRIDES]  # bacmman keeps its version
     report, changed = [], []
     for pom in find_poms(args.root):
         old, new = process_pom(pom, by_ga, by_name, protected, not args.no_downgrade, args.allow_snapshot, report)
