@@ -283,8 +283,20 @@ public class LocalRepository implements GistRepository {
         if (url == null) return null;
         String u = url;
         if (u.startsWith("file:/") && !u.startsWith("file:///")) u = "file:///" + u.substring(6); // file:/path form
-        if (!u.startsWith(rootURI)) return null;
-        String id = u.substring(rootURI.length());
+        String id;
+        if (u.startsWith(rootURI)) id = u.substring(rootURI.length());
+        else { // same folder written differently (e.g. case of the drive letter or of folders on Windows, encoding of special characters)
+            if (!u.startsWith("file:")) return null;
+            try {
+                Path item = Paths.get(URI.create(u)).normalize();
+                Path parent = item.getParent();
+                if (parent == null || item.getFileName() == null) return null;
+                if (!parent.equals(root.toPath()) && !(parent.toFile().exists() && Files.isSameFile(parent, root.toPath()))) return null;
+                id = item.getFileName().toString();
+            } catch (IllegalArgumentException | java.nio.file.FileSystemNotFoundException | IOException e) {
+                return null;
+            }
+        }
         while (id.endsWith("/")) id = id.substring(0, id.length() - 1);
         if (!VALID_ID.matcher(id).matches()) return null;
         return id;

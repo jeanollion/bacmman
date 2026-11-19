@@ -31,7 +31,7 @@ public class ProcessingChain extends PluginParameter<ProcessingPipeline> impleme
     @Override
     public boolean sameContent(Parameter other) {
         if (!super.sameContent(other)) return false;
-        return Objects.equals(this.getConfigID(), ((ConfigIDAware)other).getConfigID())
+        return bacmman.github.gist.GistConfiguration.sameLink(this.getConfigID(), ((ConfigIDAware)other).getConfigID())
                 && Objects.equals(this.getConfigItemIdx(), ((ConfigIDAware)other).getConfigItemIdx());
     }
 

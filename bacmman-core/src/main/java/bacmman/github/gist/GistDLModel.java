@@ -293,7 +293,7 @@ public class GistDLModel implements Hint {
         return jsonContent;
     }
     /**
-     * @return link to the model file, to be stored outside of the repository (e.g. in a parameter): bare id if the file is stored on GitHub, url otherwise
+     * @return link to the model file, to be stored outside of the repository (e.g. in a parameter): url (legacy model entries may contain bare GitHub ids)
      */
     public String getModelLink() {
         return toModelLink(getModelURL());
@@ -301,14 +301,10 @@ public class GistDLModel implements Hint {
 
     /**
      * @param idOrURL bare GitHub id or url of an item of any repository
-     * @return bare id for items stored on GitHub, url otherwise (bare ids are GitHub ids)
+     * @return the link stored in parameters: urls are kept (GitHub as well), bare ids are GitHub ids (legacy)
      */
     public static String toModelLink(String idOrURL) {
-        if (idOrURL == null || !idOrURL.contains("/")) return idOrURL;
-        GistRepository r = GistRepository.fromURL(idOrURL, null);
-        if (r == null || !GistRepository.TYPE.GITHUB.equals(r.getType())) return idOrURL;
-        String id = r.idFromURL(idOrURL);
-        return id == null ? idOrURL : id;
+        return idOrURL;
     }
     public String getModelURL() {
         getContent();

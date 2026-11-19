@@ -82,7 +82,7 @@ public class ProcessingTask extends AbstractTask<ProcessingTask> {
         @Override
         public JSONObject toJSONEntry() {
             JSONObject res=  new JSONObject();
-            if (this.dir!=null) res.put("dir", dir); // put dbPath ?
+            if (this.dir!=null) res.put("dir", dir.replace(java.io.File.separatorChar, '/')); // portable path
             if (preProcess) res.put("preProcess", preProcess);
             if (segmentAndTrack) res.put("segmentAndTrack", segmentAndTrack);
             if (trackOnly) res.put("trackOnly", trackOnly);

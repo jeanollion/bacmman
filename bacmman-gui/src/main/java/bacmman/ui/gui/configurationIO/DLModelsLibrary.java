@@ -597,7 +597,7 @@ public class DLModelsLibrary {
     protected List<GistDLModel> getOtherModelsUsingFile(GistDLModel model) {
         String link = model.getModelLink();
         if (link == null || link.isEmpty() || gists == null) return Collections.emptyList();
-        return gists.stream().filter(g -> g != model && link.equals(g.getModelLink())).collect(Collectors.toList());
+        return gists.stream().filter(g -> g != model && GistConfiguration.sameLink(link, g.getModelLink())).collect(Collectors.toList());
     }
 
     private static String toString(List<GistDLModel> models) {

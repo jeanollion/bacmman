@@ -285,7 +285,7 @@ public class ExportTask extends AbstractTask<ExportTask> {
         JSONArray ex = new JSONArray();
         for (Pair<String, int[]> p : exportDir) {
             JSONObject o = new JSONObject();
-            o.put("dir", p.key);
+            o.put("dir", p.key == null ? null : p.key.replace(java.io.File.separatorChar, '/')); // portable path
             o.put("s", JSONUtils.toJSONArray(p.value));
             ex.add(o);
         }

@@ -162,7 +162,7 @@ public abstract class AbstractTask<T extends AbstractTask<T>> implements Task<T>
     protected JSONObject initJSONEntry() {
         JSONObject res = new JSONObject();
         res.put("class", getClass().getName());
-        if (dir != null) res.put("dir", dir);
+        if (dir != null) res.put("dir", dir.replace(java.io.File.separatorChar, '/')); // portable path
         return res;
     }
 
