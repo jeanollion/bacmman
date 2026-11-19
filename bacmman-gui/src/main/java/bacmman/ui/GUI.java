@@ -350,8 +350,8 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(extractMeasurementOnSelectionsMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
-        relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(copyExternalFilesMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(extractMeasurementOnSelectionsMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
+        relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem);add(copyExternalFilesMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
 
@@ -3196,6 +3196,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.setText("Dataset");
 
         refreshExperimentListMenuItem.setText("Refresh List");
+        refreshExperimentListMenuItem.setToolTipText(formatHint("Reloads the list of datasets of the working directory", true));
         refreshExperimentListMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 refreshExperimentListMenuItemActionPerformed(evt);
@@ -3204,6 +3205,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(refreshExperimentListMenuItem);
 
         setSelectedExperimentMenuItem.setText("Open / Close selected dataset");
+        setSelectedExperimentMenuItem.setToolTipText(formatHint("Opens the dataset selected in the list of datasets. If this dataset is already open, or if no dataset is selected, closes the open dataset", true));
         setSelectedExperimentMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 setSelectedExperimentMenuItemActionPerformed(evt);
@@ -3212,6 +3214,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(setSelectedExperimentMenuItem);
 
         newXPMenuItem.setText("New");
+        newXPMenuItem.setToolTipText(formatHint("Creates an empty dataset: enter its name, or its path relative to the working directory (sub-folders are created)", true));
         newXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 createEmptyDataset();
@@ -3220,6 +3223,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(newXPMenuItem);
 
         newXPFromTemplateMenuItem.setText("New dataset from Template");
+        newXPFromTemplateMenuItem.setToolTipText(formatHint("Creates a dataset with the configuration of a configuration file (.json, .txt or .zip), for instance a configuration exported from another dataset", true));
         newXPFromTemplateMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 newXPFromTemplateMenuItemActionPerformed(evt);
@@ -3228,6 +3232,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(newXPFromTemplateMenuItem);
 
         newDatasetFromGithubMenuItem.setText("New dataset from Library");
+        newDatasetFromGithubMenuItem.setToolTipText(formatHint("Creates a dataset with a configuration of the configuration library (GitHub, GitLab or local repository)", true));
         newDatasetFromGithubMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 newDatasetFromGithubMenuItemActionPerformed(evt);
@@ -3236,6 +3241,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(newDatasetFromGithubMenuItem);
 
         deleteXPMenuItem.setText("Delete");
+        deleteXPMenuItem.setToolTipText(formatHint("Deletes the datasets selected in the list of datasets, with all their data (pre-processed images, segmented objects, measurements). This cannot be undone", true));
         deleteXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 deleteXPMenuItemActionPerformed(evt);
@@ -3244,6 +3250,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(deleteXPMenuItem);
 
         duplicateXPMenuItem.setText("Duplicate");
+        duplicateXPMenuItem.setToolTipText(formatHint("Creates a new dataset with the configuration of the selected dataset, without its positions (images are not imported)", true));
         duplicateXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 duplicateXPMenuItemActionPerformed(evt);
@@ -3252,11 +3259,18 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(duplicateXPMenuItem);
 
         saveConfigMenuItem.setText("Save Configuration Changes");
+        saveConfigMenuItem.setToolTipText(formatHint("Saves the modifications of the configuration of the open dataset", true));
         saveConfigMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 saveConfigMenuItemActionPerformed(evt);
             }
         });
+        copyExternalFilesMenuItem.setToolTipText(formatHint("Copies the files used by the configuration that are outside of the dataset folder (e.g. model files, and optionally the input images) into the dataset folder, and modifies the configuration to use the copies: the dataset folder can then be moved or copied to another computer", true));
+        copyExternalFilesMenuItem.addActionListener(e -> {
+            if (!checkConnection()) return;
+            bacmman.ui.gui.CopyExternalFilesDialog.show(this, db);
+        });
+        experimentMenu.add(copyExternalFilesMenuItem);
         experimentMenu.add(saveConfigMenuItem);
 
         mainMenu.add(experimentMenu);
@@ -6060,6 +6074,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private javax.swing.JMenu runMenu;
     private javax.swing.JMenuItem runSelectedActionsMenuItem;
     private javax.swing.JMenuItem saveConfigMenuItem;
+    private final javax.swing.JMenuItem copyExternalFilesMenuItem = new javax.swing.JMenuItem("Copy External Files into Dataset Folder...");
     private javax.swing.JButton selectAllObjectsButton;
     private javax.swing.JButton selectAllTracksButton;
     private javax.swing.JScrollPane selectionJSP;

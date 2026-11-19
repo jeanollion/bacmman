@@ -147,8 +147,54 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         return modelFile.getFirstSelectedFilePath();
     }
 
+    /**
+     * Folder of the dataset where DL models are downloaded
+     */
+    public static final String MODEL_FOLDER = "DLModels";
+
+    /**
+     * @param create whether the folder is created if it does not exist
+     * @return folder {@link #MODEL_FOLDER} of the dataset that contains this parameter, or null if the dataset has no folder
+     */
+    public File getDatasetModelFolder(boolean create) {
+        Experiment xp = ParameterUtils.getExperiment(this);
+        Path p = xp != null ? xp.getPath() : null;
+        if (p == null) return null;
+        File dir = p.resolve(MODEL_FOLDER).toFile();
+        if (create && !dir.isDirectory() && !dir.mkdirs()) return null;
+        return dir;
+    }
+
+    /**
+     * @return true if a model is linked (model id) and its model file is not present on this computer
+     */
+    public boolean isModelMissing() {
+        if (id.getValue() == null || id.getValue().isEmpty() || !isValidID()) return false;
+        String path = modelFile.getFirstSelectedFilePath();
+        if (path == null) return true;
+        File f = new File(path);
+        if (!f.exists()) return true;
+        return validDirectory != null && !validDirectory.test(path); // e.g. download folder that does not contain the model (when the module defines valid model folders)
+    }
+
+    /**
+     * Downloads the model into the folder {@link #MODEL_FOLDER} of the dataset, and sets the model file
+     * @return the downloaded model file
+     */
+    public File downloadToDataset(ProgressDisplay pd) throws IOException {
+        File dir = getDatasetModelFolder(true);
+        if (dir == null) throw new IOException("The dataset has no folder: the model cannot be downloaded");
+        File res = downloadModel(dir, true, false, null, pd);
+        if (res == null) throw new IOException("Model " + getID() + " could not be downloaded");
+        setSelectedFilePath(res.getAbsolutePath());
+        return res;
+    }
+
     public File getModelFile() throws IOException {
-        if (modelFile.getFirstSelectedFilePath()==null) return null;
+        if (modelFile.getFirstSelectedFilePath()==null) { // model linked but no folder: downloaded into the folder DLModels of the dataset
+            if (id.getValue() != null && !id.getValue().isEmpty() && isValidID() && getDatasetModelFolder(false) != null) return downloadToDataset(Core.getProgressLogger());
+            return null;
+        }
         if ( needsToDownloadModel() && !id.getValue().isEmpty()) {
             File outputFile = downloadModel(new File(modelFile.getFirstSelectedFilePath()), true, false, null, null);
             setSelectedFilePath(outputFile.getAbsolutePath());
@@ -164,14 +210,13 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         // special case: when valid model was set before: file needs to be changed
         if ( (oldID==null || !oldID.equals(id.getValue()))) {
             String path = modelFile.getFirstSelectedFilePath();
-            if (path == null) { // get current experiment path
-                Experiment xp = ParameterUtils.getExperiment(this);
-                Path p = xp != null ? xp.getPath() : null;
-                if (p == null) {
+            if (path == null) { // default: folder DLModels of the dataset
+                File dir = getDatasetModelFolder(true);
+                if (dir == null) {
                     logger.error("Configure a parent folder to save model file to");
                     Core.userLog("Configure a parent folder to save model file to");
                 } else {
-                    modelFile.setSelectedFiles(p.toFile());
+                    modelFile.setSelectedFiles(dir);
                 }
             } else {
                 File f = new File(path);

@@ -75,6 +75,33 @@ public abstract class MultipleImageContainer implements JSONSerializable {
         this.scaleZ = scaleZ;
     }
     public abstract boolean sameContent(MultipleImageContainer other);
+
+    /**
+     * @return absolute paths of the input image files (or folders, e.g. zarr) of this container, empty if the images are not files (e.g. Omero, memory)
+     */
+    public java.util.List<String> getInputPaths() {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * @return absolute paths of the folders that contain the input images
+     */
+    public java.util.List<String> getInputFolders() {
+        return getInputPaths().stream().map(p -> new java.io.File(p).getParentFile()).filter(java.util.Objects::nonNull).map(java.io.File::getAbsolutePath).distinct().collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Input images were moved: each folder of {@link #getInputFolders()} is replaced by the corresponding folder
+     * @param folderMapping absolute path of an input folder -> absolute path of its new location
+     */
+    public void relocateInputFolders(java.util.function.UnaryOperator<String> folderMapping) {}
+
+    static String relocate(String file, java.util.function.UnaryOperator<String> folderMapping) {
+        java.io.File f = new java.io.File(file);
+        if (f.getParentFile() == null) return file;
+        String newFolder = folderMapping.apply(f.getParentFile().getAbsolutePath());
+        return newFolder == null ? file : new java.io.File(newFolder, f.getName()).getAbsolutePath();
+    }
     public abstract boolean fromOmero();
     public MultipleImageContainer setOmeroGateway(OmeroGateway omeroGateway) {
         this.omeroGateway=omeroGateway;
