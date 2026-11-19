@@ -236,12 +236,8 @@ public class LinkCheckDialog {
             });
             panel.add(all, c);
         }
-        String[] options = new String[]{"OK", "Keep links", "Cancel"};
+        String[] options = new String[]{"OK", "Cancel"}; // links can be kept with the action of each row
         int choice = JOptionPane.showOptionDialog(parent, panel, "Links to items of this computer", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
-        if (choice == 1) { // stored as is
-            GistConfiguration.relativizeLocalLinks(content, relativeBase, "local library".equals(bn));
-            return new Result(false, 0);
-        }
         if (choice != 0) return new Result(true, 0);
         int copied = 0;
         Cursor cursor = parent == null ? null : parent.getCursor();
@@ -249,7 +245,13 @@ public class LinkCheckDialog {
         try {
             for (Row r : rows) {
                 ACTION a = r.getAction();
-                if (ACTION.COPY.equals(a)) {
+                if (ACTION.COPY.equals(a) && LinkCheck.KIND.DL_MODEL.equals(r.link.kind)) { // the user stores the model with the DL model library: folder, name, account of the model file
+                    String newLink = storeModelWithLibrary(r.link, target, parent, pcb);
+                    if (newLink != null) {
+                        r.link.relink(newLink);
+                        ++copied;
+                    } else if (pcb != null) pcb.setMessage("Model " + r.link.getName() + " was not stored: the link is kept");
+                } else if (ACTION.COPY.equals(a)) {
                     try {
                         if (pcb != null) pcb.setMessage("Copying " + r.link.describe() + " to " + target);
                         LinkCheck.copy(r.link, target, pcb);
@@ -272,6 +274,46 @@ public class LinkCheckDialog {
         GistConfiguration.relativizeLocalLinks(content, relativeBase, "local library".equals(bn)); // links that are kept
         if (pcb != null && copied > 0) pcb.setMessage(copied + " linked item(s) copied to " + target);
         return new Result(false, copied);
+    }
+
+    /**
+     * Opens the DL model library in a popup, on the repository {@param target}, ready to store the model of {@param link}: the user chooses the folder, the name and the account of the model file (weights), and stores the model
+     * @return link to the model file of the stored model, or null if the model was not stored
+     */
+    static String storeModelWithLibrary(LinkCheck.Link link, GistRepository target, Component parent, ProgressDisplay pcb) {
+        java.io.File tmp = null;
+        try {
+            tmp = java.nio.file.Files.createTempDirectory("bacmman_model").toFile();
+            if (pcb != null) pcb.setMessage("Reading model " + link.getName() + " from " + link.getLocation());
+            java.io.File weights = new bacmman.github.gist.LargeFileGist(link.repository, link.itemId).retrieveFile(tmp, false, true, null, null, pcb);
+            bacmman.core.RepositoryGateway gateway = bacmman.core.Core.getCore().getGithubGateway();
+            DLModelsLibrary library = new DLModelsLibrary(gateway, tmp.getAbsolutePath(), () -> {}, pcb);
+            library.setRepository(target);
+            JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Store the model in " + target, Dialog.ModalityType.APPLICATION_MODAL);
+            String[] result = new String[1];
+            library.setModelStoredCallback(m -> {
+                result[0] = m.getModelLink();
+                dialog.dispose();
+            });
+            GistDLModel model = link.getModel();
+            bacmman.github.gist.DLModelMetadata metadata = model != null ? model.getMetadata() : new bacmman.github.gist.DLModelMetadata();
+            library.requestModelUpload(metadata, weights, model == null ? null : model.folder, model == null ? null : model.name, "Store Model");
+            JPanel content = new JPanel(new BorderLayout());
+            content.add(new JLabel("<html>Check the repository (and the model file account to store the weights in another account), then click <b>Store Model</b>: choose the folder and the name of the model.<br/>Close this window to keep the link to the model of this computer.</html>"), BorderLayout.NORTH);
+            content.add(library.getMainPanel(), BorderLayout.CENTER);
+            dialog.setContentPane(content);
+            dialog.setSize(1000, 650);
+            dialog.setLocationRelativeTo(parent);
+            dialog.setVisible(true); // blocks until the model is stored or the window is closed
+            if (result[0] != null && bacmman.ui.GUI.hasInstance() && bacmman.ui.GUI.getInstance().getDLModelLibraryIfOpen() != null) bacmman.ui.GUI.getInstance().getDLModelLibraryIfOpen().refreshIfShowing(target); // the new model is listed in the library of the main window
+            return result[0];
+        } catch (IOException | RuntimeException e) {
+            logger.error("Error storing model", e);
+            if (pcb != null) pcb.setMessage("Could not store model " + link.getName() + ": " + e.getMessage());
+            return null;
+        } finally {
+            if (tmp != null) bacmman.utils.Utils.deleteDirectory(tmp);
+        }
     }
 
     /**

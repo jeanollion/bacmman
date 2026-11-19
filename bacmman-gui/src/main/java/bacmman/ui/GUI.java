@@ -2125,6 +2125,13 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         return dataAnalysisPanel;
     }
 
+    /**
+     * @return the DL model library of the main window if it is open, null otherwise
+     */
+    public DLModelsLibrary getDLModelLibraryIfOpen() {
+        return dlModelLibrary;
+    }
+
     public DLModelsLibrary displayOnlineDLModelLibrary() {
         /*if (dlModelLibrary!=null) dlModelLibrary.toFront();
         else {

@@ -188,4 +188,32 @@ public class LinkCheckTest {
         assertEquals(link, LinkCheck.copy(l2, remote, null));
         assertEquals("no duplicate", n, remote.list().size());
     }
+
+    @Test
+    public void modelEntryInAnotherLibrary() throws IOException {
+        // DL model entry in the library "Configurations", weights stored in another folder "Weights" (model file account)
+        LocalRepository lib = new LocalRepository(tmp.newFolder("Configurations"));
+        LocalRepository weightsRepo = new LocalRepository(tmp.newFolder("Weights"));
+        RemoteRepository remote = new RemoteRepository(tmp.newFolder("remote"));
+        File weights = tmp.newFile("w.bin");
+        java.nio.file.Files.write(weights.toPath(), new byte[500]);
+        String fileId = LargeFileGist.storeFile(weightsRepo, weights, true, "weights", "dl_model", false, null, null).key;
+        JSONObject dl = new JSONObject();
+        dl.put("url", weightsRepo.toURL(fileId));
+        String dlId = lib.create("", true, files("dlmodel_Segmentation_PhC.json", dl.toJSONString())).getID();
+        bacmman.ui.PropertyUtils.setStrings("LOCAL_REPOSITORY_FOLDER", Arrays.asList(lib.getFolder().getAbsolutePath()));
+        try {
+            JSONObject param = new JSONObject();
+            param.put("file", new JSONArray());
+            param.put("id", weightsRepo.toURL(fileId));
+            JSONObject content = new JSONObject();
+            content.put("model", param);
+            LinkCheck.Link l = LinkCheck.unreachableLinks(content, GistConfiguration.TYPE.PROCESSING, remote).get(0);
+            assertNotNull("entry found in another local library", l.getModel());
+            assertEquals(dlId, l.getModel().getID());
+            assertEquals("Segmentation/PhC", l.getName());
+        } finally {
+            bacmman.ui.PropertyUtils.setStrings("LOCAL_REPOSITORY_FOLDER", null);
+        }
+    }
 }

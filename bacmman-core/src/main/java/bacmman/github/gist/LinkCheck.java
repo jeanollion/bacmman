@@ -147,19 +147,24 @@ public class LinkCheck {
         // linked configurations, and DL models of the libraries that use the linked model files
         Map<String, List<GistDLModel>> models = new HashMap<>();
         for (Link l : links.values()) {
-            if (KIND.DL_MODEL.equals(l.kind)) {
-                try {
-                    List<GistDLModel> ms = models.get(l.repository.getKey());
-                    if (ms == null) {
-                        ms = GistDLModel.list(l.repository);
-                        models.put(l.repository.getKey(), ms);
+            if (KIND.DL_MODEL.equals(l.kind)) { // DL model that uses the model file: in the repository of the model file, or in another local library (model file stored in another account / folder)
+                for (LocalRepository repo : modelLibraries(l.repository)) {
+                    try {
+                        List<GistDLModel> ms = models.get(repo.getFolder().getAbsolutePath());
+                        if (ms == null) {
+                            ms = GistDLModel.list(repo);
+                            models.put(repo.getFolder().getAbsolutePath(), ms);
+                        }
+                        l.model = ms.stream().filter(m -> {
+                            String u = m.getModelURL();
+                            if (u == null || u.isEmpty()) return false;
+                            if (!u.contains("/")) u = repo.toURL(u); // id of an item of the library
+                            return GistConfiguration.sameLink(u, l.url);
+                        }).findFirst().orElse(null);
+                    } catch (IOException | RuntimeException e) {
+                        logger.debug("Could not list DL models of {}", repo, e);
                     }
-                    l.model = ms.stream().filter(m -> {
-                        String u = m.getModelURL();
-                        return u != null && (u.equals(l.itemId) || l.itemId.equals(l.repository.idFromURL(u)));
-                    }).findFirst().orElse(null);
-                } catch (IOException | RuntimeException e) {
-                    logger.debug("Could not list DL models of {}", l.repository, e);
+                    if (l.model != null) break;
                 }
                 continue;
             }
@@ -216,6 +221,27 @@ public class LinkCheck {
                 collect(v, d, root, target, res);
             }
         }
+    }
+
+    /**
+     * @return local libraries where the DL model of a model file is searched: the repository of the model file, then the local libraries used recently
+     */
+    static List<LocalRepository> modelLibraries(GistRepository modelFileRepository) {
+        List<LocalRepository> res = new ArrayList<>();
+        Set<String> folders = new HashSet<>();
+        if (modelFileRepository instanceof LocalRepository) {
+            res.add((LocalRepository) modelFileRepository);
+            folders.add(((LocalRepository) modelFileRepository).getFolder().getAbsolutePath());
+        }
+        List<String> recent = bacmman.ui.PropertyUtils.getStrings("LOCAL_REPOSITORY_FOLDER");
+        if (recent != null) for (String f : recent) {
+            if (f == null || f.isEmpty()) continue;
+            java.io.File dir = new java.io.File(f);
+            if (!dir.isDirectory()) continue;
+            LocalRepository r = new LocalRepository(dir);
+            if (folders.add(r.getFolder().getAbsolutePath())) res.add(r);
+        }
+        return res;
     }
 
     static void add(JSONObject block, Object link, KIND kind, String description, GistRepository target, Map<String, Link> res) {
