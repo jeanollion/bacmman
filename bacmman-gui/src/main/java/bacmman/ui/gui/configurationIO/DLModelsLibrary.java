@@ -84,7 +84,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             // check if a folder is selected
             String currentFolder = tree.getSelectedFolder();
-            SaveDLModelGist form = new SaveDLModelGist(gateway);
+            SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
             if (currentFolder != null) form.setFolder(currentFolder);
             GistRepository modelFileRepository = getModelFileRepository();
             if (modelFileRepository == null) return;
@@ -142,7 +142,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             GistDLModel gist = tree.getSelectedGist();
             if (gist == null) return;
-            SaveDLModelGist form = new SaveDLModelGist(gateway);
+            SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
             form.setFolder(gist.folder).disableFolderField()
                     .setName(gist.name).disableNameField()
                     .setDescription(gist.getDescription())
@@ -164,7 +164,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             GistDLModel gist = tree.getSelectedGist();
             if (gist == null) return;
-            SaveDLModelGist form = new SaveDLModelGist(gateway);
+            SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
             form.setFolder(gist.folder)
                     .setName(gist.name)
                     .setDescription(gist.getDescription())
@@ -356,6 +356,14 @@ public class DLModelsLibrary {
     }
 
     /**
+     * @return folders of the models of the library
+     */
+    java.util.Collection<String> existingFolders() {
+        if (gists == null) return java.util.Collections.emptyList();
+        return gists.stream().map(g -> g.folder).collect(Collectors.toSet());
+    }
+
+    /**
      * Reloads the list of models if the library displays {@param repository} (e.g. a model was stored in this repository from another window)
      */
     public void refreshIfShowing(GistRepository repository) {
@@ -464,7 +472,7 @@ public class DLModelsLibrary {
         final GistRepository modelRepo = modelRepository == null ? getRepository() : modelRepository;
         GistDLModel gist = tree.getSelectedGist();
         boolean update = gist != null && Utils.promptBoolean("Update selected Model ?", this.displayingFrame);
-        SaveDLModelGist form = new SaveDLModelGist(gateway);
+        SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
         if (gist != null) {
             if (update) {
                 form.setFolder(gist.folder).disableFolderField()

@@ -152,7 +152,7 @@ public class ConfigurationLibrary {
             if (repoMode || remoteSelector == null || !loggedIn || localConfig == null) return;
             // check if a folder is selected
             String currentFolder = remoteSelector.getSelectedFolder();
-            SaveGistForm form = new SaveGistForm();
+            SaveGistForm form = new SaveGistForm().setExistingFolders(() -> foldersOf(getRepository()));
             if (currentFolder != null) form.setFolder(currentFolder);
             form.display(displayingFrame, "Save the local configuration as a new configuration of the repository...");
             if (form.canceled) return;
@@ -558,6 +558,20 @@ public class ConfigurationLibrary {
      * @param target     repository where the copy is created
      * @param targetSide side that displays the target repository, if any
      */
+    /**
+     * @return folders of the configurations of {@param repository}: from the list of a side that displays it, otherwise listed from the repository
+     */
+    protected java.util.Collection<String> foldersOf(GistRepository repository) {
+        if (repository == null) return java.util.Collections.emptyList();
+        List<GistConfiguration> list = null;
+        for (Side s : new Side[]{sideA, sideB}) {
+            if (s.repository() != null && s.repository().getKey().equals(repository.getKey())) list = s.a ? gistsA : gists;
+            if (list != null) break;
+        }
+        if (list == null) list = GistConfiguration.getConfigurations(repository, bacmmanLogger);
+        return list.stream().map(GistConfiguration::folder).collect(Collectors.toSet());
+    }
+
     protected void duplicate(Side side, GistRepository target, Side targetSide) {
         ConfigurationTreeGenerator config = side.config();
         ConfigurationGistTreeGenerator selector = side.selector();
@@ -566,7 +580,7 @@ public class ConfigurationLibrary {
         boolean displayed = targetSide != null && targetSide.selector() != null && RepositoryPrompt.same(target, targetSide.repository());
         String folder = gist.folder();
         if (targetSide != null && targetSide != side && targetSide.selector() != null && targetSide.selector().getSelectedFolder() != null) folder = targetSide.selector().getSelectedFolder(); // folder selected in the other repository
-        SaveGistForm form = new SaveGistForm();
+        SaveGistForm form = new SaveGistForm().setExistingFolders(() -> foldersOf(target));
         form.setFolder(folder)
                 .setName(gist.name())
                 .setDescription(gist.getDescription())
