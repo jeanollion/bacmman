@@ -769,6 +769,10 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
     }
 
     public List<SegmentedObject> getSelectedLabileObjectsOrTracks(Image image) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage();
+            if (image==null) return Collections.emptyList();
+        }
         if (displayTrackMode && !displayMode.get(image).equals(DISPLAY_MODE.OBJECTS) || displayMode.get(image).equals(DISPLAY_MODE.TRACKS)) {
             List<SegmentedObject> th = getSelectedLabileTrackHeads(image);
             return th.stream().flatMap(t -> SegmentedObjectUtils.getTrack(t).stream()).collect(Collectors.toList());
@@ -914,6 +918,7 @@ public abstract class ImageWindowManager<I, O extends ObjectRoi<O>, T extends Tr
 
     public void hideAllRois(Image image, boolean labile, boolean nonLabile) {
         if (!labile && !nonLabile) return;
+        if (image==null) return;
         I im = getDisplayer().getImage(image);
         if (labile) {
             Set<O> objectRois = displayedLabileObjectRois.remove(image);
