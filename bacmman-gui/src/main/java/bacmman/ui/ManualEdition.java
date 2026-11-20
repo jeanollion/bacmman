@@ -604,7 +604,7 @@ public class ManualEdition {
         objects = objects.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
         List<SegmentedObject> modifiedObjectAll = Collections.synchronizedList(new ArrayList<>());
         List<SegmentedObject> toRemoveAll = Collections.synchronizedList(new ArrayList<>());
-        Set<SegmentedObject> toUpdate = updateDisplay ? Sets.newHashSet() : null;
+        Set<SegmentedObject> toUpdate = updateDisplay ? Sets.newConcurrentHashSet() : null; // filled in parallel
         SegmentedObjectUtils.splitByParentTrackHead(objects).entrySet().parallelStream().forEach(e -> {
             // re-create a parent track with only subset of objects at this OC.
             SegmentedObject pth = e.getKey();
@@ -635,7 +635,12 @@ public class ManualEdition {
         if (!modifiedObjectAll.isEmpty()) db.getDao(position).store(modifiedObjectAll);
         if (updateDisplay) {
             ImageWindowManagerFactory.getImageManager().removeObjects(toUpdate, false);
-            if (!modifiedObjectAll.isEmpty()) updateDisplayAndSelectTracks(modifiedObjectAll, true);
+            if (!modifiedObjectAll.isEmpty()) updateDisplayAndSelectTracks(modifiedObjectAll, true); // also resets objects of interactive images
+            else if (!toRemoveAll.isEmpty()) { // whole tracks removed: no modified object, interactive images must still drop the removed objects
+                ImageWindowManagerFactory.getImageManager().resetObjects(position, objectClassIdx);
+                GUI.updateRoiDisplayForSelections();
+                if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
+            }
         }
     }
 
@@ -840,7 +845,12 @@ public class ManualEdition {
         if (!modifiedObjectAll.isEmpty()) db.getDao(position).store(modifiedObjectAll);
         if (updateDisplay) {
             if (!toRemoveAll.isEmpty()) ImageWindowManagerFactory.getImageManager().removeObjects(toRemoveAll, false);
-            if (!modifiedObjectAll.isEmpty()) updateDisplayAndSelectObjects(modifiedObjectAll, false);
+            if (!modifiedObjectAll.isEmpty()) updateDisplayAndSelectObjects(modifiedObjectAll, false); // also resets objects of interactive images
+            else if (!toRemoveAll.isEmpty()) { // only removed objects: interactive images must still drop them
+                ImageWindowManagerFactory.getImageManager().resetObjects(position, structureIdx);
+                GUI.updateRoiDisplayForSelections();
+                if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
+            }
         }
     }
 
