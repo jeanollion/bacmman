@@ -85,11 +85,6 @@
             <artifactId>bacmman-distnet2d</artifactId>
             <version>${bacmman.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.github.jeanollion.bacmman</groupId>
-            <artifactId>bacmman-blissed</artifactId>
-            <version>${bacmman.version}</version>
-        </dependency>
     </dependencies>
     <repositories>
         <repository>
@@ -97,4 +92,22 @@
             <url>https://jitpack.io</url>
         </repository>
     </repositories>
+    <profiles>
+        <!-- see root pom: bacmman-blissed is only included when checked out -->
+        <profile>
+            <id>blissed</id>
+            <activation>
+                <file>
+                    <exists>${basedir}/../bacmman-blissed/pom.xml</exists>
+                </file>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.github.jeanollion.bacmman</groupId>
+                    <artifactId>bacmman-blissed</artifactId>
+                    <version>${bacmman.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>
