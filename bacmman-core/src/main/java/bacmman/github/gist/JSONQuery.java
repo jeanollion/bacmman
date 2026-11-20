@@ -183,6 +183,8 @@ public class JSONQuery {
             throw new IOException("Authentication Error or Erased/Unexisting file : "+e.getMessage());
         } catch (IOException e) {
             logger.debug("fetch exception : message: {} currentLine: {} string builder: {}", e.getMessage(), sLine, o_oSb.toString());
+            RateLimitException rl = rateLimit(e, readErrorBody());
+            if (rl != null) throw rl;
             throw e;
         }  finally {
             urlConnection.disconnect();
@@ -201,16 +203,110 @@ public class JSONQuery {
         } catch (FileNotFoundException e) {
             throw new IOException("Authentication Error or Erased/Unexisting file : "+e.getMessage(), e);
         } catch (IOException e) {
-            String error = null;
-            try {
-                InputStream es = urlConnection.getErrorStream();
-                if (es != null) error = readFully(es);
-            } catch (IOException ignored) {}
+            String error = readErrorBody();
+            RateLimitException rl = rateLimit(e, error);
+            if (rl != null) throw rl;
             if (error != null && !error.isEmpty()) throw new IOException(e.getMessage() + " server message: " + error, e);
             else throw e;
         } finally {
             urlConnection.disconnect();
         }
+    }
+
+    protected String readErrorBody() {
+        try {
+            InputStream es = urlConnection.getErrorStream();
+            return es == null ? null : readFully(es);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Request limit of the server reached (GitHub: 60 requests per hour without account, 5000 with an account; GitLab: depends on the server)
+     */
+    public static class RateLimitException extends IOException {
+        public final boolean authenticated;
+        public final long resetEpochSeconds; // time when requests are allowed again, -1 if unknown
+        public final long retryAfterSeconds; // delay before retrying requested by the server, -1 if unknown
+        public RateLimitException(String message, boolean authenticated, long resetEpochSeconds, long retryAfterSeconds, Throwable cause) {
+            super(message, cause);
+            this.authenticated = authenticated;
+            this.resetEpochSeconds = resetEpochSeconds;
+            this.retryAfterSeconds = retryAfterSeconds;
+        }
+    }
+
+    protected String responseHeader(String... names) {
+        for (String n : names) {
+            String v = urlConnection.getHeaderField(n);
+            if (v != null) return v.trim();
+        }
+        return null;
+    }
+
+    static long parseLong(String s) {
+        if (s == null) return -1;
+        try {
+            return Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * @return an exception with a message for the user if the request failed because the request limit of the server is reached, null otherwise
+     */
+    protected RateLimitException rateLimit(IOException cause, String errorBody) {
+        int code;
+        try {
+            code = urlConnection.getResponseCode();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+        if (code != 403 && code != 429) return null;
+        String remaining = responseHeader("x-ratelimit-remaining", "ratelimit-remaining", "RateLimit-Remaining");
+        boolean limited = code == 429 || "0".equals(remaining) || (errorBody != null && errorBody.toLowerCase().contains("rate limit"));
+        if (!limited) return null;
+        long reset = parseLong(responseHeader("x-ratelimit-reset", "ratelimit-reset", "RateLimit-Reset"));
+        long retryAfter = parseLong(responseHeader("retry-after", "Retry-After"));
+        String host = urlConnection.getURL() == null ? "" : urlConnection.getURL().getHost();
+        boolean github = host.endsWith("github.com");
+        boolean authenticated = auth != null;
+        String message = rateLimitMessage(github ? "GitHub" : "GitLab (" + host + ")", github, authenticated, reset, retryAfter, System.currentTimeMillis() / 1000);
+        RateLimitException res = new RateLimitException(message, authenticated, reset, retryAfter, cause);
+        if (retryAfter < 0 || retryAfter > MAX_RATE_LIMIT_WAIT) notifyUser(message); // short waits are retried silently
+        return res;
+    }
+
+    public static int MAX_RATE_LIMIT_WAIT = 60; // seconds: requests are retried if the server asks to wait at most this delay
+
+    /**
+     * @param reset time when requests are allowed again (epoch seconds), -1 if unknown
+     * @param retryAfter delay before retrying (seconds), -1 if unknown
+     */
+    public static String rateLimitMessage(String server, boolean github, boolean authenticated, long reset, long retryAfter, long now) {
+        String when;
+        if (reset > 0) when = "until " + java.time.LocalTime.ofSecondOfDay(java.time.Instant.ofEpochSecond(reset).atZone(java.time.ZoneId.systemDefault()).toLocalTime().toSecondOfDay()).withSecond(0).toString() + (reset - now > 0 ? " (" + Math.max(1, (reset - now + 59) / 60) + " min)" : "");
+        else if (retryAfter > 0) when = Math.max(1, (retryAfter + 59) / 60) + " min";
+        else when = "a few minutes";
+        if (authenticated) return server + ": request limit of your account reached. Wait " + when + " before trying again.";
+        return server + ": request limit reached for connections without account" + (github ? " (60 requests per hour)" : "") + ". Connect to your account (enter your password and click Connect) to continue, or wait " + when + ".";
+    }
+
+    static String lastNotified;
+    static long lastNotifiedTime;
+
+    /**
+     * Displays the message in the log of BACMMAN, once (requests that fail for the same reason are not reported again within a minute)
+     */
+    static synchronized void notifyUser(String message) {
+        long now = System.currentTimeMillis();
+        if (message.equals(lastNotified) && now - lastNotifiedTime < 60000) return;
+        lastNotified = message;
+        lastNotifiedTime = now;
+        logger.warn(message);
+        Core.userLog(message);
     }
 
     public static String readFully(InputStream is) throws IOException {
@@ -234,6 +330,10 @@ public class JSONQuery {
             } catch (IOException e) {
                 --tryouts;
                 String m = e.getMessage() == null ? "" : e.getMessage();
+                if (e instanceof RateLimitException) { // retried only if the server asks for a short wait
+                    if (!waitForRateLimit((RateLimitException) e, tryouts)) throw e;
+                    continue;
+                }
                 if (m.contains("unable to find valid certification path") && tryouts>0) trustAllCertificates();
                 else if (tryouts>0 && (m.contains("HTTP response code: 50") || m.contains("HTTP response code: 429"))) {
                     logger.debug("error {} -> try again, remaining tryouts: {}", m, tryouts);
@@ -242,6 +342,19 @@ public class JSONQuery {
                 } else throw e;
             }
         }
+    }
+
+    /**
+     * @return true after waiting if the server asks to retry after a short delay, false if the request should not be retried
+     */
+    static boolean waitForRateLimit(RateLimitException e, int remainingTryouts) {
+        if (remainingTryouts <= 0 || e.retryAfterSeconds <= 0 || e.retryAfterSeconds > MAX_RATE_LIMIT_WAIT) {
+            notifyUser(e.getMessage());
+            return false;
+        }
+        logger.debug("rate limit: retry after {}s", e.retryAfterSeconds);
+        sleep(e.retryAfterSeconds * 1000);
+        return true;
     }
 
     public static boolean isNotFound(IOException e) {
@@ -300,6 +413,10 @@ public class JSONQuery {
             try {
                 return querySupplier.get().fetch();
             } catch (IOException e) {
+                if (e instanceof RateLimitException) { // retried only if the server asks for a short wait
+                    if (!waitForRateLimit((RateLimitException) e, tryouts)) throw e;
+                    continue;
+                }
                 if (e.getMessage().contains("unable to find valid certification path")) trustAllCertificates();
                 else if (tryouts==0 || !e.getMessage().contains("HTTP response code: 50")) throw e;
                 else {

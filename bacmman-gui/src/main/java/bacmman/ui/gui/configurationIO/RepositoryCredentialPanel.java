@@ -239,6 +239,26 @@ public class RepositoryCredentialPanel {
         return idx < 0 ? GistRepository.TYPE.GITHUB : GistRepository.TYPE.values()[idx];
     }
 
+    /**
+     * Selects a repository: type, server (GitLab) or folder (local), and account with the password entered during this session if any. Items are loaded if allowed (local repository or credentials of this session)
+     */
+    public RepositoryCredentialPanel setRepository(GistRepository repository) {
+        if (repository == null) return this;
+        if (repository instanceof bacmman.github.gist.GitLabRepository) serverURL.setText(((bacmman.github.gist.GitLabRepository) repository).getServerURL());
+        if (repository instanceof bacmman.github.gist.LocalRepository) localFolder.setText(((bacmman.github.gist.LocalRepository) repository).getFolder().getAbsolutePath());
+        lastServer = GitLabRepository.normalizeServerURL(serverURL.getText());
+        if (getRepositoryType() != repository.getType()) setRepositoryType(repository.getType());
+        if (!GistRepository.TYPE.LOCAL.equals(repository.getType()) && repository.getAccount() != null && !repository.getAccount().isEmpty()) {
+            username.setText(repository.getAccount());
+            char[] pwd = sessionPassword(repository.getAccount());
+            password.setText(pwd == null ? "" : String.valueOf(pwd));
+        }
+        updateFieldVisibility();
+        enableTokenButtons(false);
+        if (loadAllowed(getAuth()) && this.updateCredentialsCallback != null) this.updateCredentialsCallback.run();
+        return this;
+    }
+
     public RepositoryCredentialPanel setRepositoryType(GistRepository.TYPE type) {
         repositoryType.setSelectedIndex(type.ordinal());
         return this;

@@ -261,6 +261,19 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     }
     
     public String[] getFilePath(){return filePathC;}
+
+    @Override
+    public java.util.List<String> getInputPaths() {
+        if (filePathC == null || fromOmero()) return java.util.Collections.emptyList();
+        return java.util.Arrays.stream(filePathC).filter(java.util.Objects::nonNull).distinct().collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public void relocateInputFolders(java.util.function.UnaryOperator<String> folderMapping) {
+        if (filePathC == null || fromOmero()) return;
+        freeMemory();
+        for (int c = 0; c < filePathC.length; ++c) if (filePathC[c] != null) filePathC[c] = relocate(filePathC[c], folderMapping);
+    }
     
     @Override public String getName(){return name;}
 

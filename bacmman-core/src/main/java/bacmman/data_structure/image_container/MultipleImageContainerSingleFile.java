@@ -55,6 +55,19 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     private transient boolean timePointInitTried; // an empty time point map may come from a version that could not read time points: try once again per session
     private boolean invertTZ;
     @Override
+    public java.util.List<String> getInputPaths() {
+        if (fromOmero() || filePath == null) return java.util.Collections.emptyList();
+        return java.util.Collections.singletonList(filePath);
+    }
+
+    @Override
+    public void relocateInputFolders(java.util.function.UnaryOperator<String> folderMapping) {
+        if (fromOmero() || filePath == null) return;
+        freeMemory();
+        filePath = relocate(filePath, folderMapping);
+    }
+
+    @Override
     public boolean sameContent(MultipleImageContainer other) {
         if (other instanceof MultipleImageContainerSingleFile) {
             MultipleImageContainerSingleFile otherM = (MultipleImageContainerSingleFile)other;

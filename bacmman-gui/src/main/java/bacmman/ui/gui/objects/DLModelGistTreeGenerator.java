@@ -123,8 +123,7 @@ public class DLModelGistTreeGenerator {
     public GistDLModel getByID(String id, boolean modelID) {
         if (id == null) return null;
         if (modelID) { // id: link to the model file (bare GitHub id or url)
-            String link = GistDLModel.toModelLink(id);
-            return this.gists.stream().filter(g -> link.equals(g.getModelLink())).findFirst().orElse(null);
+            return this.gists.stream().filter(g -> bacmman.github.gist.GistConfiguration.sameLink(id, g.getModelLink())).findFirst().orElse(null); // bare GitHub id (legacy) or url
         }
         else return this.gists.stream().filter(g -> g.getID().equals(id)).findFirst().orElse(null);
     }

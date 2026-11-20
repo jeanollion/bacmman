@@ -503,7 +503,19 @@ public class RepositorySync {
      * @return re-mapped value, or null if value is not a reference or the referenced item has no correspondence in the target
      */
     protected String remap(String key, String value) {
+        boolean localSource = source instanceof LocalRepository && GistRepository.TYPE.LOCAL.equals(source.getType());
+        boolean localTarget = GistRepository.TYPE.LOCAL.equals(target.getType());
+        if (LocalLinks.isRelative(value)) { // link to another local repository, relative to the folder of the source repository
+            if (!localTarget) return null; // remote repository: kept relative, usable where the libraries have the same relative location
+            String abs = localSource ? LocalLinks.resolve(value, ((LocalRepository) source).getFolder().toPath()) : value;
+            String nv = GistConfiguration.storedLink(abs, target, false);
+            return nv.equals(value) ? null : nv;
+        }
         String id = referencedId(key, value, true);
+        if (id == null && localSource && !localTarget && LocalLinks.isAbsolute(value)) { // absolute link to another local repository: relative to the folder of the source repository
+            String nv = LocalLinks.relativizeToLibrary(value, ((LocalRepository) source).getFolder().toPath());
+            return nv.equals(value) ? null : nv;
+        }
         if (id == null) return null;
         String targetId = idMap.get(id);
         if (targetId == null) return null;
@@ -511,7 +523,8 @@ public class RepositorySync {
         GistRepository targetRepo = d == null ? target : d.repo;
         boolean keyed = "sub_file_ids".equals(key) || ConfigIDAware.key.equals(key); // ids resolved in the repository of the referencing item
         // bare ids that are not resolved in the repository of the referencing item (e.g. model id in a configuration) are considered as GitHub ids: use an url for GitLab
-        boolean isURL = !keyed && (!value.equals(id) || GistRepository.TYPE.GITLAB.equals(targetRepo.getType()));
+        boolean isURL = (!keyed && (!value.equals(id) || GistRepository.TYPE.GITLAB.equals(targetRepo.getType())))
+                || (GistRepository.TYPE.GITHUB.equals(targetRepo.getType()) && !"sub_file_ids".equals(key)); // GitHub links are urls
         String newValue = isURL ? targetRepo.toURL(targetId) : targetId;
         return newValue.equals(value) ? null : newValue;
     }
@@ -562,7 +575,7 @@ public class RepositorySync {
      * @return content with references re-mapped to target ids
      */
     protected String remapContent(GistItem item, GistItem.FileEntry f, String content, Set<String> unresolved) {
-        if (!mayContainReferences(f) || getReferences(item).isEmpty()) return content;
+        if (!mayContainReferences(f) || (getReferences(item).isEmpty() && !content.contains("\"file:"))) return content; // references, or links to local repositories
         Object json;
         try {
             json = new JSONParser().parse(content);

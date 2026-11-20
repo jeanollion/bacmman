@@ -41,7 +41,6 @@
         <module>bacmman-objectbox</module>
         <module>bacmman-test</module>
         <module>bacmman-mapdb</module>
-        <!--module>bacmman-blissed</module-->
     </modules>
 
     <name>BACMMAN</name>
@@ -193,5 +192,19 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>blissed</id>
+            <activation>
+                <file>
+                    <exists>${basedir}/bacmman-blissed/pom.xml</exists>
+                </file>
+            </activation>
+            <modules>
+                <module>bacmman-blissed</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>

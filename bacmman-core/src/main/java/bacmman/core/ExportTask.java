@@ -185,7 +185,7 @@ public class ExportTask extends AbstractTask<ExportTask> {
             errors.addExceptions(new Pair<>("Export", e));
         } finally {
             if (ownDB) {
-                db.unlockPositions(positionsToExport.toArray(new String[0]));
+                db.unlockPositions(); // all positions: exports of selections open (and lock) positions outside positionsToExport
                 db.unlockConfiguration();
                 db.clearCache(true, true, true);
                 db = null;
@@ -228,12 +228,12 @@ public class ExportTask extends AbstractTask<ExportTask> {
         String ocName = db.getExperiment().getStructure(objectClass).getName();
         if (exportByPosition) {
             for (String p : positions) {
-                Selection sel = selection != null ? selection : new Selection(ocName, -1, db).addElements(db.getDao(p).getRoots());
+                Selection sel = selection != null ? subset(selection, Collections.singletonList(p)) : new Selection(ocName, -1, db).addElements(db.getDao(p).getRoots());
                 String file = Paths.get(dir, db.getDBName() + "_" + type + "_" + objectClass + "_p_" + p + ".h5").toString();
                 exportSegmentation(file, sel, objectClass, contours, p);
             }
         } else {
-            Selection sel = selection;
+            Selection sel = selection == null ? null : subset(selection, positions);
             if (sel == null) {
                 sel = new Selection(ocName, -1, db);
                 for (String p : positions) sel.addElements(db.getDao(p).getRoots());
@@ -241,6 +241,15 @@ public class ExportTask extends AbstractTask<ExportTask> {
             String file = Paths.get(dir, db.getDBName() + "_" + type + "_" + objectClass + ".h5").toString();
             exportSegmentation(file, sel, objectClass, contours, label);
         }
+    }
+
+    /**
+     * @return a copy of {@param selection} restricted to {@param positions}, so that only the positions of the task are exported
+     */
+    private Selection subset(Selection selection, Collection<String> positions) {
+        Selection res = new Selection(selection.getName(), selection.getObjectClassIdx(), db);
+        for (String p : positions) res.addElementStrings(p, selection.getElementStrings(p));
+        return res;
     }
 
     private void exportSegmentation(String file, Selection sel, int objectClass, boolean contours, String errorLocalizer) {
@@ -276,7 +285,7 @@ public class ExportTask extends AbstractTask<ExportTask> {
         JSONArray ex = new JSONArray();
         for (Pair<String, int[]> p : exportDir) {
             JSONObject o = new JSONObject();
-            o.put("dir", p.key);
+            o.put("dir", p.key == null ? null : p.key.replace(java.io.File.separatorChar, '/')); // portable path
             o.put("s", JSONUtils.toJSONArray(p.value));
             ex.add(o);
         }

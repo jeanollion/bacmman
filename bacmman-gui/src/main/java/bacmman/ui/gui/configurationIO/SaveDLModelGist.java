@@ -347,6 +347,14 @@ public class SaveDLModelGist {
         return this;
     }
 
+    /**
+     * Existing folders of the library, proposed on right-click on the folder field
+     */
+    public SaveDLModelGist setExistingFolders(java.util.function.Supplier<java.util.Collection<String>> folders) {
+        bacmman.ui.gui.objects.ExistingFolders.install(folder, folders, false);
+        return this;
+    }
+
     public SaveDLModelGist setFolder(String folderName) {
         folder.setText(folderName);
         return this;

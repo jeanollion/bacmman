@@ -402,6 +402,13 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         }
     }
     
+    /**
+     * @return container of the input images of this position, or null if images are not imported
+     */
+    public MultipleImageContainer getSourceImages() {
+        return sourceImages;
+    }
+
     public void setImages(MultipleImageContainer images) {
         this.sourceImages=images;
         if (images.fromOmero()) images.setOmeroGateway(getExperiment().getOmeroGateway());

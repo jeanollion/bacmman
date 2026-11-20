@@ -101,7 +101,7 @@ public abstract class AbstractDatasetExportTask<T extends AbstractDatasetExportT
             errors.addExceptions(new Pair<>(getExportName(), e));
         } finally {
             if (ownDB) {
-                db.unlockPositions(positions);
+                db.unlockPositions(); // all positions opened by this DB
                 db.unlockConfiguration();
                 db.clearCache(true, true, true);
                 db = null;

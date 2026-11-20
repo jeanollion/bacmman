@@ -2134,7 +2134,7 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     if (fullParentTrack && mergeContact) {
                         int startFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
                         int endFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
-                        trackPop.mergeContact(startFrame, endFrame, tracksInContact(), factory);
+                        trackPop.mergeContact(startFrame, endFrame, tracksInContact(), factory, editor);
                     }
                     // remove additional links that were consumed
                     if (!fullParentTrack) {
@@ -2187,9 +2187,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                                         } else { // merge
                                             Track merged = Track.mergeTracks(t, sibling, factory, editor, remove, add);
                                             if (merged != null) {
-                                                merged.head().getRegion().setCenter(Medoid.computeMedoid(merged.head().getRegion()));
-                                                if (predictCategory.getSelected() && merged.head().getAttribute("Category")==null) setCategory(merged.head(), prediction);
-                                                merged.head().getRegion().freeMemory();
+                                                SegmentedObject mergedO = merged.head();
+                                                mergedO.getRegion().setCenter(Medoid.computeMedoid(mergedO.getRegion()));
+                                                if (predictCategory.getSelected() && mergedO.getAttribute("Category")==null) setCategory(mergedO, prediction);
+                                                mergedO.getRegion().freeMemory();
+                                                merged.simplifyTrack(editor, remove); // merged track is now the only next of prev: append it
                                             }
                                         }
                                     } else logger.debug("successive div: tt null for: {} prev: {}", t.head(), prev.tail());
@@ -2300,10 +2302,11 @@ public class DiSTNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     }
                 });
             });
-            TrackAssigner.setLinks(prevTracks, true, editor);
-            TrackAssigner.setLinks(nextTracks, false, editor);
-            TrackAssigner.setLinks(otherPrevTracks, true, editor);
-            TrackAssigner.setLinks(otherNextTracks, false, editor);
+            List<Track> allPrevTracks = new ArrayList<>(prevTracks);
+            allPrevTracks.addAll(otherPrevTracks);
+            List<Track> allNextTracks = new ArrayList<>(nextTracks);
+            allNextTracks.addAll(otherNextTracks);
+            TrackAssigner.setLinks(allPrevTracks, allNextTracks, editor);
         }
     }
 

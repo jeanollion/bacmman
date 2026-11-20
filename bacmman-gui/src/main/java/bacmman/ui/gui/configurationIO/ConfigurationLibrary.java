@@ -152,7 +152,7 @@ public class ConfigurationLibrary {
             if (repoMode || remoteSelector == null || !loggedIn || localConfig == null) return;
             // check if a folder is selected
             String currentFolder = remoteSelector.getSelectedFolder();
-            SaveGistForm form = new SaveGistForm();
+            SaveGistForm form = new SaveGistForm().setExistingFolders(() -> foldersOf(getRepository()));
             if (currentFolder != null) form.setFolder(currentFolder);
             form.display(displayingFrame, "Save the local configuration as a new configuration of the repository...");
             if (form.canceled) return;
@@ -558,6 +558,20 @@ public class ConfigurationLibrary {
      * @param target     repository where the copy is created
      * @param targetSide side that displays the target repository, if any
      */
+    /**
+     * @return folders of the configurations of {@param repository}: from the list of a side that displays it, otherwise listed from the repository
+     */
+    protected java.util.Collection<String> foldersOf(GistRepository repository) {
+        if (repository == null) return java.util.Collections.emptyList();
+        List<GistConfiguration> list = null;
+        for (Side s : new Side[]{sideA, sideB}) {
+            if (s.repository() != null && s.repository().getKey().equals(repository.getKey())) list = s.a ? gistsA : gists;
+            if (list != null) break;
+        }
+        if (list == null) list = GistConfiguration.getConfigurations(repository, bacmmanLogger);
+        return list.stream().map(GistConfiguration::folder).collect(Collectors.toSet());
+    }
+
     protected void duplicate(Side side, GistRepository target, Side targetSide) {
         ConfigurationTreeGenerator config = side.config();
         ConfigurationGistTreeGenerator selector = side.selector();
@@ -566,7 +580,7 @@ public class ConfigurationLibrary {
         boolean displayed = targetSide != null && targetSide.selector() != null && RepositoryPrompt.same(target, targetSide.repository());
         String folder = gist.folder();
         if (targetSide != null && targetSide != side && targetSide.selector() != null && targetSide.selector().getSelectedFolder() != null) folder = targetSide.selector().getSelectedFolder(); // folder selected in the other repository
-        SaveGistForm form = new SaveGistForm();
+        SaveGistForm form = new SaveGistForm().setExistingFolders(() -> foldersOf(target));
         form.setFolder(folder)
                 .setName(gist.name())
                 .setDescription(gist.getDescription())
@@ -930,7 +944,7 @@ public class ConfigurationLibrary {
      * @return the edited block if it is linked with auto update to another configuration and differs from the content of the linked configuration, null otherwise
      */
     protected EditedLinkedBlock checkLinkedBlock(GistConfiguration gist, GistConfiguration.TYPE type, int objectClass, JSONObject edited, ConfigIDAware block) {
-        if (block == null || block.getConfigID() == null || block.getConfigID().equals(gist.getID())) return null;
+        if (block == null || block.getConfigID() == null || GistConfiguration.sameLink(block.getConfigID(), gist.getID())) return null;
         if (block.getAutoUpdate() == null || !block.getAutoUpdate().getSelected()) return null;
         if (edited == null)
             edited = (JSONObject) ((Parameter) block).toJSONEntry(); // linked blocks are serialized as objects
@@ -1003,6 +1017,7 @@ public class ConfigurationLibrary {
             } else return false;
         }
         JSONObject content = toSave != null ? toSave.toJSONEntry() : (JSONObject) root.toJSONEntry();
+        if (!checkLinks(content, gist.getType(), gist.getRepository())) return false;
         removeSelfReferences(content, gist.getID(), gist.getRepository());
         JSONObject original = gist.getContent();
         if (content.equals(original)) {
@@ -1040,6 +1055,7 @@ public class ConfigurationLibrary {
             for (String k : LINK_KEYS)
                 if (stored.containsKey(k)) content.put(k, stored.get(k)); // keep links of the linked configuration
         }
+        if (!checkLinks(content, linked.getType(), linked.getRepository())) return false;
         removeSelfReferences(content, linked.getID(), linked.getRepository());
         linked.setJsonContent(content).uploadIfNecessary(null); // repository of the linked configuration, with its credentials
         if (bacmmanLogger != null)
@@ -1092,6 +1108,39 @@ public class ConfigurationLibrary {
     }
 
     /**
+     * Before a configuration is stored in {@param target}: links are converted to their stored form (see {@link GistConfiguration#toStoredForm}), and links that the users of {@param target} cannot read (configurations of this computer) can be replaced by copies, by existing configurations, or removed. {@param content} is modified accordingly
+     * @return false if the user cancelled: the configuration must not be stored
+     */
+    protected boolean checkLinks(JSONObject content, GistConfiguration.TYPE type, GistRepository target) {
+        // remote repository: links to local repositories that are kept are relative to the dataset folder, or in repository A vs B mode to the folder of the local library of the other side
+        java.nio.file.Path base = null;
+        String baseName = null;
+        if (target != null && !GistRepository.TYPE.LOCAL.equals(target.getType())) {
+            if (!repoMode) {
+                base = xp == null ? null : xp.getPath();
+                baseName = "dataset";
+            } else {
+                for (Side s : new Side[]{sideA, sideB}) {
+                    GistRepository r = s.repository();
+                    if (r instanceof bacmman.github.gist.LocalRepository && GistRepository.TYPE.LOCAL.equals(r.getType()) && !r.getKey().equals(target.getKey())) {
+                        base = ((bacmman.github.gist.LocalRepository) r).getFolder().toPath();
+                        baseName = "local library";
+                    }
+                }
+            }
+        }
+        if (base != null) LocalLinks.resolveAll(content, base); // links stored relative to this folder, e.g. by a previous save or copy
+        GistConfiguration.toStoredForm(content, target); // links to the repository relative to it, links to other local repositories relative to its folder
+        LinkCheckDialog.Result r = LinkCheckDialog.check(content, type, target, mainPanel, bacmmanLogger, base, baseName);
+        if (r.copied > 0) SwingUtilities.invokeLater(() -> { // copies are new configurations of the target repository
+            for (Side s : new Side[]{sideA, sideB}) {
+                if (s != null && s.selector() != null && s.repository() != null && s.repository().getKey().equals(target.getKey())) refresh(s);
+            }
+        });
+        return !r.cancelled;
+    }
+
+    /**
      * If the configuration is public and its repository does not allow reading private items with their url (GitLab), checks that the configurations it links (recursively) are public, and offers to make them public
      */
     protected void checkPrivateLinks(GistConfiguration gist) {
@@ -1105,7 +1154,7 @@ public class ConfigurationLibrary {
         queue.addAll(l);
         while (!queue.isEmpty()) {
             String link = queue.poll();
-            if (!visited.add(link) || link.equals(gist.getID())) continue;
+            if (!visited.add(link) || GistConfiguration.sameLink(link, gist.getID())) continue;
             String id = repo.idFromURL(link) != null ? repo.idFromURL(link) : (link.contains("/") ? null : link);
             if (id == null) continue; // other repository
             try {
@@ -1686,6 +1735,7 @@ public class ConfigurationLibrary {
      */
     protected boolean createNewGist(GistConfiguration toSave, GistRepository repo) {
         if (repo == null) return false;
+        if (!checkLinks(toSave.getContent(), toSave.getType(), repo)) return false;
         try {
             toSave.createNewGist(repo);
             checkPrivateLinks(toSave);

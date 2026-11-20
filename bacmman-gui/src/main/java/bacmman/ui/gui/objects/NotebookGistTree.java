@@ -399,8 +399,18 @@ public class NotebookGistTree {
     public boolean upload(String name, JSONObject content) {
         String currentFolder = getSelectedFolder();
         if (currentFolder == null) currentFolder = "folder";
-        String path = JOptionPane.showInputDialog(tree, "Notebook path: folder / name", currentFolder+"/"+Utils.removeExtension(name));
-        if (path == null) return false;
+        JTextField pathField = new JTextField(currentFolder+"/"+Utils.removeExtension(name), 30);
+        ExistingFolders.install(pathField, () -> streamGists().map(g -> folder(g.gist)).collect(java.util.stream.Collectors.toSet()), true);
+        JPanel pathPanel = new JPanel(new java.awt.BorderLayout(0, 4));
+        pathPanel.add(new JLabel("Notebook path: folder / name (right-click: existing folders)"), java.awt.BorderLayout.NORTH);
+        pathPanel.add(pathField, java.awt.BorderLayout.CENTER);
+        pathField.addAncestorListener(new javax.swing.event.AncestorListener() { // focus on the field when the dialog is displayed
+            @Override public void ancestorAdded(javax.swing.event.AncestorEvent e) {SwingUtilities.invokeLater(pathField::requestFocusInWindow);}
+            @Override public void ancestorRemoved(javax.swing.event.AncestorEvent e) {}
+            @Override public void ancestorMoved(javax.swing.event.AncestorEvent e) {}
+        });
+        if (JOptionPane.showConfirmDialog(tree, pathPanel, "Upload notebook", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return false;
+        String path = pathField.getText().trim();
         if (!path.contains("/")) {
             Utils.displayTemporaryMessage("Path must contain folder / name", 5000);
             return false;

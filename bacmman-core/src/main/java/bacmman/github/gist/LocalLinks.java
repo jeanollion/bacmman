@@ -53,6 +53,20 @@ public class LocalLinks {
     }
 
     /**
+     * Link relative to the folder of a library (local repository): it always goes through the parent folder, so that the name of the library appears in the link (e.g. file:../Configurations/itemId for an item of the library Configurations, file:../Models/itemId for an item of a library next to it)
+     * @param link link to an item
+     * @param libraryDir folder of the library
+     * @return link relative to {@param libraryDir}, or {@param link} if there is no relative path
+     */
+    public static String relativizeToLibrary(String link, Path libraryDir) {
+        String rel = relativize(link, libraryDir);
+        if (rel == null || !rel.startsWith(PREFIX + "./") || libraryDir == null) return rel;
+        Path name = libraryDir.toAbsolutePath().normalize().getFileName();
+        if (name == null) return rel;
+        return PREFIX + "../" + name + "/" + rel.substring((PREFIX + "./").length());
+    }
+
+    /**
      * @param link link that may be relative to {@param baseDir}
      * @return absolute link if {@param link} is relative and {@param baseDir} is not null, {@param link} otherwise
      */

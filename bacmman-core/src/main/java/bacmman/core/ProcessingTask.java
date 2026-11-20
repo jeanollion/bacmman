@@ -82,7 +82,7 @@ public class ProcessingTask extends AbstractTask<ProcessingTask> {
         @Override
         public JSONObject toJSONEntry() {
             JSONObject res=  new JSONObject();
-            if (this.dir!=null) res.put("dir", dir); // put dbPath ?
+            if (this.dir!=null) res.put("dir", dir.replace(java.io.File.separatorChar, '/')); // portable path
             if (preProcess) res.put("preProcess", preProcess);
             if (segmentAndTrack) res.put("segmentAndTrack", segmentAndTrack);
             if (trackOnly) res.put("trackOnly", trackOnly);
@@ -494,7 +494,7 @@ public class ProcessingTask extends AbstractTask<ProcessingTask> {
 
 
         if (ownDB) {
-            db.unlockPositions(positionsToProcess.toArray(new String[0]));
+            db.unlockPositions(); // all positions: positions outside positionsToProcess may have been opened (e.g. selections), and are locked by this DB
             db.unlockConfiguration();
             db.clearCache(true, true, true);
             db=null;

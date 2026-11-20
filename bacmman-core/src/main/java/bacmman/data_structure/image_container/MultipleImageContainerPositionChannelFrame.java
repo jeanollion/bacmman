@@ -61,6 +61,34 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     transient boolean timePointInitTried; // an empty time point map may come from a version that could not read time points: try once again per session
     boolean fromOmero;
     @Override
+    public java.util.List<String> getInputPaths() {
+        if (fromOmero() || inputDir == null) return java.util.Collections.emptyList();
+        try {
+            if (fileCT == null) createFileMap();
+        } catch (IOException e) {
+            return java.util.Collections.emptyList();
+        }
+        return fileCT.stream().flatMap(java.util.List::stream).distinct().collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public java.util.List<String> getInputFolders() {
+        if (fromOmero() || inputDir == null) return java.util.Collections.emptyList();
+        return java.util.Collections.singletonList(new java.io.File(inputDir).getAbsolutePath());
+    }
+
+    @Override
+    public void relocateInputFolders(java.util.function.UnaryOperator<String> folderMapping) {
+        if (fromOmero() || inputDir == null) return;
+        freeMemory();
+        String newDir = folderMapping.apply(new java.io.File(inputDir).getAbsolutePath());
+        if (newDir != null) {
+            inputDir = newDir;
+            fileCT = null; // file names are listed again from the new folder
+        }
+    }
+
+    @Override
     public boolean sameContent(MultipleImageContainer other) {
         if (other instanceof MultipleImageContainerPositionChannelFrame) {
             MultipleImageContainerPositionChannelFrame otherM = (MultipleImageContainerPositionChannelFrame)other;

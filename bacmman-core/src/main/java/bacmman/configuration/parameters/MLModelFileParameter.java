@@ -26,7 +26,38 @@ import static bacmman.configuration.parameters.DLMetadataConfigurable.configureP
 public class MLModelFileParameter extends ContainerParameterImpl<MLModelFileParameter> {
     FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false)
             .setEmphasized(true).setHint("Deep learning with Tensorflow: Select the folder containing the saved model (.pb file)<br/>Ilastik: select project file (.ilp). <br/>Caution: ensure there are no spaces in the absolute path of this file.");
-    TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
+    TextParameter id = new ModelLinkParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
+
+    /**
+     * Link to the model file. The same model can be designated by links written differently (link relative to the dataset folder or absolute, bare GitHub id or url...): they are considered identical when configurations are compared
+     */
+    static class ModelLinkParameter extends TextParameter {
+        ModelLinkParameter(String name) {
+            super(name);
+        }
+        @Override
+        public boolean sameContent(Parameter other) {
+            if (!(other instanceof TextParameter)) return false;
+            if (getValue().equals(((TextParameter) other).getValue())) return true;
+            return bacmman.github.gist.GistConfiguration.sameLink(resolved(this), resolved((TextParameter) other));
+        }
+        static String resolved(TextParameter p) { // links to local repositories are stored relative to the dataset folder
+            return p.getParent() instanceof MLModelFileParameter ? ((MLModelFileParameter) p.getParent()).getID() : p.getValue();
+        }
+        @Override
+        public boolean isValid() { // displayed in red when the linked local repository or model is not found
+            return super.isValid() && (!(getParent() instanceof MLModelFileParameter) || ((MLModelFileParameter) getParent()).isLinkedItemFound());
+        }
+        @Override
+        public String getHintText() {
+            String hint = super.getHintText();
+            if (getParent() instanceof MLModelFileParameter && !((MLModelFileParameter) getParent()).isLinkedItemFound()) {
+                String m = "<b>The model is linked to a folder of this computer (local repository) that is not found, or that does not contain the model: " + ((MLModelFileParameter) getParent()).getID() + "</b><br/>Configure the model again from the DL model library";
+                return hint == null || hint.isEmpty() ? m : m + "<br/>" + hint;
+            }
+            return hint;
+        }
+    }
     volatile LargeFileGist lf;
     String lfId;
     Predicate<String> validDirectory;
@@ -100,6 +131,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
 
     public boolean needsToDownloadModel() throws IOException {
         String path = modelFile.getFirstSelectedFilePath();
+        if (path == null) return true; // no folder to download the model to (e.g. configuration of a library)
         File f = new File(path);
         boolean noValidFile = (!f.exists() || (validDirectory!=null && !validDirectory.test(path)));
         if (noValidFile) {
@@ -115,8 +147,54 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         return modelFile.getFirstSelectedFilePath();
     }
 
+    /**
+     * Folder of the dataset where DL models are downloaded
+     */
+    public static final String MODEL_FOLDER = "DLModels";
+
+    /**
+     * @param create whether the folder is created if it does not exist
+     * @return folder {@link #MODEL_FOLDER} of the dataset that contains this parameter, or null if the dataset has no folder
+     */
+    public File getDatasetModelFolder(boolean create) {
+        Experiment xp = ParameterUtils.getExperiment(this);
+        Path p = xp != null ? xp.getPath() : null;
+        if (p == null) return null;
+        File dir = p.resolve(MODEL_FOLDER).toFile();
+        if (create && !dir.isDirectory() && !dir.mkdirs()) return null;
+        return dir;
+    }
+
+    /**
+     * @return true if a model is linked (model id) and its model file is not present on this computer
+     */
+    public boolean isModelMissing() {
+        if (id.getValue() == null || id.getValue().isEmpty() || !isValidID()) return false;
+        String path = modelFile.getFirstSelectedFilePath();
+        if (path == null) return true;
+        File f = new File(path);
+        if (!f.exists()) return true;
+        return validDirectory != null && !validDirectory.test(path); // e.g. download folder that does not contain the model (when the module defines valid model folders)
+    }
+
+    /**
+     * Downloads the model into the folder {@link #MODEL_FOLDER} of the dataset, and sets the model file
+     * @return the downloaded model file
+     */
+    public File downloadToDataset(ProgressDisplay pd) throws IOException {
+        File dir = getDatasetModelFolder(true);
+        if (dir == null) throw new IOException("The dataset has no folder: the model cannot be downloaded");
+        File res = downloadModel(dir, true, false, null, pd);
+        if (res == null) throw new IOException("Model " + getID() + " could not be downloaded");
+        setSelectedFilePath(res.getAbsolutePath());
+        return res;
+    }
+
     public File getModelFile() throws IOException {
-        if (modelFile.getFirstSelectedFilePath()==null) return null;
+        if (modelFile.getFirstSelectedFilePath()==null) { // model linked but no folder: downloaded into the folder DLModels of the dataset
+            if (id.getValue() != null && !id.getValue().isEmpty() && isValidID() && getDatasetModelFolder(false) != null) return downloadToDataset(Core.getProgressLogger());
+            return null;
+        }
         if ( needsToDownloadModel() && !id.getValue().isEmpty()) {
             File outputFile = downloadModel(new File(modelFile.getFirstSelectedFilePath()), true, false, null, null);
             setSelectedFilePath(outputFile.getAbsolutePath());
@@ -132,14 +210,13 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         // special case: when valid model was set before: file needs to be changed
         if ( (oldID==null || !oldID.equals(id.getValue()))) {
             String path = modelFile.getFirstSelectedFilePath();
-            if (path == null) { // get current experiment path
-                Experiment xp = ParameterUtils.getExperiment(this);
-                Path p = xp != null ? xp.getPath() : null;
-                if (p == null) {
+            if (path == null) { // default: folder DLModels of the dataset
+                File dir = getDatasetModelFolder(true);
+                if (dir == null) {
                     logger.error("Configure a parent folder to save model file to");
                     Core.userLog("Configure a parent folder to save model file to");
                 } else {
-                    modelFile.setSelectedFiles(p.toFile());
+                    modelFile.setSelectedFiles(dir);
                 }
             } else {
                 File f = new File(path);
@@ -223,8 +300,24 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
 
     @Override
     public boolean isValid() { // either one of the two is valid
+        if (!isLinkedItemFound()) { // the model cannot be downloaded: the model file must be present
+            String path = modelFile.getFirstSelectedFilePath();
+            return path != null && new File(path).exists() && (validDirectory == null || validDirectory.test(path));
+        }
         if (modelFile.isValid()) return true;
-        else return isValidID() && modelFile.getFirstSelectedFilePath() != null;
+        else return isValidID() && isLinkedItemFound() && modelFile.getFirstSelectedFilePath() != null; // the model could not be downloaded from a local repository that is not found
+    }
+
+    /**
+     * @return false if the model is linked to an item of a local repository (folder of this computer) that is not found: folder moved, deleted or on another computer, or item deleted. True for other links (they are checked when the model is downloaded) and links relative to an unknown dataset folder
+     */
+    public boolean isLinkedItemFound() {
+        String link = getID();
+        if (!bacmman.github.gist.LocalLinks.isAbsolute(link)) return true;
+        bacmman.github.gist.GistRepository r = bacmman.github.gist.GistRepository.fromURL(link, null);
+        if (!(r instanceof bacmman.github.gist.LocalRepository)) return false;
+        String itemId = r.idFromURL(link);
+        return itemId != null && ((bacmman.github.gist.LocalRepository) r).getFolder().isDirectory() && ((bacmman.github.gist.LocalRepository) r).exists(itemId);
     }
     public boolean isValidID() {
         return getID().length()>=30; // TODO check: always same length of 32 ?
