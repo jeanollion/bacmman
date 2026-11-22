@@ -569,6 +569,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 iwm.stopAllRunningWorkers();
                 db.rollback();
+                if (db.getSelectionDAO()!=null) db.getSelectionDAO().clearSelectionCache(); // selections are not reverted, but may hold objects discarded by the rollback
                 iwm.flush();
                 trackTreeController.updateTrackTree();
                 setMessage("Changes reverted");
@@ -5252,7 +5253,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             Action delete = new AbstractAction("Delete") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":""), INSTANCE)) return;
+                    if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":"")+" ?"+safeModePermanentDeletionWarning(), INSTANCE)) return;
                     for (String pos : positions) {
                         db.getExperiment().getPosition(pos).eraseData();
                         db.getExperiment().getPosition(pos).removeFromParent();
@@ -5734,6 +5735,14 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     public static MasterDAO getDBConnection() {
         if (getInstance()==null) return null;
         return getInstance().db;
+    }
+
+    /**
+     * @return a warning to append to the confirmation of a deletion that bypasses safe mode (deletion of files) if safe mode is ON, an empty string otherwise
+     */
+    public static String safeModePermanentDeletionWarning() {
+        MasterDAO db = getDBConnection();
+        return db != null && db.getSafeMode() ? " WARNING: Safe Mode is ON but this deletion is permanent and cannot be reverted." : "";
     }
     
     public void setInteractiveStructureIdx(int structureIdx) {

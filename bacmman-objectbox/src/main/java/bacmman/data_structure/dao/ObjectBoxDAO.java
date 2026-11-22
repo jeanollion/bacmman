@@ -286,6 +286,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     }
     @Override
     public synchronized void erase() {
+        if (safeMode && !readOnly) warnPermanentDeletion("all objects");
+        commit(); // objects are deleted permanently: nothing to restore
         clearCache();
         closeThreadResources();
         if (readOnly) return;
@@ -296,6 +298,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
 
     @Override
     public void deleteAllObjects() {
+        if (safeMode && !readOnly) warnPermanentDeletion("all objects");
+        commit(); // objects are deleted permanently: nothing to restore
         closeThreadResources();
         cache.clear();
         measurementCache.clear();
@@ -438,20 +442,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                 }
 
                 t1 = System.currentTimeMillis();
-                if (safeMode) { // record modifications
-                    Set<Long> toRemove = toRemoveAtRollback.get(ocIdx);
-                    Map<Long, SegmentedObjectBox> toRestore = toRestoreAtRollback.get(ocIdx);
-                    objectStores.get(ocIdx).runInReadTx(() -> {
-                        for (SegmentedObjectBox b : toStore) {
-                            if (!toRemove.contains(b.getId())) {
-                                SegmentedObjectBox oldB = db.get(b.getId());
-                                if (oldB != null) toRestore.put(b.getId(), oldB); // modified
-                                else toRemove.add(b.getId()); // newly created
-                            } // was created after previous commit so needs to be removed
-                        }
-                    });
-                }
-                // store
+                // store (in safe mode, put records the non-modified versions)
                 put(ocIdx, toStore);
             } finally {
                 objectStores.get(ocIdx).closeThreadResources();
@@ -661,7 +652,8 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     }
 
     @Override
-    public ObjectBoxDAO setSafeMode(boolean safeMode) {
+    public synchronized ObjectBoxDAO setSafeMode(boolean safeMode) {
+        if (this.safeMode != safeMode) commit(); // changes made before the switch are kept: forget recorded versions
         this.safeMode = safeMode;
         return this;
     }
@@ -687,6 +679,12 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     public void commit() {
         toRemoveAtRollback.clear();
         toRestoreAtRollback.clear();
+    }
+
+    protected void warnPermanentDeletion(String what) {
+        String message = "Safe mode is ON but deletion of "+what+" of position "+positionName+" is permanent: it cannot be reverted";
+        logger.warn(message);
+        bacmman.core.Core.userLog(message);
     }
 
     // helper methods

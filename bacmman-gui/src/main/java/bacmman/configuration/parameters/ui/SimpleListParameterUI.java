@@ -86,7 +86,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                          TreeNode child = list.getChildAt(0);
                          //
                          if ((child instanceof ListElementErasable)) {
-                             if (!Utils.promptBoolean("Delete selected Elements? (all data will be lost)", GUI.getInstance())) return;
+                             if (!Utils.promptBoolean("Delete selected Elements? (all data will be lost)"+GUI.safeModePermanentDeletionWarning(), GUI.getInstance())) return;
                              while (list.getChildCount() > 0) {
                                  child = list.getChildAt(0);
                                  ((ListElementErasable) child).eraseData();
@@ -170,7 +170,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     if (child instanceof ListElementErasable) {
-                        if (!Utils.promptBoolean("Delete selected Element ? (all data will be lost)", GUI.getInstance())) return;
+                        if (!Utils.promptBoolean("Delete selected Element ? (all data will be lost)"+GUI.safeModePermanentDeletionWarning(), GUI.getInstance())) return;
                         ((ListElementErasable) child).eraseData();
                     }
                     if (model != null) model.removeNodeFromParent(child);

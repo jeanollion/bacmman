@@ -70,6 +70,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::makeMeasurementDB);
     public final boolean readOnly;
     protected boolean safeMode;
+    protected boolean pendingChanges; // safe mode: uncommitted modifications in object DBs
     private java.nio.channels.FileLock lock;
     private FileChannel lockChannel;
     public MapDBObjectDAO(MasterDAO<String, ? extends ObjectDAO<String>> mDAO, String positionName, String outputDir, boolean readOnly) {
@@ -137,6 +138,11 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     public synchronized void unlock() {
         clearCache();
+        if (pendingChanges) { // safe mode: callers are expected to commit / rollback before unlocking
+            logger.warn("position {} unlocked with uncommitted changes in safe mode: changes are discarded", positionName);
+            closeAllObjectFiles(false);
+            pendingChanges = false;
+        }
         if (this.lock!=null) {
             try {
                 lock.release();
@@ -439,7 +445,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     @Override
     public void deleteChildren(Collection<SegmentedObject> parents, int structureIdx) {
-        deleteChildren(parents, structureIdx, true);
+        if (safeMode && !readOnly) pendingChanges = true;
+        deleteChildren(parents, structureIdx, !safeMode);
     }
 
     private Set<Integer> deleteChildren(Collection<SegmentedObject> parents, int structureIdx, boolean commit) {
@@ -468,6 +475,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     @Override
     public synchronized void deleteObjectsByStructureIdx(int... structures) {
         if (readOnly) return;
+        if (safeMode) warnPermanentDeletion("objects of classes "+Arrays.toString(structures));
         Set<Integer> toDelete = new HashSet<>(); // add all direct children
         for (int s: structures) {
             toDelete.add(s);
@@ -501,7 +509,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         allObjectsRetrievedInCache.clear();
         trackHeads.clear();
         frameIndex.clear();
-        closeAllFiles(!safeMode);
+        if (safeMode && pendingChanges && !readOnly) closeAllMeasurementFiles(true); // closing transactional object DBs without commit would discard pending changes: keep them open until commit / rollback
+        else closeAllFiles(!safeMode);
     }
 
     @Override
@@ -514,6 +523,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
 
     protected void deleteAllObjects(boolean unlock) {
+        if (safeMode && !readOnly) warnPermanentDeletion("all objects");
+        pendingChanges = false;
         closeAllObjectFiles(false);
         closeAllMeasurementFiles(false);
         cache.clear();
@@ -589,6 +600,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
 
     @Override
     public void delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings) {
+        if (safeMode && !readOnly) pendingChanges = true;
         delete(list, deleteChildren, deleteFromParent, relabelSiblings, !safeMode);
     }
     
@@ -664,7 +676,8 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             trackHeads.get(key).add(object);
             Collections.sort(trackHeads.get(key));
         }
-        dbS.get(object.getStructureIdx()).commit();
+        if (safeMode) pendingChanges = true;
+        else dbS.get(object.getStructureIdx()).commit();
     }
     protected void store(Collection<SegmentedObject> objects, boolean commit) {
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
@@ -734,6 +747,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
     }
     @Override
     public void store(Collection<SegmentedObject> objects) {
+        if (safeMode && !readOnly) pendingChanges = true;
         store(objects, !safeMode);
     }
 
@@ -974,7 +988,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             } catch (DBException.VolumeIOError e) {
                 logger.debug("Error retrieving frame index: will re-create it", e);
                 Map<Integer, Set<String>> res2 = createFrameIndex(key);
-                storeFrameIndex(key, res2, true);
+                storeFrameIndex(key, res2, !safeMode); // safe mode: committing would also commit pending modifications
                 return res2;
             }
             //int size = res.values().stream().mapToInt(Set::size).sum();
@@ -984,7 +998,7 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
             int size = res.values().stream().mapToInt(Set::size).sum();
             if (size > FRAME_INDEX_LIMIT) { // store
                 //logger.debug("storing: frame index for {} objects", size);
-                storeFrameIndex(key, res, true);
+                storeFrameIndex(key, res, !safeMode); // safe mode: committing would also commit pending modifications
             }
             return res;
         }
@@ -1019,19 +1033,33 @@ public class MapDBObjectDAO implements ObjectDAO<String> {
         if (this.safeMode != safeMode) {
             this.closeAllObjectFiles(true);
             this.safeMode = safeMode;
+            pendingChanges = false;
         }
         return this;
     }
     @Override
-    public void rollback() {
+    public synchronized void rollback() {
         if (!safeMode) throw new IllegalArgumentException("Cannot Rollback if safe mode is not activated");
-        for (int objectClassIdx : this.dbS.keySet()) this.dbS.get(objectClassIdx).rollback();
+        if (!readOnly) { // read-only DBs are not transactional
+            for (DB db : this.dbS.values()) {
+                if (db != null && !db.isClosed()) db.rollback();
+            }
+        }
+        pendingChanges = false;
         clearCache();
     }
     @Override
-    public void commit() {
-        for (int objectClassIdx : this.dbS.keySet()) {
-            this.dbS.get(objectClassIdx).commit();
+    public synchronized void commit() {
+        if (!readOnly) { // read-only DBs cannot be committed
+            for (DB db : this.dbS.values()) {
+                if (db != null && !db.isClosed()) db.commit();
+            }
         }
+        pendingChanges = false;
+    }
+    protected void warnPermanentDeletion(String what) {
+        String message = "Safe mode is ON but deletion of "+what+" of position "+positionName+" is permanent: it cannot be reverted";
+        logger.warn(message);
+        bacmman.core.Core.userLog(message);
     }
 }
