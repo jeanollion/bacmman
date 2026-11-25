@@ -60,6 +60,20 @@ public class ParameterUIBinder {
                     }
                 }
             }
+            Class<?> selectedClass = pp.getSelectedPluginClass();
+            if (selectedClass != null && PluginWithActions.class.isAssignableFrom(selectedClass)) { // e.g. install / update what the plugin depends on
+                Plugin pl = pp.instantiatePlugin();
+                if (pl instanceof PluginWithActions) {
+                    boolean first = true;
+                    for (PluginWithActions.PluginAction a : ((PluginWithActions) pl).getActions()) {
+                        JMenuItem item = new JMenuItem(a.name);
+                        if (a.hint != null) item.setToolTipText(a.hint);
+                        item.addActionListener(e -> new Thread(a.action, "PluginAction-" + a.name).start());
+                        ui.addActions(item, first);
+                        first = false;
+                    }
+                }
+            }
             if (p instanceof TransformationPluginParameter && pp.isOnePluginSet()) {
 
                 Position f = ParameterUtils.getFirstParameterFromParents(Position.class, pp, false);

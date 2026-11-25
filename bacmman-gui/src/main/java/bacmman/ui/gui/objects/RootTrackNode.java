@@ -410,7 +410,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         public void actionPerformed(ActionEvent ae) {
                             List<RootTrackNode> selectedNodes = generator.getSelectedRootTrackNodes();
                             List<String> positions = selectedNodes.stream().map(n -> n.position).distinct().collect(Collectors.toList());
-                            if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":""), GUI.getInstance())) return;
+                            if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":"")+" ?"+GUI.safeModePermanentDeletionWarning(), GUI.getInstance())) return;
                             for (String pos : positions) {
                                 generator.db.getExperiment().getPosition(pos).eraseData();
                                 generator.db.getExperiment().getPosition(pos).removeFromParent();

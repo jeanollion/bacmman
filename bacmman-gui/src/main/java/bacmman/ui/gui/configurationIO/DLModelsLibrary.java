@@ -84,7 +84,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             // check if a folder is selected
             String currentFolder = tree.getSelectedFolder();
-            SaveDLModelGist form = new SaveDLModelGist(gateway);
+            SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
             if (currentFolder != null) form.setFolder(currentFolder);
             GistRepository modelFileRepository = getModelFileRepository();
             if (modelFileRepository == null) return;
@@ -142,7 +142,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             GistDLModel gist = tree.getSelectedGist();
             if (gist == null) return;
-            SaveDLModelGist form = new SaveDLModelGist(gateway);
+            SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
             form.setFolder(gist.folder).disableFolderField()
                     .setName(gist.name).disableNameField()
                     .setDescription(gist.getDescription())
@@ -164,7 +164,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             GistDLModel gist = tree.getSelectedGist();
             if (gist == null) return;
-            SaveDLModelGist form = new SaveDLModelGist(gateway);
+            SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
             form.setFolder(gist.folder)
                     .setName(gist.name)
                     .setDescription(gist.getDescription())
@@ -344,6 +344,54 @@ public class DLModelsLibrary {
      * Requests the upload of a model (e.g. from the training tab): enables the button that stores the model, so that the repository of the library and the (optional) model file account can be set before.
      * The model file is stored in the model file account if set, in the repository of the library otherwise.
      */
+    String pendingFolder, pendingName;
+    java.util.function.Consumer<GistDLModel> modelStoredCallback;
+
+    /**
+     * @param callback called with the DL model each time a model is stored (created or updated) in the library
+     */
+    public DLModelsLibrary setModelStoredCallback(java.util.function.Consumer<GistDLModel> callback) {
+        this.modelStoredCallback = callback;
+        return this;
+    }
+
+    /**
+     * @return folders of the models of the library
+     */
+    java.util.Collection<String> existingFolders() {
+        if (gists == null) return java.util.Collections.emptyList();
+        return gists.stream().map(g -> g.folder).collect(Collectors.toSet());
+    }
+
+    /**
+     * Reloads the list of models if the library displays {@param repository} (e.g. a model was stored in this repository from another window)
+     */
+    public void refreshIfShowing(GistRepository repository) {
+        GistRepository r = getRepository();
+        if (repository == null || r == null || !r.getKey().equals(repository.getKey()) || gists == null) return;
+        fetchGists();
+        updateGistDisplay();
+        updateEnableButtons();
+    }
+
+    /**
+     * Selects the repository of the library (type, server or folder, account)
+     */
+    public DLModelsLibrary setRepository(GistRepository repository) {
+        repositoryCredentialPanel.setRepository(repository);
+        return this;
+    }
+
+    /**
+     * Same as {@link #requestModelUpload(DLModelMetadata, File)}, with a default folder and name for the model, and a label for the button that stores the model
+     */
+    public void requestModelUpload(DLModelMetadata metadata, File model, String folder, String name, String buttonLabel) {
+        pendingFolder = folder;
+        pendingName = name;
+        if (buttonLabel != null) storeTrainedModelButton.setText(buttonLabel);
+        requestModelUpload(metadata, model);
+    }
+
     public void requestModelUpload(DLModelMetadata metadata, File model) {
         pendingMetadata = metadata;
         pendingModel = model;
@@ -424,7 +472,7 @@ public class DLModelsLibrary {
         final GistRepository modelRepo = modelRepository == null ? getRepository() : modelRepository;
         GistDLModel gist = tree.getSelectedGist();
         boolean update = gist != null && Utils.promptBoolean("Update selected Model ?", this.displayingFrame);
-        SaveDLModelGist form = new SaveDLModelGist(gateway);
+        SaveDLModelGist form = new SaveDLModelGist(gateway).setExistingFolders(this::existingFolders);
         if (gist != null) {
             if (update) {
                 form.setFolder(gist.folder).disableFolderField()
@@ -441,6 +489,10 @@ public class DLModelsLibrary {
             String folder = tree.getSelectedFolder();
             if (folder != null) form.setFolder(folder);
         }
+        if (!update && pendingFolder != null) form.setFolder(pendingFolder);
+        if (!update && pendingName != null) form.setName(pendingName);
+        pendingFolder = null;
+        pendingName = null;
         if (metadata != null) form.setMetadata(metadata);
         form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb).setRepository(modelRepo);
 
@@ -485,6 +537,7 @@ public class DLModelsLibrary {
                 gists.add(gist);
                 updateGistDisplay();
                 tree.setSelectedGist(gist);
+                if (modelStoredCallback != null) modelStoredCallback.accept(gist);
             } catch (IOException e) {
                 if (pcb != null) pcb.setMessage("Error saving gist: " + e.getMessage());
                 logger.error("Error saving gist", e);
@@ -494,6 +547,7 @@ public class DLModelsLibrary {
             gist.setDescription(form.description());
             gist.setContent(form.url(), form.metadata());
             gist.uploadIfNecessary(getAuth());
+            if (modelStoredCallback != null) modelStoredCallback.accept(gist);
         }
     }
 
@@ -597,7 +651,7 @@ public class DLModelsLibrary {
     protected List<GistDLModel> getOtherModelsUsingFile(GistDLModel model) {
         String link = model.getModelLink();
         if (link == null || link.isEmpty() || gists == null) return Collections.emptyList();
-        return gists.stream().filter(g -> g != model && link.equals(g.getModelLink())).collect(Collectors.toList());
+        return gists.stream().filter(g -> g != model && GistConfiguration.sameLink(link, g.getModelLink())).collect(Collectors.toList());
     }
 
     private static String toString(List<GistDLModel> models) {

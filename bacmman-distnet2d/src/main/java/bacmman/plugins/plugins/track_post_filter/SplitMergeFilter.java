@@ -80,7 +80,7 @@ public class SplitMergeFilter implements TrackPostFilter, Hint {
             if (mergeContact) {
                 int startFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
                 int endFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
-                trackPop.mergeContact(startFrame, endFrame, DiSTNet2D.tracksInContact(contact), factory);
+                trackPop.mergeContact(startFrame, endFrame, DiSTNet2D.tracksInContact(contact), factory, editor);
             }
         }
         DiSTNet2D.fixLinks(objectClassIdx, parentTrack, editor);

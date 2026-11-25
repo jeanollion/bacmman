@@ -94,6 +94,10 @@ public class PluginFactory {
     }
     private static void addPlugin(String command, Class c) {
         if (command.length()==0 || command.equals(" ")) return;
+        if (!PlatformSpecific.Check.isAvailable(c)) {
+            logger.debug("plugin {} not available on this operating system", c.getSimpleName());
+            return;
+        }
         if (PLUGIN_NAMES_MAP_CLASS.containsKey(command)) {
             Class otherC = PLUGIN_NAMES_MAP_CLASS.get(c.getSimpleName());
             if (!otherC.equals(c)) {

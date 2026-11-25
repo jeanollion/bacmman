@@ -48,8 +48,8 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     /**
      * Link to an item, to be stored outside of its repository (e.g. in a dataset): bare id for GitHub (legacy: bare ids are GitHub ids), url for other repositories
      */
-    public static String externalLink(GistRepository repository, String id) {
-        if (id == null || repository == null || GistRepository.TYPE.GITHUB.equals(repository.getType()) || id.contains("/")) return id;
+    public static String externalLink(GistRepository repository, String id) { // GitHub: url as well (bare ids are still read as GitHub ids)
+        if (id == null || repository == null || id.contains("/")) return id;
         return repository.toURL(id);
     }
 
@@ -75,9 +75,89 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
-        externalLinks(content, gist.getRepository());
+        toExternalForm(content, gist.getRepository(), true);
         content.put(ConfigIDAware.key, externalLink(gist.getRepository(), gist.getID()));
         return content;
+    }
+
+    /*
+     * Links stored in configurations: linked configuration blocks (ConfigIDAware.key) and model files of DL model parameters (key "id" next to the key "file").
+     * Stored form, in a configuration of a repository: links to items of the repository are bare ids (model files on GitLab: url, as model links are bare ids only for GitHub),
+     * in a local repository links to other local repositories are relative to the folder of the repository (absolute if there is no relative path), other links are urls.
+     * External form, outside of the repository (dataset, display, other repository): relative links are resolved, bare model ids of repositories other than GitHub are urls.
+     */
+    static final String MODEL_LINK_KEY = "id";
+
+    interface LinkVisitor {
+        String visit(String link, boolean modelLink);
+    }
+
+    static void visitLinks(Object json, LinkVisitor visitor) {
+        if (json instanceof JSONObject) {
+            JSONObject o = (JSONObject) json;
+            Object id = o.get(ConfigIDAware.key);
+            if (id instanceof String) o.put(ConfigIDAware.key, visitor.visit((String) id, false));
+            if (o.containsKey("file") && o.get(MODEL_LINK_KEY) instanceof String) o.put(MODEL_LINK_KEY, visitor.visit((String) o.get(MODEL_LINK_KEY), true)); // DL model parameter
+            for (Object v : o.values()) visitLinks(v, visitor);
+        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) visitLinks(v, visitor);
+    }
+
+    /**
+     * @param link link in external form (absolute)
+     * @return the link as stored in a configuration of {@param repository}
+     */
+    public static String storedLink(String link, GistRepository repository, boolean modelLink) {
+        if (link == null || repository == null || link.isEmpty() || !link.contains("/")) return link; // bare ids keep their meaning
+        if (GistRepository.TYPE.GITHUB.equals(repository.getType())) return link; // GitHub links are kept as urls
+        String id = repository.idFromURL(link);
+        if (id != null) return modelLink && GistRepository.TYPE.GITLAB.equals(repository.getType()) ? repository.toURL(id) : id;
+        if (GistRepository.TYPE.LOCAL.equals(repository.getType()) && repository instanceof LocalRepository && LocalLinks.isAbsolute(link)) return LocalLinks.relativizeToLibrary(link, ((LocalRepository) repository).getFolder().toPath());
+        return link;
+    }
+
+    /**
+     * @param link link as stored in a configuration of {@param repository}
+     * @param configIdsAsURL whether bare ids of linked configurations are converted to urls (configuration used outside of the repository, e.g. dataset). Otherwise they are kept (resolved with the repository of the configuration, see {@link #resolveLink(GistRepository, String)})
+     * @return the link usable outside of the repository
+     */
+    public static String externalLink(String link, GistRepository repository, boolean modelLink, boolean configIdsAsURL) {
+        if (link == null || repository == null || link.isEmpty()) return link;
+        if (LocalLinks.isRelative(link)) return GistRepository.TYPE.LOCAL.equals(repository.getType()) && repository instanceof LocalRepository ? LocalLinks.resolve(link, ((LocalRepository) repository).getFolder().toPath()) : link;
+        if (link.contains("/")) return link;
+        if (modelLink) return GistRepository.TYPE.GITHUB.equals(repository.getType()) ? link : repository.toURL(link); // bare model ids are GitHub ids outside of the repository
+        return configIdsAsURL ? externalLink(repository, link) : link;
+    }
+
+    /**
+     * Links to items of local repositories (absolute) are made relative to {@param baseDir} (dataset folder), when a relative path exists. Used for configurations stored in remote repositories: users who keep the same folder layout around their datasets can use them
+     */
+    public static void relativizeLocalLinks(Object json, java.nio.file.Path baseDir) {
+        relativizeLocalLinks(json, baseDir, false);
+    }
+
+    /**
+     * @param library true if {@param baseDir} is the folder of a library (local repository): links include the name of the library (see {@link LocalLinks#relativizeToLibrary})
+     */
+    public static void relativizeLocalLinks(Object json, java.nio.file.Path baseDir, boolean library) {
+        if (baseDir == null) return;
+        visitLinks(json, (link, model) -> library ? LocalLinks.relativizeToLibrary(link, baseDir) : LocalLinks.relativize(link, baseDir));
+    }
+
+    /**
+     * Converts the links of {@param json}, in external form, to the form stored in a configuration of {@param repository}
+     */
+    public static void toStoredForm(Object json, GistRepository repository) {
+        if (repository == null) return;
+        visitLinks(json, (link, model) -> storedLink(link, repository, model));
+    }
+
+    /**
+     * Converts the links of {@param json}, stored in a configuration of {@param repository}, to their external form
+     * @param configIdsAsURL see {@link #externalLink(String, GistRepository, boolean, boolean)}
+     */
+    public static void toExternalForm(Object json, GistRepository repository, boolean configIdsAsURL) {
+        if (repository == null) return;
+        visitLinks(json, (link, model) -> externalLink(link, repository, model, configIdsAsURL));
     }
 
     /**
@@ -86,29 +166,70 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
      * @param target repository of the configuration receiving the copy. null: a dataset
      */
     public static void convertLinks(Object json, GistRepository source, GistRepository target) {
+        if (source != null) toExternalForm(json, source, false); // relative links and bare model ids of the source repository
         GistRepository src = source != null ? source : GistRepository.github(new NoAuth());
-        if (target != null && (src.getKey().equals(target.getKey()) || (GistRepository.TYPE.GITHUB.equals(src.getType()) && GistRepository.TYPE.GITHUB.equals(target.getType())))) return; // bare ids keep their meaning
+        boolean sameMeaning = target != null && (src.getKey().equals(target.getKey()) || (GistRepository.TYPE.GITHUB.equals(src.getType()) && GistRepository.TYPE.GITHUB.equals(target.getType()))); // bare ids keep their meaning
+        if (!sameMeaning) bareIdsToURLs(json, src, target);
+        if (target != null) toRepositoryLinks(json, target); // then links to the target repository become bare ids
+        if (isLocal(source) && target != null && !GistRepository.TYPE.LOCAL.equals(target.getType())) { // local library -> remote repository: links to local repositories are kept relative to the folder of the library: they can be used where the libraries have the same relative location
+            relativizeLocalLinks(json, ((LocalRepository) source).getFolder().toPath(), true);
+        }
+    }
+
+    static boolean isLocal(GistRepository r) {
+        return r instanceof LocalRepository && GistRepository.TYPE.LOCAL.equals(r.getType());
+    }
+
+    static void bareIdsToURLs(Object json, GistRepository src, GistRepository target) {
         if (json instanceof JSONObject) {
             JSONObject o = (JSONObject) json;
             Object id = o.get(ConfigIDAware.key);
             if (id instanceof String && !((String) id).contains("/")) {
                 o.put(ConfigIDAware.key, target == null ? externalLink(src, (String) id) : src.toURL((String) id));
             }
-            for (Object v : o.values()) convertLinks(v, source, target);
-        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) convertLinks(v, source, target);
+            for (Object v : o.values()) bareIdsToURLs(v, src, target);
+        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) bareIdsToURLs(v, src, target);
     }
 
     /**
-     * Replaces links (bare ids relative to the repository) by external links
+     * Links to items of {@param repository} (urls, e.g. links of a dataset) are replaced by bare ids, so that links between items of a repository are relative to the repository (local repositories can be moved)
      */
-    static void externalLinks(Object json, GistRepository repository) {
+    static void toRepositoryLinks(Object json, GistRepository repository) {
+        if (GistRepository.TYPE.GITHUB.equals(repository.getType())) return; // GitHub links are kept as urls
         if (json instanceof JSONObject) {
             JSONObject o = (JSONObject) json;
             Object id = o.get(ConfigIDAware.key);
-            if (id instanceof String) o.put(ConfigIDAware.key, externalLink(repository, (String) id));
-            for (Object v : o.values()) externalLinks(v, repository);
-        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) externalLinks(v, repository);
+            if (id instanceof String && ((String) id).contains("/")) {
+                String bare = repository.idFromURL((String) id);
+                if (bare != null) o.put(ConfigIDAware.key, bare);
+            }
+            for (Object v : o.values()) toRepositoryLinks(v, repository);
+        } else if (json instanceof JSONArray) for (Object v : (JSONArray) json) toRepositoryLinks(v, repository);
     }
+
+    /**
+     * @return whether two links designate the same configuration, although they may be written differently: bare id (relative to the repository of the configuration that contains it) or url, absolute or relative local link, different spelling of a local folder
+     */
+    public static boolean sameLink(String a, String b) {
+        if (java.util.Objects.equals(a, b)) return true;
+        if (a == null || b == null) return false;
+        if (LocalLinks.isRelative(a) || LocalLinks.isRelative(b)) { // relative to a dataset folder that is not known here (e.g. configuration of a library): item ids are unique
+            String ia = a.substring(a.lastIndexOf('/') + 1), ib = b.substring(b.lastIndexOf('/') + 1);
+            return !ia.isEmpty() && ia.equals(ib);
+        }
+        boolean urlA = a.contains("/"), urlB = b.contains("/");
+        if (!urlA && !urlB) return false;
+        if (urlA && urlB) {
+            GistRepository rb = GistRepository.fromURL(b, null);
+            if (rb == null) return false;
+            String idB = rb.idFromURL(b);
+            return idB != null && idB.equals(rb.idFromURL(a)); // a belongs to the repository of b
+        }
+        String url = urlA ? a : b, bare = urlA ? b : a; // bare id: its repository is not known here, items ids are unique
+        GistRepository r = GistRepository.fromURL(url, null);
+        return r != null && bare.equals(r.idFromURL(url));
+    }
+
 
     /**
      * @param externalLinks true if xp is outside of the repository (e.g. a dataset): links to the repository are stored as urls for repositories other than GitHub. false if xp belongs to the repository (auto-update of library configurations)
@@ -116,12 +237,12 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     public static void copyRemoteToLocal(Experiment xp, int localItemIdx, TYPE configBlockType, ContainerParameter remote, String remoteID, int remoteIdx, GistRepository repository, Component ui, boolean externalLinks) {
         String link = externalLinks ? externalLink(repository, remoteID) : remoteID;
         java.util.function.Consumer<ConfigIDAware> setLink = b -> {
-            if (b.getConfigID() != null && b.getConfigID().equals(remoteID)) b.setConfigID(link);
+            if (b.getConfigID() != null && sameLink(b.getConfigID(), remoteID)) b.setConfigID(link);
         };
         switch (configBlockType) {
             case WHOLE: {
                 JSONObject content = (JSONObject) remote.toJSONEntry();
-                if (externalLinks) externalLinks(content, repository);
+                if (externalLinks) toExternalForm(content, repository, true);
                 String outputPath = xp.getOutputDirectory();
                 String outputImagePath = xp.getOutputImageDirectory();
                 content.remove("positions");
@@ -191,6 +312,7 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
     public static void updateConfigIdAwareParameter(Experiment xp, ConfigIDAware cia, GistRepository repository, Component ui, boolean externalLinks) throws IOException {
         repository = resolveLink(repository, cia.getConfigID());
         GistConfiguration config = new GistConfiguration(repository, cia.getConfigID());
+        if (config.getType() == null) throw new IOException("Linked item " + cia.getConfigID() + " is not a configuration");
         int remoteItemIdx = -1;
         if (config.getType().equals(WHOLE) && cia.getType().equals(PROCESSING)) {
             remoteItemIdx = cia.getConfigItemIdx();
@@ -737,6 +859,10 @@ public class GistConfiguration implements Hint, Comparable<GistConfiguration> {
      * @param repository repository from which linked configuration blocks (auto-update) are retrieved
      */
     public static Experiment getExperiment(JSONObject jsonContent, TYPE type, String id, GistRepository repository, boolean partialInit) {
+        if (repository != null && jsonContent != null) { // links usable outside of the repository: relative links resolved, model ids as urls. The stored content is not modified
+            jsonContent = (JSONObject) org.json.simple.JSONValue.parse(jsonContent.toJSONString());
+            toExternalForm(jsonContent, repository, false);
+        }
         Experiment res = new Experiment("");
         switch (type) {
             case WHOLE:

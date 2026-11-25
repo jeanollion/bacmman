@@ -100,13 +100,13 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
         Triplet<Image, Image, Image[]> segProx = getSegmentationProxies(input, objectClassIdx, parent);
         Image edm = segProx.v1;
         Image gcdm = segProx.v2;
-        Image[] cat = segProx.v3;
+        edm = unwrap(edm);
+        gcdm = unwrap(gcdm);
+        Image[] cat = segProx.v3 == null ? null : Arrays.stream(segProx.v3).map(DiSTNet2DSegmenter::unwrap).toArray(Image[]::new);
         if (stores != null) {
             stores.get(parent).addIntermediateImage("EDM", edm);
             stores.get(parent).addIntermediateImage("CDM", gcdm);
         }
-        if (edm instanceof DiskBackedImage) edm = ((DiskBackedImage)edm).getImage();
-        if (gcdm instanceof DiskBackedImage) gcdm = ((DiskBackedImage)gcdm).getImage();
         RegionPopulation pop = DiSTNet2D.segment(parent, objectClassIdx, edm, gcdm, objectThickness.getDoubleValue(), edmThreshold.getDoubleValue(), minMaxEDM.getDoubleValue(), centerSmoothRad.getDoubleValue(), centerLapThld.getDoubleValue(), centerSizeFactor.getValuesAsDouble(), mergeCriterion.getDoubleValue(), useGDCMGradientCriterion.getSelected(), minObjectSize.getIntValue(), minObjectSizeGDCMGradient.getIntValue(), null, stores);
         if (predictCategory.getSelected()) {
             pop.getRegions().forEach( r ->  {
@@ -125,12 +125,12 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
                 ExperimentStructure xp = parent.getExperimentStructure();
                 if (xp.getSegmentationParentObjectClassIdx(objectClassIdx) != xp.getParentObjectClassIdx(objectClassIdx)) {
                     SegmentedObject mainParent = parent.getParent(xp.getParentObjectClassIdx(objectClassIdx));
-                    Image edm = edmMap.get(mainParent);
+                    Image edm = unwrap(edmMap.get(mainParent));
                     edm = edm.cropWithOffset(parent.is2D() ? new MutableBoundingBox(parent.getBounds()).copyZ(input) : parent.getBounds());
-                    Image gcdm = gcdmMap.get(mainParent);
+                    Image gcdm = unwrap(gcdmMap.get(mainParent));
                     gcdm = gcdm.cropWithOffset(parent.is2D() ? new MutableBoundingBox(parent.getBounds()).copyZ(input) : parent.getBounds());
                     Image[] cat = catMap == null ? null : catMap.get(mainParent);
-                    if (cat != null) cat = Arrays.stream(cat).map(im -> im.cropWithOffset(parent.is2D() ? new MutableBoundingBox(parent.getBounds()).copyZ(input) : parent.getBounds())).toArray(Image[]::new);
+                    if (cat != null) cat = Arrays.stream(cat).map(im -> unwrap(im).cropWithOffset(parent.is2D() ? new MutableBoundingBox(parent.getBounds()).copyZ(input) : parent.getBounds())).toArray(Image[]::new);
                     return new Triplet<>(edm, gcdm, cat);
                 }
             }
@@ -294,6 +294,8 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
         logger.debug("predict parent: {}", parentTrack.get(0));
         int[] sortedFrames = parentTrack.stream().mapToInt(SegmentedObject::getFrame).toArray();
         int increment = batchSize.getIntValue ()<1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / batchSize.getIntValue()) );
+        // predictions of the whole track are kept until segmentation: reduce precision and make them disk-backed (as in DiSTNet2D) so that memory does not scale with track length
+        DiskBackedImageManager dbim = parentTrack.size() > 1 ? imageManager : null;
         for (int i = 0; i < parentTrack.size(); i += increment ) {
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             int effectiveMaxFrameIncl = DiSTNet2D.getNeighborhood(sortedFrames, sortedFrames[maxIdx-1], inputWindow.getIntValue(), next.getSelected(), frameSubsampling.getIntValue(), 0).stream().mapToInt(ii->ii).max().getAsInt();
@@ -331,16 +333,31 @@ public class DiSTNet2DSegmenter implements GlobalHistogramConfigurable, Segmente
                 SegmentedObject p = parentMap.get(frame);
                 Image ref = inputImages.getImage(frame, 0);
                 predictionONC[0][f-i][0].setCalibration(ref).resetOffset().translate(ref);
-                edmMap.put(p, predictionONC[0][f-i][0]);
+                edmMap.put(p, toDiskBacked(TypeConverter.toHalfFloat(predictionONC[0][f-i][0], null), dbim));
                 predictionONC[1][f-i][0].setCalibration(ref).resetOffset().translate(ref);
-                gcdmMap.put(p, predictionONC[1][f-i][0]);
+                gcdmMap.put(p, toDiskBacked(TypeConverter.toHalfFloat(predictionONC[1][f-i][0], null), dbim));
                 if (catMap != null) {
-                    for (int ci = 0; ci<predictionONC[2][f-i].length; ++ci) predictionONC[2][f-i][ci].setCalibration(ref).resetOffset().translate(ref);
+                    for (int ci = 0; ci<predictionONC[2][f-i].length; ++ci) {
+                        predictionONC[2][f-i][ci].setCalibration(ref).resetOffset().translate(ref);
+                        predictionONC[2][f-i][ci] = toDiskBacked(TypeConverter.toFloatU8(predictionONC[2][f-i][ci], null), dbim);
+                    }
                     catMap.put(p, predictionONC[2][f-i]);
                 }
             }
         }
         return new Triplet<>(edmMap, gcdmMap, catMap);
+    }
+
+    /**
+     * Wraps {@code image} in a disk-backed image: the manager frees its memory when needed. Returns the image unchanged if {@code manager} is null.
+     */
+    protected static Image toDiskBacked(Image image, DiskBackedImageManager manager) {
+        if (manager == null || image instanceof DiskBackedImage) return image;
+        return manager.createDiskBackedImage(image, false);
+    }
+
+    protected static Image unwrap(Image image) {
+        return image instanceof DiskBackedImage ? ((DiskBackedImage<?>)image).getImage() : image;
     }
 
     @Override

@@ -370,7 +370,7 @@ public class RepositorySyncTest {
         GitLabRepository gitlab = GistRepository.gitlab("https://git.example.org", new NoAuth("user"));
         GitHubRepository github = GistRepository.github("user");
         // links stored outside of the repository
-        assertEquals("abc", GistConfiguration.externalLink(github, "abc"));
+        assertEquals("GitHub links are urls", github.toURL("abc"), GistConfiguration.externalLink(github, "abc"));
         assertEquals("https://git.example.org/-/snippets/12", GistConfiguration.externalLink(gitlab, "12"));
         assertEquals(local.toURL("abc"), GistConfiguration.externalLink(local, "abc"));
         // resolution: bare ids in the repository of the referencing configuration, urls in their own repository

@@ -440,7 +440,7 @@ public class Optimization {
             JSONObject object = new JSONObject();
             object.put("class", OptimizationTask.class.getName());
             object.put("dbName", dbName);
-            object.put("dir", dir);
+            object.put("dir", dir == null ? null : dir.replace(java.io.File.separatorChar, '/')); // portable path
             if (selectionName != null) object.put("selectionName", selectionName);
             if (runA != null) object.put("runArray", JSONUtils.toJSONArray(runA));
             return object;

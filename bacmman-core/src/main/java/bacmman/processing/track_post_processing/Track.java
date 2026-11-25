@@ -45,11 +45,19 @@ public class Track implements Comparable<Track> {
     public Track(SegmentedObject object) {
         this(new ArrayList<SegmentedObject>(){{add(object);}});
     }
+    /**
+     * Computes the split regions of each object of the track. Objects flagged by a previous merge as not merged (gap in one of the merged tracks: empty list) keep their flag and are not split.
+     * @param splitter returns the regions resulting from the split of an object
+     * @return this track
+     */
     public Track setSplitRegions(Function<SegmentedObject, List<Region>> splitter) {
-        splitRegions = Utils.parallel(objects.stream(), parallel).collect(Collectors.toMap(Function.identity(), splitter));
-        splitRegions.forEach((so, l) -> { // if split didn't work, set 1 single object to distinguish with empty list which means track had been merged before
+        Set<SegmentedObject> notMerged = objects.stream().filter(o -> splitRegions.containsKey(o) && splitRegions.get(o).isEmpty()).collect(Collectors.toSet());
+        Map<SegmentedObject, List<Region>> res = Utils.parallel(objects.stream().filter(o -> !notMerged.contains(o)), parallel).collect(Collectors.toMap(Function.identity(), splitter));
+        res.forEach((so, l) -> { // if split didn't work, set 1 single object to distinguish with empty list which means track had been merged before
             if (l.isEmpty()) l.add(so.getRegion());
         });
+        for (SegmentedObject o : notMerged) res.put(o, Collections.emptyList());
+        splitRegions = res;
         return this;
     }
     public Track eraseSplitRegions() {
@@ -129,6 +137,18 @@ public class Track implements Comparable<Track> {
         return res;
     }
 
+    /**
+     * @return true if the first (resp. last) object of this track is linked to objects that are not the last (resp. first) objects of the previous (resp. next) tracks.
+     * This happens when the population is built on a part of the parent track (e.g. PER_SEGMENT post-processing mode): neighbor tracks outside the parent track are not part of the population.
+     * Such a track cannot be merged or split, as the links to the objects outside the population would be lost or become inconsistent.
+     */
+    public boolean hasLinksOutsidePopulation() {
+        Set<SegmentedObject> prevTails = previous.stream().map(Track::tail).collect(Collectors.toSet());
+        if (SegmentedObjectEditor.getPrevious(head()).anyMatch(o -> !prevTails.contains(o))) return true;
+        Set<SegmentedObject> nextHeads = next.stream().map(Track::head).collect(Collectors.toSet());
+        return SegmentedObjectEditor.getNext(tail()).anyMatch(o -> !nextHeads.contains(o));
+    }
+
     public boolean belongTo(TrackTree tree) {
         if (tree.containsKey(head())) return true;
         for (Track t : previous) if (tree.containsKey(t.head())) return true;
@@ -179,7 +199,7 @@ public class Track implements Comparable<Track> {
                 editor.setTrackLinks(previous.iterator().next().tail(), objects.get(0), true, false, false);
             }
         }
-        if (next.size()==1) editor.setTrackLinks(tail(), next.iterator().next().tail(), false, true, false);
+        if (next.size()==1) editor.setTrackLinks(tail(), next.iterator().next().head(), false, true, false);
     }
     @Override
     public boolean equals(Object o) {
@@ -205,17 +225,85 @@ public class Track implements Comparable<Track> {
         if (track.get(0).isTrackHead()) return ;
         SegmentedObject trackHead = track.get(0).getTrackHead();
         SegmentedObject first = track.get(0);
+        List<SegmentedObject> toAdd = new ArrayList<>(); // only modify track on success: callers repair the track on failure and would add the same objects again
         while (!first.isTrackHead()) {
             first = first.getPrevious();
             if (first == null || !first.getTrackHeadId().equals(trackHead.getId())) {
                 logger.error("No trackhead in track {}", track);
                 throw new RuntimeException("Missing trackhead");
             }
-            track.add(first);
+            toAdd.add(first);
         }
+        track.addAll(toAdd);
         Collections.sort(track);
 
     }
+    /**
+     * Adds to {@param tracks} the tracks that are linked to them but are outside the parent track (e.g. tracks of the previous window in PER_SEGMENT post-processing mode),
+     * as well as the other tracks linked to these neighbor tracks on the side of the parent track (e.g. other next tracks of a previous track), because links of the neighbor tracks are modified when tracks of the parent track are merged or split.
+     * Thus the tracks of the parent track can be merged or split (see {@link #hasLinksOutsidePopulation()}).
+     * The added tracks have links to tracks that are not part of the population, they thus cannot be merged or split.
+     * Limitation: when a track of the parent track is joined to an added track during post-processing (e.g. after its sister track is merged, {@link #simplifyTrack} joins it to its previous track),
+     * the resulting track has links outside the population (the other links of the added track, that are not loaded) and can no longer be merged or split.
+     * This could be overcome by loading the missing neighbor tracks on demand when an operation is refused (see {@link #hasLinksOutsidePopulation()}) and retrying it,
+     * at the cost of modifying objects located further before the parent track. Loading neighbors recursively at a greater depth would only push the problem back.
+     */
+    static void addNeighborTracks(Map<SegmentedObject, Track> tracks, Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalNexts, Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalPrevs) {
+        Set<SegmentedObject> objects = tracks.values().stream().flatMap(t -> t.objects.stream()).collect(Collectors.toSet());
+        Function<Track, Stream<SegmentedObject>> prevObjects = t -> Stream.concat(SegmentedObjectEditor.getPrevious(t.head()), additionalPrevs.getOrDefault(t.head(), Collections.emptyList()).stream().map(l -> l.key));
+        Function<Track, Stream<SegmentedObject>> nextObjects = t -> Stream.concat(SegmentedObjectEditor.getNext(t.tail()), additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(l -> l.value));
+        Function<SegmentedObject, Track> addTrack = n -> { // returns the added track, or null if the track was already present or could not be added
+            if (objects.contains(n)) return null;
+            List<SegmentedObject> track = getTrackFromLinks(n);
+            if (track == null || track.stream().anyMatch(objects::contains)) {
+                logger.debug("could not add track of neighbor object: {} (track: {})", n, track);
+                return null;
+            }
+            try {
+                Track nt = new Track(track);
+                tracks.put(nt.head(), nt);
+                objects.addAll(track);
+                return nt;
+            } catch (IllegalArgumentException e) {
+                logger.debug("could not add track of neighbor object: {}", n, e);
+                return null;
+            }
+        };
+        List<Track> parentTracks = new ArrayList<>(tracks.values());
+        List<SegmentedObject> prevNeighbors = parentTracks.stream().flatMap(prevObjects).collect(Collectors.toList());
+        List<SegmentedObject> nextNeighbors = parentTracks.stream().flatMap(nextObjects).collect(Collectors.toList());
+        for (SegmentedObject n : prevNeighbors) {
+            Track nt = addTrack.apply(n);
+            if (nt != null) nextObjects.apply(nt).collect(Collectors.toList()).forEach(addTrack::apply); // other next tracks of the previous track
+        }
+        for (SegmentedObject n : nextNeighbors) {
+            Track nt = addTrack.apply(n);
+            if (nt != null) prevObjects.apply(nt).collect(Collectors.toList()).forEach(addTrack::apply); // other previous tracks of the next track
+        }
+    }
+
+    /**
+     * @return the track containing {@param o}, obtained by following the links between objects that have the same track head as {@param o}, or null if the first object is not the track head
+     */
+    static List<SegmentedObject> getTrackFromLinks(SegmentedObject o) {
+        SegmentedObject th = o.getTrackHead();
+        LinkedList<SegmentedObject> res = new LinkedList<>();
+        res.add(o);
+        SegmentedObject cur = o;
+        while (!cur.equals(th)) {
+            cur = SegmentedObjectEditor.getPrevious(cur).filter(p -> th.equals(p.getTrackHead())).findAny().orElse(null);
+            if (cur == null || res.contains(cur)) return null;
+            res.addFirst(cur);
+        }
+        cur = o;
+        while (true) {
+            cur = SegmentedObjectEditor.getNext(cur).filter(n -> th.equals(n.getTrackHead())).findAny().orElse(null);
+            if (cur == null || res.contains(cur)) break;
+            res.add(cur);
+        }
+        return new ArrayList<>(res);
+    }
+
     public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<UnaryPair<SegmentedObject>> additionalLinks, boolean allowTrackheadsOutsideParentTrack) {
         Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
         Map<SegmentedObject, List<UnaryPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
@@ -286,6 +374,7 @@ public class Track implements Comparable<Track> {
             }
         }
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));
+        if (allowTrackheadsOutsideParentTrack) addNeighborTracks(tracks, additionalNexts, additionalPrevs);
         for (Track t : tracks.values()) {
             Set<SegmentedObject> nexts = additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(p -> p.value).collect(Collectors.toSet());
             boolean addLink = !nexts.isEmpty();
@@ -313,6 +402,10 @@ public class Track implements Comparable<Track> {
     }
 
     public static Track splitInTwo(Track track, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor) {
+        if (track.hasLinksOutsidePopulation()) {
+            logger.debug("cannot split track: {} linked to objects outside the population", track);
+            return null;
+        }
         Map<SegmentedObject, List<Region>> regions = track.getSplitRegions();
         if (regions.size() != track.objects.size()) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
         List<Region> impossible=regions.values().stream().filter(t -> t.size()!=2 || t.get(0)==null || t.get(1)==null).findAny().orElse(null);
@@ -373,6 +466,10 @@ public class Track implements Comparable<Track> {
         return res;
     }
     public static boolean split(Track track, boolean forward, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor, Consumer<Track> removeTrack, Consumer<Track> addTrack, BiFunction<Integer, Boolean, Stream<Track>> getAllTracksAtFrame) {
+        if (track.hasLinksOutsidePopulation()) {
+            logger.debug("cannot split track: {} linked to objects outside the population", track);
+            return false;
+        }
         Map<SegmentedObject, List<Region>> regions = track.getSplitRegions();
         if (regions.size() != track.objects.size()) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
         List<Region> impossible=regions.values().stream().filter(t -> t.size()==1).findAny().orElse(null); // if a track had been merged before, it is flagged with an empty object list. If split is impossible splitter returns a list with the same object
@@ -428,7 +525,7 @@ public class Track implements Comparable<Track> {
             if (split && !gap) { // correct over-fragmentation: merge fragments with no neighbors
                 // merge tracks that have been assigned to the same track (avoid fragmentation)
                 Map<Track, List<Track>> trackByNeigh = currentTracks.stream().filter(singleNeigh).collect(Collectors.groupingBy(forward ? t -> t.previous.get(0) : t -> t.next.get(0)));
-                trackByNeigh.forEach((n, group) -> Track.mergeTracks(group, factory, currentTracks::remove));
+                trackByNeigh.forEach((n, group) -> Track.mergeTracks(group, factory, trackEditor, currentTracks::remove));
 
                 List<Track> fragments = currentTracks.stream()
                         .filter(t -> t.length()==1)
@@ -460,7 +557,7 @@ public class Track implements Comparable<Track> {
                 int maxFrame = t.getLastFrame();
                 Track t2 = t.simplifyTrack(trackEditor, removeTrackSimplify, false);
                 if (t2.getFirstFrame()<minFrame || t2.getLastFrame()>maxFrame) { // track was simplified and thus removed from current tracks
-                    if ( (forward && t2.getLastFrame()==frame) || !(forward && t2.getFirstFrame()==frame)) currentTracks.add(t2);
+                    if ( (forward && t2.getLastFrame()==frame) || (!forward && t2.getFirstFrame()==frame)) currentTracks.add(t2);
                     else newTracks.add(t2); // track was linked with another track
                 }
             });
@@ -488,8 +585,13 @@ public class Track implements Comparable<Track> {
                 else { // restore initial state
                     track2.getPrevious().forEach(p -> p.getNext().remove(track2));
                     track2.getNext().forEach(p -> p.getPrevious().remove(track2));
+                    if (!track2.getObjects().equals(track.getObjects())) { // split objects were merged back into other objects than the original ones, which were removed
+                        track.objects.clear();
+                        track.objects.addAll(track2.getObjects());
+                    }
                     track.getPrevious().forEach(p -> p.getNext().add(track));
                     track.getNext().forEach(p -> p.getPrevious().add(track));
+                    setObjectLinks(track, trackEditor);
                     addTrack.accept(track);
                     logger.debug("Split: {} no change", track);
                 }
@@ -520,6 +622,10 @@ public class Track implements Comparable<Track> {
     }
 
     public static Track mergeTracks(Track track1, Track track2, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
+        if (track1.hasLinksOutsidePopulation() || track2.hasLinksOutsidePopulation()) {
+            logger.debug("cannot merge tracks: {} + {} : linked to objects outside the population", track1, track2);
+            return null;
+        }
         if (track1.getFirstFrame()>track2.getLastFrame() || track2.getFirstFrame()>track1.getLastFrame()) {
             logger.debug("cannot merge tracks: incompatible first/last frames {} + {}", track1, track2);
             return null;
@@ -543,11 +649,19 @@ public class Track implements Comparable<Track> {
             return null;
         }
 
+        // objects of track2 at frames where track1 has a gap are moved to track1
+        int startOverlap = Math.max(track1.getFirstFrame(), track2.getFirstFrame()), endOverlap = Math.min(track1.getLastFrame(), track2.getLastFrame());
+        List<SegmentedObject> gapFill = track2.objects.stream().filter(o -> o.getFrame() >= startOverlap && o.getFrame() <= endOverlap && track1.getObject(o.getFrame()) == null).collect(Collectors.toList());
         // merge regions
         Utils.parallel(track1.objects.stream(), parallel).forEach(o1 -> {
             SegmentedObject o2 = track2.getObject(o1.getFrame());
             if (o2!=null) {
-                track1.splitRegions.put(o1, new ArrayList<Region>(){{add(o1.getRegion()); o2.getRegion();}});
+                List<Region> regions = new ArrayList<>(2);
+                regions.add(o1.getRegion());
+                regions.add(o2.getRegion());
+                synchronized (track1.splitRegions) { // parallel stream: HashMap is not thread safe
+                    track1.splitRegions.put(o1, regions);
+                }
                 factory.setRegion(o1, Region.merge(true, o1.getRegion(), o2.getRegion()));
                 factory.removeFromParent(o2);
             }
@@ -569,6 +683,11 @@ public class Track implements Comparable<Track> {
             editor.setTrackLinks(track1.tail(), toAdd.get(0), true, true, true);
             track1.getObjects().addAll( toAdd );
         }
+        if (!gapFill.isEmpty()) {
+            track1.objects.addAll(gapFill);
+            track1.objects.sort(SegmentedObject.frameComparator());
+            track1.setInternalLinks(editor);
+        }
         // replace track2 by track1 @ prev & next
         track2.getNext().forEach(n -> {
             n.addPrevious(track1);
@@ -580,10 +699,31 @@ public class Track implements Comparable<Track> {
         });
         track2.getNext().clear();
         track2.getPrevious().clear();
+        setObjectLinks(track1, editor);
         return track1;
     }
 
-    public static Track mergeTracks(List<Track> tracks, SegmentedObjectFactory factory, Consumer<Track> removeTrack) {
+    /**
+     * Sets the links between successive objects of this track (1 to 1 links, possibly with gaps) and their track head
+     */
+    void setInternalLinks(TrackLinkEditor editor) {
+        for (int i = 1; i<objects.size(); ++i) editor.setTrackLinks(objects.get(i-1), objects.get(i), true, true, false);
+        for (SegmentedObject o : objects) editor.setTrackHead(o, head(), false, false);
+    }
+
+    /**
+     * Sets the links of the objects at both ends of {@param track} (and of its previous and next tracks) according to the links between tracks.
+     * Required after a merge: links of neighbor objects may point to a removed object, or be missing.
+     */
+    static void setObjectLinks(Track track, TrackLinkEditor editor) {
+        List<Track> prevs = new ArrayList<>(track.getPrevious());
+        prevs.add(track);
+        List<Track> nexts = new ArrayList<>(track.getNext());
+        nexts.add(track);
+        TrackAssigner.setLinks(prevs, nexts, editor);
+    }
+
+    public static Track mergeTracks(List<Track> tracks, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack) {
         if (tracks.isEmpty()) return null;
         else if (tracks.size() == 1) return tracks.get(0);
         Track track1 = tracks.get(0);
@@ -593,18 +733,30 @@ public class Track implements Comparable<Track> {
             return null;
         }
         // merge regions
+        List<SegmentedObject> toAdd = Collections.synchronizedList(new ArrayList<>()); // objects at frames where track1 has a gap
         Utils.parallel(IntStream.rangeClosed(track1.getFirstFrame(), track1.getLastFrame()), parallel).forEach(f -> {
             List<SegmentedObject> objects = tracks.stream().map(t -> t.getObject(f)).filter(Objects::nonNull).collect(Collectors.toList());
+            if (objects.isEmpty()) return; // gap in all tracks
+            if (track1.getObject(f) == null) toAdd.add(objects.get(0)); // first object is kept (others are merged into it) and must belong to track1
             if (objects.size()>1) {
                 List<Region> regions = objects.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
                 SegmentedObject o1 = objects.remove(0);
-                track1.splitRegions.put(o1, regions);
+                synchronized (track1.splitRegions) { // parallel stream: HashMap is not thread safe
+                    track1.splitRegions.put(o1, regions);
+                }
                 factory.setRegion(o1, Region.merge(regions, true));
                 factory.removeFromParent(objects.toArray(new SegmentedObject[0]));
             } else { // a gap in one of the tracks -> only one object. flag with an empty list
-                track1.splitRegions.put(objects.get(0), Collections.emptyList());
+                synchronized (track1.splitRegions) {
+                    track1.splitRegions.put(objects.get(0), Collections.emptyList());
+                }
             }
         });
+        if (!toAdd.isEmpty()) { // fill gaps of track1
+            track1.objects.addAll(toAdd);
+            track1.objects.sort(SegmentedObject.frameComparator());
+            track1.setInternalLinks(editor);
+        }
         for (Track t : otherTracks) {
             removeTrack.accept(t); // do this before next step because trackHead can be track2.head()
             t.getNext().forEach(n -> n.getPrevious().remove(t));
@@ -621,6 +773,7 @@ public class Track implements Comparable<Track> {
             });
         }
 
+        setObjectLinks(track1, editor);
         return track1;
     }
 

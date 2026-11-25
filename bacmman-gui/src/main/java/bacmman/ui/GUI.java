@@ -113,6 +113,9 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     public static final String DBprefix = "";
     public String currentDBPrefix = "";
     private static GUI INSTANCE;
+    // close operation applied once closing is confirmed: EXIT_ON_CLOSE standalone, DISPOSE_ON_CLOSE in Fiji (set by IJ1).
+    // Exiting from Fiji must not happen here: System.exit called on the event dispatch thread deadlocks with Fiji's shutdown hook
+    private int confirmedCloseOperation = EXIT_ON_CLOSE;
     // db-related attributes
     private MasterDAO<?, ?> db;
 
@@ -278,7 +281,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                     setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
                     return;
                 }
-                setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                setDefaultCloseOperation(confirmedCloseOperation);
                 if (db!=null) closeDataset();
                 if (pyGtw!=null) pyGtw.stopGateway();
                 Core.getCore().getGithubGateway().clear();
@@ -347,8 +350,8 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(extractMeasurementOnSelectionsMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
-        relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(copyExternalFilesMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(extractMeasurementOnSelectionsMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
+        relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem);add(copyExternalFilesMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
 
@@ -566,6 +569,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 iwm.stopAllRunningWorkers();
                 db.rollback();
+                if (db.getSelectionDAO()!=null) db.getSelectionDAO().clearSelectionCache(); // selections are not reverted, but may hold objects discarded by the rollback
                 iwm.flush();
                 trackTreeController.updateTrackTree();
                 setMessage("Changes reverted");
@@ -1986,6 +1990,16 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         //if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
     }
     
+    /**
+     * Records the close operation to apply once closing is confirmed (see the window listener: closing can be canceled
+     * by temporarily setting DO_NOTHING_ON_CLOSE, which is not recorded)
+     */
+    @Override
+    public void setDefaultCloseOperation(int operation) {
+        if (operation != DO_NOTHING_ON_CLOSE) confirmedCloseOperation = operation;
+        super.setDefaultCloseOperation(operation);
+    }
+
     public static GUI getInstance() {
         //if (INSTANCE==null) INSTANCE=new GUI();
         return INSTANCE;
@@ -2110,6 +2124,13 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         }
         tabs.setSelectedIndex(tabIndex.indexOf(TAB.JUPYTER_PANEL.name()));
         return dataAnalysisPanel;
+    }
+
+    /**
+     * @return the DL model library of the main window if it is open, null otherwise
+     */
+    public DLModelsLibrary getDLModelLibraryIfOpen() {
+        return dlModelLibrary;
     }
 
     public DLModelsLibrary displayOnlineDLModelLibrary() {
@@ -3176,6 +3197,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.setText("Dataset");
 
         refreshExperimentListMenuItem.setText("Refresh List");
+        refreshExperimentListMenuItem.setToolTipText(formatHint("Reloads the list of datasets of the working directory", true));
         refreshExperimentListMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 refreshExperimentListMenuItemActionPerformed(evt);
@@ -3184,6 +3206,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(refreshExperimentListMenuItem);
 
         setSelectedExperimentMenuItem.setText("Open / Close selected dataset");
+        setSelectedExperimentMenuItem.setToolTipText(formatHint("Opens the dataset selected in the list of datasets. If this dataset is already open, or if no dataset is selected, closes the open dataset", true));
         setSelectedExperimentMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 setSelectedExperimentMenuItemActionPerformed(evt);
@@ -3192,6 +3215,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(setSelectedExperimentMenuItem);
 
         newXPMenuItem.setText("New");
+        newXPMenuItem.setToolTipText(formatHint("Creates an empty dataset: enter its name, or its path relative to the working directory (sub-folders are created)", true));
         newXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 createEmptyDataset();
@@ -3200,6 +3224,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(newXPMenuItem);
 
         newXPFromTemplateMenuItem.setText("New dataset from Template");
+        newXPFromTemplateMenuItem.setToolTipText(formatHint("Creates a dataset with the configuration of a configuration file (.json, .txt or .zip), for instance a configuration exported from another dataset", true));
         newXPFromTemplateMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 newXPFromTemplateMenuItemActionPerformed(evt);
@@ -3208,6 +3233,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(newXPFromTemplateMenuItem);
 
         newDatasetFromGithubMenuItem.setText("New dataset from Library");
+        newDatasetFromGithubMenuItem.setToolTipText(formatHint("Creates a dataset with a configuration of the configuration library (GitHub, GitLab or local repository)", true));
         newDatasetFromGithubMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 newDatasetFromGithubMenuItemActionPerformed(evt);
@@ -3216,6 +3242,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(newDatasetFromGithubMenuItem);
 
         deleteXPMenuItem.setText("Delete");
+        deleteXPMenuItem.setToolTipText(formatHint("Deletes the datasets selected in the list of datasets, with all their data (pre-processed images, segmented objects, measurements). This cannot be undone", true));
         deleteXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 deleteXPMenuItemActionPerformed(evt);
@@ -3224,6 +3251,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(deleteXPMenuItem);
 
         duplicateXPMenuItem.setText("Duplicate");
+        duplicateXPMenuItem.setToolTipText(formatHint("Creates a new dataset with the configuration of the selected dataset, without its positions (images are not imported)", true));
         duplicateXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 duplicateXPMenuItemActionPerformed(evt);
@@ -3232,11 +3260,18 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         experimentMenu.add(duplicateXPMenuItem);
 
         saveConfigMenuItem.setText("Save Configuration Changes");
+        saveConfigMenuItem.setToolTipText(formatHint("Saves the modifications of the configuration of the open dataset", true));
         saveConfigMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 saveConfigMenuItemActionPerformed(evt);
             }
         });
+        copyExternalFilesMenuItem.setToolTipText(formatHint("Copies the files used by the configuration that are outside of the dataset folder (e.g. model files, and optionally the input images) into the dataset folder, and modifies the configuration to use the copies: the dataset folder can then be moved or copied to another computer", true));
+        copyExternalFilesMenuItem.addActionListener(e -> {
+            if (!checkConnection()) return;
+            bacmman.ui.gui.CopyExternalFilesDialog.show(this, db);
+        });
+        experimentMenu.add(copyExternalFilesMenuItem);
         experimentMenu.add(saveConfigMenuItem);
 
         mainMenu.add(experimentMenu);
@@ -5218,7 +5253,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
             Action delete = new AbstractAction("Delete") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":""), INSTANCE)) return;
+                    if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":"")+" ?"+safeModePermanentDeletionWarning(), INSTANCE)) return;
                     for (String pos : positions) {
                         db.getExperiment().getPosition(pos).eraseData();
                         db.getExperiment().getPosition(pos).removeFromParent();
@@ -5701,6 +5736,14 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
         if (getInstance()==null) return null;
         return getInstance().db;
     }
+
+    /**
+     * @return a warning to append to the confirmation of a deletion that bypasses safe mode (deletion of files) if safe mode is ON, an empty string otherwise
+     */
+    public static String safeModePermanentDeletionWarning() {
+        MasterDAO db = getDBConnection();
+        return db != null && db.getSafeMode() ? " WARNING: Safe Mode is ON but this deletion is permanent and cannot be reverted." : "";
+    }
     
     public void setInteractiveStructureIdx(int structureIdx) {
         if (interactiveStructure.getItemCount()<=structureIdx+1) {
@@ -6040,6 +6083,7 @@ public class GUI extends javax.swing.JFrame implements ProgressDisplay {
     private javax.swing.JMenu runMenu;
     private javax.swing.JMenuItem runSelectedActionsMenuItem;
     private javax.swing.JMenuItem saveConfigMenuItem;
+    private final javax.swing.JMenuItem copyExternalFilesMenuItem = new javax.swing.JMenuItem("Copy External Files into Dataset Folder...");
     private javax.swing.JButton selectAllObjectsButton;
     private javax.swing.JButton selectAllTracksButton;
     private javax.swing.JScrollPane selectionJSP;
