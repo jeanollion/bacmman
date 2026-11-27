@@ -64,6 +64,25 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         } else this.readOnly = true;
     }
 
+    protected static String storeName(int ocIdx, boolean object) {
+        return (object ? "objects_" : "measurements_")+ocIdx;
+    }
+
+    /**
+     * Deletes the files of a store without opening it: an open store is closed first; a store that is not open is deleted from disk if it exists.
+     * Opening a store only to delete it would (re-)create the object folder, which fails e.g. on Windows when the folder is pending deletion.
+     */
+    protected void deleteStore(int ocIdx, boolean object) {
+        Map<Integer, BoxStore> stores = object ? objectStores : measurementStores;
+        BoxStore s = stores.getOrDefault(ocIdx, null); // does not create the store
+        if (s != null) {
+            if (!s.isClosed()) s.close();
+            s.deleteAllFiles();
+        } else if (!readOnly && Files.isDirectory(dir.resolve(storeName(ocIdx, object)))) {
+            BoxStore.deleteAllFiles(dir.toFile(), storeName(ocIdx, object));
+        }
+    }
+
     protected BoxStore makeStore(int ocIdx, boolean object) {
         if (!Files.exists(dir)) {
             synchronized (this) {
@@ -71,12 +90,12 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
                     try {
                         Files.createDirectories(dir);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("Cannot create object folder: "+dir+" (on Windows: the folder may be pending deletion because a file is still in use by another program, or access is denied)", e);
                     }
                 }
             }
         }
-        String name = (object ? "objects_" : "measurements_")+ocIdx;
+        String name = storeName(ocIdx, object);
         if (readOnly) { // cannot create file in read only mode
             Path dbDir = dir.resolve(name);
             try {
@@ -303,13 +322,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
         closeThreadResources();
         cache.clear();
         measurementCache.clear();
-        for (int oc : streamObjectClasses(true).toArray()) {
-            BoxStore s = objectStores.get(oc);
-            if (s != null) {
-                s.close();
-                s.deleteAllFiles();
-            }
-        }
+        for (int oc : streamObjectClasses(true).toArray()) deleteStore(oc, true);
         objectStores.clear();
         objectBoxes.clear();
         deleteAllMeasurements();
@@ -633,13 +646,7 @@ public class ObjectBoxDAO implements ObjectDAO<Long> {
     @Override
     public void deleteAllMeasurements() {
         closeThreadResources();
-        for (int oc : streamObjectClasses(true).toArray()) {
-            BoxStore s = measurementStores.get(oc);
-            if (s != null) {
-                s.close();
-                s.deleteAllFiles();
-            }
-        }
+        for (int oc : streamObjectClasses(true).toArray()) deleteStore(oc, false);
         measurementStores.clear();
         measurementBoxes.clear();
         measurementCache.clear();
