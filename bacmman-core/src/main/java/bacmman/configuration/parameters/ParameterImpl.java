@@ -37,7 +37,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     protected String name;
     private ContainerParameter parent;
     protected boolean isEmphasized;
-    protected Predicate<P> additionalValidation = p->true;
+    protected final ValidationFunctions<P> additionalValidation = new ValidationFunctions<>();
     
     protected ParameterImpl(String name) {
         this.name=name;
@@ -63,7 +63,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     }
     @Override
     public P addValidationFunction(Predicate<P> validationFunction) {
-        this.additionalValidation = this.additionalValidation.and(validationFunction);
+        this.additionalValidation.add(validationFunction);
         return (P)this;
     }
     @Override 

@@ -62,8 +62,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     protected Utils.TriConsumer<L, Integer, T> newInstanceConfiguration;
     boolean allowMoveChildren = true;
     boolean allowModifications=true;
-    protected Predicate<L> additionalValidation = l -> true;
-    protected Predicate<T> childrenValidation = l -> true;
+    protected final ValidationFunctions<L> additionalValidation = new ValidationFunctions<>();
+    protected final ValidationFunctions<T> childrenValidation = new ValidationFunctions<>();
     protected boolean allowDeactivate = true;
 
     static void transferStateArguments(ListParameterImpl source, ListParameterImpl dest) {
@@ -90,7 +90,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     @Override public boolean isEmpty() {return getChildren().isEmpty();}
     @Override
     public L addValidationFunction(Predicate<L> isValid) {
-        additionalValidation = additionalValidation.and(isValid);
+        additionalValidation.add(isValid);
         return (L)this;
     }
 
@@ -105,7 +105,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         } );
     }
     public L addValidationFunctionToChildren(Predicate<T> isValid) {
-        childrenValidation = childrenValidation.and(isValid);
+        childrenValidation.add(isValid);
         children.forEach( t -> t.addValidationFunction(isValid)); // add only the new validation function because previous ones were added before
         return (L)this;
     }

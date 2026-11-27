@@ -58,7 +58,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     protected List<Parameter> additionalParameters;
     protected Consumer<T> newInstanceConfiguration;
     protected Predicate<String> pluginFilter;
-    protected Predicate<Parameter> childrenValidation;
+    protected final ValidationFunctions<Parameter> childrenValidation = new ValidationFunctions<>();
 
     @Override
     public JSONObject toJSONEntry() {
@@ -124,9 +124,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     }
 
     public PluginParameter<T> addValidationFunctionToChildren(Predicate<Parameter> childrenValidation) {
-        if (childrenValidation == null) return this;
-        if (this.childrenValidation==null) this.childrenValidation=childrenValidation;
-        else this.childrenValidation = this.childrenValidation.and(childrenValidation);
+        this.childrenValidation.add(childrenValidation);
         return this;
     }
 
@@ -174,7 +172,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 ParameterUtils.setContentMap(Arrays.asList(parameters), this.pluginParameters);
             }
             this.pluginParameters=new ArrayList<>(parameterList);
-            if (this.childrenValidation != null) {
+            if (this.childrenValidation.size()>0) { // functions already present in a parameter are not added again
                 for (Parameter p : parameterList) p.addValidationFunction(this.childrenValidation);
                 if (additionalParameters!=null) for (Parameter p : additionalParameters) p.addValidationFunction(this.childrenValidation);
             }

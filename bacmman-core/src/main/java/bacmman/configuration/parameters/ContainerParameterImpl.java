@@ -45,7 +45,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     protected MutableTreeNode parent;
     protected List<Parameter> children;
     protected Boolean isEmphasized;
-    protected Predicate<P> additionalValidation = p->true;
+    protected final ValidationFunctions<P> additionalValidation = new ValidationFunctions<>();
     
     public ContainerParameterImpl(String name) {
         this.name=name;
@@ -108,7 +108,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     
     @Override
     public P addValidationFunction(Predicate<P> isValid) {
-        additionalValidation = additionalValidation.and(isValid);
+        additionalValidation.add(isValid);
         return (P)this;
     }
     
